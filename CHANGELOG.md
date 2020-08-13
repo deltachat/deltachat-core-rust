@@ -1,5 +1,35 @@
 # Changelog 
 
+## 1.44.0
+
+- fix peerstate issues #1800 #1805
+
+- fix a crash related to muted chats #1803
+
+- fix incorrect dimensions sometimes reported for images #1806
+
+- fixed `dc_chat_get_remaining_mute_duration` function #1807
+
+- handle empty tags (e.g. `<br/>`) in HTML mails #1810
+
+- always translate the message about disappearing messages timer change #1813
+
+- improve footer detection in plain text email #1812
+
+- update device chat icon to fix warnings in iOS logs #1802
+
+- fix deletion of multiple messages #1795
+
+
+## 1.43.0
+
+- improve using own jitsi-servers #1785
+
+- fix smtp-timeout tweaks for larger mails #1797
+
+- more bug fixes and updates #1794 #1792 #1789 #1787
+
+
 ## 1.42.0
 
 - new qr-code type `DC_QR_WEBRTC` #1779

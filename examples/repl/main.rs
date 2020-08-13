@@ -19,7 +19,7 @@ use deltachat::config;
 use deltachat::context::*;
 use deltachat::oauth2::*;
 use deltachat::securejoin::*;
-use deltachat::Event;
+use deltachat::EventType;
 use log::{error, info, warn};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::config::OutputStreamType;
@@ -34,35 +34,35 @@ mod cmdline;
 use self::cmdline::*;
 
 /// Event Handler
-fn receive_event(event: Event) {
+fn receive_event(event: EventType) {
     let yellow = Color::Yellow.normal();
     match event {
-        Event::Info(msg) => {
+        EventType::Info(msg) => {
             /* do not show the event as this would fill the screen */
             info!("{}", msg);
         }
-        Event::SmtpConnected(msg) => {
+        EventType::SmtpConnected(msg) => {
             info!("[SMTP_CONNECTED] {}", msg);
         }
-        Event::ImapConnected(msg) => {
+        EventType::ImapConnected(msg) => {
             info!("[IMAP_CONNECTED] {}", msg);
         }
-        Event::SmtpMessageSent(msg) => {
+        EventType::SmtpMessageSent(msg) => {
             info!("[SMTP_MESSAGE_SENT] {}", msg);
         }
-        Event::Warning(msg) => {
+        EventType::Warning(msg) => {
             warn!("{}", msg);
         }
-        Event::Error(msg) => {
+        EventType::Error(msg) => {
             error!("{}", msg);
         }
-        Event::ErrorNetwork(msg) => {
+        EventType::ErrorNetwork(msg) => {
             error!("[NETWORK] msg={}", msg);
         }
-        Event::ErrorSelfNotInGroup(msg) => {
+        EventType::ErrorSelfNotInGroup(msg) => {
             error!("[SELF_NOT_IN_GROUP] {}", msg);
         }
-        Event::MsgsChanged { chat_id, msg_id } => {
+        EventType::MsgsChanged { chat_id, msg_id } => {
             info!(
                 "{}",
                 yellow.paint(format!(
@@ -71,34 +71,34 @@ fn receive_event(event: Event) {
                 ))
             );
         }
-        Event::ContactsChanged(_) => {
+        EventType::ContactsChanged(_) => {
             info!("{}", yellow.paint("Received CONTACTS_CHANGED()"));
         }
-        Event::LocationChanged(contact) => {
+        EventType::LocationChanged(contact) => {
             info!(
                 "{}",
                 yellow.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
             );
         }
-        Event::ConfigureProgress(progress) => {
+        EventType::ConfigureProgress(progress) => {
             info!(
                 "{}",
                 yellow.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
             );
         }
-        Event::ImexProgress(progress) => {
+        EventType::ImexProgress(progress) => {
             info!(
                 "{}",
                 yellow.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
             );
         }
-        Event::ImexFileWritten(file) => {
+        EventType::ImexFileWritten(file) => {
             info!(
                 "{}",
                 yellow.paint(format!("Received IMEX_FILE_WRITTEN({})", file.display()))
             );
         }
-        Event::ChatModified(chat) => {
+        EventType::ChatModified(chat) => {
             info!(
                 "{}",
                 yellow.paint(format!("Received CHAT_MODIFIED({})", chat))
@@ -272,12 +272,12 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         println!("Error: Bad arguments, expected [db-name].");
         bail!("No db-name specified");
     }
-    let context = Context::new("CLI".into(), Path::new(&args[1]).to_path_buf()).await?;
+    let context = Context::new("CLI".into(), Path::new(&args[1]).to_path_buf(), 0).await?;
 
     let events = context.get_event_emitter();
     async_std::task::spawn(async move {
         while let Some(event) = events.recv().await {
-            receive_event(event);
+            receive_event(event.typ);
         }
     });
 

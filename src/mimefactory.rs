@@ -221,7 +221,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .filter(|(_, addr)| addr != &self_addr)
         {
             res.push((
-                Peerstate::from_addr(self.context, addr).await,
+                Peerstate::from_addr(self.context, addr).await?,
                 addr.as_str(),
             ));
         }
@@ -453,21 +453,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         unprotected_headers.push(Header::new("Date".into(), date));
 
-        let os_name = &self.context.os_name;
-        let os_part = os_name
-            .as_ref()
-            .map(|s| format!("/{}", s))
-            .unwrap_or_default();
-        let version = get_version_str();
-
-        // Add a X-Mailer header.
-        // This is only informational for debugging and may be removed in the release.
-        // We do not rely on this header as it may be removed by MTAs.
-
-        unprotected_headers.push(Header::new(
-            "X-Mailer".into(),
-            format!("Delta Chat Core {}{}", version, os_part),
-        ));
         unprotected_headers.push(Header::new("Chat-Version".to_string(), "1.0".to_string()));
 
         if let Loaded::MDN { .. } = self.loaded {

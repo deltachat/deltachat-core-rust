@@ -24,6 +24,7 @@ use std::time::{Duration, SystemTime};
 use async_std::task::{block_on, spawn};
 use num_traits::{FromPrimitive, ToPrimitive};
 
+use deltachat::accounts::Accounts;
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::{Contact, Origin};
@@ -75,13 +76,17 @@ pub unsafe extern "C" fn dc_context_new(
     };
 
     let ctx = if blobdir.is_null() || *blobdir == 0 {
-        block_on(Context::new(os_name, as_path(dbfile).to_path_buf().into()))
-    } else {
-        block_on(Context::with_blobdir(
+        use rand::Rng;
+        // generate random ID as this functionality is not yet available on the C-api.
+        let id = rand::thread_rng().gen();
+        block_on(Context::new(
             os_name,
             as_path(dbfile).to_path_buf().into(),
-            as_path(blobdir).to_path_buf().into(),
+            id,
         ))
+    } else {
+        eprintln!("blobdir can not be defined explicitly anymore");
+        return ptr::null_mut();
     };
     match ctx {
         Ok(ctx) => Box::into_raw(Box::new(ctx)),
@@ -302,6 +307,16 @@ pub unsafe extern "C" fn dc_is_io_running(context: *mut dc_context_t) -> libc::c
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_id(context: *mut dc_context_t) -> libc::c_int {
+    if context.is_null() {
+        return 0;
+    }
+    let ctx = &*context;
+
+    ctx.get_id() as libc::c_int
+}
+
+#[no_mangle]
 pub type dc_event_t = Event;
 
 #[no_mangle]
@@ -332,38 +347,38 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         return 0;
     }
 
-    let event = &*event;
+    let event = &(*event).typ;
     match event {
-        Event::Info(_)
-        | Event::SmtpConnected(_)
-        | Event::ImapConnected(_)
-        | Event::SmtpMessageSent(_)
-        | Event::ImapMessageDeleted(_)
-        | Event::ImapMessageMoved(_)
-        | Event::ImapFolderEmptied(_)
-        | Event::NewBlobFile(_)
-        | Event::DeletedBlobFile(_)
-        | Event::Warning(_)
-        | Event::Error(_)
-        | Event::ErrorNetwork(_)
-        | Event::ErrorSelfNotInGroup(_) => 0,
-        Event::MsgsChanged { chat_id, .. }
-        | Event::IncomingMsg { chat_id, .. }
-        | Event::MsgDelivered { chat_id, .. }
-        | Event::MsgFailed { chat_id, .. }
-        | Event::MsgRead { chat_id, .. }
-        | Event::ChatModified(chat_id)
-        | Event::ChatEphemeralTimerModified { chat_id, .. } => chat_id.to_u32() as libc::c_int,
-        Event::ContactsChanged(id) | Event::LocationChanged(id) => {
+        EventType::Info(_)
+        | EventType::SmtpConnected(_)
+        | EventType::ImapConnected(_)
+        | EventType::SmtpMessageSent(_)
+        | EventType::ImapMessageDeleted(_)
+        | EventType::ImapMessageMoved(_)
+        | EventType::ImapFolderEmptied(_)
+        | EventType::NewBlobFile(_)
+        | EventType::DeletedBlobFile(_)
+        | EventType::Warning(_)
+        | EventType::Error(_)
+        | EventType::ErrorNetwork(_)
+        | EventType::ErrorSelfNotInGroup(_) => 0,
+        EventType::MsgsChanged { chat_id, .. }
+        | EventType::IncomingMsg { chat_id, .. }
+        | EventType::MsgDelivered { chat_id, .. }
+        | EventType::MsgFailed { chat_id, .. }
+        | EventType::MsgRead { chat_id, .. }
+        | EventType::ChatModified(chat_id)
+        | EventType::ChatEphemeralTimerModified { chat_id, .. } => chat_id.to_u32() as libc::c_int,
+        EventType::ContactsChanged(id) | EventType::LocationChanged(id) => {
             let id = id.unwrap_or_default();
             id as libc::c_int
         }
-        Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => {
+        EventType::ConfigureProgress(progress) | EventType::ImexProgress(progress) => {
             *progress as libc::c_int
         }
-        Event::ImexFileWritten(_) => 0,
-        Event::SecurejoinInviterProgress { contact_id, .. }
-        | Event::SecurejoinJoinerProgress { contact_id, .. } => *contact_id as libc::c_int,
+        EventType::ImexFileWritten(_) => 0,
+        EventType::SecurejoinInviterProgress { contact_id, .. }
+        | EventType::SecurejoinJoinerProgress { contact_id, .. } => *contact_id as libc::c_int,
     }
 }
 
@@ -374,36 +389,36 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         return 0;
     }
 
-    let event = &*event;
+    let event = &(*event).typ;
 
     match event {
-        Event::Info(_)
-        | Event::SmtpConnected(_)
-        | Event::ImapConnected(_)
-        | Event::SmtpMessageSent(_)
-        | Event::ImapMessageDeleted(_)
-        | Event::ImapMessageMoved(_)
-        | Event::ImapFolderEmptied(_)
-        | Event::NewBlobFile(_)
-        | Event::DeletedBlobFile(_)
-        | Event::Warning(_)
-        | Event::Error(_)
-        | Event::ErrorNetwork(_)
-        | Event::ErrorSelfNotInGroup(_)
-        | Event::ContactsChanged(_)
-        | Event::LocationChanged(_)
-        | Event::ConfigureProgress(_)
-        | Event::ImexProgress(_)
-        | Event::ImexFileWritten(_)
-        | Event::ChatModified(_) => 0,
-        Event::MsgsChanged { msg_id, .. }
-        | Event::IncomingMsg { msg_id, .. }
-        | Event::MsgDelivered { msg_id, .. }
-        | Event::MsgFailed { msg_id, .. }
-        | Event::MsgRead { msg_id, .. } => msg_id.to_u32() as libc::c_int,
-        Event::SecurejoinInviterProgress { progress, .. }
-        | Event::SecurejoinJoinerProgress { progress, .. } => *progress as libc::c_int,
-        Event::ChatEphemeralTimerModified { timer, .. } => timer.to_u32() as libc::c_int,
+        EventType::Info(_)
+        | EventType::SmtpConnected(_)
+        | EventType::ImapConnected(_)
+        | EventType::SmtpMessageSent(_)
+        | EventType::ImapMessageDeleted(_)
+        | EventType::ImapMessageMoved(_)
+        | EventType::ImapFolderEmptied(_)
+        | EventType::NewBlobFile(_)
+        | EventType::DeletedBlobFile(_)
+        | EventType::Warning(_)
+        | EventType::Error(_)
+        | EventType::ErrorNetwork(_)
+        | EventType::ErrorSelfNotInGroup(_)
+        | EventType::ContactsChanged(_)
+        | EventType::LocationChanged(_)
+        | EventType::ConfigureProgress(_)
+        | EventType::ImexProgress(_)
+        | EventType::ImexFileWritten(_)
+        | EventType::ChatModified(_) => 0,
+        EventType::MsgsChanged { msg_id, .. }
+        | EventType::IncomingMsg { msg_id, .. }
+        | EventType::MsgDelivered { msg_id, .. }
+        | EventType::MsgFailed { msg_id, .. }
+        | EventType::MsgRead { msg_id, .. } => msg_id.to_u32() as libc::c_int,
+        EventType::SecurejoinInviterProgress { progress, .. }
+        | EventType::SecurejoinJoinerProgress { progress, .. } => *progress as libc::c_int,
+        EventType::ChatEphemeralTimerModified { timer, .. } => timer.to_u32() as libc::c_int,
     }
 }
 
@@ -414,43 +429,53 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         return ptr::null_mut();
     }
 
-    let event = &*event;
+    let event = &(*event).typ;
 
     match event {
-        Event::Info(msg)
-        | Event::SmtpConnected(msg)
-        | Event::ImapConnected(msg)
-        | Event::SmtpMessageSent(msg)
-        | Event::ImapMessageDeleted(msg)
-        | Event::ImapMessageMoved(msg)
-        | Event::ImapFolderEmptied(msg)
-        | Event::NewBlobFile(msg)
-        | Event::DeletedBlobFile(msg)
-        | Event::Warning(msg)
-        | Event::Error(msg)
-        | Event::ErrorNetwork(msg)
-        | Event::ErrorSelfNotInGroup(msg) => {
+        EventType::Info(msg)
+        | EventType::SmtpConnected(msg)
+        | EventType::ImapConnected(msg)
+        | EventType::SmtpMessageSent(msg)
+        | EventType::ImapMessageDeleted(msg)
+        | EventType::ImapMessageMoved(msg)
+        | EventType::ImapFolderEmptied(msg)
+        | EventType::NewBlobFile(msg)
+        | EventType::DeletedBlobFile(msg)
+        | EventType::Warning(msg)
+        | EventType::Error(msg)
+        | EventType::ErrorNetwork(msg)
+        | EventType::ErrorSelfNotInGroup(msg) => {
             let data2 = msg.to_c_string().unwrap_or_default();
             data2.into_raw()
         }
-        Event::MsgsChanged { .. }
-        | Event::IncomingMsg { .. }
-        | Event::MsgDelivered { .. }
-        | Event::MsgFailed { .. }
-        | Event::MsgRead { .. }
-        | Event::ChatModified(_)
-        | Event::ContactsChanged(_)
-        | Event::LocationChanged(_)
-        | Event::ConfigureProgress(_)
-        | Event::ImexProgress(_)
-        | Event::SecurejoinInviterProgress { .. }
-        | Event::SecurejoinJoinerProgress { .. }
-        | Event::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
-        Event::ImexFileWritten(file) => {
+        EventType::MsgsChanged { .. }
+        | EventType::IncomingMsg { .. }
+        | EventType::MsgDelivered { .. }
+        | EventType::MsgFailed { .. }
+        | EventType::MsgRead { .. }
+        | EventType::ChatModified(_)
+        | EventType::ContactsChanged(_)
+        | EventType::LocationChanged(_)
+        | EventType::ConfigureProgress(_)
+        | EventType::ImexProgress(_)
+        | EventType::SecurejoinInviterProgress { .. }
+        | EventType::SecurejoinJoinerProgress { .. }
+        | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
+        EventType::ImexFileWritten(file) => {
             let data2 = file.to_c_string().unwrap_or_default();
             data2.into_raw()
         }
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_event_get_account_id(event: *mut dc_event_t) -> u32 {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_event_get_account_id()");
+        return 0;
+    }
+
+    (*event).id
 }
 
 #[no_mangle]
@@ -1286,7 +1311,9 @@ pub unsafe extern "C" fn dc_set_chat_mute_duration(
     let muteDuration = match duration {
         0 => MuteDuration::NotMuted,
         -1 => MuteDuration::Forever,
-        n if n > 0 => MuteDuration::Until(SystemTime::now() + Duration::from_secs(duration as u64)),
+        n if n > 0 => SystemTime::now()
+            .checked_add(Duration::from_secs(duration as u64))
+            .map_or(MuteDuration::Forever, MuteDuration::Until),
         _ => {
             warn!(
                 ctx,
@@ -2443,7 +2470,7 @@ pub unsafe extern "C" fn dc_chat_get_remaining_mute_duration(chat: *mut dc_chat_
         MuteDuration::NotMuted => 0,
         MuteDuration::Forever => -1,
         MuteDuration::Until(when) => when
-            .duration_since(SystemTime::UNIX_EPOCH)
+            .duration_since(SystemTime::now())
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0),
     }
@@ -3332,4 +3359,251 @@ pub unsafe extern "C" fn dc_provider_unref(provider: *mut dc_provider_t) {
     }
     // currently, there is nothing to free, the provider info is a static object.
     // this may change once we start localizing string.
+}
+
+// -- Accounts
+
+/// Struct representing a list of deltachat accounts.
+pub type dc_accounts_t = Accounts;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_new(
+    os_name: *const libc::c_char,
+    dbfile: *const libc::c_char,
+) -> *mut dc_accounts_t {
+    setup_panic!();
+
+    if dbfile.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_new()");
+        return ptr::null_mut();
+    }
+
+    let os_name = if os_name.is_null() {
+        String::from("DcFFI")
+    } else {
+        to_string_lossy(os_name)
+    };
+
+    let accs = block_on(Accounts::new(os_name, as_path(dbfile).to_path_buf().into()));
+
+    match accs {
+        Ok(accs) => Box::into_raw(Box::new(accs)),
+        Err(err) => {
+            eprintln!("failed to create accounts: {}", err);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Release the accounts structure.
+///
+/// This function releases the memory of the `dc_accounts_t` structure.
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_unref(accounts: *mut dc_accounts_t) {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_unref()");
+        return;
+    }
+    let _ = Box::from_raw(accounts);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_account(
+    accounts: *mut dc_accounts_t,
+    id: u32,
+) -> *mut dc_context_t {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_account()");
+        return ptr::null_mut();
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.get_account(id))
+        .map(|ctx| Box::into_raw(Box::new(ctx)))
+        .unwrap_or_else(std::ptr::null_mut)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_selected_account(
+    accounts: *mut dc_accounts_t,
+) -> *mut dc_context_t {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_selected_account()");
+        return ptr::null_mut();
+    }
+
+    let accounts = &*accounts;
+    let ctx = block_on(accounts.get_selected_account());
+    Box::into_raw(Box::new(ctx))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_select_account(
+    accounts: *mut dc_accounts_t,
+    id: u32,
+) -> libc::c_int {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_select_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.select_account(id))
+        .map(|_| 1)
+        .unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -> u32 {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_add_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+
+    block_on(accounts.add_account()).unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_remove_account(
+    accounts: *mut dc_accounts_t,
+    id: u32,
+) -> libc::c_int {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_remove_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+
+    block_on(accounts.remove_account(id))
+        .map(|_| 1)
+        .unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_migrate_account(
+    accounts: *mut dc_accounts_t,
+    dbfile: *const libc::c_char,
+) -> u32 {
+    if accounts.is_null() || dbfile.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_migrate_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+    let dbfile = to_string_lossy(dbfile);
+
+    block_on(accounts.migrate_account(async_std::path::PathBuf::from(dbfile)))
+        .map(|_| 1)
+        .unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *mut dc_array_t {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_all()");
+        return ptr::null_mut();
+    }
+
+    let accounts = &*accounts;
+    let list = block_on(accounts.get_all());
+    let array: dc_array_t = list.into();
+
+    Box::into_raw(Box::new(array))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_import_account(
+    accounts: *mut dc_accounts_t,
+    file: *const libc::c_char,
+) -> u32 {
+    if accounts.is_null() || file.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_import_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+    let file = to_string_lossy(file);
+    block_on(accounts.import_account(async_std::path::PathBuf::from(file)))
+        .map(|_| 1)
+        .unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_start_io(accounts: *mut dc_accounts_t) {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_start_io()");
+        return;
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.start_io());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_stop_io(accounts: *mut dc_accounts_t) {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_stop_io()");
+        return;
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.stop_io());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_maybe_network(accounts: *mut dc_accounts_t) {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_mabye_network()");
+        return;
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.maybe_network());
+}
+
+#[no_mangle]
+pub type dc_accounts_event_emitter_t = deltachat::accounts::EventEmitter;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_event_emitter(
+    accounts: *mut dc_accounts_t,
+) -> *mut dc_accounts_event_emitter_t {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_event_emitter()");
+        return ptr::null_mut();
+    }
+
+    let accounts = &*accounts;
+    let emitter = block_on(accounts.get_event_emitter());
+
+    Box::into_raw(Box::new(emitter))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_event_emitter_unref(
+    emitter: *mut dc_accounts_event_emitter_t,
+) {
+    if emitter.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_event_emitter_unref()");
+        return;
+    }
+    let _ = Box::from_raw(emitter);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_next_event(
+    emitter: *mut dc_accounts_event_emitter_t,
+) -> *mut dc_event_t {
+    if emitter.is_null() {
+        return ptr::null_mut();
+    }
+    let emitter = &*emitter;
+
+    emitter
+        .recv_sync()
+        .map(|ev| Box::into_raw(Box::new(ev)))
+        .unwrap_or_else(ptr::null_mut)
 }

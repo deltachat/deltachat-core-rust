@@ -12,7 +12,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::error::{bail, ensure, format_err, Result};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::headerdef::HeaderDef;
 use crate::job::{self, Action};
 use crate::message::{self, MessageState, MessengerMessage, MsgId};
@@ -93,8 +93,8 @@ pub async fn dc_receive_imf(
         if let Some(create_event_to_send) = create_event_to_send {
             for (chat_id, msg_id) in created_db_entries {
                 let event = match create_event_to_send {
-                    CreateEvent::MsgsChanged => Event::MsgsChanged { msg_id, chat_id },
-                    CreateEvent::IncomingMsg => Event::IncomingMsg { msg_id, chat_id },
+                    CreateEvent::MsgsChanged => EventType::MsgsChanged { msg_id, chat_id },
+                    CreateEvent::IncomingMsg => EventType::IncomingMsg { msg_id, chat_id },
                 };
                 context.emit_event(event);
             }
@@ -206,7 +206,7 @@ pub async fn dc_receive_imf(
         .await
         {
             Ok(()) => {
-                context.emit_event(Event::ChatModified(chat_id));
+                context.emit_event(EventType::ChatModified(chat_id));
             }
             Err(err) => {
                 warn!(context, "reveive_imf cannot update profile image: {}", err);
@@ -663,40 +663,37 @@ async fn add_parts(
         && !is_mdn
         && (*chat_id).get_ephemeral_timer(context).await? != ephemeral_timer
     {
-        match (*chat_id)
+        if let Err(err) = (*chat_id)
             .inner_set_ephemeral_timer(context, ephemeral_timer)
             .await
         {
-            Ok(()) => {
-                if mime_parser.is_system_message == SystemMessage::EphemeralTimerChanged {
-                    set_better_msg(
-                        mime_parser,
-                        stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
-                    );
-
-                    // Do not delete the system message itself.
-                    //
-                    // This prevents confusion when timer is changed
-                    // to 1 week, and then changed to 1 hour: after 1
-                    // hour, only the message about the change to 1
-                    // week is left.
-                    ephemeral_timer = EphemeralTimer::Disabled;
-                } else {
-                    chat::add_info_msg(
-                        context,
-                        *chat_id,
-                        stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
-                    )
-                    .await;
-                }
-            }
-            Err(err) => {
-                warn!(
-                    context,
-                    "failed to modify timer for chat {}: {}", chat_id, err
-                );
-            }
+            warn!(
+                context,
+                "failed to modify timer for chat {}: {}", chat_id, err
+            );
+        } else if mime_parser.is_system_message != SystemMessage::EphemeralTimerChanged {
+            chat::add_info_msg(
+                context,
+                *chat_id,
+                stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
+            )
+            .await;
         }
+    }
+
+    if mime_parser.is_system_message == SystemMessage::EphemeralTimerChanged {
+        set_better_msg(
+            mime_parser,
+            stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
+        );
+
+        // Do not delete the system message itself.
+        //
+        // This prevents confusion when timer is changed
+        // to 1 week, and then changed to 1 hour: after 1
+        // hour, only the message about the change to 1
+        // week is left.
+        ephemeral_timer = EphemeralTimer::Disabled;
     }
 
     // correct message_timestamp, it should not be used before,
@@ -938,7 +935,7 @@ async fn save_locations(
         }
     }
     if send_event {
-        context.emit_event(Event::LocationChanged(Some(from_id)));
+        context.emit_event(EventType::LocationChanged(Some(from_id)));
     }
 }
 
@@ -1242,7 +1239,7 @@ async fn create_or_lookup_group(
                     .await
                     .is_ok()
                 {
-                    context.emit_event(Event::ChatModified(chat_id));
+                    context.emit_event(EventType::ChatModified(chat_id));
                 }
             }
         }
@@ -1301,7 +1298,7 @@ async fn create_or_lookup_group(
     }
 
     if send_EVENT_CHAT_MODIFIED {
-        context.emit_event(Event::ChatModified(chat_id));
+        context.emit_event(EventType::ChatModified(chat_id));
     }
     Ok((chat_id, chat_id_blocked))
 }
@@ -1438,7 +1435,7 @@ async fn create_or_lookup_adhoc_group(
         chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await;
     }
 
-    context.emit_event(Event::ChatModified(new_chat_id));
+    context.emit_event(EventType::ChatModified(new_chat_id));
 
     Ok((new_chat_id, create_blocked))
 }
@@ -1618,7 +1615,7 @@ async fn check_verified_properties(
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != DC_CONTACT_ID_SELF {
-        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await;
+        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
 
         if peerstate.is_none()
             || contact.is_verified_ex(context, peerstate.as_ref()).await
@@ -1672,7 +1669,7 @@ async fn check_verified_properties(
             context.is_self_addr(&to_addr).await
         );
         let mut is_verified = _is_verified != 0;
-        let peerstate = Peerstate::from_addr(context, &to_addr).await;
+        let peerstate = Peerstate::from_addr(context, &to_addr).await?;
 
         // mark gossiped keys (if any) as verified
         if mimeparser.gossipped_addr.contains(&to_addr) {
@@ -2475,7 +2472,7 @@ mod tests {
             "haeclirth.sinoenrat@yahoo.com",
             "1680295672.3657931.1591783872936@mail.yahoo.com",
             include_bytes!("../test-data/message/yahoo_ndn.eml"),
-            "Failure Notice – Sorry, we were unable to deliver your message to the following address.\n\n<haeclirth.sinoenrat@yahoo.com>:\n554: delivery error: dd Not a valid recipient - atlas117.free.mail.ne1.yahoo.com"
+            "Failure Notice – Sorry, we were unable to deliver your message to the following address.\n\n<haeclirth.sinoenrat@yahoo.com>:\n554: delivery error: dd Not a valid recipient - atlas117.free.mail.ne1.yahoo.com [...]"
         )
         .await;
     }
@@ -2499,7 +2496,7 @@ mod tests {
             "snaerituhaeirns@gmail.com",
             "9c9c2a32-056b-3592-c372-d7e8f0bd4bc2@gmx.de",
             include_bytes!("../test-data/message/gmx_ndn.eml"),
-            "Mail delivery failed: returning message to sender – This message was created automatically by mail delivery software.\n\nA message that you sent could not be delivered to one or more of\nits recipients. This is a permanent error. The following address(es)\nfailed:\n\nsnaerituhaeirns@gmail.com:\nSMTP error from remote server for RCPT TO command, host: gmail-smtp-in.l.google.com (66.102.1.27) reason: 550-5.1.1 The email account that you tried to reach does not exist. Please\n try\n550-5.1.1 double-checking the recipient\'s email address for typos or\n550-5.1.1 unnecessary spaces. Learn more at\n550 5.1.1  https://support.google.com/mail/?p=NoSuchUser f6si2517766wmc.21\n9 - gsmtp"
+            "Mail delivery failed: returning message to sender – This message was created automatically by mail delivery software.\n\nA message that you sent could not be delivered to one or more of\nits recipients. This is a permanent error. The following address(es)\nfailed:\n\nsnaerituhaeirns@gmail.com:\nSMTP error from remote server for RCPT TO command, host: gmail-smtp-in.l.google.com (66.102.1.27) reason: 550-5.1.1 The email account that you tried to reach does not exist. Please\n try\n550-5.1.1 double-checking the recipient\'s email address for typos or\n550-5.1.1 unnecessary spaces. Learn more at\n550 5.1.1  https://support.google.com/mail/?p=NoSuchUser f6si2517766wmc.21\n9 - gsmtp [...]"
         )
         .await;
     }

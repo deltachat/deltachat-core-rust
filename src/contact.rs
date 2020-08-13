@@ -13,7 +13,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::error::{bail, ensure, format_err, Result};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{MessageState, MsgId};
@@ -245,7 +245,7 @@ impl Contact {
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(context, name, addr, Origin::ManuallyCreated).await?;
         let blocked = Contact::is_blocked_load(context, contact_id).await;
-        context.emit_event(Event::ContactsChanged(
+        context.emit_event(EventType::ContactsChanged(
             if sth_modified == Modifier::Created {
                 Some(contact_id)
             } else {
@@ -273,7 +273,7 @@ impl Contact {
             .await
             .is_ok()
         {
-            context.emit_event(Event::MsgsChanged {
+            context.emit_event(EventType::MsgsChanged {
                 chat_id: ChatId::new(0),
                 msg_id: MsgId::new(0),
             });
@@ -533,7 +533,7 @@ impl Contact {
             }
         }
         if modify_cnt > 0 {
-            context.emit_event(Event::ContactsChanged(None));
+            context.emit_event(EventType::ContactsChanged(None));
         }
 
         Ok(modify_cnt)
@@ -678,7 +678,7 @@ impl Contact {
         let mut ret = String::new();
 
         if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-            let peerstate = Peerstate::from_addr(context, &contact.addr).await;
+            let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
             let loginparam = LoginParam::from_database(context, "configured_").await;
 
             if peerstate.is_some()
@@ -784,7 +784,7 @@ impl Contact {
                 .await
             {
                 Ok(_) => {
-                    context.emit_event(Event::ContactsChanged(None));
+                    context.emit_event(EventType::ContactsChanged(None));
                     return Ok(());
                 }
                 Err(err) => {
@@ -939,7 +939,17 @@ impl Contact {
             }
         }
 
-        let peerstate = Peerstate::from_addr(context, &self.addr).await;
+        let peerstate = match Peerstate::from_addr(context, &self.addr).await {
+            Ok(peerstate) => peerstate,
+            Err(err) => {
+                warn!(
+                    context,
+                    "Failed to load peerstate for address {}: {}", self.addr, err
+                );
+                return VerifiedStatus::Unverified;
+            }
+        };
+
         if let Some(ps) = peerstate {
             if ps.verified_key.is_some() {
                 return VerifiedStatus::BidirectVerified;
@@ -1083,7 +1093,7 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
                     paramsv![new_blocking, 100, contact_id as i32],
                 ).await.is_ok() {
                     Contact::mark_noticed(context, contact_id).await;
-                    context.emit_event(Event::ContactsChanged(None));
+                    context.emit_event(EventType::ContactsChanged(None));
                 }
         }
     }
@@ -1133,7 +1143,7 @@ pub(crate) async fn set_profile_image(
     };
     if changed {
         contact.update_param(context).await?;
-        context.emit_event(Event::ContactsChanged(Some(contact_id)));
+        context.emit_event(EventType::ContactsChanged(Some(contact_id)));
     }
     Ok(())
 }

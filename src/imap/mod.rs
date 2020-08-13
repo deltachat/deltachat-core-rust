@@ -19,7 +19,7 @@ use crate::context::Context;
 use crate::dc_receive_imf::{
     dc_receive_imf, from_field_to_contact_id, is_msgrmsg_rfc724_mid_in_list,
 };
-use crate::events::Event;
+use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
@@ -284,7 +284,7 @@ impl Imap {
                         .await
                 };
                 // IMAP connection failures are reported to users
-                emit_event!(context, Event::ErrorNetwork(message));
+                emit_event!(context, EventType::ErrorNetwork(message));
                 return Err(Error::ConnectionFailed(err.to_string()));
             }
         };
@@ -307,7 +307,7 @@ impl Imap {
                     .await;
 
                 warn!(context, "{} ({})", message, err);
-                emit_event!(context, Event::ErrorNetwork(message.clone()));
+                emit_event!(context, EventType::ErrorNetwork(message.clone()));
 
                 let lock = context.wrong_pw_warning_mutex.lock().await;
                 if self.login_failed_once
@@ -445,7 +445,7 @@ impl Imap {
                         self.connected = true;
                         emit_event!(
                             context,
-                            Event::ImapConnected(format!(
+                            EventType::ImapConnected(format!(
                                 "IMAP-LOGIN as {}, capabilities: {}",
                                 lp.mail_user, caps_list,
                             ))
@@ -573,8 +573,14 @@ impl Imap {
                     let set = format!("{}", mailbox.exists);
                     match session.fetch(set, JUST_UID).await {
                         Ok(mut list) => {
-                            if let Some(Ok(msg)) = list.next().await {
-                                msg.uid.unwrap_or_default()
+                            let mut new_last_seen_uid = None;
+                            while let Some(fetch) = list.next().await.transpose()? {
+                                if fetch.message == mailbox.exists && fetch.uid.is_some() {
+                                    new_last_seen_uid = fetch.uid;
+                                }
+                            }
+                            if let Some(new_last_seen_uid) = new_last_seen_uid {
+                                new_last_seen_uid
                             } else {
                                 return Err(Error::Other("failed to fetch".into()));
                             }
@@ -882,7 +888,7 @@ impl Imap {
                     Ok(_) => {
                         emit_event!(
                             context,
-                            Event::ImapMessageMoved(format!(
+                            EventType::ImapMessageMoved(format!(
                                 "IMAP Message {} moved to {}",
                                 display_folder_id, dest_folder
                             ))
@@ -926,7 +932,7 @@ impl Imap {
             warn!(context, "Cannot mark {} as \"Deleted\" after copy.", uid);
             emit_event!(
                 context,
-                Event::ImapMessageMoved(format!(
+                EventType::ImapMessageMoved(format!(
                     "IMAP Message {} copied to {} (delete FAILED)",
                     display_folder_id, dest_folder
                 ))
@@ -936,7 +942,7 @@ impl Imap {
             self.config.selected_folder_needs_expunge = true;
             emit_event!(
                 context,
-                Event::ImapMessageMoved(format!(
+                EventType::ImapMessageMoved(format!(
                     "IMAP Message {} copied to {} (delete successfull)",
                     display_folder_id, dest_folder
                 ))
@@ -970,7 +976,11 @@ impl Imap {
         if let Some(ref mut session) = &mut self.session {
             let query = format!("+FLAGS ({})", flag);
             match session.uid_store(uid_set, &query).await {
-                Ok(_) => {}
+                Ok(mut responses) => {
+                    while let Some(_response) = responses.next().await {
+                        // Read all the responses
+                    }
+                }
                 Err(err) => {
                     warn!(
                         context,
@@ -1073,8 +1083,35 @@ impl Imap {
         if let Some(ref mut session) = &mut self.session {
             match session.uid_fetch(set, DELETE_CHECK_FLAGS).await {
                 Ok(mut msgs) => {
-                    let fetch = if let Some(Ok(fetch)) = msgs.next().await {
-                        fetch
+                    let mut remote_message_id = None;
+
+                    while let Some(response) = msgs.next().await {
+                        match response {
+                            Ok(fetch) => {
+                                if fetch.uid == Some(uid) {
+                                    remote_message_id = get_fetch_headers(&fetch)
+                                        .and_then(|headers| prefetch_get_message_id(&headers))
+                                        .ok();
+                                }
+                            }
+                            Err(err) => {
+                                warn!(context, "IMAP fetch error {}", err);
+                                return ImapActionResult::RetryLater;
+                            }
+                        }
+                    }
+
+                    if let Some(remote_message_id) = remote_message_id {
+                        if remote_message_id != message_id {
+                            warn!(
+                                context,
+                                "Cannot delete on IMAP, {}: remote message-id '{}' != '{}'",
+                                display_imap_id,
+                                remote_message_id,
+                                message_id,
+                            );
+                            return ImapActionResult::Failed;
+                        }
                     } else {
                         warn!(
                             context,
@@ -1083,21 +1120,6 @@ impl Imap {
                             message_id,
                         );
                         return ImapActionResult::AlreadyDone;
-                    };
-
-                    let remote_message_id = get_fetch_headers(&fetch)
-                        .and_then(|headers| prefetch_get_message_id(&headers))
-                        .unwrap_or_default();
-
-                    if remote_message_id != message_id {
-                        warn!(
-                            context,
-                            "Cannot delete on IMAP, {}: remote message-id '{}' != '{}'",
-                            display_imap_id,
-                            remote_message_id,
-                            message_id,
-                        );
-                        return ImapActionResult::Failed;
                     }
                 }
                 Err(err) => {
@@ -1120,7 +1142,7 @@ impl Imap {
         } else {
             emit_event!(
                 context,
-                Event::ImapMessageDeleted(format!(
+                EventType::ImapMessageDeleted(format!(
                     "IMAP Message {} marked as deleted [{}]",
                     display_imap_id, message_id
                 ))
@@ -1294,7 +1316,7 @@ impl Imap {
         self.config.selected_folder_needs_expunge = true;
         match self.select_folder::<String>(context, None).await {
             Ok(()) => {
-                emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
+                emit_event!(context, EventType::ImapFolderEmptied(folder.to_string()));
             }
             Err(err) => {
                 error!(context, "expunge failed {}: {:?}", folder, err);

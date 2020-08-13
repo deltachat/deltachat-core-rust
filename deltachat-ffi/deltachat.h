@@ -12,6 +12,7 @@ extern "C" {
 
 
 typedef struct _dc_context  dc_context_t;
+typedef struct _dc_accounts dc_accounts_t;
 typedef struct _dc_array    dc_array_t;
 typedef struct _dc_chatlist dc_chatlist_t;
 typedef struct _dc_chat     dc_chat_t;
@@ -21,6 +22,7 @@ typedef struct _dc_lot      dc_lot_t;
 typedef struct _dc_provider dc_provider_t;
 typedef struct _dc_event    dc_event_t;
 typedef struct _dc_event_emitter dc_event_emitter_t;
+typedef struct _dc_accounts_event_emitter dc_accounts_event_emitter_t;
 
 
 /**
@@ -194,6 +196,9 @@ typedef struct _dc_event_emitter dc_event_emitter_t;
  * @return A context object with some public members.
  *     The object must be passed to the other context functions
  *     and must be freed using dc_context_unref() after usage.
+ *
+ * If you want to use multiple context objects at the same time,
+ * this can be managed using dc_accounts_t.
  */
 dc_context_t*   dc_context_new               (const char* os_name, const char* dbfile, const char* blobdir);
 
@@ -205,12 +210,31 @@ dc_context_t*   dc_context_new               (const char* os_name, const char* d
  * are closed. You can also do this explicitly by calling dc_close() on your own
  * before calling dc_context_unref().
  *
+ * You have to call this function
+ * also for accounts returned by dc_accounts_get_account() or dc_accounts_get_selected_account(),
+ * however, in this case, the context is not shut down but just a reference counter is decreased
+ *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object as created by dc_context_new(),
+ *     dc_accounts_get_account() or dc_accounts_get_selected_account().
  *     If NULL is given, nothing is done.
  * @return None.
  */
 void            dc_context_unref             (dc_context_t* context);
+
+
+/**
+ * Get the ID of a context object.
+ * Each context has an ID assigned.
+ * If the context was created through the dc_accounts_t account manager,
+ * the ID is unique, no other context handled by the account manager will have the same ID.
+ * If the context was created by dc_context_new(), a random ID is assigned.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as created eg. by dc_accounts_get_account() or dc_context_new().
+ * @return The context-id.
+ */
+uint32_t        dc_get_id                    (dc_context_t* context);
 
 
 /**
@@ -235,7 +259,7 @@ dc_event_emitter_t* dc_get_event_emitter(dc_context_t* context);
  * Get the blob directory.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @return Blob directory associated with the context object, empty string if unset or on errors. NULL is never returned.
  *     The returned string must be released using dc_str_unref().
  */
@@ -319,15 +343,16 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    for recoding images sent with type DC_MSG_IMAGE.
  *                    If needed, recoding other file types is up to the UI.
  * - `webrtc_instance` = webrtc instance to use for videochats in the form
- *                    `[basicwebrtc:]https://example.com/subdir#roomname=$ROOM`
+ *                    `[basicwebrtc:|jitsi:]https://example.com/subdir#roomname=$ROOM`
  *                    if the url is prefixed by `basicwebrtc`, the server is assumed to be of the type
  *                    https://github.com/cracker0dks/basicwebrtc which some UIs have native support for.
+ *                    The type `jitsi:` may be handled by external apps.
  *                    If no type is prefixed, the videochat is handled completely in a browser.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
  * @memberof dc_context_t
- * @param context The context object
+ * @param context The context object.
  * @param key The option to change, see above.
  * @param value The value to save for "key"
  * @return 0=failure, 1=success
@@ -351,7 +376,7 @@ int             dc_set_config                (dc_context_t* context, const char*
  *                    The config-keys are the keys that can be passed to the parameter `key` of this function.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new(). For querying system values, this can be NULL.
+ * @param context The context object. For querying system values, this can be NULL.
  * @param key The key to query.
  * @return Returns current value of "key", if "key" is unset, the default
  *     value is returned.  The returned value must be released using dc_str_unref(), NULL is never
@@ -402,7 +427,7 @@ int             dc_set_config_from_qr   (dc_context_t* context, const char* qr);
  * included when however.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @return String which must be released using dc_str_unref() after usage.  Never returns NULL.
  */
 char*           dc_get_info                  (dc_context_t* context);
@@ -424,7 +449,7 @@ char*           dc_get_info                  (dc_context_t* context);
  * dc_configure() can be called as usual afterwards.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param addr E-mail address the user has entered.
  *     In case the user selects a different e-mail-address during
  *     authorization, this is corrected in dc_configure()
@@ -478,7 +503,7 @@ char*           dc_get_oauth2_url            (dc_context_t* context, const char*
  * and parameters as `addr`, `mail_pw` etc. are set to that.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @return None.
  *
  * There is no need to call dc_configure() on every program start,
@@ -502,7 +527,7 @@ void            dc_configure                 (dc_context_t* context);
  * to enter some settings and dc_configure() is called in a thread then.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @return 1=context is configured and can be used;
  *     0=context is not configured and a configuration by dc_configure() is required.
  */
@@ -514,6 +539,9 @@ int             dc_is_configured   (const dc_context_t* context);
  * If IO is already running, nothing happens.
  * To check the current IO state, use dc_is_io_running().
  *
+ * If the context was created by the dc_accounts_t account manager,
+ * use dc_accounts_start_io() instead of this function.
+ *
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
  * @return None
@@ -524,7 +552,7 @@ void            dc_start_io     (dc_context_t* context);
  * Check if IO (SMTP/IMAP/Jobs) has been started.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @return 1=IO is running; 
  *   0=IO is not running.
  */
@@ -534,6 +562,9 @@ int             dc_is_io_running(const dc_context_t* context);
  * Stop job and IMAP/SMTP tasks and return when they are finished. 
  * If IO is not running, nothing happens.
  * To check the current IO state, use dc_is_io_running().
+ *
+ * If the context was created by the dc_accounts_t account manager,
+ * use dc_accounts_stop_io() instead of this function.
  *
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
@@ -556,6 +587,9 @@ void            dc_stop_io(dc_context_t* context);
  * _without_ having network may interfere with the backoff algorithm
  * and will led to let the jobs fail faster, with fewer retries
  * and may avoid messages being sent out.
+ *
+ * Finally, if the context was created by the dc_accounts_t account manager,
+ * use dc_accounts_maybe_network() instead of this function.
  *
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
@@ -868,7 +902,7 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
  * However, UIs might some things differently, eg. play a different sound.
  *
  * @memberof dc_context_t
- * @param context The context object.
+ * @param context The context object
  * @param chat_id The chat to start a videochat for.
  * @return The id if the message sent out
  *     or 0 for errors.
@@ -893,7 +927,7 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * If the draft is modified, an #DC_EVENT_MSGS_CHANGED will be sent.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param chat_id The chat ID to save the draft for.
  * @param msg The message to save as a draft.
  *     Existing draft will be overwritten.
@@ -918,7 +952,7 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  * To check, if a given chat is a device-chat, see dc_chat_is_device_talk()
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param label A unique name for the message to add.
  *     The label is typically not displayed to the user and
  *     must be created from the characters `A-Z`, `a-z`, `0-9`, `_` or `-`.
@@ -967,7 +1001,7 @@ uint32_t        dc_add_device_msg            (dc_context_t* context, const char*
  * (however, not seen device messages are added and may re-create the device-chat).
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @return None.
  */
 void            dc_update_device_chats       (dc_context_t* context);
@@ -978,7 +1012,7 @@ void            dc_update_device_chats       (dc_context_t* context);
  * Device-messages can be added dc_add_device_msg().
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param label Label of the message to check.
  * @return 1=A message with this label was added at some point,
  *     0=A message with this label was never added.
@@ -991,7 +1025,7 @@ int             dc_was_device_msg_ever_added (dc_context_t* context, const char*
  * See dc_set_draft() for more details about drafts.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param chat_id The chat ID to get the draft for.
  * @return Message object.
  *     Can be passed directly to dc_send_msg().
@@ -1218,7 +1252,7 @@ dc_array_t*     dc_get_chat_contacts         (dc_context_t* context, uint32_t ch
  * Get the chat's ephemeral message timer.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param chat_id The chat ID.
  *
  * @return ephemeral timer value in seconds, 0 if the timer is disabled or if there is an error
@@ -1279,7 +1313,7 @@ dc_chat_t*      dc_get_chat                  (dc_context_t* context, uint32_t ch
  * This may be useful if you want to show some help for just created groups.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param verified If set to 1 the function creates a secure verified group.
  *     Only secure-verified members are allowed in these groups
  *     and end-to-end-encryption is always enabled.
@@ -1295,7 +1329,7 @@ uint32_t        dc_create_group_chat         (dc_context_t* context, int verifie
  * Check if a given contact ID is a member of a group chat.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param chat_id The chat ID to check.
  * @param contact_id The contact ID to check.  To check if yourself is member
  *     of the chat, pass DC_CONTACT_ID_SELF (1) here.
@@ -1315,7 +1349,7 @@ int             dc_is_contact_in_chat        (dc_context_t* context, uint32_t ch
  * Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param chat_id The chat ID to add the contact to.  Must be a group chat.
  * @param contact_id The contact ID to add to the chat.
  * @return 1=member added to group, 0=error
@@ -1332,7 +1366,7 @@ int             dc_add_contact_to_chat       (dc_context_t* context, uint32_t ch
  * Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param chat_id The chat ID to remove the contact from.  Must be a group chat.
  * @param contact_id The contact ID to remove from the chat.
  * @return 1=member removed from group, 0=error
@@ -1351,7 +1385,7 @@ int             dc_remove_contact_from_chat  (dc_context_t* context, uint32_t ch
  * @memberof dc_context_t
  * @param chat_id The chat ID to set the name for.  Must be a group chat.
  * @param name New name of the group.
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @return 1=success, 0=error
  */
 int             dc_set_chat_name             (dc_context_t* context, uint32_t chat_id, const char* name);
@@ -1364,7 +1398,7 @@ int             dc_set_chat_name             (dc_context_t* context, uint32_t ch
  * participating in a chat.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param chat_id The chat ID to set the ephemeral message timer for.
  * @param timer The timer value in seconds or 0 to disable the timer.
  *
@@ -1383,7 +1417,7 @@ int dc_set_chat_ephemeral_timer (dc_context_t* context, uint32_t chat_id, uint32
  * To find out the profile image of a chat, use dc_chat_get_profile_image()
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param chat_id The chat ID to set the image for.
  * @param image Full path of the image to use as the group image. The image will immediately be copied to the 
  *     `blobdir`; the original image will not be needed anymore.
@@ -1405,7 +1439,7 @@ int             dc_set_chat_profile_image    (dc_context_t* context, uint32_t ch
  * @memberof dc_context_t
  * @param chat_id The chat ID to set the mute duration.
  * @param duration The duration (0 for no mute, -1 for forever mute, everything else is is the relative mute duration from now in seconds)
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @return 1=success, 0=error
  */
 int             dc_set_chat_mute_duration             (dc_context_t* context, uint32_t chat_id, int64_t duration);
@@ -1420,7 +1454,7 @@ int             dc_set_chat_mute_duration             (dc_context_t* context, ui
  * max. text returned by dc_msg_get_text() (about 30000 characters).
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object object.
  * @param msg_id The message id for which information should be generated
  * @return Text string, must be released using dc_str_unref() after usage
  */
@@ -1434,7 +1468,7 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * was called before.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param msg_id The message id, must be the id of an incoming message.
  * @return Raw headers as a multi-line string, must be released using dc_str_unref() after usage.
  *     Returns NULL if there are no headers saved for the given message,
@@ -1449,7 +1483,7 @@ char*           dc_get_mime_headers          (dc_context_t* context, uint32_t ms
  * on the IMAP server.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new()
+ * @param context The context object
  * @param msg_ids an array of uint32_t containing all message IDs that should be deleted
  * @param msg_cnt The number of messages IDs in the msg_ids array
  * @return None.
@@ -1461,7 +1495,7 @@ void            dc_delete_msgs               (dc_context_t* context, const uint3
  * Deprecated, use dc_set_config() with the key "delete_server_after" instead.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new()
+ * @param context The context object.
  * @param flags What to delete, a combination of the @ref DC_EMPTY flags
  * @return None.
  */
@@ -1472,7 +1506,7 @@ void            dc_empty_server              (dc_context_t* context, uint32_t fl
  * Forward messages to another chat.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new()
+ * @param context The context object.
  * @param msg_ids An array of uint32_t containing all message IDs that should be forwarded
  * @param msg_cnt The number of messages IDs in the msg_ids array
  * @param chat_id The destination chat ID.
@@ -1489,7 +1523,7 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  * Calling this function usually results in the event #DC_EVENT_MSGS_CHANGED.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new()
+ * @param context The context object.
  * @param contact_id The contact ID of which all messages should be marked as noticed.
  * @return None.
  */
@@ -1517,7 +1551,7 @@ void            dc_markseen_msgs             (dc_context_t* context, const uint3
  * dc_get_chat_msgs() using the chat_id DC_CHAT_ID_STARRED.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new()
+ * @param context The context object.
  * @param msg_ids An array of uint32_t message IDs defining the messages to star or unstar
  * @param msg_cnt The number of IDs in msg_ids
  * @param star 0=unstar the messages in msg_ids, 1=star them
@@ -1532,7 +1566,7 @@ void            dc_star_msgs                 (dc_context_t* context, const uint3
  * For a list or chats, see dc_get_chatlist()
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param msg_id The message ID for which the message object should be created.
  * @return A dc_msg_t message object.
  *     On errors, NULL is returned.
@@ -1567,7 +1601,7 @@ int             dc_may_be_valid_addr         (const char* addr);
  * use dc_may_be_valid_addr().
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param addr The e-mail-address to check.
  * @return Contact ID of the contact belonging to the e-mail-address
  *     or 0 if there is no contact that is or was introduced by an accepted contact.  
@@ -1587,7 +1621,7 @@ uint32_t        dc_lookup_contact_id_by_addr (dc_context_t* context, const char*
  * May result in a #DC_EVENT_CONTACTS_CHANGED event.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param name Name of the contact to add. If you do not know the name belonging
  *     to the address, you can give NULL here.
  * @param addr E-mail-address of the contact to add. If the email address
@@ -1618,7 +1652,7 @@ uint32_t        dc_create_contact            (dc_context_t* context, const char*
  * however, for adding a bunch of addresses, this function is _much_ faster.
  *
  * @memberof dc_context_t
- * @param context the context object as created by dc_context_new().
+ * @param context the context object.
  * @param addr_book A multi-line string in the format
  *     `Name one\nAddress one\nName two\nAddress two`.
  *      If an email address already exists, the name is updated
@@ -1634,7 +1668,7 @@ int             dc_add_address_book          (dc_context_t* context, const char*
  * To get information about a single contact, see dc_get_contact().
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param flags A combination of flags:
  *     - if the flag DC_GCL_ADD_SELF is set, SELF is added to the list unless filtered by other parameters
  *     - if the flag DC_GCL_VERIFIED_ONLY is set, only verified contacts are returned.
@@ -1651,7 +1685,7 @@ dc_array_t*     dc_get_contacts              (dc_context_t* context, uint32_t fl
  * Get the number of blocked contacts.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @return The number of blocked contacts.
  */
 int             dc_get_blocked_cnt           (dc_context_t* context);
@@ -1661,7 +1695,7 @@ int             dc_get_blocked_cnt           (dc_context_t* context);
  * Get blocked contacts.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @return An array containing all blocked contact IDs.  Must be dc_array_unref()'d
  *     after usage.
  */
@@ -1673,7 +1707,7 @@ dc_array_t*     dc_get_blocked_contacts      (dc_context_t* context);
  * May result in a #DC_EVENT_CONTACTS_CHANGED event.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param contact_id The ID of the contact to block or unblock.
  * @param block 1=block contact, 0=unblock contact
  * @return None.
@@ -1687,7 +1721,7 @@ void            dc_block_contact             (dc_context_t* context, uint32_t co
  * fingerprint of the contact, used eg. to compare the fingerprints for a simple out-of-band verification.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param contact_id ID of the contact to get the encryption info for.
  * @return Multi-line text, must be released using dc_str_unref() after usage.
  */
@@ -1701,7 +1735,7 @@ char*           dc_get_contact_encrinfo      (dc_context_t* context, uint32_t co
  * May result in a #DC_EVENT_CONTACTS_CHANGED event.
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param contact_id ID of the contact to delete.
  * @return 1=success, 0=error
  */
@@ -1716,7 +1750,7 @@ int             dc_delete_contact            (dc_context_t* context, uint32_t co
  * defined by dc_set_config().
  *
  * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param contact_id ID of the contact to get the object for.
  * @return The contact object, must be freed using dc_contact_unref() when no
  *     longer used.  NULL on errors.
@@ -1767,7 +1801,7 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  * To cancel an import-/export-progress, use dc_stop_ongoing_process().
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context.
  * @param what One of the DC_IMEX_* constants.
  * @param param1 Meaning depends on the DC_IMEX_* constants. If this parameter is a directory, it should not end with
  *     a slash (otherwise you'll get double slashes when receiving #DC_EVENT_IMEX_FILE_WRITTEN). Set to NULL if not used.
@@ -1820,7 +1854,7 @@ void            dc_imex                      (dc_context_t* context, int what, c
  * ~~~
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
+ * @param context The context object.
  * @param dir Directory to search backups in.
  * @return String with the backup file, typically given to dc_imex(),
  *     returned strings must be released using dc_str_unref().
@@ -2188,6 +2222,239 @@ void dc_str_unref (char* str);
 
 
 /**
+ * @class dc_accounts_t
+ *
+ * This class provides functionality that can be used to
+ * manage several dc_context_t objects running at the same time.
+ * The account manager takes a directory where all
+ * context-databases are created in.
+ *
+ * You can add, remove, import account to the account manager,
+ * all context-databases are persisted and stay available once the
+ * account manager is created again for the same directory.
+ *
+ * All accounts may receive messages at the same time (eg. by #DC_EVENT_INCOMING_MSG),
+ * and all accounts may be accessed by their own dc_context_t object.
+ *
+ * To make this possible, some dc_context_t functions must not be called
+ * when using the account manager:
+ * - use dc_accounts_add_account() and dc_accounts_get_account() instead of dc_context_new()
+ * - use dc_accounts_start_io() and dc_accounts_stop_io() instead of dc_start_io() and dc_stop_io()
+ * - use dc_accounts_maybe_network() instead of dc_maybe_network()
+ * - use dc_accounts_get_event_emitter() instead of dc_get_event_emitter()
+ *
+ * Additionally, there are functions to list, import and migrate accounts
+ * and to handle a "selected" account, see below.
+ */
+
+/**
+ * Create a new account manager.
+ * The account manager takes an directory
+ * where all context-databases are placed in.
+ * To add a context to the account manager,
+ * use dc_accounts_add_account(), dc_accounts_import_account or dc_accounts_migrate_account().
+ * All account information are persisted.
+ * To remove a context from the account manager,
+ * use dc_accounts_remove_account().
+ *
+ * @memberof dc_accounts_t
+ * @param os_name
+ * @param dir The directory to create the context-databases in.
+ *     If the directory does not exist,
+ *     dc_accounts_new() will try to create it.
+ * @return An account manager object.
+ *     The object must be passed to the other account manager functions
+ *     and must be freed using dc_accounts_unref() after usage.
+ *     On errors, NULL is returned.
+ */
+dc_accounts_t* dc_accounts_new                  (const char* os_name, const char* dir);
+
+
+/**
+ * Free an account manager object.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ */
+void           dc_accounts_unref                (dc_accounts_t* accounts);
+
+
+/**
+ * Add a new account to the account manager.
+ * Internally, dc_context_new() is called using a unique database-name
+ * in the directory specified at dc_accounts_new().
+ *
+ * If the function succceeds,
+ * dc_accounts_get_all() will return one more account
+ * and you can access the newly created account using dc_accounts_get_account().
+ * Moreover, the newly created account will be the selected one.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return Account-id, use dc_accounts_get_account() to get the context object.
+ *     On errors, 0 is returned.
+ */
+uint32_t       dc_accounts_add_account          (dc_accounts_t* accounts);
+
+
+/**
+ * Import a tarfile-backup to the account manager.
+ * On success, a new account is added to the account-manager,
+ * with all the data provided by the backup-file.
+ * Moreover, the newly created account will be the selected one.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @param tarfile Backup as created by dc_imex().
+ * @return Account-id, use dc_accounts_get_account() to get the context object.
+ *     On errors, 0 is returned.
+ */
+uint32_t       dc_accounts_import_account       (dc_accounts_t* accounts, const char* tarfile);
+
+
+/**
+ * Migrate independent accounts into accounts managed by the account mangager.
+ * This will _move_ the database-file and all blob-files to the directory managed
+ * by the account-manager
+ * (to save disk-space on small devices, the files are not _copied_
+ * Once the migration is done, the original file is no longer existent).
+ * Moreover, the newly created account will be the selected one.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @param dbfile Unmanaged database-file that was created at some point using dc_context_new().
+ * @return Account-id, use dc_accounts_get_account() to get the context object.
+ *     On errors, 0 is returned.
+ */
+uint32_t       dc_accounts_migrate_account      (dc_accounts_t* accounts, const char* dbfile);
+
+
+/**
+ * Remove an account from the account manager.
+ * This also removes the database-file and all blobs physically.
+ * If the removed account is the selected account,
+ * one of the other accounts will be selected.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return 1=success, 0=error
+ */
+int            dc_accounts_remove_account       (dc_accounts_t* accounts, uint32_t);
+
+
+/**
+ * List all accounts.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return An array containing all account-ids,
+ *     use dc_array_get_id() to get the ids.
+ */
+dc_array_t*    dc_accounts_get_all              (dc_accounts_t* accounts);
+
+
+/**
+ * Get an account-context from an account-id.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @param account_id The account-id as returned eg. by dc_accounts_get_all() or dc_accounts_add_account().
+ * @return The account-context, this can be used most similar as a normal,
+ *     unmanaged account-context as created by dc_context_new().
+ *     Once you do no longer need the context-object, you have to call dc_context_unref() on it,
+ *     which, however, will not close the account but only decrease a reference counter.
+ */
+dc_context_t*  dc_accounts_get_account          (dc_accounts_t* accounts, uint32_t account_id);
+
+
+/**
+ * Get the currently selected account.
+ * If there is at least once account in the account-manager,
+ * there is always a selected one.
+ * To change the selected account, use dc_accounts_select_account();
+ * also adding/importing/migrating accounts may change the selection.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return The account-context, this can be used most similar as a normal,
+ *     unmanaged account-context as created by dc_context_new().
+ *     Once you do no longer need the context-object, you have to call dc_context_unref() on it,
+ *     which, however, will not close the account but only decrease a reference counter.
+ */
+dc_context_t*  dc_accounts_get_selected_account (dc_accounts_t* accounts);
+
+
+/**
+ * Change the selected account.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @param account_id The account-id as returned eg. by dc_accounts_get_all() or dc_accounts_add_account().
+ * @return 1=success, 0=error
+ */
+int            dc_accounts_select_account       (dc_accounts_t* accounts, uint32_t account_id);
+
+
+/**
+ * Start job and IMAP/SMTP tasks for all accounts managed by the account manager.
+ * If IO is already running, nothing happens.
+ * This is similar to dc_start_io(), which, however,
+ * must not be called for accounts handled by the account manager.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return None.
+ */
+void           dc_accounts_start_io             (dc_accounts_t* accounts);
+
+
+/**
+ * Stop job and IMAP/SMTP tasks for all accounts and return when they are finished.
+ * If IO is not running, nothing happens.
+ * This is similar to dc_stop_io(), which, however,
+ * must not be called for accounts handled by the account manager.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ */
+void           dc_accounts_stop_io              (dc_accounts_t* accounts);
+
+
+/**
+ * This function should be called when there is a hint
+ * that the network is available again.
+ * This is similar to dc_maybe_network(), which, however,
+ * must not be called for accounts handled by the account manager.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ */
+void           dc_accounts_maybe_network        (dc_accounts_t* accounts);
+
+
+/**
+ * Create the event emitter that is used to receive events.
+ *
+ * The library will emit various @ref DC_EVENT events as "new message", "message read" etc.
+ * To get these events, you have to create an event emitter using this function
+ * and call dc_accounts_get_next_event() on the emitter.
+ *
+ * This is similar to dc_get_event_emitter(), which, however,
+ * must not be called for accounts handled by the account manager.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return  Returns the event emitter, NULL on errors.
+ *     Must be freed using dc_accounts_event_emitter_unref() after usage.
+ *
+ * Note: Use only one event emitter per account manager.
+ * Having more than one event emitter running at the same time on the same account manager
+ * will result in events randomly delivered to the one or to the other.
+ */
+dc_accounts_event_emitter_t* dc_accounts_get_event_emitter (dc_accounts_t* accounts);
+
+
+/**
  * @class dc_array_t
  *
  * An object containing a simple array.
@@ -2488,7 +2755,7 @@ dc_lot_t*        dc_chatlist_get_summary     (const dc_chatlist_t* chatlist, siz
  * use dc_chatlist_get_summary() in this case instead.
  *
  * @memberof dc_context_t
- * @param context The context as created by dc_context_new()
+ * @param context The context object.
  * @param chat_id Chat to get a summary for.
  * @param msg_id Messasge to get a summary for.
  * @return The summary as an dc_lot_t object, see dc_chatlist_get_summary() for details.
@@ -3323,17 +3590,16 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  * Get type of videochat.
  *
  * Calling this functions only makes sense for messages of type #DC_MSG_VIDEOCHAT_INVITATION,
- * in this case, if "basic webrtc" as of https://github.com/cracker0dks/basicwebrtc was used to initiate the videochat,
- * dc_msg_get_videochat_type() returns DC_VIDEOCHATTYPE_BASICWEBRTC.
- * "basic webrtc" videochat may be processed natively by the app
- * whereas for other urls just the browser is opened.
+ * in this case, if `basicwebrtc:` as of https://github.com/cracker0dks/basicwebrtc or `jitsi`
+ * were used to initiate the videochat,
+ * dc_msg_get_videochat_type() returns the corresponding type.
  *
  * The videochat-url can be retrieved using dc_msg_get_videochat_url().
  * To check if a message is a videochat invitation at all, check the message type for #DC_MSG_VIDEOCHAT_INVITATION.
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return Type of the videochat as of DC_VIDEOCHATTYPE_BASICWEBRTC or DC_VIDEOCHATTYPE_UNKNOWN.
+ * @return Type of the videochat as of DC_VIDEOCHATTYPE_BASICWEBRTC, DC_VIDEOCHATTYPE_JITSI or DC_VIDEOCHATTYPE_UNKNOWN.
  *
  * Example:
  * ~~~
@@ -3341,7 +3607,7 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  *   if (dc_msg_get_videochat_type(msg) == DC_VIDEOCHATTYPE_BASICWEBRTC) {
  *       // videochat invitation that we ship a client for
  *   } else {
- *       // use browser for videochat, just open the url
+ *       // use browser for videochat - or add an additional check for DC_VIDEOCHATTYPE_JITSI
  *   }
  * } else {
  *    // not a videochat invitation
@@ -3352,6 +3618,7 @@ int dc_msg_get_videochat_type (const dc_msg_t* msg);
 
 #define DC_VIDEOCHATTYPE_UNKNOWN     0
 #define DC_VIDEOCHATTYPE_BASICWEBRTC 1
+#define DC_VIDEOCHATTYPE_JITSI       2
 
 
 /**
@@ -3640,7 +3907,7 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
  * The provider is extracted from the email address and it's information is returned.
  *
  * @memberof dc_provider_t
- * @param context The context object as created by dc_context_new().
+ * @param context The context object.
  * @param email The user's email address to extract the provider info form.
  * @return a dc_provider_t struct which can be used with the dc_provider_get_*
  *     accessor functions.  If no provider info is found, NULL will be
@@ -4024,12 +4291,14 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 /**
  * @class dc_event_emitter_t
  *
- * Opaque object that is used to get events.
+ * Opaque object that is used to get events from a single context.
  * You can get an event emitter from a context using dc_get_event_emitter().
+ * If you are using the dc_accounts_t account manager,
+ * dc_accounts_event_emitter_t must be used instead.
  */
 
 /**
- * Get the next event from an event emitter object.
+ * Get the next event from a context event emitter object.
  *
  * @memberof dc_event_emitter_t
  * @param emitter Event emitter object as returned from dc_get_event_emitter().
@@ -4043,7 +4312,7 @@ dc_event_t* dc_get_next_event(dc_event_emitter_t* emitter);
 
 
 /**
- * Free an event emitter object.
+ * Free a context event emitter object.
  *
  * @memberof dc_event_emitter_t
  * @param emitter Event emitter object as returned from dc_get_event_emitter().
@@ -4051,6 +4320,40 @@ dc_event_t* dc_get_next_event(dc_event_emitter_t* emitter);
  * @return None.
  */
 void  dc_event_emitter_unref(dc_event_emitter_t* emitter);
+
+
+/**
+ * @class dc_accounts_event_emitter_t
+ *
+ * Opaque object that is used to get events from the dc_accounts_t account manager.
+ * You get an event emitter from the account manager using dc_accounts_get_event_emitter().
+ * If you are not using the dc_accounts_t account manager but just a single dc_context_t object,
+ * dc_event_emitter_t must be used instead.
+ */
+
+/**
+ * Get the next event from an accounts event emitter object.
+ *
+ * @memberof dc_accounts_event_emitter_t
+ * @param emitter Event emitter object as returned from dc_accounts_get_event_emitter().
+ * @return An event as an dc_event_t object.
+ *     You can query the event for information using dc_event_get_id(), dc_event_get_data1_int() and so on;
+ *     if you are done with the event, you have to free the event using dc_event_unref().
+ *     If NULL is returned, the context belonging to the event emitter is unref'd and the no more events will come;
+ *     in this case, free the event emitter using dc_accounts_event_emitter_unref().
+ */
+dc_event_t* dc_accounts_get_next_event (dc_accounts_event_emitter_t* emitter);
+
+
+/**
+ * Free an accounts event emitter object.
+ *
+ * @memberof dc_accounts_event_emitter_t
+ * @param emitter Event emitter object as returned from dc_accounts_get_event_emitter().
+ *     If NULL is given, nothing is done and an error is logged.
+ * @return None.
+ */
+void dc_accounts_event_emitter_unref(dc_accounts_event_emitter_t* emitter);
 
 
 /**
@@ -4115,6 +4418,18 @@ int dc_event_get_data2_int(dc_event_t* event);
  *     Once you're done with the string, you have to unref it using dc_unref_str().
  */
 char* dc_event_get_data2_str(dc_event_t* event);
+
+
+/**
+ * Get account-id this event belongs to.
+ * The account-id is of interest only when using the dc_accounts_t account manager.
+ * To get the context object belonging to the event, use dc_accounts_get_account().
+ *
+ * @memberof dc_event_t
+ * @param event Event object as returned from dc_accounts_get_next_event().
+ * @return account-id belonging to the event or 0 for errors.
+ */
+uint32_t dc_event_get_account_id(dc_event_t* event);
 
 
 /**

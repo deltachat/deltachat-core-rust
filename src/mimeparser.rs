@@ -16,7 +16,7 @@ use crate::dc_tools::*;
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::error::{bail, Result};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::Fingerprint;
 use crate::location;
@@ -1001,19 +1001,16 @@ impl MimeMessage {
                 if let Some((chat_id, msg_id)) =
                     message::handle_mdn(context, from_id, original_message_id, sent_timestamp).await
                 {
-                    context.emit_event(Event::MsgRead { chat_id, msg_id });
+                    context.emit_event(EventType::MsgRead { chat_id, msg_id });
                 }
             }
         }
 
         if let Some(failure_report) = &self.failure_report {
-            let error = parts.iter().find(|p| p.typ == Viewtype::Text).map(|p| {
-                let msg = &p.msg;
-                msg.find("\n--- ")
-                    .and_then(|footer_start| msg.get(..footer_start))
-                    .unwrap_or(msg)
-                    .trim()
-            });
+            let error = parts
+                .iter()
+                .find(|p| p.typ == Viewtype::Text)
+                .map(|p| p.msg.clone());
             message::handle_ndn(context, failure_report, error).await
         }
     }
@@ -1036,7 +1033,7 @@ async fn update_gossip_peerstates(
                 .iter()
                 .any(|info| info.addr == header.addr.to_lowercase())
             {
-                let mut peerstate = Peerstate::from_addr(context, &header.addr).await;
+                let mut peerstate = Peerstate::from_addr(context, &header.addr).await?;
                 if let Some(ref mut peerstate) = peerstate {
                     peerstate.apply_gossip(header, message_time);
                     peerstate.save_to_db(&context.sql, false).await?;

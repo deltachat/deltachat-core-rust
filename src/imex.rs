@@ -19,7 +19,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::*;
-use crate::events::Event;
+use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
@@ -408,7 +408,7 @@ async fn imex_inner(
     ensure!(param.is_some(), "No Import/export dir/file given.");
 
     info!(context, "Import/export process started.");
-    context.emit_event(Event::ImexProgress(10));
+    context.emit_event(EventType::ImexProgress(10));
 
     ensure!(context.sql.is_open().await, "Database not opened.");
 
@@ -434,11 +434,11 @@ async fn imex_inner(
     match success {
         Ok(()) => {
             info!(context, "IMEX successfully completed");
-            context.emit_event(Event::ImexProgress(1000));
+            context.emit_event(EventType::ImexProgress(1000));
             Ok(())
         }
         Err(err) => {
-            context.emit_event(Event::ImexProgress(0));
+            context.emit_event(EventType::ImexProgress(0));
             bail!("IMEX FAILED to complete: {}", err);
         }
     }
@@ -486,7 +486,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
                 context.get_dbfile(),
             )
             .await?;
-            context.emit_event(Event::ImexProgress(400)); // Just guess the progress, we at least have the dbfile by now
+            context.emit_event(EventType::ImexProgress(400)); // Just guess the progress, we at least have the dbfile by now
         } else {
             // async_tar will unpack to blobdir/BLOBS_BACKUP_NAME, so we move the file afterwards.
             f.unpack_in(context.get_blobdir()).await?;
@@ -597,7 +597,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
         if permille > 990 {
             permille = 990
         }
-        context.emit_event(Event::ImexProgress(permille));
+        context.emit_event(EventType::ImexProgress(permille));
         if file_blob.is_empty() {
             continue;
         }
@@ -661,7 +661,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     match &res {
         Ok(_) => {
             fs::rename(temp_path, &dest_path).await?;
-            context.emit_event(Event::ImexFileWritten(dest_path));
+            context.emit_event(EventType::ImexFileWritten(dest_path));
         }
         Err(e) => {
             error!(context, "backup failed: {}", e);
@@ -683,7 +683,7 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
         .append_path_with_name(context.get_dbfile(), DBFILE_BACKUP_NAME)
         .await?;
 
-    context.emit_event(Event::ImexProgress(500));
+    context.emit_event(EventType::ImexProgress(500));
 
     builder
         .append_dir_all(BLOBS_BACKUP_NAME, context.get_blobdir())
@@ -833,7 +833,7 @@ where
     if res.is_err() {
         error!(context, "Cannot write key to {}", file_name.display());
     } else {
-        context.emit_event(Event::ImexFileWritten(file_name));
+        context.emit_event(EventType::ImexFileWritten(file_name));
     }
     res
 }

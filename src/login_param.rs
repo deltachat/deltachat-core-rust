@@ -25,7 +25,7 @@ impl Default for CertificateChecks {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct LoginParam {
     pub addr: String,
     pub mail_server: String,

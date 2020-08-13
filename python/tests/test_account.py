@@ -276,14 +276,22 @@ class TestOfflineChat:
     def test_mute(self, ac1):
         chat = ac1.create_group_chat(name="title1")
         assert not chat.is_muted()
+        assert chat.get_mute_duration() == 0
         chat.mute()
         assert chat.is_muted()
+        assert chat.get_mute_duration() == -1
         chat.unmute()
         assert not chat.is_muted()
         chat.mute(50)
         assert chat.is_muted()
+        assert chat.get_mute_duration() <= 50
         with pytest.raises(ValueError):
             chat.mute(-51)
+
+        # Regression test, this caused Rust panic previously
+        chat.mute(2**63 - 1)
+        assert chat.is_muted()
+        assert chat.get_mute_duration() == -1
 
     def test_delete_and_send_fails(self, ac1, chat1):
         chat1.delete()
@@ -1651,6 +1659,36 @@ class TestOnlineAccount:
         assert system_message2.ephemeral_timer is None
         assert "Ephemeral timer: " not in system_message2.get_message_info()
         assert chat1.get_ephemeral_timer() == 0
+
+    def test_delete_multiple_messages(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat12 = acfactory.get_accepted_chat(ac1, ac2)
+
+        lp.sec("ac1: sending seven messages")
+        texts = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh"]
+        for text in texts:
+            chat12.send_text(text)
+
+        lp.sec("ac2: waiting for all messages on the other side")
+        to_delete = []
+        for text in texts:
+            msg = ac2._evtracker.wait_next_incoming_message()
+            assert msg.text in texts
+            if text != "third":
+                to_delete.append(msg)
+
+        lp.sec("ac2: deleting all messages except third")
+        assert len(to_delete) == len(texts) - 1
+        ac2.delete_messages(to_delete)
+        for msg in to_delete:
+            ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+
+        ac2._evtracker.get_info_contains("close/expunge succeeded")
+
+        lp.sec("imap2: test that only one message is left")
+        imap2 = ac2.direct_imap
+
+        assert len(imap2.get_all_messages()) == 1
 
 
 class TestGroupStressTests:

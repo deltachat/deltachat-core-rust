@@ -1283,6 +1283,11 @@ async fn open(
             .await?;
             sql.set_raw_config_int(context, "dbversion", 65).await?;
         }
+        if dbversion < 66 {
+            info!(context, "[migration] v66");
+            update_icons = true;
+            sql.set_raw_config_int(context, "dbversion", 66).await?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
@@ -1303,7 +1308,7 @@ async fn open(
                 )
                 .await?;
             for addr in &addrs {
-                if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await {
+                if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
                     peerstate.recalc_fingerprint();
                     peerstate.save_to_db(sql, false).await?;
                 }

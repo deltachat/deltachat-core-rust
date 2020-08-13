@@ -9,7 +9,7 @@ use crate::constants::*;
 use crate::context::*;
 use crate::dc_tools::*;
 use crate::error::{ensure, Error};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::job::{self, Job};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
@@ -227,7 +227,7 @@ pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds:
                     .await;
                 chat::add_info_msg(context, chat_id, stock_str).await;
             }
-            context.emit_event(Event::ChatModified(chat_id));
+            context.emit_event(EventType::ChatModified(chat_id));
             if 0 != seconds {
                 schedule_maybe_send_locations(context, false).await;
                 job::add(
@@ -301,7 +301,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
             }
         }
         if continue_streaming {
-            context.emit_event(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
+            context.emit_event(EventType::LocationChanged(Some(DC_CONTACT_ID_SELF)));
         };
         schedule_maybe_send_locations(context, false).await;
     }
@@ -381,7 +381,7 @@ pub async fn delete_all(context: &Context) -> Result<(), Error> {
         .sql
         .execute("DELETE FROM locations;", paramsv![])
         .await?;
-    context.emit_event(Event::LocationChanged(None));
+    context.emit_event(EventType::LocationChanged(None));
     Ok(())
 }
 
@@ -715,7 +715,7 @@ pub(crate) async fn job_maybe_send_locations_ended(
                 .stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0)
                 .await;
             chat::add_info_msg(context, chat_id, stock_str).await;
-            context.emit_event(Event::ChatModified(chat_id));
+            context.emit_event(EventType::ChatModified(chat_id));
         }
     }
     job::Status::Finished(Ok(()))

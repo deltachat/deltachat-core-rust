@@ -108,6 +108,15 @@ class DirectImap:
 
     def get_all_messages(self):
         assert not self._idling
+
+        # Flush unsolicited responses. IMAPClient has problems
+        # dealing with them: https://github.com/mjs/imapclient/issues/334
+        # When this NOOP was introduced, next FETCH returned empty
+        # result instead of a single message, even though IMAP server
+        # can only return more untagged responses than required, not
+        # less.
+        self.conn.noop()
+
         return self.conn.fetch(ALL, [FLAGS])
 
     def get_unread_messages(self):

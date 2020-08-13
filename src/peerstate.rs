@@ -6,6 +6,7 @@ use num_traits::FromPrimitive;
 
 use crate::aheader::*;
 use crate::context::Context;
+use crate::error::Result;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::sql::Sql;
 
@@ -142,8 +143,12 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub async fn from_addr(context: &'a Context, addr: &str) -> Option<Peerstate<'a>> {
-        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE addr=? COLLATE NOCASE;";
+    pub async fn from_addr(context: &'a Context, addr: &str) -> Result<Option<Peerstate<'a>>> {
+        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
+                     gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
+                     verified_key, verified_key_fingerprint \
+                     FROM acpeerstates \
+                     WHERE addr=? COLLATE NOCASE;";
         Self::from_stmt(context, query, paramsv![addr]).await
     }
 
@@ -151,7 +156,7 @@ impl<'a> Peerstate<'a> {
         context: &'a Context,
         _sql: &Sql,
         fingerprint: &Fingerprint,
-    ) -> Option<Peerstate<'a>> {
+    ) -> Result<Option<Peerstate<'a>>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
@@ -167,10 +172,10 @@ impl<'a> Peerstate<'a> {
         context: &'a Context,
         query: &str,
         params: Vec<&dyn crate::ToSql>,
-    ) -> Option<Peerstate<'a>> {
-        context
+    ) -> Result<Option<Peerstate<'a>>> {
+        let peerstate = context
             .sql
-            .query_row(query, params, |row| {
+            .query_row_optional(query, params, |row| {
                 /* all the above queries start with this: SELECT
                 addr, last_seen, last_seen_autocrypt, prefer_encrypted,
                 public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
@@ -186,15 +191,18 @@ impl<'a> Peerstate<'a> {
                 res.public_key_fingerprint = row
                     .get::<_, Option<String>>(7)?
                     .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
+                    .transpose()
+                    .unwrap_or_default();
                 res.gossip_key_fingerprint = row
                     .get::<_, Option<String>>(8)?
                     .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
+                    .transpose()
+                    .unwrap_or_default();
                 res.verified_key_fingerprint = row
                     .get::<_, Option<String>>(10)?
                     .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
+                    .transpose()
+                    .unwrap_or_default();
                 res.public_key = row
                     .get(4)
                     .ok()
@@ -210,8 +218,8 @@ impl<'a> Peerstate<'a> {
 
                 Ok(res)
             })
-            .await
-            .ok()
+            .await?;
+        Ok(peerstate)
     }
 
     pub fn recalc_fingerprint(&mut self) {
@@ -400,21 +408,20 @@ impl<'a> Peerstate<'a> {
     }
 
     pub async fn save_to_db(&self, sql: &Sql, create: bool) -> crate::sql::Result<()> {
-        if create {
-            sql.execute(
-                "INSERT INTO acpeerstates (addr) VALUES(?);",
-                paramsv![self.addr],
-            )
-            .await?;
-        }
-
         if self.to_save == Some(ToSave::All) || create {
             sql.execute(
+                if create {
+                "INSERT INTO acpeerstates (last_seen, last_seen_autocrypt, prefer_encrypted, \
+                 public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
+                 verified_key, verified_key_fingerprint, addr \
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)"
+                } else {
                 "UPDATE acpeerstates \
                  SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
                  public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
                  verified_key=?, verified_key_fingerprint=? \
-                 WHERE addr=?;",
+                 WHERE addr=?"
+                },
                 paramsv![
                     self.last_seen,
                     self.last_seen_autocrypt,
@@ -499,7 +506,8 @@ mod tests {
 
         let peerstate_new = Peerstate::from_addr(&ctx.ctx, addr)
             .await
-            .expect("failed to load peerstate from db");
+            .expect("failed to load peerstate from db")
+            .expect("no peerstate found in the database");
 
         // clear to_save, as that is not persissted
         peerstate.to_save = None;
@@ -507,7 +515,8 @@ mod tests {
         let peerstate_new2 =
             Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
                 .await
-                .expect("failed to load peerstate from db");
+                .expect("failed to load peerstate from db")
+                .expect("no peerstate found in the database");
         assert_eq!(peerstate, peerstate_new2);
     }
 
@@ -579,7 +588,36 @@ mod tests {
 
         // clear to_save, as that is not persissted
         peerstate.to_save = None;
-        assert_eq!(peerstate, peerstate_new);
+        assert_eq!(Some(peerstate), peerstate_new);
+    }
+
+    #[async_std::test]
+    async fn test_peerstate_load_db_defaults() {
+        let ctx = crate::test_utils::TestContext::new().await;
+        let addr = "hello@mail.com";
+
+        // Old code created peerstates with this code and updated
+        // other values later.  If UPDATE failed, other columns had
+        // default values, in particular fingerprints were set to
+        // empty strings instead of NULL. This should not be the case
+        // anymore, but the regression test still checks that defaults
+        // can be loaded without errors.
+        ctx.ctx
+            .sql
+            .execute("INSERT INTO acpeerstates (addr) VALUES(?)", paramsv![addr])
+            .await
+            .expect("Failed to write to the database");
+
+        let peerstate = Peerstate::from_addr(&ctx.ctx, addr)
+            .await
+            .expect("Failed to load peerstate from db")
+            .expect("Loaded peerstate is empty");
+
+        // Check that default values for fingerprints are treated like
+        // NULL.
+        assert_eq!(peerstate.public_key_fingerprint, None);
+        assert_eq!(peerstate.gossip_key_fingerprint, None);
+        assert_eq!(peerstate.verified_key_fingerprint, None);
     }
 
     // TODO: don't copy this from stress.rs

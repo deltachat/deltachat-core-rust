@@ -11,7 +11,7 @@ macro_rules! info {
                            file = file!(),
                            line = line!(),
                            msg = &formatted);
-        emit_event!($ctx, $crate::Event::Info(full));
+        emit_event!($ctx, $crate::EventType::Info(full));
     }};
 }
 
@@ -26,7 +26,7 @@ macro_rules! warn {
                            file = file!(),
                            line = line!(),
                            msg = &formatted);
-        emit_event!($ctx, $crate::Event::Warning(full));
+        emit_event!($ctx, $crate::EventType::Warning(full));
     }};
 }
 
@@ -37,7 +37,7 @@ macro_rules! error {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        emit_event!($ctx, $crate::Event::Error(formatted));
+        emit_event!($ctx, $crate::EventType::Error(formatted));
     }};
 }
 
@@ -48,7 +48,7 @@ macro_rules! error_network {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        emit_event!($ctx, $crate::Event::ErrorNetwork(formatted));
+        emit_event!($ctx, $crate::EventType::ErrorNetwork(formatted));
     }};
 }
 
