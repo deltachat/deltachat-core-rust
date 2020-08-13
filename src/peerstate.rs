@@ -241,7 +241,10 @@ impl<'a> Peerstate<'a> {
                 || old_gossip_fingerprint != self.gossip_key_fingerprint
             {
                 self.to_save = Some(ToSave::All);
-                if old_gossip_fingerprint.is_some() {
+
+                // Warn about gossip key change only if there is no public key obtained from
+                // Autocrypt header, which overrides gossip key.
+                if old_gossip_fingerprint.is_some() && self.public_key_fingerprint.is_none() {
                     self.fingerprint_changed = true;
                 }
             }
