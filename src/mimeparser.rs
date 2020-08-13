@@ -23,7 +23,6 @@ use crate::location;
 use crate::message;
 use crate::param::*;
 use crate::peerstate::Peerstate;
-use crate::securejoin::handle_degrade_event;
 use crate::simplify::*;
 use crate::stock::StockMessage;
 
@@ -1043,9 +1042,7 @@ async fn update_gossip_peerstates(
                     peerstate = Some(p);
                 }
                 if let Some(peerstate) = peerstate {
-                    if peerstate.degrade_event.is_some() {
-                        handle_degrade_event(context, &peerstate).await?;
-                    }
+                    peerstate.handle_degrade_event(context).await?;
                 }
 
                 gossipped_addr.insert(header.addr.clone());
