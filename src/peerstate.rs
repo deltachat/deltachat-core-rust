@@ -5,10 +5,14 @@ use std::fmt;
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
+use crate::chat;
+use crate::constants::Blocked;
 use crate::context::Context;
-use crate::error::Result;
+use crate::error::{bail, Result};
+use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::sql::Sql;
+use crate::stock::StockMessage;
 
 #[derive(Debug)]
 pub enum PeerstateKeyType {
@@ -262,6 +266,43 @@ impl<'a> Peerstate<'a> {
         self.prefer_encrypt = EncryptPreference::Reset;
         self.last_seen = message_time;
         self.to_save = Some(ToSave::All);
+    }
+
+    /// Adds a warning to the chat corresponding to peerstate if fingerprint has changed.
+    pub(crate) async fn handle_degrade_event(&self, context: &Context) -> Result<()> {
+        match self.degrade_event {
+            Some(DegradeEvent::FingerprintChanged) => {
+                if let Some(contact_id) = context
+                    .sql
+                    .query_get_value_result(
+                        "SELECT id FROM contacts WHERE addr=?;",
+                        paramsv![self.addr],
+                    )
+                    .await?
+                {
+                    let (contact_chat_id, _) = chat::create_or_lookup_by_contact_id(
+                        context,
+                        contact_id,
+                        Blocked::Deaddrop,
+                    )
+                    .await
+                    .unwrap_or_default();
+
+                    let msg = context
+                        .stock_string_repl_str(StockMessage::ContactSetupChanged, self.addr.clone())
+                        .await;
+
+                    chat::add_info_msg(context, contact_chat_id, msg).await;
+                    emit_event!(context, EventType::ChatModified(contact_chat_id));
+                } else {
+                    bail!("contact with peerstate.addr {:?} not found", &self.addr);
+                }
+            }
+            // A warning for this is not issued, as it is quite normal.
+            Some(DegradeEvent::EncryptionPaused) => {}
+            None => {}
+        }
+        Ok(())
     }
 
     pub fn apply_header(&mut self, header: &Aheader, message_time: i64) {
