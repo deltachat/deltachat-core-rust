@@ -255,7 +255,7 @@ impl<'a> Peerstate<'a> {
     }
 
     /// Adds a warning to the chat corresponding to peerstate if fingerprint has changed.
-    pub(crate) async fn handle_degrade_event(&self, context: &Context) -> Result<()> {
+    pub(crate) async fn handle_fingerprint_change(&self, context: &Context) -> Result<()> {
         if self.fingerprint_changed {
             if let Some(contact_id) = context
                 .sql
@@ -554,7 +554,7 @@ mod tests {
             verified_key: None,
             verified_key_fingerprint: None,
             to_save: Some(ToSave::All),
-            fingerint_changed: false,
+            fingerprint_changed: false,
         };
 
         assert!(
