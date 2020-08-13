@@ -1887,6 +1887,36 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_create_webrtc_instance() {
+        let instance = Message::create_webrtc_instance("https://meet.jit.si/", "123");
+        assert_eq!(instance, "https://meet.jit.si/123");
+
+        let instance = Message::create_webrtc_instance("https://meet.jit.si", "456");
+        assert_eq!(instance, "https://meet.jit.si/456");
+
+        let instance = Message::create_webrtc_instance("meet.jit.si", "789");
+        assert_eq!(instance, "https://meet.jit.si/789");
+
+        let instance = Message::create_webrtc_instance("bla.foo?", "123");
+        assert_eq!(instance, "https://bla.foo?123");
+
+        let instance = Message::create_webrtc_instance("jitsi:bla.foo#", "456");
+        assert_eq!(instance, "jitsi:https://bla.foo#456");
+
+        let instance = Message::create_webrtc_instance("bla.foo#room=", "789");
+        assert_eq!(instance, "https://bla.foo#room=789");
+
+        let instance = Message::create_webrtc_instance("https://bla.foo#room", "123");
+        assert_eq!(instance, "https://bla.foo#room/123");
+
+        let instance = Message::create_webrtc_instance("bla.foo#room$ROOM", "123");
+        assert_eq!(instance, "https://bla.foo#room123");
+
+        let instance = Message::create_webrtc_instance("bla.foo#room=$ROOM&after=cont", "234");
+        assert_eq!(instance, "https://bla.foo#room=234&after=cont");
+    }
+
+    #[async_std::test]
     async fn test_get_width_height() {
         let t = test::TestContext::new().await;
 
