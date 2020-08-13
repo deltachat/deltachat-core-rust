@@ -646,21 +646,36 @@ impl Message {
     // add room to a webrtc_instance as defined by the corresponding config-value;
     // the result may still be prefixed by the type
     pub fn create_webrtc_instance(instance: &str, room: &str) -> String {
-        if instance.contains("$ROOM") {
-            instance.replace("$ROOM", &room)
+        let (videochat_type, mut url) = Message::parse_webrtc_instance(instance);
+
+        // make sure, there is a scheme in the url
+        if !url.contains(":") {
+            url = format!("https://{}", url);
+        }
+
+        // add/replace room
+        let url = if url.contains("$ROOM") {
+            url.replace("$ROOM", &room)
         } else {
-            // if there nothing that would separate the room, add a slash as a separator
+            // if there nothing that would separate the room, add a slash as a separator;
             // this way, urls can be given as "https://meet.jit.si" as well as "https://meet.jit.si/"
-            let maybe_slash = if instance.ends_with("/")
-                || instance.ends_with("?")
-                || instance.ends_with("#")
-                || instance.ends_with("=")
+            let maybe_slash = if url.ends_with("/")
+                || url.ends_with("?")
+                || url.ends_with("#")
+                || url.ends_with("=")
             {
                 ""
             } else {
                 "/"
             };
-            format!("{}{}{}", instance, maybe_slash, room)
+            format!("{}{}{}", url, maybe_slash, room)
+        };
+
+        // re-add and normalize type
+        match videochat_type {
+            VideochatType::BasicWebrtc => format!("basicwebrtc:{}", url),
+            VideochatType::Jitsi => format!("jitsi:{}", url),
+            _ => url,
         }
     }
 
