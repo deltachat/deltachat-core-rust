@@ -43,7 +43,7 @@ pub struct Peerstate<'a> {
     pub verified_key: Option<SignedPublicKey>,
     pub verified_key_fingerprint: Option<Fingerprint>,
     pub to_save: Option<ToSave>,
-    pub degrade_event: Option<DegradeEvent>,
+    pub fingerprint_changed: bool,
 }
 
 impl<'a> PartialEq for Peerstate<'a> {
@@ -60,7 +60,7 @@ impl<'a> PartialEq for Peerstate<'a> {
             && self.verified_key == other.verified_key
             && self.verified_key_fingerprint == other.verified_key_fingerprint
             && self.to_save == other.to_save
-            && self.degrade_event == other.degrade_event
+            && self.fingerprint_changed == other.fingerprint_changed
     }
 }
 
@@ -81,7 +81,7 @@ impl<'a> fmt::Debug for Peerstate<'a> {
             .field("verified_key", &self.verified_key)
             .field("verified_key_fingerprint", &self.verified_key_fingerprint)
             .field("to_save", &self.to_save)
-            .field("degrade_event", &self.degrade_event)
+            .field("fingerprint_changed", &self.fingerprint_changed)
             .finish()
     }
 }
@@ -91,16 +91,6 @@ impl<'a> fmt::Debug for Peerstate<'a> {
 pub enum ToSave {
     Timestamps = 0x01,
     All = 0x02,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
-#[repr(u8)]
-pub enum DegradeEvent {
-    /// Recoverable by an incoming encrypted mail.
-    EncryptionPaused = 0x01,
-
-    /// Recoverable by a new verify.
-    FingerprintChanged = 0x02,
 }
 
 impl<'a> Peerstate<'a> {
@@ -119,7 +109,7 @@ impl<'a> Peerstate<'a> {
             verified_key: None,
             verified_key_fingerprint: None,
             to_save: None,
-            degrade_event: None,
+            fingerprint_changed: false,
         }
     }
 
@@ -237,7 +227,7 @@ impl<'a> Peerstate<'a> {
             {
                 self.to_save = Some(ToSave::All);
                 if old_public_fingerprint.is_some() {
-                    self.degrade_event = Some(DegradeEvent::FingerprintChanged);
+                    self.fingerprint_changed = true;
                 }
             }
         }
@@ -252,17 +242,13 @@ impl<'a> Peerstate<'a> {
             {
                 self.to_save = Some(ToSave::All);
                 if old_gossip_fingerprint.is_some() {
-                    self.degrade_event = Some(DegradeEvent::FingerprintChanged);
+                    self.fingerprint_changed = true;
                 }
             }
         }
     }
 
     pub fn degrade_encryption(&mut self, message_time: i64) {
-        if self.prefer_encrypt == EncryptPreference::Mutual {
-            self.degrade_event = Some(DegradeEvent::EncryptionPaused);
-        }
-
         self.prefer_encrypt = EncryptPreference::Reset;
         self.last_seen = message_time;
         self.to_save = Some(ToSave::All);
@@ -270,37 +256,29 @@ impl<'a> Peerstate<'a> {
 
     /// Adds a warning to the chat corresponding to peerstate if fingerprint has changed.
     pub(crate) async fn handle_degrade_event(&self, context: &Context) -> Result<()> {
-        match self.degrade_event {
-            Some(DegradeEvent::FingerprintChanged) => {
-                if let Some(contact_id) = context
-                    .sql
-                    .query_get_value_result(
-                        "SELECT id FROM contacts WHERE addr=?;",
-                        paramsv![self.addr],
-                    )
-                    .await?
-                {
-                    let (contact_chat_id, _) = chat::create_or_lookup_by_contact_id(
-                        context,
-                        contact_id,
-                        Blocked::Deaddrop,
-                    )
-                    .await
-                    .unwrap_or_default();
+        if self.fingerprint_changed {
+            if let Some(contact_id) = context
+                .sql
+                .query_get_value_result(
+                    "SELECT id FROM contacts WHERE addr=?;",
+                    paramsv![self.addr],
+                )
+                .await?
+            {
+                let (contact_chat_id, _) =
+                    chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Deaddrop)
+                        .await
+                        .unwrap_or_default();
 
-                    let msg = context
-                        .stock_string_repl_str(StockMessage::ContactSetupChanged, self.addr.clone())
-                        .await;
+                let msg = context
+                    .stock_string_repl_str(StockMessage::ContactSetupChanged, self.addr.clone())
+                    .await;
 
-                    chat::add_info_msg(context, contact_chat_id, msg).await;
-                    emit_event!(context, EventType::ChatModified(contact_chat_id));
-                } else {
-                    bail!("contact with peerstate.addr {:?} not found", &self.addr);
-                }
+                chat::add_info_msg(context, contact_chat_id, msg).await;
+                emit_event!(context, EventType::ChatModified(contact_chat_id));
+            } else {
+                bail!("contact with peerstate.addr {:?} not found", &self.addr);
             }
-            // A warning for this is not issued, as it is quite normal.
-            Some(DegradeEvent::EncryptionPaused) => {}
-            None => {}
         }
         Ok(())
     }
@@ -318,11 +296,6 @@ impl<'a> Peerstate<'a> {
                 || header.prefer_encrypt == EncryptPreference::NoPreference)
                 && header.prefer_encrypt != self.prefer_encrypt
             {
-                if self.prefer_encrypt == EncryptPreference::Mutual
-                    && header.prefer_encrypt != EncryptPreference::Mutual
-                {
-                    self.degrade_event = Some(DegradeEvent::EncryptionPaused);
-                }
                 self.prefer_encrypt = header.prefer_encrypt;
                 self.to_save = Some(ToSave::All)
             }
@@ -537,7 +510,7 @@ mod tests {
             verified_key: Some(pub_key.clone()),
             verified_key_fingerprint: Some(pub_key.fingerprint()),
             to_save: Some(ToSave::All),
-            degrade_event: None,
+            fingerprint_changed: false,
         };
 
         assert!(
@@ -581,7 +554,7 @@ mod tests {
             verified_key: None,
             verified_key_fingerprint: None,
             to_save: Some(ToSave::All),
-            degrade_event: None,
+            fingerint_changed: false,
         };
 
         assert!(
@@ -615,7 +588,7 @@ mod tests {
             verified_key: None,
             verified_key_fingerprint: None,
             to_save: Some(ToSave::All),
-            degrade_event: None,
+            fingerprint_changed: false,
         };
 
         assert!(
