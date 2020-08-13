@@ -643,6 +643,16 @@ impl Message {
         None
     }
 
+    // add room to a webrtc_instance as defined by the corresponding config-value;
+    // the result may still be prefixed by the type
+    pub fn create_webrtc_instance(instance: &str, room: &str) -> String {
+        if instance.contains("$ROOM") {
+            instance.replace("$ROOM", &room)
+        } else {
+            format!("{}{}", instance, room)
+        }
+    }
+
     /// split a webrtc_instance as defined by the corresponding config-value into a type and a url
     pub fn parse_webrtc_instance(instance: &str) -> (VideochatType, String) {
         let mut split = instance.splitn(2, ':');
