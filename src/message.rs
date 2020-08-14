@@ -649,7 +649,7 @@ impl Message {
         let (videochat_type, mut url) = Message::parse_webrtc_instance(instance);
 
         // make sure, there is a scheme in the url
-        if !url.contains(":") {
+        if !url.contains(':') {
             url = format!("https://{}", url);
         }
 
@@ -659,10 +659,10 @@ impl Message {
         } else {
             // if there nothing that would separate the room, add a slash as a separator;
             // this way, urls can be given as "https://meet.jit.si" as well as "https://meet.jit.si/"
-            let maybe_slash = if url.ends_with("/")
-                || url.ends_with("?")
-                || url.ends_with("#")
-                || url.ends_with("=")
+            let maybe_slash = if url.ends_with('/')
+                || url.ends_with('?')
+                || url.ends_with('#')
+                || url.ends_with('=')
             {
                 ""
             } else {
