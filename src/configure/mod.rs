@@ -22,7 +22,7 @@ use crate::{chat, e2ee, provider};
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
 use provider::Server;
-use provider::{ImapServers, LoginParamNew, Protocol, SmtpServers, UsernamePattern};
+use provider::{ImapServers, LoginParamNew, Protocol, ServerParams, SmtpServers, UsernamePattern};
 use std::rc::Rc;
 
 macro_rules! progress {
@@ -421,7 +421,7 @@ pub fn loginparam_new_to_old(context: &Context, servers: &LoginParamNew) -> Opti
 pub fn loginparam_old_to_new(p: LoginParam) -> LoginParamNew {
     LoginParamNew {
         addr: p.addr.clone(),
-        imap: vec![Server {
+        imap: vec![ServerParams {
             protocol: Protocol::IMAP,
             socket: if 0 != p.server_flags & DC_LP_IMAP_SOCKET_STARTTLS {
                 provider::Socket::STARTTLS
@@ -429,14 +429,14 @@ pub fn loginparam_old_to_new(p: LoginParam) -> LoginParamNew {
                 provider::Socket::SSL
             }, // TODO what about plain? And if no socket was specified in the LoginParam?
             port: p.mail_port as u16,
-            hostname: Rc::new(p.mail_server),
+            hostname: p.mail_server,
             username_pattern: if p.mail_user.contains('@') {
                 UsernamePattern::EMAIL
             } else {
                 UsernamePattern::EMAILLOCALPART
             },
         }],
-        smtp: vec![Server {
+        smtp: vec![ServerParams {
             protocol: Protocol::SMTP,
             socket: if 0 != p.server_flags as usize & DC_LP_SMTP_SOCKET_STARTTLS {
                 provider::Socket::STARTTLS
@@ -444,7 +444,7 @@ pub fn loginparam_old_to_new(p: LoginParam) -> LoginParamNew {
                 provider::Socket::SSL
             }, // TODO what about plain? And if no socket was specified in the LoginParam?
             port: p.send_port as u16,
-            hostname: &Rc::new(p.send_server),
+            hostname: p.send_server,
             username_pattern: if p.send_user.contains('@') {
                 UsernamePattern::EMAIL
             } else {

@@ -51,8 +51,17 @@ pub struct Server {
     pub username_pattern: UsernamePattern,
 }
 
-pub type ImapServers = Vec<Server>;
-pub type SmtpServers = Vec<Server>;
+#[derive(Debug)]
+pub struct ServerParams {
+    pub protocol: Protocol,
+    pub socket: Socket,
+    pub hostname: String,
+    pub port: u16,
+    pub username_pattern: UsernamePattern,
+}
+
+pub type ImapServers = Vec<ServerParams>;
+pub type SmtpServers = Vec<ServerParams>;
 
 #[derive(Debug)]
 pub struct LoginParamNew {
@@ -61,7 +70,7 @@ pub struct LoginParamNew {
     pub smtp: SmtpServers,
 }
 
-impl Server {
+impl ServerParams {
     pub fn apply_username_pattern(&self, addr: String) -> String {
         match self.username_pattern {
             UsernamePattern::EMAIL => addr,
@@ -94,11 +103,17 @@ pub struct Provider {
 }
 
 impl Provider {
-    pub fn get_server(&self, protocol: Protocol) -> Vec<Server> {
+    pub fn get_server(&self, protocol: Protocol) -> Vec<ServerParams> {
         self.server
             .iter()
             .filter(|s| s.protocol == protocol)
-            .cloned()
+            .map(|s| ServerParams {
+                protocol: s.protocol.clone(),
+                socket: s.socket.clone(),
+                hostname: s.hostname.to_string(),
+                port: s.port,
+                username_pattern: s.username_pattern.clone(),
+            })
             .collect()
     }
 
@@ -148,13 +163,13 @@ mod tests {
 
         let provider = get_provider_info("user@nauta.cu").unwrap();
         assert!(provider.status == Status::OK);
-        let server = provider.get_imap_server()[0];
+        let server = &provider.get_imap_server()[0];
         assert_eq!(server.protocol, Protocol::IMAP);
         assert_eq!(server.socket, Socket::STARTTLS);
         assert_eq!(server.hostname, "imap.nauta.cu");
         assert_eq!(server.port, 143);
         assert_eq!(server.username_pattern, UsernamePattern::EMAIL);
-        let server = provider.get_smtp_server()[0];
+        let server = &provider.get_smtp_server()[0];
         assert_eq!(server.protocol, Protocol::SMTP);
         assert_eq!(server.socket, Socket::STARTTLS);
         assert_eq!(server.hostname, "smtp.nauta.cu");
