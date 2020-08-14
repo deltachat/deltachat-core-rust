@@ -27,8 +27,15 @@ pub enum Protocol {
 #[derive(Debug, PartialEq, Clone)]
 #[repr(u8)]
 pub enum Socket {
-    STARTTLS = 1,
-    SSL = 2,
+    SSL = 1,
+    STARTTLS = 2,
+    Plain = 3,
+}
+
+impl Default for Socket {
+    fn default() -> Self {
+        Socket::STARTTLS
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

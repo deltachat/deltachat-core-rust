@@ -395,6 +395,7 @@ pub fn loginparam_new_to_old(context: &Context, servers: &LoginParamNew) -> Opti
             p.mail_port = imap.port as i32;
             p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
             p.server_flags |= match imap.socket {
+                provider::Socket::Plain => DC_LP_SMTP_SOCKET_PLAIN,
                 provider::Socket::STARTTLS => DC_LP_IMAP_SOCKET_STARTTLS,
                 provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
             };
@@ -404,8 +405,9 @@ pub fn loginparam_new_to_old(context: &Context, servers: &LoginParamNew) -> Opti
             p.send_port = smtp.port as i32;
             p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
             p.server_flags |= match smtp.socket {
-                provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS as i32,
-                provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL as i32,
+                provider::Socket::Plain => DC_LP_SMTP_SOCKET_PLAIN,
+                provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS,
+                provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL,
             };
 
             info!(context, "offline autoconfig found: {}", p);
@@ -421,11 +423,12 @@ pub fn loginparam_old_to_new(p: LoginParam) -> LoginParamNew {
         addr: p.addr.clone(),
         imap: vec![ServerParams {
             protocol: Protocol::IMAP,
-            socket: if 0 != p.server_flags & DC_LP_IMAP_SOCKET_STARTTLS {
-                provider::Socket::STARTTLS
-            } else {
-                provider::Socket::SSL
-            }, // TODO what about plain? And if no socket was specified in the LoginParam?
+            socket: match p.server_flags & DC_LP_IMAP_SOCKET_FLAGS as i32 {
+                DC_LP_IMAP_SOCKET_PLAIN => provider::Socket::Plain,
+                DC_LP_IMAP_SOCKET_STARTTLS => provider::Socket::STARTTLS,
+                DC_LP_IMAP_SOCKET_SSL => provider::Socket::SSL,
+                _ => Default::default(),
+            },
             port: p.mail_port as u16,
             hostname: p.mail_server,
             username_pattern: if p.mail_user.contains('@') {
@@ -436,11 +439,12 @@ pub fn loginparam_old_to_new(p: LoginParam) -> LoginParamNew {
         }],
         smtp: vec![ServerParams {
             protocol: Protocol::SMTP,
-            socket: if 0 != p.server_flags as usize & DC_LP_SMTP_SOCKET_STARTTLS {
-                provider::Socket::STARTTLS
-            } else {
-                provider::Socket::SSL
-            }, // TODO what about plain? And if no socket was specified in the LoginParam?
+            socket: match p.server_flags & DC_LP_SMTP_SOCKET_FLAGS as i32 {
+                DC_LP_SMTP_SOCKET_PLAIN => provider::Socket::Plain,
+                DC_LP_SMTP_SOCKET_STARTTLS => provider::Socket::STARTTLS,
+                DC_LP_SMTP_SOCKET_SSL => provider::Socket::SSL,
+                _ => Default::default(),
+            },
             port: p.send_port as u16,
             hostname: p.send_server,
             username_pattern: if p.send_user.contains('@') {
