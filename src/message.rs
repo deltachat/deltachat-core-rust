@@ -681,6 +681,7 @@ impl Message {
 
     /// split a webrtc_instance as defined by the corresponding config-value into a type and a url
     pub fn parse_webrtc_instance(instance: &str) -> (VideochatType, String) {
+        let instance: String = instance.split_whitespace().collect();
         let mut split = instance.splitn(2, ':');
         let type_str = split.next().unwrap_or_default().to_lowercase();
         let url = split.next();
@@ -1914,6 +1915,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create_webrtc_instance() {
+        // webrtc_instance may come from an input field of the ui, be pretty tolerant on input
         let instance = Message::create_webrtc_instance("https://meet.jit.si/", "123");
         assert_eq!(instance, "https://meet.jit.si/123");
 
@@ -1940,6 +1942,12 @@ mod tests {
 
         let instance = Message::create_webrtc_instance("bla.foo#room=$ROOM&after=cont", "234");
         assert_eq!(instance, "https://bla.foo#room=234&after=cont");
+
+        let instance = Message::create_webrtc_instance("  meet.jit .si ", "789");
+        assert_eq!(instance, "https://meet.jit.si/789");
+
+        let instance = Message::create_webrtc_instance(" basicwebrtc: basic . stuff\n ", "12345ab");
+        assert_eq!(instance, "basicwebrtc:https://basic.stuff/12345ab");
     }
 
     #[async_std::test]
