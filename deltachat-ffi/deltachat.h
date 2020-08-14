@@ -274,10 +274,12 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `mail_user`    = IMAP-username, guessed if left out
  * - `mail_pw`      = IMAP-password (always needed)
  * - `mail_port`    = IMAP-port, guessed if left out
+ * - `mail_security`= IMAP-socket, one of @ref DC_SOCKET, defaults to #DC_SOCKET_AUTO
  * - `send_server`  = SMTP-server, guessed if left out
  * - `send_user`    = SMTP-user, guessed if left out
  * - `send_pw`      = SMTP-password, guessed if left out
  * - `send_port`    = SMTP-port, guessed if left out
+ * - `send_security`= SMTP-socket, one of @ref DC_SOCKET, defaults to #DC_SOCKET_AUTO
  * - `server_flags` = IMAP-/SMTP-flags as a combination of @ref DC_LP flags, guessed if left out
  * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
@@ -4167,6 +4169,44 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 #define DC_MSG_VIDEOCHAT_INVITATION 70
 
+/**
+ * @}
+ */
+
+
+/**
+ * @defgroup DC_SOCKET DC_SOCKET
+ *
+ * These constants configure socket security.
+ * To set socket security, use dc_set_config() with the keys "mail_security" and/or "send_security".
+ * If no socket-configuration is explicitly specified, #DC_SOCKET_AUTO is used.
+ *
+ * @addtogroup DC_SOCKET
+ * @{
+ */
+
+/**
+ * Choose socket security automatically.
+ */
+#define DC_SOCKET_AUTO 0
+
+
+/**
+ * Connect via SSL/TLS.
+ */
+#define DC_SOCKET_SSL 1
+
+
+/**
+ * Connect via STARTTLS.
+ */
+#define DC_SOCKET_STARTTLS 2
+
+
+/**
+ * Connect unencrypted, this should not be used.
+ */
+#define DC_SOCKET_PLAIN 3
 
 /**
  * @}
@@ -4202,53 +4242,10 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
- * Connect to IMAP via STARTTLS.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_IMAP_SOCKET_STARTTLS     0x100
-
-
-/**
- * Connect to IMAP via SSL.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_IMAP_SOCKET_SSL          0x200
-
-
-/**
- * Connect to IMAP unencrypted, this should not be used.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_IMAP_SOCKET_PLAIN        0x400
-
-
-/**
- * Connect to SMTP via STARTTLS.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_SMTP_SOCKET_STARTTLS   0x10000
-
-
-/**
- * Connect to SMTP via SSL.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_SMTP_SOCKET_SSL        0x20000
-
-
-/**
- * Connect to SMTP unencrypted, this should not be used.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_SMTP_SOCKET_PLAIN      0x40000 ///<
-
-/**
  * @}
  */
 
 #define DC_LP_AUTH_FLAGS        (DC_LP_AUTH_OAUTH2|DC_LP_AUTH_NORMAL) // if none of these flags are set, the default is chosen
-#define DC_LP_IMAP_SOCKET_FLAGS (DC_LP_IMAP_SOCKET_STARTTLS|DC_LP_IMAP_SOCKET_SSL|DC_LP_IMAP_SOCKET_PLAIN) // if none of these flags are set, the default is chosen
-#define DC_LP_SMTP_SOCKET_FLAGS (DC_LP_SMTP_SOCKET_STARTTLS|DC_LP_SMTP_SOCKET_SSL|DC_LP_SMTP_SOCKET_PLAIN) // if none of these flags are set, the default is chosen
 
 /**
  * @defgroup DC_CERTCK DC_CERTCK
