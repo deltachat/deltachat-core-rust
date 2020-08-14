@@ -413,7 +413,7 @@ pub fn loginparam_new_to_old(context: &Context, servers: &LoginParamNew) -> Opti
         }
     }
     info!(context, "offline autoconfig found, but no servers defined");
-    return None;
+    None
 }
 
 pub fn loginparam_old_to_new(p: LoginParam) -> LoginParamNew {
