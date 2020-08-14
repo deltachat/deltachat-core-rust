@@ -1,0 +1,150 @@
+1. auto_mozilla: Allow specifying multiple servers in XML
+
+It is allowed by the specification, an example provided by Mozilla contains multiple smtp servers:
+https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration/FileFormat/HowTo
+
+DC currently merges all entries sharing the same protocol into one.
+
+All entries should be parsed and stored into vector, a Rust unit test
+should check that vector contains all the entries.
+
+Maybe also makes sense to resurrect related PR:
+https://github.com/deltachat/deltachat-core-rust/pull/1187
+
+2. provider: try multiple servers using the same protocol
+
+Provider database can store multiple IMAP entries and multiple SMTP
+entries, but only the first one is used.
+
+Provider.get_server() currently returns the first one, and only the
+first one is used.
+
+3 provider database: make sure entries list all the ports available for each protocol
+
+As some ports may be disabled later or blocked on some networks, it is
+better to specify all the ports that are tested and available.
+
+This is a one-time check, but could be automated with a Python script
+that connect-scans all the servers, tries common ports and checks
+their certificate.
+
+4. strict TLS should be applied even if no servers are defined.
+
+I DeltaChat: src/configure/mod.rs:433: offline autoconfig found, but no servers defined
+
+After this error, autoconfig is not applied at all, even though the
+database has "strict_tls: true".
+
+This happens for dubby.org, which has no server listed in the
+provider database now.
+
+5. config: split IMAP and SMTP server flags.
+
+There is an issue for that:
+https://github.com/deltachat/deltachat-core-rust/issues/646
+
+It can be done easier than listed in an issue, with a database
+migration and breaking change, deprecating security flags stored in
+server_flags immediately.
+
+6. configure: untangle IMAP and SMTP configuration
+
+Currently both configurations are stored in LoginParam structure.
+
+After moving IMAP and SMTP security flags into a separate enum, the
+structure can be split into independent IMAP and SMTP configuration.
+
+7. configure: attempt IMAP and SMTP configuration in parallel
+
+It should be done in separate async tasks to speed up configuration,
+especially if multiple servers should be tried.
+
+8. configure: fix the error displayed in case of failed configuration
+
+Configuration process returns the last error if configuration of IMAP
+or SMTP fails.
+
+If no provider database entry is used and autoconfiguration is not
+available or can't be downloaded, the last error is about the last
+domain name tried, which may not exist at all.
+
+For example:
+
+E DeltaChat: Response from IMAP: mail.example.org:993: io: could not resolve address `("mail.example.org", 993)
+
+It is confusing, because users then try to figure out why connection
+to mail.example.org does not work for them, while IMAP server is
+actually example.org, but connection to it failed for other reasons,
+like incorrect login or blocked port.
+
+The error should list all the servers tried and the outcome for it.
+Maybe transmit each outcome in a separate event for UI to display in a
+"details" section below the progress bar:
+
+Trying example.org ... port closed
+Trying imap.example.org ... could not resolve address
+Trying mail.example.org ... incorrect login
+
+9. configure: connection refused error suggests to check the inbox, even if IMAP can't connect
+
+If connection is refused, it does not make sense to suggest checking
+the inbox. Especially if IMAP failed or domain can't be resolved.
+
+Current error message is too broad and usually irrelevant and not helpful:
+
+Some providers place additional information in your inbox; you can
+check them eg. in the web frontend. Consult your provider or friends
+if you run into problems.
+
+Which providers place information about failed login attempts into
+inbox? Is it helpful or just "someone from ... tried to login with
+incorrect password"?
+
+10. configure: try to add domain if it is not in the username
+
+Currently configuration process tries to remove @ from the username,
+but never tries to add it back.
+
+It works for basic configuration, when user is requested to provide
+email address and a password, but not for advanced configuration.
+
+Users trying to fill in all the advanced setting usually assume that
+username is specified without @, but in a typical Dovecot
+configuration with virtual users domain must be specified in the
+username. In this case it would help to try adding the domain if
+username does not contain @.
+
+
+Misc:
+
+1. imap: fake-IDLE on mail.ru
+
+A message from user-provided log configured with mail.ru account:
+
+I DeltaChat: src/imap/idle.rs:136: IMAP-fake-IDLEing...
+
+Need to check if mail.ru doesn't support IDLE and tell about it in a
+provider database message (e.g. "not recommended, will consume your
+battery") if it is the case.
+
+2. configure: cache DNS responses and try IP address if DNS doesn't work
+
+Requires deep changes in the network libraries to use a custom resolver.
+
+Simply connecting to IP address is not enough, because TLS certificate
+is tied to domain name, not IP address.
+
+3. qr: use custom protocol to request accounts
+
+A custom protocol similar to the one planned for backups should be
+used to request accounts for DCACCOUNT QR code.
+
+Currently HTTPS is used, which relies on TLS CA certificates for
+security, while the key can be provided in the QR code itself.
+
+4. UI: make links in info messages clickable
+
+An issue in the Android repository
+https://github.com/deltachat/deltachat-android/issues/1546
+
+Other platforms need this change too.
