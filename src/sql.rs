@@ -1288,6 +1288,33 @@ async fn open(
             update_icons = true;
             sql.set_raw_config_int(context, "dbversion", 66).await?;
         }
+        if dbversion < 67 {
+            info!(context, "[migration] v67");
+            for prefix in &["", "configured_"] {
+                if let Some(server_flags) = sql
+                    .get_raw_config_int(context, format!("{}server_flags", prefix))
+                    .await
+                {
+                    let imap_socket_flags = server_flags & 0x700;
+                    let key = format!("{}mail_security", prefix);
+                    match imap_socket_flags {
+                        0x100 => sql.set_raw_config_int(context, key, 2).await?, // STARTTLS
+                        0x200 => sql.set_raw_config_int(context, key, 1).await?, // SSL/TLS
+                        0x400 => sql.set_raw_config_int(context, key, 3).await?, // Plain
+                        _ => sql.set_raw_config_int(context, key, 0).await?,
+                    }
+                    let smtp_socket_flags = server_flags & 0x70000;
+                    let key = format!("{}send_security", prefix);
+                    match smtp_socket_flags {
+                        0x10000 => sql.set_raw_config_int(context, key, 2).await?, // STARTTLS
+                        0x20000 => sql.set_raw_config_int(context, key, 1).await?, // SSL/TLS
+                        0x40000 => sql.set_raw_config_int(context, key, 3).await?, // Plain
+                        _ => sql.set_raw_config_int(context, key, 0).await?,
+                    }
+                }
+            }
+            sql.set_raw_config_int(context, "dbversion", 67).await?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
