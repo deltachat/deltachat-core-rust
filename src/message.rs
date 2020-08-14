@@ -675,7 +675,7 @@ impl Message {
         match videochat_type {
             VideochatType::BasicWebrtc => format!("basicwebrtc:{}", url),
             VideochatType::Jitsi => format!("jitsi:{}", url),
-            _ => url,
+            VideochatType::Unknown => url,
         }
     }
 
