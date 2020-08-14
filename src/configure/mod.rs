@@ -13,7 +13,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::imap::Imap;
-use crate::login_param::{CertificateChecks, LoginParam};
+use crate::login_param::{CertificateChecks, LoginParam, LoginParamNew, ServerParams};
 use crate::message::Message;
 use crate::oauth2::*;
 use crate::smtp::Smtp;
@@ -21,9 +21,7 @@ use crate::{chat, e2ee, provider};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
-use provider::Server;
-use provider::{ImapServers, LoginParamNew, Protocol, ServerParams, SmtpServers, UsernamePattern};
-use std::rc::Rc;
+use provider::{Protocol, UsernamePattern};
 
 macro_rules! progress {
     ($context:tt, $progress:expr) => {

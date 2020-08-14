@@ -3,7 +3,10 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::context::Context;
+use crate::{
+    context::Context,
+    provider::{Protocol, Socket, UsernamePattern},
+};
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive)]
 #[repr(i32)]
@@ -22,6 +25,39 @@ pub enum CertificateChecks {
 impl Default for CertificateChecks {
     fn default() -> Self {
         Self::Automatic
+    }
+}
+
+#[derive(Debug)]
+pub struct ServerParams {
+    pub protocol: Protocol,
+    pub socket: Socket,
+    pub hostname: String,
+    pub port: u16,
+    pub username_pattern: UsernamePattern,
+}
+
+pub type ImapServers = Vec<ServerParams>;
+pub type SmtpServers = Vec<ServerParams>;
+
+#[derive(Debug)]
+pub struct LoginParamNew {
+    pub addr: String,
+    pub imap: ImapServers,
+    pub smtp: SmtpServers,
+}
+
+impl ServerParams {
+    pub fn apply_username_pattern(&self, addr: String) -> String {
+        match self.username_pattern {
+            UsernamePattern::EMAIL => addr,
+            UsernamePattern::EMAILLOCALPART => {
+                if let Some(at) = addr.find('@') {
+                    return addr.split_at(at).0.to_string();
+                }
+                addr
+            }
+        }
     }
 }
 

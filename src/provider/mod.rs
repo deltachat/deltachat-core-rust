@@ -4,7 +4,10 @@ mod data;
 
 use crate::config::Config;
 use crate::dc_tools::EmailAddress;
-use crate::provider::data::PROVIDER_DATA;
+use crate::{
+    login_param::{ImapServers, ServerParams, SmtpServers},
+    provider::data::PROVIDER_DATA,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, ToPrimitive)]
 #[repr(u8)]
@@ -49,39 +52,6 @@ pub struct Server {
     pub hostname: &'static str,
     pub port: u16,
     pub username_pattern: UsernamePattern,
-}
-
-#[derive(Debug)]
-pub struct ServerParams {
-    pub protocol: Protocol,
-    pub socket: Socket,
-    pub hostname: String,
-    pub port: u16,
-    pub username_pattern: UsernamePattern,
-}
-
-pub type ImapServers = Vec<ServerParams>;
-pub type SmtpServers = Vec<ServerParams>;
-
-#[derive(Debug)]
-pub struct LoginParamNew {
-    pub addr: String,
-    pub imap: ImapServers,
-    pub smtp: SmtpServers,
-}
-
-impl ServerParams {
-    pub fn apply_username_pattern(&self, addr: String) -> String {
-        match self.username_pattern {
-            UsernamePattern::EMAIL => addr,
-            UsernamePattern::EMAILLOCALPART => {
-                if let Some(at) = addr.find('@') {
-                    return addr.split_at(at).0.to_string();
-                }
-                addr
-            }
-        }
-    }
 }
 
 #[derive(Debug)]
