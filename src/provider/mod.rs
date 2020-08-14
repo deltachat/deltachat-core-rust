@@ -14,21 +14,21 @@ pub enum Status {
     BROKEN = 3,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[repr(u8)]
 pub enum Protocol {
     SMTP = 1,
     IMAP = 2,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[repr(u8)]
 pub enum Socket {
     STARTTLS = 1,
     SSL = 2,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[repr(u8)]
 pub enum UsernamePattern {
     EMAIL = 1,
@@ -42,13 +42,23 @@ pub enum Oauth2Authorizer {
     Gmail = 2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Server {
     pub protocol: Protocol,
     pub socket: Socket,
     pub hostname: &'static str,
     pub port: u16,
     pub username_pattern: UsernamePattern,
+}
+
+pub type ImapServers = Vec<Server>;
+pub type SmtpServers = Vec<Server>;
+
+#[derive(Debug)]
+pub struct LoginParamNew {
+    pub addr: String,
+    pub imap: ImapServers,
+    pub smtp: SmtpServers,
 }
 
 impl Server {
@@ -84,20 +94,19 @@ pub struct Provider {
 }
 
 impl Provider {
-    pub fn get_server(&self, protocol: Protocol) -> Option<&Server> {
-        for record in self.server.iter() {
-            if record.protocol == protocol {
-                return Some(record);
-            }
-        }
-        None
+    pub fn get_server(&self, protocol: Protocol) -> Vec<Server> {
+        self.server
+            .iter()
+            .filter(|s| s.protocol == protocol)
+            .cloned()
+            .collect()
     }
 
-    pub fn get_imap_server(&self) -> Option<&Server> {
+    pub fn get_imap_server(&self) -> ImapServers {
         self.get_server(Protocol::IMAP)
     }
 
-    pub fn get_smtp_server(&self) -> Option<&Server> {
+    pub fn get_smtp_server(&self) -> SmtpServers {
         self.get_server(Protocol::SMTP)
     }
 }
@@ -139,13 +148,13 @@ mod tests {
 
         let provider = get_provider_info("user@nauta.cu").unwrap();
         assert!(provider.status == Status::OK);
-        let server = provider.get_imap_server().unwrap();
+        let server = provider.get_imap_server()[0];
         assert_eq!(server.protocol, Protocol::IMAP);
         assert_eq!(server.socket, Socket::STARTTLS);
         assert_eq!(server.hostname, "imap.nauta.cu");
         assert_eq!(server.port, 143);
         assert_eq!(server.username_pattern, UsernamePattern::EMAIL);
-        let server = provider.get_smtp_server().unwrap();
+        let server = provider.get_smtp_server()[0];
         assert_eq!(server.protocol, Protocol::SMTP);
         assert_eq!(server.socket, Socket::STARTTLS);
         assert_eq!(server.hostname, "smtp.nauta.cu");

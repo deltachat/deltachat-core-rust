@@ -21,6 +21,9 @@ use crate::{chat, e2ee, provider};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
+use provider::Server;
+use provider::{ImapServers, LoginParamNew, Protocol, SmtpServers, UsernamePattern};
+use std::rc::Rc;
 
 macro_rules! progress {
     ($context:tt, $progress:expr) => {
@@ -115,7 +118,7 @@ impl Context {
 }
 
 async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
-    let mut param_autoconfig: Option<LoginParam> = None;
+    let mut param_autoconfig: Option<LoginParamNew> = None;
     let mut keep_flags = 0;
 
     // Read login parameters from the database
@@ -175,19 +178,21 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     // C.  Do we have any autoconfig result?
     progress!(ctx, 500);
     if let Some(ref cfg) = param_autoconfig {
-        info!(ctx, "Got autoconfig: {}", &cfg);
-        if !cfg.mail_user.is_empty() {
-            param.mail_user = cfg.mail_user.clone();
+        if let Some(cfg) = loginparam_new_to_old(ctx, cfg) {
+            info!(ctx, "Got autoconfig: {:?}", &cfg);
+            if !cfg.mail_user.is_empty() {
+                param.mail_user = cfg.mail_user.clone();
+            }
+            // all other values are always NULL when entering autoconfig
+            param.mail_server = cfg.mail_server.clone();
+            param.mail_port = cfg.mail_port;
+            param.send_server = cfg.send_server.clone();
+            param.send_port = cfg.send_port;
+            param.send_user = cfg.send_user.clone();
+            param.server_flags = cfg.server_flags;
+            // although param_autoconfig's data are no longer needed from,
+            // it is used to later to prevent trying variations of port/server/logins
         }
-        // all other values are always NULL when entering autoconfig
-        param.mail_server = cfg.mail_server.clone();
-        param.mail_port = cfg.mail_port;
-        param.send_server = cfg.send_server.clone();
-        param.send_port = cfg.send_port;
-        param.send_user = cfg.send_user.clone();
-        param.server_flags = cfg.server_flags;
-        // although param_autoconfig's data are no longer needed from,
-        // it is used to later to prevent trying variations of port/server/logins
     }
     param.server_flags |= keep_flags;
 
@@ -337,7 +342,7 @@ async fn get_autoconfig(
     param: &LoginParam,
     param_domain: &str,
     param_addr_urlencoded: &str,
-) -> Option<LoginParam> {
+) -> Option<LoginParamNew> {
     let sources = AutoconfigSource::all(param_domain, param_addr_urlencoded);
 
     let mut progress = 300;
@@ -346,14 +351,14 @@ async fn get_autoconfig(
         progress!(ctx, progress);
         progress += 10;
         if let Ok(res) = res {
-            return Some(res);
+            return Some(loginparam_old_to_new(res));
         }
     }
 
     None
 }
 
-fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<LoginParam> {
+fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<LoginParamNew> {
     info!(
         context,
         "checking internal provider-info for offline autoconfig"
@@ -364,39 +369,11 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
             provider::Status::OK | provider::Status::PREPARATION => {
                 let imap = provider.get_imap_server();
                 let smtp = provider.get_smtp_server();
-                // clippy complains about these is_some()/unwrap() settings,
-                // however, rewriting the code to "if let" would make things less obvious,
-                // esp. if we allow more combinations of servers (pop, jmap).
-                // therefore, #[allow(clippy::unnecessary_unwrap)] is added above.
-                if let Some(imap) = imap {
-                    if let Some(smtp) = smtp {
-                        let mut p = LoginParam::new();
-                        p.addr = param.addr.clone();
-
-                        p.mail_server = imap.hostname.to_string();
-                        p.mail_user = imap.apply_username_pattern(param.addr.clone());
-                        p.mail_port = imap.port as i32;
-                        p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
-                        p.server_flags |= match imap.socket {
-                            provider::Socket::STARTTLS => DC_LP_IMAP_SOCKET_STARTTLS,
-                            provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
-                        };
-
-                        p.send_server = smtp.hostname.to_string();
-                        p.send_user = smtp.apply_username_pattern(param.addr.clone());
-                        p.send_port = smtp.port as i32;
-                        p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
-                        p.server_flags |= match smtp.socket {
-                            provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS as i32,
-                            provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL as i32,
-                        };
-
-                        info!(context, "offline autoconfig found: {}", p);
-                        return Some(p);
-                    }
-                }
-                info!(context, "offline autoconfig found, but no servers defined");
-                return None;
+                return Some(LoginParamNew {
+                    addr: param.addr.clone(),
+                    imap,
+                    smtp,
+                });
             }
             provider::Status::BROKEN => {
                 info!(context, "offline autoconfig found, provider is broken");
@@ -406,6 +383,75 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
     }
     info!(context, "no offline autoconfig found");
     None
+}
+
+pub fn loginparam_new_to_old(context: &Context, servers: &LoginParamNew) -> Option<LoginParam> {
+    let LoginParamNew { addr, imap, smtp } = servers;
+    if let Some(imap) = imap.get(0) {
+        if let Some(smtp) = smtp.get(0) {
+            let mut p = LoginParam::new();
+            p.addr = addr.clone();
+
+            p.mail_server = imap.hostname.to_string();
+            p.mail_user = imap.apply_username_pattern(addr.clone());
+            p.mail_port = imap.port as i32;
+            p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+            p.server_flags |= match imap.socket {
+                provider::Socket::STARTTLS => DC_LP_IMAP_SOCKET_STARTTLS,
+                provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
+            };
+
+            p.send_server = smtp.hostname.to_string();
+            p.send_user = smtp.apply_username_pattern(addr.clone());
+            p.send_port = smtp.port as i32;
+            p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+            p.server_flags |= match smtp.socket {
+                provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS as i32,
+                provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL as i32,
+            };
+
+            info!(context, "offline autoconfig found: {}", p);
+            return Some(p);
+        }
+    }
+    info!(context, "offline autoconfig found, but no servers defined");
+    return None;
+}
+
+pub fn loginparam_old_to_new(p: LoginParam) -> LoginParamNew {
+    LoginParamNew {
+        addr: p.addr.clone(),
+        imap: vec![Server {
+            protocol: Protocol::IMAP,
+            socket: if 0 != p.server_flags & DC_LP_IMAP_SOCKET_STARTTLS {
+                provider::Socket::STARTTLS
+            } else {
+                provider::Socket::SSL
+            }, // TODO what about plain? And if no socket was specified in the LoginParam?
+            port: p.mail_port as u16,
+            hostname: Rc::new(p.mail_server),
+            username_pattern: if p.mail_user.contains('@') {
+                UsernamePattern::EMAIL
+            } else {
+                UsernamePattern::EMAILLOCALPART
+            },
+        }],
+        smtp: vec![Server {
+            protocol: Protocol::SMTP,
+            socket: if 0 != p.server_flags as usize & DC_LP_SMTP_SOCKET_STARTTLS {
+                provider::Socket::STARTTLS
+            } else {
+                provider::Socket::SSL
+            }, // TODO what about plain? And if no socket was specified in the LoginParam?
+            port: p.send_port as u16,
+            hostname: &Rc::new(p.send_server),
+            username_pattern: if p.send_user.contains('@') {
+                UsernamePattern::EMAIL
+            } else {
+                provider::UsernamePattern::EMAILLOCALPART
+            },
+        }],
+    }
 }
 
 async fn try_imap_hostnames(
@@ -704,7 +750,9 @@ mod tests {
         let mut params = LoginParam::new();
         params.addr = "someone123@nauta.cu".to_string();
         let found_params = get_offline_autoconfig(&context, &params).unwrap();
-        assert_eq!(found_params.mail_server, "imap.nauta.cu".to_string());
-        assert_eq!(found_params.send_server, "smtp.nauta.cu".to_string());
+        assert_eq!(found_params.imap.len(), 1);
+        assert_eq!(found_params.smtp.len(), 1);
+        assert_eq!(found_params.imap[0].hostname, "imap.nauta.cu".to_string());
+        assert_eq!(found_params.smtp[0].hostname, "smtp.nauta.cu".to_string());
     }
 }
