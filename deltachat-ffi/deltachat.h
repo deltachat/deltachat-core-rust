@@ -4181,6 +4181,13 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @}
  */
 
+
+/**
+ * Choose socket security automatically.
+ */
+#define DC_SOCKET_AUTO 0
+
+
 /**
  * Connect via SSL/TLS.
  */
