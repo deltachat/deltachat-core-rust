@@ -535,12 +535,13 @@ async fn try_imap_usernames(
 
 async fn try_imap_one_param(context: &Context, param: &LoginParam, imap: &mut Imap) -> Result<()> {
     let inf = format!(
-        "imap: {}@{}:{} flags=0x{:x} certificate_checks={}",
+        "imap: {}@{}:{} security={} certificate_checks={} flags=0x{:x}",
         param.mail_user,
         param.mail_server,
         param.mail_port,
+        param.mail_security,
+        param.imap_certificate_checks,
         param.server_flags,
-        param.imap_certificate_checks
     );
     info!(context, "Trying: {}", inf);
 
@@ -651,8 +652,13 @@ async fn try_smtp_usernames(
 
 async fn try_smtp_one_param(context: &Context, param: &LoginParam, smtp: &mut Smtp) -> Result<()> {
     let inf = format!(
-        "smtp: {}@{}:{} flags: 0x{:x}",
-        param.send_user, param.send_server, param.send_port, param.server_flags
+        "smtp: {}@{}:{} security={} certificate_checks={} flags=0x{:x}",
+        param.send_user,
+        param.send_server,
+        param.send_port,
+        param.send_security,
+        param.smtp_certificate_checks,
+        param.server_flags
     );
     info!(context, "Trying: {}", inf);
 

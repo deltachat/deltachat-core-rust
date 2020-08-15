@@ -9,7 +9,7 @@ use crate::{
     provider::data::PROVIDER_DATA,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Status {
     OK = 1,
@@ -17,14 +17,14 @@ pub enum Status {
     BROKEN = 3,
 }
 
-#[derive(Debug, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Protocol {
     SMTP = 1,
     IMAP = 2,
 }
 
-#[derive(Debug, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Socket {
     Automatic = 0,
