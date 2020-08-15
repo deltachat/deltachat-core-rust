@@ -27,7 +27,7 @@ use crate::message::{self, update_server_uid, MessageState};
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
-use crate::provider::get_provider_info;
+use crate::provider::{get_provider_info, Socket};
 use crate::{chat, scheduler::InterruptInfo, stock::StockMessage};
 
 mod client;
@@ -151,6 +151,7 @@ struct ImapConfig {
     pub imap_port: u16,
     pub imap_user: String,
     pub imap_pw: String,
+    pub security: Socket,
     pub strict_tls: bool,
     pub server_flags: usize,
     pub selected_folder: Option<String>,
@@ -171,6 +172,7 @@ impl Default for ImapConfig {
             imap_port: 0,
             imap_user: "".into(),
             imap_pw: "".into(),
+            security: Default::default(),
             strict_tls: false,
             server_flags: 0,
             selected_folder: None,
@@ -221,30 +223,30 @@ impl Imap {
 
         let server_flags = self.config.server_flags as i32;
 
-        let connection_res: ImapResult<Client> =
-            if (server_flags & (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_PLAIN)) != 0 {
-                let config = &mut self.config;
-                let imap_server: &str = config.imap_server.as_ref();
-                let imap_port = config.imap_port;
+        let connection_res: ImapResult<Client> = if self.config.security == Socket::STARTTLS
+            || self.config.security == Socket::Plain
+        {
+            let config = &mut self.config;
+            let imap_server: &str = config.imap_server.as_ref();
+            let imap_port = config.imap_port;
 
-                match Client::connect_insecure((imap_server, imap_port)).await {
-                    Ok(client) => {
-                        if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
-                            client.secure(imap_server, config.strict_tls).await
-                        } else {
-                            Ok(client)
-                        }
+            match Client::connect_insecure((imap_server, imap_port)).await {
+                Ok(client) => {
+                    if config.security == Socket::STARTTLS {
+                        client.secure(imap_server, config.strict_tls).await
+                    } else {
+                        Ok(client)
                     }
-                    Err(err) => Err(err),
                 }
-            } else {
-                let config = &self.config;
-                let imap_server: &str = config.imap_server.as_ref();
-                let imap_port = config.imap_port;
+                Err(err) => Err(err),
+            }
+        } else {
+            let config = &self.config;
+            let imap_server: &str = config.imap_server.as_ref();
+            let imap_port = config.imap_port;
 
-                Client::connect_secure((imap_server, imap_port), imap_server, config.strict_tls)
-                    .await
-            };
+            Client::connect_secure((imap_server, imap_port), imap_server, config.strict_tls).await
+        };
 
         let login_res = match connection_res {
             Ok(client) => {

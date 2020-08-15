@@ -16,6 +16,7 @@ use crate::imap::Imap;
 use crate::login_param::{CertificateChecks, LoginParam, LoginParamNew, ServerParams};
 use crate::message::Message;
 use crate::oauth2::*;
+use crate::provider::Socket;
 use crate::smtp::Smtp;
 use crate::{chat, e2ee, provider};
 
@@ -184,9 +185,11 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             // all other values are always NULL when entering autoconfig
             param.mail_server = cfg.mail_server.clone();
             param.mail_port = cfg.mail_port;
+            param.mail_security = cfg.mail_security;
             param.send_server = cfg.send_server.clone();
             param.send_port = cfg.send_port;
             param.send_user = cfg.send_user.clone();
+            param.send_security = cfg.send_security;
             param.server_flags = cfg.server_flags;
             // although param_autoconfig's data are no longer needed from,
             // it is used to later to prevent trying variations of port/server/logins
@@ -200,12 +203,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     }
     if param.send_pw.is_empty() {
         param.send_pw = param.mail_pw.clone()
-    }
-    if !dc_exactly_one_bit_set(param.server_flags & DC_LP_IMAP_SOCKET_FLAGS as i32) {
-        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS as i32);
-    }
-    if !dc_exactly_one_bit_set(param.server_flags & (DC_LP_SMTP_SOCKET_FLAGS as i32)) {
-        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
     }
     if !dc_exactly_one_bit_set(param.server_flags & DC_LP_AUTH_FLAGS as i32) {
         param.server_flags &= !(DC_LP_AUTH_FLAGS as i32);
@@ -393,22 +390,14 @@ pub fn loginparam_new_to_old(context: &Context, servers: &LoginParamNew) -> Opti
             p.mail_server = imap.hostname.to_string();
             p.mail_user = imap.apply_username_pattern(addr.clone());
             p.mail_port = imap.port as i32;
+            p.mail_security = imap.socket;
             p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
-            p.server_flags |= match imap.socket {
-                provider::Socket::Plain => DC_LP_SMTP_SOCKET_PLAIN,
-                provider::Socket::STARTTLS => DC_LP_IMAP_SOCKET_STARTTLS,
-                provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
-            };
 
             p.send_server = smtp.hostname.to_string();
             p.send_user = smtp.apply_username_pattern(addr.clone());
             p.send_port = smtp.port as i32;
+            p.send_security = smtp.socket;
             p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
-            p.server_flags |= match smtp.socket {
-                provider::Socket::Plain => DC_LP_SMTP_SOCKET_PLAIN,
-                provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS,
-                provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL,
-            };
 
             info!(context, "offline autoconfig found: {}", p);
             return Some(p);
@@ -423,12 +412,7 @@ pub fn loginparam_old_to_new(p: LoginParam) -> LoginParamNew {
         addr: p.addr.clone(),
         imap: vec![ServerParams {
             protocol: Protocol::IMAP,
-            socket: match p.server_flags & DC_LP_IMAP_SOCKET_FLAGS as i32 {
-                DC_LP_IMAP_SOCKET_PLAIN => provider::Socket::Plain,
-                DC_LP_IMAP_SOCKET_STARTTLS => provider::Socket::STARTTLS,
-                DC_LP_IMAP_SOCKET_SSL => provider::Socket::SSL,
-                _ => Default::default(),
-            },
+            socket: p.mail_security,
             port: p.mail_port as u16,
             hostname: p.mail_server,
             username_pattern: if p.mail_user.contains('@') {
@@ -439,12 +423,7 @@ pub fn loginparam_old_to_new(p: LoginParam) -> LoginParamNew {
         }],
         smtp: vec![ServerParams {
             protocol: Protocol::SMTP,
-            socket: match p.server_flags & DC_LP_SMTP_SOCKET_FLAGS as i32 {
-                DC_LP_SMTP_SOCKET_PLAIN => provider::Socket::Plain,
-                DC_LP_SMTP_SOCKET_STARTTLS => provider::Socket::STARTTLS,
-                DC_LP_SMTP_SOCKET_SSL => provider::Socket::SSL,
-                _ => Default::default(),
-            },
+            socket: p.send_security,
             port: p.send_port as u16,
             hostname: p.send_server,
             username_pattern: if p.send_user.contains('@') {
@@ -493,10 +472,10 @@ async fn try_imap_ports(
 ) -> Result<LoginParam> {
     // Try to infer port from socket security.
     if param.mail_port == 0 {
-        if 0 != param.server_flags & DC_LP_IMAP_SOCKET_SSL {
+        if param.mail_security == Socket::SSL {
             param.mail_port = 993
         }
-        if 0 != param.server_flags & (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_PLAIN) {
+        if param.mail_security == Socket::STARTTLS || param.mail_security == Socket::Plain {
             param.mail_port = 143
         }
     }
@@ -507,29 +486,25 @@ async fn try_imap_ports(
         // Try common secure combinations.
 
         // Try TLS over port 993
-        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32;
+        param.mail_security = Socket::SSL;
         param.mail_port = 993;
         if let Ok(login_param) = try_imap_usernames(context, param.clone(), imap).await {
             return Ok(login_param);
         }
 
         // Try STARTTLS over port 143
-        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS as i32;
+        param.mail_security = Socket::STARTTLS;
         param.mail_port = 143;
         try_imap_usernames(context, param, imap).await
-    } else if 0 == param.server_flags & DC_LP_SMTP_SOCKET_FLAGS as i32 {
+    } else if param.mail_security == Socket::Automatic {
         // Try TLS over user-provided port.
-        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32;
+        param.mail_security = Socket::SSL;
         if let Ok(login_param) = try_imap_usernames(context, param.clone(), imap).await {
             return Ok(login_param);
         }
 
         // Try STARTTLS over user-provided port.
-        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS as i32;
+        param.mail_security = Socket::STARTTLS;
         try_imap_usernames(context, param, imap).await
     } else {
         try_imap_usernames(context, param, imap).await
@@ -614,15 +589,11 @@ async fn try_smtp_ports(
 ) -> Result<LoginParam> {
     // Try to infer port from socket security.
     if param.send_port == 0 {
-        if 0 != param.server_flags & DC_LP_SMTP_SOCKET_STARTTLS as i32 {
-            param.send_port = 587;
-        }
-        if 0 != param.server_flags & DC_LP_SMTP_SOCKET_PLAIN as i32 {
-            param.send_port = 25;
-        }
-        if 0 != param.server_flags & DC_LP_SMTP_SOCKET_SSL as i32 {
-            param.send_port = 465;
-        }
+        param.send_port = match param.send_security {
+            Socket::Automatic => 0,
+            Socket::STARTTLS | Socket::Plain => 587,
+            Socket::SSL => 465,
+        };
     }
 
     if param.send_port == 0 {
@@ -631,29 +602,25 @@ async fn try_smtp_ports(
         // Try common secure combinations.
 
         // Try TLS over port 465.
-        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32;
+        param.send_security = Socket::SSL;
         param.send_port = 465;
         if let Ok(login_param) = try_smtp_usernames(context, param.clone(), smtp).await {
             return Ok(login_param);
         }
 
         // Try STARTTLS over port 587.
-        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
+        param.send_security = Socket::STARTTLS;
         param.send_port = 587;
         try_smtp_usernames(context, param, smtp).await
-    } else if 0 == param.server_flags & DC_LP_SMTP_SOCKET_FLAGS as i32 {
+    } else if param.send_security == Socket::Automatic {
         // Try TLS over user-provided port.
-        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32;
+        param.send_security = Socket::SSL;
         if let Ok(param) = try_smtp_usernames(context, param.clone(), smtp).await {
             return Ok(param);
         }
 
         // Try STARTTLS over user-provided port.
-        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
+        param.send_security = Socket::STARTTLS;
         try_smtp_usernames(context, param, smtp).await
     } else {
         try_smtp_usernames(context, param, smtp).await

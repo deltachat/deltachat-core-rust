@@ -2,9 +2,9 @@
 
 use quick_xml::events::BytesEnd;
 
-use crate::constants::*;
 use crate::context::Context;
 use crate::login_param::LoginParam;
+use crate::provider::Socket;
 
 use super::read_url::read_url;
 use super::Error;
@@ -146,9 +146,9 @@ fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut OutlookAutodisc
                     std::mem::replace(&mut outlk_ad.config_server, String::new());
                 outlk_ad.out.mail_port = port;
                 if ssl_on {
-                    outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32
+                    outlk_ad.out.mail_security = Socket::SSL
                 } else if ssl_off {
-                    outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_PLAIN as i32
+                    outlk_ad.out.mail_security = Socket::Plain
                 }
                 outlk_ad.out_imap_set = true
             } else if type_ == "smtp" && !outlk_ad.out_smtp_set {
@@ -156,9 +156,9 @@ fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut OutlookAutodisc
                     std::mem::replace(&mut outlk_ad.config_server, String::new());
                 outlk_ad.out.send_port = outlk_ad.config_port;
                 if ssl_on {
-                    outlk_ad.out.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32
+                    outlk_ad.out.send_security = Socket::SSL
                 } else if ssl_off {
-                    outlk_ad.out.server_flags |= DC_LP_SMTP_SOCKET_PLAIN as i32
+                    outlk_ad.out.send_security = Socket::Plain
                 }
                 outlk_ad.out_smtp_set = true
             }

@@ -12,7 +12,7 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam};
 use crate::oauth2::*;
-use crate::provider::get_provider_info;
+use crate::provider::{get_provider_info, Socket};
 use crate::stock::StockMessage;
 
 /// SMTP write and read timeout in seconds.
@@ -158,12 +158,9 @@ impl Smtp {
             )
         };
 
-        let security = if 0
-            != lp.server_flags & (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_PLAIN) as i32
-        {
-            smtp::ClientSecurity::Opportunistic(tls_parameters)
-        } else {
-            smtp::ClientSecurity::Wrapper(tls_parameters)
+        let security = match lp.send_security {
+            Socket::STARTTLS | Socket::Plain => smtp::ClientSecurity::Opportunistic(tls_parameters),
+            _ => smtp::ClientSecurity::Wrapper(tls_parameters),
         };
 
         let client = smtp::SmtpClient::with_security((domain.as_str(), port), security)

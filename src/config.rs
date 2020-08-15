@@ -24,11 +24,13 @@ pub enum Config {
     MailUser,
     MailPw,
     MailPort,
+    MailSecurity,
     ImapCertificateChecks,
     SendServer,
     SendUser,
     SendPw,
     SendPort,
+    SendSecurity,
     SmtpCertificateChecks,
     ServerFlags,
 

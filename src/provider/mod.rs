@@ -24,9 +24,10 @@ pub enum Protocol {
     IMAP = 2,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Socket {
+    Automatic = 0,
     SSL = 1,
     STARTTLS = 2,
     Plain = 3,
@@ -34,7 +35,7 @@ pub enum Socket {
 
 impl Default for Socket {
     fn default() -> Self {
-        Socket::STARTTLS
+        Socket::Automatic
     }
 }
 

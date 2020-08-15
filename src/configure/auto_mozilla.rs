@@ -3,9 +3,9 @@
 //! Documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
-use crate::constants::*;
 use crate::context::Context;
 use crate::login_param::LoginParam;
+use crate::provider::Socket;
 
 use super::read_url::read_url;
 use super::Error;
@@ -136,13 +136,13 @@ fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
             MozConfigTag::Sockettype => {
                 let val_lower = val.to_lowercase();
                 if val_lower == "ssl" {
-                    moz_ac.out.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32
+                    moz_ac.out.mail_security = Socket::SSL;
                 }
                 if val_lower == "starttls" {
-                    moz_ac.out.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS as i32
+                    moz_ac.out.mail_security = Socket::STARTTLS;
                 }
                 if val_lower == "plain" {
-                    moz_ac.out.server_flags |= DC_LP_IMAP_SOCKET_PLAIN as i32
+                    moz_ac.out.mail_security = Socket::Plain;
                 }
             }
             _ => {}
@@ -154,13 +154,13 @@ fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
             MozConfigTag::Sockettype => {
                 let val_lower = val.to_lowercase();
                 if val_lower == "ssl" {
-                    moz_ac.out.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32
+                    moz_ac.out.send_security = Socket::SSL;
                 }
                 if val_lower == "starttls" {
-                    moz_ac.out.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32
+                    moz_ac.out.send_security = Socket::STARTTLS;
                 }
                 if val_lower == "plain" {
-                    moz_ac.out.server_flags |= DC_LP_SMTP_SOCKET_PLAIN as i32
+                    moz_ac.out.send_security = Socket::Plain;
                 }
             }
             _ => {}
