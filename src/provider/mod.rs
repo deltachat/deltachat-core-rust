@@ -9,7 +9,7 @@ use crate::{
     provider::data::PROVIDER_DATA,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, ToPrimitive)]
+#[derive(Debug, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Status {
     OK = 1,
@@ -17,7 +17,7 @@ pub enum Status {
     BROKEN = 3,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Protocol {
     SMTP = 1,
@@ -86,8 +86,8 @@ impl Provider {
             .iter()
             .filter(|s| s.protocol == protocol)
             .map(|s| ServerParams {
-                protocol: s.protocol.clone(),
-                socket: s.socket.clone(),
+                protocol: s.protocol,
+                socket: s.socket,
                 hostname: s.hostname.to_string(),
                 port: s.port,
                 username_pattern: s.username_pattern.clone(),
