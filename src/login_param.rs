@@ -12,7 +12,10 @@ use crate::{
 #[repr(i32)]
 #[strum(serialize_all = "snake_case")]
 pub enum CertificateChecks {
+    /// Same as AcceptInvalidCertificates unless overridden by
+    /// `strict_tls` setting in provider database.
     Automatic = 0,
+
     Strict = 1,
 
     /// Same as AcceptInvalidCertificates

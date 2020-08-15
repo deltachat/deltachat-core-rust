@@ -391,13 +391,13 @@ pub fn loginparam_new_to_old(context: &Context, servers: &LoginParamNew) -> Opti
             p.mail_user = imap.apply_username_pattern(addr.clone());
             p.mail_port = imap.port as i32;
             p.mail_security = imap.socket;
-            p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+            p.imap_certificate_checks = CertificateChecks::Automatic;
 
             p.send_server = smtp.hostname.to_string();
             p.send_user = smtp.apply_username_pattern(addr.clone());
             p.send_port = smtp.port as i32;
             p.send_security = smtp.socket;
-            p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+            p.smtp_certificate_checks = CertificateChecks::Automatic;
 
             info!(context, "offline autoconfig found: {}", p);
             return Some(p);
