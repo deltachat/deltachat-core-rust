@@ -274,10 +274,12 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `mail_user`    = IMAP-username, guessed if left out
  * - `mail_pw`      = IMAP-password (always needed)
  * - `mail_port`    = IMAP-port, guessed if left out
+ * - `mail_security`= IMAP-socket, one of @ref DC_SOCKET, defaults to #DC_SOCKET_AUTO
  * - `send_server`  = SMTP-server, guessed if left out
  * - `send_user`    = SMTP-user, guessed if left out
  * - `send_pw`      = SMTP-password, guessed if left out
  * - `send_port`    = SMTP-port, guessed if left out
+ * - `send_security`= SMTP-socket, one of @ref DC_SOCKET, defaults to #DC_SOCKET_AUTO
  * - `server_flags` = IMAP-/SMTP-flags as a combination of @ref DC_LP flags, guessed if left out
  * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
@@ -4176,6 +4178,8 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @defgroup DC_SOCKET DC_SOCKET
  *
  * These constants configure socket security.
+ * To set socket security, use dc_set_config() with the keys "mail_security" and/or "send_security".
+ * If no socket-configuration is explicitly specified, #DC_SOCKET_AUTO is used.
  *
  * @addtogroup DC_SOCKET
  * @{
@@ -4195,7 +4199,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * Connect via STARTTLS.
- * If this flag is set, automatic configuration is skipped.
  */
 #define DC_SOCKET_STARTTLS 2
 
