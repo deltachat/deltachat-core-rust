@@ -318,30 +318,6 @@ fn get_readable_flags(flags: i32) -> String {
                 res += "AUTH_NORMAL ";
                 flag_added = true;
             }
-            if 1 << bit == 0x100 {
-                res += "IMAP_STARTTLS ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x200 {
-                res += "IMAP_SSL ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x400 {
-                res += "IMAP_PLAIN ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x10000 {
-                res += "SMTP_STARTTLS ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x20000 {
-                res += "SMTP_SSL ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x40000 {
-                res += "SMTP_PLAIN ";
-                flag_added = true;
-            }
             if flag_added {
                 res += &format!("{:#0x}", 1 << bit);
             }
