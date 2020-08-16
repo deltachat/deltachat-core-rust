@@ -22,7 +22,7 @@ use crate::dc_receive_imf::{
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
-use crate::login_param::{CertificateChecks, LoginParam};
+use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{self, update_server_uid, MessageState};
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
@@ -153,7 +153,7 @@ struct ImapConfig {
     pub imap_pw: String,
     pub security: Socket,
     pub strict_tls: bool,
-    pub server_flags: usize,
+    pub oauth2: bool,
     pub selected_folder: Option<String>,
     pub selected_mailbox: Option<Mailbox>,
     pub selected_folder_needs_expunge: bool,
@@ -174,7 +174,7 @@ impl Default for ImapConfig {
             imap_pw: "".into(),
             security: Default::default(),
             strict_tls: false,
-            server_flags: 0,
+            oauth2: false,
             selected_folder: None,
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
@@ -221,7 +221,7 @@ impl Imap {
             return Ok(());
         }
 
-        let server_flags = self.config.server_flags as i32;
+        let oauth2 = self.config.oauth2;
 
         let connection_res: ImapResult<Client> = if self.config.security == Socket::STARTTLS
             || self.config.security == Socket::Plain
@@ -254,7 +254,7 @@ impl Imap {
                 let imap_user: &str = config.imap_user.as_ref();
                 let imap_pw: &str = config.imap_pw.as_ref();
 
-                if (server_flags & DC_LP_AUTH_OAUTH2) != 0 {
+                if oauth2 {
                     let addr: &str = config.addr.as_ref();
 
                     if let Some(token) =
@@ -380,7 +380,15 @@ impl Imap {
         let param = LoginParam::from_database(context, "configured_").await;
         // the trailing underscore is correct
 
-        if self.connect(context, &param).await {
+        if self
+            .connect(
+                context,
+                &param.imap,
+                &param.addr,
+                param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
+            )
+            .await
+        {
             self.ensure_configured_folders(context, true).await
         } else {
             Err(Error::ConnectionFailed(format!("{}", param)))
@@ -388,18 +396,24 @@ impl Imap {
     }
 
     /// Tries connecting to imap account using the specific login parameters.
-    pub async fn connect(&mut self, context: &Context, lp: &LoginParam) -> bool {
-        if lp.imap.server.is_empty() || lp.imap.user.is_empty() || lp.imap.password.is_empty() {
+    ///
+    /// `addr` is used to renew token if OAuth2 authentication is used.
+    pub async fn connect(
+        &mut self,
+        context: &Context,
+        lp: &ServerLoginParam,
+        addr: &str,
+        oauth2: bool,
+    ) -> bool {
+        if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
             return false;
         }
 
         {
-            let addr = &lp.addr;
-            let imap_server = &lp.imap.server;
-            let imap_port = lp.imap.port;
-            let imap_user = &lp.imap.user;
-            let imap_pw = &lp.imap.password;
-            let server_flags = lp.server_flags as usize;
+            let imap_server = &lp.server;
+            let imap_port = lp.port;
+            let imap_user = &lp.user;
+            let imap_pw = &lp.password;
 
             let mut config = &mut self.config;
             config.addr = addr.to_string();
@@ -407,8 +421,8 @@ impl Imap {
             config.imap_port = imap_port;
             config.imap_user = imap_user.to_string();
             config.imap_pw = imap_pw.to_string();
-            let provider = get_provider_info(&lp.addr);
-            config.strict_tls = match lp.imap.certificate_checks {
+            let provider = get_provider_info(&addr);
+            config.strict_tls = match lp.certificate_checks {
                 CertificateChecks::Automatic => {
                     provider.map_or(false, |provider| provider.strict_tls)
                 }
@@ -416,7 +430,7 @@ impl Imap {
                 CertificateChecks::AcceptInvalidCertificates
                 | CertificateChecks::AcceptInvalidCertificates2 => false,
             };
-            config.server_flags = server_flags;
+            config.oauth2 = oauth2;
         }
 
         if let Err(err) = self.setup_handle_if_needed(context).await {
@@ -429,7 +443,7 @@ impl Imap {
             Some(ref mut session) => match session.capabilities().await {
                 Ok(caps) => {
                     if !context.sql.is_open().await {
-                        warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.imap.user,);
+                        warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.user,);
                         true
                     } else {
                         let can_idle = caps.has_str("IDLE");
@@ -449,7 +463,7 @@ impl Imap {
                             context,
                             EventType::ImapConnected(format!(
                                 "IMAP-LOGIN as {}, capabilities: {}",
-                                lp.imap.user, caps_list,
+                                lp.user, caps_list,
                             ))
                         );
                         false

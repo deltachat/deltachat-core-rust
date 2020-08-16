@@ -544,7 +544,15 @@ async fn try_imap_one_param(context: &Context, param: &LoginParam, imap: &mut Im
     );
     info!(context, "Trying: {}", inf);
 
-    if imap.connect(context, &param).await {
+    if imap
+        .connect(
+            context,
+            &param.imap,
+            &param.addr,
+            param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
+        )
+        .await
+    {
         info!(context, "success: {}", inf);
         return Ok(());
     }
