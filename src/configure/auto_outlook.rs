@@ -15,7 +15,7 @@ struct OutlookAutodiscover {
     pub out_smtp_set: bool,
     pub config_type: Option<String>,
     pub config_server: String,
-    pub config_port: i32,
+    pub config_port: u16,
     pub config_ssl: String,
     pub config_redirecturl: Option<String>,
 }
@@ -98,10 +98,10 @@ fn parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
     let res = if outlk_ad.config_redirecturl.is_none()
         || outlk_ad.config_redirecturl.as_ref().unwrap().is_empty()
     {
-        if outlk_ad.out.mail_server.is_empty()
-            || outlk_ad.out.mail_port == 0
-            || outlk_ad.out.send_server.is_empty()
-            || outlk_ad.out.send_port == 0
+        if outlk_ad.out.imap.server.is_empty()
+            || outlk_ad.out.imap.port == 0
+            || outlk_ad.out.smtp.server.is_empty()
+            || outlk_ad.out.smtp.port == 0
         {
             return Err(Error::IncompleteAutoconfig(outlk_ad.out));
         }
@@ -142,23 +142,23 @@ fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut OutlookAutodisc
             let ssl_on = outlk_ad.config_ssl == "on";
             let ssl_off = outlk_ad.config_ssl == "off";
             if type_ == "imap" && !outlk_ad.out_imap_set {
-                outlk_ad.out.mail_server =
+                outlk_ad.out.imap.server =
                     std::mem::replace(&mut outlk_ad.config_server, String::new());
-                outlk_ad.out.mail_port = port;
+                outlk_ad.out.imap.port = port;
                 if ssl_on {
-                    outlk_ad.out.mail_security = Socket::SSL
+                    outlk_ad.out.imap.security = Socket::SSL
                 } else if ssl_off {
-                    outlk_ad.out.mail_security = Socket::Plain
+                    outlk_ad.out.imap.security = Socket::Plain
                 }
                 outlk_ad.out_imap_set = true
             } else if type_ == "smtp" && !outlk_ad.out_smtp_set {
-                outlk_ad.out.send_server =
+                outlk_ad.out.smtp.server =
                     std::mem::replace(&mut outlk_ad.config_server, String::new());
-                outlk_ad.out.send_port = outlk_ad.config_port;
+                outlk_ad.out.smtp.port = outlk_ad.config_port;
                 if ssl_on {
-                    outlk_ad.out.send_security = Socket::SSL
+                    outlk_ad.out.smtp.security = Socket::SSL
                 } else if ssl_off {
-                    outlk_ad.out.send_security = Socket::Plain
+                    outlk_ad.out.smtp.security = Socket::Plain
                 }
                 outlk_ad.out_smtp_set = true
             }
@@ -229,10 +229,10 @@ mod tests {
 
         match res {
             ParsingResult::LoginParam(lp) => {
-                assert_eq!(lp.mail_server, "example.com");
-                assert_eq!(lp.mail_port, 993);
-                assert_eq!(lp.send_server, "smtp.example.com");
-                assert_eq!(lp.send_port, 25);
+                assert_eq!(lp.imap.server, "example.com");
+                assert_eq!(lp.imap.port, 993);
+                assert_eq!(lp.smtp.server, "smtp.example.com");
+                assert_eq!(lp.smtp.port, 25);
             }
             ParsingResult::RedirectUrl(_) => {
                 panic!("RedirectUrl is not expected");

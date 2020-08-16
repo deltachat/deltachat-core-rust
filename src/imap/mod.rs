@@ -389,16 +389,16 @@ impl Imap {
 
     /// Tries connecting to imap account using the specific login parameters.
     pub async fn connect(&mut self, context: &Context, lp: &LoginParam) -> bool {
-        if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
+        if lp.imap.server.is_empty() || lp.imap.user.is_empty() || lp.imap.password.is_empty() {
             return false;
         }
 
         {
             let addr = &lp.addr;
-            let imap_server = &lp.mail_server;
-            let imap_port = lp.mail_port as u16;
-            let imap_user = &lp.mail_user;
-            let imap_pw = &lp.mail_pw;
+            let imap_server = &lp.imap.server;
+            let imap_port = lp.imap.port;
+            let imap_user = &lp.imap.user;
+            let imap_pw = &lp.imap.password;
             let server_flags = lp.server_flags as usize;
 
             let mut config = &mut self.config;
@@ -408,7 +408,7 @@ impl Imap {
             config.imap_user = imap_user.to_string();
             config.imap_pw = imap_pw.to_string();
             let provider = get_provider_info(&lp.addr);
-            config.strict_tls = match lp.imap_certificate_checks {
+            config.strict_tls = match lp.imap.certificate_checks {
                 CertificateChecks::Automatic => {
                     provider.map_or(false, |provider| provider.strict_tls)
                 }
@@ -429,7 +429,7 @@ impl Imap {
             Some(ref mut session) => match session.capabilities().await {
                 Ok(caps) => {
                     if !context.sql.is_open().await {
-                        warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
+                        warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.imap.user,);
                         true
                     } else {
                         let can_idle = caps.has_str("IDLE");
@@ -449,7 +449,7 @@ impl Imap {
                             context,
                             EventType::ImapConnected(format!(
                                 "IMAP-LOGIN as {}, capabilities: {}",
-                                lp.mail_user, caps_list,
+                                lp.imap.user, caps_list,
                             ))
                         );
                         false

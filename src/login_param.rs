@@ -64,23 +64,25 @@ impl ServerParams {
     }
 }
 
+/// Login parameters for a single server, either IMAP or SMTP
+#[derive(Default, Debug, Clone)]
+pub struct ServerLoginParam {
+    pub server: String,
+    pub user: String,
+    pub password: String,
+    pub port: u16,
+    pub security: Socket,
+
+    /// TLS options: whether to allow invalid certificates and/or
+    /// invalid hostnames
+    pub certificate_checks: CertificateChecks,
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct LoginParam {
     pub addr: String,
-    pub mail_server: String,
-    pub mail_user: String,
-    pub mail_pw: String,
-    pub mail_port: i32,
-    pub mail_security: Socket,
-    /// IMAP TLS options: whether to allow invalid certificates and/or invalid hostnames
-    pub imap_certificate_checks: CertificateChecks,
-    pub send_server: String,
-    pub send_user: String,
-    pub send_pw: String,
-    pub send_port: i32,
-    pub send_security: Socket,
-    /// SMTP TLS options: whether to allow invalid certificates and/or invalid hostnames
-    pub smtp_certificate_checks: CertificateChecks,
+    pub imap: ServerLoginParam,
+    pub smtp: ServerLoginParam,
     pub server_flags: i32,
 }
 
@@ -171,18 +173,22 @@ impl LoginParam {
 
         LoginParam {
             addr,
-            mail_server,
-            mail_user,
-            mail_pw,
-            mail_port,
-            mail_security,
-            imap_certificate_checks,
-            send_server,
-            send_user,
-            send_pw,
-            send_port,
-            send_security,
-            smtp_certificate_checks,
+            imap: ServerLoginParam {
+                server: mail_server,
+                user: mail_user,
+                password: mail_pw,
+                port: mail_port as u16,
+                security: mail_security,
+                certificate_checks: imap_certificate_checks,
+            },
+            smtp: ServerLoginParam {
+                server: send_server,
+                user: send_user,
+                password: send_pw,
+                port: send_port as u16,
+                security: send_security,
+                certificate_checks: smtp_certificate_checks,
+            },
             server_flags,
         }
     }
@@ -200,49 +206,51 @@ impl LoginParam {
         sql.set_raw_config(context, key, Some(&self.addr)).await?;
 
         let key = format!("{}mail_server", prefix);
-        sql.set_raw_config(context, key, Some(&self.mail_server))
+        sql.set_raw_config(context, key, Some(&self.imap.server))
             .await?;
 
         let key = format!("{}mail_port", prefix);
-        sql.set_raw_config_int(context, key, self.mail_port).await?;
+        sql.set_raw_config_int(context, key, self.imap.port as i32)
+            .await?;
 
         let key = format!("{}mail_user", prefix);
-        sql.set_raw_config(context, key, Some(&self.mail_user))
+        sql.set_raw_config(context, key, Some(&self.imap.user))
             .await?;
 
         let key = format!("{}mail_pw", prefix);
-        sql.set_raw_config(context, key, Some(&self.mail_pw))
+        sql.set_raw_config(context, key, Some(&self.imap.password))
             .await?;
 
         let key = format!("{}mail_security", prefix);
-        sql.set_raw_config_int(context, key, self.mail_security as i32)
+        sql.set_raw_config_int(context, key, self.imap.security as i32)
             .await?;
 
         let key = format!("{}imap_certificate_checks", prefix);
-        sql.set_raw_config_int(context, key, self.imap_certificate_checks as i32)
+        sql.set_raw_config_int(context, key, self.imap.certificate_checks as i32)
             .await?;
 
         let key = format!("{}send_server", prefix);
-        sql.set_raw_config(context, key, Some(&self.send_server))
+        sql.set_raw_config(context, key, Some(&self.smtp.server))
             .await?;
 
         let key = format!("{}send_port", prefix);
-        sql.set_raw_config_int(context, key, self.send_port).await?;
+        sql.set_raw_config_int(context, key, self.smtp.port as i32)
+            .await?;
 
         let key = format!("{}send_user", prefix);
-        sql.set_raw_config(context, key, Some(&self.send_user))
+        sql.set_raw_config(context, key, Some(&self.smtp.user))
             .await?;
 
         let key = format!("{}send_pw", prefix);
-        sql.set_raw_config(context, key, Some(&self.send_pw))
+        sql.set_raw_config(context, key, Some(&self.smtp.password))
             .await?;
 
         let key = format!("{}send_security", prefix);
-        sql.set_raw_config_int(context, key, self.send_security as i32)
+        sql.set_raw_config_int(context, key, self.smtp.security as i32)
             .await?;
 
         let key = format!("{}smtp_certificate_checks", prefix);
-        sql.set_raw_config_int(context, key, self.smtp_certificate_checks as i32)
+        sql.set_raw_config_int(context, key, self.smtp.certificate_checks as i32)
             .await?;
 
         let key = format!("{}server_flags", prefix);
@@ -264,16 +272,24 @@ impl fmt::Display for LoginParam {
             f,
             "{} imap:{}:{}:{}:{}:cert_{} smtp:{}:{}:{}:{}:cert_{} {}",
             unset_empty(&self.addr),
-            unset_empty(&self.mail_user),
-            if !self.mail_pw.is_empty() { pw } else { unset },
-            unset_empty(&self.mail_server),
-            self.mail_port,
-            self.imap_certificate_checks,
-            unset_empty(&self.send_user),
-            if !self.send_pw.is_empty() { pw } else { unset },
-            unset_empty(&self.send_server),
-            self.send_port,
-            self.smtp_certificate_checks,
+            unset_empty(&self.imap.user),
+            if !self.imap.password.is_empty() {
+                pw
+            } else {
+                unset
+            },
+            unset_empty(&self.imap.server),
+            self.imap.port,
+            self.imap.certificate_checks,
+            unset_empty(&self.smtp.user),
+            if !self.smtp.password.is_empty() {
+                pw
+            } else {
+                unset
+            },
+            unset_empty(&self.smtp.server),
+            self.smtp.port,
+            self.smtp.certificate_checks,
             flags_readable,
         )
     }

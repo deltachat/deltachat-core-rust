@@ -729,8 +729,8 @@ impl Contact {
                     );
                     cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
                 }
-            } else if loginparam.mail_security == Socket::Plain
-                && loginparam.send_security == Socket::Plain
+            } else if loginparam.imap.security == Socket::Plain
+                && loginparam.smtp.security == Socket::Plain
             {
                 ret += &context.stock_str(StockMessage::EncrTransp).await;
             } else {

@@ -101,7 +101,7 @@ impl Smtp {
             return Ok(());
         }
 
-        if lp.send_server.is_empty() || lp.send_port == 0 {
+        if lp.smtp.server.is_empty() || lp.smtp.port == 0 {
             context.emit_event(EventType::ErrorNetwork("SMTP bad parameters.".into()));
             return Err(Error::BadParameters);
         }
@@ -114,11 +114,11 @@ impl Smtp {
 
         self.from = Some(from);
 
-        let domain = &lp.send_server;
-        let port = lp.send_port as u16;
+        let domain = &lp.smtp.server;
+        let port = lp.smtp.port;
 
         let provider = get_provider_info(&lp.addr);
-        let strict_tls = match lp.smtp_certificate_checks {
+        let strict_tls = match lp.smtp.certificate_checks {
             CertificateChecks::Automatic => provider.map_or(false, |provider| provider.strict_tls),
             CertificateChecks::Strict => true,
             CertificateChecks::AcceptInvalidCertificates
@@ -130,14 +130,14 @@ impl Smtp {
         let (creds, mechanism) = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
             // oauth2
             let addr = &lp.addr;
-            let send_pw = &lp.send_pw;
+            let send_pw = &lp.smtp.password;
             let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false).await;
             if access_token.is_none() {
                 return Err(Error::Oauth2Error {
                     address: addr.to_string(),
                 });
             }
-            let user = &lp.send_user;
+            let user = &lp.smtp.user;
             (
                 smtp::authentication::Credentials::new(
                     user.to_string(),
@@ -147,8 +147,8 @@ impl Smtp {
             )
         } else {
             // plain
-            let user = lp.send_user.clone();
-            let pw = lp.send_pw.clone();
+            let user = lp.smtp.user.clone();
+            let pw = lp.smtp.password.clone();
             (
                 smtp::authentication::Credentials::new(user, pw),
                 vec![
@@ -158,7 +158,7 @@ impl Smtp {
             )
         };
 
-        let security = match lp.send_security {
+        let security = match lp.smtp.security {
             Socket::STARTTLS | Socket::Plain => smtp::ClientSecurity::Opportunistic(tls_parameters),
             _ => smtp::ClientSecurity::Wrapper(tls_parameters),
         };
@@ -193,7 +193,7 @@ impl Smtp {
 
         context.emit_event(EventType::SmtpConnected(format!(
             "SMTP-LOGIN as {} ok",
-            lp.send_user,
+            lp.smtp.user,
         )));
 
         Ok(())
