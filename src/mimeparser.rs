@@ -1022,6 +1022,28 @@ impl MimeMessage {
             message::handle_ndn(context, failure_report, error).await
         }
     }
+
+    /// Returns timestamp of the parent message.
+    ///
+    /// If there is no parent message or it is not found in the
+    /// database, returns None.
+    pub async fn get_parent_timestamp(&self, context: &Context) -> Result<Option<i64>> {
+        let parent_timestamp = if let Some(field) = self
+            .get(HeaderDef::InReplyTo)
+            .and_then(|msgid| parse_message_id(msgid).ok())
+        {
+            context
+                .sql
+                .query_get_value_result(
+                    "SELECT timestamp FROM msgs WHERE rfc724_mid=?",
+                    paramsv![field],
+                )
+                .await?
+        } else {
+            None
+        };
+        Ok(parent_timestamp)
+    }
 }
 
 async fn update_gossip_peerstates(
@@ -1389,6 +1411,39 @@ mod tests {
         assert_eq!(of.addr, "hello@one.org");
 
         assert!(mimeparser.chat_disposition_notification_to.is_none());
+    }
+
+    #[async_std::test]
+    async fn test_get_parent_timestamp() {
+        let context = TestContext::new().await;
+        let raw = b"From: foo@example.org\n\
+                    Content-Type: text/plain\n\
+                    Chat-Version: 1.0\n\
+                    In-Reply-To: <Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org>\n\
+                    \n\
+                    Some reply\n\
+                    ";
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(
+            mimeparser.get_parent_timestamp(&context.ctx).await.unwrap(),
+            None
+        );
+        let timestamp = 1570435529;
+        context
+            .ctx
+            .sql
+            .execute(
+                "INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)",
+                paramsv!["Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp],
+            )
+            .await
+            .expect("Failed to write to the database");
+        assert_eq!(
+            mimeparser.get_parent_timestamp(&context.ctx).await.unwrap(),
+            Some(timestamp)
+        );
     }
 
     #[async_std::test]
