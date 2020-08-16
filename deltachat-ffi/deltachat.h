@@ -4167,6 +4167,10 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 #define DC_MSG_VIDEOCHAT_INVITATION 70
 
+/**
+ * @}
+ */
+
 
 /**
  * @defgroup DC_SOCKET DC_SOCKET
@@ -4176,11 +4180,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @addtogroup DC_SOCKET
  * @{
  */
-
-/**
- * @}
- */
-
 
 /**
  * Choose socket security automatically.
@@ -4205,7 +4204,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Connect unencrypted, this should not be used.
  */
 #define DC_SOCKET_PLAIN 3
-
 
 /**
  * @}
