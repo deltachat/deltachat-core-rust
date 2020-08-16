@@ -5,7 +5,7 @@ use std::fmt;
 
 use crate::context::Context;
 
-#[derive(Copy, Clone, Debug, Display, FromPrimitive)]
+#[derive(Copy, Clone, Debug, Display, FromPrimitive, PartialEq, Eq)]
 #[repr(i32)]
 #[strum(serialize_all = "snake_case")]
 pub enum CertificateChecks {

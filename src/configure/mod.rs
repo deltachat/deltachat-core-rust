@@ -376,7 +376,7 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
                         p.mail_server = imap.hostname.to_string();
                         p.mail_user = imap.apply_username_pattern(param.addr.clone());
                         p.mail_port = imap.port as i32;
-                        p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+                        p.imap_certificate_checks = CertificateChecks::Automatic;
                         p.server_flags |= match imap.socket {
                             provider::Socket::STARTTLS => DC_LP_IMAP_SOCKET_STARTTLS,
                             provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
@@ -385,7 +385,7 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
                         p.send_server = smtp.hostname.to_string();
                         p.send_user = smtp.apply_username_pattern(param.addr.clone());
                         p.send_port = smtp.port as i32;
-                        p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+                        p.smtp_certificate_checks = CertificateChecks::Automatic;
                         p.server_flags |= match smtp.socket {
                             provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS as i32,
                             provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL as i32,
@@ -706,5 +706,14 @@ mod tests {
         let found_params = get_offline_autoconfig(&context, &params).unwrap();
         assert_eq!(found_params.mail_server, "imap.nauta.cu".to_string());
         assert_eq!(found_params.send_server, "smtp.nauta.cu".to_string());
+
+        assert_eq!(
+            found_params.imap_certificate_checks,
+            CertificateChecks::Automatic
+        );
+        assert_eq!(
+            found_params.smtp_certificate_checks,
+            CertificateChecks::Automatic
+        );
     }
 }
