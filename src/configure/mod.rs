@@ -550,7 +550,7 @@ async fn try_smtp_hostnames(
         }
 
         progress!(context, 850);
-        param.mail_server = "mail.".to_string() + &param_domain;
+        param.send_server = "mail.".to_string() + &param_domain;
         try_smtp_ports(context, param, smtp).await
     } else {
         progress!(context, 850);
