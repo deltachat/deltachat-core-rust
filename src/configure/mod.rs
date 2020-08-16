@@ -669,7 +669,15 @@ async fn try_smtp_one_param(context: &Context, param: &LoginParam, smtp: &mut Sm
     );
     info!(context, "Trying: {}", inf);
 
-    if let Err(err) = smtp.connect(context, &param).await {
+    if let Err(err) = smtp
+        .connect(
+            context,
+            &param.smtp,
+            &param.addr,
+            param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
+        )
+        .await
+    {
         bail!("could not connect: {}", err);
     }
 

@@ -26,7 +26,6 @@ use crate::error::{bail, ensure, format_err, Error, Result};
 use crate::events::EventType;
 use crate::imap::*;
 use crate::location;
-use crate::login_param::LoginParam;
 use crate::message::MsgId;
 use crate::message::{self, Message, MessageState};
 use crate::mimefactory::MimeFactory;
@@ -338,12 +337,9 @@ impl Job {
 
     pub(crate) async fn send_msg_to_smtp(&mut self, context: &Context, smtp: &mut Smtp) -> Status {
         //  SMTP server, if not yet done
-        if !smtp.is_connected().await {
-            let loginparam = LoginParam::from_database(context, "configured_").await;
-            if let Err(err) = smtp.connect(context, &loginparam).await {
-                warn!(context, "SMTP connection failure: {:?}", err);
-                return Status::RetryLater;
-            }
+        if let Err(err) = smtp.connect_configured(context).await {
+            warn!(context, "SMTP connection failure: {:?}", err);
+            return Status::RetryLater;
         }
 
         let filename = job_try!(job_try!(self
@@ -486,12 +482,9 @@ impl Job {
         let recipients = vec![recipient];
 
         // connect to SMTP server, if not yet done
-        if !smtp.is_connected().await {
-            let loginparam = LoginParam::from_database(context, "configured_").await;
-            if let Err(err) = smtp.connect(context, &loginparam).await {
-                warn!(context, "SMTP connection failure: {:?}", err);
-                return Status::RetryLater;
-            }
+        if let Err(err) = smtp.connect_configured(context).await {
+            warn!(context, "SMTP connection failure: {:?}", err);
+            return Status::RetryLater;
         }
 
         self.smtp_send(context, recipients, body, self.job_id, smtp, || {
