@@ -1,5 +1,37 @@
 # Changelog 
 
+## 1.45.0
+
+- add `dc_accounts_t` account manager object and related api functions #1784
+
+- add capability to import backups as .tar files,
+  which will become the default in a subsequent release #1749
+
+- try various server domains on configuration #1780 #1838
+
+- recognize .tgs files as stickers #1826
+
+- remove X-Mailer debug header #1819
+
+- improve guessing message types from extension #1818
+
+- fix showing unprotected subjects in encrypted messages #1822
+
+- fix threading in interation with non-delta-clients #1843
+
+- fix handling if encryption degrades #1829
+
+- fix webrtc-servers names set by the user #1831
+
+- update provider database #1828
+
+- update async-imap to fix Oauth2 #1837
+
+- optimize jpeg assets with trimage #1840
+
+- add tests and documentations #1809 #1820
+
+
 ## 1.44.0
 
 - fix peerstate issues #1800 #1805
