@@ -1952,7 +1952,8 @@ pub async fn create_group_chat(
     verified: VerifiedStatus,
     chat_name: impl AsRef<str>,
 ) -> Result<ChatId, Error> {
-    ensure!(!chat_name.as_ref().is_empty(), "Invalid chat name");
+    let chat_name = improve_single_line_input(chat_name);
+    ensure!(!chat_name.is_empty(), "Invalid chat name");
 
     let draft_txt = context
         .stock_string_repl_str(StockMessage::NewGroupDraft, &chat_name)
@@ -1967,7 +1968,7 @@ pub async fn create_group_chat(
             } else {
                 Chattype::Group
             },
-            chat_name.as_ref().to_string(),
+            chat_name,
             grpid,
             time(),
         ],
@@ -2432,17 +2433,18 @@ pub async fn set_chat_name(
     chat_id: ChatId,
     new_name: impl AsRef<str>,
 ) -> Result<(), Error> {
+    let new_name = improve_single_line_input(new_name);
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success = false;
 
-    ensure!(!new_name.as_ref().is_empty(), "Invalid name");
+    ensure!(!new_name.is_empty(), "Invalid name");
     ensure!(!chat_id.is_special(), "Invalid chat ID");
 
     let chat = Chat::load_from_db(context, chat_id).await?;
     let mut msg = Message::default();
 
     if real_group_exists(context, chat_id).await {
-        if chat.name == new_name.as_ref() {
+        if chat.name == new_name {
             success = true;
         } else if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
             emit_event!(
@@ -2455,7 +2457,7 @@ pub async fn set_chat_name(
                 .sql
                 .execute(
                     "UPDATE chats SET name=? WHERE id=?;",
-                    paramsv![new_name.as_ref().to_string(), chat_id],
+                    paramsv![new_name.to_string(), chat_id],
                 )
                 .await
                 .is_ok()
@@ -2467,7 +2469,7 @@ pub async fn set_chat_name(
                             .stock_system_msg(
                                 StockMessage::MsgGrpName,
                                 &chat.name,
-                                new_name.as_ref(),
+                                &new_name,
                                 DC_CONTACT_ID_SELF,
                             )
                             .await,
