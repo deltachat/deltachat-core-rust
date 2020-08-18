@@ -165,9 +165,9 @@ dependencies = [
 
 [[package]]
 name = "async-imap"
-version = "0.3.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c082ecb52ec3af0aa61d4314750086134ef9c7521edb41f7981c0f45650c0c7b"
+checksum = "caadebe62f5ad78d6418a47a86b5b84439a52bdd5c893e55a5c81974da111455"
 dependencies = [
  "async-native-tls",
  "async-std",
