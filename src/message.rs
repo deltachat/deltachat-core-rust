@@ -643,8 +643,45 @@ impl Message {
         None
     }
 
+    // add room to a webrtc_instance as defined by the corresponding config-value;
+    // the result may still be prefixed by the type
+    pub fn create_webrtc_instance(instance: &str, room: &str) -> String {
+        let (videochat_type, mut url) = Message::parse_webrtc_instance(instance);
+
+        // make sure, there is a scheme in the url
+        if !url.contains(':') {
+            url = format!("https://{}", url);
+        }
+
+        // add/replace room
+        let url = if url.contains("$ROOM") {
+            url.replace("$ROOM", &room)
+        } else {
+            // if there nothing that would separate the room, add a slash as a separator;
+            // this way, urls can be given as "https://meet.jit.si" as well as "https://meet.jit.si/"
+            let maybe_slash = if url.ends_with('/')
+                || url.ends_with('?')
+                || url.ends_with('#')
+                || url.ends_with('=')
+            {
+                ""
+            } else {
+                "/"
+            };
+            format!("{}{}{}", url, maybe_slash, room)
+        };
+
+        // re-add and normalize type
+        match videochat_type {
+            VideochatType::BasicWebrtc => format!("basicwebrtc:{}", url),
+            VideochatType::Jitsi => format!("jitsi:{}", url),
+            VideochatType::Unknown => url,
+        }
+    }
+
     /// split a webrtc_instance as defined by the corresponding config-value into a type and a url
     pub fn parse_webrtc_instance(instance: &str) -> (VideochatType, String) {
+        let instance: String = instance.split_whitespace().collect();
         let mut split = instance.splitn(2, ':');
         let type_str = split.next().unwrap_or_default().to_lowercase();
         let url = split.next();
@@ -1875,6 +1912,43 @@ mod tests {
         let (webrtc_type, url) = Message::parse_webrtc_instance("jitsi:https://j.si/foo");
         assert_eq!(webrtc_type, VideochatType::Jitsi);
         assert_eq!(url, "https://j.si/foo");
+    }
+
+    #[async_std::test]
+    async fn test_create_webrtc_instance() {
+        // webrtc_instance may come from an input field of the ui, be pretty tolerant on input
+        let instance = Message::create_webrtc_instance("https://meet.jit.si/", "123");
+        assert_eq!(instance, "https://meet.jit.si/123");
+
+        let instance = Message::create_webrtc_instance("https://meet.jit.si", "456");
+        assert_eq!(instance, "https://meet.jit.si/456");
+
+        let instance = Message::create_webrtc_instance("meet.jit.si", "789");
+        assert_eq!(instance, "https://meet.jit.si/789");
+
+        let instance = Message::create_webrtc_instance("bla.foo?", "123");
+        assert_eq!(instance, "https://bla.foo?123");
+
+        let instance = Message::create_webrtc_instance("jitsi:bla.foo#", "456");
+        assert_eq!(instance, "jitsi:https://bla.foo#456");
+
+        let instance = Message::create_webrtc_instance("bla.foo#room=", "789");
+        assert_eq!(instance, "https://bla.foo#room=789");
+
+        let instance = Message::create_webrtc_instance("https://bla.foo#room", "123");
+        assert_eq!(instance, "https://bla.foo#room/123");
+
+        let instance = Message::create_webrtc_instance("bla.foo#room$ROOM", "123");
+        assert_eq!(instance, "https://bla.foo#room123");
+
+        let instance = Message::create_webrtc_instance("bla.foo#room=$ROOM&after=cont", "234");
+        assert_eq!(instance, "https://bla.foo#room=234&after=cont");
+
+        let instance = Message::create_webrtc_instance("  meet.jit .si ", "789");
+        assert_eq!(instance, "https://meet.jit.si/789");
+
+        let instance = Message::create_webrtc_instance(" basicwebrtc: basic . stuff\n ", "12345ab");
+        assert_eq!(instance, "basicwebrtc:https://basic.stuff/12345ab");
     }
 
     #[async_std::test]

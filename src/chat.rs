@@ -1629,13 +1629,7 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
         bail!("webrtc_instance not set");
     };
 
-    let room = dc_create_id();
-
-    let instance = if instance.contains("$ROOM") {
-        instance.replace("$ROOM", &room)
-    } else {
-        format!("{}{}", instance, room)
-    };
+    let instance = Message::create_webrtc_instance(&instance, &dc_create_id());
 
     let mut msg = Message::new(Viewtype::VideochatInvitation);
     msg.param.set(Param::WebrtcRoom, &instance);
