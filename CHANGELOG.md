@@ -17,7 +17,7 @@
 
 - fix showing unprotected subjects in encrypted messages #1822
 
-- fix threading in interation with non-delta-clients #1843
+- fix threading in interaction with non-delta-clients #1843
 
 - fix handling if encryption degrades #1829
 
