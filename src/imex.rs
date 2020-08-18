@@ -1,10 +1,16 @@
 //! # Import/export module
 
 use std::any::Any;
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    ffi::OsStr,
+};
 
 use async_std::path::{Path, PathBuf};
-use async_std::prelude::*;
+use async_std::{
+    fs::{self, File},
+    prelude::*,
+};
 use rand::{thread_rng, Rng};
 
 use crate::blob::BlobObject;
@@ -24,6 +30,11 @@ use crate::param::*;
 use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
+use async_tar::Archive;
+
+// Name of the database file in the backup.
+const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
+const BLOBS_BACKUP_NAME: &str = "blobs_backup";
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(i32)]
@@ -42,8 +53,8 @@ pub enum ImexMode {
     /// Export a backup to the directory given as `param1`.
     /// The backup contains all contacts, chats, images and other data and device independent settings.
     /// The backup does not contain device dependent settings as ringtones or LED notification settings.
-    /// The name of the backup is typically `delta-chat.<day>.bak`, if more than one backup is create on a day,
-    /// the format is `delta-chat.<day>-<number>.bak`
+    /// The name of the backup is typically `delta-chat-<day>.tar`, if more than one backup is create on a day,
+    /// the format is `delta-chat-<day>-<number>.tar`
     ExportBackup = 11,
 
     /// `param1` is the file (not: directory) to import. The file is normally
@@ -85,6 +96,37 @@ pub async fn imex(
 
 /// Returns the filename of the backup found (otherwise an error)
 pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
+    let dir_name = dir_name.as_ref();
+    let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
+    let mut newest_backup_name = "".to_string();
+    let mut newest_backup_path: Option<PathBuf> = None;
+
+    while let Some(dirent) = dir_iter.next().await {
+        if let Ok(dirent) = dirent {
+            let path = dirent.path();
+            let name = dirent.file_name();
+            let name: String = name.to_string_lossy().into();
+            if name.starts_with("delta-chat")
+                && name.ends_with(".tar")
+                && (newest_backup_name.is_empty() || name > newest_backup_name)
+            {
+                // We just use string comparison to determine which backup is newer.
+                // This works fine because the filenames have the form ...delta-chat-backup-2020-07-24-00.tar
+                newest_backup_path = Some(path);
+                newest_backup_name = name;
+            }
+        }
+    }
+
+    match newest_backup_path {
+        Some(path) => Ok(path.to_string_lossy().into_owned()),
+        None => has_backup_old(context, dir_name).await,
+        // When we decide to remove support for .bak backups, we can replace this with `None => bail!("no backup found in {}", dir_name.display()),`.
+    }
+}
+
+/// Returns the filename of the backup found (otherwise an error)
+pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
     let dir_name = dir_name.as_ref();
     let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
     let mut newest_backup_time = 0;
@@ -373,7 +415,7 @@ async fn imex_inner(
 
     ensure!(context.sql.is_open().await, "Database not opened.");
 
-    let path = param.unwrap();
+    let path = param.ok_or_else(|| format_err!("Imex: Param was None"))?;
     if what == ImexMode::ExportBackup || what == ImexMode::ExportSelfKeys {
         // before we export anything, make sure the private key exists
         if e2ee::ensure_secret_key_exists(context).await.is_err() {
@@ -386,7 +428,11 @@ async fn imex_inner(
     let success = match what {
         ImexMode::ExportSelfKeys => export_self_keys(context, path).await,
         ImexMode::ImportSelfKeys => import_self_keys(context, path).await,
-        ImexMode::ExportBackup => export_backup(context, path).await,
+
+        // TODO In some months we can change the export_backup_old() call to export_backup() and delete export_backup_old().
+        // (now is 07/2020)
+        ImexMode::ExportBackup => export_backup_old(context, path).await,
+        // import_backup() will call import_backup_old() if this is an old backup.
         ImexMode::ImportBackup => import_backup(context, path).await,
     };
 
@@ -405,6 +451,75 @@ async fn imex_inner(
 
 /// Import Backup
 async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
+    if backup_to_import
+        .as_ref()
+        .to_string_lossy()
+        .ends_with(".bak")
+    {
+        // Backwards compability
+        return import_backup_old(context, backup_to_import).await;
+    }
+
+    info!(
+        context,
+        "Import \"{}\" to \"{}\".",
+        backup_to_import.as_ref().display(),
+        context.get_dbfile().display()
+    );
+
+    ensure!(
+        !context.is_configured().await,
+        "Cannot import backups to accounts in use."
+    );
+    context.sql.close().await;
+    dc_delete_file(context, context.get_dbfile()).await;
+    ensure!(
+        !context.get_dbfile().exists().await,
+        "Cannot delete old database."
+    );
+
+    let backup_file = File::open(backup_to_import).await?;
+    let archive = Archive::new(backup_file);
+    let mut entries = archive.entries()?;
+    while let Some(file) = entries.next().await {
+        let f = &mut file?;
+        if f.path()?.file_name() == Some(OsStr::new(DBFILE_BACKUP_NAME)) {
+            // async_tar can't unpack to a specified file name, so we just unpack to the blobdir and then move the unpacked file.
+            f.unpack_in(context.get_blobdir()).await?;
+            fs::rename(
+                context.get_blobdir().join(DBFILE_BACKUP_NAME),
+                context.get_dbfile(),
+            )
+            .await?;
+            context.emit_event(EventType::ImexProgress(400)); // Just guess the progress, we at least have the dbfile by now
+        } else {
+            // async_tar will unpack to blobdir/BLOBS_BACKUP_NAME, so we move the file afterwards.
+            f.unpack_in(context.get_blobdir()).await?;
+            let from_path = context.get_blobdir().join(f.path()?);
+            if from_path.is_file().await {
+                if let Some(name) = from_path.file_name() {
+                    fs::rename(&from_path, context.get_blobdir().join(name)).await?;
+                } else {
+                    warn!(context, "No file name");
+                }
+            }
+        }
+    }
+
+    ensure!(
+        context
+            .sql
+            .open(&context, &context.get_dbfile(), false)
+            .await,
+        "could not re-open db"
+    );
+
+    delete_and_reset_all_device_msgs(&context).await?;
+
+    Ok(())
+}
+
+async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
     info!(
         context,
         "Import \"{}\" to \"{}\".",
@@ -512,14 +627,83 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
 /*******************************************************************************
  * Export backup
  ******************************************************************************/
-/* the FILE_PROGRESS macro calls the callback with the permille of files processed.
-The macro avoids weird values of 0% or 100% while still working. */
+#[allow(unused)]
 async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
+    // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
+    let now = time();
+    let (temp_path, dest_path) = get_next_backup_path_new(dir, now).await?;
+
+    context
+        .sql
+        .set_raw_config_int(context, "backup_time", now as i32)
+        .await?;
+    sql::housekeeping(context).await;
+
+    context
+        .sql
+        .execute("VACUUM;", paramsv![])
+        .await
+        .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e));
+
+    // we close the database during the export
+    context.sql.close().await;
+
+    info!(
+        context,
+        "Backup '{}' to '{}'.",
+        context.get_dbfile().display(),
+        dest_path.display(),
+    );
+
+    let res = export_backup_inner(context, &temp_path).await;
+
+    // we re-open the database after export is finished
+    context
+        .sql
+        .open(&context, &context.get_dbfile(), false)
+        .await;
+
+    match &res {
+        Ok(_) => {
+            fs::rename(temp_path, &dest_path).await?;
+            context.emit_event(EventType::ImexFileWritten(dest_path));
+        }
+        Err(e) => {
+            error!(context, "backup failed: {}", e);
+            // Not using dc_delete_file() here because it would send a DeletedBlobFile event
+            fs::remove_file(temp_path).await?;
+        }
+    }
+
+    res
+}
+
+async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<()> {
+    let file = File::create(temp_path).await?;
+
+    let mut builder = async_tar::Builder::new(file);
+
+    // append_path_with_name() wants the source path as the first argument, append_dir_all() wants it as the second argument.
+    builder
+        .append_path_with_name(context.get_dbfile(), DBFILE_BACKUP_NAME)
+        .await?;
+
+    context.emit_event(EventType::ImexProgress(500));
+
+    builder
+        .append_dir_all(BLOBS_BACKUP_NAME, context.get_blobdir())
+        .await?;
+
+    builder.finish().await?;
+    Ok(())
+}
+
+async fn export_backup_old(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
     // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
     let now = time();
-    let dest_path_filename = dc_get_next_backup_path(dir, now).await?;
+    let dest_path_filename = get_next_backup_path_old(dir, now).await?;
     let dest_path_string = dest_path_filename.to_string_lossy().to_string();
 
     sql::housekeeping(context).await;

@@ -1,3 +1,5 @@
+extern crate dirs;
+
 use std::str::FromStr;
 
 use anyhow::{bail, ensure};
@@ -442,17 +444,21 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             has_backup(&context, blobdir).await?;
         }
         "export-backup" => {
-            imex(&context, ImexMode::ExportBackup, Some(blobdir)).await?;
+            let dir = dirs::home_dir().unwrap_or_default();
+            imex(&context, ImexMode::ExportBackup, Some(&dir)).await?;
+            println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
             imex(&context, ImexMode::ImportBackup, Some(arg1)).await?;
         }
         "export-keys" => {
-            imex(&context, ImexMode::ExportSelfKeys, Some(blobdir)).await?;
+            let dir = dirs::home_dir().unwrap_or_default();
+            imex(&context, ImexMode::ExportSelfKeys, Some(&dir)).await?;
+            println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-keys" => {
-            imex(&context, ImexMode::ImportSelfKeys, Some(blobdir)).await?;
+            imex(&context, ImexMode::ImportSelfKeys, Some(arg1)).await?;
         }
         "export-setup" => {
             let setup_code = create_setup_code(&context);
