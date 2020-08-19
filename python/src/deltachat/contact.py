@@ -51,7 +51,7 @@ class Contact(object):
         """ Return True if the contact is blocked. """
         return lib.dc_contact_is_blocked(self._dc_contact)
 
-    def set_blocked(self, block):
+    def set_blocked(self, block=True):
         """ Block or unblock a contact. """
         return lib.dc_block_contact(self.account._dc_context, self.id, block)
 

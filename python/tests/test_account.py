@@ -1418,16 +1418,15 @@ class TestOnlineAccount:
 
         lp.sec("ac1 blocks ac2")
         contact = ac1.create_contact(ac2)
-        contact.set_blocked(True)
+        contact.set_blocked()
         assert contact.is_blocked()
 
         lp.sec("ac2 sends a message to ac1 that does not arrive because it is blocked")
         ac2.create_chat(ac1).send_text("This will not arrive!")
-        with pytest.raises(queue.Empty):
-            ac1._evtracker.get_matching("DC_EVENT_INCOMING_MSG", timeout=10)
 
-        lp.sec("ac2 sends a group message to ac1 that arrives because groups would be hardly usable otherwise: \
-        If you have blocked some users, they write messages and you only see replies to them without context")
+        lp.sec("ac2 sends a group message to ac1 that arrives")
+        # Groups would be hardly usable otherwise: If you have blocked some
+        # users, they write messages and you only see replies to them without context
         chat_on_ac2.send_text("This will arrive")
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "This will arrive"
