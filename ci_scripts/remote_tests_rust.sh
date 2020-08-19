@@ -20,6 +20,7 @@ echo "--- Running $CIRCLE_JOB remotely"
 
 ssh $SSHTARGET <<_HERE
     set +x -e
+    export RUSTC_WRAPPER=\`which sccache\`
     cd $BUILDDIR
     # let's share the target dir with our last run on this branch/job-type
     # cargo will make sure to block/unblock us properly 
