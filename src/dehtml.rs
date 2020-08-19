@@ -204,6 +204,7 @@ pub fn dehtml_manually(buf: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::simplify::simplify;
 
     #[test]
     fn test_dehtml() {
@@ -212,20 +213,23 @@ mod tests {
                 "<a href='https://example.com'> Foo </a>",
                 "[ Foo ](https://example.com)",
             ),
-            ("<img href='/foo.png'>", ""),
             ("<b> bar </b>", "* bar *"),
             ("<b> bar <i> foo", "* bar _ foo"),
             ("&amp; bar", "& bar"),
-            // Note missing '
-            ("<a href='/foo.png>Hi</a> ", ""),
+            // Despite missing ', this should be shown:
+            ("<a href='/foo.png>Hi</a> ", "Hi "),
             (
                 "<a href='https://get.delta.chat/'/>",
                 "[](https://get.delta.chat/)",
             ),
             ("", ""),
+            ("<!doctype html>\n<b>fat text</b>", "*fat text*"),
+            // Invalid html (at least DC should show the text if the html is invalid):
+            ("<!some invalid html code>\n<b>some text</b>", "some text"),
+            ("<This text is in brackets>", "<This text is in brackets>"),
         ];
         for (input, output) in cases {
-            assert_eq!(dehtml(input), output);
+            assert_eq!(simplify(dehtml(input), true).0, output);
         }
     }
 
@@ -283,23 +287,5 @@ mod tests {
         "##;
         let txt = dehtml(input);
         assert_eq!(txt.trim(), "lots of text");
-    }
-
-    #[test]
-    fn test_doctype_html() {
-        use crate::simplify::simplify;
-
-        let input = "<!doctype html>\n<b>fat text</b>";
-        let txt = simplify(dehtml(input), false).0;
-        assert_eq!(txt.trim(), "*fat text*");
-
-        let input = "<!some invalid html code>\n<b>some text</b>";
-        let txt = simplify(dehtml(input), false).0;
-        assert_eq!(txt.trim(), "some text");
-        // at least DC should show the text if the html is invalid
-
-        let input = "<This text is in brackets>";
-        let txt = simplify(dehtml(input), false).0;
-        assert_eq!(txt.trim(), "<This text is in brackets>");
     }
 }
