@@ -25,7 +25,19 @@ enum AddText {
 // dehtml() returns way too many newlines; however, an optimisation on this issue is not needed as
 // the newlines are typically removed in further processing by the caller
 pub fn dehtml(buf: &str) -> String {
-    let buf = buf.trim();
+    let s = dehtml_quick_xml(buf);
+    if !s.trim().is_empty() {
+        return s;
+    }
+    let s = dehtml_manually(buf);
+    if !s.trim().is_empty() {
+        return s;
+    }
+    buf.to_string()
+}
+
+pub fn dehtml_quick_xml(buf: &str) -> String {
+    let buf = buf.trim().trim_start_matches("<!doctype html>");
 
     let mut dehtml = Dehtml {
         strbuilder: String::with_capacity(buf.len()),
@@ -171,6 +183,24 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
     }
 }
 
+pub fn dehtml_manually(buf: &str) -> String {
+    // Just strip out everything between "<" and ">"
+    let mut strbuilder = String::new();
+    let mut show_next_chars = true;
+    for c in buf.chars() {
+        match c {
+            '<' => show_next_chars = false,
+            '>' => show_next_chars = true,
+            _ => {
+                if show_next_chars {
+                    strbuilder.push(c)
+                }
+            }
+        }
+    }
+    strbuilder
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,5 +283,23 @@ mod tests {
         "##;
         let txt = dehtml(input);
         assert_eq!(txt.trim(), "lots of text");
+    }
+
+    #[test]
+    fn test_doctype_html() {
+        use crate::simplify::simplify;
+
+        let input = "<!doctype html>\n<b>fat text</b>";
+        let txt = simplify(dehtml(input), false).0;
+        assert_eq!(txt.trim(), "*fat text*");
+
+        let input = "<!some invalid html code>\n<b>some text</b>";
+        let txt = simplify(dehtml(input), false).0;
+        assert_eq!(txt.trim(), "some text");
+        // at least DC should show the text if the html is invalid
+
+        let input = "<This text is in brackets>";
+        let txt = simplify(dehtml(input), false).0;
+        assert_eq!(txt.trim(), "<This text is in brackets>");
     }
 }

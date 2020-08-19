@@ -2623,4 +2623,26 @@ mod tests {
         );
         assert_eq!(last_msg.from_id, DC_CONTACT_ID_INFO);
     }
+
+    #[async_std::test]
+    async fn test_html_only_mail() {
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+        dc_receive_imf(
+            &t.ctx,
+            include_bytes!("../test-data/message/wrong-html.eml"),
+            "INBOX",
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+        assert_eq!(msg.text.unwrap(), "   Guten Abend,   \n\n   Lots of text   \n\n   text with Umlaut ä...   \n\n   MfG    [...]");
+    }
 }
