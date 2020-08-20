@@ -86,21 +86,27 @@ pub async fn imex(
     let res = imex_inner(context, what, param1)
         .race(async {
             cancel.recv().await.ok();
-
-            if what == ImexMode::ImportBackup {
-                dc_delete_file(context, context.get_dbfile()).await;
-                dc_delete_files_in_dir(context, context.get_blobdir()).await;
-            }
-            if what == ImexMode::ExportBackup || what == ImexMode::ImportBackup {
-                context.sql.open(context, context.get_dbfile(), false).await;
-            }
+            cleanup_aborted_imex(context, what).await;
             Err(format_err!("canceled"))
         })
         .await;
 
     context.free_ongoing().await;
 
+    if res.is_err() {
+        cleanup_aborted_imex(context, what);
+    }
     res
+}
+
+async fn cleanup_aborted_imex(context: &Context, what: ImexMode) {
+    if what == ImexMode::ImportBackup {
+        dc_delete_file(context, context.get_dbfile()).await;
+        dc_delete_files_in_dir(context, context.get_blobdir()).await;
+    }
+    if what == ImexMode::ExportBackup || what == ImexMode::ImportBackup {
+        context.sql.open(context, context.get_dbfile(), false).await;
+    }
 }
 
 /// Returns the filename of the backup found (otherwise an error)
