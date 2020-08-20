@@ -235,6 +235,7 @@ impl Contact {
         name: impl AsRef<str>,
         addr: impl AsRef<str>,
     ) -> Result<u32> {
+        let name = improve_single_line_input(name);
         ensure!(
             !addr.as_ref().is_empty(),
             "Cannot create contact with empty address"

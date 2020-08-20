@@ -232,6 +232,10 @@ impl Context {
                 });
                 ret
             }
+            Config::Displayname => {
+                let value = value.map(improve_single_line_input);
+                self.sql.set_raw_config(self, key, value.as_deref()).await
+            }
             _ => self.sql.set_raw_config(self, key, value).await,
         }
     }

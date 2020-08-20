@@ -612,6 +612,16 @@ pub(crate) fn listflags_has(listflags: u32, bitindex: usize) -> bool {
     (listflags & bitindex) == bitindex
 }
 
+/// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
+pub(crate) fn improve_single_line_input(input: impl AsRef<str>) -> String {
+    input
+        .as_ref()
+        .replace("\n", " ")
+        .replace("\r", " ")
+        .trim()
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -959,5 +969,11 @@ mod tests {
         let (w, h) = dc_get_filemeta(data).unwrap();
         assert_eq!(w, 100);
         assert_eq!(h, 50);
+    }
+
+    #[test]
+    fn test_improve_single_line_input() {
+        assert_eq!(improve_single_line_input("Hi\naiae "), "Hi aiae");
+        assert_eq!(improve_single_line_input("\r\nahte\n\r"), "ahte");
     }
 }
