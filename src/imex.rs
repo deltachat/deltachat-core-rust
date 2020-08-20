@@ -82,11 +82,20 @@ pub async fn imex(
     what: ImexMode,
     param1: Option<impl AsRef<Path>>,
 ) -> Result<()> {
-    use futures::future::FutureExt;
-
     let cancel = context.alloc_ongoing().await?;
     let res = imex_inner(context, what, param1)
-        .race(cancel.recv().map(|_| Err(format_err!("canceled"))))
+        .race(async {
+            cancel.recv().await.ok();
+
+            if what == ImexMode::ImportBackup {
+                dc_delete_file(context, context.get_dbfile()).await;
+                dc_delete_files_in_dir(context, context.get_blobdir()).await;
+            }
+            if what == ImexMode::ExportBackup || what == ImexMode::ImportBackup {
+                context.sql.open(context, context.get_dbfile(), false).await;
+            }
+            Err(format_err!("canceled"))
+        })
         .await;
 
     context.free_ongoing().await;
@@ -632,6 +641,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
     let (temp_path, dest_path) = get_next_backup_path_new(dir, now).await?;
+    let _d = DeleteOnDrop(temp_path.clone());
 
     context
         .sql
@@ -670,12 +680,18 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         }
         Err(e) => {
             error!(context, "backup failed: {}", e);
-            // Not using dc_delete_file() here because it would send a DeletedBlobFile event
-            fs::remove_file(temp_path).await?;
         }
     }
 
     res
+}
+struct DeleteOnDrop(PathBuf);
+impl Drop for DeleteOnDrop {
+    fn drop(&mut self) {
+        let file = self.0.clone();
+        // Not using dc_delete_file() here because it would send a DeletedBlobFile event
+        async_std::task::spawn(async move { fs::remove_file(file).await.ok() });
+    }
 }
 
 async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<()> {
