@@ -83,19 +83,32 @@ pub async fn imex(
     param1: Option<impl AsRef<Path>>,
 ) -> Result<()> {
     let cancel = context.alloc_ongoing().await?;
-    let res = imex_inner(context, what, param1)
-        .race(async {
-            cancel.recv().await.ok();
-            cleanup_aborted_imex(context, what).await;
-            Err(format_err!("canceled"))
-        })
-        .await;
+
+    let res = async {
+        let success = imex_inner(context, what, param1).await;
+        match success {
+            Ok(()) => {
+                info!(context, "IMEX successfully completed");
+                context.emit_event(EventType::ImexProgress(1000));
+                Ok(())
+            }
+            Err(err) => {
+                cleanup_aborted_imex(context, what).await;
+                error!(context, "{}", err);
+                context.emit_event(EventType::ImexProgress(0));
+                bail!("IMEX FAILED to complete: {}", err);
+            }
+        }
+    }
+    .race(async {
+        cancel.recv().await.ok();
+        cleanup_aborted_imex(context, what).await;
+        Err(format_err!("canceled"))
+    })
+    .await;
 
     context.free_ongoing().await;
 
-    if res.is_err() {
-        cleanup_aborted_imex(context, what);
-    }
     res
 }
 
@@ -451,17 +464,7 @@ async fn imex_inner(
         ImexMode::ImportBackup => import_backup(context, path).await,
     };
 
-    match success {
-        Ok(()) => {
-            info!(context, "IMEX successfully completed");
-            context.emit_event(EventType::ImexProgress(1000));
-            Ok(())
-        }
-        Err(err) => {
-            context.emit_event(EventType::ImexProgress(0));
-            bail!("IMEX FAILED to complete: {}", err);
-        }
-    }
+    success
 }
 
 /// Import Backup
