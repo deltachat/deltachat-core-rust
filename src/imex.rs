@@ -453,7 +453,7 @@ async fn imex_inner(
         }
     }
 
-    let success = match what {
+    match what {
         ImexMode::ExportSelfKeys => export_self_keys(context, path).await,
         ImexMode::ImportSelfKeys => import_self_keys(context, path).await,
 
@@ -462,9 +462,7 @@ async fn imex_inner(
         ImexMode::ExportBackup => export_backup_old(context, path).await,
         // import_backup() will call import_backup_old() if this is an old backup.
         ImexMode::ImportBackup => import_backup(context, path).await,
-    };
-
-    success
+    }
 }
 
 /// Import Backup

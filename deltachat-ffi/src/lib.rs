@@ -1759,7 +1759,7 @@ pub unsafe extern "C" fn dc_imex(
     spawn(async move {
         imex::imex(&ctx, what, param1)
             .await
-            .map_err(|e| error!(ctx, "Imex failed: {}", e))
+            .log_err(ctx, "IMEX failed")
     });
 }
 
