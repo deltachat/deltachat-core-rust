@@ -111,7 +111,7 @@ pub async fn dc_receive_imf(
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see
     // https://github.com/deltachat/deltachat-core/issues/150)
-    let (from_id, from_id_blocked, incoming_origin) =
+    let (from_id, _from_id_blocked, incoming_origin) =
         from_field_to_contact_id(context, &mime_parser.from).await?;
 
     let incoming = from_id != DC_CONTACT_ID_SELF;
@@ -162,7 +162,6 @@ pub async fn dc_receive_imf(
             &rfc724_mid,
             &mut sent_timestamp,
             from_id,
-            from_id_blocked,
             &mut hidden,
             &mut chat_id,
             seen,
@@ -329,7 +328,6 @@ async fn add_parts(
     rfc724_mid: &str,
     sent_timestamp: &mut i64,
     from_id: u32,
-    from_id_blocked: bool,
     hidden: &mut bool,
     chat_id: &mut ChatId,
     seen: bool,
@@ -432,6 +430,8 @@ async fn add_parts(
                 .await
                 .unwrap_or_default();
 
+        // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
+        // it might also be blocked and displayed in the deaddrop as a result
         if chat_id.is_unset() && mime_parser.failure_report.is_some() {
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
             info!(
@@ -440,11 +440,8 @@ async fn add_parts(
             );
         }
 
-        // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
-        // it might also be blocked and displayed in the deaddrop as a result
         if chat_id.is_unset() {
             // try to create a group
-            // (groups appear automatically only if the _sender_ is known, see core issue #54)
 
             let create_blocked =
                 if !test_normal_chat_id.is_unset() && test_normal_chat_id_blocked == Blocked::Not {
@@ -840,9 +837,7 @@ async fn add_parts(
     if chat_id.is_trash() || *hidden {
         *create_event_to_send = None;
     } else if incoming && state == MessageState::InFresh {
-        if from_id_blocked {
-            *create_event_to_send = None;
-        } else if Blocked::Not != chat_id_blocked {
+        if Blocked::Not != chat_id_blocked {
             *create_event_to_send = Some(CreateEvent::MsgsChanged);
         } else {
             *create_event_to_send = Some(CreateEvent::IncomingMsg);
