@@ -4,10 +4,7 @@ mod data;
 
 use crate::config::Config;
 use crate::dc_tools::EmailAddress;
-use crate::{
-    login_param::{ImapServers, ServerParams, SmtpServers},
-    provider::data::PROVIDER_DATA,
-};
+use crate::provider::data::PROVIDER_DATA;
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
@@ -80,30 +77,6 @@ pub struct Provider {
     pub oauth2_authorizer: Option<Oauth2Authorizer>,
 }
 
-impl Provider {
-    pub fn get_server(&self, protocol: Protocol) -> Vec<ServerParams> {
-        self.server
-            .iter()
-            .filter(|s| s.protocol == protocol)
-            .map(|s| ServerParams {
-                protocol: s.protocol,
-                socket: s.socket,
-                hostname: s.hostname.to_string(),
-                port: s.port,
-                username_pattern: s.username_pattern.clone(),
-            })
-            .collect()
-    }
-
-    pub fn get_imap_server(&self) -> ImapServers {
-        self.get_server(Protocol::IMAP)
-    }
-
-    pub fn get_smtp_server(&self) -> SmtpServers {
-        self.get_server(Protocol::SMTP)
-    }
-}
-
 pub fn get_provider_info(addr: &str) -> Option<&Provider> {
     let domain = match addr.parse::<EmailAddress>() {
         Ok(addr) => addr.domain,
@@ -139,15 +112,16 @@ mod tests {
         let provider = get_provider_info("nauta.cu"); // this is no email address
         assert!(provider.is_none());
 
-        let provider = get_provider_info("user@nauta.cu").unwrap();
+        let addr = "user@nauta.cu";
+        let provider = get_provider_info(addr).unwrap();
         assert!(provider.status == Status::OK);
-        let server = &provider.get_imap_server()[0];
+        let server = &provider.server[0];
         assert_eq!(server.protocol, Protocol::IMAP);
         assert_eq!(server.socket, Socket::STARTTLS);
         assert_eq!(server.hostname, "imap.nauta.cu");
         assert_eq!(server.port, 143);
         assert_eq!(server.username_pattern, UsernamePattern::EMAIL);
-        let server = &provider.get_smtp_server()[0];
+        let server = &provider.server[1];
         assert_eq!(server.protocol, Protocol::SMTP);
         assert_eq!(server.socket, Socket::STARTTLS);
         assert_eq!(server.hostname, "smtp.nauta.cu");

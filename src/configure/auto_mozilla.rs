@@ -8,10 +8,10 @@ use std::str::FromStr;
 
 use crate::context::Context;
 use crate::login_param::LoginParam;
-use crate::provider::Socket;
+use crate::provider::{Protocol, Socket};
 
 use super::read_url::read_url;
-use super::Error;
+use super::{Error, ServerParams};
 
 #[derive(Debug)]
 struct Server {
@@ -223,52 +223,40 @@ fn parse_xml_with_address(in_emailaddr: &str, xml_raw: &str) -> Result<MozAutoco
     })
 }
 
-/// Parses XML into `LoginParam` structure.
-fn parse_loginparam(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Error> {
+/// Parses XML into `ServerParams` vector.
+fn parse_serverparams(in_emailaddr: &str, xml_raw: &str) -> Result<Vec<ServerParams>, Error> {
     let moz_ac = parse_xml_with_address(in_emailaddr, xml_raw)?;
 
-    let mut login_param = LoginParam::new();
-    if let Some(imap_server) = moz_ac
+    let res = moz_ac
         .incoming_servers
         .into_iter()
-        .find(|incoming_server| incoming_server.typ == "imap")
-    {
-        login_param.imap.server = imap_server.hostname;
-        login_param.imap.port = imap_server.port;
-        login_param.imap.security = imap_server.sockettype;
-        login_param.imap.user = imap_server.username;
-    }
-
-    if let Some(smtp_server) = moz_ac
-        .outgoing_servers
-        .into_iter()
-        .find(|outgoing_server| outgoing_server.typ == "smtp")
-    {
-        login_param.smtp.server = smtp_server.hostname;
-        login_param.smtp.port = smtp_server.port;
-        login_param.smtp.security = smtp_server.sockettype;
-        login_param.smtp.user = smtp_server.username;
-    }
-
-    if login_param.imap.server.is_empty()
-        || login_param.imap.port == 0
-        || login_param.smtp.server.is_empty()
-        || login_param.smtp.port == 0
-    {
-        Err(Error::IncompleteAutoconfig(login_param))
-    } else {
-        Ok(login_param)
-    }
+        .chain(moz_ac.outgoing_servers.into_iter())
+        .filter_map(|server| {
+            let protocol = match server.typ.as_ref() {
+                "imap" => Some(Protocol::IMAP),
+                "smtp" => Some(Protocol::SMTP),
+                _ => None,
+            };
+            Some(ServerParams {
+                protocol: protocol?,
+                socket: server.sockettype,
+                hostname: server.hostname,
+                port: server.port,
+                username: server.username,
+            })
+        })
+        .collect();
+    Ok(res)
 }
 
-pub async fn moz_autoconfigure(
+pub(crate) async fn moz_autoconfigure(
     context: &Context,
     url: &str,
     param_in: &LoginParam,
-) -> Result<LoginParam, Error> {
+) -> Result<Vec<ServerParams>, Error> {
     let xml_raw = read_url(context, url).await?;
 
-    let res = parse_loginparam(&param_in.addr, &xml_raw);
+    let res = parse_serverparams(&param_in.addr, &xml_raw);
     if let Err(err) = &res {
         warn!(
             context,
@@ -285,11 +273,13 @@ mod tests {
     #[test]
     fn test_parse_outlook_autoconfig() {
         let xml_raw = include_str!("../../test-data/autoconfig/outlook.com.xml");
-        let res = parse_loginparam("example@outlook.com", xml_raw).expect("XML parsing failed");
-        assert_eq!(res.imap.server, "outlook.office365.com");
-        assert_eq!(res.imap.port, 993);
-        assert_eq!(res.smtp.server, "smtp.office365.com");
-        assert_eq!(res.smtp.port, 587);
+        let res = parse_serverparams("example@outlook.com", xml_raw).expect("XML parsing failed");
+        assert_eq!(res[0].protocol, Protocol::IMAP);
+        assert_eq!(res[0].hostname, "outlook.office365.com");
+        assert_eq!(res[0].port, 993);
+        assert_eq!(res[1].protocol, Protocol::SMTP);
+        assert_eq!(res[1].hostname, "smtp.office365.com");
+        assert_eq!(res[1].port, 587);
     }
 
     #[test]
