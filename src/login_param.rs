@@ -3,10 +3,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::{
-    context::Context,
-    provider::{Protocol, Socket, UsernamePattern},
-};
+use crate::{context::Context, provider::Socket};
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, PartialEq, Eq)]
 #[repr(i32)]
@@ -28,39 +25,6 @@ pub enum CertificateChecks {
 impl Default for CertificateChecks {
     fn default() -> Self {
         Self::Automatic
-    }
-}
-
-#[derive(Debug)]
-pub struct ServerParams {
-    pub protocol: Protocol,
-    pub socket: Socket,
-    pub hostname: String,
-    pub port: u16,
-    pub username_pattern: UsernamePattern,
-}
-
-pub type ImapServers = Vec<ServerParams>;
-pub type SmtpServers = Vec<ServerParams>;
-
-#[derive(Debug)]
-pub struct LoginParamNew {
-    pub addr: String,
-    pub imap: ImapServers,
-    pub smtp: SmtpServers,
-}
-
-impl ServerParams {
-    pub fn apply_username_pattern(&self, addr: String) -> String {
-        match self.username_pattern {
-            UsernamePattern::EMAIL => addr,
-            UsernamePattern::EMAILLOCALPART => {
-                if let Some(at) = addr.find('@') {
-                    return addr.split_at(at).0.to_string();
-                }
-                addr
-            }
-        }
     }
 }
 
@@ -87,11 +51,6 @@ pub struct LoginParam {
 }
 
 impl LoginParam {
-    /// Create a new `LoginParam` with default values.
-    pub fn new() -> Self {
-        Default::default()
-    }
-
     /// Read the login parameters from the database.
     pub async fn from_database(context: &Context, prefix: impl AsRef<str>) -> Self {
         let prefix = prefix.as_ref();
