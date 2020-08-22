@@ -151,11 +151,7 @@ enum FolderMeaning {
 #[derive(Debug)]
 struct ImapConfig {
     pub addr: String,
-    pub imap_server: String,
-    pub imap_port: u16,
-    pub imap_user: String,
-    pub imap_pw: String,
-    pub security: Socket,
+    pub lp: ServerLoginParam,
     pub strict_tls: bool,
     pub oauth2: bool,
     pub selected_folder: Option<String>,
@@ -172,11 +168,7 @@ impl Default for ImapConfig {
     fn default() -> Self {
         ImapConfig {
             addr: "".into(),
-            imap_server: "".into(),
-            imap_port: 0,
-            imap_user: "".into(),
-            imap_pw: "".into(),
-            security: Default::default(),
+            lp: Default::default(),
             strict_tls: false,
             oauth2: false,
             selected_folder: None,
@@ -214,7 +206,7 @@ impl Imap {
     }
 
     async fn setup_handle_if_needed(&mut self, context: &Context) -> Result<()> {
-        if self.config.imap_server.is_empty() {
+        if self.config.lp.server.is_empty() {
             return Err(Error::InTeardown);
         }
 
@@ -227,16 +219,16 @@ impl Imap {
 
         let oauth2 = self.config.oauth2;
 
-        let connection_res: ImapResult<Client> = if self.config.security == Socket::STARTTLS
-            || self.config.security == Socket::Plain
+        let connection_res: ImapResult<Client> = if self.config.lp.security == Socket::STARTTLS
+            || self.config.lp.security == Socket::Plain
         {
             let config = &mut self.config;
-            let imap_server: &str = config.imap_server.as_ref();
-            let imap_port = config.imap_port;
+            let imap_server: &str = config.lp.server.as_ref();
+            let imap_port = config.lp.port;
 
             match Client::connect_insecure((imap_server, imap_port)).await {
                 Ok(client) => {
-                    if config.security == Socket::STARTTLS {
+                    if config.lp.security == Socket::STARTTLS {
                         client.secure(imap_server, config.strict_tls).await
                     } else {
                         Ok(client)
@@ -246,8 +238,8 @@ impl Imap {
             }
         } else {
             let config = &self.config;
-            let imap_server: &str = config.imap_server.as_ref();
-            let imap_port = config.imap_port;
+            let imap_server: &str = config.lp.server.as_ref();
+            let imap_port = config.lp.port;
 
             Client::connect_secure((imap_server, imap_port), imap_server, config.strict_tls).await
         };
@@ -255,8 +247,8 @@ impl Imap {
         let login_res = match connection_res {
             Ok(client) => {
                 let config = &self.config;
-                let imap_user: &str = config.imap_user.as_ref();
-                let imap_pw: &str = config.imap_pw.as_ref();
+                let imap_user: &str = config.lp.user.as_ref();
+                let imap_pw: &str = config.lp.password.as_ref();
 
                 if oauth2 {
                     let addr: &str = config.addr.as_ref();
@@ -279,8 +271,8 @@ impl Imap {
             Err(err) => {
                 let message = {
                     let config = &self.config;
-                    let imap_server: &str = config.imap_server.as_ref();
-                    let imap_port = config.imap_port;
+                    let imap_server: &str = config.lp.server.as_ref();
+                    let imap_port = config.lp.port;
                     context
                         .stock_string_repl_str2(
                             StockMessage::ServerResponse,
@@ -307,7 +299,7 @@ impl Imap {
             }
 
             Err((err, _)) => {
-                let imap_user = self.config.imap_user.to_owned();
+                let imap_user = self.config.lp.user.to_owned();
                 let message = context
                     .stock_string_repl_str(StockMessage::CannotLogin, &imap_user)
                     .await;
@@ -363,10 +355,7 @@ impl Imap {
         let mut cfg = &mut self.config;
 
         cfg.addr = "".into();
-        cfg.imap_server = "".into();
-        cfg.imap_user = "".into();
-        cfg.imap_pw = "".into();
-        cfg.imap_port = 0;
+        cfg.lp = Default::default();
 
         cfg.can_idle = false;
         cfg.can_move = false;
@@ -416,11 +405,7 @@ impl Imap {
         {
             let mut config = &mut self.config;
             config.addr = addr.to_string();
-            config.imap_server = lp.server.to_string();
-            config.imap_port = lp.port;
-            config.imap_user = lp.user.to_string();
-            config.imap_pw = lp.password.to_string();
-            config.security = lp.security;
+            config.lp = lp.clone();
             let provider = get_provider_info(&addr);
             config.strict_tls = match lp.certificate_checks {
                 CertificateChecks::Automatic => {
