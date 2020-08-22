@@ -1733,6 +1733,46 @@ class TestOnlineAccount:
 
         assert len(imap2.get_all_messages()) == 1
 
+    def test_name_changes(self, acfactory):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1.set_config("displayname", "Account 1")
+
+        chat12 = acfactory.get_accepted_chat(ac1, ac2)
+        contact = None
+
+        def update_name():
+            """Send a message from ac1 to ac2 to update the name"""
+            nonlocal contact
+            chat12.send_text("Hello")
+            msg = ac2._evtracker.wait_next_incoming_message()
+            contact = msg.get_sender_contact()
+            return contact.name
+
+        assert update_name() == "Account 1"
+
+        ac1.set_config("displayname", "Account 1 revision 2")
+        assert update_name() == "Account 1 revision 2"
+
+        # Explicitly rename contact on ac2 to "Renamed"
+        ac2.create_contact(contact, name="Renamed")
+        assert contact.name == "Renamed"
+
+        # ac1 also renames itself into "Renamed"
+        assert update_name() == "Renamed"
+        ac1.set_config("displayname", "Renamed")
+        assert update_name() == "Renamed"
+
+        # Contact name was set to "Renamed" explicitly before,
+        # so it should not be changed.
+        ac1.set_config("displayname", "Renamed again")
+        updated_name = update_name()
+        if updated_name == "Renamed again":
+            # Known bug, mark as XFAIL
+            pytest.xfail("Contact was renamed after explicit rename")
+        else:
+            # No renames should happen after explicit rename
+            assert updated_name == "Renamed"
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
