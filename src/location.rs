@@ -469,7 +469,7 @@ pub fn get_message_kml(timestamp: i64, latitude: f64, longitude: f64) -> String 
          <Document>\n\
          <Placemark>\
          <Timestamp><when>{}</when></Timestamp>\
-         <Point><coordinates>{:.2},{:.2}</coordinates></Point>\
+         <Point><coordinates>{},{}</coordinates></Point>\
          </Placemark>\n\
          </Document>\n\
          </kml>",
@@ -756,5 +756,23 @@ mod tests {
         assert!(locations_ref[1].accuracy > 2.4f64);
         assert!(locations_ref[1].accuracy < 2.6f64);
         assert_eq!(locations_ref[1].timestamp, 1544739072);
+    }
+
+    #[async_std::test]
+    async fn test_get_message_kml() {
+        let context = TestContext::new().await;
+        let timestamp = 1598490000;
+
+        let xml = get_message_kml(timestamp, 51.423723f64, 8.552556f64);
+        let kml = Kml::parse(&context.ctx, xml.as_bytes()).expect("parsing failed");
+        let locations_ref = &kml.locations;
+        assert_eq!(locations_ref.len(), 1);
+
+        assert!(locations_ref[0].latitude >= 51.423723f64);
+        assert!(locations_ref[0].latitude < 51.423724f64);
+        assert!(locations_ref[0].longitude >= 8.552556f64);
+        assert!(locations_ref[0].longitude < 8.552557f64);
+        assert_eq!(locations_ref[0].accuracy, 0.0f64);
+        assert_eq!(locations_ref[0].timestamp, timestamp);
     }
 }
