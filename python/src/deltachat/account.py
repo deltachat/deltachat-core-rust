@@ -216,7 +216,7 @@ class Account(object):
     def create_contact(self, obj, name=None):
         """ create a (new) Contact or return an existing one.
 
-        Calling this method will always resulut in the same
+        Calling this method will always result in the same
         underlying contact id.  If there already is a Contact
         with that e-mail address, it is unblocked and its display
         `name` is updated if specified.
