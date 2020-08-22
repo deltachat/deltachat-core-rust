@@ -414,17 +414,13 @@ impl Imap {
         }
 
         {
-            let imap_server = &lp.server;
-            let imap_port = lp.port;
-            let imap_user = &lp.user;
-            let imap_pw = &lp.password;
-
             let mut config = &mut self.config;
             config.addr = addr.to_string();
-            config.imap_server = imap_server.to_string();
-            config.imap_port = imap_port;
-            config.imap_user = imap_user.to_string();
-            config.imap_pw = imap_pw.to_string();
+            config.imap_server = lp.server.to_string();
+            config.imap_port = lp.port;
+            config.imap_user = lp.user.to_string();
+            config.imap_pw = lp.password.to_string();
+            config.security = lp.security;
             let provider = get_provider_info(&addr);
             config.strict_tls = match lp.certificate_checks {
                 CertificateChecks::Automatic => {
