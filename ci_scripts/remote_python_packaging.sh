@@ -30,6 +30,8 @@ set +x
 
 ssh $SSHTARGET bash -c "cat >$BUILDDIR/exec_docker_run" <<_HERE
     set +x -e
+    # make sure all processes exit when ssh dies
+    shopt -s huponexit
     cd $BUILDDIR
     export DCC_PY_LIVECONFIG=$DCC_PY_LIVECONFIG
     export DCC_NEW_TMP_EMAIL=$DCC_NEW_TMP_EMAIL
@@ -44,7 +46,7 @@ _HERE
 
 echo "--- Running $CIRCLE_JOB remotely"
 
-ssh -t $SSHTARGET bash "$BUILDDIR/exec_docker_run"
+ssh $SSHTARGET bash "$BUILDDIR/exec_docker_run"
 mkdir -p workspace 
 rsync -avz "$SSHTARGET:$BUILDDIR/python/.docker-tox/wheelhouse/*manylinux201*" workspace/wheelhouse/
 rsync -avz "$SSHTARGET:$BUILDDIR/python/.docker-tox/dist/*" workspace/wheelhouse/

@@ -20,6 +20,8 @@ echo "--- Running $CIRCLE_JOB remotely"
 
 ssh $SSHTARGET <<_HERE
     set +x -e
+    # make sure all processes exit when ssh dies
+    shopt -s huponexit
     export RUSTC_WRAPPER=\`which sccache\`
     cd $BUILDDIR
     # let's share the target dir with our last run on this branch/job-type
