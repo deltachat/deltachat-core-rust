@@ -46,7 +46,7 @@ _HERE
 
 echo "--- Running $CIRCLE_JOB remotely"
 
-ssh -t $SSHTARGET bash "$BUILDDIR/exec_docker_run"
+ssh $SSHTARGET bash "$BUILDDIR/exec_docker_run"
 mkdir -p workspace 
 rsync -avz "$SSHTARGET:$BUILDDIR/python/.docker-tox/wheelhouse/*manylinux201*" workspace/wheelhouse/
 rsync -avz "$SSHTARGET:$BUILDDIR/python/.docker-tox/dist/*" workspace/wheelhouse/

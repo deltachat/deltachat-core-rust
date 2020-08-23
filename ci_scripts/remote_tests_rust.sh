@@ -18,7 +18,7 @@ rsync --delete --files-from=.rsynclist -az ./ "$SSHTARGET:$BUILDDIR"
 
 echo "--- Running $CIRCLE_JOB remotely"
 
-ssh -t -t $SSHTARGET <<_HERE
+ssh $SSHTARGET <<_HERE
     set +x -e
     # make sure all processes exit when ssh dies
     shopt -s huponexit
