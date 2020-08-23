@@ -4,6 +4,7 @@
 use quick_xml::events::{BytesStart, Event};
 
 use std::io::BufRead;
+use std::str::FromStr;
 
 use crate::context::Context;
 use crate::login_param::LoginParam;
@@ -34,6 +35,26 @@ enum MozConfigTag {
     Port,
     Sockettype,
     Username,
+}
+
+impl Default for MozConfigTag {
+    fn default() -> Self {
+        Self::Undefined
+    }
+}
+
+impl FromStr for MozConfigTag {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_lowercase().as_ref() {
+            "hostname" => Ok(MozConfigTag::Hostname),
+            "port" => Ok(MozConfigTag::Port),
+            "sockettype" => Ok(MozConfigTag::Sockettype),
+            "username" => Ok(MozConfigTag::Username),
+            _ => Err(()),
+        }
+    }
 }
 
 /// Parses a single IncomingServer or OutgoingServer section.
@@ -70,17 +91,9 @@ fn parse_server<B: BufRead>(
     loop {
         match reader.read_event(&mut buf)? {
             Event::Start(ref event) => {
-                let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
-
-                if tag == "hostname" {
-                    tag_config = MozConfigTag::Hostname;
-                } else if tag == "port" {
-                    tag_config = MozConfigTag::Port;
-                } else if tag == "sockettype" {
-                    tag_config = MozConfigTag::Sockettype;
-                } else if tag == "username" {
-                    tag_config = MozConfigTag::Username;
-                }
+                tag_config = String::from_utf8_lossy(event.name())
+                    .parse()
+                    .unwrap_or_default();
             }
             Event::End(ref event) => {
                 let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
