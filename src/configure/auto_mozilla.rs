@@ -114,15 +114,11 @@ fn parse_server<B: BufRead>(
                     MozConfigTag::Port => port = Some(val.parse().unwrap_or_default()),
                     MozConfigTag::Username => username = Some(val),
                     MozConfigTag::Sockettype => {
-                        let val_lower = val.to_lowercase();
-                        if val_lower == "ssl" {
-                            sockettype = Socket::SSL;
-                        }
-                        if val_lower == "starttls" {
-                            sockettype = Socket::STARTTLS;
-                        }
-                        if val_lower == "plain" {
-                            sockettype = Socket::Plain;
+                        sockettype = match val.to_lowercase().as_ref() {
+                            "ssl" => Socket::SSL,
+                            "starttls" => Socket::STARTTLS,
+                            "plain" => Socket::Plain,
+                            _ => Socket::Automatic,
                         }
                     }
                     _ => {}
