@@ -1408,7 +1408,9 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Er
                 message::guess_msgtype_from_suffix(&blob.to_abs_path())
             {
                 msg.viewtype = better_type;
-                msg.param.set(Param::MimeType, better_mime);
+                if !msg.param.exists(Param::MimeType) {
+                    msg.param.set(Param::MimeType, better_mime);
+                }
             }
         } else if !msg.param.exists(Param::MimeType) {
             if let Some((_, mime)) = message::guess_msgtype_from_suffix(&blob.to_abs_path()) {
