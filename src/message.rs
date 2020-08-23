@@ -1096,6 +1096,10 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
 pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
     let extension: &str = &path.extension()?.to_str()?.to_lowercase();
     let info = match extension {
+        // before using viewtype other than Viewtype::File,
+        // make sure, all target UIs support that type in the context of the used viewer/player.
+        // if in doubt, it is better to default to Viewtype::File that passes handing to an external app.
+        // (cmp. https://developer.android.com/guide/topics/media/media-formats )
         "3gp" => (Viewtype::Video, "video/3gpp"),
         "aac" => (Viewtype::Audio, "audio/aac"),
         "avi" => (Viewtype::Video, "video/x-msvideo"),
@@ -1129,15 +1133,15 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "odt" => (Viewtype::File, "application/vnd.oasis.opendocument.text"),
         "oga" => (Viewtype::Audio, "audio/ogg"),
         "ogg" => (Viewtype::Audio, "audio/ogg"),
-        "ogv" => (Viewtype::Video, "video/ogg"),
-        "opus" => (Viewtype::Audio, "audio/ogg"),
+        "ogv" => (Viewtype::File, "video/ogg"),
+        "opus" => (Viewtype::File, "audio/ogg"), // not supported eg. on Android 4
         "otf" => (Viewtype::File, "font/otf"),
         "pdf" => (Viewtype::File, "application/pdf"),
         "png" => (Viewtype::Image, "image/png"),
         "rar" => (Viewtype::File, "application/vnd.rar"),
         "rtf" => (Viewtype::File, "application/rtf"),
-        "spx" => (Viewtype::Audio, "audio/ogg"), // Ogg Speex Profile
-        "svg" => (Viewtype::Image, "image/svg+xml"),
+        "spx" => (Viewtype::File, "audio/ogg"), // Ogg Speex Profile
+        "svg" => (Viewtype::File, "image/svg+xml"),
         "tgs" => (Viewtype::Sticker, "application/x-tgsticker"),
         "tiff" => (Viewtype::File, "image/tiff"),
         "tif" => (Viewtype::File, "image/tiff"),
@@ -1147,7 +1151,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "wav" => (Viewtype::File, "audio/wav"),
         "weba" => (Viewtype::File, "audio/webm"),
         "webm" => (Viewtype::Video, "video/webm"),
-        "webp" => (Viewtype::Image, "image/webp"),
+        "webp" => (Viewtype::Image, "image/webp"), // iOS via SDWebImage, Android since 4.0
         "wmv" => (Viewtype::Video, "video/x-ms-wmv"),
         "xhtml" => (Viewtype::File, "application/xhtml+xml"),
         "xlsx" => (
