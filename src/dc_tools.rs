@@ -299,12 +299,19 @@ pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) ->
 }
 
 pub async fn dc_delete_files_in_dir(context: &Context, path: impl AsRef<Path>) {
-    if let Ok(mut read_dir) = async_std::fs::read_dir(path).await {
-        while let Some(entry) = read_dir.next().await {
-            if let Ok(file) = entry {
-                dc_delete_file(context, file.file_name()).await;
+    match async_std::fs::read_dir(path).await {
+        Ok(mut read_dir) => {
+            while let Some(entry) = read_dir.next().await {
+                match entry {
+                    Ok(file) => {
+                        dc_delete_file(context, file.file_name()).await;
+                    }
+                    Err(e) => warn!(context, "Could not read file to delete: {}", e),
+                }
             }
         }
+
+        Err(e) => warn!(context, "Could not read dir to delete: {}", e),
     }
 }
 

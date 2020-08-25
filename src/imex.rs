@@ -697,7 +697,7 @@ impl Drop for DeleteOnDrop {
     fn drop(&mut self) {
         let file = self.0.clone();
         // Not using dc_delete_file() here because it would send a DeletedBlobFile event
-        async_std::task::spawn(async move { fs::remove_file(file).await.ok() });
+        async_std::task::block_on(async move { fs::remove_file(file).await.ok() });
     }
 }
 
