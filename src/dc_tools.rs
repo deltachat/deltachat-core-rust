@@ -9,7 +9,9 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use async_std::path::{Path, PathBuf};
+use async_std::prelude::*;
 use async_std::{fs, io};
+
 use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
@@ -293,6 +295,23 @@ pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) ->
             warn!(context, "Cannot delete \"{}\": {}", dpath, err);
             false
         }
+    }
+}
+
+pub async fn dc_delete_files_in_dir(context: &Context, path: impl AsRef<Path>) {
+    match async_std::fs::read_dir(path).await {
+        Ok(mut read_dir) => {
+            while let Some(entry) = read_dir.next().await {
+                match entry {
+                    Ok(file) => {
+                        dc_delete_file(context, file.file_name()).await;
+                    }
+                    Err(e) => warn!(context, "Could not read file to delete: {}", e),
+                }
+            }
+        }
+
+        Err(e) => warn!(context, "Could not read dir to delete: {}", e),
     }
 }
 
