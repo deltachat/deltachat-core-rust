@@ -330,7 +330,7 @@ impl Imap {
         let param = LoginParam::from_database(context, "configured_").await;
         // the trailing underscore is correct
 
-        if self
+        if let Err(err) = self
             .connect(
                 context,
                 &param.imap,
@@ -339,9 +339,9 @@ impl Imap {
             )
             .await
         {
-            self.ensure_configured_folders(context, true).await
+            bail!("IMAP Connection Failed with params {}: {}", param, err);
         } else {
-            bail!("IMAP Connection Failed params: {}", param);
+            self.ensure_configured_folders(context, true).await
         }
     }
 
@@ -354,9 +354,9 @@ impl Imap {
         lp: &ServerLoginParam,
         addr: &str,
         oauth2: bool,
-    ) -> bool {
+    ) -> Result<()> {
         if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
-            return false;
+            bail!("Incomplete IMAP connection parameters");
         }
 
         {
@@ -378,7 +378,7 @@ impl Imap {
         if let Err(err) = self.setup_handle_if_needed(context).await {
             warn!(context, "failed to setup imap handle: {}", err);
             self.free_connect_params().await;
-            return false;
+            return Err(err);
         }
 
         let teardown = match &mut self.session {
@@ -422,10 +422,9 @@ impl Imap {
         if teardown {
             self.disconnect(context).await;
 
-            false
-        } else {
-            true
+            bail!("IMAP disconnected immediately after connecting due to error");
         }
+        Ok(())
     }
 
     pub async fn disconnect(&mut self, context: &Context) {
