@@ -445,12 +445,12 @@ async fn try_imap_one_param(
     );
     info!(context, "Trying: {}", inf);
 
-    if imap.connect(context, param, addr, oauth2).await {
+    if let Err(err) = imap.connect(context, param, addr, oauth2).await {
+        info!(context, "failure: {}", err);
+        false
+    } else {
         info!(context, "success: {}", inf);
         true
-    } else {
-        info!(context, "failure: {}", inf);
-        false
     }
 }
 
