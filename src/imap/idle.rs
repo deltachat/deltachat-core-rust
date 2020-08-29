@@ -5,30 +5,10 @@ use async_imap::types::UnsolicitedResponse;
 use async_std::prelude::*;
 use std::time::{Duration, SystemTime};
 
+use crate::error::{bail, format_err, Result};
 use crate::{context::Context, scheduler::InterruptInfo};
 
-use super::select_folder;
 use super::session::Session;
-
-type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("IMAP IDLE protocol failed to init/complete: {0}")]
-    IdleProtocolFailed(#[from] async_imap::error::Error),
-
-    #[error("IMAP IDLE protocol timed out: {0}")]
-    IdleTimeout(#[from] async_std::future::TimeoutError),
-
-    #[error("IMAP server does not have IDLE capability")]
-    IdleAbilityMissing,
-
-    #[error("IMAP select folder error: {0}")]
-    SelectFolderError(#[from] select_folder::Error),
-
-    #[error("Setup handle error: {0}")]
-    SetupHandleError(#[from] super::Error),
-}
 
 impl Imap {
     pub fn can_idle(&self) -> bool {
@@ -43,7 +23,7 @@ impl Imap {
         use futures::future::FutureExt;
 
         if !self.can_idle() {
-            return Err(Error::IdleAbilityMissing);
+            bail!("IMAP server does not have IDLE capability");
         }
         self.setup_handle_if_needed(context).await?;
 
@@ -72,7 +52,7 @@ impl Imap {
 
             let mut handle = session.idle();
             if let Err(err) = handle.init().await {
-                return Err(Error::IdleProtocolFailed(err));
+                bail!("IMAP IDLE protocol failed to init/complete: {}", err);
             }
 
             let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
@@ -115,7 +95,7 @@ impl Imap {
                 .done()
                 .timeout(Duration::from_secs(15))
                 .await
-                .map_err(Error::IdleTimeout)??;
+                .map_err(|err| format_err!("IMAP IDLE protocol timed out: {}", err))??;
             self.session = Some(Session { inner: session });
         } else {
             warn!(context, "Attempted to idle without a session");
