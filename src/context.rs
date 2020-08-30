@@ -17,9 +17,9 @@ use crate::error::*;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
-use crate::lot::Lot;
 use crate::message::{self, MsgId};
 use crate::scheduler::Scheduler;
+use crate::securejoin::Bob;
 use crate::sql::Sql;
 use std::time::SystemTime;
 
@@ -44,7 +44,7 @@ pub struct InnerContext {
     pub(crate) blobdir: PathBuf,
     pub(crate) sql: Sql,
     pub(crate) os_name: Option<String>,
-    pub(crate) bob: RwLock<BobStatus>,
+    pub(crate) bob: RwLock<Bob>,
     pub(crate) last_smeared_timestamp: RwLock<i64>,
     pub(crate) running_state: RwLock<RunningState>,
     /// Mutex to avoid generating the key for the user more than once.
@@ -506,13 +506,6 @@ impl Default for RunningState {
             cancel_sender: None,
         }
     }
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct BobStatus {
-    pub expects: i32,
-    pub status: i32,
-    pub qr_scan: Option<Lot>,
 }
 
 pub fn get_version_str() -> &'static str {

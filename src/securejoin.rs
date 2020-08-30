@@ -15,7 +15,7 @@ use crate::error::{bail, Error};
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
-use crate::lot::LotState;
+use crate::lot::{Lot, LotState};
 use crate::message::Message;
 use crate::mimeparser::*;
 use crate::param::*;
@@ -65,6 +65,25 @@ macro_rules! get_qr_attr {
             .as_ref()
             .unwrap()
     };
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum BobStatus {
+    Error,
+    Success,
+}
+
+impl Default for BobStatus {
+    fn default() -> Self {
+        Self::Error
+    }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct Bob {
+    pub expects: i32,
+    pub status: BobStatus,
+    pub qr_scan: Option<Lot>,
 }
 
 pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> Option<String> {
@@ -160,7 +179,7 @@ async fn cleanup(
 ) -> ChatId {
     let mut bob = context.bob.write().await;
     bob.expects = 0;
-    let ret_chat_id: ChatId = if bob.status == DC_BOB_SUCCESS {
+    let ret_chat_id: ChatId = if bob.status == BobStatus::Success {
         if join_vg {
             chat::get_chat_id_by_grpid(
                 context,
@@ -223,7 +242,7 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
     join_vg = qr_scan.get_state() == LotState::QrAskVerifyGroup;
     {
         let mut bob = context.bob.write().await;
-        bob.status = 0;
+        bob.status = BobStatus::Error;
         bob.qr_scan = Some(qr_scan);
     }
     if fingerprint_equals_sender(
@@ -545,7 +564,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     },
                 )
                 .await;
-                context.bob.write().await.status = 0; // secure-join failed
+                context.bob.write().await.status = BobStatus::Error; // secure-join failed
                 context.stop_ongoing().await;
                 return Ok(HandshakeMessage::Ignore);
             }
@@ -558,7 +577,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     "Fingerprint mismatch on joiner-side.",
                 )
                 .await;
-                context.bob.write().await.status = 0; // secure-join failed
+                context.bob.write().await.status = BobStatus::Error; // secure-join failed
                 context.stop_ongoing().await;
                 return Ok(HandshakeMessage::Ignore);
             }
@@ -756,7 +775,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     "Contact confirm message not encrypted.",
                 )
                 .await;
-                context.bob.write().await.status = 0;
+                context.bob.write().await.status = BobStatus::Error;
                 return Ok(abort_retval);
             }
 
@@ -805,7 +824,7 @@ pub(crate) async fn handle_securejoin_handshake(
             )
             .await?;
 
-            context.bob.write().await.status = 1;
+            context.bob.write().await.status = BobStatus::Success;
             context.stop_ongoing().await;
             Ok(if join_vg {
                 HandshakeMessage::Propagate

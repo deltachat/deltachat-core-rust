@@ -19,7 +19,9 @@ use crate::message::{self, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::*;
 use crate::param::*;
 use crate::peerstate::*;
-use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
+use crate::securejoin::{
+    self, handle_securejoin_handshake, observe_securejoin_on_other_device, BobStatus,
+};
 use crate::stock::StockMessage;
 use crate::{contact, location};
 
@@ -417,7 +419,7 @@ async fn add_parts(
                 Err(err) => {
                     *hidden = true;
 
-                    context.bob.write().await.status = 0; // secure-join failed
+                    context.bob.write().await.status = BobStatus::Error; // secure-join failed
                     context.stop_ongoing().await;
                     warn!(context, "Error in Secure-Join message handling: {}", err);
                     return Ok(());
