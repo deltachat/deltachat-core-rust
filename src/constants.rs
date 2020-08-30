@@ -205,8 +205,6 @@ pub const DC_LP_AUTH_FLAGS: i32 = DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL;
 // QR code scanning (view from Bob, the joiner)
 pub const DC_VC_AUTH_REQUIRED: i32 = 2;
 pub const DC_VC_CONTACT_CONFIRM: i32 = 6;
-pub const DC_BOB_ERROR: i32 = 0;
-pub const DC_BOB_SUCCESS: i32 = 1;
 
 // max. width/height of an avatar
 pub const AVATAR_SIZE: u32 = 192;
