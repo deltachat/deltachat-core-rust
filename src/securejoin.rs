@@ -79,11 +79,44 @@ impl Default for BobStatus {
     }
 }
 
+/// State for setup-contact/secure-join protocol joiner's side.
+///
+/// The setup-contact protocol needs to carry state for both the inviter (Alice) and the
+/// joiner/invitee (Bob).  For Alice this state is minimal and in the `tokens` table in the
+/// database.  For Bob this state is only carried live on the [Context] in this struct.
 #[derive(Debug, Default)]
 pub(crate) struct Bob {
-    pub expects: i32,
+    /// The next message expected by the protocol.
+    expects: SecureJoinStep,
+    /// The final status of the last-run setup-contact/secure-join protocol.
+    ///
+    /// This is only meaningful if you know you have exited the protocol but have not
+    /// started a new one.
     pub status: BobStatus,
+    /// The QR-scanned information of the currently running protocol.
     pub qr_scan: Option<Lot>,
+}
+
+/// The next message expected by [Bob] in the setup-contact/secure-join protocol.
+#[derive(Debug)]
+enum SecureJoinStep {
+    /// No setup-contact protocol running.
+    NotActive,
+    /// Expecting the auth-required message.
+    ///
+    /// This corresponds to the `vc-auth-required` or `vg-auth-required` message of step 3d.
+    AuthRequired,
+    /// Expecting the contact-confirm message.
+    ///
+    /// This corresponds to the `vc-contact-confirm` or `vg-member-added` message of step
+    /// 6b.
+    ContactConfirm,
+}
+
+impl Default for SecureJoinStep {
+    fn default() -> Self {
+        Self::NotActive
+    }
 }
 
 pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> Option<String> {
@@ -178,7 +211,7 @@ async fn cleanup(
     join_vg: bool,
 ) -> ChatId {
     let mut bob = context.bob.write().await;
-    bob.expects = 0;
+    bob.expects = SecureJoinStep::NotActive;
     let ret_chat_id: ChatId = if bob.status == BobStatus::Success {
         if join_vg {
             chat::get_chat_id_by_grpid(
@@ -264,7 +297,7 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
         // the scanned fingerprint matches Alice's key,
         // we can proceed to step 4b) directly and save two mails
         info!(context, "Taking protocol shortcut.");
-        context.bob.write().await.expects = DC_VC_CONTACT_CONFIRM;
+        context.bob.write().await.expects = SecureJoinStep::ContactConfirm;
         joiner_progress!(
             context,
             chat_id_2_contact_id(context, contact_chat_id).await,
@@ -295,7 +328,7 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
             return cleanup(&context, contact_chat_id, true, join_vg).await;
         }
     } else {
-        context.bob.write().await.expects = DC_VC_AUTH_REQUIRED;
+        context.bob.write().await.expects = SecureJoinStep::AuthRequired;
 
         // Bob -> Alice
         if let Err(err) = send_handshake_msg(
@@ -540,7 +573,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 let bob = context.bob.read().await;
                 let scan = bob.qr_scan.as_ref();
                 scan.is_none()
-                    || bob.expects != DC_VC_AUTH_REQUIRED
+                    || !matches!(bob.expects, SecureJoinStep::AuthRequired)
                     || join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
             };
 
@@ -584,7 +617,7 @@ pub(crate) async fn handle_securejoin_handshake(
             info!(context, "Fingerprint verified.",);
             let own_fingerprint = get_self_fingerprint(context).await.unwrap();
             joiner_progress!(context, contact_id, 400);
-            context.bob.write().await.expects = DC_VC_CONTACT_CONFIRM;
+            context.bob.write().await.expects = SecureJoinStep::ContactConfirm;
 
             // Bob -> Alice
             send_handshake_msg(
@@ -728,7 +761,10 @@ pub(crate) async fn handle_securejoin_handshake(
                 HandshakeMessage::Ignore
             };
 
-            if context.bob.read().await.expects != DC_VC_CONTACT_CONFIRM {
+            if !matches!(
+                context.bob.read().await.expects,
+                SecureJoinStep::ContactConfirm
+            ) {
                 info!(context, "Message belongs to a different handshake.",);
                 return Ok(abort_retval);
             }
@@ -807,7 +843,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 return Ok(abort_retval);
             }
             secure_connection_established(context, contact_chat_id).await;
-            context.bob.write().await.expects = 0;
+            context.bob.write().await.expects = SecureJoinStep::NotActive;
 
             // Bob -> Alice
             send_handshake_msg(
