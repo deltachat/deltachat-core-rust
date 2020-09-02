@@ -375,6 +375,16 @@ impl ChatId {
     }
 
     pub async fn get_fresh_msg_cnt(self, context: &Context) -> usize {
+        // this function is typically used to show a badge counter beside _each_ chatlist item.
+        // to make this as fast as possible, esp. on older devices, we added an combined index over the rows used for querying.
+        // so if you alter the query here, you may want to alter the index over `(state, hidden, chat_id)` in `sql.rs`.
+        //
+        // the impact of the index is significant once the database grows:
+        // - on an older android4 with 18k messages, query-time decreased from 110ms to 2ms
+        // - on an mid-class moto-g or iphone7 with 50k messages, query-time decreased from 26ms or 6ms to 0-1ms
+        // the times are average, no matter if there are fresh messages or not -
+        // and have to be multiplied by the number of items shown at once on the chatlist,
+        // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
         context
             .sql
             .query_get_value::<i32>(

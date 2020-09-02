@@ -1315,6 +1315,16 @@ async fn open(
             }
             sql.set_raw_config_int(context, "dbversion", 67).await?;
         }
+        if dbversion < 68 {
+            info!(context, "[migration] v68");
+            // the index is used to speed up get_fresh_msg_cnt(), see comment there for more details
+            sql.execute(
+                "CREATE INDEX IF NOT EXISTS msgs_index7 ON msgs (state, hidden, chat_id);",
+                paramsv![],
+            )
+            .await?;
+            sql.set_raw_config_int(context, "dbversion", 68).await?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
