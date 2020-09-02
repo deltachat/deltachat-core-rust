@@ -98,7 +98,7 @@ pub(crate) struct Bob {
 }
 
 /// The next message expected by [Bob] in the setup-contact/secure-join protocol.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum SecureJoinStep {
     /// No setup-contact protocol running.
     NotActive,
@@ -573,7 +573,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 let bob = context.bob.read().await;
                 let scan = bob.qr_scan.as_ref();
                 scan.is_none()
-                    || !matches!(bob.expects, SecureJoinStep::AuthRequired)
+                    || bob.expects != SecureJoinStep::AuthRequired
                     || join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
             };
 
@@ -761,10 +761,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 HandshakeMessage::Ignore
             };
 
-            if !matches!(
-                context.bob.read().await.expects,
-                SecureJoinStep::ContactConfirm
-            ) {
+            if context.bob.read().await.expects != SecureJoinStep::ContactConfirm {
                 info!(context, "Message belongs to a different handshake.",);
                 return Ok(abort_retval);
             }
