@@ -2886,6 +2886,7 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
 mod tests {
     use super::*;
 
+    use crate::chat;
     use crate::contact::Contact;
     use crate::test_utils::*;
 
@@ -3547,5 +3548,31 @@ mod tests {
         msg.set_text(Some("hello".to_string()));
         chat_id.set_draft(&t.ctx, Some(&mut msg)).await;
         assert!(!chat_id.parent_is_encrypted(&t.ctx).await.unwrap());
+    }
+
+    #[async_std::test]
+    async fn test_get_fresh_msg_cnt() {
+        let t = TestContext::new().await;
+        // create 50 chats with 1k messages each
+        let mut chat_ids = Vec::new();
+        for _i in 1..50 {
+            let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+                .await
+                .unwrap();
+            for _i in 1..1000 {
+                let mut msg = Message::new(Viewtype::Text);
+                msg.text = Some("message text".to_string());
+                chat::send_msg(&t.ctx, chat_id, &mut msg)
+                    .await
+                    .unwrap_or_default();
+            }
+            chat_ids.push(chat_id);
+        }
+        // load all chats 20k times
+        for _i in 1..20_000 {
+            for chat_id in chat_ids.iter() {
+                chat_id.get_fresh_msg_cnt(&t.ctx).await;
+            }
+        }
     }
 }
