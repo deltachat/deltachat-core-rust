@@ -379,7 +379,7 @@ impl ChatId {
         // to make this as fast as possible, esp. on older devices, we added an combined index over the rows used for querying.
         // so if you alter the query here, you may want to alter the index over `(state, hidden, chat_id)` in `sql.rs`.
         //
-        // the impact if the index is significant once the database grows:
+        // the impact of the index is significant once the database grows:
         // - on an older android4 with 18k messages, query-time decreased from 110ms to 2ms
         // - on an mid-class moto-g or iphone7 with 50k messages, query-time decreased from 26ms or 6ms to 0-1ms
         // the times are average, no matter if there are fresh messages or not -
