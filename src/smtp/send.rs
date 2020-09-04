@@ -5,6 +5,7 @@ use async_smtp::*;
 
 use crate::context::Context;
 use crate::events::EventType;
+use itertools::Itertools;
 use std::time::Duration;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -33,11 +34,7 @@ impl Smtp {
     ) -> Result<()> {
         let message_len_bytes = message.len();
 
-        let recipients_display = recipients
-            .iter()
-            .map(|x| format!("{}", x))
-            .collect::<Vec<String>>()
-            .join(",");
+        let recipients_display = recipients.iter().map(|x| x.to_string()).join(",");
 
         let envelope =
             Envelope::new(self.from.clone(), recipients).map_err(Error::EnvelopeError)?;
