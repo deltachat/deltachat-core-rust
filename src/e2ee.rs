@@ -135,41 +135,31 @@ pub async fn try_decrypt(
         .map(|from| from.addr)
         .unwrap_or_default();
 
-    let mut peerstate = None;
+    // Apply Autocrypt header
     let autocryptheader = Aheader::from_headers(context, &from, &mail.headers);
-
-    if message_time > 0 {
-        peerstate = Peerstate::from_addr(context, &from).await?;
-
-        if let Some(ref mut peerstate) = peerstate {
-            if let Some(ref header) = autocryptheader {
-                peerstate.apply_header(&header, message_time);
-                peerstate.save_to_db(&context.sql, false).await?;
-            } else if message_time > peerstate.last_seen_autocrypt && !contains_report(mail) {
-                peerstate.degrade_encryption(message_time);
-                peerstate.save_to_db(&context.sql, false).await?;
-            }
-        } else if let Some(ref header) = autocryptheader {
-            let p = Peerstate::from_header(context, header, message_time);
-            p.save_to_db(&context.sql, true).await?;
-            peerstate = Some(p);
+    let mut peerstate = Peerstate::from_addr(context, &from).await?;
+    if let Some(ref mut peerstate) = peerstate {
+        if let Some(ref header) = autocryptheader {
+            peerstate.apply_header(&header, message_time);
+            peerstate.save_to_db(&context.sql, false).await?;
         }
+    } else if let Some(ref header) = autocryptheader {
+        let p = Peerstate::from_header(context, header, message_time);
+        p.save_to_db(&context.sql, true).await?;
+        peerstate = Some(p);
     }
 
-    /* possibly perform decryption */
+    // Possibly perform decryption
     let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context).await?;
     let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
     let mut signatures = HashSet::default();
 
-    if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-        peerstate = Peerstate::from_addr(&context, &from).await?;
-    }
-    if let Some(peerstate) = peerstate {
+    if let Some(ref mut peerstate) = peerstate {
         peerstate.handle_fingerprint_change(context).await?;
-        if let Some(key) = peerstate.public_key {
-            public_keyring_for_validate.add(key);
-        } else if let Some(key) = peerstate.gossip_key {
-            public_keyring_for_validate.add(key);
+        if let Some(key) = &peerstate.public_key {
+            public_keyring_for_validate.add(key.clone());
+        } else if let Some(key) = &peerstate.gossip_key {
+            public_keyring_for_validate.add(key.clone());
         }
     }
 
@@ -181,6 +171,18 @@ pub async fn try_decrypt(
         &mut signatures,
     )
     .await?;
+
+    if let Some(mut peerstate) = peerstate {
+        // If message is not encrypted and it is not a read receipt, degrade encryption.
+        if out_mail.is_none()
+            && message_time > peerstate.last_seen_autocrypt
+            && !contains_report(mail)
+        {
+            peerstate.degrade_encryption(message_time);
+            peerstate.save_to_db(&context.sql, false).await?;
+        }
+    }
+
     Ok((out_mail, signatures))
 }
 
