@@ -2,7 +2,7 @@
 
 use deltachat::config;
 use deltachat::context::*;
-use tempfile::{tempdir, TempDir};
+use tempfile::tempdir;
 
 /* some data used for testing
  ******************************************************************************/
@@ -92,26 +92,19 @@ async fn stress_functions(context: &Context) {
     // free(qr.cast());
 }
 
-#[allow(dead_code)]
-struct TestContext {
-    ctx: Context,
-    dir: TempDir,
-}
-
-async fn create_test_context() -> TestContext {
+async fn create_test_context() -> Context {
     use rand::Rng;
 
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     let id = rand::thread_rng().gen();
-    let ctx = Context::new("FakeOs".into(), dbfile.into(), id)
+    Context::new("FakeOs".into(), dbfile.into(), id)
         .await
-        .unwrap();
-    TestContext { ctx, dir }
+        .unwrap()
 }
 
 #[async_std::test]
 async fn test_stress_tests() {
     let context = create_test_context().await;
-    stress_functions(&context.ctx).await;
+    stress_functions(&context).await;
 }

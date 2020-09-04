@@ -490,7 +490,6 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use pretty_assertions::assert_eq;
-    use tempfile::TempDir;
 
     #[async_std::test]
     async fn test_peerstate_save_to_db() {
@@ -635,12 +634,5 @@ mod tests {
         assert_eq!(peerstate.public_key_fingerprint, None);
         assert_eq!(peerstate.gossip_key_fingerprint, None);
         assert_eq!(peerstate.verified_key_fingerprint, None);
-    }
-
-    // TODO: don't copy this from stress.rs
-    #[allow(dead_code)]
-    struct TestContext {
-        ctx: Context,
-        dir: TempDir,
     }
 }
