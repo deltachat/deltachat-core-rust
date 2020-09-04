@@ -494,7 +494,7 @@ impl Message {
     pub fn get_text(&self) -> Option<String> {
         self.text
             .as_ref()
-            .map(|text| dc_truncate(text, 30000).to_string())
+            .map(|text| dc_truncate(text, DC_MAX_GET_TEXT_LEN).to_string())
     }
 
     pub fn get_filename(&self) -> Option<String> {
@@ -969,7 +969,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         return ret;
     }
     let rawtxt = rawtxt.unwrap_or_default();
-    let rawtxt = dc_truncate(rawtxt.trim(), 100_000);
+    let rawtxt = dc_truncate(rawtxt.trim(), DC_MAX_GET_INFO_LEN);
 
     let fts = dc_timestamp_to_str(msg.get_timestamp());
     ret += &format!("Sent: {}", fts);
@@ -1797,7 +1797,6 @@ pub async fn update_server_uid(
     }
 }
 
-#[allow(dead_code)]
 pub async fn dc_empty_server(context: &Context, flags: u32) {
     job::kill_action(context, Action::EmptyServer).await;
     job::add(
