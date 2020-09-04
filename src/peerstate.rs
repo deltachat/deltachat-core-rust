@@ -94,47 +94,42 @@ pub enum ToSave {
 }
 
 impl<'a> Peerstate<'a> {
-    pub fn new(context: &'a Context, addr: String) -> Self {
+    pub fn from_header(context: &'a Context, header: &Aheader, message_time: i64) -> Self {
         Peerstate {
             context,
-            addr,
-            last_seen: 0,
-            last_seen_autocrypt: 0,
-            prefer_encrypt: Default::default(),
-            public_key: None,
-            public_key_fingerprint: None,
+            addr: header.addr.clone(),
+            last_seen: message_time,
+            last_seen_autocrypt: message_time,
+            prefer_encrypt: header.prefer_encrypt,
+            public_key: Some(header.public_key.clone()),
+            public_key_fingerprint: Some(header.public_key.fingerprint()),
             gossip_key: None,
             gossip_key_fingerprint: None,
             gossip_timestamp: 0,
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: None,
+            to_save: Some(ToSave::All),
             fingerprint_changed: false,
         }
     }
 
-    pub fn from_header(context: &'a Context, header: &Aheader, message_time: i64) -> Self {
-        let mut res = Self::new(context, header.addr.clone());
-
-        res.last_seen = message_time;
-        res.last_seen_autocrypt = message_time;
-        res.to_save = Some(ToSave::All);
-        res.prefer_encrypt = header.prefer_encrypt;
-        res.public_key = Some(header.public_key.clone());
-        res.recalc_fingerprint();
-
-        res
-    }
-
     pub fn from_gossip(context: &'a Context, gossip_header: &Aheader, message_time: i64) -> Self {
-        let mut res = Self::new(context, gossip_header.addr.clone());
-
-        res.gossip_timestamp = message_time;
-        res.to_save = Some(ToSave::All);
-        res.gossip_key = Some(gossip_header.public_key.clone());
-        res.recalc_fingerprint();
-
-        res
+        Peerstate {
+            context,
+            addr: gossip_header.addr.clone(),
+            last_seen: 0,
+            last_seen_autocrypt: 0,
+            prefer_encrypt: Default::default(),
+            public_key: None,
+            public_key_fingerprint: None,
+            gossip_key: Some(gossip_header.public_key.clone()),
+            gossip_key_fingerprint: Some(gossip_header.public_key.fingerprint()),
+            gossip_timestamp: message_time,
+            verified_key: None,
+            verified_key_fingerprint: None,
+            to_save: Some(ToSave::All),
+            fingerprint_changed: false,
+        }
     }
 
     pub async fn from_addr(context: &'a Context, addr: &str) -> Result<Option<Peerstate<'a>>> {
@@ -175,40 +170,44 @@ impl<'a> Peerstate<'a> {
                 public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
                 gossip_key_fingerprint, verified_key, verified_key_fingerprint
                 */
-                let mut res = Self::new(context, row.get(0)?);
 
-                res.last_seen = row.get(1)?;
-                res.last_seen_autocrypt = row.get(2)?;
-                res.prefer_encrypt = EncryptPreference::from_i32(row.get(3)?).unwrap_or_default();
-                res.gossip_timestamp = row.get(5)?;
-
-                res.public_key_fingerprint = row
-                    .get::<_, Option<String>>(7)?
-                    .map(|s| s.parse::<Fingerprint>())
-                    .transpose()
-                    .unwrap_or_default();
-                res.gossip_key_fingerprint = row
-                    .get::<_, Option<String>>(8)?
-                    .map(|s| s.parse::<Fingerprint>())
-                    .transpose()
-                    .unwrap_or_default();
-                res.verified_key_fingerprint = row
-                    .get::<_, Option<String>>(10)?
-                    .map(|s| s.parse::<Fingerprint>())
-                    .transpose()
-                    .unwrap_or_default();
-                res.public_key = row
-                    .get(4)
-                    .ok()
-                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
-                res.gossip_key = row
-                    .get(6)
-                    .ok()
-                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
-                res.verified_key = row
-                    .get(9)
-                    .ok()
-                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
+                let res = Peerstate {
+                    context,
+                    addr: row.get(0)?,
+                    last_seen: row.get(1)?,
+                    last_seen_autocrypt: row.get(2)?,
+                    prefer_encrypt: EncryptPreference::from_i32(row.get(3)?).unwrap_or_default(),
+                    public_key: row
+                        .get(4)
+                        .ok()
+                        .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
+                    public_key_fingerprint: row
+                        .get::<_, Option<String>>(7)?
+                        .map(|s| s.parse::<Fingerprint>())
+                        .transpose()
+                        .unwrap_or_default(),
+                    gossip_key: row
+                        .get(6)
+                        .ok()
+                        .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
+                    gossip_key_fingerprint: row
+                        .get::<_, Option<String>>(8)?
+                        .map(|s| s.parse::<Fingerprint>())
+                        .transpose()
+                        .unwrap_or_default(),
+                    gossip_timestamp: row.get(5)?,
+                    verified_key: row
+                        .get(9)
+                        .ok()
+                        .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
+                    verified_key_fingerprint: row
+                        .get::<_, Option<String>>(10)?
+                        .map(|s| s.parse::<Fingerprint>())
+                        .transpose()
+                        .unwrap_or_default(),
+                    to_save: None,
+                    fingerprint_changed: false,
+                };
 
                 Ok(res)
             })
