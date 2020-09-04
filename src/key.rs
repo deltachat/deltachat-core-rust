@@ -355,7 +355,7 @@ pub async fn store_self_keypair(
 }
 
 /// A key fingerprint
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Fingerprint(Vec<u8>);
 
 impl Fingerprint {
@@ -372,6 +372,14 @@ impl Fingerprint {
     /// human-readable formatted string.
     pub fn hex(&self) -> String {
         hex::encode_upper(&self.0)
+    }
+}
+
+impl fmt::Debug for Fingerprint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Fingerprint")
+            .field("hex", &self.hex())
+            .finish()
     }
 }
 

@@ -2,12 +2,21 @@
 //!
 //! This module is only compiled for test runs.
 
+use std::cell::RefCell;
+use std::str::FromStr;
+
+use async_std::path::PathBuf;
 use tempfile::{tempdir, TempDir};
 
+use crate::chat::ChatId;
 use crate::config::Config;
 use crate::context::Context;
+use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
+use crate::job::Action;
 use crate::key::{self, DcKey};
+use crate::mimeparser::MimeMessage;
+use crate::param::{Param, Params};
 
 /// A Context and temporary directory.
 ///
@@ -16,6 +25,8 @@ use crate::key::{self, DcKey};
 pub(crate) struct TestContext {
     pub ctx: Context,
     pub dir: TempDir,
+    /// Counter for fake IMAP UIDs in [recv_msg], for private use in that function only.
+    recv_idx: RefCell<u32>,
 }
 
 impl TestContext {
@@ -35,7 +46,11 @@ impl TestContext {
         let ctx = Context::new("FakeOS".into(), dbfile.into(), id)
             .await
             .unwrap();
-        Self { ctx, dir }
+        Self {
+            ctx,
+            dir,
+            recv_idx: RefCell::new(0),
+        }
     }
 
     /// Create a new configured [TestContext].
@@ -45,6 +60,19 @@ impl TestContext {
     pub async fn new_alice() -> Self {
         let t = Self::new().await;
         t.configure_alice().await;
+        t
+    }
+
+    /// Create a new configured [TestContext].
+    ///
+    /// This is a shortcut which configures bob@example.net with a fixed key.
+    pub async fn new_bob() -> Self {
+        let t = Self::new().await;
+        let keypair = bob_keypair();
+        t.configure_addr(&keypair.addr.to_string()).await;
+        key::store_self_keypair(&t.ctx, &keypair, key::KeyPairUse::Default)
+            .await
+            .expect("Failed to save Bob's key");
         t
     }
 
@@ -75,6 +103,112 @@ impl TestContext {
             .set_config(Config::Configured, Some("1"))
             .await
             .unwrap();
+    }
+
+    /// Retrieve a sent message from the jobs table.
+    ///
+    /// This retrieves and removes a message which has been scheduled to send from the jobs
+    /// table.  Messages are returned in the order they have been sent.
+    ///
+    /// Panics if there is no message or on any error.
+    pub async fn pop_sent_msg(&self) -> SentMessage {
+        let (rowid, foreign_id, raw_params) = self
+            .ctx
+            .sql
+            .query_row(
+                r#"
+                    SELECT id, foreign_id, param
+                      FROM jobs
+                     WHERE action=?
+                  ORDER BY desired_timestamp;
+                "#,
+                paramsv![Action::SendMsgToSmtp],
+                |row| {
+                    let id: i64 = row.get(0)?;
+                    let foreign_id: i64 = row.get(1)?;
+                    let param: String = row.get(2)?;
+                    Ok((id, foreign_id, param))
+                },
+            )
+            .await
+            .expect("no sent message found in jobs table");
+        let id = ChatId::new(foreign_id as u32);
+        let params = Params::from_str(&raw_params).unwrap();
+        let blob_path = params
+            .get_blob(Param::File, &self.ctx, false)
+            .await
+            .expect("failed to parse blob from param")
+            .expect("no Param::File found in Params")
+            .to_abs_path();
+        self.ctx
+            .sql
+            .execute("DELETE FROM jobs WHERE id=?;", paramsv![rowid])
+            .await
+            .expect("failed to remove job");
+        SentMessage {
+            id,
+            params,
+            blob_path,
+        }
+    }
+
+    /// Parse a message.
+    ///
+    /// Parsing a message does not run the entire receive pipeline, but is not without
+    /// side-effects either.  E.g. if the message includes autocrypt headers the relevant
+    /// peerstates will be updated.  Later receiving the message using [recv_msg] is
+    /// unlikely to be affected as the peerstate would be processed again in exactly the
+    /// same way.
+    pub async fn parse_msg(&self, msg: &SentMessage) -> MimeMessage {
+        MimeMessage::from_bytes(&self.ctx, msg.payload().as_bytes())
+            .await
+            .unwrap()
+    }
+
+    /// Receive a message.
+    ///
+    /// Receives a message using the `dc_receive_imf()` pipeline.
+    pub async fn recv_msg(&self, msg: &SentMessage) {
+        let mut idx = self.recv_idx.borrow_mut();
+        *idx += 1;
+        dc_receive_imf(&self.ctx, msg.payload().as_bytes(), "INBOX", *idx, false)
+            .await
+            .unwrap();
+    }
+}
+
+/// A raw message as it was scheduled to be sent.
+///
+/// This is a raw message, probably in the shape DC was planning to send it but not having
+/// passed through a SMTP-IMAP pipeline.
+#[derive(Debug, Clone)]
+pub struct SentMessage {
+    id: ChatId,
+    params: Params,
+    blob_path: PathBuf,
+}
+
+impl SentMessage {
+    /// The ChatId the message belonged to.
+    pub fn id(&self) -> ChatId {
+        self.id
+    }
+
+    /// A recipient the message was destined for.
+    ///
+    /// If there are multiple recipients this is just a random one, so is not very useful.
+    pub fn recipient(&self) -> EmailAddress {
+        let raw = self
+            .params
+            .get(Param::Recipients)
+            .expect("no recipients in params");
+        let rcpt = raw.split(' ').next().expect("no recipient found");
+        rcpt.parse().expect("failed to parse email address")
+    }
+
+    /// The raw message payload.
+    pub fn payload(&self) -> String {
+        std::fs::read_to_string(&self.blob_path).unwrap()
     }
 }
 

@@ -1088,3 +1088,222 @@ fn encrypted_and_signed(
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::peerstate::Peerstate;
+    use crate::test_utils::TestContext;
+
+    #[async_std::test]
+    async fn test_setup_contact() {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Generate QR-code, ChatId(0) indicates setup-contact
+        let qr = dc_get_securejoin_qr(&alice.ctx, ChatId::new(0))
+            .await
+            .unwrap();
+
+        // Bob scans QR-code, sends vc-request
+        let bob_chatid = dc_join_securejoin(&bob.ctx, &qr).await;
+
+        let sent = bob.pop_sent_msg().await;
+        assert_eq!(sent.id(), bob_chatid);
+        assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
+        let msg = alice.parse_msg(&sent).await;
+        assert!(!msg.was_encrypted());
+        assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vc-request");
+        assert!(msg.get(HeaderDef::SecureJoinInvitenumber).is_some());
+
+        // Alice receives vc-request, sends vc-auth-required
+        alice.recv_msg(&sent).await;
+
+        let sent = alice.pop_sent_msg().await;
+        let msg = bob.parse_msg(&sent).await;
+        assert!(msg.was_encrypted());
+        assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vc-auth-required");
+
+        // Bob receives vc-auth-required, sends vc-request-with-auth
+        bob.recv_msg(&sent).await;
+
+        let sent = bob.pop_sent_msg().await;
+        let msg = alice.parse_msg(&sent).await;
+        assert!(msg.was_encrypted());
+        assert_eq!(
+            msg.get(HeaderDef::SecureJoin).unwrap(),
+            "vc-request-with-auth"
+        );
+        assert!(msg.get(HeaderDef::SecureJoinAuth).is_some());
+        let bob_fp = SignedPublicKey::load_self(&bob.ctx)
+            .await
+            .unwrap()
+            .fingerprint();
+        assert_eq!(
+            *msg.get(HeaderDef::SecureJoinFingerprint).unwrap(),
+            bob_fp.hex()
+        );
+
+        // Alice should not yet have Bob verified
+        let contact_bob_id =
+            Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown).await;
+        let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            contact_bob.is_verified(&alice.ctx).await,
+            VerifiedStatus::Unverified
+        );
+
+        // Alice receives vc-request-with-auth, sends vc-contact-confirm
+        alice.recv_msg(&sent).await;
+        assert_eq!(
+            contact_bob.is_verified(&alice.ctx).await,
+            VerifiedStatus::BidirectVerified
+        );
+
+        let sent = alice.pop_sent_msg().await;
+        let msg = bob.parse_msg(&sent).await;
+        assert!(msg.was_encrypted());
+        assert_eq!(
+            msg.get(HeaderDef::SecureJoin).unwrap(),
+            "vc-contact-confirm"
+        );
+
+        // Bob should not yet have Alice verified
+        let contact_alice_id =
+            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown).await;
+        let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            contact_bob.is_verified(&bob.ctx).await,
+            VerifiedStatus::Unverified
+        );
+
+        // Bob receives vc-contact-confirm, sends vc-contact-confirm-received
+        bob.recv_msg(&sent).await;
+        assert_eq!(
+            contact_alice.is_verified(&bob.ctx).await,
+            VerifiedStatus::BidirectVerified
+        );
+
+        let sent = bob.pop_sent_msg().await;
+        let msg = alice.parse_msg(&sent).await;
+        assert!(msg.was_encrypted());
+        assert_eq!(
+            msg.get(HeaderDef::SecureJoin).unwrap(),
+            "vc-contact-confirm-received"
+        );
+    }
+
+    #[async_std::test]
+    async fn test_setup_contact_bob_knows_alice() {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Ensure Bob knows Alice_FP
+        let alice_pubkey = SignedPublicKey::load_self(&alice.ctx).await.unwrap();
+        let peerstate = Peerstate {
+            context: &bob.ctx,
+            addr: "alice@example.com".into(),
+            last_seen: 10,
+            last_seen_autocrypt: 10,
+            prefer_encrypt: EncryptPreference::Mutual,
+            public_key: Some(alice_pubkey.clone()),
+            public_key_fingerprint: Some(alice_pubkey.fingerprint()),
+            gossip_key: Some(alice_pubkey.clone()),
+            gossip_timestamp: 10,
+            gossip_key_fingerprint: Some(alice_pubkey.fingerprint()),
+            verified_key: None,
+            verified_key_fingerprint: None,
+            to_save: Some(ToSave::All),
+            fingerprint_changed: false,
+        };
+        peerstate.save_to_db(&bob.ctx.sql, true).await.unwrap();
+
+        // Generate QR-code, ChatId(0) indicates setup-contact
+        let qr = dc_get_securejoin_qr(&alice.ctx, ChatId::new(0))
+            .await
+            .unwrap();
+
+        // Bob scans QR-code, sends vc-request-with-auth, skipping vc-request
+        dc_join_securejoin(&bob.ctx, &qr).await;
+
+        let sent = bob.pop_sent_msg().await;
+        let msg = alice.parse_msg(&sent).await;
+        assert!(msg.was_encrypted());
+        assert_eq!(
+            msg.get(HeaderDef::SecureJoin).unwrap(),
+            "vc-request-with-auth"
+        );
+        assert!(msg.get(HeaderDef::SecureJoinAuth).is_some());
+        let bob_fp = SignedPublicKey::load_self(&bob.ctx)
+            .await
+            .unwrap()
+            .fingerprint();
+        assert_eq!(
+            *msg.get(HeaderDef::SecureJoinFingerprint).unwrap(),
+            bob_fp.hex()
+        );
+
+        // Alice should not yet have Bob verified
+        let (contact_bob_id, _modified) = Contact::add_or_lookup(
+            &alice.ctx,
+            "Bob",
+            "bob@example.net",
+            Origin::ManuallyCreated,
+        )
+        .await
+        .unwrap();
+        let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            contact_bob.is_verified(&alice.ctx).await,
+            VerifiedStatus::Unverified
+        );
+
+        // Alice receives vc-request-with-auth, sends vc-contact-confirm
+        alice.recv_msg(&sent).await;
+        assert_eq!(
+            contact_bob.is_verified(&alice.ctx).await,
+            VerifiedStatus::BidirectVerified
+        );
+
+        let sent = alice.pop_sent_msg().await;
+        let msg = bob.parse_msg(&sent).await;
+        assert!(msg.was_encrypted());
+        assert_eq!(
+            msg.get(HeaderDef::SecureJoin).unwrap(),
+            "vc-contact-confirm"
+        );
+
+        // Bob should not yet have Alice verified
+        let contact_alice_id =
+            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown).await;
+        let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            contact_bob.is_verified(&bob.ctx).await,
+            VerifiedStatus::Unverified
+        );
+
+        // Bob receives vc-contact-confirm, sends vc-contact-confirm-received
+        bob.recv_msg(&sent).await;
+        assert_eq!(
+            contact_alice.is_verified(&bob.ctx).await,
+            VerifiedStatus::BidirectVerified
+        );
+
+        let sent = bob.pop_sent_msg().await;
+        let msg = alice.parse_msg(&sent).await;
+        assert!(msg.was_encrypted());
+        assert_eq!(
+            msg.get(HeaderDef::SecureJoin).unwrap(),
+            "vc-contact-confirm-received"
+        );
+    }
+}
