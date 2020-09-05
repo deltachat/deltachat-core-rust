@@ -162,7 +162,11 @@ impl Imap {
         self.should_reconnect = true;
     }
 
-    async fn setup_handle_if_needed(&mut self, context: &Context) -> Result<()> {
+    /// Connects or reconnects if needed.
+    ///
+    /// It is safe to call this function if already connected, actions
+    /// are performed only as needed.
+    async fn try_setup_handle(&mut self, context: &Context) -> Result<()> {
         if self.config.lp.server.is_empty() {
             bail!("IMAP operation attempted while it is torn down");
         }
@@ -238,9 +242,7 @@ impl Imap {
                         )
                         .await
                 };
-                // IMAP connection failures are reported to users
-                emit_event!(context, EventType::ErrorNetwork(message));
-                bail!("IMAP connection failed: {}", err);
+                bail!("{}: {}", message, err);
             }
         };
 
@@ -262,7 +264,6 @@ impl Imap {
                     .await;
 
                 warn!(context, "{} ({})", message, err);
-                emit_event!(context, EventType::ErrorNetwork(message.clone()));
 
                 let lock = context.wrong_pw_warning_mutex.lock().await;
                 if self.login_failed_once
@@ -274,7 +275,7 @@ impl Imap {
                     drop(lock);
 
                     let mut msg = Message::new(Viewtype::Text);
-                    msg.text = Some(message);
+                    msg.text = Some(message.clone());
                     if let Err(e) =
                         chat::add_device_msg_with_importance(context, None, Some(&mut msg), true)
                             .await
@@ -286,9 +287,22 @@ impl Imap {
                 }
 
                 self.trigger_reconnect();
-                Err(format_err!("IMAP Could not login as {}", imap_user))
+                Err(format_err!("{}: {}", message, err))
             }
         }
+    }
+
+    /// Connects or reconnects if not already connected.
+    ///
+    /// This function emits network error if it fails.  It should not
+    /// be used during configuration to avoid showing failed attempt
+    /// errors to the user.
+    async fn setup_handle(&mut self, context: &Context) -> Result<()> {
+        let res = self.try_setup_handle(context).await;
+        if let Err(ref err) = res {
+            emit_event!(context, EventType::ErrorNetwork(err.to_string()));
+        }
+        res
     }
 
     async fn unsetup_handle(&mut self, context: &Context) {
@@ -318,7 +332,9 @@ impl Imap {
         cfg.can_move = false;
     }
 
-    /// Connects to imap account using already-configured parameters.
+    /// Connects to IMAP account using already-configured parameters.
+    ///
+    /// Emits network error if connection fails.
     pub async fn connect_configured(&mut self, context: &Context) -> Result<()> {
         if self.is_connected() && !self.should_reconnect() {
             return Ok(());
@@ -348,6 +364,9 @@ impl Imap {
     /// Tries connecting to imap account using the specific login parameters.
     ///
     /// `addr` is used to renew token if OAuth2 authentication is used.
+    ///
+    /// Does not emit network errors, can be used to try various
+    /// parameters during autoconfiguration.
     pub async fn connect(
         &mut self,
         context: &Context,
@@ -375,8 +394,8 @@ impl Imap {
             config.oauth2 = oauth2;
         }
 
-        if let Err(err) = self.setup_handle_if_needed(context).await {
-            warn!(context, "failed to setup imap handle: {}", err);
+        if let Err(err) = self.try_setup_handle(context).await {
+            warn!(context, "try_setup_handle: {}", err);
             self.free_connect_params().await;
             return Err(err);
         }
@@ -422,7 +441,10 @@ impl Imap {
         if teardown {
             self.disconnect(context).await;
 
-            bail!("IMAP disconnected immediately after connecting due to error");
+            warn!(
+                context,
+                "IMAP disconnected immediately after connecting due to error"
+            );
         }
         Ok(())
     }
@@ -437,7 +459,7 @@ impl Imap {
             // probably shutdown
             bail!("IMAP operation attempted while it is torn down");
         }
-        self.setup_handle_if_needed(context).await?;
+        self.setup_handle(context).await?;
 
         while self.fetch_new_messages(context, &watch_folder).await? {
             // We fetch until no more new messages are there.
@@ -1326,8 +1348,8 @@ impl Imap {
             error!(context, "cannot perform empty, folder not set");
             return;
         }
-        if let Err(err) = self.setup_handle_if_needed(context).await {
-            error!(context, "could not setup imap connection: {:?}", err);
+        if let Err(_err) = self.setup_handle(context).await {
+            // The error is reported as a network error by setup_handle()
             return;
         }
         if let Err(err) = self.select_folder(context, Some(&folder)).await {
