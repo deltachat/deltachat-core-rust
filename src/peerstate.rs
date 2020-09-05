@@ -290,7 +290,7 @@ impl<'a> Peerstate<'a> {
             return;
         }
 
-        if message_time > self.last_seen_autocrypt {
+        if message_time > self.last_seen {
             self.last_seen = message_time;
             self.last_seen_autocrypt = message_time;
             self.to_save = Some(ToSave::Timestamps);
@@ -633,5 +633,46 @@ mod tests {
         assert_eq!(peerstate.public_key_fingerprint, None);
         assert_eq!(peerstate.gossip_key_fingerprint, None);
         assert_eq!(peerstate.verified_key_fingerprint, None);
+    }
+
+    #[async_std::test]
+    async fn test_peerstate_degrade_reordering() {
+        let context = crate::test_utils::TestContext::new().await.ctx;
+        let addr = "example@example.org";
+        let pub_key = alice_keypair().public;
+        let header = Aheader::new(addr.to_string(), pub_key, EncryptPreference::Mutual);
+
+        let mut peerstate = Peerstate {
+            context: &context,
+            addr: addr.to_string(),
+            last_seen: 0,
+            last_seen_autocrypt: 0,
+            prefer_encrypt: EncryptPreference::NoPreference,
+            public_key: None,
+            public_key_fingerprint: None,
+            gossip_key: None,
+            gossip_timestamp: 0,
+            gossip_key_fingerprint: None,
+            verified_key: None,
+            verified_key_fingerprint: None,
+            to_save: None,
+            fingerprint_changed: false,
+        };
+        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::NoPreference);
+
+        peerstate.apply_header(&header, 100);
+        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
+
+        peerstate.degrade_encryption(300);
+        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Reset);
+
+        // This has message time 200, while encryption was degraded at timestamp 300.
+        // Because of reordering, header should not be applied.
+        peerstate.apply_header(&header, 200);
+        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Reset);
+
+        // Same header will be applied in the future.
+        peerstate.apply_header(&header, 400);
+        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
     }
 }
