@@ -1166,7 +1166,7 @@ pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId
 }
 
 /// Create a normal chat with a single user.  To create group chats,
-/// see dc_create_group_chat().
+/// see [Chat::create_group_chat].
 ///
 /// If a chat already exists, this ID is returned, otherwise a new chat is created;
 /// this new chat may already contain messages, eg. from the deaddrop, to get the
