@@ -1797,15 +1797,6 @@ pub async fn update_server_uid(
     }
 }
 
-pub async fn dc_empty_server(context: &Context, flags: u32) {
-    job::kill_action(context, Action::EmptyServer).await;
-    job::add(
-        context,
-        job::Job::new(Action::EmptyServer, flags, Params::new(), 0),
-    )
-    .await;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

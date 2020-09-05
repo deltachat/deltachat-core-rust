@@ -17,7 +17,6 @@ use async_smtp::smtp::response::Detail;
 use crate::blob::BlobObject;
 use crate::chat::{self, ChatId};
 use crate::config::Config;
-use crate::constants::*;
 use crate::contact::Contact;
 use crate::context::Context;
 use crate::dc_tools::*;
@@ -93,7 +92,6 @@ pub enum Action {
 
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
-    EmptyServer = 107,
     MarkseenMsgOnImap = 130,
 
     // Moving message is prioritized lower than deletion so we don't
@@ -128,7 +126,6 @@ impl From<Action> for Thread {
             Housekeeping => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
             ResyncFolders => Thread::Imap,
-            EmptyServer => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
             MoveMsg => Thread::Imap,
 
@@ -660,25 +657,6 @@ impl Job {
         Status::Finished(Ok(()))
     }
 
-    async fn empty_server(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.connect_configured(context).await {
-            warn!(context, "could not connect: {:?}", err);
-            return Status::RetryLater;
-        }
-
-        if self.foreign_id & DC_EMPTY_MVBOX > 0 {
-            if let Some(mvbox_folder) = &context.get_config(Config::ConfiguredMvboxFolder).await {
-                imap.empty_folder(context, &mvbox_folder).await;
-            }
-        }
-        if self.foreign_id & DC_EMPTY_INBOX > 0 {
-            if let Some(inbox_folder) = &context.get_config(Config::ConfiguredInboxFolder).await {
-                imap.empty_folder(context, &inbox_folder).await;
-            }
-        }
-        Status::Finished(Ok(()))
-    }
-
     async fn markseen_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.connect_configured(context).await {
             warn!(context, "could not connect: {:?}", err);
@@ -1025,7 +1003,6 @@ async fn perform_job_action(
         Action::MaybeSendLocationsEnded => {
             location::job_maybe_send_locations_ended(context, job).await
         }
-        Action::EmptyServer => job.empty_server(context, connection.inbox()).await,
         Action::DeleteMsgOnImap => job.delete_msg_on_imap(context, connection.inbox()).await,
         Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
         Action::MarkseenMsgOnImap => job.markseen_msg_on_imap(context, connection.inbox()).await,
@@ -1092,7 +1069,6 @@ pub async fn add(context: &Context, job: Job) {
         match action {
             Action::Unknown => unreachable!(),
             Action::Housekeeping
-            | Action::EmptyServer
             | Action::DeleteMsgOnImap
             | Action::ResyncFolders
             | Action::MarkseenMsgOnImap

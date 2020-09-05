@@ -119,10 +119,6 @@ pub enum EventType {
     #[strum(props(id = "105"))]
     ImapMessageMoved(String),
 
-    /// Emitted when an IMAP folder was emptied
-    #[strum(props(id = "106"))]
-    ImapFolderEmptied(String),
-
     /// Emitted when an new file in the $BLOBDIR was created
     #[strum(props(id = "150"))]
     NewBlobFile(String),

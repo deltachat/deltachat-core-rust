@@ -405,7 +405,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  event <event-id to test>\n\
                  fileinfo <file>\n\
                  estimatedeletion <seconds>\n\
-                 emptyserver <flags> (1=MVBOX 2=INBOX)\n\
                  clear -- clear screen\n\
                  exit or quit\n\
                  ============================================="
@@ -1091,11 +1090,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 "estimated count of messages older than {} seconds:\non device: {}\non server: {}",
                 seconds, device_cnt, server_cnt
             );
-        }
-        "emptyserver" => {
-            ensure!(!arg1.is_empty(), "Argument <flags> missing");
-
-            message::dc_empty_server(&context, arg1.parse()?).await;
         }
         "" => (),
         _ => bail!("Unknown command: \"{}\" type ? for help.", arg0),

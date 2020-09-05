@@ -1492,17 +1492,6 @@ char*           dc_get_mime_headers          (dc_context_t* context, uint32_t ms
  */
 void            dc_delete_msgs               (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt);
 
-/*
- * Empty IMAP server folder: delete all messages.
- * Deprecated, use dc_set_config() with the key "delete_server_after" instead.
- *
- * @memberof dc_context_t
- * @param context The context object.
- * @param flags What to delete, a combination of the @ref DC_EMPTY flags
- * @return None.
- */
-void            dc_empty_server              (dc_context_t* context, uint32_t flags);
-
 
 /**
  * Forward messages to another chat.
@@ -4281,10 +4270,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 
 
-#define DC_EMPTY_MVBOX 0x01 // Deprecated, flag for dc_empty_server(): Clear all mvbox messages
-#define DC_EMPTY_INBOX 0x02 // Deprecated, flag for dc_empty_server(): Clear all INBOX messages
-
-
 /**
  * @class dc_event_emitter_t
  *
@@ -4505,14 +4490,6 @@ void dc_event_unref(dc_event_t* event);
  * @param data2 (char*) Info string in english language.
  */
 #define DC_EVENT_IMAP_MESSAGE_MOVED   105
-
-/**
- * Emitted when an IMAP folder was emptied.
- *
- * @param data1 0
- * @param data2 (char*) Folder name.
- */
-#define DC_EVENT_IMAP_FOLDER_EMPTIED  106
 
 /**
  * Emitted when a new blob file was successfully written
