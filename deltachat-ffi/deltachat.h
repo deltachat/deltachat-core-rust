@@ -4755,18 +4755,8 @@ void dc_event_unref(dc_event_t* event);
  */
 
 
-#define DC_EVENT_FILE_COPIED         2055 // not used anymore
-#define DC_EVENT_IS_OFFLINE          2081 // not used anymore
-#define DC_EVENT_GET_STRING          2091 // not used anymore, use dc_set_stock_translation()
-#define DC_ERROR_SEE_STRING          0    // not used anymore
-#define DC_ERROR_SELF_NOT_IN_GROUP   1    // not used anymore
-#define DC_STR_SELFNOTINGRP          21   // not used anymore
 #define DC_EVENT_DATA1_IS_STRING(e)  0    // not used anymore 
 #define DC_EVENT_DATA2_IS_STRING(e)  ((e)==DC_EVENT_IMEX_FILE_WRITTEN || ((e)>=100 && (e)<=499))
-#define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE) // not used anymore
-#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING) // not used anymore
-#define dc_archive_chat(a,b,c)  dc_set_chat_visibility((a), (b), (c)? 1 : 0) // not used anymore
-#define dc_chat_get_archived(a) (dc_chat_get_visibility((a))==1? 1 : 0)      // not used anymore
 
 
 /*
