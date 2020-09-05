@@ -2213,7 +2213,7 @@ mod tests {
         } else {
             panic!("Wrong item type");
         };
-        let msg = message::Message::load_from_db(&t.ctx, msg_id.clone())
+        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
             .await
             .unwrap();
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -2264,7 +2264,7 @@ mod tests {
             chat::get_chat_msgs(&t.ctx, group_id, 0, None).await.len(),
             1
         );
-        let msg = message::Message::load_from_db(&t.ctx, msg_id.clone())
+        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
             .await
             .unwrap();
         assert_eq!(msg.state, MessageState::OutMdnRcvd);
@@ -2352,7 +2352,7 @@ mod tests {
         } else {
             panic!("Wrong item type");
         };
-        let msg = message::Message::load_from_db(&t.ctx, msg_id.clone())
+        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
             .await
             .unwrap();
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);

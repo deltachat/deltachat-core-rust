@@ -573,7 +573,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into(), 1).await;
+        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir, 1).await;
         assert!(res.is_err());
     }
 

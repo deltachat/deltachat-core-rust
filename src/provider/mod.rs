@@ -93,6 +93,8 @@ pub fn get_provider_info(addr: &str) -> Option<&Provider> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)]
+
     use super::*;
 
     #[test]

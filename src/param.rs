@@ -475,8 +475,8 @@ mod tests {
         );
 
         // Blob in blobdir, expect blob.
-        let bar = t.ctx.get_blobdir().join("bar");
-        p.set(Param::File, bar.to_str().unwrap());
+        let bar_path = t.ctx.get_blobdir().join("bar");
+        p.set(Param::File, bar_path.to_str().unwrap());
         let blob = p
             .get_blob(Param::File, &t.ctx, false)
             .await

@@ -639,6 +639,8 @@ pub(crate) fn improve_single_line_input(input: impl AsRef<str>) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)]
+
     use super::*;
     use std::convert::TryInto;
 

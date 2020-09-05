@@ -268,6 +268,8 @@ pub(crate) async fn moz_autoconfigure(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)]
+
     use super::*;
 
     #[test]

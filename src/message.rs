@@ -1893,8 +1893,7 @@ mod tests {
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Voice, no_text.as_ref(), &mut some_file, 50, &ctx)
-                .await,
+            get_summarytext_by_raw(Viewtype::Voice, no_text.as_ref(), &some_file, 50, &ctx).await,
             "Voice message" // file names are not added for voice messages
         );
 
@@ -1904,8 +1903,7 @@ mod tests {
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Audio, no_text.as_ref(), &mut some_file, 50, &ctx)
-                .await,
+            get_summarytext_by_raw(Viewtype::Audio, no_text.as_ref(), &some_file, 50, &ctx).await,
             "Audio \u{2013} foo.bar" // file name is added for audio
         );
 
@@ -1921,8 +1919,7 @@ mod tests {
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::File, some_text.as_ref(), &mut some_file, 50, &ctx)
-                .await,
+            get_summarytext_by_raw(Viewtype::File, some_text.as_ref(), &some_file, 50, &ctx).await,
             "File \u{2013} foo.bar \u{2013} bla bla" // file name is added for files
         );
 
@@ -1930,7 +1927,7 @@ mod tests {
         asm_file.set(Param::File, "foo.bar");
         asm_file.set_cmd(SystemMessage::AutocryptSetupMessage);
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), &mut asm_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), &asm_file, 50, &ctx).await,
             "Autocrypt Setup Message" // file name is not added for autocrypt setup messages
         );
     }
@@ -2007,7 +2004,7 @@ mod tests {
         let chatitems = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
         for chatitem in chatitems {
             if let ChatItem::Message { msg_id } = chatitem {
-                if let Ok(msg) = Message::load_from_db(&t.ctx, msg_id.clone()).await {
+                if let Ok(msg) = Message::load_from_db(&t.ctx, msg_id).await {
                     if msg.get_viewtype() == Viewtype::Image {
                         has_image = true;
                         // just check that width/height are inside some reasonable ranges

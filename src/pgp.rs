@@ -439,9 +439,9 @@ mod tests {
             let bob = bob_keypair();
             TestKeys {
                 alice_secret: alice.secret.clone(),
-                alice_public: alice.public.clone(),
+                alice_public: alice.public,
                 bob_secret: bob.secret.clone(),
-                bob_public: bob.public.clone(),
+                bob_public: bob.public,
             }
         }
     }
