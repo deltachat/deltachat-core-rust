@@ -2,10 +2,11 @@
 //!
 //! This module is only compiled for test runs.
 
-use std::cell::RefCell;
 use std::str::FromStr;
+use std::time::{Duration, Instant};
 
 use async_std::path::PathBuf;
+use async_std::sync::RwLock;
 use tempfile::{tempdir, TempDir};
 
 use crate::chat::ChatId;
@@ -22,11 +23,12 @@ use crate::param::{Param, Params};
 ///
 /// The temporary directory can be used to store the SQLite database,
 /// see e.g. [test_context] which does this.
+#[derive(Debug)]
 pub(crate) struct TestContext {
     pub ctx: Context,
     pub dir: TempDir,
     /// Counter for fake IMAP UIDs in [recv_msg], for private use in that function only.
-    recv_idx: RefCell<u32>,
+    recv_idx: RwLock<u32>,
 }
 
 impl TestContext {
@@ -49,7 +51,7 @@ impl TestContext {
         Self {
             ctx,
             dir,
-            recv_idx: RefCell::new(0),
+            recv_idx: RwLock::new(0),
         }
     }
 
@@ -112,26 +114,36 @@ impl TestContext {
     ///
     /// Panics if there is no message or on any error.
     pub async fn pop_sent_msg(&self) -> SentMessage {
-        let (rowid, foreign_id, raw_params) = self
-            .ctx
-            .sql
-            .query_row(
-                r#"
+        let start = Instant::now();
+        let (rowid, foreign_id, raw_params) = loop {
+            let row = self
+                .ctx
+                .sql
+                .query_row(
+                    r#"
                     SELECT id, foreign_id, param
                       FROM jobs
                      WHERE action=?
                   ORDER BY desired_timestamp;
                 "#,
-                paramsv![Action::SendMsgToSmtp],
-                |row| {
-                    let id: i64 = row.get(0)?;
-                    let foreign_id: i64 = row.get(1)?;
-                    let param: String = row.get(2)?;
-                    Ok((id, foreign_id, param))
-                },
-            )
-            .await
-            .expect("no sent message found in jobs table");
+                    paramsv![Action::SendMsgToSmtp],
+                    |row| {
+                        let id: i64 = row.get(0)?;
+                        let foreign_id: i64 = row.get(1)?;
+                        let param: String = row.get(2)?;
+                        Ok((id, foreign_id, param))
+                    },
+                )
+                .await;
+            if let Ok(row) = row {
+                break row;
+            }
+            if start.elapsed() < Duration::from_secs(3) {
+                async_std::task::sleep(Duration::from_millis(100)).await;
+            } else {
+                panic!("no sent message found in jobs table");
+            }
+        };
         let id = ChatId::new(foreign_id as u32);
         let params = Params::from_str(&raw_params).unwrap();
         let blob_path = params
@@ -169,7 +181,7 @@ impl TestContext {
     ///
     /// Receives a message using the `dc_receive_imf()` pipeline.
     pub async fn recv_msg(&self, msg: &SentMessage) {
-        let mut idx = self.recv_idx.borrow_mut();
+        let mut idx = self.recv_idx.write().await;
         *idx += 1;
         dc_receive_imf(&self.ctx, msg.payload().as_bytes(), "INBOX", *idx, false)
             .await
