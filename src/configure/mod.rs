@@ -7,6 +7,7 @@ mod server_params;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_std::prelude::*;
+use async_std::task;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
@@ -222,8 +223,42 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .flat_map(|params| params.expand_ports().into_iter())
         .collect();
 
-    // Configure IMAP
     progress!(ctx, 600);
+
+    // Spawn SMTP configuration task
+    let mut smtp = Smtp::new();
+
+    let context_smtp = ctx.clone();
+    let mut smtp_param = param.smtp.clone();
+    let smtp_addr = param.addr.clone();
+    let smtp_servers: Vec<ServerParams> = servers
+        .iter()
+        .filter(|params| params.protocol == Protocol::SMTP)
+        .cloned()
+        .collect();
+
+    let smtp_config_task = task::spawn(async move {
+        let mut smtp_configured = false;
+        for smtp_server in smtp_servers {
+            smtp_param.user = smtp_server.username.clone();
+            smtp_param.server = smtp_server.hostname.clone();
+            smtp_param.port = smtp_server.port;
+            smtp_param.security = smtp_server.socket;
+
+            if try_smtp_one_param(&context_smtp, &smtp_param, &smtp_addr, oauth2, &mut smtp).await {
+                smtp_configured = true;
+                break;
+            }
+        }
+
+        if smtp_configured {
+            Some(smtp_param)
+        } else {
+            None
+        }
+    });
+
+    // Configure IMAP
     let (_s, r) = async_std::sync::channel(1);
     let mut imap = Imap::new(r);
 
@@ -246,26 +281,10 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         bail!("IMAP autoconfig did not succeed");
     }
 
-    // Configure SMTP
-    progress!(ctx, 750);
-    let mut smtp = Smtp::new();
-
-    let mut smtp_configured = false;
-    for smtp_server in servers
-        .iter()
-        .filter(|params| params.protocol == Protocol::SMTP)
-    {
-        param.smtp.user = smtp_server.username.clone();
-        param.smtp.server = smtp_server.hostname.clone();
-        param.smtp.port = smtp_server.port;
-        param.smtp.security = smtp_server.socket;
-
-        if try_smtp_one_param(ctx, &param.smtp, &param.addr, oauth2, &mut smtp).await {
-            smtp_configured = true;
-            break;
-        }
-    }
-    if !smtp_configured {
+    // Wait for SMTP configuration
+    if let Some(smtp_param) = smtp_config_task.await {
+        param.smtp = smtp_param;
+    } else {
         bail!("SMTP autoconfig did not succeed");
     }
 
