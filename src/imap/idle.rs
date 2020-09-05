@@ -25,7 +25,7 @@ impl Imap {
         if !self.can_idle() {
             bail!("IMAP server does not have IDLE capability");
         }
-        self.setup_handle_if_needed(context).await?;
+        self.setup_handle(context).await?;
 
         self.select_folder(context, watch_folder.clone()).await?;
 

@@ -1898,8 +1898,7 @@ class TestOnlineConfigureFails:
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
-        ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
-        assert "cannot login" in ev.data2.lower()
+        ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
@@ -1907,8 +1906,7 @@ class TestOnlineConfigureFails:
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
-        ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
-        assert "cannot login" in ev.data2.lower()
+        ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
@@ -1916,5 +1914,4 @@ class TestOnlineConfigureFails:
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
-        ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
-        assert "could not connect" in ev.data2.lower()
+        ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")

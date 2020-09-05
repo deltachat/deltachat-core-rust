@@ -101,13 +101,26 @@ impl Smtp {
         }
 
         let lp = LoginParam::from_database(context, "configured_").await;
-        self.connect(
-            context,
-            &lp.smtp,
-            &lp.addr,
-            lp.server_flags & DC_LP_AUTH_OAUTH2 != 0,
-        )
-        .await
+        let res = self
+            .connect(
+                context,
+                &lp.smtp,
+                &lp.addr,
+                lp.server_flags & DC_LP_AUTH_OAUTH2 != 0,
+            )
+            .await;
+        if let Err(ref err) = res {
+            let message = context
+                .stock_string_repl_str2(
+                    StockMessage::ServerResponse,
+                    format!("SMTP {}:{}", lp.smtp.server, lp.smtp.port),
+                    err.to_string(),
+                )
+                .await;
+
+            context.emit_event(EventType::ErrorNetwork(message));
+        };
+        res
     }
 
     /// Connect using the provided login params.
@@ -124,7 +137,6 @@ impl Smtp {
         }
 
         if lp.server.is_empty() || lp.port == 0 {
-            context.emit_event(EventType::ErrorNetwork("SMTP bad parameters.".into()));
             return Err(Error::BadParameters);
         }
 
@@ -197,15 +209,6 @@ impl Smtp {
 
         let mut trans = client.into_transport();
         if let Err(err) = trans.connect().await {
-            let message = context
-                .stock_string_repl_str2(
-                    StockMessage::ServerResponse,
-                    format!("SMTP {}:{}", domain, port),
-                    err.to_string(),
-                )
-                .await;
-
-            emit_event!(context, EventType::ErrorNetwork(message));
             return Err(Error::ConnectionFailure(err));
         }
 
