@@ -723,6 +723,8 @@ pub(crate) async fn job_maybe_send_locations_ended(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)]
+
     use super::*;
     use crate::test_utils::TestContext;
 
@@ -772,7 +774,7 @@ mod tests {
         assert!(locations_ref[0].latitude < 51.423724f64);
         assert!(locations_ref[0].longitude >= 8.552556f64);
         assert!(locations_ref[0].longitude < 8.552557f64);
-        assert_eq!(locations_ref[0].accuracy, 0.0f64);
+        assert!(locations_ref[0].accuracy.abs() < f64::EPSILON);
         assert_eq!(locations_ref[0].timestamp, timestamp);
     }
 }

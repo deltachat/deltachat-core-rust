@@ -529,11 +529,11 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[test]
     fn test_from_slice_bad_data() {
         let mut bad_data: [u8; 4096] = [0; 4096];
-        for i in 0..4096 {
-            bad_data[i] = (i & 0xff) as u8;
+        for (i, v) in bad_data.iter_mut().enumerate() {
+            *v = (i & 0xff) as u8;
         }
         for j in 0..(4096 / 40) {
-            let slice = &bad_data[j..j + 4096 / 2 + j];
+            let slice = &bad_data.get(j..j + 4096 / 2 + j).unwrap();
             assert!(SignedPublicKey::from_slice(slice).is_err());
             assert!(SignedSecretKey::from_slice(slice).is_err());
         }
@@ -593,7 +593,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         let ctx0 = ctx.clone();
         let thr0 =
             thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx0)));
-        let ctx1 = ctx.clone();
+        let ctx1 = ctx;
         let thr1 =
             thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx1)));
         let res0 = thr0.join().unwrap();

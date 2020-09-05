@@ -209,6 +209,8 @@ pub(crate) async fn outlk_autodiscover(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)]
+
     use super::*;
 
     #[test]
