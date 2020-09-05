@@ -68,7 +68,6 @@ const DELETE_CHECK_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])";
 const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])";
 const JUST_UID: &str = "(UID)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
-const SELECT_ALL: &str = "1:*";
 
 #[derive(Debug)]
 pub struct Imap {
@@ -1337,60 +1336,6 @@ impl Imap {
         }
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
-    }
-
-    pub async fn empty_folder(&mut self, context: &Context, folder: &str) {
-        info!(context, "emptying folder {}", folder);
-
-        // we want to report all error to the user
-        // (no retry should be attempted)
-        if folder.is_empty() {
-            error!(context, "cannot perform empty, folder not set");
-            return;
-        }
-        if let Err(_err) = self.setup_handle(context).await {
-            // The error is reported as a network error by setup_handle()
-            return;
-        }
-        if let Err(err) = self.select_folder(context, Some(&folder)).await {
-            error!(
-                context,
-                "Could not select {} for expunging: {:?}", folder, err
-            );
-            return;
-        }
-
-        if !self
-            .add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted")
-            .await
-        {
-            error!(context, "Cannot mark messages for deletion {}", folder);
-            return;
-        }
-
-        // we now trigger expunge to actually delete messages
-        self.config.selected_folder_needs_expunge = true;
-        match self.select_folder::<String>(context, None).await {
-            Ok(()) => {
-                emit_event!(context, EventType::ImapFolderEmptied(folder.to_string()));
-            }
-            Err(err) => {
-                error!(context, "expunge failed {}: {:?}", folder, err);
-            }
-        }
-        if let Err(err) = context
-            .sql
-            .execute(
-                "UPDATE msgs SET server_folder='',server_uid=0 WHERE server_folder=?",
-                paramsv![folder],
-            )
-            .await
-        {
-            warn!(
-                context,
-                "Failed to reset server_uid and server_folder for deleted messages: {}", err
-            );
-        }
     }
 }
 

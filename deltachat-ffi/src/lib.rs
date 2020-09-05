@@ -355,7 +355,6 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::SmtpMessageSent(_)
         | EventType::ImapMessageDeleted(_)
         | EventType::ImapMessageMoved(_)
-        | EventType::ImapFolderEmptied(_)
         | EventType::NewBlobFile(_)
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
@@ -398,7 +397,6 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::SmtpMessageSent(_)
         | EventType::ImapMessageDeleted(_)
         | EventType::ImapMessageMoved(_)
-        | EventType::ImapFolderEmptied(_)
         | EventType::NewBlobFile(_)
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
@@ -438,7 +436,6 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SmtpMessageSent(msg)
         | EventType::ImapMessageDeleted(msg)
         | EventType::ImapMessageMoved(msg)
-        | EventType::ImapFolderEmptied(msg)
         | EventType::NewBlobFile(msg)
         | EventType::DeletedBlobFile(msg)
         | EventType::Warning(msg)
@@ -1421,17 +1418,6 @@ pub unsafe extern "C" fn dc_delete_msgs(
     let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
 
     block_on(message::delete_msgs(&ctx, &msg_ids))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_empty_server(context: *mut dc_context_t, flags: u32) {
-    if context.is_null() || flags == 0 {
-        eprintln!("ignoring careless call to dc_empty_server()");
-        return;
-    }
-    let ctx = &*context;
-
-    block_on(message::dc_empty_server(&ctx, flags))
 }
 
 #[no_mangle]
