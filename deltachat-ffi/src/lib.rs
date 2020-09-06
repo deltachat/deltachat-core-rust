@@ -1877,8 +1877,13 @@ pub unsafe extern "C" fn dc_join_securejoin(
     }
     let ctx = &*context;
 
-    block_on(async move { securejoin::dc_join_securejoin(&ctx, &to_string_lossy(qr)).await })
-        .to_u32()
+    block_on(async move {
+        securejoin::dc_join_securejoin(&ctx, &to_string_lossy(qr))
+            .await
+            .map(|chatid| chatid.to_u32())
+            .log_err(ctx, "failed dc_join_securejoin() call")
+            .unwrap_or_default()
+    })
 }
 
 #[no_mangle]

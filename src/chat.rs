@@ -2701,6 +2701,7 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> usize {
     }
 }
 
+/// Returns a tuple of `(chatid, is_verified, blocked)`.
 pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,
