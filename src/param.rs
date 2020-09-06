@@ -40,8 +40,7 @@ pub enum Param {
     /// 'c' nor 'e' are preset, the messages is only transport encrypted.
     ErroneousE2ee = b'e',
 
-    /// For Messages: force unencrypted message, either `ForcePlaintext::AddAutocryptHeader` (1),
-    /// `ForcePlaintext::NoAutocryptHeader` (2) or 0.
+    /// For Messages: force unencrypted message, a value from `ForcePlaintext` enum.
     ForcePlaintext = b'u',
 
     /// For Messages
@@ -132,8 +131,26 @@ pub enum Param {
 #[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
 pub enum ForcePlaintext {
+    /// Do not force plaintext
+    Dont = 0,
+
+    /// Force plaintext message with Autocrypt header
+    ///
+    /// Used for `vc-request` and `vg-request` messages in
+    /// Verified Contact Protocol and
+    /// Verified Group Protocol.
     AddAutocryptHeader = 1,
+
+    /// Force plaintext message without Autocrypt header
+    ///
+    /// Used for MDNs.
     NoAutocryptHeader = 2,
+}
+
+impl Default for ForcePlaintext {
+    fn default() -> Self {
+        Self::Dont
+    }
 }
 
 /// An object for handling key=value parameter lists.
