@@ -237,13 +237,14 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     return true;
                 }
 
-                let force_plaintext = self
+                let force_plaintext: ForcePlaintext = self
                     .msg
                     .param
                     .get_int(Param::ForcePlaintext)
+                    .and_then(num_traits::FromPrimitive::from_i32)
                     .unwrap_or_default();
 
-                if force_plaintext == 0 {
+                if force_plaintext == ForcePlaintext::Dont {
                     return self
                         .msg
                         .param
@@ -271,19 +272,20 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
     }
 
-    fn should_force_plaintext(&self) -> i32 {
+    fn should_force_plaintext(&self) -> ForcePlaintext {
         match &self.loaded {
             Loaded::Message { chat } => {
                 if chat.typ == Chattype::VerifiedGroup {
-                    0
+                    ForcePlaintext::Dont
                 } else {
                     self.msg
                         .param
                         .get_int(Param::ForcePlaintext)
+                        .and_then(num_traits::FromPrimitive::from_i32)
                         .unwrap_or_default()
                 }
             }
-            Loaded::MDN { .. } => ForcePlaintext::NoAutocryptHeader as i32,
+            Loaded::MDN { .. } => ForcePlaintext::NoAutocryptHeader,
         }
     }
 
@@ -499,7 +501,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::MDN { .. } => self.render_mdn().await?,
         };
 
-        if force_plaintext != ForcePlaintext::NoAutocryptHeader as i32 {
+        if force_plaintext != ForcePlaintext::NoAutocryptHeader {
             // unless determined otherwise we add the Autocrypt header
             let aheader = encrypt_helper.get_aheader().to_string();
             unprotected_headers.push(Header::new("Autocrypt".into(), aheader));
@@ -510,7 +512,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let peerstates = self.peerstates_for_recipients().await?;
         let should_encrypt =
             encrypt_helper.should_encrypt(self.context, e2ee_guaranteed, &peerstates)?;
-        let is_encrypted = should_encrypt && force_plaintext == 0;
+        let is_encrypted = should_encrypt && force_plaintext == ForcePlaintext::Dont;
 
         let rfc724_mid = match self.loaded {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
