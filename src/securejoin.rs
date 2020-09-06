@@ -1,6 +1,6 @@
 //! Verified contact protocol implementation as [specified by countermitm project](https://countermitm.readthedocs.io/en/stable/new.html#setup-contact-protocol)
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
@@ -351,6 +351,27 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
         while !context.shall_stop_ongoing().await {
             async_std::task::sleep(Duration::from_millis(50)).await;
         }
+
+        // handle_securejoin_handshake() calls Context::stop_ongoing before the group chat
+        // is created (it is created after handle_securejoin_handshake() returns by
+        // dc_receive_imf()).  As a hack we just wait a bit for it to appear.
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_secs(7) {
+            {
+                let bob = context.bob.read().await;
+                if chat::get_chat_id_by_grpid(
+                    context,
+                    bob.qr_scan.as_ref().unwrap().text2.as_ref().unwrap(),
+                )
+                .await
+                .is_ok()
+                {
+                    break;
+                }
+            }
+            async_std::task::sleep(Duration::from_millis(50)).await
+        }
+
         cleanup(&context, contact_chat_id, true, join_vg).await
     } else {
         // for a one-to-one-chat, the chat is already known, return the chat-id,
