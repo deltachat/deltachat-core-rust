@@ -68,18 +68,6 @@ macro_rules! get_qr_attr {
     };
 }
 
-#[derive(Debug, PartialEq)]
-pub(crate) enum BobStatus {
-    Error,
-    Success,
-}
-
-impl Default for BobStatus {
-    fn default() -> Self {
-        Self::Error
-    }
-}
-
 /// State for setup-contact/secure-join protocol joiner's side.
 ///
 /// The setup-contact protocol needs to carry state for both the inviter (Alice) and the
@@ -89,11 +77,6 @@ impl Default for BobStatus {
 pub(crate) struct Bob {
     /// The next message expected by the protocol.
     expects: SecureJoinStep,
-    /// The final status of the last-run setup-contact/secure-join protocol.
-    ///
-    /// This is only meaningful if you know you have exited the protocol but have not
-    /// started a new one.
-    pub status: BobStatus,
     /// The QR-scanned information of the currently running protocol.
     pub qr_scan: Option<Lot>,
 }
@@ -278,7 +261,6 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
     let join_vg = qr_scan.get_state() == LotState::QrAskVerifyGroup;
     {
         let mut bob = context.bob.write().await;
-        bob.status = BobStatus::Error;
         bob.qr_scan = Some(qr_scan);
     }
     if fingerprint_equals_sender(
@@ -626,7 +608,6 @@ pub(crate) async fn handle_securejoin_handshake(
                     },
                 )
                 .await;
-                context.bob.write().await.status = BobStatus::Error; // secure-join failed
                 context.stop_ongoing().await;
                 return Ok(HandshakeMessage::Ignore);
             }
@@ -639,7 +620,6 @@ pub(crate) async fn handle_securejoin_handshake(
                     "Fingerprint mismatch on joiner-side.",
                 )
                 .await;
-                context.bob.write().await.status = BobStatus::Error; // secure-join failed
                 context.stop_ongoing().await;
                 return Ok(HandshakeMessage::Ignore);
             }
@@ -837,7 +817,6 @@ pub(crate) async fn handle_securejoin_handshake(
                     "Contact confirm message not encrypted.",
                 )
                 .await;
-                context.bob.write().await.status = BobStatus::Error;
                 return Ok(abort_retval);
             }
 
@@ -886,7 +865,6 @@ pub(crate) async fn handle_securejoin_handshake(
             )
             .await?;
 
-            context.bob.write().await.status = BobStatus::Success;
             context.stop_ongoing().await;
             Ok(if join_vg {
                 HandshakeMessage::Propagate
