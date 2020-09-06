@@ -410,7 +410,7 @@ async fn handle_cmd(
         "joinqr" => {
             ctx.start_io().await;
             if !arg0.is_empty() {
-                dc_join_securejoin(&ctx, arg1).await;
+                dc_join_securejoin(&ctx, arg1).await?;
             }
         }
         "exit" | "quit" => return Ok(ExitResult::Exit),
