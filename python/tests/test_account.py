@@ -819,18 +819,12 @@ class TestOnlineAccount:
         assert msg_in.text == "message2"
         assert msg_in.is_forwarded()
 
-    def test_send_self_message_and_empty_folder(self, acfactory, lp):
+    def test_send_self_message(self, acfactory, lp):
         ac1 = acfactory.get_one_online_account(mvbox=True, move=True)
         lp.sec("ac1: create self chat")
         chat = ac1.get_self_contact().create_chat()
         chat.send_text("hello")
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
-        ac1.empty_server_folders(inbox=True, mvbox=True)
-        ev1 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
-        ev2 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
-        boxes = [ev1.data2, ev2.data2]
-        boxes.remove("INBOX")
-        assert len(boxes) == 1 and boxes[0].endswith("DeltaChat")
 
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
