@@ -220,10 +220,8 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     msg.param
         .set(Param::MimeType, "application/autocrypt-setup");
     msg.param.set_cmd(SystemMessage::AutocryptSetupMessage);
-    msg.param.set_int(
-        Param::ForcePlaintext,
-        ForcePlaintext::NoAutocryptHeader as i32,
-    );
+    msg.param.set_int(Param::ForcePlaintext, 1);
+    msg.param.set_int(Param::SkipAutocrypt, 1);
 
     let msg_id = chat::send_msg(context, chat_id, &mut msg).await?;
     info!(context, "Wait for setup message being sent ...",);
