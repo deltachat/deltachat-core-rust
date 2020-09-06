@@ -179,17 +179,6 @@ class Account(object):
         if not self.is_configured():
             raise ValueError("need to configure first")
 
-    def empty_server_folders(self, inbox=False, mvbox=False):
-        """ empty server folders. """
-        flags = 0
-        if inbox:
-            flags |= const.DC_EMPTY_INBOX
-        if mvbox:
-            flags |= const.DC_EMPTY_MVBOX
-        if not flags:
-            raise ValueError("no flags set")
-        lib.dc_empty_server(self._dc_context, flags)
-
     def get_latest_backupfile(self, backupdir):
         """ return the latest backup file in a given directory.
         """
