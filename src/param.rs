@@ -43,6 +43,9 @@ pub enum Param {
     /// For Messages: force unencrypted message, a value from `ForcePlaintext` enum.
     ForcePlaintext = b'u',
 
+    /// For Messages: do not include Autocrypt header.
+    SkipAutocrypt = b'o',
+
     /// For Messages
     WantsMdn = b'r',
 
@@ -125,32 +128,6 @@ pub enum Param {
 
     /// For MDN-sending job
     MsgId = b'I',
-}
-
-/// Possible values for `Param::ForcePlaintext`.
-#[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive)]
-#[repr(u8)]
-pub enum ForcePlaintext {
-    /// Do not force plaintext
-    Dont = 0,
-
-    /// Force plaintext message with Autocrypt header
-    ///
-    /// Used for `vc-request` and `vg-request` messages in
-    /// Verified Contact Protocol and
-    /// Verified Group Protocol.
-    AddAutocryptHeader = 1,
-
-    /// Force plaintext message without Autocrypt header
-    ///
-    /// Used for MDNs.
-    NoAutocryptHeader = 2,
-}
-
-impl Default for ForcePlaintext {
-    fn default() -> Self {
-        Self::Dont
-    }
 }
 
 /// An object for handling key=value parameter lists.

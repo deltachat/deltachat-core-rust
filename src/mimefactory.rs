@@ -237,23 +237,16 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     return true;
                 }
 
-                let force_plaintext: ForcePlaintext = self
+                !self
                     .msg
                     .param
-                    .get_int(Param::ForcePlaintext)
-                    .and_then(num_traits::FromPrimitive::from_i32)
-                    .unwrap_or_default();
-
-                if force_plaintext == ForcePlaintext::Dont {
-                    return self
+                    .get_bool(Param::ForcePlaintext)
+                    .unwrap_or_default()
+                    && self
                         .msg
                         .param
-                        .get_int(Param::GuaranteeE2ee)
+                        .get_bool(Param::GuaranteeE2ee)
                         .unwrap_or_default()
-                        != 0;
-                }
-
-                false
             }
             Loaded::MDN { .. } => false,
         }
@@ -272,20 +265,30 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
     }
 
-    fn should_force_plaintext(&self) -> ForcePlaintext {
+    fn should_force_plaintext(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
                 if chat.typ == Chattype::VerifiedGroup {
-                    ForcePlaintext::Dont
+                    false
                 } else {
                     self.msg
                         .param
-                        .get_int(Param::ForcePlaintext)
-                        .and_then(num_traits::FromPrimitive::from_i32)
+                        .get_bool(Param::ForcePlaintext)
                         .unwrap_or_default()
                 }
             }
-            Loaded::MDN { .. } => ForcePlaintext::NoAutocryptHeader,
+            Loaded::MDN { .. } => true,
+        }
+    }
+
+    fn should_skip_autocrypt(&self) -> bool {
+        match &self.loaded {
+            Loaded::Message { .. } => self
+                .msg
+                .param
+                .get_bool(Param::SkipAutocrypt)
+                .unwrap_or_default(),
+            Loaded::MDN { .. } => true,
         }
     }
 
@@ -478,6 +481,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let min_verified = self.min_verified();
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
+        let skip_autocrypt = self.should_skip_autocrypt();
         let subject_str = self.subject_str().await;
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(self.context).await?;
@@ -501,7 +505,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::MDN { .. } => self.render_mdn().await?,
         };
 
-        if force_plaintext != ForcePlaintext::NoAutocryptHeader {
+        if !skip_autocrypt {
             // unless determined otherwise we add the Autocrypt header
             let aheader = encrypt_helper.get_aheader().to_string();
             unprotected_headers.push(Header::new("Autocrypt".into(), aheader));
@@ -512,7 +516,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let peerstates = self.peerstates_for_recipients().await?;
         let should_encrypt =
             encrypt_helper.should_encrypt(self.context, e2ee_guaranteed, &peerstates)?;
-        let is_encrypted = should_encrypt && force_plaintext == ForcePlaintext::Dont;
+        let is_encrypted = should_encrypt && !force_plaintext;
 
         let rfc724_mid = match self.loaded {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),

@@ -388,10 +388,7 @@ async fn send_handshake_msg(
         msg.param.set(Param::Arg4, grpid.as_ref());
     }
     if step == "vg-request" || step == "vc-request" {
-        msg.param.set_int(
-            Param::ForcePlaintext,
-            ForcePlaintext::AddAutocryptHeader as i32,
-        );
+        msg.param.set_int(Param::ForcePlaintext, 1);
     } else {
         msg.param.set_int(Param::GuaranteeE2ee, 1);
     }
