@@ -15,9 +15,14 @@ use async_std::{fs, io};
 use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
+use crate::chat::add_device_msg_with_importance;
+use crate::constants::Viewtype;
 use crate::context::Context;
 use crate::error::{bail, Error};
 use crate::events::EventType;
+use crate::message::Message;
+use crate::provider::get_provider_update_timestamp;
+use crate::stock::StockMessage;
 
 /// Shortens a string to a specified length and adds "[...]" to the
 /// end of the shortened string.
@@ -149,6 +154,43 @@ pub(crate) async fn dc_create_smeared_timestamps(context: &Context, count: usize
 
     *last_smeared_timestamp = start + count - 1;
     start
+}
+
+// if the system time is not plausible, once a day, add a device message.
+// for testing we're using time() as that is also used for message timestamps.
+pub(crate) async fn maybe_add_time_based_warnings(context: &Context) {
+    maybe_warn_on_bad_time(context, time(), get_provider_update_timestamp()).await;
+}
+
+async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestamp: i64) {
+    if now < known_past_timestamp {
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some(
+            context
+                .stock_string_repl_str(
+                    StockMessage::BadTimeMsgBody,
+                    Local
+                        .timestamp(now, 0)
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
+                )
+                .await,
+        );
+        add_device_msg_with_importance(
+            context,
+            Some(
+                format!(
+                    "bad-time-warning-{}",
+                    chrono::NaiveDateTime::from_timestamp(now, 0).format("%Y-%m-%d")
+                )
+                .as_str(),
+            ),
+            Some(&mut msg),
+            true,
+        )
+        .await
+        .ok();
+    }
 }
 
 /* Message-ID tools */
@@ -800,6 +842,8 @@ mod tests {
         assert_eq!("@d.tt".parse::<EmailAddress>().is_ok(), false);
     }
 
+    use crate::chatlist::Chatlist;
+    use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
     use proptest::prelude::*;
 
     proptest! {
@@ -992,5 +1036,33 @@ mod tests {
     fn test_improve_single_line_input() {
         assert_eq!(improve_single_line_input("Hi\naiae "), "Hi aiae");
         assert_eq!(improve_single_line_input("\r\nahte\n\r"), "ahte");
+    }
+
+    #[async_std::test]
+    async fn test_maybe_warn_on_bad_time() {
+        let t = TestContext::new().await;
+        let timestamp_now = time();
+        let timestamp_future = timestamp_now + 60 * 60 * 24 * 7;
+        let timestamp_past = NaiveDateTime::new(
+            NaiveDate::from_ymd(2020, 9, 1),
+            NaiveTime::from_hms(0, 0, 0),
+        )
+        .timestamp_millis()
+            / 1_000;
+
+        // a correct time must not add a device message
+        maybe_warn_on_bad_time(&t.ctx, timestamp_now, get_provider_update_timestamp()).await;
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 0);
+
+        // we cannot find out if a date in the future is wrong - a device message is not added
+        maybe_warn_on_bad_time(&t.ctx, timestamp_future, get_provider_update_timestamp()).await;
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 0);
+
+        // a date in the past must add a device message
+        maybe_warn_on_bad_time(&t.ctx, timestamp_past, get_provider_update_timestamp()).await;
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
     }
 }

@@ -219,6 +219,12 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Configuration failed. Error: “%1$s”"))]
     ConfigurationFailed = 84,
+
+    #[strum(props(
+        fallback = "⚠️ Date or time of your device seem to be inaccurate (%1$s).\n\n\
+                    Adjust your clock ⏰🔧 to ensure your messages are received correctly."
+    ))]
+    BadTimeMsgBody = 85,
 }
 
 /*
