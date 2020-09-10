@@ -6,7 +6,7 @@ use crate::provider::{Protocol, Socket};
 ///
 /// Can be loaded from offline provider database, online configuraiton
 /// or derived from user entered parameters.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ServerParams {
     /// Protocol, such as IMAP or SMTP.
     pub protocol: Protocol,
@@ -111,5 +111,54 @@ impl ServerParams {
             res.push(self);
         }
         res
+    }
+}
+
+/// Expands vector of `ServerParams`, replacing placeholders with
+/// variants to try.
+pub(crate) fn expand_param_vector(
+    v: Vec<ServerParams>,
+    addr: &str,
+    domain: &str,
+) -> Vec<ServerParams> {
+    v.into_iter()
+        // The order of expansion is important: ports are expanded the
+        // last, so they are changed the first. Username is only
+        // changed if default value (address with domain) didn't work
+        // for all available hosts and ports.
+        .flat_map(|params| params.expand_usernames(addr).into_iter())
+        .flat_map(|params| params.expand_hostnames(domain).into_iter())
+        .flat_map(|params| params.expand_ports().into_iter())
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_expand_param_vector() {
+        let v = expand_param_vector(
+            vec![ServerParams {
+                protocol: Protocol::IMAP,
+                hostname: "example.net".to_string(),
+                port: 0,
+                socket: Socket::SSL,
+                username: "foobar".to_string(),
+            }],
+            "foobar@example.net",
+            "example.net",
+        );
+
+        assert_eq!(
+            v,
+            vec![ServerParams {
+                protocol: Protocol::IMAP,
+                hostname: "example.net".to_string(),
+                port: 993,
+                socket: Socket::SSL,
+                username: "foobar".to_string(),
+            }],
+        );
     }
 }

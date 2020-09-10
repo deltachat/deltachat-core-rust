@@ -24,7 +24,7 @@ use crate::{chat, e2ee, provider};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
-use server_params::ServerParams;
+use server_params::{expand_param_vector, ServerParams};
 
 macro_rules! progress {
     ($context:tt, $progress:expr) => {
@@ -194,8 +194,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 500);
 
-    let servers: Vec<ServerParams> = param_autoconfig
-        .unwrap_or_else(|| {
+    let servers = expand_param_vector(
+        param_autoconfig.unwrap_or_else(|| {
             vec![
                 ServerParams {
                     protocol: Protocol::IMAP,
@@ -212,16 +212,10 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                     username: param.smtp.user.clone(),
                 },
             ]
-        })
-        .into_iter()
-        // The order of expansion is important: ports are expanded the
-        // last, so they are changed the first. Username is only
-        // changed if default value (address with domain) didn't work
-        // for all available hosts and ports.
-        .flat_map(|params| params.expand_usernames(&param.addr).into_iter())
-        .flat_map(|params| params.expand_hostnames(&param_domain).into_iter())
-        .flat_map(|params| params.expand_ports().into_iter())
-        .collect();
+        }),
+        &param.addr,
+        &param_domain,
+    );
 
     progress!(ctx, 600);
 
