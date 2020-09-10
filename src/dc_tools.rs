@@ -842,6 +842,7 @@ mod tests {
         assert_eq!("@d.tt".parse::<EmailAddress>().is_ok(), false);
     }
 
+    use crate::chat;
     use crate::chatlist::Chatlist;
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
     use proptest::prelude::*;
@@ -1064,5 +1065,40 @@ mod tests {
         maybe_warn_on_bad_time(&t.ctx, timestamp_past, get_provider_update_timestamp()).await;
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
+        let device_chat_id = chats.get_chat_id(0);
+        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 1);
+
+        // the message should be added only once a day - test that an hour later and nearly a day later
+        maybe_warn_on_bad_time(
+            &t.ctx,
+            timestamp_past + 60 * 60,
+            get_provider_update_timestamp(),
+        )
+        .await;
+        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 1);
+
+        maybe_warn_on_bad_time(
+            &t.ctx,
+            timestamp_past + 60 * 60 * 24 - 1,
+            get_provider_update_timestamp(),
+        )
+        .await;
+        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 1);
+
+        // next day, there should be another device message
+        maybe_warn_on_bad_time(
+            &t.ctx,
+            timestamp_past + 60 * 60 * 24,
+            get_provider_update_timestamp(),
+        )
+        .await;
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
+        assert_eq!(device_chat_id, chats.get_chat_id(0));
+        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 2);
     }
 }
