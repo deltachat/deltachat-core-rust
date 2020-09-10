@@ -4,6 +4,7 @@
 import sys
 import os
 import yaml
+import datetime
 
 out_all = ""
 out_domains = ""
@@ -169,6 +170,12 @@ if __name__ == "__main__":
 
     out_all += "    pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [\n"
     out_all += out_domains;
-    out_all += "    ].iter().copied().collect();\n}"
+    out_all += "    ].iter().copied().collect();\n\n"
+
+    now = datetime.datetime.utcnow()
+    out_all += "    pub static ref PROVIDER_UPDATED: chrono::NaiveDate = "\
+                        "chrono::NaiveDate::from_ymd("+str(now.year)+", "+str(now.month)+", "+str(now.day)+");\n"
+
+    out_all += "}"
 
     print(out_all)
