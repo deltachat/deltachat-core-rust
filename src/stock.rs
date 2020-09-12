@@ -216,6 +216,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "You are invited to a video chat, click %1$s to join."))]
     VideochatInviteMsgBody = 83,
+
+    #[strum(props(fallback = "Configuration failed. Error: “%1$s”"))]
+    ConfigurationFailed = 84,
 }
 
 /*
