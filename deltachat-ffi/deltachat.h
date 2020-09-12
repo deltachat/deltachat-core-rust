@@ -1090,7 +1090,8 @@ int             dc_get_fresh_msg_cnt         (dc_context_t* context, uint32_t ch
 /**
  * Estimate the number of messages that will be deleted
  * by the dc_set_config()-options `delete_device_after` or `delete_server_after`.
- * This is typically used to show the estimated impact to the user before actually enabling ephemeral messages.
+ * This is typically used to show the estimated impact to the user
+ * before actually enabling deletion of old messages.
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -1252,6 +1253,8 @@ dc_array_t*     dc_get_chat_contacts         (dc_context_t* context, uint32_t ch
 
 /**
  * Get the chat's ephemeral message timer.
+ * The ephemeral message timer is set by dc_set_chat_ephemeral_timer()
+ * on this or any other device participating in the chat.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -1395,8 +1398,11 @@ int             dc_set_chat_name             (dc_context_t* context, uint32_t ch
 /**
  * Set the chat's ephemeral message timer.
  *
- * This timer is applied to all messages in a chat and starts when the
- * message is read. The setting is synchronized to all clients
+ * This timer is applied to all messages in a chat and starts when the message is read.
+ * For outgoing messages, the timer starts once the message is sent,
+ * for incoming messages, the timer starts once dc_markseen_msgs() is called.
+ *
+ * The setting is synchronized to all clients
  * participating in a chat.
  *
  * @memberof dc_context_t
@@ -1526,6 +1532,9 @@ void            dc_marknoticed_contact       (dc_context_t* context, uint32_t co
  * sends MDNs. If the message is not in a real chat (eg. a contact request), the
  * message is only marked as NOTICED and no IMAP/MDNs is done.  See also
  * dc_marknoticed_chat() and dc_marknoticed_contact()
+ *
+ * Moreover, if messages belong to a chat with ephemeral messages enabled,
+ * the ephemeral timer is started for these messages.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -3354,6 +3363,7 @@ int             dc_msg_get_showpadlock        (const dc_msg_t* msg);
 
 /**
  * Get ephemeral timer duration for message.
+ * This is the value of dc_get_chat_ephemeral_timer() in the moment the message was sent.
  *
  * To check if the timer is started and calculate remaining time,
  * use dc_msg_get_ephemeral_timestamp().
@@ -3373,7 +3383,8 @@ uint32_t        dc_msg_get_ephemeral_timer    (const dc_msg_t* msg);
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return Time of message removal, 0 if the timer is not started.
+ * @return Time of message removal, 0 if the timer is not yet started
+ *     (the timer starts on sending messages or when dc_markseen_msgs() is called)
  */
 int64_t          dc_msg_get_ephemeral_timestamp (const dc_msg_t* msg);
 
