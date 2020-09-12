@@ -372,7 +372,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
             let id = id.unwrap_or_default();
             id as libc::c_int
         }
-        EventType::ConfigureProgress(progress) | EventType::ImexProgress(progress) => {
+        EventType::ConfigureProgress { progress, .. } | EventType::ImexProgress(progress) => {
             *progress as libc::c_int
         }
         EventType::ImexFileWritten(_) => 0,
@@ -405,7 +405,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ErrorSelfNotInGroup(_)
         | EventType::ContactsChanged(_)
         | EventType::LocationChanged(_)
-        | EventType::ConfigureProgress(_)
+        | EventType::ConfigureProgress { .. }
         | EventType::ImexProgress(_)
         | EventType::ImexFileWritten(_)
         | EventType::ChatModified(_) => 0,
@@ -453,11 +453,17 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::ChatModified(_)
         | EventType::ContactsChanged(_)
         | EventType::LocationChanged(_)
-        | EventType::ConfigureProgress(_)
         | EventType::ImexProgress(_)
         | EventType::SecurejoinInviterProgress { .. }
         | EventType::SecurejoinJoinerProgress { .. }
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
+        EventType::ConfigureProgress { comment, .. } => {
+            if let Some(comment) = comment {
+                comment.to_c_string().unwrap_or_default().into_raw()
+            } else {
+                ptr::null_mut()
+            }
+        }
         EventType::ImexFileWritten(file) => {
             let data2 = file.to_c_string().unwrap_or_default();
             data2.into_raw()

@@ -4669,7 +4669,7 @@ void dc_event_unref(dc_event_t* event);
  * Inform about the configuration progress started by dc_configure().
  *
  * @param data1 (int) 0=error, 1-999=progress in permille, 1000=success and done
- * @param data2 0
+ * @param data2 (char*) progress comment, error message or NULL if not applicable
  */
 #define DC_EVENT_CONFIGURE_PROGRESS       2041
 
@@ -4733,7 +4733,7 @@ void dc_event_unref(dc_event_t* event);
 
 
 #define DC_EVENT_DATA1_IS_STRING(e)  0    // not used anymore 
-#define DC_EVENT_DATA2_IS_STRING(e)  ((e)==DC_EVENT_IMEX_FILE_WRITTEN || ((e)>=100 && (e)<=499))
+#define DC_EVENT_DATA2_IS_STRING(e)  ((e)==DC_EVENT_CONFIGURE_PROGRESS || (e)==DC_EVENT_IMEX_FILE_WRITTEN || ((e)>=100 && (e)<=499))
 
 
 /*

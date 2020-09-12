@@ -233,10 +233,16 @@ pub enum EventType {
     LocationChanged(Option<u32>),
 
     /// Inform about the configuration progress started by configure().
-    ///
-    /// @param data1 (usize) 0=error, 1-999=progress in permille, 1000=success and done
     #[strum(props(id = "2041"))]
-    ConfigureProgress(usize),
+    ConfigureProgress {
+        /// Progress.
+        ///
+        /// 0=error, 1-999=progress in permille, 1000=success and done
+        progress: usize,
+
+        /// Progress comment or error, something to display to the user.
+        comment: Option<String>,
+    },
 
     /// Inform about the import/export progress started by imex().
     ///

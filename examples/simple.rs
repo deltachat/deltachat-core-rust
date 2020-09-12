@@ -10,7 +10,7 @@ use deltachat::EventType;
 
 fn cb(event: EventType) {
     match event {
-        EventType::ConfigureProgress(progress) => {
+        EventType::ConfigureProgress { progress, .. } => {
             log::info!("progress: {}", progress);
         }
         EventType::Info(msg) => {
