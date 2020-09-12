@@ -2360,7 +2360,7 @@ dc_context_t*  dc_accounts_get_account          (dc_accounts_t* accounts, uint32
 
 /**
  * Get the currently selected account.
- * If there is at least once account in the account-manager,
+ * If there is at least one account in the account-manager,
  * there is always a selected one.
  * To change the selected account, use dc_accounts_select_account();
  * also adding/importing/migrating accounts may change the selection.
