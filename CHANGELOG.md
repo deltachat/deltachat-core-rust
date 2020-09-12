@@ -32,7 +32,7 @@
 
 - improve tests, cleanup and ci #1850 #1856 #1859 #1861 #1884 #1894 #1895
 
-- tweak HELO command #1847
+- tweak HELO command #1908
 
 - make `dc_accounts_get_all()` return accounts sorted #1909
 
