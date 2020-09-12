@@ -234,7 +234,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         &param_domain,
     );
 
-    progress!(ctx, 600);
+    progress!(ctx, 550);
 
     // Spawn SMTP configuration task
     let mut smtp = Smtp::new();
@@ -269,15 +269,19 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         }
     });
 
+    progress!(ctx, 600);
+
     // Configure IMAP
     let (_s, r) = async_std::sync::channel(1);
     let mut imap = Imap::new(r);
 
     let mut imap_configured = false;
-    for imap_server in servers
+    let imap_servers: Vec<&ServerParams> = servers
         .iter()
         .filter(|params| params.protocol == Protocol::IMAP)
-    {
+        .collect();
+    let imap_servers_count = imap_servers.len();
+    for (imap_server_index, imap_server) in imap_servers.into_iter().enumerate() {
         param.imap.user = imap_server.username.clone();
         param.imap.server = imap_server.hostname.clone();
         param.imap.port = imap_server.port;
@@ -287,10 +291,16 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             imap_configured = true;
             break;
         }
+        progress!(
+            ctx,
+            600 + (800 - 600) * (1 + imap_server_index) / imap_servers_count
+        );
     }
     if !imap_configured {
         bail!("IMAP autoconfig did not succeed");
     }
+
+    progress!(ctx, 850);
 
     // Wait for SMTP configuration
     if let Some(smtp_param) = smtp_config_task.await {
