@@ -20,6 +20,7 @@ use crate::message::Message;
 use crate::oauth2::*;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
+use crate::stock::StockMessage;
 use crate::{chat, e2ee, provider};
 
 use auto_mozilla::moz_autoconfigure;
@@ -117,7 +118,17 @@ impl Context {
                 Ok(())
             }
             Err(err) => {
-                progress!(self, 0, Some(err.to_string()));
+                progress!(
+                    self,
+                    0,
+                    Some(
+                        self.stock_string_repl_str(
+                            StockMessage::ConfigurationFailed,
+                            err.to_string(),
+                        )
+                        .await
+                    )
+                );
                 Err(err)
             }
         }
