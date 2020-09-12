@@ -27,12 +27,18 @@ use auto_outlook::outlk_autodiscover;
 use server_params::{expand_param_vector, ServerParams};
 
 macro_rules! progress {
-    ($context:tt, $progress:expr) => {
+    ($context:tt, $progress:expr, $comment:expr) => {
         assert!(
             $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
-        $context.emit_event($crate::events::EventType::ConfigureProgress($progress));
+        $context.emit_event($crate::events::EventType::ConfigureProgress {
+            progress: $progress,
+            comment: $comment,
+        });
+    };
+    ($context:tt, $progress:expr) => {
+        progress!($context, $progress, None);
     };
 }
 
@@ -111,7 +117,7 @@ impl Context {
                 Ok(())
             }
             Err(err) => {
-                progress!(self, 0);
+                progress!(self, 0, Some(err.to_string()));
                 Err(err)
             }
         }
