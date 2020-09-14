@@ -619,8 +619,6 @@ async fn maybe_add_from_param(
         .query_map(
             query,
             paramsv![],
-            //|row| row.get::<_, String>(0), // <=== this crashes when non utf8 byte in column
-
             // cs: maybe the following could be done even more simple than here?
             |row| {
                 let value = match row.get_raw(0) {

@@ -29,3 +29,6 @@ deltachat-ffi/xml
 # ignore backup files
 *.bak
 
+# ignore test-data
+/test-data
+
