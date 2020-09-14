@@ -10,7 +10,6 @@ use async_std::prelude::*;
 use async_std::task;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
-use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
@@ -21,7 +20,12 @@ use crate::oauth2::*;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
 use crate::stock::StockMessage;
-use crate::{chat, e2ee, provider};
+use crate::{
+    chat,
+    contact::{Contact, Modifier, Origin},
+    e2ee, provider, EventType,
+};
+use crate::{config::Config, contact::normalize_name};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
@@ -320,16 +324,34 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .await
         .context("could not read INBOX status")?;
 
+    progress!(ctx, 910);
+
+    // Read the receipients from old emails sent by the user user and add them as contacts.
+    // This way, we can already offer them some email addresses they can write to.
+    warn!(ctx, "dbg add rec");
+    add_all_receipients_as_contacts(ctx, &mut imap).await; // Inbox is still selected
+    if let Some(sentbox) = ctx.get_config(Config::ConfiguredSentboxFolder).await {
+        imap.select_with_uidvalidity(ctx, &sentbox)
+            .await
+            .context("could not select sendbox")?;
+        add_all_receipients_as_contacts(ctx, &mut imap).await;
+    }
+    if let Some(sentbox) = ctx.get_config(Config::ConfiguredMvboxFolder).await {
+        imap.select_with_uidvalidity(ctx, &sentbox)
+            .await
+            .context("could not select mvbox")?;
+        add_all_receipients_as_contacts(ctx, &mut imap).await;
+    }
     drop(imap);
 
-    progress!(ctx, 910);
+    progress!(ctx, 920);
     // configuration success - write back the configured parameters with the
     // "configured_" prefix; also write the "configured"-flag */
     // the trailing underscore is correct
     param.save_to_database(ctx, "configured_").await?;
     ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
 
-    progress!(ctx, 920);
+    progress!(ctx, 930);
 
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
@@ -515,6 +537,42 @@ async fn try_smtp_one_param(
         smtp.disconnect().await;
         true
     }
+}
+
+async fn add_all_receipients_as_contacts(ctx: &Context, imap: &mut Imap) {
+    match imap.get_all_receipients(ctx).await {
+        Ok(contacts) => {
+            let mut any_modified = false;
+            for contact in contacts {
+                let display_name_normalized = contact
+                    .display_name
+                    .as_ref()
+                    .map(normalize_name)
+                    .unwrap_or_default();
+
+                match Contact::add_or_lookup(
+                    ctx,
+                    display_name_normalized,
+                    contact.addr,
+                    Origin::OutgoingTo, // TODO was OutgoingTo
+                )
+                .await
+                {
+                    // TODO do we really need to distinguish bcc and cc?
+                    Ok((_, modified)) => {
+                        if modified != Modifier::None {
+                            any_modified = true;
+                        }
+                    }
+                    Err(e) => warn!(ctx, "Could not add receipient: {}", e),
+                }
+            }
+            if any_modified {
+                ctx.emit_event(EventType::ContactsChanged(None));
+            }
+        }
+        Err(e) => warn!(ctx, "Could not add receipients: {}", e),
+    };
 }
 
 #[derive(Debug, thiserror::Error)]

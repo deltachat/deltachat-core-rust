@@ -40,6 +40,7 @@ mod session;
 
 use chat::get_chat_id_by_grpid;
 use client::Client;
+use mailparse::SingleInfo;
 use message::Message;
 use session::Session;
 
@@ -739,6 +740,48 @@ impl Imap {
         }
 
         Ok(read_cnt > 0)
+    }
+
+    /// Gets the from, to and bcc addresses from all existing outgoing emails.
+    pub async fn get_all_receipients(&mut self, context: &Context) -> Result<Vec<SingleInfo>> {
+        if self.session.is_none() {
+            bail!("IMAP No Connection established");
+        }
+
+        let session = self.session.as_mut().unwrap();
+        let mut list = session
+            .uid_fetch("*", "(BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
+            .await
+            .map_err(|err| format_err!("IMAP Could not fetch from, : {}", err))?;
+
+        let mut result = Vec::new();
+
+        while let Some(fetch) = list.next().await {
+            let msg = fetch?;
+            match get_fetch_headers(&msg) {
+                Ok(headers) => {
+                    let (from_id, _, _) =
+                        from_field_to_contact_id(context, &mimeparser::get_from(&headers)).await?;
+                    if from_id == DC_CONTACT_ID_SELF {
+                        result.extend(mimeparser::get_recipients(&headers));
+                    } else {
+                        warn!(
+                            context,
+                            "dbg from id is {} ({:?})",
+                            from_id,
+                            mimeparser::get_from(&headers)
+                        );
+                    }
+                }
+
+                Err(err) => {
+                    warn!(context, "{}", err);
+                    continue;
+                }
+            };
+        }
+        warn!(context, "dbg {} contacts", result.len());
+        Ok(result)
     }
 
     /// Fetch all uids larger than the passed in. Returns a sorted list of fetch results.
