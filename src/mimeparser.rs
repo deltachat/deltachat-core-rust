@@ -1081,7 +1081,7 @@ async fn update_gossip_peerstates(
         let gossip_header = value.parse::<Aheader>();
 
         if let Ok(ref header) = gossip_header {
-            if get_recipients(&mail.headers)
+            if get_recipients(&mail.headers) // TODO is it a problem here that BCC addresses are now also returned?
                 .iter()
                 .any(|info| info.addr == header.addr.to_lowercase())
             {
@@ -1281,9 +1281,9 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
 }
 
 /// Returned addresses are normalized and lowercased.
-fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
+pub(crate) fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
     get_all_addresses_from_header(headers, |header_key| {
-        header_key == "to" || header_key == "cc"
+        header_key == "to" || header_key == "cc" || header_key == "bcc"
     })
 }
 
