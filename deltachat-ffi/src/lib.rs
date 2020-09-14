@@ -1819,7 +1819,7 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
         {
             Ok(()) => 1,
             Err(err) => {
-                error!(&ctx, "dc_continue_key_transfer: {}", err);
+                warn!(&ctx, "dc_continue_key_transfer: {}", err);
                 0
             }
         }
