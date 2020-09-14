@@ -1213,7 +1213,7 @@ impl Context {
             .get_config(Config::ConfiguredAddr)
             .await
             .ok_or_else(|| format_err!("Not configured"))?;
-
+        // TODO what if ConfiguredAddr is only username, not username@domain.org?
         Ok(addr_cmp(self_addr, addr))
     }
 }

@@ -20,6 +20,15 @@ class FFIEvent:
     def __str__(self):
         return "{name} data1={data1} data2={data2}".format(**self.__dict__)
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARN = '\033[93m'
+    ERROR = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 class FFIEventLogger:
     """ If you register an instance of this logger with an Account
@@ -48,6 +57,10 @@ class FFIEventLogger:
         if self.logid:
             locname += "-" + self.logid
         s = "{:2.2f} [{}] {}".format(elapsed, locname, message)
+        if message.startswith("DC_EVENT_WARNING"):
+            s = bcolors.WARN + s + bcolors.ENDC
+        if message.startswith("DC_EVENT_ERROR"):
+            s = bcolors.ERROR + s + bcolors.ENDC
         with self._loglock:
             print(s, flush=True)
 

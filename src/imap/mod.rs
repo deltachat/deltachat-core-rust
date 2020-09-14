@@ -742,9 +742,9 @@ impl Imap {
 
         let session = self.session.as_mut().unwrap();
         let mut list = session
-            .uid_fetch("*", "(BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
+            .uid_fetch("1:*", "(UID BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
             .await
-            .map_err(|err| format_err!("IMAP Could not fetch from, : {}", err))?;
+            .map_err(|err| format_err!("IMAP Could not fetch (get_all_receipients()): {}", err))?;
 
         let mut result = Vec::new();
 
@@ -756,13 +756,6 @@ impl Imap {
                         from_field_to_contact_id(context, &mimeparser::get_from(&headers)).await?;
                     if from_id == DC_CONTACT_ID_SELF {
                         result.extend(mimeparser::get_recipients(&headers));
-                    } else {
-                        warn!(
-                            context,
-                            "dbg from id is {} ({:?})",
-                            from_id,
-                            mimeparser::get_from(&headers)
-                        );
                     }
                 }
 
@@ -772,7 +765,7 @@ impl Imap {
                 }
             };
         }
-        warn!(context, "dbg {} contacts", result.len());
+        warn!(context, "dbg adding {} contacts {:?}", result.len(), result);
         Ok(result)
     }
 

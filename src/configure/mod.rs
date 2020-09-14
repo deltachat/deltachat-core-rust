@@ -320,11 +320,25 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     imap.configure_folders(ctx, create_mvbox).await?;
 
+    // See if selecting folders works. Then keep Inbox selected for add_all_receipients_as_contacts further down.
     imap.select_with_uidvalidity(ctx, "INBOX")
         .await
         .context("could not read INBOX status")?;
 
     progress!(ctx, 910);
+
+    // configuration success - write back the configured parameters with the
+    // "configured_" prefix; also write the "configured"-flag */
+    // the trailing underscore is correct
+    param.save_to_database(ctx, "configured_").await?;
+    ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
+
+    progress!(ctx, 920);
+
+    e2ee::ensure_secret_key_exists(ctx).await?;
+    info!(ctx, "key generation completed");
+
+    progress!(ctx, 930);
 
     // Read the receipients from old emails sent by the user user and add them as contacts.
     // This way, we can already offer them some email addresses they can write to.
@@ -343,18 +357,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         add_all_receipients_as_contacts(ctx, &mut imap).await;
     }
     drop(imap);
-
-    progress!(ctx, 920);
-    // configuration success - write back the configured parameters with the
-    // "configured_" prefix; also write the "configured"-flag */
-    // the trailing underscore is correct
-    param.save_to_database(ctx, "configured_").await?;
-    ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
-
-    progress!(ctx, 930);
-
-    e2ee::ensure_secret_key_exists(ctx).await?;
-    info!(ctx, "key generation completed");
 
     progress!(ctx, 940);
 
@@ -554,7 +556,7 @@ async fn add_all_receipients_as_contacts(ctx: &Context, imap: &mut Imap) {
                     ctx,
                     display_name_normalized,
                     contact.addr,
-                    Origin::OutgoingTo, // TODO was OutgoingTo
+                    Origin::AddressBook, // TODO was OutgoingTo
                 )
                 .await
                 {
