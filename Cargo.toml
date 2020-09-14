@@ -17,7 +17,7 @@ hex = "0.4.0"
 sha2 = "0.9.0"
 rand = "0.7.0"
 smallvec = "1.0.0"
-surf = { version = "2.0.0-alpha.4", default-features = false, features = ["h1-client"] }
+surf = { version = "=2.0.0-alpha.4", default-features = false, features = ["h1-client"] }
 num-derive = "0.3.0"
 num-traits = "0.2.6"
 async-smtp = { git = "https://github.com/async-email/async-smtp", rev="2275fd8d13e39b2c58d6605c786ff06ff9e05708" }
@@ -102,3 +102,5 @@ repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term", "dirs
 vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored"]
 nightly = ["pgp/nightly"]
 
+[patch.crates-io]
+polling = { git = "https://github.com/oblique/polling", branch = "master"}
