@@ -1794,16 +1794,17 @@ class TestOnlineAccount:
 
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
-        ac1.set_config("bcc_self", "1")
         lp.sec("send out message with bcc to ourselves")
         ac1.direct_imap.idle_start()
+        ac1.set_config("bcc_self", "1")
         msg_out = chat.send_text("message")
+        assert ac1.get_config("bcc_self") == "1"
 
         # now make sure we are sending message to ourselves too
         assert ac1.direct_imap.idle_wait_for_seen()
 
         ac1_clone = acfactory.clone_online_account(ac1)
-        acfactory.wait_configure_and_start_io()
+        ac1_clone._configtracker.wait_finish()
         ac2_addr = ac2.get_config("addr")
         assert any([c.addr == ac2_addr for c in ac1_clone.get_contacts()])
 
