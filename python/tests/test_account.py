@@ -1781,27 +1781,11 @@ class TestOnlineAccount:
             # No renames should happen after explicit rename
             assert updated_name == "Renamed"
 
-    def test_add_all_receipients_as_contacts(self, acfactory, lp):
+    @pytest.mark.parametrize("mvbox_move", [False, True])
+    def test_add_all_receipients_as_contacts(self, acfactory, lp, mvbox_move):
         """Delta Chat reads the receipients from old emails sent by the user user and add them as contacts.
         This way, we can already offer them some email addresses they can write to."""
-        # ac1, ac2 = acfactory.get_two_online_accounts()
-        # ac1_clone = acfactory.clone_online_account(ac1)
-
-        # chat12 = acfactory.get_accepted_chat(ac1, ac2)
-        # ac1.set_config("bcc_self", "1")
-        # # Send an email with bcc_self so that a self-sent message to ac2 is in ac1's inbox
-        # chat12.send_text("Hi")
-
-        # # Retry multiple times because it might be that the bcc_self takes some time.
-        # for i in range(3):
-        #     # Reading old receipients happens in configure
-        #     ac1_clone.configure().wait_finish()
-        #     if any([c.addr() == ac2.get_config("addr") for c in ac1_clone.get_contacts()]):
-        #         break
-
-        # assert any([c.addr() == ac2.get_config("addr") for c in ac1_clone.get_contacts()])
-
-        ac1 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.get_online_configuring_account(mvbox=mvbox_move, move=mvbox_move)
         ac2 = acfactory.get_online_configuring_account()
 
         acfactory.wait_configure_and_start_io()
@@ -1811,7 +1795,7 @@ class TestOnlineAccount:
         lp.sec("send out message with bcc to ourselves")
         ac1.direct_imap.idle_start()
         ac1.set_config("bcc_self", "1")
-        msg_out = chat.send_text("message")
+        chat.send_text("message")
         assert ac1.get_config("bcc_self") == "1"
 
         # now make sure we are sending message to ourselves too
@@ -1821,6 +1805,7 @@ class TestOnlineAccount:
         ac1_clone._configtracker.wait_finish()
         ac2_addr = ac2.get_config("addr")
         assert any([c.addr == ac2_addr for c in ac1_clone.get_contacts()])
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
