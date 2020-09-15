@@ -1770,7 +1770,9 @@ class TestOnlineAccount:
     @pytest.mark.parametrize("mvbox_move", [False, True])
     def test_add_all_receipients_as_contacts(self, acfactory, lp, mvbox_move):
         """Delta Chat reads the receipients from old emails sent by the user user and add them as contacts.
-        This way, we can already offer them some email addresses they can write to."""
+        This way, we can already offer them some email addresses they can write to.
+
+        Also tests that bcc_self messages moved to the mvbox are marked as read."""
         ac1 = acfactory.get_online_configuring_account(mvbox=mvbox_move, move=mvbox_move)
         ac2 = acfactory.get_online_configuring_account()
 
@@ -1779,12 +1781,15 @@ class TestOnlineAccount:
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
         lp.sec("send out message with bcc to ourselves")
+        if mvbox_move:
+            ac1.direct_imap.select_config_folder("mvbox")
         ac1.direct_imap.idle_start()
         ac1.set_config("bcc_self", "1")
         chat.send_text("message")
         assert ac1.get_config("bcc_self") == "1"
 
-        # now make sure we are sending message to ourselves too
+        # now wait until the bcc_self message arrives
+        # Also test that bcc_self messages moved to the mvbox are marked as read.
         assert ac1.direct_imap.idle_wait_for_seen()
 
         ac1_clone = acfactory.clone_online_account(ac1)
