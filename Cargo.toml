@@ -104,3 +104,4 @@ nightly = ["pgp/nightly"]
 
 [patch.crates-io]
 polling = { git = "https://github.com/oblique/polling", branch = "master"}
+async-std = { git = "https://github.com/async-rs/async-std", branch = "master"}
