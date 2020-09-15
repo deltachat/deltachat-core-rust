@@ -749,8 +749,21 @@ impl Imap {
         }
 
         let session = self.session.as_mut().unwrap();
+        let self_addr = context
+            .get_config(Config::ConfiguredAddr)
+            // TODO what if ConfiguredAddr is only username, not username@domain.org?
+            .await
+            .ok_or_else(|| format_err!("Not configured"))?;
+
+        let search_command = format!("FROM \"{}\"", self_addr);
+
+        let uids = session.uid_search(search_command).await?;
+        let uid_vec: Vec<String> = uids.into_iter().map(|s| s.to_string()).collect();
+        let uid_set = uid_vec.join(",");
+        // TODO what if this is, like, 1000 uids? Is there some upper bound for the uid_set when fetching?
+
         let mut list = session
-            .uid_fetch("1:*", "(UID BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
+            .uid_fetch(uid_set, "(UID BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
             .await
             .map_err(|err| format_err!("IMAP Could not fetch (get_all_receipients()): {}", err))?;
 
