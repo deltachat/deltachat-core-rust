@@ -1809,6 +1809,12 @@ class TestOnlineAccount:
         ac1_clone = acfactory.clone_online_account(ac1)
         ac1_clone._configtracker.wait_finish()
         ac2_addr = ac2.get_config("addr")
+
+        for i in range(300):
+            if any([c.addr == ac2_addr for c in ac1_clone.get_contacts()]):
+                break
+            time.sleep(0.1)  # wait a bit, getting the contacts is async, maybe they are just not there yet
+
         assert any([c.addr == ac2_addr for c in ac1_clone.get_contacts()])
 
 
