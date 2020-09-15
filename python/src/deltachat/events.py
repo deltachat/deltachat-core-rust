@@ -20,6 +20,7 @@ class FFIEvent:
     def __str__(self):
         return "{name} data1={data1} data2={data2}".format(**self.__dict__)
 
+
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -29,6 +30,7 @@ class bcolors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
 
 class FFIEventLogger:
     """ If you register an instance of this logger with an Account
