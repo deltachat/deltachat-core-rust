@@ -320,7 +320,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     imap.configure_folders(ctx, create_mvbox).await?;
 
-    // See if selecting folders works. Then keep Inbox selected for add_all_receipients_as_contacts further down.
     imap.select_with_uidvalidity(ctx, "INBOX")
         .await
         .context("could not read INBOX status")?;
@@ -338,25 +337,28 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
 
-    progress!(ctx, 930);
-
-    // Read the receipients from old emails sent by the user user and add them as contacts.
-    // This way, we can already offer them some email addresses they can write to.
-    warn!(ctx, "dbg add rec");
-    add_all_receipients_as_contacts(ctx, &mut imap).await; // Inbox is still selected
-    if let Some(sentbox) = ctx.get_config(Config::ConfiguredSentboxFolder).await {
-        imap.select_with_uidvalidity(ctx, &sentbox)
-            .await
-            .context("could not select sendbox")?;
-        add_all_receipients_as_contacts(ctx, &mut imap).await;
-    }
-    if let Some(sentbox) = ctx.get_config(Config::ConfiguredMvboxFolder).await {
-        imap.select_with_uidvalidity(ctx, &sentbox)
-            .await
-            .context("could not select mvbox")?;
-        add_all_receipients_as_contacts(ctx, &mut imap).await;
-    }
-    drop(imap);
+    let ctx2 = ctx.clone();
+    async_std::task::spawn(async move {
+        let ctx = &ctx2;
+        // Read the receipients from old emails sent by the user user and add them as contacts.
+        // This way, we can already offer them some email addresses they can write to.
+        //
+        // This takes some time, so do it asynchronously and query the sent folder first because it
+        // is the most "promising" (has the highest amount of outgoing messages)
+        // TODO is it a problem that I 1. move the imap struct to another context and maybe thread and 2. still use the imap struct while configure finishes and start_io() is called and so on?
+        if let Some(sentbox) = ctx.get_config(Config::ConfiguredSentboxFolder).await {
+            imap.select_with_uidvalidity(ctx, &sentbox).await.ok();
+            add_all_receipients_as_contacts(ctx, &mut imap).await;
+        }
+        if let Some(mvbox) = ctx.get_config(Config::ConfiguredMvboxFolder).await {
+            imap.select_with_uidvalidity(ctx, &mvbox).await.ok();
+            add_all_receipients_as_contacts(ctx, &mut imap).await;
+        }
+        if let Some(inbox) = ctx.get_config(Config::ConfiguredInboxFolder).await {
+            imap.select_with_uidvalidity(ctx, &inbox).await.ok();
+            add_all_receipients_as_contacts(ctx, &mut imap).await;
+        } // todo error handling
+    });
 
     progress!(ctx, 940);
 
