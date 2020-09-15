@@ -778,7 +778,6 @@ impl Imap {
                 }
             };
         }
-        warn!(context, "dbg adding {} contacts {:?}", result.len(), result);
         Ok(result)
     }
 

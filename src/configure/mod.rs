@@ -539,8 +539,18 @@ async fn add_all_receipients_as_contacts(ctx: &Context, imap: &mut Imap, folder:
             warn!(ctx, "Could not select {}: {}", mailbox, e);
             return;
         }
+
         match imap.get_all_receipients(ctx).await {
             Ok(contacts) => {
+                warn!(
+                    ctx,
+                    "dbg adding {} contacts {:?} from folder {} ({})",
+                    contacts.len(),
+                    contacts,
+                    mailbox,
+                    folder
+                );
+
                 let mut any_modified = false;
                 for contact in contacts {
                     let display_name_normalized = contact
