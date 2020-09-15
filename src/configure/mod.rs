@@ -345,7 +345,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         //
         // This takes some time, so do it asynchronously and query the sentbox folder first because it
         // is the most "promising" (has the highest amount of outgoing messages)
-        // TODO is it a problem that I 1. move the imap struct to another context and maybe thread and 2. still use the imap struct while configure finishes and start_io() is called and so on?
         add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredSentboxFolder).await;
         add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredMvboxFolder).await;
         add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredInboxFolder).await;
@@ -558,7 +557,6 @@ async fn add_all_receipients_as_contacts(ctx: &Context, imap: &mut Imap, folder:
                     )
                     .await
                     {
-                        // TODO do we really need to distinguish bcc and cc?
                         Ok((_, modified)) => {
                             if modified != Modifier::None {
                                 any_modified = true;
