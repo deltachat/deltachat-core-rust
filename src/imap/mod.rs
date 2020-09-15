@@ -1471,17 +1471,16 @@ async fn precheck_imf(
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
             update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
-            if let Ok(MessageState::InSeen) = msg_id.get_state(context).await {
-                job::add(
-                    context,
-                    job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
-                )
-                .await;
-            };
-            context
-                .interrupt_inbox(InterruptInfo::new(false, Some(msg_id)))
-                .await;
-            info!(context, "Updating server_uid and interrupting")
+            if let Ok(message_state) = msg_id.get_state(context).await {
+                if message_state == MessageState::InSeen || message_state.is_outgoing() {
+                    job::add(
+                        context,
+                        job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
+                    )
+                    .await;
+                }
+            }
+            info!(context, "Updating server_uid and adding markseen job");
         }
         Ok(true)
     } else {
