@@ -95,7 +95,8 @@ pub async fn imex(
             }
             Err(err) => {
                 cleanup_aborted_imex(context, what).await;
-                error!(context, "{}", err);
+                // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+                error!(context, "{:#}", err);
                 context.emit_event(EventType::ImexProgress(0));
                 bail!("IMEX FAILED to complete: {}", err);
             }
