@@ -241,7 +241,7 @@ impl Imap {
                         )
                         .await
                 };
-                bail!("{}: {}", message, err);
+                bail!(err);
             }
         };
 

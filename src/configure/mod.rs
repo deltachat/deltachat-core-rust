@@ -14,6 +14,7 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::error::format_err;
 use crate::imap::Imap;
 use crate::login_param::{LoginParam, ServerLoginParam};
 use crate::message::Message;
@@ -124,7 +125,7 @@ impl Context {
                     Some(
                         self.stock_string_repl_str(
                             StockMessage::ConfigurationFailed,
-                            err.to_string(),
+                            err.to_string(), // TODO {:#}
                         )
                         .await
                     )
@@ -250,22 +251,31 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     let smtp_config_task = task::spawn(async move {
         let mut smtp_configured = false;
+        let mut errors = Vec::new();
         for smtp_server in smtp_servers {
             smtp_param.user = smtp_server.username.clone();
             smtp_param.server = smtp_server.hostname.clone();
             smtp_param.port = smtp_server.port;
             smtp_param.security = smtp_server.socket;
 
-            if try_smtp_one_param(&context_smtp, &smtp_param, &smtp_addr, oauth2, &mut smtp).await {
-                smtp_configured = true;
-                break;
+            match try_smtp_one_param(&context_smtp, &smtp_param, &smtp_addr, oauth2, &mut smtp)
+                .await
+            {
+                Ok(_) => {
+                    smtp_configured = true;
+                    break;
+                }
+                Err(e) => errors.push(e.to_string()),
             }
         }
 
         if smtp_configured {
-            Some(smtp_param)
+            Ok(smtp_param)
         } else {
-            None
+            Err(format_err!(
+                "SMTP connection failed:\n\n{}",
+                errors.join("\n\n")
+            ))
         }
     });
 
@@ -281,15 +291,19 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .filter(|params| params.protocol == Protocol::IMAP)
         .collect();
     let imap_servers_count = imap_servers.len();
+    let mut errors = Vec::new();
     for (imap_server_index, imap_server) in imap_servers.into_iter().enumerate() {
         param.imap.user = imap_server.username.clone();
         param.imap.server = imap_server.hostname.clone();
         param.imap.port = imap_server.port;
         param.imap.security = imap_server.socket;
 
-        if try_imap_one_param(ctx, &param.imap, &param.addr, oauth2, &mut imap).await {
-            imap_configured = true;
-            break;
+        match try_imap_one_param(ctx, &param.imap, &param.addr, oauth2, &mut imap).await {
+            Ok(_) => {
+                imap_configured = true;
+                break;
+            }
+            Err(e) => errors.push(e.to_string()),
         }
         progress!(
             ctx,
@@ -297,16 +311,19 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         );
     }
     if !imap_configured {
-        bail!("IMAP autoconfig did not succeed");
+        bail!("IMAP connection failed:\n\n{}", errors.join("\n\n"));
     }
 
     progress!(ctx, 850);
 
     // Wait for SMTP configuration
-    if let Some(smtp_param) = smtp_config_task.await {
-        param.smtp = smtp_param;
-    } else {
-        bail!("SMTP autoconfig did not succeed");
+    match smtp_config_task.await {
+        Ok(smtp_param) => {
+            param.smtp = smtp_param;
+        }
+        Err(e) => {
+            bail!(e);
+        }
     }
 
     progress!(ctx, 900);
@@ -478,7 +495,7 @@ async fn try_imap_one_param(
     addr: &str,
     oauth2: bool,
     imap: &mut Imap,
-) -> bool {
+) -> Result<()> {
     let inf = format!(
         "imap: {}@{}:{} security={} certificate_checks={} oauth2={}",
         param.user, param.server, param.port, param.security, param.certificate_checks, oauth2
@@ -487,10 +504,10 @@ async fn try_imap_one_param(
 
     if let Err(err) = imap.connect(context, param, addr, oauth2).await {
         info!(context, "failure: {}", err);
-        false
+        bail!("Trying {}.\nError: {}", inf, err)
     } else {
         info!(context, "success: {}", inf);
-        true
+        Ok(())
     }
 }
 
@@ -500,7 +517,7 @@ async fn try_smtp_one_param(
     addr: &str,
     oauth2: bool,
     smtp: &mut Smtp,
-) -> bool {
+) -> Result<()> {
     let inf = format!(
         "smtp: {}@{}:{} security={} certificate_checks={} oauth2={}",
         param.user, param.server, param.port, param.security, param.certificate_checks, oauth2
@@ -509,11 +526,11 @@ async fn try_smtp_one_param(
 
     if let Err(err) = smtp.connect(context, param, addr, oauth2).await {
         info!(context, "failure: {}", err);
-        false
+        bail!("Trying {}.\nError: {}", inf, err)
     } else {
         info!(context, "success: {}", inf);
         smtp.disconnect().await;
-        true
+        Ok(())
     }
 }
 
