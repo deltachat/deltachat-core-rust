@@ -229,18 +229,6 @@ impl Imap {
                 }
             }
             Err(err) => {
-                let message = {
-                    let config = &self.config;
-                    let imap_server: &str = config.lp.server.as_ref();
-                    let imap_port = config.lp.port;
-                    context
-                        .stock_string_repl_str2(
-                            StockMessage::ServerResponse,
-                            format!("IMAP {}:{}", imap_server, imap_port),
-                            err.to_string(),
-                        )
-                        .await
-                };
                 bail!(err);
             }
         };

@@ -125,6 +125,7 @@ impl Context {
                     Some(
                         self.stock_string_repl_str(
                             StockMessage::ConfigurationFailed,
+                            // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
                             err.to_string(), // TODO {:#}
                         )
                         .await
@@ -265,17 +266,14 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                     smtp_configured = true;
                     break;
                 }
-                Err(e) => errors.push(e.to_string()),
+                Err(e) => errors.push(e),
             }
         }
 
         if smtp_configured {
             Ok(smtp_param)
         } else {
-            Err(format_err!(
-                "SMTP connection failed:\n\n{}",
-                errors.join("\n\n")
-            ))
+            Err(format_err!(nicer_configuration_error(errors)))
         }
     });
 
@@ -303,7 +301,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                 imap_configured = true;
                 break;
             }
-            Err(e) => errors.push(e.to_string()),
+            Err(e) => errors.push(e),
         }
         progress!(
             ctx,
@@ -311,7 +309,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         );
     }
     if !imap_configured {
-        bail!("IMAP connection failed:\n\n{}", errors.join("\n\n"));
+        bail!(nicer_configuration_error(errors));
     }
 
     progress!(ctx, 850);
@@ -495,7 +493,7 @@ async fn try_imap_one_param(
     addr: &str,
     oauth2: bool,
     imap: &mut Imap,
-) -> Result<()> {
+) -> Result<(), ConfigurationError> {
     let inf = format!(
         "imap: {}@{}:{} security={} certificate_checks={} oauth2={}",
         param.user, param.server, param.port, param.security, param.certificate_checks, oauth2
@@ -504,8 +502,10 @@ async fn try_imap_one_param(
 
     if let Err(err) = imap.connect(context, param, addr, oauth2).await {
         info!(context, "failure: {}", err);
-        bail!("Trying {}.\nError: {}", inf, err)
-    } else {
+        Err(ConfigurationError {
+            config: inf,
+            msg: err.to_string(),
+        })    } else {
         info!(context, "success: {}", inf);
         Ok(())
     }
@@ -517,7 +517,7 @@ async fn try_smtp_one_param(
     addr: &str,
     oauth2: bool,
     smtp: &mut Smtp,
-) -> Result<()> {
+) -> Result<(), ConfigurationError> {
     let inf = format!(
         "smtp: {}@{}:{} security={} certificate_checks={} oauth2={}",
         param.user, param.server, param.port, param.security, param.certificate_checks, oauth2
@@ -526,12 +526,48 @@ async fn try_smtp_one_param(
 
     if let Err(err) = smtp.connect(context, param, addr, oauth2).await {
         info!(context, "failure: {}", err);
-        bail!("Trying {}.\nError: {}", inf, err)
+        Err(ConfigurationError {
+            config: inf,
+            msg: err.to_string(),
+        })
     } else {
         info!(context, "success: {}", inf);
         smtp.disconnect().await;
         Ok(())
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Trying {config}…/nError: {msg}")]
+pub struct ConfigurationError {
+    config: String,
+    msg: String,
+}
+
+fn nicer_configuration_error(errors: Vec<ConfigurationError>) -> String {
+    let first_err = if let Some(f) = errors.first() {
+        f
+    } else {
+        return "".to_string();
+    };
+
+    if errors
+        .iter()
+        .all(|e| e.msg.to_lowercase().contains("could not resolve"))
+    {
+        return "Cannot connect to your mail server./n/nPlease check your internet connection."//TODO translate
+            .to_string();
+    }
+
+    if errors.iter().all(|e| e.msg == first_err.msg) {
+        return first_err.msg.to_string();
+    }
+
+    errors
+        .iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 #[derive(Debug, thiserror::Error)]
