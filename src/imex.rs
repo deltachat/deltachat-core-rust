@@ -119,11 +119,9 @@ async fn cleanup_aborted_imex(context: &Context, what: ImexMode) {
         dc_delete_files_in_dir(context, context.get_blobdir()).await;
     }
     if what == ImexMode::ExportBackup || what == ImexMode::ImportBackup {
-        context
-            .sql
-            .open(context, context.get_dbfile(), false)
-            .await
-            .map_err(|e| warn!(context, "Re-opening db after imex failed: {}", e));
+        if let Err(e) = context.sql.open(context, context.get_dbfile(), false).await {
+            warn!(context, "Re-opening db after imex failed: {}", e);
+        }
     }
 }
 
