@@ -15,8 +15,8 @@ use async_std::{fs, io};
 use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
-use crate::chat::add_device_msg_with_importance;
-use crate::constants::Viewtype;
+use crate::chat::{add_device_msg, add_device_msg_with_importance};
+use crate::constants::{Viewtype, DC_OUTDATED_WARNING_DAYS};
 use crate::context::Context;
 use crate::error::{bail, Error};
 use crate::events::EventType;
@@ -158,11 +158,14 @@ pub(crate) async fn dc_create_smeared_timestamps(context: &Context, count: usize
 
 // if the system time is not plausible, once a day, add a device message.
 // for testing we're using time() as that is also used for message timestamps.
+// moreover, add a warning if the app is outdated.
 pub(crate) async fn maybe_add_time_based_warnings(context: &Context) {
-    maybe_warn_on_bad_time(context, time(), get_provider_update_timestamp()).await;
+    if !maybe_warn_on_bad_time(context, time(), get_provider_update_timestamp()).await {
+        maybe_warn_on_outdated(context, time(), get_provider_update_timestamp()).await;
+    }
 }
 
-async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestamp: i64) {
+async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestamp: i64) -> bool {
     if now < known_past_timestamp {
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some(
@@ -181,12 +184,39 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
             Some(
                 format!(
                     "bad-time-warning-{}",
-                    chrono::NaiveDateTime::from_timestamp(now, 0).format("%Y-%m-%d")
+                    chrono::NaiveDateTime::from_timestamp(now, 0).format("%Y-%m-%d") // repeat every day
                 )
                 .as_str(),
             ),
             Some(&mut msg),
             true,
+        )
+        .await
+        .ok();
+        return true;
+    }
+    false
+}
+
+async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time: i64) {
+    if now > approx_compile_time + DC_OUTDATED_WARNING_DAYS * 24 * 60 * 60 {
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some(
+            context
+                .stock_str(StockMessage::UpdateReminderMsgBody)
+                .await
+                .into(),
+        );
+        add_device_msg(
+            context,
+            Some(
+                format!(
+                    "outdated-warning-{}",
+                    chrono::NaiveDateTime::from_timestamp(now, 0).format("%Y-%m") // repeat every month
+                )
+                .as_str(),
+            ),
+            Some(&mut msg),
         )
         .await
         .ok();
@@ -1098,6 +1128,62 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert_eq!(device_chat_id, chats.get_chat_id(0));
+        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 2);
+    }
+
+    #[async_std::test]
+    async fn test_maybe_warn_on_outdated() {
+        let t = TestContext::new().await;
+        let timestamp_now: i64 = time();
+
+        // in about 6 months, the app should not be outdated
+        // (if this fails, provider-db is not updated since 6 months)
+        maybe_warn_on_outdated(
+            &t.ctx,
+            timestamp_now + 180 * 24 * 60 * 60,
+            get_provider_update_timestamp(),
+        )
+        .await;
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 0);
+
+        // in 1 year, the app should be considered as outdated
+        maybe_warn_on_outdated(
+            &t.ctx,
+            timestamp_now + 365 * 24 * 60 * 60,
+            get_provider_update_timestamp(),
+        )
+        .await;
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
+        let device_chat_id = chats.get_chat_id(0);
+        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 1);
+
+        // do not repeat the warning every day ...
+        maybe_warn_on_outdated(
+            &t.ctx,
+            timestamp_now + (365 + 1) * 24 * 60 * 60,
+            get_provider_update_timestamp(),
+        )
+        .await;
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
+        let device_chat_id = chats.get_chat_id(0);
+        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 1);
+
+        // ... but every month
+        maybe_warn_on_outdated(
+            &t.ctx,
+            timestamp_now + (365 + 31) * 24 * 60 * 60,
+            get_provider_update_timestamp(),
+        )
+        .await;
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
+        let device_chat_id = chats.get_chat_id(0);
         let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
         assert_eq!(msgs.len(), 2);
     }
