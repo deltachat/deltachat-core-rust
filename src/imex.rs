@@ -569,9 +569,9 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     /* re-open copied database file */
     context
         .sql
-        .open(&context, &context.get_dbfile(), false)
+        .openh(&context, &context.get_dbfile(), false)
         .await
-        .context("Could not re-open db")?;
+        .context("that's just the context")?;
 
     delete_and_reset_all_device_msgs(&context).await?;
 

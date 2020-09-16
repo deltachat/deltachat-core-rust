@@ -96,6 +96,15 @@ impl Sql {
         res.map_err(|e| format_err!("Could not open db: {}", e))
     }
 
+    pub async fn openh<T: AsRef<Path>>(
+        &self,
+        context: &Context,
+        dbfile: T,
+        readonly: bool,
+    ) -> crate::error::Result<()> {
+        Err(format_err!("This is the actual error the user should see"))
+    }
+
     pub async fn execute<S: AsRef<str>>(
         &self,
         sql: S,
