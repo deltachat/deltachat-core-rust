@@ -123,7 +123,7 @@ async fn cleanup_aborted_imex(context: &Context, what: ImexMode) {
             .sql
             .open(context, context.get_dbfile(), false)
             .await
-            .ok();
+            .map_err(|e| warn!(context, "Re-opening db after imex failed: {}", e));
     }
 }
 
@@ -171,17 +171,23 @@ pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Re
             let name = name.to_string_lossy();
             if name.starts_with("delta-chat") && name.ends_with(".bak") {
                 let sql = Sql::new();
-                if sql.open(context, &path, true).await.is_ok() {
-                    let curr_backup_time = sql
-                        .get_raw_config_int(context, "backup_time")
-                        .await
-                        .unwrap_or_default();
-                    if curr_backup_time > newest_backup_time {
-                        newest_backup_path = Some(path);
-                        newest_backup_time = curr_backup_time;
+                match sql.open(context, &path, true).await {
+                    Ok(_) => {
+                        let curr_backup_time = sql
+                            .get_raw_config_int(context, "backup_time")
+                            .await
+                            .unwrap_or_default();
+                        if curr_backup_time > newest_backup_time {
+                            newest_backup_path = Some(path);
+                            newest_backup_time = curr_backup_time;
+                        }
+                        info!(context, "backup_time of {} is {}", name, curr_backup_time);
+                        sql.close().await;
                     }
-                    info!(context, "backup_time of {} is {}", name, curr_backup_time);
-                    sql.close().await;
+                    Err(e) => warn!(
+                        context,
+                        "Found backup file {} which could not be opened: {}", name, e
+                    ),
                 }
             }
         }

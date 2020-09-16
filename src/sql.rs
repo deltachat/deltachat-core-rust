@@ -78,7 +78,6 @@ impl Sql {
         // drop closes the connection
     }
 
-    // return true on success, false on failure
     pub async fn open<T: AsRef<Path>>(
         &self,
         context: &Context,
