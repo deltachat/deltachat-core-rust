@@ -84,7 +84,7 @@ impl Sql {
         dbfile: T,
         readonly: bool,
     ) -> crate::error::Result<()> {
-        let res = open(context, self, dbfile, readonly).await;
+        let res = open(context, self, &dbfile, readonly).await;
         if let Err(err) = &res {
             match err.downcast_ref::<Error>() {
                 Some(Error::SqlAlreadyOpen) => {}
@@ -93,7 +93,7 @@ impl Sql {
                 }
             }
         }
-        res.map_err(|e| format_err!("Could not open db: {}", e))
+        res.map_err(|e| format_err!("Could not open db file {}: {}", dbfile.as_ref().to_string_lossy(), e))
     }
 
     pub async fn execute<S: AsRef<str>>(
