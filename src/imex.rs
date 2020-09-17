@@ -762,7 +762,7 @@ async fn export_backup_old(context: &Context, dir: impl AsRef<Path>) -> Result<(
     dest_sql
         .open(context, &dest_path_filename, false)
         .await
-        .context(format!(
+        .with_context(|| format!(
             "could not open exported database {}",
             dest_path_string
         ))?;
