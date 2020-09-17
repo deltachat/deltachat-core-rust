@@ -14,6 +14,7 @@ use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::ephemeral::start_ephemeral_timers;
+use crate::error::format_err;
 use crate::param::*;
 use crate::peerstate::*;
 
@@ -77,18 +78,29 @@ impl Sql {
         // drop closes the connection
     }
 
-    // return true on success, false on failure
-    pub async fn open<T: AsRef<Path>>(&self, context: &Context, dbfile: T, readonly: bool) -> bool {
-        match open(context, self, dbfile, readonly).await {
-            Ok(_) => true,
-            Err(err) => match err.downcast_ref::<Error>() {
-                Some(Error::SqlAlreadyOpen) => false,
+    pub async fn open<T: AsRef<Path>>(
+        &self,
+        context: &Context,
+        dbfile: T,
+        readonly: bool,
+    ) -> crate::error::Result<()> {
+        let res = open(context, self, &dbfile, readonly).await;
+        if let Err(err) = &res {
+            match err.downcast_ref::<Error>() {
+                Some(Error::SqlAlreadyOpen) => {}
                 _ => {
                     self.close().await;
-                    false
                 }
-            },
+            }
         }
+        res.map_err(|e| {
+            format_err!(
+                // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+                "Could not open db file {}: {:#}",
+                dbfile.as_ref().to_string_lossy(),
+                e
+            )
+        })
     }
 
     pub async fn execute<S: AsRef<str>>(
