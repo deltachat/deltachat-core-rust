@@ -93,7 +93,14 @@ impl Sql {
                 }
             }
         }
-        res.map_err(|e| format_err!("Could not open db file {}: {}", dbfile.as_ref().to_string_lossy(), e))
+        res.map_err(|e| {
+            format_err!(
+                // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+                "Could not open db file {}: {:#}",
+                dbfile.as_ref().to_string_lossy(),
+                e
+            )
+        })
     }
 
     pub async fn execute<S: AsRef<str>>(
