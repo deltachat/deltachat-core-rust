@@ -540,7 +540,10 @@ async fn add_all_receipients_as_contacts(
     folder: Config,
 ) -> Option<()> {
     let mailbox = ctx.get_config(folder).await?;
-    imap.select_with_uidvalidity(ctx, &mailbox).await.ok(); // TODO error handling
+    if let Err(e) = imap.select_with_uidvalidity(ctx, &mailbox).await {
+        warn!(ctx, "Could not select {}: {}", mailbox, e);
+        return None;
+    }
     match imap.get_all_receipients(ctx).await {
         Ok(contacts) => {
             let mut any_modified = false;
