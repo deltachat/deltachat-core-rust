@@ -14,7 +14,6 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::error::format_err;
 use crate::imap::Imap;
 use crate::login_param::{LoginParam, ServerLoginParam};
 use crate::message::Message;
@@ -125,8 +124,7 @@ impl Context {
                     Some(
                         self.stock_string_repl_str(
                             StockMessage::ConfigurationFailed,
-                            // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-                            err.to_string(), // TODO {:#}
+                            err.to_string(),
                         )
                         .await
                     )
@@ -273,7 +271,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         if smtp_configured {
             Ok(smtp_param)
         } else {
-            Err(format_err!(nicer_configuration_error(errors)))
+            Err(errors)
         }
     });
 
@@ -309,7 +307,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         );
     }
     if !imap_configured {
-        bail!(nicer_configuration_error(errors));
+        bail!(nicer_configuration_error(ctx, errors).await);
     }
 
     progress!(ctx, 850);
@@ -319,8 +317,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         Ok(smtp_param) => {
             param.smtp = smtp_param;
         }
-        Err(e) => {
-            bail!(e);
+        Err(errors) => {
+            bail!(nicer_configuration_error(ctx, errors).await);
         }
     }
 
@@ -505,7 +503,8 @@ async fn try_imap_one_param(
         Err(ConfigurationError {
             config: inf,
             msg: err.to_string(),
-        })    } else {
+        })
+    } else {
         info!(context, "success: {}", inf);
         Ok(())
     }
@@ -538,13 +537,13 @@ async fn try_smtp_one_param(
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Trying {config}…/nError: {msg}")]
+#[error("Trying {config}…\nError: {msg}")]
 pub struct ConfigurationError {
     config: String,
     msg: String,
 }
 
-fn nicer_configuration_error(errors: Vec<ConfigurationError>) -> String {
+async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationError>) -> String {
     let first_err = if let Some(f) = errors.first() {
         f
     } else {
@@ -555,8 +554,7 @@ fn nicer_configuration_error(errors: Vec<ConfigurationError>) -> String {
         .iter()
         .all(|e| e.msg.to_lowercase().contains("could not resolve"))
     {
-        return "Cannot connect to your mail server./n/nPlease check your internet connection."//TODO translate
-            .to_string();
+        return context.stock_str(StockMessage::NoNetwork).await.to_string();
     }
 
     if errors.iter().all(|e| e.msg == first_err.msg) {

@@ -274,7 +274,7 @@ impl Imap {
                 }
 
                 self.trigger_reconnect();
-                Err(format_err!("{}: {}", message, err))
+                Err(format_err!("{}\n\n{}", message, err))
             }
         }
     }

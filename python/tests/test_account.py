@@ -1739,6 +1739,35 @@ class TestOnlineAccount:
 
         assert len(imap2.get_all_messages()) == 1
 
+    def test_configure_error_msgs(self, acfactory):
+        ac1, configdict = acfactory.get_online_config()
+        ac1.update_config(configdict)
+        ac1.set_config("mail_pw", "abc")  # Wrong mail pw
+        ac1.configure()
+        while True:
+            ev = ac1._evtracker.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
+            if ev.data1 == 0:
+                break
+        # Password is wrong so it definitely has to say something about "password"
+        # but the error message should not be repeated:
+        assert ev.data2.count("password") == 1
+
+        ac2, configdict = acfactory.get_online_config()
+        ac2.update_config(configdict)
+        ac2.set_config("addr", "abc@def.invalid")  # mail server can't be reached
+        ac2.configure()
+        while True:
+            ev = ac2._evtracker.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
+            if ev.data1 == 0:
+                break
+        # Can't connect so it probably should say something about "internet"
+        # again, should not repeat itself
+        assert (ev.data2.count("internet") + ev.data2.count("network")) == 1
+        # Should mention that it can't connect:
+        assert ev.data2.count("connect") == 1
+        # The users do not know what "configuration" is
+        assert not "configuration" in ev.data2.lower()
+
     def test_name_changes(self, acfactory):
         ac1, ac2 = acfactory.get_two_online_accounts()
         ac1.set_config("displayname", "Account 1")
