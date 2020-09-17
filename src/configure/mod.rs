@@ -343,8 +343,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         // Read the receipients from old emails sent by the user user and add them as contacts.
         // This way, we can already offer them some email addresses they can write to.
         //
-        // This takes some time, so do it asynchronously and query the sentbox folder first because it
+        // This takes some time, so do it asynchronously and query the sent folder first because it
         // is the most "promising" (has the highest amount of outgoing messages)
+        // TODO is it a problem that I 1. move the imap struct to another context and maybe thread and 2. still use the imap struct while configure finishes and start_io() is called and so on?
         add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredSentboxFolder).await;
         add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredMvboxFolder).await;
         add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredInboxFolder).await;
@@ -533,55 +534,50 @@ async fn try_smtp_one_param(
     }
 }
 
-async fn add_all_receipients_as_contacts(ctx: &Context, imap: &mut Imap, folder: Config) {
-    if let Some(mailbox) = ctx.get_config(folder).await {
-        if let Err(e) = imap.select_with_uidvalidity(ctx, &mailbox).await {
-            warn!(ctx, "Could not select {}: {}", mailbox, e);
-            return;
-        }
+async fn add_all_receipients_as_contacts(
+    ctx: &Context,
+    imap: &mut Imap,
+    folder: Config,
+) -> Option<()> {
+    let mailbox = ctx.get_config(folder).await?;
+    if let Err(e) = imap.select_with_uidvalidity(ctx, &mailbox).await {
+        warn!(ctx, "Could not select {}: {}", mailbox, e);
+        return None;
+    }
+    match imap.get_all_receipients(ctx).await {
+        Ok(contacts) => {
+            let mut any_modified = false;
+            for contact in contacts {
+                let display_name_normalized = contact
+                    .display_name
+                    .as_ref()
+                    .map(normalize_name)
+                    .unwrap_or_default();
 
-        match imap.get_all_receipients(ctx).await {
-            Ok(contacts) => {
-                warn!(
+                match Contact::add_or_lookup(
                     ctx,
-                    "dbg adding {} contacts {:?} from folder {} ({})",
-                    contacts.len(),
-                    contacts,
-                    mailbox,
-                    folder
-                );
-
-                let mut any_modified = false;
-                for contact in contacts {
-                    let display_name_normalized = contact
-                        .display_name
-                        .as_ref()
-                        .map(normalize_name)
-                        .unwrap_or_default();
-
-                    match Contact::add_or_lookup(
-                        ctx,
-                        display_name_normalized,
-                        contact.addr,
-                        Origin::AddressBook, // TODO this should be OutgoingTo but this makes remote_tests_python fail on ci (for some reason not locally)
-                    )
-                    .await
-                    {
-                        Ok((_, modified)) => {
-                            if modified != Modifier::None {
-                                any_modified = true;
-                            }
+                    display_name_normalized,
+                    contact.addr,
+                    Origin::AddressBook, // TODO was OutgoingTo
+                )
+                .await
+                {
+                    // TODO do we really need to distinguish bcc and cc?
+                    Ok((_, modified)) => {
+                        if modified != Modifier::None {
+                            any_modified = true;
                         }
-                        Err(e) => warn!(ctx, "Could not add receipient: {}", e),
                     }
-                }
-                if any_modified {
-                    ctx.emit_event(EventType::ContactsChanged(None));
+                    Err(e) => warn!(ctx, "Could not add receipient: {}", e),
                 }
             }
-            Err(e) => warn!(ctx, "Could not add receipients: {}", e),
-        };
-    }
+            if any_modified {
+                ctx.emit_event(EventType::ContactsChanged(None));
+            }
+        }
+        Err(e) => warn!(ctx, "Could not add receipients: {}", e),
+    };
+    None
 }
 
 #[derive(Debug, thiserror::Error)]
