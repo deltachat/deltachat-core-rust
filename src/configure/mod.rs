@@ -343,9 +343,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         // Read the receipients from old emails sent by the user user and add them as contacts.
         // This way, we can already offer them some email addresses they can write to.
         //
-        // This takes some time, so do it asynchronously and query the sent folder first because it
+        // This takes some time, so do it asynchronously and query the sentbox folder first because it
         // is the most "promising" (has the highest amount of outgoing messages)
-        // TODO is it a problem that I 1. move the imap struct to another context and maybe thread and 2. still use the imap struct while configure finishes and start_io() is called and so on?
         add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredSentboxFolder).await;
         add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredMvboxFolder).await;
         add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredInboxFolder).await;
@@ -558,11 +557,10 @@ async fn add_all_receipients_as_contacts(
                     ctx,
                     display_name_normalized,
                     contact.addr,
-                    Origin::AddressBook, // TODO was OutgoingTo
+                    Origin::AddressBook, // TODO this should be OutgoingTo but this makes remote_tests_python fail on ci (for some reason not locally)
                 )
                 .await
                 {
-                    // TODO do we really need to distinguish bcc and cc?
                     Ok((_, modified)) => {
                         if modified != Modifier::None {
                             any_modified = true;
