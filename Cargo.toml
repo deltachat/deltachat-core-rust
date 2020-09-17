@@ -76,7 +76,7 @@ pretty_assertions = "0.6.1"
 pretty_env_logger = "0.4.0"
 proptest = "0.10"
 async-std = { version = "1.6.4", features = ["unstable", "attributes"] }
-smol = "1.0.1"
+futures-lite = "1.7.0"
 criterion = "0.3"
 
 [workspace]
