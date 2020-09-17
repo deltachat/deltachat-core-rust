@@ -563,7 +563,7 @@ async fn add_all_receipients_as_contacts(ctx: &Context, imap: &mut Imap, folder:
                         ctx,
                         display_name_normalized,
                         contact.addr,
-                        Origin::OutgoingTo,
+                        Origin::AddressBook, // TODO this should be OutgoingTo but this makes remote_tests_python fail on ci (for some reason not locally)
                     )
                     .await
                     {
