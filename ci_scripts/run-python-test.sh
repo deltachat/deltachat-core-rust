@@ -11,7 +11,7 @@ export DCC_RS_DEV=`pwd`
 
 cd python
 
-python install_python_bindings.py onlybuild
+python install_python_bindings.py onlybuild dontblock
 
 # remove and inhibit writing PYC files 
 rm -rf tests/__pycache__
