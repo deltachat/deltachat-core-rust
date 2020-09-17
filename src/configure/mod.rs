@@ -346,18 +346,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         // This takes some time, so do it asynchronously and query the sent folder first because it
         // is the most "promising" (has the highest amount of outgoing messages)
         // TODO is it a problem that I 1. move the imap struct to another context and maybe thread and 2. still use the imap struct while configure finishes and start_io() is called and so on?
-        if let Some(sentbox) = ctx.get_config(Config::ConfiguredSentboxFolder).await {
-            imap.select_with_uidvalidity(ctx, &sentbox).await.ok();
-            add_all_receipients_as_contacts(ctx, &mut imap).await;
-        }
-        if let Some(mvbox) = ctx.get_config(Config::ConfiguredMvboxFolder).await {
-            imap.select_with_uidvalidity(ctx, &mvbox).await.ok();
-            add_all_receipients_as_contacts(ctx, &mut imap).await;
-        }
-        if let Some(inbox) = ctx.get_config(Config::ConfiguredInboxFolder).await {
-            imap.select_with_uidvalidity(ctx, &inbox).await.ok();
-            add_all_receipients_as_contacts(ctx, &mut imap).await;
-        } // todo error handling
+        add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredSentboxFolder).await;
+        add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredMvboxFolder).await;
+        add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredInboxFolder).await;
     });
 
     progress!(ctx, 940);
@@ -543,7 +534,13 @@ async fn try_smtp_one_param(
     }
 }
 
-async fn add_all_receipients_as_contacts(ctx: &Context, imap: &mut Imap) {
+async fn add_all_receipients_as_contacts(
+    ctx: &Context,
+    imap: &mut Imap,
+    folder: Config,
+) -> Option<()> {
+    let mailbox = ctx.get_config(folder).await?;
+    imap.select_with_uidvalidity(ctx, &mailbox).await.ok(); // TODO error handling
     match imap.get_all_receipients(ctx).await {
         Ok(contacts) => {
             let mut any_modified = false;
@@ -577,6 +574,7 @@ async fn add_all_receipients_as_contacts(ctx: &Context, imap: &mut Imap) {
         }
         Err(e) => warn!(ctx, "Could not add receipients: {}", e),
     };
+    None
 }
 
 #[derive(Debug, thiserror::Error)]
