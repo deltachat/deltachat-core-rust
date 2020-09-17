@@ -558,7 +558,7 @@ async fn add_all_receipients_as_contacts(
                     ctx,
                     display_name_normalized,
                     contact.addr,
-                    Origin::AddressBook, // TODO was OutgoingTo
+                    Origin::OutgoingTo,
                 )
                 .await
                 {
