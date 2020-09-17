@@ -24,7 +24,26 @@ if __name__ == "__main__":
         cmd.append("--release")
 
     print("running:", " ".join(cmd))
-    subprocess.check_call(cmd)
+
+    if "dontblock" in sys.argv:
+        # Unfortunately, the CI sometimes does nothing, simply stating "Blocking waiting for file lock on build directory".
+        process = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+        for line in process.stderr:
+            l = line.decode("utf-8")
+            print(l, end='')
+            if "waiting for file lock on build directory" in l:
+                print("Stopping build, cleaning up and retrying")
+                process.terminate()
+                try:
+                    subprocess.check_call("cargo clean", shell=True)
+                except subprocess.CalledProcessError as e:
+                    print(e)
+                subprocess.check_call(cmd)
+        process.wait()
+
+    else:
+        subprocess.check_call(cmd)
+
     subprocess.check_call("rm -rf build/ src/deltachat/*.so" , shell=True)
 
     if len(sys.argv) <= 1 or sys.argv[1] != "onlybuild":
