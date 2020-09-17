@@ -1767,6 +1767,42 @@ class TestOnlineAccount:
             # No renames should happen after explicit rename
             assert updated_name == "Renamed"
 
+    @pytest.mark.parametrize("mvbox_move", [False, True])
+    def test_add_all_receipients_as_contacts(self, acfactory, lp, mvbox_move):
+        """Delta Chat reads the receipients from old emails sent by the user user and add them as contacts.
+        This way, we can already offer them some email addresses they can write to.
+
+        Also tests that bcc_self messages moved to the mvbox are marked as read."""
+        ac1 = acfactory.get_online_configuring_account(mvbox=mvbox_move, move=mvbox_move)
+        ac2 = acfactory.get_online_configuring_account()
+
+        acfactory.wait_configure_and_start_io()
+
+        chat = acfactory.get_accepted_chat(ac1, ac2)
+
+        lp.sec("send out message with bcc to ourselves")
+        if mvbox_move:
+            ac1.direct_imap.select_config_folder("mvbox")
+        ac1.direct_imap.idle_start()
+        ac1.set_config("bcc_self", "1")
+        chat.send_text("message")
+        assert ac1.get_config("bcc_self") == "1"
+
+        # now wait until the bcc_self message arrives
+        # Also test that bcc_self messages moved to the mvbox are marked as read.
+        assert ac1.direct_imap.idle_wait_for_seen()
+
+        ac1_clone = acfactory.clone_online_account(ac1)
+        ac1_clone._configtracker.wait_finish()
+        ac2_addr = ac2.get_config("addr")
+
+        for i in range(300):
+            if any([c.addr == ac2_addr for c in ac1_clone.get_contacts()]):
+                break
+            time.sleep(0.1)  # wait a bit, getting the contacts is async, maybe they are just not there yet
+
+        assert any([c.addr == ac2_addr for c in ac1_clone.get_contacts()])
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):

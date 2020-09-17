@@ -40,6 +40,7 @@ mod session;
 
 use chat::get_chat_id_by_grpid;
 use client::Client;
+use mailparse::SingleInfo;
 use message::Message;
 use session::Session;
 
@@ -739,6 +740,53 @@ impl Imap {
         }
 
         Ok(read_cnt > 0)
+    }
+
+    /// Gets the from, to and bcc addresses from all existing outgoing emails.
+    pub async fn get_all_receipients(&mut self, context: &Context) -> Result<Vec<SingleInfo>> {
+        if self.session.is_none() {
+            bail!("IMAP No Connection established");
+        }
+
+        let session = self.session.as_mut().unwrap();
+        let self_addr = context
+            .get_config(Config::ConfiguredAddr)
+            // TODO what if ConfiguredAddr is only username, not username@domain.org?
+            .await
+            .ok_or_else(|| format_err!("Not configured"))?;
+
+        let search_command = format!("FROM \"{}\"", self_addr);
+
+        let uids = session.uid_search(search_command).await?;
+        let uid_vec: Vec<String> = uids.into_iter().map(|s| s.to_string()).collect();
+        let uid_set = uid_vec.join(",");
+        // TODO what if this is, like, 1000 uids? Is there some upper bound for the uid_set when fetching?
+
+        let mut list = session
+            .uid_fetch(uid_set, "(UID BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
+            .await
+            .map_err(|err| format_err!("IMAP Could not fetch (get_all_receipients()): {}", err))?;
+
+        let mut result = Vec::new();
+
+        while let Some(fetch) = list.next().await {
+            let msg = fetch?;
+            match get_fetch_headers(&msg) {
+                Ok(headers) => {
+                    let (from_id, _, _) =
+                        from_field_to_contact_id(context, &mimeparser::get_from(&headers)).await?;
+                    if from_id == DC_CONTACT_ID_SELF {
+                        result.extend(mimeparser::get_recipients(&headers));
+                    }
+                }
+
+                Err(err) => {
+                    warn!(context, "{}", err);
+                    continue;
+                }
+            };
+        }
+        Ok(result)
     }
 
     /// Fetch all uids larger than the passed in. Returns a sorted list of fetch results.
@@ -1443,17 +1491,16 @@ async fn precheck_imf(
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
             update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
-            if let Ok(MessageState::InSeen) = msg_id.get_state(context).await {
-                job::add(
-                    context,
-                    job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
-                )
-                .await;
-            };
-            context
-                .interrupt_inbox(InterruptInfo::new(false, Some(msg_id)))
-                .await;
-            info!(context, "Updating server_uid and interrupting")
+            if let Ok(message_state) = msg_id.get_state(context).await {
+                if message_state == MessageState::InSeen || message_state.is_outgoing() {
+                    job::add(
+                        context,
+                        job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
+                    )
+                    .await;
+                }
+            }
+            info!(context, "Updating server_uid and adding markseen job");
         }
         Ok(true)
     } else {
