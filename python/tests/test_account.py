@@ -1766,7 +1766,7 @@ class TestOnlineAccount:
         # Should mention that it can't connect:
         assert ev.data2.count("connect") == 1
         # The users do not know what "configuration" is
-        assert not "configuration" in ev.data2.lower()
+        assert "configuration" not in ev.data2.lower()
 
     def test_name_changes(self, acfactory):
         ac1, ac2 = acfactory.get_two_online_accounts()
