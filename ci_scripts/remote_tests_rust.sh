@@ -26,7 +26,7 @@ ssh $SSHTARGET <<_HERE
     cd $BUILDDIR
     # let's share the target dir with our last run on this branch/job-type
     # cargo will make sure to block/unblock us properly 
-    export CARGO_TARGET_DIR=\`pwd\`/../target
+    export CARGO_TARGET_DIR=\`pwd\`/../target-rust
     export TARGET=x86_64-unknown-linux-gnu
     export RUSTC_WRAPPER=sccache
 
