@@ -11,6 +11,7 @@ use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{bail, ensure, format_err, Error};
+use crate::format_flowed::format_flowed;
 use crate::location;
 use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;
@@ -236,22 +237,16 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     return true;
                 }
 
-                let force_plaintext = self
+                !self
                     .msg
                     .param
-                    .get_int(Param::ForcePlaintext)
-                    .unwrap_or_default();
-
-                if force_plaintext == 0 {
-                    return self
+                    .get_bool(Param::ForcePlaintext)
+                    .unwrap_or_default()
+                    && self
                         .msg
                         .param
-                        .get_int(Param::GuaranteeE2ee)
+                        .get_bool(Param::GuaranteeE2ee)
                         .unwrap_or_default()
-                        != 0;
-                }
-
-                false
             }
             Loaded::MDN { .. } => false,
         }
@@ -270,19 +265,30 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
     }
 
-    fn should_force_plaintext(&self) -> i32 {
+    fn should_force_plaintext(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
                 if chat.typ == Chattype::VerifiedGroup {
-                    0
+                    false
                 } else {
                     self.msg
                         .param
-                        .get_int(Param::ForcePlaintext)
+                        .get_bool(Param::ForcePlaintext)
                         .unwrap_or_default()
                 }
             }
-            Loaded::MDN { .. } => ForcePlaintext::NoAutocryptHeader as i32,
+            Loaded::MDN { .. } => true,
+        }
+    }
+
+    fn should_skip_autocrypt(&self) -> bool {
+        match &self.loaded {
+            Loaded::Message { .. } => self
+                .msg
+                .param
+                .get_bool(Param::SkipAutocrypt)
+                .unwrap_or_default(),
+            Loaded::MDN { .. } => true,
         }
     }
 
@@ -475,6 +481,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let min_verified = self.min_verified();
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
+        let skip_autocrypt = self.should_skip_autocrypt();
         let subject_str = self.subject_str().await;
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(self.context).await?;
@@ -498,7 +505,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::MDN { .. } => self.render_mdn().await?,
         };
 
-        if force_plaintext != ForcePlaintext::NoAutocryptHeader as i32 {
+        if !skip_autocrypt {
             // unless determined otherwise we add the Autocrypt header
             let aheader = encrypt_helper.get_aheader().to_string();
             unprotected_headers.push(Header::new("Autocrypt".into(), aheader));
@@ -509,7 +516,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let peerstates = self.peerstates_for_recipients().await?;
         let should_encrypt =
             encrypt_helper.should_encrypt(self.context, e2ee_guaranteed, &peerstates)?;
-        let is_encrypted = should_encrypt && force_plaintext == 0;
+        let is_encrypted = should_encrypt && !force_plaintext;
 
         let rfc724_mid = match self.loaded {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
@@ -910,11 +917,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
         };
 
+        let flowed_text = format_flowed(final_text);
+
         let footer = &self.selfstatus;
         let message_text = format!(
             "{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
-            escape_message_footer_marks(final_text),
+            escape_message_footer_marks(&flowed_text),
             if !final_text.is_empty() && !footer.is_empty() {
                 "\r\n\r\n"
             } else {
@@ -926,7 +935,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         // Message is sent as text/plain, with charset = utf-8
         let main_part = PartBuilder::new()
-            .content_type(&mime::TEXT_PLAIN_UTF_8)
+            .header((
+                "Content-Type".to_string(),
+                "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
+            ))
             .body(message_text);
         let mut parts = Vec::new();
 

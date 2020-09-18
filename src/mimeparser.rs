@@ -17,6 +17,7 @@ use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::error::{bail, Result};
 use crate::events::EventType;
+use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::Fingerprint;
 use crate::location;
@@ -127,69 +128,74 @@ impl MimeMessage {
         let mail_raw;
         let mut gossipped_addr = Default::default();
 
-        let (mail, signatures) = match e2ee::try_decrypt(context, &mail, message_time).await {
-            Ok((raw, signatures)) => {
-                if let Some(raw) = raw {
-                    // Encrypted, but maybe unsigned message. Only if
-                    // `signatures` set is non-empty, it is a valid
-                    // autocrypt message.
+        let (mail, signatures, warn_empty_signature) =
+            match e2ee::try_decrypt(context, &mail, message_time).await {
+                Ok((raw, signatures)) => {
+                    if let Some(raw) = raw {
+                        // Encrypted, but maybe unsigned message. Only if
+                        // `signatures` set is non-empty, it is a valid
+                        // autocrypt message.
 
-                    mail_raw = raw;
-                    let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
-                    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                        info!(context, "decrypted message mime-body:");
-                        println!("{}", String::from_utf8_lossy(&mail_raw));
+                        mail_raw = raw;
+                        let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+                        if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+                            info!(context, "decrypted message mime-body:");
+                            println!("{}", String::from_utf8_lossy(&mail_raw));
+                        }
+
+                        // Handle any gossip headers if the mail was encrypted.  See section
+                        // "3.6 Key Gossip" of https://autocrypt.org/autocrypt-spec-1.1.0.pdf
+                        // but only if the mail was correctly signed:
+                        if !signatures.is_empty() {
+                            let gossip_headers =
+                                decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
+                            gossipped_addr = update_gossip_peerstates(
+                                context,
+                                message_time,
+                                &mail,
+                                gossip_headers,
+                            )
+                            .await?;
+                        }
+
+                        // let known protected headers from the decrypted
+                        // part override the unencrypted top-level
+
+                        // Signature was checked for original From, so we
+                        // do not allow overriding it.
+                        let mut throwaway_from = from.clone();
+
+                        // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
+                        // See https://github.com/deltachat/deltachat-core-rust/issues/1790.
+                        headers.remove("subject");
+
+                        MimeMessage::merge_headers(
+                            context,
+                            &mut headers,
+                            &mut recipients,
+                            &mut throwaway_from,
+                            &mut chat_disposition_notification_to,
+                            &decrypted_mail.headers,
+                        );
+
+                        (decrypted_mail, signatures, true)
+                    } else {
+                        // Message was not encrypted
+                        (mail, signatures, false)
                     }
-
-                    // Handle any gossip headers if the mail was encrypted.  See section
-                    // "3.6 Key Gossip" of https://autocrypt.org/autocrypt-spec-1.1.0.pdf
-                    // but only if the mail was correctly signed:
-                    if !signatures.is_empty() {
-                        let gossip_headers =
-                            decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
-                        gossipped_addr =
-                            update_gossip_peerstates(context, message_time, &mail, gossip_headers)
-                                .await?;
-                    }
-
-                    // let known protected headers from the decrypted
-                    // part override the unencrypted top-level
-
-                    // Signature was checked for original From, so we
-                    // do not allow overriding it.
-                    let mut throwaway_from = from.clone();
-
-                    // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
-                    // See https://github.com/deltachat/deltachat-core-rust/issues/1790.
-                    headers.remove("subject");
-
-                    MimeMessage::merge_headers(
-                        context,
-                        &mut headers,
-                        &mut recipients,
-                        &mut throwaway_from,
-                        &mut chat_disposition_notification_to,
-                        &decrypted_mail.headers,
-                    );
-
-                    (decrypted_mail, signatures)
-                } else {
-                    // Message was not encrypted
-                    (mail, signatures)
                 }
-            }
-            Err(err) => {
-                // continue with the current, still encrypted, mime tree.
-                // unencrypted parts will be replaced by an error message
-                // that is added as "the message" to the chat then.
-                //
-                // if we just return here, the header is missing
-                // and the caller cannot display the message
-                // and try to assign the message to a chat
-                warn!(context, "decryption failed: {}", err);
-                (mail, Default::default())
-            }
-        };
+                Err(err) => {
+                    // continue with the current, still encrypted, mime tree.
+                    // unencrypted parts will be replaced by an error message
+                    // that is added as "the message" to the chat then.
+                    //
+                    // if we just return here, the header is missing
+                    // and the caller cannot display the message
+                    // and try to assign the message to a chat
+                    warn!(context, "decryption failed: {}", err);
+                    (mail, Default::default(), true)
+                }
+            };
 
         let mut parser = MimeMessage {
             parts: Vec::new(),
@@ -215,7 +221,7 @@ impl MimeMessage {
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context)?;
 
-        if parser.signatures.is_empty() {
+        if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
                 part.error = "No valid signature".to_string();
             }
@@ -599,7 +605,7 @@ impl MimeMessage {
                 skip the rest.  (see
                 https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
                 for background information why we use encrypted+signed) */
-                if let Some(first) = mail.subparts.iter().next() {
+                if let Some(first) = mail.subparts.get(0) {
                     any_part_added = self.parse_mime_recursive(context, first).await?;
                 }
             }
@@ -636,7 +642,7 @@ impl MimeMessage {
                             }
                         }
                         Some(_) => {
-                            if let Some(first) = mail.subparts.iter().next() {
+                            if let Some(first) = mail.subparts.get(0) {
                                 any_part_added = self.parse_mime_recursive(context, first).await?;
                             }
                         }
@@ -708,6 +714,27 @@ impl MimeMessage {
                                 decoded_data.clone()
                             };
                             simplify(out, self.has_chat_version())
+                        };
+
+                        let is_format_flowed = if let Some(format) = mail.ctype.params.get("format")
+                        {
+                            format.as_str().to_ascii_lowercase() == "flowed"
+                        } else {
+                            false
+                        };
+
+                        let simplified_txt = if mime_type.type_() == mime::TEXT
+                            && mime_type.subtype() == mime::PLAIN
+                            && is_format_flowed
+                        {
+                            let delsp = if let Some(delsp) = mail.ctype.params.get("delsp") {
+                                delsp.as_str().to_ascii_lowercase() == "yes"
+                            } else {
+                                false
+                            };
+                            unformat_flowed(&simplified_txt, delsp)
+                        } else {
+                            simplified_txt
                         };
 
                         if !simplified_txt.is_empty() {
@@ -1017,6 +1044,28 @@ impl MimeMessage {
             message::handle_ndn(context, failure_report, error).await
         }
     }
+
+    /// Returns timestamp of the parent message.
+    ///
+    /// If there is no parent message or it is not found in the
+    /// database, returns None.
+    pub async fn get_parent_timestamp(&self, context: &Context) -> Result<Option<i64>> {
+        let parent_timestamp = if let Some(field) = self
+            .get(HeaderDef::InReplyTo)
+            .and_then(|msgid| parse_message_id(msgid).ok())
+        {
+            context
+                .sql
+                .query_get_value_result(
+                    "SELECT timestamp FROM msgs WHERE rfc724_mid=?",
+                    paramsv![field],
+                )
+                .await?
+        } else {
+            None
+        };
+        Ok(parent_timestamp)
+    }
 }
 
 async fn update_gossip_peerstates(
@@ -1269,6 +1318,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)]
+
     use super::*;
     use crate::test_utils::*;
 
@@ -1384,6 +1435,39 @@ mod tests {
         assert_eq!(of.addr, "hello@one.org");
 
         assert!(mimeparser.chat_disposition_notification_to.is_none());
+    }
+
+    #[async_std::test]
+    async fn test_get_parent_timestamp() {
+        let context = TestContext::new().await;
+        let raw = b"From: foo@example.org\n\
+                    Content-Type: text/plain\n\
+                    Chat-Version: 1.0\n\
+                    In-Reply-To: <Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org>\n\
+                    \n\
+                    Some reply\n\
+                    ";
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(
+            mimeparser.get_parent_timestamp(&context.ctx).await.unwrap(),
+            None
+        );
+        let timestamp = 1570435529;
+        context
+            .ctx
+            .sql
+            .execute(
+                "INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)",
+                paramsv!["Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp],
+            )
+            .await
+            .expect("Failed to write to the database");
+        assert_eq!(
+            mimeparser.get_parent_timestamp(&context.ctx).await.unwrap(),
+            Some(timestamp)
+        );
     }
 
     #[async_std::test]
@@ -2023,5 +2107,14 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         let test = parse_message_ids("  < ").unwrap();
         assert!(test.is_empty());
+    }
+
+    #[test]
+    fn test_mime_parse_format_flowed() {
+        let mime_type = "text/plain; charset=utf-8; Format=Flowed; DelSp=No"
+            .parse::<mime::Mime>()
+            .unwrap();
+        let format_param = mime_type.get_param("format").unwrap();
+        assert_eq!(format_param.as_str().to_ascii_lowercase(), "flowed");
     }
 }

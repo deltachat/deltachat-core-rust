@@ -355,7 +355,6 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::SmtpMessageSent(_)
         | EventType::ImapMessageDeleted(_)
         | EventType::ImapMessageMoved(_)
-        | EventType::ImapFolderEmptied(_)
         | EventType::NewBlobFile(_)
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
@@ -373,7 +372,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
             let id = id.unwrap_or_default();
             id as libc::c_int
         }
-        EventType::ConfigureProgress(progress) | EventType::ImexProgress(progress) => {
+        EventType::ConfigureProgress { progress, .. } | EventType::ImexProgress(progress) => {
             *progress as libc::c_int
         }
         EventType::ImexFileWritten(_) => 0,
@@ -398,7 +397,6 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::SmtpMessageSent(_)
         | EventType::ImapMessageDeleted(_)
         | EventType::ImapMessageMoved(_)
-        | EventType::ImapFolderEmptied(_)
         | EventType::NewBlobFile(_)
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
@@ -407,7 +405,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ErrorSelfNotInGroup(_)
         | EventType::ContactsChanged(_)
         | EventType::LocationChanged(_)
-        | EventType::ConfigureProgress(_)
+        | EventType::ConfigureProgress { .. }
         | EventType::ImexProgress(_)
         | EventType::ImexFileWritten(_)
         | EventType::ChatModified(_) => 0,
@@ -438,7 +436,6 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SmtpMessageSent(msg)
         | EventType::ImapMessageDeleted(msg)
         | EventType::ImapMessageMoved(msg)
-        | EventType::ImapFolderEmptied(msg)
         | EventType::NewBlobFile(msg)
         | EventType::DeletedBlobFile(msg)
         | EventType::Warning(msg)
@@ -456,11 +453,17 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::ChatModified(_)
         | EventType::ContactsChanged(_)
         | EventType::LocationChanged(_)
-        | EventType::ConfigureProgress(_)
         | EventType::ImexProgress(_)
         | EventType::SecurejoinInviterProgress { .. }
         | EventType::SecurejoinJoinerProgress { .. }
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
+        EventType::ConfigureProgress { comment, .. } => {
+            if let Some(comment) = comment {
+                comment.to_c_string().unwrap_or_default().into_raw()
+            } else {
+                ptr::null_mut()
+            }
+        }
         EventType::ImexFileWritten(file) => {
             let data2 = file.to_c_string().unwrap_or_default();
             data2.into_raw()
@@ -1424,17 +1427,6 @@ pub unsafe extern "C" fn dc_delete_msgs(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_empty_server(context: *mut dc_context_t, flags: u32) {
-    if context.is_null() || flags == 0 {
-        eprintln!("ignoring careless call to dc_empty_server()");
-        return;
-    }
-    let ctx = &*context;
-
-    block_on(message::dc_empty_server(&ctx, flags))
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_forward_msgs(
     context: *mut dc_context_t,
     msg_ids: *const u32,
@@ -1891,8 +1883,13 @@ pub unsafe extern "C" fn dc_join_securejoin(
     }
     let ctx = &*context;
 
-    block_on(async move { securejoin::dc_join_securejoin(&ctx, &to_string_lossy(qr)).await })
-        .to_u32()
+    block_on(async move {
+        securejoin::dc_join_securejoin(&ctx, &to_string_lossy(qr))
+            .await
+            .map(|chatid| chatid.to_u32())
+            .log_err(ctx, "failed dc_join_securejoin() call")
+            .unwrap_or_default()
+    })
 }
 
 #[no_mangle]

@@ -9,17 +9,15 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use async_std::path::{Path, PathBuf};
+use async_std::prelude::*;
 use async_std::{fs, io};
+
 use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
 use crate::error::{bail, Error};
 use crate::events::EventType;
-
-pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
-    0 != v && 0 == v & (v - 1)
-}
 
 /// Shortens a string to a specified length and adds "[...]" to the
 /// end of the shortened string.
@@ -296,6 +294,23 @@ pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) ->
     }
 }
 
+pub async fn dc_delete_files_in_dir(context: &Context, path: impl AsRef<Path>) {
+    match async_std::fs::read_dir(path).await {
+        Ok(mut read_dir) => {
+            while let Some(entry) = read_dir.next().await {
+                match entry {
+                    Ok(file) => {
+                        dc_delete_file(context, file.file_name()).await;
+                    }
+                    Err(e) => warn!(context, "Could not read file to delete: {}", e),
+                }
+            }
+        }
+
+        Err(e) => warn!(context, "Could not read dir to delete: {}", e),
+    }
+}
+
 pub(crate) async fn dc_copy_file(
     context: &Context,
     src_path: impl AsRef<Path>,
@@ -450,7 +465,7 @@ pub fn dc_open_file_std<P: AsRef<std::path::Path>>(
     }
 }
 
-pub(crate) async fn dc_get_next_backup_path(
+pub(crate) async fn get_next_backup_path_old(
     folder: impl AsRef<Path>,
     backup_time: i64,
 ) -> Result<PathBuf, Error> {
@@ -465,6 +480,32 @@ pub(crate) async fn dc_get_next_backup_path(
         path.push(format!("{}-{}.bak", stem, i));
         if !path.exists().await {
             return Ok(path);
+        }
+    }
+    bail!("could not create backup file, disk full?");
+}
+
+/// Returns Ok((temp_path, dest_path)) on success. The backup can then be written to temp_path. If the backup succeeded,
+/// it can be renamed to dest_path. This guarantees that the backup is complete.
+pub(crate) async fn get_next_backup_path_new(
+    folder: impl AsRef<Path>,
+    backup_time: i64,
+) -> Result<(PathBuf, PathBuf), Error> {
+    let folder = PathBuf::from(folder.as_ref());
+    let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
+        .format("delta-chat-backup-%Y-%m-%d")
+        .to_string();
+
+    // 64 backup files per day should be enough for everyone
+    for i in 0..64 {
+        let mut tempfile = folder.clone();
+        tempfile.push(format!("{}-{:02}.tar.part", stem, i));
+
+        let mut destfile = folder.clone();
+        destfile.push(format!("{}-{:02}.tar", stem, i));
+
+        if !tempfile.exists().await && !destfile.exists().await {
+            return Ok((tempfile, destfile));
         }
     }
     bail!("could not create backup file, disk full?");
@@ -586,8 +627,20 @@ pub(crate) fn listflags_has(listflags: u32, bitindex: usize) -> bool {
     (listflags & bitindex) == bitindex
 }
 
+/// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
+pub(crate) fn improve_single_line_input(input: impl AsRef<str>) -> String {
+    input
+        .as_ref()
+        .replace("\n", " ")
+        .replace("\r", " ")
+        .trim()
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)]
+
     use super::*;
     use std::convert::TryInto;
 
@@ -933,5 +986,11 @@ mod tests {
         let (w, h) = dc_get_filemeta(data).unwrap();
         assert_eq!(w, 100);
         assert_eq!(h, 50);
+    }
+
+    #[test]
+    fn test_improve_single_line_input() {
+        assert_eq!(improve_single_line_input("Hi\naiae "), "Hi aiae");
+        assert_eq!(improve_single_line_input("\r\nahte\n\r"), "ahte");
     }
 }

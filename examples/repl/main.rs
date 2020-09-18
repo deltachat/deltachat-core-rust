@@ -80,11 +80,21 @@ fn receive_event(event: EventType) {
                 yellow.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
             );
         }
-        EventType::ConfigureProgress(progress) => {
-            info!(
-                "{}",
-                yellow.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
-            );
+        EventType::ConfigureProgress { progress, comment } => {
+            if let Some(comment) = comment {
+                info!(
+                    "{}",
+                    yellow.paint(format!(
+                        "Received CONFIGURE_PROGRESS({} ‰, {})",
+                        progress, comment
+                    ))
+                );
+            } else {
+                info!(
+                    "{}",
+                    yellow.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
+                );
+            }
         }
         EventType::ImexProgress(progress) => {
             info!(
@@ -410,7 +420,7 @@ async fn handle_cmd(
         "joinqr" => {
             ctx.start_io().await;
             if !arg0.is_empty() {
-                dc_join_securejoin(&ctx, arg1).await;
+                dc_join_securejoin(&ctx, arg1).await?;
             }
         }
         "exit" | "quit" => return Ok(ExitResult::Exit),

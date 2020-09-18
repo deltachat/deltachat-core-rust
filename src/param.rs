@@ -40,9 +40,11 @@ pub enum Param {
     /// 'c' nor 'e' are preset, the messages is only transport encrypted.
     ErroneousE2ee = b'e',
 
-    /// For Messages: force unencrypted message, either `ForcePlaintext::AddAutocryptHeader` (1),
-    /// `ForcePlaintext::NoAutocryptHeader` (2) or 0.
+    /// For Messages: force unencrypted message, a value from `ForcePlaintext` enum.
     ForcePlaintext = b'u',
+
+    /// For Messages: do not include Autocrypt header.
+    SkipAutocrypt = b'o',
 
     /// For Messages
     WantsMdn = b'r',
@@ -95,6 +97,12 @@ pub enum Param {
     Recipients = b'R',
 
     /// For Groups
+    ///
+    /// An unpromoted group has not had any messages sent to it and thus only exists on the
+    /// creator's device.  Any changes made to an unpromoted group do not need to send
+    /// system messages to the group members to update them of the changes.  Once a message
+    /// has been sent to a group it is promoted and group changes require sending system
+    /// messages to all members.
     Unpromoted = b'U',
 
     /// For Groups and Contacts
@@ -120,14 +128,6 @@ pub enum Param {
 
     /// For MDN-sending job
     MsgId = b'I',
-}
-
-/// Possible values for `Param::ForcePlaintext`.
-#[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive)]
-#[repr(u8)]
-pub enum ForcePlaintext {
-    AddAutocryptHeader = 1,
-    NoAutocryptHeader = 2,
 }
 
 /// An object for handling key=value parameter lists.
@@ -469,8 +469,8 @@ mod tests {
         );
 
         // Blob in blobdir, expect blob.
-        let bar = t.ctx.get_blobdir().join("bar");
-        p.set(Param::File, bar.to_str().unwrap());
+        let bar_path = t.ctx.get_blobdir().join("bar");
+        p.set(Param::File, bar_path.to_str().unwrap());
         let blob = p
             .get_blob(Param::File, &t.ctx, false)
             .await

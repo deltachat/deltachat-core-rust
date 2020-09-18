@@ -20,6 +20,7 @@ use crate::message::{MessageState, MsgId};
 use crate::mimeparser::AvatarAction;
 use crate::param::*;
 use crate::peerstate::*;
+use crate::provider::Socket;
 use crate::stock::StockMessage;
 
 /// An object representing a single contact in memory.
@@ -235,6 +236,7 @@ impl Contact {
         name: impl AsRef<str>,
         addr: impl AsRef<str>,
     ) -> Result<u32> {
+        let name = improve_single_line_input(name);
         ensure!(
             !addr.as_ref().is_empty(),
             "Cannot create contact with empty address"
@@ -728,8 +730,8 @@ impl Contact {
                     );
                     cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
                 }
-            } else if 0 == loginparam.server_flags & DC_LP_IMAP_SOCKET_PLAIN as i32
-                && 0 == loginparam.server_flags & DC_LP_SMTP_SOCKET_PLAIN as i32
+            } else if loginparam.imap.security != Socket::Plain
+                && loginparam.smtp.security != Socket::Plain
             {
                 ret += &context.stock_str(StockMessage::EncrTransp).await;
             } else {

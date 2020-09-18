@@ -375,6 +375,16 @@ impl ChatId {
     }
 
     pub async fn get_fresh_msg_cnt(self, context: &Context) -> usize {
+        // this function is typically used to show a badge counter beside _each_ chatlist item.
+        // to make this as fast as possible, esp. on older devices, we added an combined index over the rows used for querying.
+        // so if you alter the query here, you may want to alter the index over `(state, hidden, chat_id)` in `sql.rs`.
+        //
+        // the impact of the index is significant once the database grows:
+        // - on an older android4 with 18k messages, query-time decreased from 110ms to 2ms
+        // - on an mid-class moto-g or iphone7 with 50k messages, query-time decreased from 26ms or 6ms to 0-1ms
+        // the times are average, no matter if there are fresh messages or not -
+        // and have to be multiplied by the number of items shown at once on the chatlist,
+        // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
         context
             .sql
             .query_get_value::<i32>(
@@ -832,7 +842,11 @@ impl Chat {
             /* check if we want to encrypt this message.  If yes and circumstances change
             so that E2EE is no longer available at a later point (reset, changed settings),
             we might not send the message out at all */
-            if msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0 {
+            if !msg
+                .param
+                .get_bool(Param::ForcePlaintext)
+                .unwrap_or_default()
+            {
                 let mut can_encrypt = true;
                 let mut all_mutual = context.get_config_bool(Config::E2eeEnabled).await;
 
@@ -1156,7 +1170,7 @@ pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId
 }
 
 /// Create a normal chat with a single user.  To create group chats,
-/// see dc_create_group_chat().
+/// see [Chat::create_group_chat].
 ///
 /// If a chat already exists, this ID is returned, otherwise a new chat is created;
 /// this new chat may already contain messages, eg. from the deaddrop, to get the
@@ -1408,7 +1422,9 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Er
                 message::guess_msgtype_from_suffix(&blob.to_abs_path())
             {
                 msg.viewtype = better_type;
-                msg.param.set(Param::MimeType, better_mime);
+                if !msg.param.exists(Param::MimeType) {
+                    msg.param.set(Param::MimeType, better_mime);
+                }
             }
         } else if !msg.param.exists(Param::MimeType) {
             if let Some((_, mime)) = message::guess_msgtype_from_suffix(&blob.to_abs_path()) {
@@ -1629,13 +1645,7 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
         bail!("webrtc_instance not set");
     };
 
-    let room = dc_create_id();
-
-    let instance = if instance.contains("$ROOM") {
-        instance.replace("$ROOM", &room)
-    } else {
-        format!("{}{}", instance, room)
-    };
+    let instance = Message::create_webrtc_instance(&instance, &dc_create_id());
 
     let mut msg = Message::new(Viewtype::VideochatInvitation);
     msg.param.set(Param::WebrtcRoom, &instance);
@@ -1958,7 +1968,8 @@ pub async fn create_group_chat(
     verified: VerifiedStatus,
     chat_name: impl AsRef<str>,
 ) -> Result<ChatId, Error> {
-    ensure!(!chat_name.as_ref().is_empty(), "Invalid chat name");
+    let chat_name = improve_single_line_input(chat_name);
+    ensure!(!chat_name.is_empty(), "Invalid chat name");
 
     let draft_txt = context
         .stock_string_repl_str(StockMessage::NewGroupDraft, &chat_name)
@@ -1973,7 +1984,7 @@ pub async fn create_group_chat(
             } else {
                 Chattype::Group
             },
-            chat_name.as_ref().to_string(),
+            chat_name,
             grpid,
             time(),
         ],
@@ -2438,17 +2449,18 @@ pub async fn set_chat_name(
     chat_id: ChatId,
     new_name: impl AsRef<str>,
 ) -> Result<(), Error> {
+    let new_name = improve_single_line_input(new_name);
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success = false;
 
-    ensure!(!new_name.as_ref().is_empty(), "Invalid name");
+    ensure!(!new_name.is_empty(), "Invalid name");
     ensure!(!chat_id.is_special(), "Invalid chat ID");
 
     let chat = Chat::load_from_db(context, chat_id).await?;
     let mut msg = Message::default();
 
     if real_group_exists(context, chat_id).await {
-        if chat.name == new_name.as_ref() {
+        if chat.name == new_name {
             success = true;
         } else if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
             emit_event!(
@@ -2461,7 +2473,7 @@ pub async fn set_chat_name(
                 .sql
                 .execute(
                     "UPDATE chats SET name=? WHERE id=?;",
-                    paramsv![new_name.as_ref().to_string(), chat_id],
+                    paramsv![new_name.to_string(), chat_id],
                 )
                 .await
                 .is_ok()
@@ -2473,7 +2485,7 @@ pub async fn set_chat_name(
                             .stock_system_msg(
                                 StockMessage::MsgGrpName,
                                 &chat.name,
-                                new_name.as_ref(),
+                                &new_name,
                                 DC_CONTACT_ID_SELF,
                             )
                             .await,
@@ -2689,6 +2701,7 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> usize {
     }
 }
 
+/// Returns a tuple of `(chatid, is_verified, blocked)`.
 pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,

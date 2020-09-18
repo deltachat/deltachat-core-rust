@@ -3,7 +3,6 @@ use mailparse::{MailHeader, MailHeaderMap};
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, EnumVariantNames, AsStaticStr)]
 #[strum(serialize_all = "kebab_case")]
-#[allow(dead_code)]
 pub enum HeaderDef {
     MessageId,
     Subject,

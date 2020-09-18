@@ -1,5 +1,78 @@
 # Changelog 
 
+## 1.46.0
+
+- breaking change: `dc_configure()` report errors in
+  `DC_EVENT_CONFIGURE_PROGRESS`: capturing error events is no longer working
+  #1886 #1905
+
+- breaking change: removed `DC_LP_{IMAP|SMTP}_SOCKET*` from `server_flags`;
+  added `mail_security` and `send_security` using `DC_SOCKET` enum #1835
+
+- parse multiple servers in Mozilla autoconfig #1860
+
+- try multiple servers for each protocol #1871
+
+- do IMAP and SMTP configuration in parallel #1891
+
+- configuration cleanup and speedup #1858 #1875 #1889 #1904 #1906
+
+- secure-join cleanup, testing, fixing #1876 #1877 #1887 #1888 #1896 #1899 #1900
+
+- do not reset peerstate on encrypted messages,
+  ignore reordered autocrypt headers #1885 #1890
+
+- always sort message replies after parent message #1852
+
+- add an index to significantly speed up `get_fresh_msg_cnt()` #1881
+
+- improve mimetype guessing for PDF and many other formats #1857 #1861
+
+- improve accepting invalid html #1851
+
+- improve tests, cleanup and ci #1850 #1856 #1859 #1861 #1884 #1894 #1895
+
+- tweak HELO command #1908
+
+- make `dc_accounts_get_all()` return accounts sorted #1909
+
+- fix KML coordinates precision used for location streaming #1872
+
+- fix cancelling import/export #1855
+
+
+## 1.45.0
+
+- add `dc_accounts_t` account manager object and related api functions #1784
+
+- add capability to import backups as .tar files,
+  which will become the default in a subsequent release #1749
+
+- try various server domains on configuration #1780 #1838
+
+- recognize .tgs files as stickers #1826
+
+- remove X-Mailer debug header #1819
+
+- improve guessing message types from extension #1818
+
+- fix showing unprotected subjects in encrypted messages #1822
+
+- fix threading in interaction with non-delta-clients #1843
+
+- fix handling if encryption degrades #1829
+
+- fix webrtc-servers names set by the user #1831
+
+- update provider database #1828
+
+- update async-imap to fix Oauth2 #1837
+
+- optimize jpeg assets with trimage #1840
+
+- add tests and documentations #1809 #1820
+
+
 ## 1.44.0
 
 - fix peerstate issues #1800 #1805

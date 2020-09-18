@@ -111,7 +111,7 @@ pub async fn dc_receive_imf(
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see
     // https://github.com/deltachat/deltachat-core/issues/150)
-    let (from_id, from_id_blocked, incoming_origin) =
+    let (from_id, _from_id_blocked, incoming_origin) =
         from_field_to_contact_id(context, &mime_parser.from).await?;
 
     let incoming = from_id != DC_CONTACT_ID_SELF;
@@ -162,7 +162,6 @@ pub async fn dc_receive_imf(
             &rfc724_mid,
             &mut sent_timestamp,
             from_id,
-            from_id_blocked,
             &mut hidden,
             &mut chat_id,
             seen,
@@ -329,7 +328,6 @@ async fn add_parts(
     rfc724_mid: &str,
     sent_timestamp: &mut i64,
     from_id: u32,
-    from_id_blocked: bool,
     hidden: &mut bool,
     chat_id: &mut ChatId,
     seen: bool,
@@ -418,8 +416,6 @@ async fn add_parts(
                 }
                 Err(err) => {
                     *hidden = true;
-
-                    context.bob.write().await.status = 0; // secure-join failed
                     context.stop_ongoing().await;
                     warn!(context, "Error in Secure-Join message handling: {}", err);
                     return Ok(());
@@ -432,6 +428,8 @@ async fn add_parts(
                 .await
                 .unwrap_or_default();
 
+        // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
+        // it might also be blocked and displayed in the deaddrop as a result
         if chat_id.is_unset() && mime_parser.failure_report.is_some() {
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
             info!(
@@ -440,11 +438,8 @@ async fn add_parts(
             );
         }
 
-        // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
-        // it might also be blocked and displayed in the deaddrop as a result
         if chat_id.is_unset() {
             // try to create a group
-            // (groups appear automatically only if the _sender_ is known, see core issue #54)
 
             let create_blocked =
                 if !test_normal_chat_id.is_unset() && test_normal_chat_id_blocked == Blocked::Not {
@@ -701,6 +696,20 @@ async fn add_parts(
     let in_fresh = state == MessageState::InFresh;
     let rcvd_timestamp = time();
     let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, *chat_id, in_fresh).await;
+
+    // Ensure replies to messages are sorted after the parent message.
+    //
+    // This is useful in a case where sender clocks are not
+    // synchronized and parent message has a Date: header with a
+    // timestamp higher than reply timestamp.
+    //
+    // This does not help if parent message arrives later than the
+    // reply.
+    let parent_timestamp = mime_parser.get_parent_timestamp(context).await?;
+    let sort_timestamp = parent_timestamp.map_or(sort_timestamp, |parent_timestamp| {
+        std::cmp::max(sort_timestamp, parent_timestamp)
+    });
+
     *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // unarchive chat
@@ -840,9 +849,7 @@ async fn add_parts(
     if chat_id.is_trash() || *hidden {
         *create_event_to_send = None;
     } else if incoming && state == MessageState::InFresh {
-        if from_id_blocked {
-            *create_event_to_send = None;
-        } else if Blocked::Not != chat_id_blocked {
+        if Blocked::Not != chat_id_blocked {
             *create_event_to_send = Some(CreateEvent::MsgsChanged);
         } else {
             *create_event_to_send = Some(CreateEvent::IncomingMsg);
@@ -2202,7 +2209,7 @@ mod tests {
         } else {
             panic!("Wrong item type");
         };
-        let msg = message::Message::load_from_db(&t.ctx, msg_id.clone())
+        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
             .await
             .unwrap();
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -2253,7 +2260,7 @@ mod tests {
             chat::get_chat_msgs(&t.ctx, group_id, 0, None).await.len(),
             1
         );
-        let msg = message::Message::load_from_db(&t.ctx, msg_id.clone())
+        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
             .await
             .unwrap();
         assert_eq!(msg.state, MessageState::OutMdnRcvd);
@@ -2341,7 +2348,7 @@ mod tests {
         } else {
             panic!("Wrong item type");
         };
-        let msg = message::Message::load_from_db(&t.ctx, msg_id.clone())
+        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
             .await
             .unwrap();
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -2622,5 +2629,27 @@ mod tests {
             )
         );
         assert_eq!(last_msg.from_id, DC_CONTACT_ID_INFO);
+    }
+
+    #[async_std::test]
+    async fn test_html_only_mail() {
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+        dc_receive_imf(
+            &t.ctx,
+            include_bytes!("../test-data/message/wrong-html.eml"),
+            "INBOX",
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+        assert_eq!(msg.text.unwrap(), "   Guten Abend,   \n\n   Lots of text   \n\n   text with Umlaut ä...   \n\n   MfG    [...]");
     }
 }

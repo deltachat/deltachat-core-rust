@@ -1,6 +1,6 @@
 [package]
 name = "deltachat"
-version = "1.44.0"
+version = "1.46.0"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2018"
 license = "MPL-2.0"
@@ -20,10 +20,10 @@ smallvec = "1.0.0"
 surf = { version = "2.0.0-alpha.4", default-features = false, features = ["h1-client"] }
 num-derive = "0.3.0"
 num-traits = "0.2.6"
-async-smtp = "0.3"
+async-smtp = { git = "https://github.com/async-email/async-smtp", rev="2275fd8d13e39b2c58d6605c786ff06ff9e05708" }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
-async-imap = "0.3.1"
+async-imap = "0.4.0"
 async-native-tls = { version = "0.3.3" }
 async-std = { version = "1.6.1", features = ["unstable"] }
 base64 = "0.12"
@@ -59,12 +59,14 @@ anyhow = "1.0.28"
 async-trait = "0.1.31"
 url = "2.1.1"
 async-std-resolver = "0.19.5"
+async-tar = "0.3.0"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 
 pretty_env_logger = { version = "0.4.0", optional = true }
 log = {version = "0.4.8", optional = true }
 rustyline = { version = "4.1.0", optional = true }
 ansi_term = { version = "0.12.1", optional = true }
+dirs = { version = "3.0.1", optional=true }
 toml = "0.5.6"
 
 
@@ -75,6 +77,7 @@ pretty_env_logger = "0.4.0"
 proptest = "0.10"
 async-std = { version = "1.6.0", features = ["unstable", "attributes"] }
 smol = "0.1.10"
+criterion = "0.3"
 
 [workspace]
 members = [
@@ -93,10 +96,14 @@ path = "examples/repl/main.rs"
 required-features = ["repl"]
 
 
+[[bench]]
+name = "create_account"
+harness = false
+
 [features]
 default = []
 internals = []
-repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term"]
+repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term", "dirs"]
 vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored"]
 nightly = ["pgp/nightly"]
 

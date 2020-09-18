@@ -25,7 +25,19 @@ enum AddText {
 // dehtml() returns way too many newlines; however, an optimisation on this issue is not needed as
 // the newlines are typically removed in further processing by the caller
 pub fn dehtml(buf: &str) -> String {
-    let buf = buf.trim();
+    let s = dehtml_quick_xml(buf);
+    if !s.trim().is_empty() {
+        return s;
+    }
+    let s = dehtml_manually(buf);
+    if !s.trim().is_empty() {
+        return s;
+    }
+    buf.to_string()
+}
+
+pub fn dehtml_quick_xml(buf: &str) -> String {
+    let buf = buf.trim().trim_start_matches("<!doctype html>");
 
     let mut dehtml = Dehtml {
         strbuilder: String::with_capacity(buf.len()),
@@ -171,9 +183,28 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
     }
 }
 
+pub fn dehtml_manually(buf: &str) -> String {
+    // Just strip out everything between "<" and ">"
+    let mut strbuilder = String::new();
+    let mut show_next_chars = true;
+    for c in buf.chars() {
+        match c {
+            '<' => show_next_chars = false,
+            '>' => show_next_chars = true,
+            _ => {
+                if show_next_chars {
+                    strbuilder.push(c)
+                }
+            }
+        }
+    }
+    strbuilder
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::simplify::simplify;
 
     #[test]
     fn test_dehtml() {
@@ -182,20 +213,23 @@ mod tests {
                 "<a href='https://example.com'> Foo </a>",
                 "[ Foo ](https://example.com)",
             ),
-            ("<img href='/foo.png'>", ""),
             ("<b> bar </b>", "* bar *"),
             ("<b> bar <i> foo", "* bar _ foo"),
             ("&amp; bar", "& bar"),
-            // Note missing '
-            ("<a href='/foo.png>Hi</a> ", ""),
+            // Despite missing ', this should be shown:
+            ("<a href='/foo.png>Hi</a> ", "Hi "),
             (
                 "<a href='https://get.delta.chat/'/>",
                 "[](https://get.delta.chat/)",
             ),
             ("", ""),
+            ("<!doctype html>\n<b>fat text</b>", "*fat text*"),
+            // Invalid html (at least DC should show the text if the html is invalid):
+            ("<!some invalid html code>\n<b>some text</b>", "some text"),
+            ("<This text is in brackets>", "<This text is in brackets>"),
         ];
         for (input, output) in cases {
-            assert_eq!(dehtml(input), output);
+            assert_eq!(simplify(dehtml(input), true).0, output);
         }
     }
 

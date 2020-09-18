@@ -1,3 +1,5 @@
+extern crate dirs;
+
 use std::str::FromStr;
 
 use anyhow::{bail, ensure};
@@ -403,7 +405,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  event <event-id to test>\n\
                  fileinfo <file>\n\
                  estimatedeletion <seconds>\n\
-                 emptyserver <flags> (1=MVBOX 2=INBOX)\n\
                  clear -- clear screen\n\
                  exit or quit\n\
                  ============================================="
@@ -442,17 +443,21 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             has_backup(&context, blobdir).await?;
         }
         "export-backup" => {
-            imex(&context, ImexMode::ExportBackup, Some(blobdir)).await?;
+            let dir = dirs::home_dir().unwrap_or_default();
+            imex(&context, ImexMode::ExportBackup, Some(&dir)).await?;
+            println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
             imex(&context, ImexMode::ImportBackup, Some(arg1)).await?;
         }
         "export-keys" => {
-            imex(&context, ImexMode::ExportSelfKeys, Some(blobdir)).await?;
+            let dir = dirs::home_dir().unwrap_or_default();
+            imex(&context, ImexMode::ExportSelfKeys, Some(&dir)).await?;
+            println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-keys" => {
-            imex(&context, ImexMode::ImportSelfKeys, Some(blobdir)).await?;
+            imex(&context, ImexMode::ImportSelfKeys, Some(arg1)).await?;
         }
         "export-setup" => {
             let setup_code = create_setup_code(&context);
@@ -1085,11 +1090,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 "estimated count of messages older than {} seconds:\non device: {}\non server: {}",
                 seconds, device_cnt, server_cnt
             );
-        }
-        "emptyserver" => {
-            ensure!(!arg1.is_empty(), "Argument <flags> missing");
-
-            message::dc_empty_server(&context, arg1.parse()?).await;
         }
         "" => (),
         _ => bail!("Unknown command: \"{}\" type ? for help.", arg0),

@@ -274,10 +274,12 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `mail_user`    = IMAP-username, guessed if left out
  * - `mail_pw`      = IMAP-password (always needed)
  * - `mail_port`    = IMAP-port, guessed if left out
+ * - `mail_security`= IMAP-socket, one of @ref DC_SOCKET, defaults to #DC_SOCKET_AUTO
  * - `send_server`  = SMTP-server, guessed if left out
  * - `send_user`    = SMTP-user, guessed if left out
  * - `send_pw`      = SMTP-password, guessed if left out
  * - `send_port`    = SMTP-port, guessed if left out
+ * - `send_security`= SMTP-socket, one of @ref DC_SOCKET, defaults to #DC_SOCKET_AUTO
  * - `server_flags` = IMAP-/SMTP-flags as a combination of @ref DC_LP flags, guessed if left out
  * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
@@ -1490,17 +1492,6 @@ char*           dc_get_mime_headers          (dc_context_t* context, uint32_t ms
  */
 void            dc_delete_msgs               (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt);
 
-/*
- * Empty IMAP server folder: delete all messages.
- * Deprecated, use dc_set_config() with the key "delete_server_after" instead.
- *
- * @memberof dc_context_t
- * @param context The context object.
- * @param flags What to delete, a combination of the @ref DC_EMPTY flags
- * @return None.
- */
-void            dc_empty_server              (dc_context_t* context, uint32_t flags);
-
 
 /**
  * Forward messages to another chat.
@@ -1773,8 +1764,8 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  * - **DC_IMEX_EXPORT_BACKUP** (11) - Export a backup to the directory given as `param1`.
  *   The backup contains all contacts, chats, images and other data and device independent settings.
  *   The backup does not contain device dependent settings as ringtones or LED notification settings.
- *   The name of the backup is typically `delta-chat.<day>.bak`, if more than one backup is create on a day,
- *   the format is `delta-chat.<day>-<number>.bak`
+ *   The name of the backup is typically `delta-chat-<day>.tar`, if more than one backup is create on a day,
+ *   the format is `delta-chat-<day>-<number>.tar`
  *
  * - **DC_IMEX_IMPORT_BACKUP** (12) - `param1` is the file (not: directory) to import. The file is normally
  *   created by DC_IMEX_EXPORT_BACKUP and detected by dc_imex_has_backup(). Importing a backup
@@ -2369,7 +2360,7 @@ dc_context_t*  dc_accounts_get_account          (dc_accounts_t* accounts, uint32
 
 /**
  * Get the currently selected account.
- * If there is at least once account in the account-manager,
+ * If there is at least one account in the account-manager,
  * there is always a selected one.
  * To change the selected account, use dc_accounts_select_account();
  * also adding/importing/migrating accounts may change the selection.
@@ -4167,6 +4158,44 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 #define DC_MSG_VIDEOCHAT_INVITATION 70
 
+/**
+ * @}
+ */
+
+
+/**
+ * @defgroup DC_SOCKET DC_SOCKET
+ *
+ * These constants configure socket security.
+ * To set socket security, use dc_set_config() with the keys "mail_security" and/or "send_security".
+ * If no socket-configuration is explicitly specified, #DC_SOCKET_AUTO is used.
+ *
+ * @addtogroup DC_SOCKET
+ * @{
+ */
+
+/**
+ * Choose socket security automatically.
+ */
+#define DC_SOCKET_AUTO 0
+
+
+/**
+ * Connect via SSL/TLS.
+ */
+#define DC_SOCKET_SSL 1
+
+
+/**
+ * Connect via STARTTLS.
+ */
+#define DC_SOCKET_STARTTLS 2
+
+
+/**
+ * Connect unencrypted, this should not be used.
+ */
+#define DC_SOCKET_PLAIN 3
 
 /**
  * @}
@@ -4202,53 +4231,10 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
- * Connect to IMAP via STARTTLS.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_IMAP_SOCKET_STARTTLS     0x100
-
-
-/**
- * Connect to IMAP via SSL.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_IMAP_SOCKET_SSL          0x200
-
-
-/**
- * Connect to IMAP unencrypted, this should not be used.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_IMAP_SOCKET_PLAIN        0x400
-
-
-/**
- * Connect to SMTP via STARTTLS.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_SMTP_SOCKET_STARTTLS   0x10000
-
-
-/**
- * Connect to SMTP via SSL.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_SMTP_SOCKET_SSL        0x20000
-
-
-/**
- * Connect to SMTP unencrypted, this should not be used.
- * If this flag is set, automatic configuration is skipped.
- */
-#define DC_LP_SMTP_SOCKET_PLAIN      0x40000 ///<
-
-/**
  * @}
  */
 
 #define DC_LP_AUTH_FLAGS        (DC_LP_AUTH_OAUTH2|DC_LP_AUTH_NORMAL) // if none of these flags are set, the default is chosen
-#define DC_LP_IMAP_SOCKET_FLAGS (DC_LP_IMAP_SOCKET_STARTTLS|DC_LP_IMAP_SOCKET_SSL|DC_LP_IMAP_SOCKET_PLAIN) // if none of these flags are set, the default is chosen
-#define DC_LP_SMTP_SOCKET_FLAGS (DC_LP_SMTP_SOCKET_STARTTLS|DC_LP_SMTP_SOCKET_SSL|DC_LP_SMTP_SOCKET_PLAIN) // if none of these flags are set, the default is chosen
 
 /**
  * @defgroup DC_CERTCK DC_CERTCK
@@ -4282,10 +4268,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 /**
  * @}
  */
-
-
-#define DC_EMPTY_MVBOX 0x01 // Deprecated, flag for dc_empty_server(): Clear all mvbox messages
-#define DC_EMPTY_INBOX 0x02 // Deprecated, flag for dc_empty_server(): Clear all INBOX messages
 
 
 /**
@@ -4510,14 +4492,6 @@ void dc_event_unref(dc_event_t* event);
 #define DC_EVENT_IMAP_MESSAGE_MOVED   105
 
 /**
- * Emitted when an IMAP folder was emptied.
- *
- * @param data1 0
- * @param data2 (char*) Folder name.
- */
-#define DC_EVENT_IMAP_FOLDER_EMPTIED  106
-
-/**
  * Emitted when a new blob file was successfully written
  *
  * @param data1 0
@@ -4695,7 +4669,7 @@ void dc_event_unref(dc_event_t* event);
  * Inform about the configuration progress started by dc_configure().
  *
  * @param data1 (int) 0=error, 1-999=progress in permille, 1000=success and done
- * @param data2 0
+ * @param data2 (char*) progress comment, error message or NULL if not applicable
  */
 #define DC_EVENT_CONFIGURE_PROGRESS       2041
 
@@ -4758,18 +4732,8 @@ void dc_event_unref(dc_event_t* event);
  */
 
 
-#define DC_EVENT_FILE_COPIED         2055 // not used anymore
-#define DC_EVENT_IS_OFFLINE          2081 // not used anymore
-#define DC_EVENT_GET_STRING          2091 // not used anymore, use dc_set_stock_translation()
-#define DC_ERROR_SEE_STRING          0    // not used anymore
-#define DC_ERROR_SELF_NOT_IN_GROUP   1    // not used anymore
-#define DC_STR_SELFNOTINGRP          21   // not used anymore
 #define DC_EVENT_DATA1_IS_STRING(e)  0    // not used anymore 
-#define DC_EVENT_DATA2_IS_STRING(e)  ((e)==DC_EVENT_IMEX_FILE_WRITTEN || ((e)>=100 && (e)<=499))
-#define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE) // not used anymore
-#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING) // not used anymore
-#define dc_archive_chat(a,b,c)  dc_set_chat_visibility((a), (b), (c)? 1 : 0) // not used anymore
-#define dc_chat_get_archived(a) (dc_chat_get_visibility((a))==1? 1 : 0)      // not used anymore
+#define DC_EVENT_DATA2_IS_STRING(e)  ((e)==DC_EVENT_CONFIGURE_PROGRESS || (e)==DC_EVENT_IMEX_FILE_WRITTEN || ((e)>=100 && (e)<=499))
 
 
 /*
@@ -4960,8 +4924,9 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_EPHEMERAL_FOUR_WEEKS       81
 #define DC_STR_VIDEOCHAT_INVITATION       82
 #define DC_STR_VIDEOCHAT_INVITE_MSG_BODY  83
+#define DC_STR_CONFIGURATION_FAILED       84
 
-#define DC_STR_COUNT                      83
+#define DC_STR_COUNT                      84
 
 /*
  * @}

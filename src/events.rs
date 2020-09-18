@@ -119,15 +119,11 @@ pub enum EventType {
     #[strum(props(id = "105"))]
     ImapMessageMoved(String),
 
-    /// Emitted when an IMAP folder was emptied
-    #[strum(props(id = "106"))]
-    ImapFolderEmptied(String),
-
     /// Emitted when an new file in the $BLOBDIR was created
     #[strum(props(id = "150"))]
     NewBlobFile(String),
 
-    /// Emitted when an new file in the $BLOBDIR was created
+    /// Emitted when an file in the $BLOBDIR was deleted
     #[strum(props(id = "151"))]
     DeletedBlobFile(String),
 
@@ -237,10 +233,16 @@ pub enum EventType {
     LocationChanged(Option<u32>),
 
     /// Inform about the configuration progress started by configure().
-    ///
-    /// @param data1 (usize) 0=error, 1-999=progress in permille, 1000=success and done
     #[strum(props(id = "2041"))]
-    ConfigureProgress(usize),
+    ConfigureProgress {
+        /// Progress.
+        ///
+        /// 0=error, 1-999=progress in permille, 1000=success and done
+        progress: usize,
+
+        /// Progress comment or error, something to display to the user.
+        comment: Option<String>,
+    },
 
     /// Inform about the import/export progress started by imex().
     ///

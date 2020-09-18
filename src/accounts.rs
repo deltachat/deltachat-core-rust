@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context as TaskContext, Poll};
@@ -20,7 +20,7 @@ use crate::events::Event;
 pub struct Accounts {
     dir: PathBuf,
     config: Config,
-    accounts: Arc<RwLock<HashMap<u32, Context>>>,
+    accounts: Arc<RwLock<BTreeMap<u32, Context>>>,
 }
 
 impl Accounts {
@@ -342,9 +342,9 @@ impl Config {
         })
     }
 
-    pub async fn load_accounts(&self) -> Result<HashMap<u32, Context>> {
+    pub async fn load_accounts(&self) -> Result<BTreeMap<u32, Context>> {
         let cfg = &*self.inner.read().await;
-        let mut accounts = HashMap::with_capacity(cfg.accounts.len());
+        let mut accounts = BTreeMap::new();
         for account_config in &cfg.accounts {
             let ctx = Context::new(
                 cfg.os_name.clone(),
@@ -529,5 +529,24 @@ mod tests {
             "me@mail.com",
             ctx.get_config(crate::config::Config::Addr).await.unwrap()
         );
+    }
+
+    /// Tests that accounts are sorted by ID.
+    #[async_std::test]
+    async fn test_accounts_sorted() {
+        let dir = tempfile::tempdir().unwrap();
+        let p: PathBuf = dir.path().join("accounts").into();
+
+        let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+
+        for expected_id in 2..10 {
+            let id = accounts.add_account().await.unwrap();
+            assert_eq!(id, expected_id);
+        }
+
+        let ids = accounts.get_all().await;
+        for (i, expected_id) in (1..10).enumerate() {
+            assert_eq!(ids.get(i), Some(&expected_id));
+        }
     }
 }

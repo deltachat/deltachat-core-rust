@@ -819,18 +819,12 @@ class TestOnlineAccount:
         assert msg_in.text == "message2"
         assert msg_in.is_forwarded()
 
-    def test_send_self_message_and_empty_folder(self, acfactory, lp):
+    def test_send_self_message(self, acfactory, lp):
         ac1 = acfactory.get_one_online_account(mvbox=True, move=True)
         lp.sec("ac1: create self chat")
         chat = ac1.get_self_contact().create_chat()
         chat.send_text("hello")
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
-        ac1.empty_server_folders(inbox=True, mvbox=True)
-        ev1 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
-        ev2 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
-        boxes = [ev1.data2, ev2.data2]
-        boxes.remove("INBOX")
-        assert len(boxes) == 1 and boxes[0].endswith("DeltaChat")
 
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -986,7 +980,10 @@ class TestOnlineAccount:
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
         lp.sec("sending multi-line non-unicode message from ac1 to ac2")
-        text1 = "hello\nworld"
+        text1 = (
+            "hello\nworld\nthis is a very long message that should be"
+            + " wrapped using format=flowed and unwrapped on the receiver"
+        )
         msg_out = chat.send_text(text1)
         assert not msg_out.is_encrypted()
 
@@ -1402,6 +1399,46 @@ class TestOnlineAccount:
         assert ev.action == "removed"
         assert ev.message.get_sender_contact().addr == ac1_addr
 
+    def test_system_group_msg_from_blocked_user(self, acfactory, lp):
+        """
+        Tests that a blocked user removes you from a group.
+        The message has to be fetched even though the user is blocked
+        to avoid inconsistent group state.
+        Also tests blocking in general.
+        """
+        lp.sec("Create a group chat with ac1 and ac2")
+        (ac1, ac2) = acfactory.get_two_online_accounts()
+        acfactory.introduce_each_other((ac1, ac2))
+        chat_on_ac1 = ac1.create_group_chat("title", contacts=[ac2])
+        chat_on_ac1.send_text("First group message")
+        chat_on_ac2 = ac2._evtracker.wait_next_incoming_message().chat
+
+        lp.sec("ac1 blocks ac2")
+        contact = ac1.create_contact(ac2)
+        contact.set_blocked()
+        assert contact.is_blocked()
+
+        lp.sec("ac2 sends a message to ac1 that does not arrive because it is blocked")
+        ac2.create_chat(ac1).send_text("This will not arrive!")
+
+        lp.sec("ac2 sends a group message to ac1 that arrives")
+        # Groups would be hardly usable otherwise: If you have blocked some
+        # users, they write messages and you only see replies to them without context
+        chat_on_ac2.send_text("This will arrive")
+        msg = ac1._evtracker.wait_next_incoming_message()
+        assert msg.text == "This will arrive"
+        message_texts = [m.text for m in chat_on_ac1.get_messages()]
+        assert len(message_texts) == 2
+        assert "First group message" in message_texts
+        assert "This will arrive" in message_texts
+
+        lp.sec("ac2 removes ac1 from their group")
+        assert ac1.get_self_contact() in chat_on_ac1.get_contacts()
+        assert contact.is_blocked()
+        chat_on_ac2.remove_contact(ac1)
+        ac1._evtracker.get_matching("DC_EVENT_CHAT_MODIFIED")
+        assert not ac1.get_self_contact() in chat_on_ac1.get_contacts()
+
     def test_set_get_group_image(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
@@ -1690,6 +1727,46 @@ class TestOnlineAccount:
 
         assert len(imap2.get_all_messages()) == 1
 
+    def test_name_changes(self, acfactory):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1.set_config("displayname", "Account 1")
+
+        chat12 = acfactory.get_accepted_chat(ac1, ac2)
+        contact = None
+
+        def update_name():
+            """Send a message from ac1 to ac2 to update the name"""
+            nonlocal contact
+            chat12.send_text("Hello")
+            msg = ac2._evtracker.wait_next_incoming_message()
+            contact = msg.get_sender_contact()
+            return contact.name
+
+        assert update_name() == "Account 1"
+
+        ac1.set_config("displayname", "Account 1 revision 2")
+        assert update_name() == "Account 1 revision 2"
+
+        # Explicitly rename contact on ac2 to "Renamed"
+        ac2.create_contact(contact, name="Renamed")
+        assert contact.name == "Renamed"
+
+        # ac1 also renames itself into "Renamed"
+        assert update_name() == "Renamed"
+        ac1.set_config("displayname", "Renamed")
+        assert update_name() == "Renamed"
+
+        # Contact name was set to "Renamed" explicitly before,
+        # so it should not be changed.
+        ac1.set_config("displayname", "Renamed again")
+        updated_name = update_name()
+        if updated_name == "Renamed again":
+            # Known bug, mark as XFAIL
+            pytest.xfail("Contact was renamed after explicit rename")
+        else:
+            # No renames should happen after explicit rename
+            assert updated_name == "Renamed"
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
@@ -1815,8 +1892,7 @@ class TestOnlineConfigureFails:
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
-        ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
-        assert "cannot login" in ev.data2.lower()
+        ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
@@ -1824,8 +1900,7 @@ class TestOnlineConfigureFails:
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
-        ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
-        assert "cannot login" in ev.data2.lower()
+        ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
@@ -1833,5 +1908,4 @@ class TestOnlineConfigureFails:
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
-        ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
-        assert "could not connect" in ev.data2.lower()
+        ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")

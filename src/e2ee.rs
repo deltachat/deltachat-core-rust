@@ -135,41 +135,31 @@ pub async fn try_decrypt(
         .map(|from| from.addr)
         .unwrap_or_default();
 
-    let mut peerstate = None;
-    let autocryptheader = Aheader::from_headers(context, &from, &mail.headers);
+    let mut peerstate = Peerstate::from_addr(context, &from).await?;
 
-    if message_time > 0 {
-        peerstate = Peerstate::from_addr(context, &from).await?;
-
+    // Apply Autocrypt header
+    if let Some(ref header) = Aheader::from_headers(context, &from, &mail.headers) {
         if let Some(ref mut peerstate) = peerstate {
-            if let Some(ref header) = autocryptheader {
-                peerstate.apply_header(&header, message_time);
-                peerstate.save_to_db(&context.sql, false).await?;
-            } else if message_time > peerstate.last_seen_autocrypt && !contains_report(mail) {
-                peerstate.degrade_encryption(message_time);
-                peerstate.save_to_db(&context.sql, false).await?;
-            }
-        } else if let Some(ref header) = autocryptheader {
+            peerstate.apply_header(&header, message_time);
+            peerstate.save_to_db(&context.sql, false).await?;
+        } else {
             let p = Peerstate::from_header(context, header, message_time);
             p.save_to_db(&context.sql, true).await?;
             peerstate = Some(p);
         }
     }
 
-    /* possibly perform decryption */
+    // Possibly perform decryption
     let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context).await?;
     let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
     let mut signatures = HashSet::default();
 
-    if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-        peerstate = Peerstate::from_addr(&context, &from).await?;
-    }
-    if let Some(peerstate) = peerstate {
+    if let Some(ref mut peerstate) = peerstate {
         peerstate.handle_fingerprint_change(context).await?;
-        if let Some(key) = peerstate.public_key {
-            public_keyring_for_validate.add(key);
-        } else if let Some(key) = peerstate.gossip_key {
-            public_keyring_for_validate.add(key);
+        if let Some(key) = &peerstate.public_key {
+            public_keyring_for_validate.add(key.clone());
+        } else if let Some(key) = &peerstate.gossip_key {
+            public_keyring_for_validate.add(key.clone());
         }
     }
 
@@ -181,6 +171,18 @@ pub async fn try_decrypt(
         &mut signatures,
     )
     .await?;
+
+    if let Some(mut peerstate) = peerstate {
+        // If message is not encrypted and it is not a read receipt, degrade encryption.
+        if out_mail.is_none()
+            && message_time > peerstate.last_seen_autocrypt
+            && !contains_report(mail)
+        {
+            peerstate.degrade_encryption(message_time);
+            peerstate.save_to_db(&context.sql, false).await?;
+        }
+    }
+
     Ok((out_mail, signatures))
 }
 
@@ -319,6 +321,11 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
 mod tests {
     use super::*;
 
+    use crate::chat;
+    use crate::constants::Viewtype;
+    use crate::contact::{Contact, Origin};
+    use crate::message::Message;
+    use crate::param::Param;
     use crate::test_utils::*;
 
     mod ensure_secret_key_exists {
@@ -378,5 +385,107 @@ Sent with my Delta Chat Messenger: https://delta.chat";
 
         let data = b"blas";
         assert_eq!(has_decrypted_pgp_armor(data), false);
+    }
+
+    #[async_std::test]
+    async fn test_encrypted_no_autocrypt() -> crate::error::Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let (contact_alice_id, _modified) = Contact::add_or_lookup(
+            &bob.ctx,
+            "Alice",
+            "alice@example.com",
+            Origin::ManuallyCreated,
+        )
+        .await?;
+        let (contact_bob_id, _modified) = Contact::add_or_lookup(
+            &alice.ctx,
+            "Bob",
+            "bob@example.net",
+            Origin::ManuallyCreated,
+        )
+        .await?;
+
+        let chat_alice = chat::create_by_contact_id(&alice.ctx, contact_bob_id).await?;
+        let chat_bob = chat::create_by_contact_id(&bob.ctx, contact_alice_id).await?;
+
+        // Alice sends unencrypted message to Bob
+        let mut msg = Message::new(Viewtype::Text);
+        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        let sent = alice.pop_sent_msg().await;
+
+        // Bob receives unencrypted message from Alice
+        let msg = bob.parse_msg(&sent).await;
+        assert!(!msg.was_encrypted());
+
+        // Parsing a message is enough to update peerstate
+        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.com")
+            .await?
+            .expect("no peerstate found in the database");
+        assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Mutual);
+
+        // Bob sends encrypted message to Alice
+        let mut msg = Message::new(Viewtype::Text);
+        chat::prepare_msg(&bob.ctx, chat_bob, &mut msg).await?;
+        chat::send_msg(&bob.ctx, chat_bob, &mut msg).await?;
+        let sent = bob.pop_sent_msg().await;
+
+        // Alice receives encrypted message from Bob
+        let msg = alice.parse_msg(&sent).await;
+        assert!(msg.was_encrypted());
+
+        let peerstate_bob = Peerstate::from_addr(&alice.ctx, "bob@example.net")
+            .await?
+            .expect("no peerstate found in the database");
+        assert_eq!(peerstate_bob.prefer_encrypt, EncryptPreference::Mutual);
+
+        // Now Alice and Bob have established keys.
+
+        // Alice sends encrypted message without Autocrypt header.
+        let mut msg = Message::new(Viewtype::Text);
+        msg.param.set_int(Param::SkipAutocrypt, 1);
+        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        let sent = alice.pop_sent_msg().await;
+
+        let msg = bob.parse_msg(&sent).await;
+        assert!(msg.was_encrypted());
+        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.com")
+            .await?
+            .expect("no peerstate found in the database");
+        assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Mutual);
+
+        // Alice sends plaintext message with Autocrypt header.
+        let mut msg = Message::new(Viewtype::Text);
+        msg.param.set_int(Param::ForcePlaintext, 1);
+        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        let sent = alice.pop_sent_msg().await;
+
+        let msg = bob.parse_msg(&sent).await;
+        assert!(!msg.was_encrypted());
+        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.com")
+            .await?
+            .expect("no peerstate found in the database");
+        assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Mutual);
+
+        // Alice sends plaintext message without Autocrypt header.
+        let mut msg = Message::new(Viewtype::Text);
+        msg.param.set_int(Param::ForcePlaintext, 1);
+        msg.param.set_int(Param::SkipAutocrypt, 1);
+        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        let sent = alice.pop_sent_msg().await;
+
+        let msg = bob.parse_msg(&sent).await;
+        assert!(!msg.was_encrypted());
+        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.com")
+            .await?
+            .expect("no peerstate found in the database");
+        assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Reset);
+
+        Ok(())
     }
 }

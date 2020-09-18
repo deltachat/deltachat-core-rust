@@ -494,7 +494,7 @@ impl Message {
     pub fn get_text(&self) -> Option<String> {
         self.text
             .as_ref()
-            .map(|text| dc_truncate(text, 30000).to_string())
+            .map(|text| dc_truncate(text, DC_MAX_GET_TEXT_LEN).to_string())
     }
 
     pub fn get_filename(&self) -> Option<String> {
@@ -643,8 +643,45 @@ impl Message {
         None
     }
 
+    // add room to a webrtc_instance as defined by the corresponding config-value;
+    // the result may still be prefixed by the type
+    pub fn create_webrtc_instance(instance: &str, room: &str) -> String {
+        let (videochat_type, mut url) = Message::parse_webrtc_instance(instance);
+
+        // make sure, there is a scheme in the url
+        if !url.contains(':') {
+            url = format!("https://{}", url);
+        }
+
+        // add/replace room
+        let url = if url.contains("$ROOM") {
+            url.replace("$ROOM", &room)
+        } else {
+            // if there nothing that would separate the room, add a slash as a separator;
+            // this way, urls can be given as "https://meet.jit.si" as well as "https://meet.jit.si/"
+            let maybe_slash = if url.ends_with('/')
+                || url.ends_with('?')
+                || url.ends_with('#')
+                || url.ends_with('=')
+            {
+                ""
+            } else {
+                "/"
+            };
+            format!("{}{}{}", url, maybe_slash, room)
+        };
+
+        // re-add and normalize type
+        match videochat_type {
+            VideochatType::BasicWebrtc => format!("basicwebrtc:{}", url),
+            VideochatType::Jitsi => format!("jitsi:{}", url),
+            VideochatType::Unknown => url,
+        }
+    }
+
     /// split a webrtc_instance as defined by the corresponding config-value into a type and a url
     pub fn parse_webrtc_instance(instance: &str) -> (VideochatType, String) {
+        let instance: String = instance.split_whitespace().collect();
         let mut split = instance.splitn(2, ':');
         let type_str = split.next().unwrap_or_default().to_lowercase();
         let url = split.next();
@@ -932,7 +969,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         return ret;
     }
     let rawtxt = rawtxt.unwrap_or_default();
-    let rawtxt = dc_truncate(rawtxt.trim(), 100_000);
+    let rawtxt = dc_truncate(rawtxt.trim(), DC_MAX_GET_INFO_LEN);
 
     let fts = dc_timestamp_to_str(msg.get_timestamp());
     ret += &format!("Sent: {}", fts);
@@ -1059,29 +1096,70 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
 pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
     let extension: &str = &path.extension()?.to_str()?.to_lowercase();
     let info = match extension {
+        // before using viewtype other than Viewtype::File,
+        // make sure, all target UIs support that type in the context of the used viewer/player.
+        // if in doubt, it is better to default to Viewtype::File that passes handing to an external app.
+        // (cmp. https://developer.android.com/guide/topics/media/media-formats )
         "3gp" => (Viewtype::Video, "video/3gpp"),
         "aac" => (Viewtype::Audio, "audio/aac"),
         "avi" => (Viewtype::Video, "video/x-msvideo"),
+        "doc" => (Viewtype::File, "application/msword"),
+        "docx" => (
+            Viewtype::File,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ),
+        "epub" => (Viewtype::File, "application/epub+zip"),
         "flac" => (Viewtype::Audio, "audio/flac"),
         "gif" => (Viewtype::Gif, "image/gif"),
+        "html" => (Viewtype::File, "text/html"),
+        "htm" => (Viewtype::File, "text/html"),
+        "ico" => (Viewtype::File, "image/vnd.microsoft.icon"),
+        "jar" => (Viewtype::File, "application/java-archive"),
         "jpeg" => (Viewtype::Image, "image/jpeg"),
         "jpe" => (Viewtype::Image, "image/jpeg"),
         "jpg" => (Viewtype::Image, "image/jpeg"),
+        "json" => (Viewtype::File, "application/json"),
         "mov" => (Viewtype::Video, "video/quicktime"),
         "mp3" => (Viewtype::Audio, "audio/mpeg"),
         "mp4" => (Viewtype::Video, "video/mp4"),
+        "odp" => (
+            Viewtype::File,
+            "application/vnd.oasis.opendocument.presentation",
+        ),
+        "ods" => (
+            Viewtype::File,
+            "application/vnd.oasis.opendocument.spreadsheet",
+        ),
+        "odt" => (Viewtype::File, "application/vnd.oasis.opendocument.text"),
         "oga" => (Viewtype::Audio, "audio/ogg"),
         "ogg" => (Viewtype::Audio, "audio/ogg"),
-        "ogv" => (Viewtype::Video, "video/ogg"),
-        "opus" => (Viewtype::Audio, "audio/ogg"),
+        "ogv" => (Viewtype::File, "video/ogg"),
+        "opus" => (Viewtype::File, "audio/ogg"), // not supported eg. on Android 4
+        "otf" => (Viewtype::File, "font/otf"),
+        "pdf" => (Viewtype::File, "application/pdf"),
         "png" => (Viewtype::Image, "image/png"),
-        "spx" => (Viewtype::Audio, "audio/ogg"), // Ogg Speex Profile
-        "svg" => (Viewtype::Image, "image/svg+xml"),
+        "rar" => (Viewtype::File, "application/vnd.rar"),
+        "rtf" => (Viewtype::File, "application/rtf"),
+        "spx" => (Viewtype::File, "audio/ogg"), // Ogg Speex Profile
+        "svg" => (Viewtype::File, "image/svg+xml"),
+        "tgs" => (Viewtype::Sticker, "application/x-tgsticker"),
+        "tiff" => (Viewtype::File, "image/tiff"),
+        "tif" => (Viewtype::File, "image/tiff"),
+        "ttf" => (Viewtype::File, "font/ttf"),
         "vcard" => (Viewtype::File, "text/vcard"),
         "vcf" => (Viewtype::File, "text/vcard"),
+        "wav" => (Viewtype::File, "audio/wav"),
+        "weba" => (Viewtype::File, "audio/webm"),
         "webm" => (Viewtype::Video, "video/webm"),
-        "webp" => (Viewtype::Image, "image/webp"),
+        "webp" => (Viewtype::Image, "image/webp"), // iOS via SDWebImage, Android since 4.0
         "wmv" => (Viewtype::Video, "video/x-ms-wmv"),
+        "xhtml" => (Viewtype::File, "application/xhtml+xml"),
+        "xlsx" => (
+            Viewtype::File,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
+        "xml" => (Viewtype::File, "application/vnd.ms-excel"),
+        "zip" => (Viewtype::File, "application/zip"),
         _ => {
             return None;
         }
@@ -1719,16 +1797,6 @@ pub async fn update_server_uid(
     }
 }
 
-#[allow(dead_code)]
-pub async fn dc_empty_server(context: &Context, flags: u32) {
-    job::kill_action(context, Action::EmptyServer).await;
-    job::add(
-        context,
-        job::Job::new(Action::EmptyServer, flags, Params::new(), 0),
-    )
-    .await;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1815,8 +1883,7 @@ mod tests {
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Voice, no_text.as_ref(), &mut some_file, 50, &ctx)
-                .await,
+            get_summarytext_by_raw(Viewtype::Voice, no_text.as_ref(), &some_file, 50, &ctx).await,
             "Voice message" // file names are not added for voice messages
         );
 
@@ -1826,8 +1893,7 @@ mod tests {
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Audio, no_text.as_ref(), &mut some_file, 50, &ctx)
-                .await,
+            get_summarytext_by_raw(Viewtype::Audio, no_text.as_ref(), &some_file, 50, &ctx).await,
             "Audio \u{2013} foo.bar" // file name is added for audio
         );
 
@@ -1843,8 +1909,7 @@ mod tests {
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::File, some_text.as_ref(), &mut some_file, 50, &ctx)
-                .await,
+            get_summarytext_by_raw(Viewtype::File, some_text.as_ref(), &some_file, 50, &ctx).await,
             "File \u{2013} foo.bar \u{2013} bla bla" // file name is added for files
         );
 
@@ -1852,7 +1917,7 @@ mod tests {
         asm_file.set(Param::File, "foo.bar");
         asm_file.set_cmd(SystemMessage::AutocryptSetupMessage);
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), &mut asm_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), &asm_file, 50, &ctx).await,
             "Autocrypt Setup Message" // file name is not added for autocrypt setup messages
         );
     }
@@ -1877,6 +1942,43 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_create_webrtc_instance() {
+        // webrtc_instance may come from an input field of the ui, be pretty tolerant on input
+        let instance = Message::create_webrtc_instance("https://meet.jit.si/", "123");
+        assert_eq!(instance, "https://meet.jit.si/123");
+
+        let instance = Message::create_webrtc_instance("https://meet.jit.si", "456");
+        assert_eq!(instance, "https://meet.jit.si/456");
+
+        let instance = Message::create_webrtc_instance("meet.jit.si", "789");
+        assert_eq!(instance, "https://meet.jit.si/789");
+
+        let instance = Message::create_webrtc_instance("bla.foo?", "123");
+        assert_eq!(instance, "https://bla.foo?123");
+
+        let instance = Message::create_webrtc_instance("jitsi:bla.foo#", "456");
+        assert_eq!(instance, "jitsi:https://bla.foo#456");
+
+        let instance = Message::create_webrtc_instance("bla.foo#room=", "789");
+        assert_eq!(instance, "https://bla.foo#room=789");
+
+        let instance = Message::create_webrtc_instance("https://bla.foo#room", "123");
+        assert_eq!(instance, "https://bla.foo#room/123");
+
+        let instance = Message::create_webrtc_instance("bla.foo#room$ROOM", "123");
+        assert_eq!(instance, "https://bla.foo#room123");
+
+        let instance = Message::create_webrtc_instance("bla.foo#room=$ROOM&after=cont", "234");
+        assert_eq!(instance, "https://bla.foo#room=234&after=cont");
+
+        let instance = Message::create_webrtc_instance("  meet.jit .si ", "789");
+        assert_eq!(instance, "https://meet.jit.si/789");
+
+        let instance = Message::create_webrtc_instance(" basicwebrtc: basic . stuff\n ", "12345ab");
+        assert_eq!(instance, "basicwebrtc:https://basic.stuff/12345ab");
+    }
+
+    #[async_std::test]
     async fn test_get_width_height() {
         let t = test::TestContext::new().await;
 
@@ -1892,7 +1994,7 @@ mod tests {
         let chatitems = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
         for chatitem in chatitems {
             if let ChatItem::Message { msg_id } = chatitem {
-                if let Ok(msg) = Message::load_from_db(&t.ctx, msg_id.clone()).await {
+                if let Ok(msg) = Message::load_from_db(&t.ctx, msg_id).await {
                     if msg.get_viewtype() == Viewtype::Image {
                         has_image = true;
                         // just check that width/height are inside some reasonable ranges

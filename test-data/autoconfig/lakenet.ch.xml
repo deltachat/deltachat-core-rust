@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<clientConfig version="1.1">
+  <emailProvider id="lakenet.ch">
+    <domain>%EMAILDOMAIN%</domain>
+    <displayName>%EMAILDOMAIN% Mail</displayName>
+    <displayShortName>%EMAILDOMAIN%</displayShortName>
+    <incomingServer type="imap">
+      <hostname>mail.lakenet.ch</hostname>
+      <port>993</port>
+      <socketType>SSL</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </incomingServer>
+    <incomingServer type="imap">
+      <hostname>mail.lakenet.ch</hostname>
+      <port>143</port>
+      <socketType>STARTTLS</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </incomingServer>
+    <incomingServer type="pop3">
+      <hostname>mail.lakenet.ch</hostname>
+      <port>995</port>
+      <socketType>SSL</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </incomingServer>
+    <incomingServer type="pop3">
+      <hostname>mail.lakenet.ch</hostname>
+      <port>110</port>
+      <socketType>STARTTLS</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </incomingServer>
+    <outgoingServer type="smtp">
+      <hostname>mail.lakenet.ch</hostname>
+      <port>587</port>
+      <socketType>STARTTLS</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </outgoingServer>
+    <documentation url="https://www.lakenet.ch/">
+      <descr lang="it">Impostazioni per le e-mail LakeNet</descr>
+      <descr lang="fr">Reglages pour le courriel e-mail LakeNet</descr>
+      <descr lang="en">Settings for LakeNet's e-mail accounts</descr>
+    </documentation>
+  </emailProvider>
+  <webMail>
+    <loginPage url="https://lakenet.ch/webmail/" />
+    <loginPageInfo url="https://lakenet.ch/webmail/">
+      <username>%EMAILADDRESS%</username>
+      <usernameField id="rcmloginuser" name="_user"/>
+      <passwordField id="rcmloginpwd" name="_pass"/>
+      <loginButton id="rcmloginsubmit"/>
+    </loginPageInfo>
+  </webMail>
+  <clientConfigUpdate url="https://lakenet.ch/.well-known/autoconfig/mail/config-v1.1.xml" />
+</clientConfig>

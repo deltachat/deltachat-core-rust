@@ -30,6 +30,7 @@ set +x
 
 ssh $SSHTARGET bash -c "cat >$BUILDDIR/exec_docker_run" <<_HERE
     set +x -e
+    shopt -s huponexit
     cd $BUILDDIR
     export DCC_PY_LIVECONFIG=$DCC_PY_LIVECONFIG
     export DCC_NEW_TMP_EMAIL=$DCC_NEW_TMP_EMAIL

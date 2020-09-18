@@ -685,7 +685,7 @@ mod tests {
 
         let (stem, ext) = BlobObject::sanitise_name("foo?.bar");
         assert!(stem.contains("foo"));
-        assert!(!stem.contains("?"));
+        assert!(!stem.contains('?'));
         assert_eq!(ext, ".bar");
 
         let (stem, ext) = BlobObject::sanitise_name("no-extension");
@@ -698,10 +698,10 @@ mod tests {
         assert!(!stem.contains("ignored"));
         assert!(stem.contains("this"));
         assert!(stem.contains("forbidden"));
-        assert!(!stem.contains("/"));
-        assert!(!stem.contains("\\"));
-        assert!(!stem.contains(":"));
-        assert!(!stem.contains("*"));
-        assert!(!stem.contains("?"));
+        assert!(!stem.contains('/'));
+        assert!(!stem.contains('\\'));
+        assert!(!stem.contains(':'));
+        assert!(!stem.contains('*'));
+        assert!(!stem.contains('?'));
     }
 }

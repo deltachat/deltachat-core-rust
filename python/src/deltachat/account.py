@@ -179,17 +179,6 @@ class Account(object):
         if not self.is_configured():
             raise ValueError("need to configure first")
 
-    def empty_server_folders(self, inbox=False, mvbox=False):
-        """ empty server folders. """
-        flags = 0
-        if inbox:
-            flags |= const.DC_EMPTY_INBOX
-        if mvbox:
-            flags |= const.DC_EMPTY_MVBOX
-        if not flags:
-            raise ValueError("no flags set")
-        lib.dc_empty_server(self._dc_context, flags)
-
     def get_latest_backupfile(self, backupdir):
         """ return the latest backup file in a given directory.
         """
@@ -216,7 +205,7 @@ class Account(object):
     def create_contact(self, obj, name=None):
         """ create a (new) Contact or return an existing one.
 
-        Calling this method will always resulut in the same
+        Calling this method will always result in the same
         underlying contact id.  If there already is a Contact
         with that e-mail address, it is unblocked and its display
         `name` is updated if specified.
