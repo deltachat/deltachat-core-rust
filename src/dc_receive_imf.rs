@@ -2569,7 +2569,10 @@ mod tests {
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
 
         assert_eq!(msg.state, MessageState::OutFailed);
-        assert_eq!(msg.error, Some(error_msg.to_string()));
+        assert_eq!(
+            msg.error,
+            Some(error_msg.to_string()).filter(|error| !error.is_empty())
+        );
     }
 
     #[async_std::test]
