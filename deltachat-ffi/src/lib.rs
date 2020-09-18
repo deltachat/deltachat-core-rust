@@ -3007,6 +3007,16 @@ pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
     });
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_error(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_error()");
+        return "".strdup();
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_error().unwrap_or_default().strdup()
+}
+
 // dc_contact_t
 
 /// FFI struct for [dc_contact_t]

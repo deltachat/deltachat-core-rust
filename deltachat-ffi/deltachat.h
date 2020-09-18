@@ -3576,6 +3576,19 @@ char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
  */
 char* dc_msg_get_videochat_url (const dc_msg_t* msg);
 
+/**
+ * Get the error of the message.
+ * If there is no error associated with the message, an empty string is returned.
+ * NULL is never returned.
+ *
+ * The returned error is truncated to a max. length of currently about 10000 characters.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Error. The result must be released using dc_str_unref(). Never returns NULL.
+ */
+char*           dc_msg_get_error               (const dc_msg_t* msg);
+
 
 /**
  * Get type of videochat.
