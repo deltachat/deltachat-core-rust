@@ -32,7 +32,7 @@ ssh $SSHTARGET <<_HERE
     cd $BUILDDIR
     # let's share the target dir with our last run on this branch/job-type
     # cargo will make sure to block/unblock us properly 
-    export CARGO_TARGET_DIR=\`pwd\`/../target
+    export CARGO_TARGET_DIR=\`pwd\`/../target-python
     export TARGET=release
     export DCC_PY_LIVECONFIG=$DCC_PY_LIVECONFIG
     export DCC_NEW_TMP_EMAIL=$DCC_NEW_TMP_EMAIL
