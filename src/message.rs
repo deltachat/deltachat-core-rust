@@ -269,7 +269,7 @@ pub struct Message {
     pub(crate) starred: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
-    pub(crate) error: String,
+    pub(crate) error: Option<String>,
     pub(crate) param: Params,
 }
 
@@ -336,7 +336,10 @@ impl Message {
                     msg.ephemeral_timestamp = row.get("ephemeral_timestamp")?;
                     msg.viewtype = row.get("type")?;
                     msg.state = row.get("state")?;
-                    msg.error = row.get("error")?;
+                    let error: String = row.get("error")?;
+                    if !error.is_empty() {
+                        msg.error = Some(error);
+                    }
                     msg.is_dc_message = row.get("msgrmsg")?;
 
                     let text;
@@ -760,6 +763,12 @@ impl Message {
             .await
             .is_ok()
     }
+
+    pub fn get_error(&self) -> Option<String> {
+        self.error
+            .as_ref()
+            .map(|text| dc_truncate(text, DC_MAX_GET_ERROR_LEN).to_string())
+    }
 }
 
 #[derive(
@@ -1054,8 +1063,8 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
 
     ret += "\n";
 
-    if !msg.error.is_empty() {
-        ret += &format!("Error: {}", msg.error);
+    if let Some(error) = msg.error.as_ref() {
+        ret += &format!("Error: {}", error);
     }
 
     if let Some(path) = msg.get_file(context) {
