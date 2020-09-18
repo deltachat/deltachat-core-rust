@@ -678,7 +678,10 @@ async fn open(
         .with_flags(open_flags)
         .with_init(|c| {
             c.execute_batch(&format!(
-                "PRAGMA secure_delete=on; PRAGMA busy_timeout = {};",
+                "PRAGMA secure_delete=on;
+                 PRAGMA busy_timeout = {};
+                 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+                 ",
                 Duration::from_secs(10).as_millis()
             ))?;
             Ok(())
