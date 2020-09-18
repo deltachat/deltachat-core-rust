@@ -713,8 +713,9 @@ async fn open(
                 "First time init: creating tables in {:?}.",
                 dbfile.as_ref(),
             );
-            sql.with_conn(move |conn| {
-                conn.execute_batch(
+            sql.with_conn(move |mut conn| {
+                let tx = conn.transaction()?;
+                tx.execute_batch(
                     r#"
 CREATE TABLE config (id INTEGER PRIMARY KEY, keyname TEXT, value TEXT);
 CREATE INDEX config_index1 ON config (keyname);
@@ -899,6 +900,7 @@ CREATE TABLE devmsglabels (
 CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
 "#,
                 )?;
+                tx.commit()?;
                 Ok(())
             })
             .await?;
