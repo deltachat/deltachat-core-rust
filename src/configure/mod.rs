@@ -337,18 +337,20 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
 
-    let ctx2 = ctx.clone();
-    async_std::task::spawn(async move {
-        let ctx = &ctx2;
-        // Read the receipients from old emails sent by the user user and add them as contacts.
-        // This way, we can already offer them some email addresses they can write to.
-        //
-        // This takes some time, so do it asynchronously and query the sentbox folder first because it
-        // is the most "promising" (has the highest amount of outgoing messages)
-        add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredSentboxFolder).await;
-        add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredMvboxFolder).await;
-        add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredInboxFolder).await;
-    });
+    // let ctx2 = ctx.clone();
+    // async_std::task::spawn(async move {
+    // let ctx = &ctx2;
+    // Read the receipients from old emails sent by the user user and add them as contacts.
+    // This way, we can already offer them some email addresses they can write to.
+    //
+    // This takes some time, so do it asynchronously and query the sentbox folder first because it
+    // is the most "promising" (has the highest amount of outgoing messages)
+    add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredSentboxFolder).await;
+    add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredMvboxFolder).await;
+    add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredInboxFolder).await;
+
+    imap.fetch_existing_messages(ctx).await;
+    // });
 
     progress!(ctx, 940);
 

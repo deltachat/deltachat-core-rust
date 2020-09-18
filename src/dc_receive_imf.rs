@@ -32,17 +32,29 @@ enum CreateEvent {
     IncomingMsg,
 }
 
-/// Receive a message and add it to the database.
-///
-/// Returns an error on recoverable errors, e.g. database errors. In this case,
-/// message parsing should be retried later. If message itself is wrong, logs
-/// the error and returns success.
 pub async fn dc_receive_imf(
     context: &Context,
     imf_raw: &[u8],
     server_folder: impl AsRef<str>,
     server_uid: u32,
     seen: bool,
+) -> Result<()> {
+    dc_receive_imf_inner(context, imf_raw, server_folder, server_uid, seen, false).await
+}
+
+/// Receive a message and add it to the database.
+///
+/// Returns an error on recoverable errors, e.g. database errors. In this case,
+/// message parsing should be retried later. If message itself is wrong, logs
+/// the error and returns success.
+pub async fn dc_receive_imf_inner(
+    // TODO this is not a nice solution. dc_receive_imf_inner is not a nice name, either, dc_receive_imf_fetching_existing would be very long.
+    context: &Context,
+    imf_raw: &[u8],
+    server_folder: impl AsRef<str>,
+    server_uid: u32,
+    seen: bool,
+    fetching_existing_messages: bool,
 ) -> Result<()> {
     info!(
         context,
@@ -169,6 +181,7 @@ pub async fn dc_receive_imf(
             &mut insert_msg_id,
             &mut created_db_entries,
             &mut create_event_to_send,
+            fetching_existing_messages,
         )
         .await
         {
@@ -335,6 +348,7 @@ async fn add_parts(
     insert_msg_id: &mut MsgId,
     created_db_entries: &mut Vec<(ChatId, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
+    fetching_existing_messages: bool,
 ) -> Result<()> {
     let mut state: MessageState;
     let mut chat_id_blocked = Blocked::Not;
@@ -388,8 +402,13 @@ async fn add_parts(
     // (of course, the user can add other chats manually later)
     let to_id: u32;
 
+    if fetching_existing_messages && mime_parser.decrypting_failed {
+        *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+        info!(context, "We are only gathering old messages on first start. We do not want to add loads of non-decryptable messages to the chats.");
+    }
+
     if incoming {
-        state = if seen {
+        state = if seen || fetching_existing_messages {
             MessageState::InSeen
         } else {
             MessageState::InFresh
@@ -430,6 +449,7 @@ async fn add_parts(
 
         // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
         // it might also be blocked and displayed in the deaddrop as a result
+
         if chat_id.is_unset() && mime_parser.failure_report.is_some() {
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
             info!(
@@ -482,7 +502,12 @@ async fn add_parts(
 
         if chat_id.is_unset() {
             // try to create a normal chat
-            let create_blocked = if from_id == to_id {
+
+            // When fetching existing messages, we want to show all chats where the user sent a message to.
+            let create_blocked = if from_id == to_id
+                || (fetching_existing_messages && incoming_origin >= Origin::OutgoingBcc)
+                || (incoming_origin >= Origin::AddressBook)
+            {
                 Blocked::Not
             } else {
                 Blocked::Deaddrop
