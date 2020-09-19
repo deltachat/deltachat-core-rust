@@ -70,10 +70,7 @@ impl ChatId {
     ///
     /// This kind of chat ID can not be used for real chats.
     pub fn is_special(self) -> bool {
-        match self.0 {
-            0..=DC_CHAT_ID_LAST_SPECIAL => true,
-            _ => false,
-        }
+        matches!(self.0, 0..=DC_CHAT_ID_LAST_SPECIAL)
     }
 
     /// Chat ID which represents the deaddrop chat.

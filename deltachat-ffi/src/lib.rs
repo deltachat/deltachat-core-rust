@@ -3438,7 +3438,7 @@ pub unsafe extern "C" fn dc_accounts_select_account(
     let accounts = &*accounts;
     block_on(accounts.select_account(id))
         .map(|_| 1)
-        .unwrap_or_else(|_| 0)
+        .unwrap_or(0)
 }
 
 #[no_mangle]
@@ -3450,7 +3450,7 @@ pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -
 
     let accounts = &*accounts;
 
-    block_on(accounts.add_account()).unwrap_or_else(|_| 0)
+    block_on(accounts.add_account()).unwrap_or(0)
 }
 
 #[no_mangle]
