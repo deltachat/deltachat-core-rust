@@ -166,6 +166,16 @@ class TestOfflineContact:
         with pytest.raises(ValueError):
             ac1.create_chat(ac3)
 
+    def test_contact_rename(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        contact = ac1.create_contact("some1@example.com", name="some1")
+        chat = ac1.create_chat(contact)
+        assert chat.get_name() == "some1"
+        ac1.create_contact("some1@example.com", name="renamed")
+        ev = ac1._evtracker.get_matching("DC_EVENT_CHAT_MODIFIED")
+        assert ev.data1 == chat.id
+        assert chat.get_name() == "renamed"
+
 
 class TestOfflineChat:
     @pytest.fixture
