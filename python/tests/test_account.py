@@ -1417,6 +1417,8 @@ class TestOnlineAccount:
         contact = ac1.create_contact(ac2)
         contact.set_blocked()
         assert contact.is_blocked()
+        ev = ac1._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
+        assert ev.data1 == contact.id
 
         lp.sec("ac2 sends a message to ac1 that does not arrive because it is blocked")
         ac2.create_chat(ac1).send_text("This will not arrive!")

@@ -1090,12 +1090,12 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
             // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
             // this would result in recreating the same group...)
             if context.sql.execute(
-                    "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    paramsv![new_blocking, 100, contact_id as i32],
-                ).await.is_ok() {
-                    Contact::mark_noticed(context, contact_id).await;
-                    context.emit_event(EventType::ContactsChanged(None));
-                }
+                "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
+                paramsv![new_blocking, 100, contact_id as i32]).await.is_ok()
+            {
+                Contact::mark_noticed(context, contact_id).await;
+                context.emit_event(EventType::ContactsChanged(Some(contact_id)));
+            }
         }
     }
 }
