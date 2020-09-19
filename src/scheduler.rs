@@ -3,6 +3,7 @@ use async_std::sync::{channel, Receiver, Sender};
 use async_std::task;
 
 use crate::context::Context;
+use crate::dc_tools::maybe_add_time_based_warnings;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
 use crate::{config::Config, message::MsgId, smtp::Smtp};
@@ -80,6 +81,8 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                     if let Err(err) = connection.maybe_close_folder(&ctx).await {
                         warn!(ctx, "failed to close folder: {:?}", err);
                     }
+
+                    maybe_add_time_based_warnings(&ctx).await;
 
                     info = if ctx.get_config_bool(Config::InboxWatch).await {
                         fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await

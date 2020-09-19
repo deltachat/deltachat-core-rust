@@ -4925,8 +4925,10 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_VIDEOCHAT_INVITATION       82
 #define DC_STR_VIDEOCHAT_INVITE_MSG_BODY  83
 #define DC_STR_CONFIGURATION_FAILED       84
+#define DC_STR_BAD_TIME_MSG_BODY          85
+#define DC_STR_UPDATE_REMINDER_MSG_BODY   86
 
-#define DC_STR_COUNT                      84
+#define DC_STR_COUNT                      86
 
 /*
  * @}

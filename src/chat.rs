@@ -2756,14 +2756,35 @@ pub async fn add_device_msg_with_importance(
         prepare_msg_blob(context, msg).await?;
         chat_id.unarchive(context).await?;
 
+        let timestamp_sent = dc_create_smeared_timestamp(context).await;
+
+        // makes sure, the added message is the last one,
+        // even if the date is wrong (useful esp. when warning about bad dates)
+        let mut timestamp_sort = timestamp_sent;
+        if let Some(last_msg_time) = context
+            .sql
+            .query_get_value(
+                context,
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+                paramsv![chat_id],
+            )
+            .await
+        {
+            if timestamp_sort <= last_msg_time {
+                timestamp_sort = last_msg_time + 1;
+            }
+        }
+
         context.sql.execute(
-            "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid) \
-             VALUES (?,?,?, ?,?,?, ?,?,?);",
+            "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,timestamp_sent,timestamp_rcvd,type,state, txt,param,rfc724_mid) \
+             VALUES (?,?,?, ?,?,?,?,?, ?,?,?);",
             paramsv![
                 chat_id,
                 DC_CONTACT_ID_DEVICE,
                 DC_CONTACT_ID_SELF,
-                dc_create_smeared_timestamp(context).await,
+                timestamp_sort,
+                timestamp_sent,
+                timestamp_sent, // timestamp_sent equals timestamp_rcvd
                 msg.viewtype,
                 MessageState::InFresh,
                 msg.text.as_ref().cloned().unwrap_or_default(),

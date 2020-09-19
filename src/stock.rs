@@ -219,6 +219,18 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Configuration failed. Error: “%1$s”"))]
     ConfigurationFailed = 84,
+
+    #[strum(props(
+        fallback = "⚠️ Date or time of your device seem to be inaccurate (%1$s).\n\n\
+                    Adjust your clock ⏰🔧 to ensure your messages are received correctly."
+    ))]
+    BadTimeMsgBody = 85,
+
+    #[strum(props(fallback = "⚠️ Your Delta Chat version might be outdated.\n\n\
+                    This may cause problems because your chat partners use newer versions - \
+                    and you are missing the latest features 😳\n\
+                    Please check https://get.delta.chat or your app store for updates."))]
+    UpdateReminderMsgBody = 86,
 }
 
 /*

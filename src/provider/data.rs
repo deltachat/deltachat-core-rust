@@ -807,4 +807,6 @@ lazy_static::lazy_static! {
         ("narod.ru", &*P_YANDEX_RU),
         ("ziggo.nl", &*P_ZIGGO_NL),
     ].iter().copied().collect();
+
+    pub static ref PROVIDER_UPDATED: chrono::NaiveDate = chrono::NaiveDate::from_ymd(2020, 9, 19);
 }
