@@ -1153,11 +1153,21 @@ pub(crate) fn parse_message_id(ids: &str) -> Result<String> {
 }
 
 fn is_known(key: &str) -> bool {
-    match key {
-        "return-path" | "date" | "from" | "sender" | "reply-to" | "to" | "cc" | "bcc"
-        | "message-id" | "in-reply-to" | "references" | "subject" => true,
-        _ => false,
-    }
+    matches!(
+        key,
+        "return-path"
+            | "date"
+            | "from"
+            | "sender"
+            | "reply-to"
+            | "to"
+            | "cc"
+            | "bcc"
+            | "message-id"
+            | "in-reply-to"
+            | "references"
+            | "subject"
+    )
 }
 
 #[derive(Debug, Default, Clone)]

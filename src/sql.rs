@@ -142,7 +142,7 @@ impl Sql {
         &self,
     ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
         let conn = pool.get()?;
 
         Ok(conn)
@@ -156,7 +156,7 @@ impl Sql {
             + FnOnce(r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Result<H>,
     {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
         let conn = pool.get()?;
 
         g(conn)
@@ -168,7 +168,7 @@ impl Sql {
         Fut: Future<Output = Result<H>> + Send,
     {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let conn = pool.get()?;
         g(conn).await

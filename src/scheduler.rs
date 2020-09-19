@@ -415,10 +415,7 @@ impl Scheduler {
 
     /// Check if the scheduler is running.
     pub fn is_running(&self) -> bool {
-        match self {
-            Scheduler::Running { .. } => true,
-            _ => false,
-        }
+        matches!(self, Scheduler::Running { .. })
     }
 }
 

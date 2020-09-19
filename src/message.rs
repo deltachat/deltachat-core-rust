@@ -866,13 +866,13 @@ impl From<MessageState> for LotState {
 
 impl MessageState {
     pub fn can_fail(self) -> bool {
-        match self {
+        matches!(
+            self,
             MessageState::OutPreparing
-            | MessageState::OutPending
-            | MessageState::OutDelivered
-            | MessageState::OutMdnRcvd => true, // OutMdnRcvd can still fail because it could be a group message and only some recipients failed.
-            _ => false,
-        }
+                | MessageState::OutPending
+                | MessageState::OutDelivered
+                | MessageState::OutMdnRcvd // OutMdnRcvd can still fail because it could be a group message and only some recipients failed.
+        )
     }
 }
 

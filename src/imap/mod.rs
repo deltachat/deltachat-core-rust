@@ -476,16 +476,8 @@ impl Imap {
             // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
             let mut parts = entry.split(':');
             (
-                parts
-                    .next()
-                    .unwrap_or_default()
-                    .parse()
-                    .unwrap_or_else(|_| 0),
-                parts
-                    .next()
-                    .unwrap_or_default()
-                    .parse()
-                    .unwrap_or_else(|_| 0),
+                parts.next().unwrap_or_default().parse().unwrap_or(0),
+                parts.next().unwrap_or_default().parse().unwrap_or(0),
             )
         } else {
             (0, 0)

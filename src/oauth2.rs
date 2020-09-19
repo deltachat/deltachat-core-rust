@@ -305,7 +305,7 @@ impl Oauth2 {
 
                     let mut fqdn: String = String::from(domain.as_ref());
                     if !fqdn.ends_with('.') {
-                        fqdn.push_str(".");
+                        fqdn.push('.');
                     }
 
                     if let Ok(res) = resolver.mx_lookup(fqdn).await {
@@ -323,7 +323,7 @@ impl Oauth2 {
     }
 
     async fn get_addr(&self, context: &Context, access_token: impl AsRef<str>) -> Option<String> {
-        let userinfo_url = self.get_userinfo.unwrap_or_else(|| "");
+        let userinfo_url = self.get_userinfo.unwrap_or("");
         let userinfo_url = replace_in_uri(&userinfo_url, "$ACCESS_TOKEN", access_token);
 
         // should returns sth. as
