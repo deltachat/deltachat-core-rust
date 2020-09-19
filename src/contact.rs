@@ -456,10 +456,20 @@ impl Contact {
                 if update_name {
                     // Update the contact name also if it is used as a group name.
                     // This is one of the few duplicated data, however, getting the chat list is easier this way.
-                    context.sql.execute(
-                    "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    paramsv![new_name, Chattype::Single, row_id]
-                ).await.ok();
+                    let chat_id = context.sql.query_get_value::<i32>(
+                        context,
+                        "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
+                        paramsv![Chattype::Single, row_id]
+                    ).await;
+                    if let Some(chat_id) = chat_id {
+                        match context.sql.execute("UPDATE chats SET name=? WHERE id=? AND name!=?1", paramsv![new_name, chat_id]).await {
+                            Err(err) => warn!(context, "Can't update chat name: {}", err),
+                            Ok(count) => if count > 0 {
+                                // Chat name updated
+                                context.emit_event(EventType::ChatModified(ChatId::new(chat_id as u32)));
+                            }
+                        }
+                    }
                 }
                 sth_modified = Modifier::Modified;
             }
