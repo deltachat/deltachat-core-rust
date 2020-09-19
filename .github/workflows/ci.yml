@@ -47,7 +47,9 @@ jobs:
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        # macOS disabled due to random failures related to caching
+        #os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-latest, windows-latest]
         rust: [1.45.0]
         experimental: [false]
 #        include:
