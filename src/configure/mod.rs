@@ -10,7 +10,6 @@ use async_std::prelude::*;
 use async_std::task;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
-use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::imap::Imap;
@@ -26,6 +25,7 @@ use crate::{
     e2ee, provider, EventType,
 };
 use crate::{config::Config, contact::normalize_name};
+use crate::{constants::*};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
@@ -134,6 +134,35 @@ impl Context {
                     )
                 );
                 Err(err)
+            }
+        }
+    }
+
+    // TODO where to but this fn?
+    pub async fn fetch_existing_msgs(context: &Context, imap: Option<Imap>) {
+        // TODO muss stop_io() aufgerufen werden?
+        let mut imap = match imap {
+            Some(i) => i,
+            None => {
+                let (_, r) = async_std::sync::channel(1);
+                let mut i = Imap::new(r);
+                if let Err(e) = i.connect_configured(context).await {
+                    warn!(context, "Can't connect {:#}", e);
+                };
+                i
+            }
+        };
+        for config in &[
+            Config::ConfiguredInboxFolder,
+            Config::ConfiguredSentboxFolder,
+            Config::ConfiguredMvboxFolder,
+        ] {
+            if let Some(folder) = context.get_config(*config).await {
+                warn!(context, "dbg fetching existing from {}", &folder);
+                if let Err(e) = imap.fetch_new_messages(context, folder, true).await {
+                    // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+                    warn!(context, "Could not fetch messages: {:#}", e);
+                };
             }
         }
     }
@@ -349,7 +378,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredMvboxFolder).await;
     add_all_receipients_as_contacts(ctx, &mut imap, Config::ConfiguredInboxFolder).await;
 
-    imap.fetch_existing_messages(ctx).await;
+    Context::fetch_existing_msgs(ctx, Some(imap)).await;
     // });
 
     progress!(ctx, 940);

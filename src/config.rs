@@ -121,13 +121,22 @@ pub enum Config {
     #[strum(serialize = "sys.config_keys")]
     SysConfigKeys,
 
-    #[strum(props(default = "0"))]
     /// Whether we send a warning if the password is wrong (set to false when we send a warning
     /// because we do not want to send a second warning)
+    #[strum(props(default = "0"))]
     NotifyAboutWrongPw,
 
     /// address to webrtc instance to use for videochats
     WebrtcInstance,
+
+    /// Check this when you receive DC_EVENT_CONFIGURE_PROGRESS(1000).
+    /// If this is "1", classical emails were detected in the mailbox.
+    /// You should ask the user whether they want to show classical emails in Delta Chat
+    /// (and set show_emails to 2 if they say yes)
+    /// It might be a good idea to call dc_fetch_existing_msgs() afterwards.
+    #[strum(props(default = "0"))]
+    ClassicEmailsDetected,
+
 }
 
 impl Context {

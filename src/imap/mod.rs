@@ -16,9 +16,7 @@ use num_traits::FromPrimitive;
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_receive_imf::{
-    dc_receive_imf, from_field_to_contact_id, is_msgrmsg_rfc724_mid_in_list,
-};
+use crate::dc_receive_imf::{from_field_to_contact_id, is_msgrmsg_rfc724_mid_in_list};
 use crate::error::{bail, format_err, Result};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -660,11 +658,11 @@ impl Imap {
         Ok((new_uid_validity, new_last_seen_uid))
     }
 
-    async fn fetch_new_messages<S: AsRef<str>>(
+    pub(crate) async fn fetch_new_messages<S: AsRef<str>>(
         &mut self,
         context: &Context,
         folder: S,
-        fetch_existing_messages: bool,
+        fetch_existing_msgs: bool,
     ) -> Result<bool> {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await)
             .unwrap_or_default();
@@ -673,9 +671,11 @@ impl Imap {
             .select_with_uidvalidity(context, folder.as_ref())
             .await?;
 
-        let msgs = self
-            .fetch_after(context, last_seen_uid, fetch_existing_messages)
-            .await?;
+        let msgs = if fetch_existing_msgs {
+            self.fetch_existing_msgs_prefetch(context).await?
+        } else {
+            self.fetch_after(context, last_seen_uid).await?
+        };
         let read_cnt = msgs.len();
         let folder: &str = folder.as_ref();
 
@@ -716,7 +716,7 @@ impl Imap {
 
         // check passed, go fetch the emails
         let (new_last_seen_uid_processed, error_cnt) = self
-            .fetch_many_msgs(context, &folder, &uids, fetch_existing_messages)
+            .fetch_many_msgs(context, &folder, &uids, fetch_existing_msgs)
             .await;
         read_errors += error_cnt;
 
@@ -790,62 +790,31 @@ impl Imap {
     }
 
     /// Fetch all uids larger than the passed in. Returns a sorted list of fetch results.
-    /// If fetch_existing_messages is true, ignores the passed in uid and fetches the last
-    /// DC_FETCH_EXISTING_MESSAGES_COUNT messages.
+    /// If fetch_existing_msgs is true, ignores the passed in uid and fetches the last
+    /// DC_FETCH_EXISTING_MSGS_COUNT messages.
     async fn fetch_after(
         &mut self,
         context: &Context,
         uid: u32,
-        fetch_existing_messages: bool,
     ) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
-        let exists: i32 = {
-            let mailbox = self.config.selected_mailbox.as_ref();
-            let mailbox = mailbox.context("fetch_after(): no mailbox selected")?;
-            mailbox.exists.try_into().context("exists was too large")?
-        };
-
         let session = self.session.as_mut();
         let session = session.context("fetch_after(): IMAP No Connection established")?;
 
+        // fetch messages with larger UID than the last one seen
+        // `(UID FETCH lastseenuid+1:*)`, see RFC 4549
+        let set = format!("{}:*", uid + 1);
+        let mut list = session
+            .uid_fetch(set, PREFETCH_FLAGS)
+            .await
+            .map_err(|err| format_err!("IMAP Could not fetch: {}", err))?;
+
         let mut msgs = BTreeMap::new();
-
-        if fetch_existing_messages {
-            // TODO put into extra fn
-            // Fetch last DC_FETCH_EXISTING_MESSAGES_COUNT (100) messages.
-            // Sequence numbers are sequential. If there are 1000 messages in the inbox,
-            // we can fetch the sequence numbers 900-1000 and get the last 100 messages.
-            let first = cmp::max(0, exists - DC_FETCH_EXISTING_MESSAGES_COUNT);
-            let set = format!("{}:*", first);
-            let mut list = session
-                .fetch(&set, PREFETCH_FLAGS)
-                .await
-                .map_err(|err| format_err!("IMAP Could not fetch: {}", err))?;
-
-            while let Some(fetch) = list.next().await {
-                let msg = fetch?;
-                if let Some(msg_uid) = msg.uid {
-                    msgs.insert(msg_uid, msg);
-                }
+        while let Some(fetch) = list.next().await {
+            let msg = fetch?;
+            if let Some(msg_uid) = msg.uid {
+                msgs.insert(msg_uid, msg);
             }
-
-            warn!(context, "dbg fetched exis {:?}, set was {}", msgs, &set);
-            return Ok(msgs);
-        } else {
-            // fetch messages with larger UID than the last one seen
-            // `(UID FETCH lastseenuid+1:*)`, see RFC 4549
-            let set = format!("{}:*", uid + 1);
-            let mut list = session
-                .uid_fetch(set, PREFETCH_FLAGS)
-                .await
-                .map_err(|err| format_err!("IMAP Could not fetch: {}", err))?;
-
-            while let Some(fetch) = list.next().await {
-                let msg = fetch?;
-                if let Some(msg_uid) = msg.uid {
-                    msgs.insert(msg_uid, msg);
-                }
-            }
-        };
+        }
 
         // If the mailbox is not empty, results always include
         // at least one UID, even if last_seen_uid+1 is past
@@ -864,6 +833,41 @@ impl Imap {
         }
 
         Ok(new_msgs)
+    }
+
+    /// Like fetch_after() but for the last DC_FETCH_EXISTING_MSGS_COUNT messages TODO wait for fetching contacts to finish
+    async fn fetch_existing_msgs_prefetch(
+        &mut self,
+        context: &Context,
+    ) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
+        let exists: i32 = {
+            let mailbox = self.config.selected_mailbox.as_ref();
+            let mailbox = mailbox.context("fetch_existing_msgs_prefetch(): no mailbox selected")?;
+            mailbox.exists.try_into().context("exists was too large")?
+        };
+        let session = self.session.as_mut();
+        let session = session.context("fetch_after(): IMAP No Connection established")?;
+
+        // Fetch last DC_FETCH_EXISTING_MSGS_COUNT (100) messages.
+        // Sequence numbers are sequential. If there are 1000 messages in the inbox,
+        // we can fetch the sequence numbers 900-1000 and get the last 100 messages.
+        let first = cmp::max(0, exists - DC_FETCH_EXISTING_MSGS_COUNT);
+        let set = format!("{}:*", first);
+        let mut list = session
+            .fetch(&set, PREFETCH_FLAGS)
+            .await
+            .map_err(|err| format_err!("IMAP Could not fetch: {}", err))?;
+
+        let mut msgs = BTreeMap::new();
+        while let Some(fetch) = list.next().await {
+            let msg = fetch?;
+            if let Some(msg_uid) = msg.uid {
+                msgs.insert(msg_uid, msg);
+            }
+        }
+
+        warn!(context, "dbg fetched exis {:?}, set was {}", msgs, &set);
+        Ok(msgs)
     }
 
     async fn set_config_last_seen_uid<S: AsRef<str>>(
@@ -1423,22 +1427,6 @@ impl Imap {
         }
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
-    }
-
-    pub async fn fetch_existing_messages(&mut self, context: &Context) {
-        for config in &[
-            Config::ConfiguredInboxFolder,
-            Config::ConfiguredSentboxFolder,
-            Config::ConfiguredMvboxFolder,
-        ] {
-            if let Some(folder) = context.get_config(*config).await {
-                warn!(context, "dbg fetching existing from {}", &folder);
-                if let Err(e) = self.fetch_new_messages(context, folder, true).await {
-                    // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-                    warn!(context, "Could not fetch messages: {:#}", e);
-                };
-            }
-        }
     }
 }
 
