@@ -1750,6 +1750,8 @@ class TestOnlineAccount:
         # Explicitly rename contact on ac2 to "Renamed"
         ac2.create_contact(contact, name="Renamed")
         assert contact.name == "Renamed"
+        ev = ac2._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
+        assert ev.data1 == contact.id
 
         # ac1 also renames itself into "Renamed"
         assert update_name() == "Renamed"
