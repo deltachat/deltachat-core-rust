@@ -247,13 +247,12 @@ impl Contact {
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(context, name, addr, Origin::ManuallyCreated).await?;
         let blocked = Contact::is_blocked_load(context, contact_id).await;
-        context.emit_event(EventType::ContactsChanged(
-            if sth_modified == Modifier::Created {
-                Some(contact_id)
-            } else {
-                None
-            },
-        ));
+        match sth_modified {
+            Modifier::None => {}
+            Modifier::Modified | Modifier::Created => {
+                context.emit_event(EventType::ContactsChanged(Some(contact_id)))
+            }
+        }
         if blocked {
             Contact::unblock(context, contact_id).await;
         }
