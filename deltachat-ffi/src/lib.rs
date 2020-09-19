@@ -316,7 +316,6 @@ pub unsafe extern "C" fn dc_get_id(context: *mut dc_context_t) -> libc::c_int {
     ctx.get_id() as libc::c_int
 }
 
-#[no_mangle]
 pub type dc_event_t = Event;
 
 #[no_mangle]
@@ -481,7 +480,6 @@ pub unsafe extern "C" fn dc_event_get_account_id(event: *mut dc_event_t) -> u32 
     (*event).id
 }
 
-#[no_mangle]
 pub type dc_event_emitter_t = EventEmitter;
 
 #[no_mangle]
@@ -1989,7 +1987,6 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
 
 // dc_array_t
 
-#[no_mangle]
 pub type dc_array_t = dc_array::dc_array_t;
 
 #[no_mangle]
@@ -2172,7 +2169,6 @@ pub struct ChatlistWrapper {
     list: chatlist::Chatlist,
 }
 
-#[no_mangle]
 pub type dc_chatlist_t = ChatlistWrapper;
 
 #[no_mangle]
@@ -2296,7 +2292,6 @@ pub struct ChatWrapper {
     chat: chat::Chat,
 }
 
-#[no_mangle]
 pub type dc_chat_t = ChatWrapper;
 
 #[no_mangle]
@@ -2522,7 +2517,6 @@ pub struct MessageWrapper {
     message: message::Message,
 }
 
-#[no_mangle]
 pub type dc_msg_t = MessageWrapper;
 
 #[no_mangle]
@@ -3021,7 +3015,6 @@ pub struct ContactWrapper {
     contact: contact::Contact,
 }
 
-#[no_mangle]
 pub type dc_contact_t = ContactWrapper;
 
 #[no_mangle]
@@ -3154,7 +3147,6 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
 
 // dc_lot_t
 
-#[no_mangle]
 pub type dc_lot_t = lot::Lot;
 
 #[no_mangle]
@@ -3295,7 +3287,6 @@ fn convert_and_prune_message_ids(msg_ids: *const u32, msg_cnt: libc::c_int) -> V
 
 // dc_provider_t
 
-#[no_mangle]
 pub type dc_provider_t = provider::Provider;
 
 #[no_mangle]
@@ -3561,7 +3552,6 @@ pub unsafe extern "C" fn dc_accounts_maybe_network(accounts: *mut dc_accounts_t)
     block_on(accounts.maybe_network());
 }
 
-#[no_mangle]
 pub type dc_accounts_event_emitter_t = deltachat::accounts::EventEmitter;
 
 #[no_mangle]
