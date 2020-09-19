@@ -202,6 +202,9 @@ pub const DC_LP_AUTH_FLAGS: i32 = DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL;
 /// How many existing messages shall be fetched if this feature is enabled.
 pub const DC_FETCH_EXISTING_MSGS_COUNT: i32 = 100;
 
+/// How many emails have to be in the inbox so that Config::ClassicEmailsDetected is set to "1"
+pub const DC_DETECT_CLASSIC_EMAILS_THRESHOLT: usize = 5;
+
 // max. width/height of an avatar
 pub const AVATAR_SIZE: u32 = 192;
 

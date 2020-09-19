@@ -136,7 +136,6 @@ pub enum Config {
     /// It might be a good idea to call dc_fetch_existing_msgs() afterwards.
     #[strum(props(default = "0"))]
     ClassicEmailsDetected,
-
 }
 
 impl Context {

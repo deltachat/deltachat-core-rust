@@ -10,6 +10,7 @@ use async_std::prelude::*;
 use async_std::task;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
+use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::imap::Imap;
@@ -25,7 +26,6 @@ use crate::{
     e2ee, provider, EventType,
 };
 use crate::{config::Config, contact::normalize_name};
-use crate::{constants::*};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
@@ -365,6 +365,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
+
+    imap.detect_classic_emails(ctx).await;
 
     // let ctx2 = ctx.clone();
     // async_std::task::spawn(async move {

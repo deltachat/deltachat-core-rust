@@ -1428,6 +1428,37 @@ impl Imap {
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
     }
+
+    pub async fn detect_classic_emails(&mut self, context: &Context) {
+        match self.detect_classic_emails_inner(context).await {
+            Err(e) => warn!(context, "detect_classic_emails(): {:#}", e),
+            Ok(count) => {
+                if count >= DC_DETECT_CLASSIC_EMAILS_THRESHOLT {
+                    if let Err(e) = context.set_config(Config::ClassicEmailsDetected, Some("1")).await {
+                        warn!(context, "detect_classic_emails() can't set config: {:#}", e);
+                    };
+                }
+            }
+        }
+    }
+
+    pub async fn detect_classic_emails_inner(&mut self, context: &Context) -> Result<usize> {
+        let mut result = 0;
+        for config in &[
+            Config::ConfiguredInboxFolder,
+            Config::ConfiguredSentboxFolder,
+        ] {
+            if let Some(folder) = context.get_config(*config).await {
+                self.select_with_uidvalidity(context, &folder).await?;
+                let session = self.session.as_mut();
+                let session =
+                    session.context("detect_classic_emails(): IMAP No Connection established")?;
+                let uids = session.uid_search("NOT HEADER Chat-Version").await?;
+                result += uids.len();
+            }
+        }
+        Ok(result)
+    }
 }
 
 /// Try to get the folder meaning by the name of the folder only used if the server does not support XLIST.
