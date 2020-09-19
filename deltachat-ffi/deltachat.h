@@ -4647,7 +4647,7 @@ void dc_event_unref(dc_event_t* event);
 /**
  * Contact(s) created, renamed, verified, blocked or deleted.
  *
- * @param data1 (int) If not 0, this is the contact_id of an added contact that should be selected.
+ * @param data1 (int) contact_id of the changed contact or 0 on batch-changes or deletion.
  * @param data2 0
  */
 #define DC_EVENT_CONTACTS_CHANGED         2030
