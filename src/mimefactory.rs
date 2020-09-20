@@ -52,6 +52,7 @@ pub struct MimeFactory<'a, 'b> {
     context: &'a Context,
     last_added_location_id: u32,
     attach_selfavatar: bool,
+    bcc_group: bool,
 }
 
 /// Result of rendering a message, ready to be submitted to a send job.
@@ -74,6 +75,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         attach_selfavatar: bool,
     ) -> Result<MimeFactory<'a, 'b>, Error> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
+        
+        let bcc_group: bool = chat.name.ends_with("#BCC");
 
         let from_addr = context
             .get_config(Config::ConfiguredAddr)
@@ -156,6 +159,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             last_added_location_id: 0,
             attach_selfavatar,
             context,
+            bcc_group,
         };
         Ok(factory)
     }
@@ -203,6 +207,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             req_mdn: false,
             last_added_location_id: 0,
             attach_selfavatar: false,
+            bcc_group: false,
         };
 
         Ok(res)
@@ -482,10 +487,15 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
         let skip_autocrypt = self.should_skip_autocrypt();
-        let subject_str = self.subject_str().await;
+        let mut subject_str = self.subject_str().await;
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(self.context).await?;
 
+        if subject_str.ends_with("#BCC") {
+            subject_str.truncate(subject_str.len()-4);
+        }
+        info!(self.context, "MimeFactory::render: subject: {}", subject_str);
+        
         let subject = if subject_str
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == ' ')
@@ -541,8 +551,18 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             "Message-ID".into(),
             render_rfc724_mid(&rfc724_mid),
         ));
-
-        unprotected_headers.push(Header::new_with_value("To".into(), to).unwrap());
+        
+        if self.bcc_group {
+            // cs
+            // the app must not include Bcc header as MTA doesn't removes it!
+            // smtp receipients are independent from mail header !!
+            //unprotected_headers.push(Header::new_with_value("Bcc".into(), to).unwrap());
+            //
+            // this is what Thunderbird does when no "To:" header is there
+            unprotected_headers.push(Header::new("To".into(), "Hidden_receipients: ;".to_string()));
+        } else {
+            unprotected_headers.push(Header::new_with_value("To".into(), to).unwrap());
+        }
         unprotected_headers.push(Header::new_with_value("From".into(), vec![from]).unwrap());
 
         let mut is_gossiped = false;
@@ -708,11 +728,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut placeholdertext = None;
         let mut meta_part = None;
 
-        if chat.typ == Chattype::VerifiedGroup {
+        if !self.bcc_group && (chat.typ == Chattype::VerifiedGroup) {
             protected_headers.push(Header::new("Chat-Verified".to_string(), "1".to_string()));
         }
 
-        if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+        if !self.bcc_group && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup) {
             protected_headers.push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
 
             let encoded = encode_words(&chat.name);

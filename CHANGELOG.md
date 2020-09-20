@@ -1,5 +1,12 @@
 # Changelog 
 
+## 1.46.1
+
+- Experimental Broadcast Group
+
+- more structured logging
+
+
 ## 1.46.0
 
 - breaking change: `dc_configure()` report errors in
