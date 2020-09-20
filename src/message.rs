@@ -765,9 +765,7 @@ impl Message {
     }
 
     pub fn get_error(&self) -> Option<String> {
-        self.error
-            .as_ref()
-            .map(|text| dc_truncate(text, DC_MAX_GET_ERROR_LEN).to_string())
+        self.error.clone()
     }
 }
 
