@@ -554,7 +554,10 @@ async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationE
         .iter()
         .all(|e| e.msg.to_lowercase().contains("could not resolve"))
     {
-        return context.stock_str(StockMessage::NoNetwork).await.to_string();
+        return context
+            .stock_str(StockMessage::ErrorNoNetwork)
+            .await
+            .to_string();
     }
 
     if errors.iter().all(|e| e.msg == first_err.msg) {
