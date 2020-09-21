@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::task::{Context as TaskContext, Poll};
 
 use async_std::fs;
 use async_std::path::PathBuf;
@@ -249,26 +247,22 @@ impl EventEmitter {
 
     /// Async recv of an event. Return `None` if the `Sender` has been droped.
     pub async fn recv(&self) -> Option<Event> {
-        futures::future::poll_fn(|cx| Pin::new(self).recv_poll(cx)).await
-    }
-
-    fn recv_poll(self: Pin<&Self>, _cx: &mut TaskContext<'_>) -> Poll<Option<Event>> {
-        for e in &*self.0 {
-            if e.done.load(Ordering::Acquire) {
-                // skip emitters that are already done
-                continue;
-            }
-
-            match e.emitter.try_recv() {
-                Ok(event) => return Poll::Ready(Some(event)),
-                Err(async_std::sync::TryRecvError::Disconnected) => {
-                    e.done.store(true, Ordering::Release);
+        loop {
+            for e in &self.0 {
+                if e.done.load(Ordering::Acquire) {
+                    // skip emitters that are already done
+                    continue;
                 }
-                Err(async_std::sync::TryRecvError::Empty) => {}
+
+                match e.emitter.try_recv() {
+                    Ok(event) => return Some(event),
+                    Err(async_std::sync::TryRecvError::Disconnected) => {
+                        e.done.store(true, Ordering::Release);
+                    }
+                    Err(async_std::sync::TryRecvError::Empty) => {}
+                }
             }
         }
-
-        Poll::Pending
     }
 }
 
