@@ -217,7 +217,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "You are invited to a video chat, click %1$s to join."))]
     VideochatInviteMsgBody = 83,
 
-    #[strum(props(fallback = "Configuration failed. Error: “%1$s”"))]
+    #[strum(props(fallback = "Error:\n\n“%1$s”"))]
     ConfigurationFailed = 84,
 
     #[strum(props(
@@ -231,6 +231,11 @@ pub enum StockMessage {
                     and you are missing the latest features 😳\n\
                     Please check https://get.delta.chat or your app store for updates."))]
     UpdateReminderMsgBody = 86,
+
+    #[strum(props(
+        fallback = "Could not find your mail server.\n\nPlease check your internet connection."
+    ))]
+    ErrorNoNetwork = 87,
 }
 
 /*
