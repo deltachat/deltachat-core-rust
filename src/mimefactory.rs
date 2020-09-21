@@ -75,7 +75,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         attach_selfavatar: bool,
     ) -> Result<MimeFactory<'a, 'b>, Error> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
-        
+
         let bcc_group: bool = chat.name.ends_with("#BCC");
 
         let from_addr = context
@@ -492,10 +492,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let encrypt_helper = EncryptHelper::new(self.context).await?;
 
         if subject_str.ends_with("#BCC") {
-            subject_str.truncate(subject_str.len()-4);
+            subject_str.truncate(subject_str.len() - 4);
         }
-        info!(self.context, "MimeFactory::render: subject: {}", subject_str);
-        
+        info!(
+            self.context,
+            "MimeFactory::render: subject: {}", subject_str
+        );
+
         let subject = if subject_str
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == ' ')
@@ -551,7 +554,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             "Message-ID".into(),
             render_rfc724_mid(&rfc724_mid),
         ));
-        
+
         if self.bcc_group {
             // cs
             // the app must not include Bcc header as MTA doesn't removes it!
@@ -559,7 +562,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             //unprotected_headers.push(Header::new_with_value("Bcc".into(), to).unwrap());
             //
             // this is what Thunderbird does when no "To:" header is there
-            unprotected_headers.push(Header::new("To".into(), "Hidden_receipients: ;".to_string()));
+            unprotected_headers.push(Header::new(
+                "To".into(),
+                "Hidden_receipients: ;".to_string(),
+            ));
         } else {
             unprotected_headers.push(Header::new_with_value("To".into(), to).unwrap());
         }
