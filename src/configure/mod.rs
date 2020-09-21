@@ -8,6 +8,7 @@ mod server_params;
 use anyhow::{bail, ensure, Context as _, Result};
 use async_std::prelude::*;
 use async_std::task;
+use itertools::Itertools;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
@@ -564,11 +565,7 @@ async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationE
         return first_err.msg.to_string();
     }
 
-    errors
-        .iter()
-        .map(|e| e.to_string())
-        .collect::<Vec<_>>()
-        .join("\n\n")
+    errors.iter().map(|e| e.to_string()).join("\n\n")
 }
 
 #[derive(Debug, thiserror::Error)]
