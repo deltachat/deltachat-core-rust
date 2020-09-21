@@ -269,7 +269,7 @@ pub struct Message {
     pub(crate) starred: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
-    pub(crate) error: Option<String>,
+    error: Option<String>,
     pub(crate) param: Params,
 }
 
@@ -764,7 +764,8 @@ impl Message {
             .is_ok()
     }
 
-    pub fn get_error(&self) -> Option<String> {
+    /// Get the error of the message.
+    pub fn error(&self) -> Option<String> {
         self.error.clone()
     }
 }

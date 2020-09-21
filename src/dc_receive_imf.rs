@@ -2570,7 +2570,7 @@ mod tests {
 
         assert_eq!(msg.state, MessageState::OutFailed);
         assert_eq!(
-            msg.error,
+            msg.error(),
             Some(error_msg.to_string()).filter(|error| !error.is_empty())
         );
     }

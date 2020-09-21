@@ -3014,7 +3014,7 @@ pub unsafe extern "C" fn dc_msg_get_error(msg: *mut dc_msg_t) -> *mut libc::c_ch
         return "".strdup();
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_error().unwrap_or_default().strdup()
+    ffi_msg.message.error().unwrap_or_default().strdup()
 }
 
 // dc_contact_t
