@@ -2,7 +2,7 @@
 
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
-use lazy_static::lazy_static;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
@@ -19,10 +19,6 @@ use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::*;
 use crate::pgp::*;
 use crate::stock::StockMessage;
-
-lazy_static! {
-    static ref UNWRAP_RE: regex::Regex = regex::Regex::new(r"\s+").unwrap();
-}
 
 // In practice, the user additionally cuts the string themselves
 // pixel-accurate.
@@ -1402,7 +1398,7 @@ pub async fn get_summarytext_by_raw(
         prefix
     };
 
-    UNWRAP_RE.replace_all(&summary, " ").to_string()
+    summary.split_whitespace().join(" ")
 }
 
 // as we do not cut inside words, this results in about 32-42 characters.
@@ -1842,7 +1838,7 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let some_text = Some("bla bla".to_string());
+        let some_text = Some(" bla \t\n\tbla\n\t".to_string());
         let empty_text = Some("".to_string());
         let no_text: Option<String> = None;
 
