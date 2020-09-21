@@ -170,16 +170,14 @@ pub async fn dc_get_oauth2_access_token(
         }
 
         // ... and POST
-        let response = surf::post(post_url).body_form(&post_param);
-        if response.is_err() {
-            warn!(
-                context,
-                "Error calling OAuth2 at {}: {:?}", token_url, response
-            );
+        let mut req = surf::post(post_url).build();
+        if let Err(err) = req.body_form(&post_param) {
+            warn!(context, "Error calling OAuth2 at {}: {:?}", token_url, err);
             return None;
         }
 
-        let parsed: Result<Response, _> = response.unwrap().recv_json().await;
+        let client = surf::Client::new();
+        let parsed: Result<Response, _> = client.recv_json(req).await;
         if parsed.is_err() {
             warn!(
                 context,
