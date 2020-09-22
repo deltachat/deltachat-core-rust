@@ -764,7 +764,7 @@ impl Message {
             .is_ok()
     }
 
-    /// Get the error of the message.
+    /// Gets the error of the message.
     pub fn error(&self) -> Option<String> {
         self.error.clone()
     }
