@@ -372,9 +372,9 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
             let id = id.unwrap_or_default();
             id as libc::c_int
         }
-        EventType::ConfigureProgress { progress, .. }
-        | EventType::ImexProgress(progress)
-        | EventType::FetchExistingMsgsProgress(progress) => *progress as libc::c_int,
+        EventType::ConfigureProgress { progress, .. } | EventType::ImexProgress(progress) => {
+            *progress as libc::c_int
+        }
         EventType::ImexFileWritten(_) => 0,
         EventType::SecurejoinInviterProgress { contact_id, .. }
         | EventType::SecurejoinJoinerProgress { contact_id, .. } => *contact_id as libc::c_int,
@@ -408,7 +408,6 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ConfigureProgress { .. }
         | EventType::ImexProgress(_)
         | EventType::ImexFileWritten(_)
-        | EventType::FetchExistingMsgsProgress(_)
         | EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
@@ -457,7 +456,6 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::ImexProgress(_)
         | EventType::SecurejoinInviterProgress { .. }
         | EventType::SecurejoinJoinerProgress { .. }
-        | EventType::FetchExistingMsgsProgress(_)
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {
