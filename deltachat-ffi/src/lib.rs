@@ -218,7 +218,7 @@ pub unsafe extern "C" fn dc_set_config_from_qr(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_get_info(context: *const dc_context_t) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_info()");
         return "".strdup();
