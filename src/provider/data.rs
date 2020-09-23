@@ -279,6 +279,24 @@ lazy_static::lazy_static! {
         oauth2_authorizer: None,
     };
 
+    // hermes.radio.md: hermes.radio
+    static ref P_HERMES_RADIO: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/hermes-radio",
+        server: vec![
+        ],
+        config_defaults: Some(vec![
+            ConfigDefault { key: Config::MdnsEnabled, value: "0" },
+            ConfigDefault { key: Config::E2eeEnabled, value: "0" },
+            ConfigDefault { key: Config::MediaQuality, value: "1" },
+            ConfigDefault { key: Config::ShowEmails, value: "2" },
+        ]),
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
+
     // hey.com.md: hey.com
     static ref P_HEY_COM: Provider = Provider {
         status: Status::BROKEN,
@@ -674,6 +692,7 @@ lazy_static::lazy_static! {
         ("gmx.info", &*P_GMX_NET),
         ("gmx.biz", &*P_GMX_NET),
         ("gmx.com", &*P_GMX_NET),
+        ("hermes.radio", &*P_HERMES_RADIO),
         ("hey.com", &*P_HEY_COM),
         ("i.ua", &*P_I_UA),
         ("icloud.com", &*P_ICLOUD),
@@ -808,5 +827,5 @@ lazy_static::lazy_static! {
         ("ziggo.nl", &*P_ZIGGO_NL),
     ].iter().copied().collect();
 
-    pub static ref PROVIDER_UPDATED: chrono::NaiveDate = chrono::NaiveDate::from_ymd(2020, 9, 19);
+    pub static ref PROVIDER_UPDATED: chrono::NaiveDate = chrono::NaiveDate::from_ymd(2020, 9, 22);
 }
