@@ -500,7 +500,7 @@ pub unsafe extern "C" fn dc_get_event_emitter(
 #[no_mangle]
 pub unsafe extern "C" fn dc_event_emitter_unref(emitter: *mut dc_event_emitter_t) {
     if emitter.is_null() {
-        eprintln!("ignoring careless call to dc_event_mitter_unref()");
+        eprintln!("ignoring careless call to dc_event_emitter_unref()");
         return;
     }
 
@@ -510,6 +510,7 @@ pub unsafe extern "C" fn dc_event_emitter_unref(emitter: *mut dc_event_emitter_t
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_next_event(events: *mut dc_event_emitter_t) -> *mut dc_event_t {
     if events.is_null() {
+        eprintln!("ignoring careless call to dc_get_next_event()");
         return ptr::null_mut();
     }
     let events = &*events;
@@ -3574,6 +3575,7 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
     emitter: *mut dc_accounts_event_emitter_t,
 ) -> *mut dc_event_t {
     if emitter.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_next_event()");
         return ptr::null_mut();
     }
     let emitter = &mut *emitter;
