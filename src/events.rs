@@ -186,6 +186,11 @@ pub enum EventType {
     #[strum(props(id = "2005"))]
     IncomingMsg { chat_id: ChatId, msg_id: MsgId },
 
+    /// Messages were seen or noticed.
+    /// If chat_id is 0, this affects multiple chats.
+    #[strum(props(id = "2008"))]
+    MsgsNoticed(ChatId),
+
     /// A single message is sent successfully. State changed from  DC_STATE_OUT_PENDING to
     /// DC_STATE_OUT_DELIVERED, see dc_msg_get_state().
     #[strum(props(id = "2010"))]

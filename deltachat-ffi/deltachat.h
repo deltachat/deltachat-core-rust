@@ -1122,7 +1122,7 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
  * but are still waiting for being marked as "seen" using dc_markseen_msgs()
  * (IMAP/MDNs is not done for noticed messages).
  *
- * Calling this function usually results in the event #DC_EVENT_MSGS_CHANGED.
+ * Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
  * See also dc_marknoticed_all_chats(), dc_marknoticed_contact() and dc_markseen_msgs().
  *
  * @memberof dc_context_t
@@ -1517,7 +1517,7 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  * as _noticed_.  See also dc_marknoticed_chat() and
  * dc_markseen_msgs()
  *
- * Calling this function usually results in the event #DC_EVENT_MSGS_CHANGED.
+ * Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -1535,6 +1535,8 @@ void            dc_marknoticed_contact       (dc_context_t* context, uint32_t co
  *
  * Moreover, if messages belong to a chat with ephemeral messages enabled,
  * the ephemeral timer is started for these messages.
+ *
+ * Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -4605,6 +4607,20 @@ void dc_event_unref(dc_event_t* event);
  * @param data2 (int) msg_id
  */
 #define DC_EVENT_INCOMING_MSG             2005
+
+
+/**
+ * Messages were marked noticed or seen.
+ * The ui may update badge counters or stop showing a chatlist-item with a bold font.
+ *
+ * This event is emitted eg. when calling dc_markseen_msgs(), dc_marknoticed_chat() or dc_marknoticed_contact().
+ * Do not try to derive the state of an item from just the fact you received the event;
+ * use eg. dc_msg_get_state() or dc_get_fresh_msg_cnt() for this purpose.
+ *
+ * @param data1 (int) chat_id or 0 if the event affects multiple chats.
+ * @param data2 0
+ */
+#define DC_EVENT_MSGS_NOTICED             2008
 
 
 /**

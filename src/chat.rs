@@ -1795,10 +1795,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), 
         )
         .await?;
 
-    context.emit_event(EventType::MsgsChanged {
-        chat_id: ChatId::new(0),
-        msg_id: MsgId::new(0),
-    });
+    context.emit_event(EventType::MsgsNoticed(chat_id));
 
     Ok(())
 }
@@ -1827,10 +1824,7 @@ pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
         )
         .await?;
 
-    context.emit_event(EventType::MsgsChanged {
-        msg_id: MsgId::new(0),
-        chat_id: ChatId::new(0),
-    });
+    context.emit_event(EventType::MsgsNoticed(ChatId::new(0)));
 
     Ok(())
 }

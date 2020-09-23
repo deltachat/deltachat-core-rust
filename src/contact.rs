@@ -16,7 +16,7 @@ use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
-use crate::message::{MessageState, MsgId};
+use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
 use crate::param::*;
 use crate::peerstate::*;
@@ -263,7 +263,7 @@ impl Contact {
     /// Mark all messages sent by the given contact
     /// as *noticed*.  See also dc_marknoticed_chat() and dc_markseen_msgs()
     ///
-    /// Calling this function usually results in the event `#DC_EVENT_MSGS_CHANGED`.
+    /// Calling this function usually results in the event `#DC_EVENT_MSGS_NOTICED`.
     pub async fn mark_noticed(context: &Context, id: u32) {
         if context
             .sql
@@ -274,10 +274,7 @@ impl Contact {
             .await
             .is_ok()
         {
-            context.emit_event(EventType::MsgsChanged {
-                chat_id: ChatId::new(0),
-                msg_id: MsgId::new(0),
-            });
+            context.emit_event(EventType::MsgsNoticed(ChatId::new(0)));
         }
     }
 

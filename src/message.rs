@@ -1283,10 +1283,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
     }
 
     if send_event {
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: ChatId::new(0),
-            msg_id: MsgId::new(0),
-        });
+        context.emit_event(EventType::MsgsNoticed(ChatId::new(0)));
     }
 
     true

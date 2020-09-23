@@ -362,6 +362,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
+        | EventType::MsgsNoticed(chat_id)
         | EventType::MsgDelivered { chat_id, .. }
         | EventType::MsgFailed { chat_id, .. }
         | EventType::MsgRead { chat_id, .. }
@@ -407,6 +408,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ConfigureProgress { .. }
         | EventType::ImexProgress(_)
         | EventType::ImexFileWritten(_)
+        | EventType::MsgsNoticed(_)
         | EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
@@ -446,6 +448,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         }
         EventType::MsgsChanged { .. }
         | EventType::IncomingMsg { .. }
+        | EventType::MsgsNoticed(_)
         | EventType::MsgDelivered { .. }
         | EventType::MsgFailed { .. }
         | EventType::MsgRead { .. }
