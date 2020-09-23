@@ -1805,8 +1805,7 @@ class TestOnlineAccount:
             if ev.data1 == 0:
                 break
         # Password is wrong so it definitely has to say something about "password"
-        # but the error message should not be repeated:
-        assert ev.data2.count("password") == 1
+        assert "password" in ev.data2
 
         ac2, configdict = acfactory.get_online_config()
         ac2.update_config(configdict)
