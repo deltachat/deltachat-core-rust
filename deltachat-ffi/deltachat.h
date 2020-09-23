@@ -431,7 +431,7 @@ int             dc_set_config_from_qr   (dc_context_t* context, const char* qr);
  * @param context The context object.
  * @return String which must be released using dc_str_unref() after usage.  Never returns NULL.
  */
-char*           dc_get_info                  (dc_context_t* context);
+char*           dc_get_info                  (const dc_context_t* context);
 
 
 /**
