@@ -939,7 +939,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 1;
             sql.set_raw_config_int(context, "dbversion", 1).await?;
         }
         if dbversion < 2 {
@@ -949,7 +948,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 2;
             sql.set_raw_config_int(context, "dbversion", 2).await?;
         }
         if dbversion < 7 {
@@ -965,7 +963,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 7;
             sql.set_raw_config_int(context, "dbversion", 7).await?;
         }
         if dbversion < 10 {
@@ -986,7 +983,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 10;
             sql.set_raw_config_int(context, "dbversion", 10).await?;
         }
         if dbversion < 12 {
@@ -1001,7 +997,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 12;
             sql.set_raw_config_int(context, "dbversion", 12).await?;
         }
         if dbversion < 17 {
@@ -1020,7 +1015,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             .await?;
             sql.execute("CREATE INDEX msgs_index5 ON msgs (starred);", paramsv![])
                 .await?;
-            dbversion = 17;
             sql.set_raw_config_int(context, "dbversion", 17).await?;
         }
         if dbversion < 18 {
@@ -1035,7 +1029,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 18;
             sql.set_raw_config_int(context, "dbversion", 18).await?;
         }
         if dbversion < 27 {
@@ -1059,7 +1052,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 27;
             sql.set_raw_config_int(context, "dbversion", 27).await?;
         }
         if dbversion < 34 {
@@ -1095,7 +1087,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             )
             .await?;
             recalc_fingerprints = true;
-            dbversion = 34;
             sql.set_raw_config_int(context, "dbversion", 34).await?;
         }
         if dbversion < 39 {
@@ -1119,7 +1110,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 39;
             sql.set_raw_config_int(context, "dbversion", 39).await?;
         }
         if dbversion < 40 {
@@ -1129,14 +1119,12 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 40;
             sql.set_raw_config_int(context, "dbversion", 40).await?;
         }
         if dbversion < 44 {
             info!(context, "[migration] v44");
             sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", paramsv![])
                 .await?;
-            dbversion = 44;
             sql.set_raw_config_int(context, "dbversion", 44).await?;
         }
         if dbversion < 46 {
@@ -1161,7 +1149,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 47;
             sql.set_raw_config_int(context, "dbversion", 47).await?;
         }
         if dbversion < 48 {
@@ -1172,8 +1159,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-
-            dbversion = 48;
             sql.set_raw_config_int(context, "dbversion", 48).await?;
         }
         if dbversion < 49 {
@@ -1183,7 +1168,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 49;
             sql.set_raw_config_int(context, "dbversion", 49).await?;
         }
         if dbversion < 50 {
@@ -1195,7 +1179,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 sql.set_raw_config_int(context, "show_emails", ShowEmails::All as i32)
                     .await?;
             }
-            dbversion = 50;
             sql.set_raw_config_int(context, "dbversion", 50).await?;
         }
         if dbversion < 53 {
@@ -1236,7 +1219,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 53;
             sql.set_raw_config_int(context, "dbversion", 53).await?;
         }
         if dbversion < 54 {
@@ -1251,7 +1233,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 54;
             sql.set_raw_config_int(context, "dbversion", 54).await?;
         }
         if dbversion < 55 {
