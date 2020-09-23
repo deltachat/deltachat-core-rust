@@ -882,7 +882,13 @@ class TestOnlineAccount:
         lp.sec("mark messages as seen on ac2, wait for changes on ac1")
         ac2.direct_imap.idle_start()
         ac1.direct_imap.idle_start()
+
         ac2.mark_seen_messages([msg2, msg4])
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
+        assert msg2.chat.id == msg4.chat.id
+        assert ev.data1 == msg2.chat.id
+        assert ev.data2 == 0
+
         ac2.direct_imap.idle_check(terminate=True)
         lp.step("1")
         for i in range(2):
