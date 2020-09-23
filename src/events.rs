@@ -244,10 +244,6 @@ pub enum EventType {
         comment: Option<String>,
     },
 
-    /// Inform about the configuration progress started by dc_fetch_existing_msgs
-    #[strum(props(id = "2043"))]
-    FetchExistingMsgsProgress(usize),
-
     /// Inform about the import/export progress started by imex().
     ///
     /// @param data1 (usize) 0=error, 1-999=progress in permille, 1000=success and done

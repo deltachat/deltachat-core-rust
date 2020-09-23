@@ -92,6 +92,7 @@ pub enum Action {
 
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
+    FetchExsistingMsgs = 110,
     MarkseenMsgOnImap = 130,
 
     // Moving message is prioritized lower than deletion so we don't
@@ -124,6 +125,7 @@ impl From<Action> for Thread {
             Unknown => Thread::Unknown,
 
             Housekeeping => Thread::Imap,
+            FetchExsistingMsgs => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
             ResyncFolders => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,

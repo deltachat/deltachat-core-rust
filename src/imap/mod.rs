@@ -1433,6 +1433,7 @@ impl Imap {
         match self.detect_classic_emails_inner(context).await {
             Err(e) => warn!(context, "detect_classic_emails(): {:#}", e),
             Ok(count) => {
+                warn!(context, "dbg detected {}", count);
                 if count >= DC_DETECT_CLASSIC_EMAILS_THRESHOLT {
                     if let Err(e) = context.set_config(Config::ClassicEmailsDetected, Some("1")).await {
                         warn!(context, "detect_classic_emails() can't set config: {:#}", e);
@@ -1442,7 +1443,7 @@ impl Imap {
         }
     }
 
-    pub async fn detect_classic_emails_inner(&mut self, context: &Context) -> Result<usize> {
+    async fn detect_classic_emails_inner(&mut self, context: &Context) -> Result<usize> {
         let mut result = 0;
         for config in &[
             Config::ConfiguredInboxFolder,

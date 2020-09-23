@@ -352,9 +352,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    If no type is prefixed, the videochat is handled completely in a browser.
  * - `classic_emails_detected` = Check this when you receive DC_EVENT_CONFIGURE_PROGRESS(1000).
  *                    If this is "1", classical emails were detected in the mailbox.
- *                    You should ask the user whether they want to show classical emails in Delta Chat
+ *                    You could ask the user whether they want to show classical emails in Delta Chat
  *                    (and set show_emails to 2 if they say yes)
- *                    It might be a good idea to call dc_fetch_existing_msgs() afterwards.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
