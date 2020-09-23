@@ -76,7 +76,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     ) -> Result<MimeFactory<'a, 'b>, Error> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
 
-        let bcc_group: bool = chat.name.ends_with("#BCC");
+        let bcc_group: bool = chat.bcc_group;
 
         let from_addr = context
             .get_config(Config::ConfiguredAddr)

@@ -538,6 +538,7 @@ pub struct Chat {
     pub param: Params,
     is_sending_locations: bool,
     pub mute_duration: MuteDuration,
+    pub bcc_group: bool,
 }
 
 impl Chat {
@@ -562,6 +563,7 @@ impl Chat {
                         blocked: row.get::<_, Option<_>>(5)?.unwrap_or_default(),
                         is_sending_locations: row.get(6)?,
                         mute_duration: row.get(7)?,
+                        bcc_group: false,
                     };
                     Ok(c)
                 },
@@ -602,6 +604,7 @@ impl Chat {
                     } else if chat.param.exists(Param::Devicetalk) {
                         chat.name = context.stock_str(StockMessage::DeviceMessages).await.into();
                     }
+                    chat.bcc_group = chat.typ == Chattype::Group && chat.name.ends_with("#BCC");
                 }
                 Ok(chat)
             }
@@ -774,13 +777,11 @@ impl Chat {
             bail!("Cannot set message; self not in group.");
         }
 
-        let bcc_group = self.name.ends_with("#BCC");
-
         if let Some(from) = context.get_config(Config::ConfiguredAddr).await {
             let new_rfc724_mid = {
                 let grpid = match self.typ {
                     // bcc_groups do not get a group id because for the receiver it doesn't look like a group
-                    Chattype::Group | Chattype::VerifiedGroup if !bcc_group => {
+                    Chattype::Group | Chattype::VerifiedGroup if !self.bcc_group => {
                         Some(self.grpid.as_str())
                     }
                     _ => None,
@@ -2026,7 +2027,7 @@ pub(crate) async fn add_contact_to_chat_ex(
             return Ok(false);
         }
     }
-    if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
+    if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 && !chat.bcc_group {
         msg.viewtype = Viewtype::Text;
         msg.text = Some(
             context
@@ -2243,7 +2244,7 @@ pub async fn remove_contact_from_chat(
                 );
             } else {
                 if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-                    if chat.is_promoted() {
+                    if chat.is_promoted() && !chat.bcc_group {
                         msg.viewtype = Viewtype::Text;
                         if contact.id == DC_CONTACT_ID_SELF {
                             set_group_explicitly_left(context, chat.grpid).await?;
@@ -2359,7 +2360,7 @@ pub async fn set_chat_name(
                 .await
                 .is_ok()
             {
-                if chat.is_promoted() {
+                if chat.is_promoted() && !chat.bcc_group {
                     msg.viewtype = Viewtype::Text;
                     msg.text = Some(
                         context
