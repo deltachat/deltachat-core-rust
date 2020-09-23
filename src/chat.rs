@@ -774,15 +774,18 @@ impl Chat {
             bail!("Cannot set message; self not in group.");
         }
 
-        let from = context
-            .get_config(Config::ConfiguredAddr)
-            .await
-            .context("Cannot prepare message for sending, address is not configured.")?;
+        let bcc_group = self.name.ends_with("#BCC");
 
-        let new_rfc724_mid = {
-            let grpid = match self.typ {
-                Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
-                _ => None,
+        if let Some(from) = context.get_config(Config::ConfiguredAddr).await {
+            let new_rfc724_mid = {
+                let grpid = match self.typ {
+                    // bcc_groups do not get a group id because for the receiver it doesn't look like a group
+                    Chattype::Group | Chattype::VerifiedGroup if !bcc_group => {
+                        Some(self.grpid.as_str())
+                    }
+                    _ => None,
+                };
+                dc_create_outgoing_rfc724_mid(grpid, &from)
             };
             dc_create_outgoing_rfc724_mid(grpid, &from)
         };
@@ -1873,7 +1876,8 @@ pub async fn create_group_chat(
         .await?;
 
     let chat_id = ChatId::new(row_id);
-    if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await {
+    let bcc_group = chat_name.ends_with("#BCC");
+    if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await && !bcc_group {
         let mut draft_msg = Message::new(Viewtype::Text);
         draft_msg.set_text(Some(draft_txt));
         chat_id.set_draft_raw(context, &mut draft_msg).await;
