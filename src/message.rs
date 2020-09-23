@@ -1226,6 +1226,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         .with_conn(move |conn| {
             let mut stmt = conn.prepare_cached(concat!(
                 "SELECT",
+                "    m.chat_id AS chat_id,",
                 "    m.state AS state,",
                 "    c.blocked AS blocked",
                 " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
@@ -1236,6 +1237,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
             for id in msg_ids.into_iter() {
                 let query_res = stmt.query_row(paramsv![id], |row| {
                     Ok((
+                        row.get::<_, ChatId>("chat_id")?,
                         row.get::<_, MessageState>("state")?,
                         row.get::<_, Option<Blocked>>("blocked")?
                             .unwrap_or_default(),
@@ -1244,8 +1246,8 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
                 if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
                     continue;
                 }
-                let (state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
-                msgs.push((id, state, blocked));
+                let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
+                msgs.push((id, chat_id, state, blocked));
             }
 
             Ok(msgs)
@@ -1254,8 +1256,10 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         .unwrap_or_default();
 
     let mut send_event = false;
+    let mut last_chat_id = ChatId::new(0);
+    let mut chat_ids_are_unique = true;
 
-    for (id, curr_state, curr_blocked) in msgs.into_iter() {
+    for (id, curr_chat_id, curr_state, curr_blocked) in msgs.into_iter() {
         if let Err(err) = id.start_ephemeral_timer(context).await {
             error!(
                 context,
@@ -1280,10 +1284,22 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
             update_msg_state(context, id, MessageState::InNoticed).await;
             send_event = true;
         }
+
+        if last_chat_id.is_unset() {
+            last_chat_id = curr_chat_id;
+        } else if last_chat_id != curr_chat_id {
+            chat_ids_are_unique = false;
+        }
     }
 
     if send_event {
-        context.emit_event(EventType::MsgsNoticed(ChatId::new(0)));
+        context.emit_event(EventType::MsgsNoticed(
+            if chat_ids_are_unique && !last_chat_id.is_unset() {
+                last_chat_id
+            } else {
+                ChatId::new(0)
+            },
+        ));
     }
 
     true
