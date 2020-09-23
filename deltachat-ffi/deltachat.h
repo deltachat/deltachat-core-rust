@@ -2728,7 +2728,7 @@ dc_lot_t*        dc_chatlist_get_summary     (const dc_chatlist_t* chatlist, siz
  * @memberof dc_context_t
  * @param context The context object.
  * @param chat_id Chat to get a summary for.
- * @param msg_id Messasge to get a summary for.
+ * @param msg_id Message to get a summary for.
  * @return The summary as an dc_lot_t object, see dc_chatlist_get_summary() for details.
  *     Must be freed using dc_lot_unref().  NULL is never returned.
  */
