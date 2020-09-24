@@ -1528,8 +1528,7 @@ void            dc_marknoticed_contact       (dc_context_t* context, uint32_t co
  * Moreover, if messages belong to a chat with ephemeral messages enabled,
  * the ephemeral timer is started for these messages.
  *
- * The given messages are expected to belong to the same chat or to the deaddrop;
- * only one #DC_EVENT_MSGS_NOTICED event with this chat may be emitted.
+ * One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.
  *
  * @memberof dc_context_t
  * @param context The context object.

@@ -19,6 +19,7 @@ use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::*;
 use crate::pgp::*;
 use crate::stock::StockMessage;
+use std::collections::BTreeMap;
 
 // In practice, the user additionally cuts the string themselves
 // pixel-accurate.
@@ -1255,8 +1256,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         .await
         .unwrap_or_default();
 
-    // we expect all messages belong to the same chat or to the deaddrop.
-    let mut updated_chat_id = ChatId::new(0);
+    let mut updated_chat_ids = BTreeMap::new();
 
     for (id, curr_chat_id, curr_state, curr_blocked) in msgs.into_iter() {
         if let Err(err) = id.start_ephemeral_timer(context).await {
@@ -1277,16 +1277,16 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
                     job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
                 )
                 .await;
-                updated_chat_id = curr_chat_id;
+                updated_chat_ids.insert(curr_chat_id, true);
             }
         } else if curr_state == MessageState::InFresh {
             update_msg_state(context, id, MessageState::InNoticed).await;
-            updated_chat_id = ChatId::new(DC_CHAT_ID_DEADDROP);
+            updated_chat_ids.insert(ChatId::new(DC_CHAT_ID_DEADDROP), true);
         }
     }
 
-    if !updated_chat_id.is_unset() {
-        context.emit_event(EventType::MsgsNoticed(updated_chat_id));
+    for (updated_chat_id, _) in &updated_chat_ids {
+        context.emit_event(EventType::MsgsNoticed(*updated_chat_id));
     }
 
     true
