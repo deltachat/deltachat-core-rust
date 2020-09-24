@@ -187,7 +187,7 @@ pub enum EventType {
     IncomingMsg { chat_id: ChatId, msg_id: MsgId },
 
     /// Messages were seen or noticed.
-    /// If chat_id is 0, this affects multiple chats.
+    /// chat id is always set.
     #[strum(props(id = "2008"))]
     MsgsNoticed(ChatId),
 

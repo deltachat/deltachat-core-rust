@@ -260,10 +260,9 @@ impl Contact {
         Ok(contact_id)
     }
 
-    /// Mark all messages sent by the given contact
-    /// as *noticed*.  See also dc_marknoticed_chat() and dc_markseen_msgs()
-    ///
-    /// Calling this function usually results in the event `#DC_EVENT_MSGS_NOTICED`.
+    /// Mark messages from a contact as noticed.
+    /// The contact is expected to belong to the deaddrop,
+    /// therefore, DC_EVENT_MSGS_NOTICED(DC_CHAT_ID_DEADDROP) is emitted.
     pub async fn mark_noticed(context: &Context, id: u32) {
         if context
             .sql
@@ -274,7 +273,7 @@ impl Contact {
             .await
             .is_ok()
         {
-            context.emit_event(EventType::MsgsNoticed(ChatId::new(0)));
+            context.emit_event(EventType::MsgsNoticed(ChatId::new(DC_CHAT_ID_DEADDROP)));
         }
     }
 

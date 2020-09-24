@@ -1503,11 +1503,13 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
 
 
 /**
- * Mark all messages sent by the given contact
- * as _noticed_.  See also dc_marknoticed_chat() and
- * dc_markseen_msgs()
+ * Mark all messages sent by the given contact as _noticed_.
+ * This function is typically used to ignore a user in the deaddrop temporarily ("Not now" button).
  *
- * Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
+ * The contact is expected to belong to the deaddrop;
+ * only one #DC_EVENT_MSGS_NOTICED with chat_id=DC_CHAT_ID_DEADDROP may be emitted.
+ *
+ * See also dc_marknoticed_chat() and dc_markseen_msgs()
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -1526,7 +1528,8 @@ void            dc_marknoticed_contact       (dc_context_t* context, uint32_t co
  * Moreover, if messages belong to a chat with ephemeral messages enabled,
  * the ephemeral timer is started for these messages.
  *
- * Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
+ * The given messages are expected to belong to the same chat or to the deaddrop;
+ * only one #DC_EVENT_MSGS_NOTICED event with this chat may be emitted.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -4607,7 +4610,7 @@ void dc_event_unref(dc_event_t* event);
  * Do not try to derive the state of an item from just the fact you received the event;
  * use eg. dc_msg_get_state() or dc_get_fresh_msg_cnt() for this purpose.
  *
- * @param data1 (int) chat_id or 0 if the event affects multiple chats.
+ * @param data1 (int) chat_id
  * @param data2 0
  */
 #define DC_EVENT_MSGS_NOTICED             2008

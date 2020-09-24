@@ -1255,9 +1255,8 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         .await
         .unwrap_or_default();
 
-    let mut send_event = false;
-    let mut last_chat_id = ChatId::new(0);
-    let mut chat_ids_are_unique = true;
+    // we expect all messages belong to the same chat or to the deaddrop.
+    let mut updated_chat_id = ChatId::new(0);
 
     for (id, curr_chat_id, curr_state, curr_blocked) in msgs.into_iter() {
         if let Err(err) = id.start_ephemeral_timer(context).await {
@@ -1278,28 +1277,16 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
                     job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
                 )
                 .await;
-                send_event = true;
+                updated_chat_id = curr_chat_id;
             }
         } else if curr_state == MessageState::InFresh {
             update_msg_state(context, id, MessageState::InNoticed).await;
-            send_event = true;
-        }
-
-        if last_chat_id.is_unset() {
-            last_chat_id = curr_chat_id;
-        } else if last_chat_id != curr_chat_id {
-            chat_ids_are_unique = false;
+            updated_chat_id = ChatId::new(DC_CHAT_ID_DEADDROP);
         }
     }
 
-    if send_event {
-        context.emit_event(EventType::MsgsNoticed(
-            if chat_ids_are_unique && !last_chat_id.is_unset() {
-                last_chat_id
-            } else {
-                ChatId::new(0)
-            },
-        ));
+    if !updated_chat_id.is_unset() {
+        context.emit_event(EventType::MsgsNoticed(updated_chat_id));
     }
 
     true
