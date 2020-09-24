@@ -1123,7 +1123,7 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
  * (IMAP/MDNs is not done for noticed messages).
  *
  * Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
- * See also dc_marknoticed_all_chats(), dc_marknoticed_contact() and dc_markseen_msgs().
+ * See also dc_marknoticed_contact() and dc_markseen_msgs().
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -1131,16 +1131,6 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
  * @return None.
  */
 void            dc_marknoticed_chat          (dc_context_t* context, uint32_t chat_id);
-
-
-/**
- * Same as dc_marknoticed_chat() but for _all_ chats.
- *
- * @memberof dc_context_t
- * @param context The context object as returned from dc_context_new().
- * @return None.
- */
-void            dc_marknoticed_all_chats     (dc_context_t* context);
 
 
 /**

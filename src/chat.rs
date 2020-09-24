@@ -1800,35 +1800,6 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), 
     Ok(())
 }
 
-pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
-    if !context
-        .sql
-        .exists(
-            "SELECT id
-           FROM msgs
-          WHERE state=10;",
-            paramsv![],
-        )
-        .await?
-    {
-        return Ok(());
-    }
-
-    context
-        .sql
-        .execute(
-            "UPDATE msgs
-            SET state=13
-          WHERE state=10;",
-            paramsv![],
-        )
-        .await?;
-
-    context.emit_event(EventType::MsgsNoticed(ChatId::new(0)));
-
-    Ok(())
-}
-
 pub async fn get_chat_media(
     context: &Context,
     chat_id: ChatId,

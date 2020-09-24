@@ -973,22 +973,6 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
     })
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_marknoticed_all_chats()");
-        return;
-    }
-    let ctx = &*context;
-
-    block_on(async move {
-        chat::marknoticed_all_chats(&ctx)
-            .await
-            .log_err(ctx, "Failed marknoticed all chats")
-            .unwrap_or(())
-    })
-}
-
 fn from_prim<S, T>(s: S) -> Option<T>
 where
     T: FromPrimitive,
