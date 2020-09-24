@@ -1285,7 +1285,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         }
     }
 
-    for (updated_chat_id, _) in &updated_chat_ids {
+    for updated_chat_id in updated_chat_ids.keys() {
         context.emit_event(EventType::MsgsNoticed(*updated_chat_id));
     }
 
