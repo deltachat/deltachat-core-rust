@@ -2571,10 +2571,7 @@ mod tests {
         assert_eq!(msg.state, MessageState::OutFailed);
 
         use std::str::FromStr;
-        assert_eq!(
-            msg.error(),
-            message::MessageError::from_str(error_msg).ok()
-        );
+        assert_eq!(msg.error(), message::MessageError::from_str(error_msg).ok());
     }
 
     #[async_std::test]
