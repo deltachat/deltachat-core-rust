@@ -1017,7 +1017,6 @@ class TestOnlineAccount:
         assert msg_in.text == text2
         assert ac1.get_config("addr") in [x.addr for x in msg_in.chat.get_contacts()]
 
-    @pytest.mark.xfail(reason="Quorum rule is not used yet")
     def test_prefer_encrypt(self, acfactory, lp):
         """Test quorum rule for encryption preference in 1:1 and group chat."""
         ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
