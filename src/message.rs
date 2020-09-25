@@ -19,6 +19,7 @@ use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::*;
 use crate::pgp::*;
 use crate::stock::StockMessage;
+use std::collections::BTreeMap;
 
 // In practice, the user additionally cuts the string themselves
 // pixel-accurate.
@@ -1226,6 +1227,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         .with_conn(move |conn| {
             let mut stmt = conn.prepare_cached(concat!(
                 "SELECT",
+                "    m.chat_id AS chat_id,",
                 "    m.state AS state,",
                 "    c.blocked AS blocked",
                 " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
@@ -1236,6 +1238,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
             for id in msg_ids.into_iter() {
                 let query_res = stmt.query_row(paramsv![id], |row| {
                     Ok((
+                        row.get::<_, ChatId>("chat_id")?,
                         row.get::<_, MessageState>("state")?,
                         row.get::<_, Option<Blocked>>("blocked")?
                             .unwrap_or_default(),
@@ -1244,8 +1247,8 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
                 if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
                     continue;
                 }
-                let (state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
-                msgs.push((id, state, blocked));
+                let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
+                msgs.push((id, chat_id, state, blocked));
             }
 
             Ok(msgs)
@@ -1253,9 +1256,9 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         .await
         .unwrap_or_default();
 
-    let mut send_event = false;
+    let mut updated_chat_ids = BTreeMap::new();
 
-    for (id, curr_state, curr_blocked) in msgs.into_iter() {
+    for (id, curr_chat_id, curr_state, curr_blocked) in msgs.into_iter() {
         if let Err(err) = id.start_ephemeral_timer(context).await {
             error!(
                 context,
@@ -1274,19 +1277,16 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
                     job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
                 )
                 .await;
-                send_event = true;
+                updated_chat_ids.insert(curr_chat_id, true);
             }
         } else if curr_state == MessageState::InFresh {
             update_msg_state(context, id, MessageState::InNoticed).await;
-            send_event = true;
+            updated_chat_ids.insert(ChatId::new(DC_CHAT_ID_DEADDROP), true);
         }
     }
 
-    if send_event {
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: ChatId::new(0),
-            msg_id: MsgId::new(0),
-        });
+    for updated_chat_id in updated_chat_ids.keys() {
+        context.emit_event(EventType::MsgsNoticed(*updated_chat_id));
     }
 
     true
