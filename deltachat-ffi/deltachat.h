@@ -3578,12 +3578,11 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
 
 /**
  * Get the error of the message.
- * If there is no error associated with the message, an empty string is returned.
- * NULL is never returned.
+ * If there is no error associated with the message, NULL is returned.
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return Error. The result must be released using dc_str_unref(). Never returns NULL.
+ * @return Error. The result must be released using dc_str_unref() it is not NULL.
  */
 char*           dc_msg_get_error               (const dc_msg_t* msg);
 

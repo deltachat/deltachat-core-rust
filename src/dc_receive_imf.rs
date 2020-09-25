@@ -815,7 +815,7 @@ async fn add_parts(
                     mime_headers,
                     mime_in_reply_to,
                     mime_references,
-                    part.error,
+                    part.error.take().map(|error| error.to_string()).unwrap_or_else(||"".to_string()),
                     ephemeral_timer,
                     ephemeral_timestamp
                 ])?;
@@ -2569,9 +2569,11 @@ mod tests {
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
 
         assert_eq!(msg.state, MessageState::OutFailed);
+
+        use std::str::FromStr;
         assert_eq!(
             msg.error(),
-            Some(error_msg.to_string()).filter(|error| !error.is_empty())
+            message::MessageError::from_str(error_msg).ok()
         );
     }
 

@@ -223,7 +223,7 @@ impl MimeMessage {
 
         if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
-                part.error = "No valid signature".to_string();
+                part.error = Some(message::MessageError::NoValidSignature);
             }
         }
 
@@ -589,7 +589,7 @@ impl MimeMessage {
                 part.typ = Viewtype::Text;
                 part.msg_raw = Some(txt.clone());
                 part.msg = txt;
-                part.error = "Decryption failed".to_string();
+                part.error = Some(message::MessageError::DecryptionFailed);
 
                 self.parts.push(part);
 
@@ -1169,7 +1169,7 @@ pub struct Part {
     pub bytes: usize,
     pub param: Params,
     org_filename: Option<String>,
-    pub error: String,
+    pub error: Option<message::MessageError>,
 }
 
 /// return mimetype and viewtype for a parsed mail
