@@ -1017,6 +1017,57 @@ class TestOnlineAccount:
         assert msg_in.text == text2
         assert ac1.get_config("addr") in [x.addr for x in msg_in.chat.get_contacts()]
 
+    @pytest.mark.xfail(reason="Quorum rule is not used yet")
+    def test_prefer_encrypt(self, acfactory, lp):
+        """Test quorum rule for encryption preference in 1:1 and group chat."""
+        ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
+        ac1.set_config("e2ee_enabled", "0")
+        ac2.set_config("e2ee_enabled", "1")
+        ac3.set_config("e2ee_enabled", "0")
+
+        # Make sure we do not send a copy to ourselves. This is to
+        # test that we count own preference even when we are not in
+        # the recipient list.
+        ac1.set_config("bcc_self", "0")
+        ac2.set_config("bcc_self", "0")
+        ac3.set_config("bcc_self", "0")
+
+        acfactory.introduce_each_other([ac1, ac2, ac3])
+
+        lp.sec("ac1: sending message to ac2")
+        chat1 = ac1.create_chat(ac2)
+        msg1 = chat1.send_text("message1")
+        assert not msg1.is_encrypted()
+        ac2._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac2: sending message to ac1")
+        chat2 = ac2.create_chat(ac1)
+        msg2 = chat2.send_text("message2")
+        assert not msg2.is_encrypted()
+        ac1._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac1: sending message to group chat with ac2 and ac3")
+        group = ac1.create_group_chat("hello")
+        group.add_contact(ac2)
+        group.add_contact(ac3)
+        msg3 = group.send_text("message3")
+        assert not msg3.is_encrypted()
+        ac2._evtracker.wait_next_incoming_message()
+        ac3._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac3: start preferring encryption and inform ac1")
+        ac3.set_config("e2ee_enabled", "1")
+        chat3 = ac3.create_chat(ac1)
+        msg4 = chat3.send_text("message4")
+        # ac1 still does not prefer encryption
+        assert not msg4.is_encrypted()
+        ac1._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac1: sending another message to group chat with ac2 and ac3")
+        msg5 = group.send_text("message5")
+        # Majority prefers encryption now
+        assert msg5.is_encrypted()
+
     def test_reply_encrypted(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
