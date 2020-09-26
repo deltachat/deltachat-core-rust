@@ -3343,6 +3343,7 @@ int             dc_msg_get_showpadlock        (const dc_msg_t* msg);
  */
 uint32_t        dc_msg_get_ephemeral_timer    (const dc_msg_t* msg);
 
+
 /**
  * Get timestamp of ephemeral message removal.
  *
@@ -3684,6 +3685,79 @@ void            dc_msg_set_location           (dc_msg_t* msg, double latitude, d
  * @param duration The new duration to store in the message object. 0 if you do not want to change it.
  */
 void            dc_msg_latefiling_mediasize   (dc_msg_t* msg, int width, int height, int duration);
+
+
+/**
+ * Set the message replying to.
+ * This allows optionally to reply to an explicit message
+ * instead of replying implicitly to the end of the chat.
+ *
+ * dc_msg_set_quote() copies some basic data from the quoted message object
+ * so that dc_msg_get_quoted_text() and dc_msg_get_quoted_name() will always work.
+ * dc_msg_get_quoted_msg() gets back the quoted message only if it is _not_ deleted.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object to set the reply to.
+ * @param quote The quote to set for msg.
+ */
+void             dc_msg_set_quote             (dc_msg_t* msg, const dc_msg_t* quote);
+
+
+/**
+ * Get quoted text, if any.
+ * You can use this function also check if there is a quote for a message.
+ *
+ * The text is a summary of the original text,
+ * similar to what is shown in the chatlist.
+ *
+ * To get the name of the user wroting the quoted message, use dc_msg_get_quoted_name()
+ * and, if available, you can get the whole quoted message object using dc_msg_get_quoted_msg().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The quoted text or NULL if there is no quote.
+ *     Returned strings must be released using dc_str_unref().
+ */
+char*           dc_msg_get_quoted_text        (const dc_msg_t* msg);
+
+
+/**
+ * Get name of quoted user, if any.
+ * The name is equal to what dc_contact_get_display_name() returns
+ * at the time the quote was set with dc_msg_set_quote();
+ * if the user name is changed afterwards or is deleted,
+ * this does not affect the name returned by this dc_msg_get_quoted_name().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The quoted user's name or NULL if there is no quote.
+ *     Returned strings must be released using dc_str_unref().
+ */
+char*           dc_msg_get_quoted_name        (const dc_msg_t* msg);
+
+
+/**
+ * Get quoted message, if available.
+ * UIs might use this information to offer "jumping back" to the quoted message
+ * or to enrich displaying the quote.
+ *
+ * If this function returns NULL,
+ * this does not mean there is no quote for the message -
+ * it might also mean that a quote exist but the quoted message is deleted meanwhile.
+ * Therefore, do not use this function to check if there is a quote for a message.
+ * To check if a message has a quote, use dc_msg_get_quoted_text().
+ *
+ * To display the quote in the chat, use dc_msg_get_quoted_text() and dc_msg_get_quoted_name() as primary source,
+ * however, one might add information from the message object (eg. an image).
+ *
+ * It is not guaranteed that the message belong to the same chat.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The quoted message or NULL.
+ *     Must be freed using dc_msg_unref() after usage.
+ */
+dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
 
 
 /**
