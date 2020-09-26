@@ -3242,7 +3242,8 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
 
     fn log_err(self, ctx: &Context, message: &str) -> Result<T, E> {
         self.map_err(|err| {
-            warn!(ctx, "{}: {}", message, err);
+            // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+            warn!(ctx, "{}: {:#}", message, err);
             err
         })
     }
@@ -3364,7 +3365,8 @@ pub unsafe extern "C" fn dc_accounts_new(
     match accs {
         Ok(accs) => Box::into_raw(Box::new(accs)),
         Err(err) => {
-            eprintln!("failed to create accounts: {}", err);
+            // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+            eprintln!("failed to create accounts: {:#}", err);
             ptr::null_mut()
         }
     }
