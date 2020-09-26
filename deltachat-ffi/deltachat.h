@@ -2186,10 +2186,11 @@ void        dc_delete_all_locations         (dc_context_t* context);
  *   MUST NOT be released by the standard free() function;
  *   always use dc_str_unref() for this purpose.
  * - dc_str_unref() MUST NOT be called for strings not returned by deltachat-core.
- * - dc_str_unref() MUST NOT be called for other objectes returned by deltachat-core.
+ * - dc_str_unref() MUST NOT be called for other objects returned by deltachat-core.
  *
  * @memberof dc_context_t
  * @param str The string to release.
+ *     If NULL is given, nothing is done.
  */
 void dc_str_unref (char* str);
 
