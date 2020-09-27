@@ -7,7 +7,7 @@ macro_rules! info {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        let full = format!("{file:21}:{line:4}: {msg}",
+        let full = format!("{file}:{line}: {msg}",
                            file = file!(),
                            line = line!(),
                            msg = &formatted);
@@ -22,7 +22,7 @@ macro_rules! warn {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        let full = format!("{file:21}:{line:4}: {msg}",
+        let full = format!("{file}:{line}: {msg}",
                            file = file!(),
                            line = line!(),
                            msg = &formatted);

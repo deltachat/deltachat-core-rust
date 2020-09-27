@@ -17,7 +17,6 @@ use crate::ephemeral::start_ephemeral_timers;
 use crate::error::format_err;
 use crate::param::*;
 use crate::peerstate::*;
-use crate::rusqlite::types::ValueRef; //cs
 
 #[macro_export]
 macro_rules! paramsv {
@@ -631,18 +630,7 @@ async fn maybe_add_from_param(
         .query_map(
             query,
             paramsv![],
-            // cs: maybe the following could be done even more simple than here?
-            |row| {
-                let value = match row.get_raw(0) {
-                    ValueRef::Text(t) => String::from_utf8_lossy(t).to_string(),
-                    _ => {
-                        let s_err = "maybe_add_from_param() - error - get_raw(0)".to_string();
-                        warn!(context, "{}", s_err);
-                        s_err
-                    }
-                };
-                Ok(value)
-            },
+            |row| row.get::<_, String>(0),
             |rows| {
                 for row in rows {
                     let param: Params = row?.parse().unwrap_or_default();

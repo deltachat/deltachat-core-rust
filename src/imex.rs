@@ -29,10 +29,8 @@ use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
 use crate::pgp;
-use crate::rusqlite::types::ValueRef;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
-
 use async_tar::Archive;
 
 // Name of the database file in the backup.
@@ -609,60 +607,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
             .query_row(
                 "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
                 paramsv![file_id],
-                |row| {
-                    let name: String = match row.get(0) {
-                        Ok(name) => name, // good utf8 filename
-                        Err(_) => {
-                            // bad utf8 encoding in filename
-                            match row.get_raw(0) {
-                                // various db column types are possible. ValueRef::xxx is the type.
-                                ValueRef::Null => {
-                                    // this should never happen
-                                    let name = "filename-column-type-null".to_string();
-                                    warn!(
-                                        context,
-                                        "Err (_), ValueRef::Null, type of column is NULL, name: \"{}\"", name
-                                    );
-                                    name
-                                },
-                                ValueRef::Text(t) => {
-                                    // column type in db is TEXT, but string is not plain utf8 !
-                                    let name = String::from_utf8_lossy(t).to_string();
-                                    info!(
-                                        context,
-                                        "Err (_), ValueRef::Text(t), name: \"{}\"", name
-                                    );
-                                    name
-                                }
-                                ValueRef::Blob(b) => {
-                                    // column type in db is BLOB, convert data
-                                    let name = String::from_utf8_lossy(b).to_string();
-                                    warn!(
-                                        context,
-                                        "Err (_), ValueRef::Blob(b), name: \"{}\"", name
-                                    );
-                                    name
-                                }
-                                _ => {
-                                    // unknown type of db column type
-                                    let name = "filename-column-type-unknown".to_string();
-                                    warn!(
-                                        context,
-                                        "Err (_), unknown ValueRef type set name to: \"{}\"", name
-                                    );
-                                    name
-                                }
-                            }
-                        }
-                    };
-
-                    // this always works
-                    let blob: Vec<u8> = row.get(1)?;
-
-                    info!(context, "query_map |row| filename=\"{}\"", name);
-
-                    Ok((name, blob))
-                },
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
             )
             .await?;
 
