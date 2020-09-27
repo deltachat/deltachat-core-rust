@@ -3582,7 +3582,7 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return Error. The result must be released using dc_str_unref() it is not NULL.
+ * @return Error or NULL. The result must be released using dc_str_unref().
  */
 char*           dc_msg_get_error               (const dc_msg_t* msg);
 
