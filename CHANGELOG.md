@@ -4,8 +4,6 @@
 
 - Experimental Broadcast Group
 
-- more structured logging
-
 
 ## 1.46.0
 

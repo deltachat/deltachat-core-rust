@@ -343,7 +343,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 
     async fn subject_str(&self) -> String {
-        match self.loaded {
+        let mut subj_str = match self.loaded {
             Loaded::Message { ref chat } => {
                 if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
                     self.context
@@ -406,7 +406,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 .stock_str(StockMessage::ReadRcpt)
                 .await
                 .into_owned(),
+        };
+        if subj_str.ends_with("#BCC") {
+            subj_str.truncate(subj_str.len() - 4);
         }
+        subj_str
     }
 
     pub fn recipients(&self) -> Vec<String> {
@@ -487,13 +491,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
         let skip_autocrypt = self.should_skip_autocrypt();
-        let mut subject_str = self.subject_str().await;
+        let subject_str = self.subject_str().await;
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(self.context).await?;
 
-        if subject_str.ends_with("#BCC") {
-            subject_str.truncate(subject_str.len() - 4);
-        }
         info!(
             self.context,
             "MimeFactory::render: subject: {}", subject_str
@@ -556,7 +557,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         ));
 
         if self.bcc_group {
-            // cs
             // the app must not include Bcc header as MTA doesn't removes it!
             // smtp receipients are independent from mail header !!
             //unprotected_headers.push(Header::new_with_value("Bcc".into(), to).unwrap());
