@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use async_std::fs;
 use async_std::path::PathBuf;
@@ -231,7 +230,6 @@ impl Accounts {
             .map(|(id, a)| EmitterWrapper {
                 id: *id,
                 emitter: a.get_event_emitter(),
-                done: AtomicBool::new(false),
             })
             .collect();
 
@@ -240,29 +238,20 @@ impl Accounts {
 }
 
 impl EventEmitter {
-    /// Blocking recv of an event. Return `None` if the `Sender` has been droped.
+    /// Blocking recv of an event. Return `None` if all `Sender`s have been droped.
     pub fn recv_sync(&self) -> Option<Event> {
         async_std::task::block_on(self.recv())
     }
 
-    /// Async recv of an event. Return `None` if the `Sender` has been droped.
+    /// Async recv of an event. Return `None` if all `Sender`s have been droped.
     pub async fn recv(&self) -> Option<Event> {
-        loop {
-            for e in &self.0 {
-                if e.done.load(Ordering::Acquire) {
-                    // skip emitters that are already done
-                    continue;
-                }
-
-                match e.emitter.try_recv() {
-                    Ok(event) => return Some(event),
-                    Err(async_std::sync::TryRecvError::Disconnected) => {
-                        e.done.store(true, Ordering::Release);
-                    }
-                    Err(async_std::sync::TryRecvError::Empty) => {}
-                }
+        for e in &self.0 {
+            if let Some(event) = e.emitter.recv().await {
+                return Some(event);
             }
         }
+
+        None
     }
 }
 
@@ -273,7 +262,6 @@ pub struct EventEmitter(Vec<EmitterWrapper>);
 struct EmitterWrapper {
     id: u32,
     emitter: crate::events::EventEmitter,
-    done: AtomicBool,
 }
 
 pub const CONFIG_NAME: &str = "accounts.toml";
