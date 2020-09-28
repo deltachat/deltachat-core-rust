@@ -58,12 +58,18 @@ impl EventEmitter {
 
     /// Async recv of an event. Return `None` if the `Sender` has been droped.
     pub async fn recv(&self) -> Option<Event> {
-        // TODO: change once we can use async channels internally.
         self.0.recv().await.ok()
     }
+}
 
-    pub fn try_recv(&self) -> Result<Event, async_std::sync::TryRecvError> {
-        self.0.try_recv()
+impl async_std::stream::Stream for EventEmitter {
+    type Item = Event;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        std::pin::Pin::new(&mut self.0).poll_next(cx)
     }
 }
 

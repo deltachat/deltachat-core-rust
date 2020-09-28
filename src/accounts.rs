@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use async_std::fs;
 use async_std::path::PathBuf;
+use async_std::prelude::*;
 use async_std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
@@ -222,46 +223,42 @@ impl Accounts {
 
     /// Unified event emitter.
     pub async fn get_event_emitter(&self) -> EventEmitter {
-        let emitters = self
+        let emitters: Vec<_> = self
             .accounts
             .read()
             .await
             .iter()
-            .map(|(id, a)| EmitterWrapper {
-                id: *id,
-                emitter: a.get_event_emitter(),
-            })
+            .map(|(_id, a)| a.get_event_emitter())
             .collect();
 
-        EventEmitter(emitters)
+        EventEmitter(futures::stream::select_all(emitters))
     }
 }
 
+#[derive(Debug)]
+pub struct EventEmitter(futures::stream::SelectAll<crate::events::EventEmitter>);
+
 impl EventEmitter {
     /// Blocking recv of an event. Return `None` if all `Sender`s have been droped.
-    pub fn recv_sync(&self) -> Option<Event> {
+    pub fn recv_sync(&mut self) -> Option<Event> {
         async_std::task::block_on(self.recv())
     }
 
     /// Async recv of an event. Return `None` if all `Sender`s have been droped.
-    pub async fn recv(&self) -> Option<Event> {
-        for e in &self.0 {
-            if let Some(event) = e.emitter.recv().await {
-                return Some(event);
-            }
-        }
-
-        None
+    pub async fn recv(&mut self) -> Option<Event> {
+        self.0.next().await
     }
 }
 
-#[derive(Debug)]
-pub struct EventEmitter(Vec<EmitterWrapper>);
+impl async_std::stream::Stream for EventEmitter {
+    type Item = Event;
 
-#[derive(Debug)]
-struct EmitterWrapper {
-    id: u32,
-    emitter: crate::events::EventEmitter,
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        std::pin::Pin::new(&mut self.0).poll_next(cx)
+    }
 }
 
 pub const CONFIG_NAME: &str = "accounts.toml";

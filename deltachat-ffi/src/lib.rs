@@ -3576,7 +3576,7 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
     if emitter.is_null() {
         return ptr::null_mut();
     }
-    let emitter = &*emitter;
+    let emitter = &mut *emitter;
 
     emitter
         .recv_sync()
