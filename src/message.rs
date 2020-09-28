@@ -4,7 +4,6 @@ use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
@@ -240,15 +239,6 @@ impl Default for MessengerMessage {
     }
 }
 
-#[derive(Clone, Debug, Display, EnumString, Serialize, Deserialize, Eq, PartialEq)]
-pub enum MessageError {
-    #[strum(serialize = "Decryption failed")]
-    DecryptionFailed,
-
-    #[strum(serialize = "No valid signature")]
-    NoValidSignature,
-}
-
 /// An object representing a single message in memory.
 /// The message object is not updated.
 /// If you want an update, you have to recreate the object.
@@ -279,7 +269,7 @@ pub struct Message {
     pub(crate) starred: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
-    error: Option<MessageError>,
+    error: Option<String>,
     pub(crate) param: Params,
 }
 
@@ -347,7 +337,7 @@ impl Message {
                     msg.viewtype = row.get("type")?;
                     msg.state = row.get("state")?;
                     let error: String = row.get("error")?;
-                    msg.error = MessageError::from_str(&error).ok();
+                    msg.error = Some(error).filter(|error| !error.is_empty());
                     msg.is_dc_message = row.get("msgrmsg")?;
 
                     let text;
@@ -774,8 +764,11 @@ impl Message {
 
     /// Gets the error of the message.
     ///
-    /// See MessageError for possible errors
-    pub fn error(&self) -> Option<MessageError> {
+    /// Possible errors:
+    /// * "No valid signature"
+    /// * "Decryption failed"
+    /// * a non delivery notification
+    pub fn error(&self) -> Option<String> {
         self.error.clone()
     }
 }

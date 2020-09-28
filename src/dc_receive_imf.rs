@@ -1883,7 +1883,6 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::message::Message;
     use crate::test_utils::*;
-    use std::str::FromStr;
 
     #[test]
     fn test_hex_hash() {
@@ -2571,7 +2570,10 @@ mod tests {
 
         assert_eq!(msg.state, MessageState::OutFailed);
 
-        assert_eq!(msg.error(), message::MessageError::from_str(error_msg).ok());
+        assert_eq!(
+            msg.error(),
+            Some(error_msg.to_string()).filter(|error| !error.is_empty())
+        );
     }
 
     #[async_std::test]
