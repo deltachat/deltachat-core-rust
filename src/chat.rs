@@ -617,9 +617,13 @@ impl Chat {
         self.param.exists(Param::Devicetalk)
     }
 
+    pub fn is_mailing_list(&self) -> bool {
+        self.param.exists(Param::MailingList)
+    }
+
     /// Returns true if user can send messages to this chat.
     pub fn can_send(&self) -> bool {
-        !self.id.is_special() && !self.is_device_talk()
+        !self.id.is_special() && !self.is_device_talk() && !self.is_mailing_list()
     }
 
     pub async fn update_param(&mut self, context: &Context) -> Result<(), Error> {
@@ -1094,7 +1098,11 @@ pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId
             msg_id: MsgId::new(0),
         });
     }
-    Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat).await;
+
+    // If the message is from a mailing list, the contacts are not counted as "known"
+    if !chat.is_mailing_list() {
+        Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat).await;
+    }
     Ok(chat.id)
 }
 
@@ -1123,6 +1131,11 @@ pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<
                 );
                 return Err(err);
             } else {
+                let c = Contact::load_from_db(context, contact_id).await?;
+                if let Some(list_chat_id) = c.param.get_int(Param::MailingListPseudoContact) {
+                    return Ok(ChatId::new(list_chat_id as u32));
+                }
+
                 let (chat_id, _) =
                     create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).await?;
                 Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat).await;

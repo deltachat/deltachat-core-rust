@@ -1,5 +1,6 @@
 use itertools::join;
 use num_traits::FromPrimitive;
+use regex::Regex;
 use sha2::{Digest, Sha256};
 
 use mailparse::SingleInfo;
@@ -97,6 +98,8 @@ pub(crate) async fn dc_receive_imf_inner(
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
 
+    let list_id_header: Option<&String> = mime_parser.get(HeaderDef::ListId);
+
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    create_event_to_send: &Option<CreateEvent>,
@@ -123,7 +126,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // we do not check Return-Path any more as this is unreliable, see
     // https://github.com/deltachat/deltachat-core/issues/150)
     let (from_id, _from_id_blocked, incoming_origin) =
-        from_field_to_contact_id(context, &mime_parser.from).await?;
+        from_field_to_contact_id(context, &mime_parser.from, list_id_header).await?;
 
     let incoming = from_id != DC_CONTACT_ID_SELF;
 
@@ -140,6 +143,7 @@ pub(crate) async fn dc_receive_imf_inner(
             } else {
                 Origin::IncomingUnknownTo
             },
+            None,
         )
         .await?,
     );
@@ -288,11 +292,13 @@ pub(crate) async fn dc_receive_imf_inner(
 pub async fn from_field_to_contact_id(
     context: &Context,
     from_address_list: &[SingleInfo],
+    list_id_header: Option<&String>,
 ) -> Result<(u32, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
         from_address_list,
         Origin::IncomingUnknownFrom,
+        list_id_header,
     )
     .await?;
 
@@ -487,9 +493,46 @@ async fn add_parts(
 
         if chat_id.is_unset() {
             // check if the message belongs to a mailing list
-            if mime_parser.is_mailinglist_message() {
-                *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
-                info!(context, "Message belongs to a mailing list and is ignored.",);
+            if let Some(list_id_header) = mime_parser.get(HeaderDef::ListId) {
+                let create_blocked = if !test_normal_chat_id.is_unset()
+                    && test_normal_chat_id_blocked == Blocked::Not
+                {
+                    Blocked::Not
+                } else {
+                    Blocked::Deaddrop
+                };
+
+                let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
+                    context,
+                    if test_normal_chat_id.is_unset() {
+                        allow_creation
+                    } else {
+                        true
+                    },
+                    create_blocked,
+                    list_id_header,
+                )
+                .await;
+
+                let mut contact = Contact::load_from_db(context, from_id).await?;
+                if contact.param.get(Param::MailingListPseudoContact) == Some("0") {
+                    // The MailingListPseudoContact param was "0" to indicate that this is a
+                    // pseudo contact. Update it to the chat id.
+                    contact
+                        .param
+                        .set_int(Param::MailingListPseudoContact, new_chat_id.to_u32() as i32);
+                    contact.update_param(context).await?
+                }
+
+                *chat_id = new_chat_id;
+                chat_id_blocked = new_chat_id_blocked;
+                if !chat_id.is_unset()
+                    && chat_id_blocked != Blocked::Not
+                    && create_blocked == Blocked::Not
+                {
+                    new_chat_id.unblock(context).await;
+                    chat_id_blocked = Blocked::Not;
+                }
             }
         }
 
@@ -1333,6 +1376,50 @@ async fn create_or_lookup_group(
     Ok((chat_id, chat_id_blocked))
 }
 
+#[allow(clippy::indexing_slicing)]
+async fn create_or_lookup_mailinglist(
+    context: &Context,
+    allow_creation: bool,
+    create_blocked: Blocked,
+    list_id_header: &str,
+) -> (ChatId, Blocked) {
+    let re = Regex::new(r"^(.*.)<(.*.)>$").unwrap();
+    let (name, listid) = match re.captures(list_id_header) {
+        Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
+        None => (
+            list_id_header.trim().to_string(),
+            list_id_header.trim().to_string(),
+        ),
+    };
+
+    if let Ok((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await {
+        return (chat_id, blocked);
+    }
+
+    if allow_creation {
+        // list does not exist but should be created
+        match create_mailinglist_record(context, &listid, &name, create_blocked).await {
+            Ok(chat_id) => {
+                chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
+                (chat_id, create_blocked)
+            }
+            Err(e) => {
+                warn!(
+                    context,
+                    "Failed to create mailinglist '{}' for grpid={}: {}",
+                    &name,
+                    &listid,
+                    e.to_string()
+                );
+                (ChatId::new(0), create_blocked)
+            }
+        }
+    } else {
+        info!(context, "creating list forbidden by caller");
+        (ChatId::new(0), Blocked::Not)
+    }
+}
+
 /// try extract a grpid from a message-id list header value
 fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<&str> {
     let header = mime_parser.get(headerdef)?;
@@ -1495,7 +1582,7 @@ async fn create_group_record(
     {
         warn!(
             context,
-            "Failed to create group '{}' for grpid={}",
+            "Failed to create group/mailinglist '{}' for grpid={}",
             grpname.as_ref(),
             grpid.as_ref()
         );
@@ -1510,12 +1597,36 @@ async fn create_group_record(
     let chat_id = ChatId::new(row_id);
     info!(
         context,
-        "Created group '{}' grpid={} as {}",
+        "Created group/mailinglist '{}' grpid={} as {}",
         grpname.as_ref(),
         grpid.as_ref(),
         chat_id
     );
     chat_id
+}
+
+async fn create_mailinglist_record(
+    context: &Context,
+    listid: impl AsRef<str>,
+    name: impl AsRef<str>,
+    create_blocked: Blocked,
+) -> Result<ChatId> {
+    let chat_id = create_group_record(
+        context,
+        &listid,
+        &name,
+        create_blocked,
+        VerifiedStatus::Unverified,
+    )
+    .await;
+
+    if !chat_id.is_unset() {
+        let mut chat = Chat::load_from_db(context, chat_id).await?;
+        chat.param.set(Param::MailingList, "true");
+        chat.update_param(context).await?;
+    }
+
+    Ok(chat_id)
 }
 
 async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
@@ -1850,11 +1961,19 @@ async fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     address_list: &[SingleInfo],
     origin: Origin,
+    list_id_header: Option<&String>,
 ) -> Result<ContactIds> {
     let mut contact_ids = ContactIds::new();
     for info in address_list.iter() {
         contact_ids.insert(
-            add_or_lookup_contact_by_addr(context, &info.display_name, &info.addr, origin).await?,
+            add_or_lookup_contact_by_addr(
+                context,
+                &info.display_name,
+                &info.addr,
+                origin,
+                list_id_header,
+            )
+            .await?,
         );
     }
 
@@ -1867,6 +1986,7 @@ async fn add_or_lookup_contact_by_addr(
     display_name: &Option<String>,
     addr: &str,
     origin: Origin,
+    list_id_header: Option<&String>,
 ) -> Result<u32> {
     if context.is_self_addr(addr).await? {
         return Ok(DC_CONTACT_ID_SELF);
@@ -1875,6 +1995,33 @@ async fn add_or_lookup_contact_by_addr(
         .as_ref()
         .map(normalize_name)
         .unwrap_or_default();
+
+    if let Some(list_id) = list_id_header {
+        let list_id = list_id.trim().trim_end_matches('>');
+        let addr_email = EmailAddress::new(&addr)?;
+        let mut addr_domain_parts = addr_email.domain.split('.');
+        let mut list_id_parts = list_id.split('.');
+        if list_id_parts.next_back() == addr_domain_parts.next_back()
+            && list_id_parts.next_back() == addr_domain_parts.next_back()
+        {
+            // list_id was something like "name <name.github.com" (after trimming the last '>')
+            // and addr was something like "notifications@github.com".
+            // addr is not the address of the actual sender but the one of the mailing list.
+            // Add the display name to the addr to make it distinguishable from other people
+            // who sent to the same mailing list.
+            let addr = format!("{}-{}", display_name_normalized, addr);
+
+            let (row_id, _modified) =
+                Contact::add_or_lookup(context, display_name_normalized, &addr, origin).await?;
+            ensure!(row_id > 0, "could not add contact: {:?}", addr);
+
+            let mut c = Contact::load_from_db(context, row_id).await?;
+            c.param.set_int(Param::MailingListPseudoContact, 0);
+            c.update_param(context).await?;
+
+            return Ok(row_id);
+        }
+    }
 
     let (row_id, _modified) =
         Contact::add_or_lookup(context, display_name_normalized, addr, origin).await?;

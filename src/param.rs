@@ -112,6 +112,11 @@ pub enum Param {
     /// For Groups and Contacts
     ProfileImage = b'i',
 
+    /// For contacts, contains the chat id of the mailing list if this is a pseudo contacts.
+    /// Pseudo contacts are added if we can't the mailing list message does not contain the 
+    /// email address of the original sender.
+    MailingListPseudoContact = b'p',
+
     /// For Chats
     Selftalk = b'K',
 
@@ -120,6 +125,9 @@ pub enum Param {
 
     /// For Chats
     Devicetalk = b'D',
+
+    /// For Chats
+    MailingList = b'L',
 
     /// For QR
     Auth = b's',

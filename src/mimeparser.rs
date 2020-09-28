@@ -369,23 +369,24 @@ impl MimeMessage {
                     prepend_subject = false
                 }
             }
-            if prepend_subject {
-                let subj = subject
-                    .find('[')
-                    .and_then(|n| subject.get(..n))
-                    .unwrap_or(subject)
-                    .trim();
 
-                if !subj.is_empty() {
-                    for part in self.parts.iter_mut() {
-                        if part.typ == Viewtype::Text {
-                            part.msg = format!("{} – {}", subj, part.msg);
-                            break;
-                        }
-                    }
+            // For mailing lists, always add the subject because sometimes there are different topics
+            // and otherwise it might be hard to keep track:
+            if self.get(HeaderDef::ListId).is_some() {
+                prepend_subject = true;
+            }
+
+            if prepend_subject && !subject.is_empty() {
+                if let Some(mut part) = self
+                    .parts
+                    .iter_mut()
+                    .find(|part| part.typ == Viewtype::Text)
+                {
+                    part.msg = format!("{} – {}", subject, part.msg);
                 }
             }
         }
+        
         if self.is_forwarded {
             for part in self.parts.iter_mut() {
                 part.param.set_int(Param::Forwarded, 1);
