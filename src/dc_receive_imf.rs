@@ -815,7 +815,7 @@ async fn add_parts(
                     mime_headers,
                     mime_in_reply_to,
                     mime_references,
-                    part.error.take().map_or_else(||"".to_string(), |error| error.to_string()),
+                    part.error.take().unwrap_or_else(||"".to_string()),
                     ephemeral_timer,
                     ephemeral_timestamp
                 ])?;
