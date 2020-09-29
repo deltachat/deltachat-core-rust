@@ -2,15 +2,20 @@
 //! no references to Context and other "larger" entities here.
 
 use core::cmp::{max, min};
-use std::borrow::Cow;
 use std::fmt;
 use std::io::Cursor;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
+use std::{borrow::Cow, sync::Arc};
 
-use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use async_std::{fs, io};
+use async_std::{
+    path::{Path, PathBuf},
+    sync::Mutex,
+    task,
+};
+use async_trait::async_trait;
 
 use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
@@ -23,6 +28,103 @@ use crate::events::EventType;
 use crate::message::Message;
 use crate::provider::get_provider_update_timestamp;
 use crate::stock::StockMessage;
+
+#[derive(Debug)]
+pub struct ProgressHandlerInner<F: Fn(usize) + Send> {
+    progress_limit: usize,
+    emitted_progress: f64,
+    step_fraction: f64,
+    f: F,
+}
+
+#[derive(Debug)]
+pub struct ProgressHandler<F: 'static + Fn(usize) + Send> {
+    inner: Arc<Mutex<ProgressHandlerInner<F>>>,
+}
+
+impl<F> ProgressHandler<F>
+where
+    F: 'static + Fn(usize) + Send,
+{
+    /// If step_fraction is e.g. 10, then every 100ms we will step by 1/10th of the remaining interval.
+    /// The bigger this value, the slower the progress bar will move in the beginning.
+    /// f is the function that is invoked when progress is made.
+    pub fn new(step_fraction: f64, f: F) -> Self {
+        let ret = Arc::new(Mutex::new(ProgressHandlerInner {
+            progress_limit: 1,
+            emitted_progress: 0f64,
+            step_fraction,
+            f,
+        }));
+        let cloned = ret.clone();
+        task::spawn(async move {
+            loop {
+                task::sleep(Duration::from_millis(100)).await;
+                {
+                    let mut lock = cloned.lock().await;
+                    let limit = lock.progress_limit;
+                    if limit == 1000 || limit == 0 {
+                        eprintln!("dbg returning {}", limit);
+                        return;
+                    }
+                    let last = lock.emitted_progress;
+
+                    let next = last + ((limit as f64 - last) / lock.step_fraction);
+                    eprintln!(
+                        "dbg step {}, last {}, next{}, limit {}",
+                        (limit as f64 - last),
+                        last,
+                        next,
+                        limit
+                    );
+
+                    if (next / 10f64).ceil() - (last / 10f64).ceil() > 0f64 {
+                        (lock.f)(next.ceil() as usize);
+                    }
+                    lock.emitted_progress = next;
+
+                    drop(lock);
+                };
+            }
+        });
+        Self { inner: ret }
+    }
+}
+
+#[async_trait]
+pub trait Progress {
+    /// Report actually made progress 0-1000 promille. The progress bar will slowly move toward the value set by this function.
+    /// Set rather high values as the progress bar will stay lower first,
+    /// i.e. don't start with values near 0 and end with values near 1000
+    fn p(&self, progress: usize);
+    /// Stops the progress handler without emitting any other events
+    async fn kill(&self);
+}
+
+#[async_trait]
+impl<F> Progress for ProgressHandler<F>
+where
+    F: 'static + Fn(usize) + Send,
+{
+    fn p(&self, progress: usize) {
+        assert!(
+            progress <= 1000,
+            "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
+        );
+        let inner = self.inner.clone();
+        task::spawn(async move {
+            if progress == 1000 || progress == 0 {
+                let inner = &inner.lock().await;
+                (inner.f)(progress);
+            }
+            eprintln!("dbg setting limit {}", progress);
+            inner.lock().await.progress_limit = progress;
+        });
+    }
+    async fn kill(&self) {
+        self.inner.lock().await.progress_limit = 0usize;
+    }
+}
 
 /// Shortens a string to a specified length and adds "[...]" to the
 /// end of the shortened string.

@@ -13,37 +13,22 @@ use job::Action;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
+use crate::constants::*;
+use crate::context::Context;
 use crate::dc_tools::*;
 use crate::imap::Imap;
+use crate::job;
 use crate::login_param::{LoginParam, ServerLoginParam};
 use crate::message::Message;
 use crate::oauth2::*;
+use crate::param::Params;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
 use crate::stock::StockMessage;
+use crate::EventType;
 use crate::{chat, e2ee, provider};
-use crate::{constants::*, job};
-use crate::{context::Context, param::Params};
-
 use auto_mozilla::moz_autoconfigure;
-use auto_outlook::outlk_autodiscover;
 use server_params::{expand_param_vector, ServerParams};
-
-macro_rules! progress {
-    ($context:tt, $progress:expr, $comment:expr) => {
-        assert!(
-            $progress <= 1000,
-            "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
-        );
-        $context.emit_event($crate::events::EventType::ConfigureProgress {
-            progress: $progress,
-            comment: $comment,
-        });
-    };
-    ($context:tt, $progress:expr) => {
-        progress!($context, $progress, None);
-    };
-}
 
 impl Context {
     /// Checks if the context is already configured.
@@ -65,10 +50,18 @@ impl Context {
         );
         let cancel_channel = self.alloc_ongoing().await?;
 
+        let ctx2 = self.clone();
+        let progress = ProgressHandler::new(20.0, move |p| {
+            ctx2.emit_event(EventType::ConfigureProgress {
+                progress: p,
+                comment: None,
+            });
+        });
+
         let res = self
-            .inner_configure()
+            .inner_configure(&progress)
             .race(cancel_channel.recv().map(|_| {
-                progress!(self, 0);
+                progress.p(0);
                 Ok(())
             }))
             .await;
@@ -78,11 +71,11 @@ impl Context {
         res
     }
 
-    async fn inner_configure(&self) -> Result<()> {
+    async fn inner_configure(&self, progress: &impl Progress) -> Result<()> {
         info!(self, "Configure ...");
 
         let mut param = LoginParam::from_database(self, "").await;
-        let success = configure(self, &mut param).await;
+        let success = configure(self, &mut param, progress).await;
         self.set_config(Config::NotifyAboutWrongPw, None).await?;
 
         if let Some(provider) = provider::get_provider_info(&param.addr) {
@@ -116,21 +109,24 @@ impl Context {
             Ok(_) => {
                 self.set_config(Config::NotifyAboutWrongPw, Some("1"))
                     .await?;
-                progress!(self, 1000);
+                progress.p(1000);
                 Ok(())
             }
             Err(err) => {
-                progress!(
+                progress.kill().await;
+                emit_event!(
                     self,
-                    0,
-                    Some(
-                        self.stock_string_repl_str(
-                            StockMessage::ConfigurationFailed,
-                            // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-                            format!("{:#}", err),
+                    EventType::ConfigureProgress {
+                        progress: 0,
+                        comment: Some(
+                            self.stock_string_repl_str(
+                                StockMessage::ConfigurationFailed,
+                                // We are using Anyhow's .context() and to show the inner error too, we need the {:#}:
+                                format!("{:#}", err),
+                            )
+                            .await
                         )
-                        .await
-                    )
+                    }
                 );
                 Err(err)
             }
@@ -138,8 +134,8 @@ impl Context {
     }
 }
 
-async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
-    progress!(ctx, 1);
+async fn configure(ctx: &Context, param: &mut LoginParam, progress: &impl Progress) -> Result<()> {
+    progress.p(1);
 
     // Check basic settings.
     ensure!(!param.addr.is_empty(), "Please enter an email address.");
@@ -168,7 +164,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     if oauth2 {
         // the used oauth2 addr may differ, check this.
         // if dc_get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
-        progress!(ctx, 10);
+        progress.p(10);
         if let Some(oauth2_addr) = dc_get_oauth2_addr(ctx, &param.addr, &param.imap.password)
             .await
             .and_then(|e| e.parse().ok())
@@ -179,7 +175,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                 .set_raw_config(ctx, "addr", Some(param.addr.as_str()))
                 .await?;
         }
-        progress!(ctx, 20);
+        progress.p(20);
     }
     // no oauth? - just continue it's no error
 
@@ -188,7 +184,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let param_addr_urlencoded = utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
 
     // Step 2: Autoconfig
-    progress!(ctx, 200);
+    progress.p(200);
 
     let param_autoconfig;
     if param.imap.server.is_empty()
@@ -206,13 +202,13 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             param_autoconfig = Some(servers);
         } else {
             param_autoconfig =
-                get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await;
+                get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded, progress).await;
         }
     } else {
         param_autoconfig = None;
     }
 
-    progress!(ctx, 500);
+    progress.p(500);
 
     let servers = expand_param_vector(
         param_autoconfig.unwrap_or_else(|| {
@@ -237,7 +233,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         &param_domain,
     );
 
-    progress!(ctx, 550);
+    progress.p(550);
 
     // Spawn SMTP configuration task
     let mut smtp = Smtp::new();
@@ -278,7 +274,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         }
     });
 
-    progress!(ctx, 600);
+    progress.p(600);
 
     // Configure IMAP
     let (_s, r) = async_std::sync::channel(1);
@@ -304,16 +300,13 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             }
             Err(e) => errors.push(e),
         }
-        progress!(
-            ctx,
-            600 + (800 - 600) * (1 + imap_server_index) / imap_servers_count
-        );
+        progress.p(600 + (800 - 600) * (1 + imap_server_index) / imap_servers_count);
     }
     if !imap_configured {
         bail!(nicer_configuration_error(ctx, errors).await);
     }
 
-    progress!(ctx, 850);
+    progress.p(850);
 
     // Wait for SMTP configuration
     match smtp_config_task.await {
@@ -325,7 +318,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         }
     }
 
-    progress!(ctx, 900);
+    progress.p(900);
 
     let create_mvbox = ctx.get_config_bool(Config::MvboxWatch).await
         || ctx.get_config_bool(Config::MvboxMove).await;
@@ -338,14 +331,14 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     drop(imap);
 
-    progress!(ctx, 910);
+    progress.p(910);
     // configuration success - write back the configured parameters with the
     // "configured_" prefix; also write the "configured"-flag */
     // the trailing underscore is correct
     param.save_to_database(ctx, "configured_").await?;
     ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
 
-    progress!(ctx, 920);
+    progress.p(920);
 
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
@@ -356,7 +349,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     )
     .await;
 
-    progress!(ctx, 940);
+    progress.p(940);
 
     Ok(())
 }
@@ -430,14 +423,15 @@ async fn get_autoconfig(
     param: &LoginParam,
     param_domain: &str,
     param_addr_urlencoded: &str,
+    progress: &impl Progress,
 ) -> Option<Vec<ServerParams>> {
     let sources = AutoconfigSource::all(param_domain, param_addr_urlencoded);
 
-    let mut progress = 300;
+    let mut p = 300;
     for source in &sources {
         let res = source.fetch(ctx, param).await;
-        progress!(ctx, progress);
-        progress += 10;
+        progress.p(p);
+        p += 10;
         if let Ok(res) = res {
             return Some(res);
         }
