@@ -2570,10 +2570,7 @@ mod tests {
 
         assert_eq!(msg.state, MessageState::OutFailed);
 
-        assert_eq!(
-            msg.error(),
-            error_msg.map(|error|error.to_string())
-        );
+        assert_eq!(msg.error(), error_msg.map(|error| error.to_string()));
     }
 
     #[async_std::test]
