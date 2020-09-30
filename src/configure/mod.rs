@@ -358,6 +358,10 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 940);
 
+    ctx.update_device_chats().await?;
+
+    progress!(ctx, 950);
+
     Ok(())
 }
 

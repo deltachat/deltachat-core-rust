@@ -986,6 +986,9 @@ uint32_t        dc_add_device_msg            (dc_context_t* context, const char*
 
 
 /**
+ * DEPRECATED This is now done automatically while configuring.
+ * There is no need to call this function anymore.
+ *
  * Init device-messages and saved-messages chat.
  * This function adds the device-chat and saved-messages chat
  * and adds one or more welcome or update-messages.
