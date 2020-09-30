@@ -335,14 +335,19 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .await
         .context("could not read INBOX status")?;
 
-    drop(imap);
-
+    let was_configured_before = ctx.sql.get_raw_config_bool(ctx, "configured").await;
     progress!(ctx, 910);
     // configuration success - write back the configured parameters with the
     // "configured_" prefix; also write the "configured"-flag */
     // the trailing underscore is correct
     param.save_to_database(ctx, "configured_").await?;
     ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
+
+    if !was_configured_before && imap.was_dc_used_before(ctx).await? {
+        ctx.set_config(Config::DcWasUsedBefore, Some("1")).await?;
+    }
+
+    drop(imap);
 
     progress!(ctx, 920);
 

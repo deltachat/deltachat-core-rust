@@ -5,6 +5,7 @@
 
 use std::collections::BTreeMap;
 
+use anyhow::Context as _;
 use async_imap::{
     error::Result as ImapResult,
     types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
@@ -1318,6 +1319,27 @@ impl Imap {
         }
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
+    }
+
+    pub(crate) async fn was_dc_used_before(&mut self, context: &Context) -> Result<bool> {
+        let self_addr = context
+            .get_config(Config::ConfiguredAddr)
+            .await
+            .context("was_dc_used_before: not configured")?;
+        for config in &[Config::ConfiguredInboxFolder, Config::ConfiguredMvboxFolder] {
+            if let Some(mailbox) = context.get_config(*config).await {
+                self.select_folder(context, Some(&mailbox)).await?;
+                if let Some(ref mut session) = self.session {
+                    let query = format!(r#"HEADER Chat-Version "" FROM {}"#, self_addr);
+                    if !session.search(query).await?.is_empty() {
+                        info!(context, "Found outgoing chat msgs in {}.", &mailbox);
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+        info!(context, "Did not find any outgoing chat msgs.");
+        Ok(false)
     }
 }
 

@@ -128,6 +128,8 @@ pub enum Config {
 
     /// address to webrtc instance to use for videochats
     WebrtcInstance,
+
+    DcWasUsedBefore,
 }
 
 impl Context {

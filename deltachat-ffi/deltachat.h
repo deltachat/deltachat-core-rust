@@ -349,6 +349,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    https://github.com/cracker0dks/basicwebrtc which some UIs have native support for.
  *                    The type `jitsi:` may be handled by external apps.
  *                    If no type is prefixed, the videochat is handled completely in a browser.
+ * - `dc_was_used_before` = Set during the configure process. If true, DC was used with this email account before
+ *                    and the user re-installed DC or is setting up a second device.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
