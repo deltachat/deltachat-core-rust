@@ -64,19 +64,11 @@ where
                     let mut lock = cloned.lock().await;
                     let limit = lock.progress_limit;
                     if limit == 1000 || limit == 0 {
-                        eprintln!("dbg returning {}", limit);
                         return;
                     }
                     let last = lock.emitted_progress;
 
                     let next = last + ((limit as f64 - last) / lock.step_fraction);
-                    eprintln!(
-                        "dbg step {}, last {}, next{}, limit {}",
-                        (limit as f64 - last),
-                        last,
-                        next,
-                        limit
-                    );
 
                     if (next / 10f64).ceil() - (last / 10f64).ceil() > 0f64 {
                         (lock.f)(next.ceil() as usize);
@@ -117,7 +109,6 @@ where
                 let inner = &inner.lock().await;
                 (inner.f)(progress);
             }
-            eprintln!("dbg setting limit {}", progress);
             inner.lock().await.progress_limit = progress;
         });
     }
