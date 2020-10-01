@@ -2084,7 +2084,6 @@ class TestOnlineConfigureFails:
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
         configtracker = ac1.configure()
-        configtracker.wait_progress(500)
         configtracker.wait_progress(0)
         ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")
 
@@ -2092,7 +2091,6 @@ class TestOnlineConfigureFails:
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config(dict(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"]))
         configtracker = ac1.configure()
-        configtracker.wait_progress(500)
         configtracker.wait_progress(0)
         ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")
 
@@ -2100,6 +2098,5 @@ class TestOnlineConfigureFails:
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config((dict(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])))
         configtracker = ac1.configure()
-        configtracker.wait_progress(500)
         configtracker.wait_progress(0)
         ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")
