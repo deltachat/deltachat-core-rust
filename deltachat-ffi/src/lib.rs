@@ -2389,13 +2389,13 @@ pub unsafe extern "C" fn dc_chat_can_send(chat: *mut dc_chat_t) -> libc::c_int {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_is_protected(chat: *mut dc_chat_t) -> libc::c_int {
     if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_is_verified()");
+        eprintln!("ignoring careless call to dc_chat_is_protected()");
         return 0;
     }
     let ffi_chat = &*chat;
-    ffi_chat.chat.is_verified() as libc::c_int
+    ffi_chat.chat.is_protected() as libc::c_int
 }
 
 #[no_mangle]

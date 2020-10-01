@@ -566,6 +566,7 @@ pub struct Chat {
     pub param: Params,
     is_sending_locations: bool,
     pub mute_duration: MuteDuration,
+    protected: ProtectionStatus,
 }
 
 impl Chat {
@@ -575,7 +576,7 @@ impl Chat {
             .sql
             .query_row(
                 "SELECT c.type, c.name, c.grpid, c.param, c.archived,
-                    c.blocked, c.locations_send_until, c.muted_until
+                    c.blocked, c.locations_send_until, c.muted_until, c.protected
              FROM chats c
              WHERE c.id=?;",
                 paramsv![chat_id],
@@ -590,6 +591,7 @@ impl Chat {
                         blocked: row.get::<_, Option<_>>(5)?.unwrap_or_default(),
                         is_sending_locations: row.get(6)?,
                         mute_duration: row.get(7)?,
+                        protected: row.get(8)?,
                     };
                     Ok(c)
                 },
@@ -755,9 +757,9 @@ impl Chat {
         !self.is_unpromoted()
     }
 
-    /// Returns true if chat is a verified group chat.
-    pub fn is_verified(&self) -> bool {
-        self.typ == Chattype::VerifiedGroup
+    /// Returns true if chat protection is enabled.
+    pub fn is_protected(&self) -> bool {
+        self.protected == ProtectionStatus::Protected
     }
 
     /// Returns true if location streaming is enabled in the chat.
@@ -2062,7 +2064,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         {
             error!(
                 context,
-                "Only bidirectional verified contacts can be added to verified groups."
+                "Only bidirectional verified contacts can be added to protected chats."
             );
             return Ok(false);
         }
@@ -2626,7 +2628,7 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> usize {
     }
 }
 
-/// Returns a tuple of `(chatid, is_verified, blocked)`.
+/// Returns a tuple of `(chatid, is_protected, blocked)`.
 pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,
@@ -2634,14 +2636,16 @@ pub(crate) async fn get_chat_id_by_grpid(
     context
         .sql
         .query_row(
-            "SELECT id, blocked, type FROM chats WHERE grpid=?;",
+            "SELECT id, blocked, protected FROM chats WHERE grpid=?;",
             paramsv![grpid.as_ref()],
             |row| {
                 let chat_id = row.get::<_, ChatId>(0)?;
 
                 let b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
-                let v = row.get::<_, Option<Chattype>>(2)?.unwrap_or_default();
-                Ok((chat_id, v == Chattype::VerifiedGroup, b))
+                let p = row
+                    .get::<_, Option<ProtectionStatus>>(2)?
+                    .unwrap_or_default();
+                Ok((chat_id, p == ProtectionStatus::Protected, b))
             },
         )
         .await

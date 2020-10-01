@@ -85,12 +85,12 @@ class Chat(object):
         """
         return not lib.dc_chat_is_unpromoted(self._dc_chat)
 
-    def is_verified(self):
+    def is_protected(self):
         """ return True if this chat is a verified group.
 
         :returns: True if chat is verified, False otherwise.
         """
-        return lib.dc_chat_is_verified(self._dc_chat)
+        return lib.dc_chat_is_protected(self._dc_chat)
 
     def get_name(self):
         """ return name of this chat.

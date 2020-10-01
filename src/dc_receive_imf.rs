@@ -1731,7 +1731,7 @@ async fn check_verified_properties(
         }
         if !is_verified {
             bail!(
-                "{} is not a member of this verified group",
+                "{} is not a member of this protected chat",
                 to_addr.to_string()
             );
         }

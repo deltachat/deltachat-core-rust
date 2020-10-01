@@ -1329,7 +1329,7 @@ int             dc_is_contact_in_chat        (dc_context_t* context, uint32_t ch
  * If the group is already _promoted_ (any message was sent to the group),
  * all group members are informed by a special status message that is sent automatically by this function.
  *
- * If the group is a verified group, only verified contacts can be added to the group.
+ * If the group has group protection enabled, only verified contacts can be added to the group.
  *
  * Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.
  *
@@ -1973,7 +1973,7 @@ dc_lot_t*       dc_check_qr                  (dc_context_t* context, const char*
  * @param context The context object.
  * @param chat_id If set to a group-chat-id,
  *     the Verified-Group-Invite protocol is offered in the QR code;
- *     works for verified groups as well as for normal groups.
+ *     works for protected groups as well as for normal groups.
  *     If set to 0, the Setup-Contact protocol is offered in the QR code.
  *     See https://countermitm.readthedocs.io/en/latest/new.html
  *     for details about both protocols.
@@ -2003,7 +2003,7 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
  *   When the protocol has finished, an info-message is added to that chat.
  * - If the given QR code starts the Verified-Group-Invite protocol,
  *   the function waits until the protocol has finished.
- *   This is because the verified group is not opportunistic
+ *   This is because the protected group is not opportunistic
  *   and can be created only when the contacts have verified each other.
  *
  * See https://countermitm.readthedocs.io/en/latest/new.html
@@ -2015,8 +2015,8 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
  *     to dc_check_qr().
  * @return Chat-id of the joined chat, the UI may redirect to the this chat.
  *     If the out-of-band verification failed or was aborted, 0 is returned.
- *     A returned chat-id does not guarantee that the chat or the belonging contact is verified.
- *     If needed, this be checked with dc_chat_is_verified() and dc_contact_is_verified(),
+ *     A returned chat-id does not guarantee that the chat is protected or the belonging contact is verified.
+ *     If needed, this be checked with dc_chat_is_protected() and dc_contact_is_verified(),
  *     however, in practise, the UI will just listen to #DC_EVENT_CONTACTS_CHANGED unconditionally.
  */
 uint32_t        dc_join_securejoin           (dc_context_t* context, const char* qr);
@@ -2942,15 +2942,17 @@ int             dc_chat_can_send              (const dc_chat_t* chat);
 
 
 /**
- * Check if a chat is verified.  Verified chats contain only verified members
- * and encryption is alwasy enabled.  Verified chats are created using
- * dc_create_group_chat() by setting the 'verified' parameter to true.
+ * Check if a chat is protected.
+ * Protected chats contain only verified members and encryption is always enabled.
+ * Protected chats are created using dc_create_group_chat() by setting the 'protect' parameter to 1.
+ * The status can be changed using dc_set_chat_protection().
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
- * @return 1=chat verified, 0=chat is not verified
+ * @return 1=chat protected, 0=chat is not protected
  */
-int             dc_chat_is_verified          (const dc_chat_t* chat);
+int             dc_chat_is_protected         (const dc_chat_t* chat);
+#define         dc_chat_is_verified          dc_chat_is_protected // allow using old function name for a while
 
 
 /**
