@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use anyhow::{bail, ensure};
 use async_std::path::Path;
-use deltachat::chat::{self, Chat, ChatId, ChatItem, ChatVisibility};
+use deltachat::chat::{self, Chat, ChatId, ChatItem, ChatVisibility, ProtectionStatus};
 use deltachat::chatlist::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
@@ -357,7 +357,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  createchat <contact-id>\n\
                  createchatbymsg <msg-id>\n\
                  creategroup <name>\n\
-                 createverified <name>\n\
+                 createprotected <name>\n\
                  addmember <contact-id>\n\
                  removemember <contact-id>\n\
                  groupname <name>\n\
@@ -654,15 +654,16 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "creategroup" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
             let chat_id =
-                chat::create_group_chat(&context, VerifiedStatus::Unverified, arg1).await?;
+                chat::create_group_chat(&context, ProtectionStatus::Unprotected, arg1).await?;
 
             println!("Group#{} created successfully.", chat_id);
         }
-        "createverified" => {
+        "createprotected" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            let chat_id = chat::create_group_chat(&context, VerifiedStatus::Verified, arg1).await?;
+            let chat_id =
+                chat::create_group_chat(&context, ProtectionStatus::Protected, arg1).await?;
 
-            println!("VerifiedGroup#{} created successfully.", chat_id);
+            println!("Group#{} created and protected successfully.", chat_id);
         }
         "addmember" => {
             ensure!(sel_chat.is_some(), "No chat selected");

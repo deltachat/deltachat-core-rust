@@ -25,7 +25,7 @@ use async_std::task::{block_on, spawn};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::accounts::Accounts;
-use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};
+use deltachat::chat::{ChatId, ChatVisibility, MuteDuration, ProtectionStatus};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::{Contact, Origin};
 use deltachat::context::Context;
@@ -1170,7 +1170,7 @@ pub unsafe extern "C" fn dc_get_chat(context: *mut dc_context_t, chat_id: u32) -
 #[no_mangle]
 pub unsafe extern "C" fn dc_create_group_chat(
     context: *mut dc_context_t,
-    verified: libc::c_int,
+    protect: libc::c_int,
     name: *const libc::c_char,
 ) -> u32 {
     if context.is_null() || name.is_null() {
@@ -1178,14 +1178,14 @@ pub unsafe extern "C" fn dc_create_group_chat(
         return 0;
     }
     let ctx = &*context;
-    let verified = if let Some(s) = contact::VerifiedStatus::from_i32(verified) {
+    let protect = if let Some(s) = contact::ProtectionStatus::from_i32(protect) {
         s
     } else {
         return 0;
     };
 
     block_on(async move {
-        chat::create_group_chat(&ctx, verified, to_string_lossy(name))
+        chat::create_group_chat(&ctx, protect, to_string_lossy(name))
             .await
             .log_err(ctx, "Failed to create group chat")
             .map(|id| id.to_u32())

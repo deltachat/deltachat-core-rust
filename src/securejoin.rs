@@ -1102,6 +1102,7 @@ mod tests {
     use super::*;
 
     use crate::chat;
+    use crate::chat::ProtectionStatus;
     use crate::peerstate::Peerstate;
     use crate::test_utils::TestContext;
 
@@ -1328,7 +1329,7 @@ mod tests {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        let chatid = chat::create_group_chat(&alice.ctx, VerifiedStatus::Verified, "the chat")
+        let chatid = chat::create_group_chat(&alice.ctx, ProtectionStatus::Protected, "the chat")
             .await
             .unwrap();
 

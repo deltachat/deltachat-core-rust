@@ -1,5 +1,6 @@
 //! # Chat module
 
+use deltachat_derive::{FromSql, ToSql};
 use std::convert::TryFrom;
 use std::time::{Duration, SystemTime};
 
@@ -43,6 +44,33 @@ pub enum ChatItem {
         /// Marker timestamp, for day markers
         timestamp: i64,
     },
+}
+
+#[derive(
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+    IntoStaticStr,
+    Serialize,
+    Deserialize,
+)]
+#[repr(u32)]
+pub enum ProtectionStatus {
+    Unprotected = 0,
+    Protected = 1,
+}
+
+impl Default for ProtectionStatus {
+    fn default() -> Self {
+        ProtectionStatus::Unprotected
+    }
 }
 
 /// Chat ID, including reserved IDs.
@@ -1865,7 +1893,7 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Vec<u32> {
 
 pub async fn create_group_chat(
     context: &Context,
-    verified: VerifiedStatus,
+    protect: ProtectionStatus,
     chat_name: impl AsRef<str>,
 ) -> Result<ChatId, Error> {
     let chat_name = improve_single_line_input(chat_name);
@@ -1877,16 +1905,13 @@ pub async fn create_group_chat(
     let grpid = dc_create_id();
 
     context.sql.execute(
-        "INSERT INTO chats (type, name, grpid, param, created_timestamp) VALUES(?, ?, ?, \'U=1\', ?);",
+        "INSERT INTO chats (type, name, grpid, param, created_timestamp, protected) VALUES(?, ?, ?, \'U=1\', ?, ?);",
         paramsv![
-            if verified != VerifiedStatus::Unverified {
-                Chattype::VerifiedGroup
-            } else {
-                Chattype::Group
-            },
+            Chattype::Group,
             chat_name,
             grpid,
             time(),
+            protect,
         ],
     ).await?;
 
@@ -2898,7 +2923,7 @@ mod tests {
     async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         let added = add_contact_to_chat_ex(&t.ctx, chat_id, DC_CONTACT_ID_SELF, false)
@@ -3284,7 +3309,7 @@ mod tests {
             .await
             .unwrap();
         async_std::task::sleep(std::time::Duration::from_millis(1000)).await;
-        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id3 = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
 
@@ -3329,7 +3354,7 @@ mod tests {
     #[async_std::test]
     async fn test_set_chat_name() {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         assert_eq!(
@@ -3372,7 +3397,7 @@ mod tests {
     #[async_std::test]
     async fn test_shall_attach_selfavatar() {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         assert!(!shall_attach_selfavatar(&t.ctx, chat_id).await.unwrap());
@@ -3396,7 +3421,7 @@ mod tests {
     #[async_std::test]
     async fn test_set_mute_duration() {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         // Initial

@@ -1299,15 +1299,15 @@ dc_chat_t*      dc_get_chat                  (dc_context_t* context, uint32_t ch
  *
  * @memberof dc_context_t
  * @param context The context object.
- * @param verified If set to 1 the function creates a secure verified group.
- *     Only secure-verified members are allowed in these groups
+ * @param protect If set to 1 the function creates group with protection initially enabled.
+ *     Only verified members are allowed in these groups
  *     and end-to-end-encryption is always enabled.
  * @param name The name of the group chat to create.
  *     The name may be changed later using dc_set_chat_name().
  *     To find out the name of a group later, see dc_chat_get_name()
  * @return The chat ID of the new group chat, 0 on errors.
  */
-uint32_t        dc_create_group_chat         (dc_context_t* context, int verified, const char* name);
+uint32_t        dc_create_group_chat         (dc_context_t* context, int protect, const char* name);
 
 
 /**

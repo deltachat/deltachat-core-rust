@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 
 use mailparse::SingleInfo;
 
-use crate::chat::{self, Chat, ChatId};
+use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
@@ -1199,7 +1199,7 @@ async fn create_or_lookup_group(
                 || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
     {
         // group does not exist but should be created
-        let create_verified = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
+        let create_protected = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
             if let Err(err) =
                 check_verified_properties(context, mime_parser, from_id as u32, to_ids).await
             {
@@ -1207,9 +1207,9 @@ async fn create_or_lookup_group(
                 let s = format!("{}. See 'Info' for more details", err);
                 mime_parser.repl_msg_by_error(&s);
             }
-            VerifiedStatus::Verified
+            ProtectionStatus::Protected
         } else {
-            VerifiedStatus::Unverified
+            ProtectionStatus::Unprotected
         };
 
         if !allow_creation {
@@ -1222,7 +1222,7 @@ async fn create_or_lookup_group(
             &grpid,
             grpname.as_ref().unwrap(),
             create_blocked,
-            create_verified,
+            create_protected,
         )
         .await;
         chat_id_blocked = create_blocked;
@@ -1463,7 +1463,7 @@ async fn create_or_lookup_adhoc_group(
         &grpid,
         grpname,
         create_blocked,
-        VerifiedStatus::Unverified,
+        ProtectionStatus::Unprotected,
     )
     .await;
     for &member_id in &member_ids {
@@ -1480,20 +1480,17 @@ async fn create_group_record(
     grpid: impl AsRef<str>,
     grpname: impl AsRef<str>,
     create_blocked: Blocked,
-    create_verified: VerifiedStatus,
+    create_protected: ProtectionStatus,
 ) -> ChatId {
     if context.sql.execute(
-        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
+        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);",
         paramsv![
-            if VerifiedStatus::Unverified != create_verified {
-                Chattype::VerifiedGroup
-            } else {
-                Chattype::Group
-            },
+            Chattype::Group,
             grpname.as_ref(),
             grpid.as_ref(),
             create_blocked,
             time(),
+            create_protected,
         ],
     ).await
     .is_err()
@@ -2182,7 +2179,7 @@ mod tests {
         assert!(one2one.get_visibility() == ChatVisibility::Archived);
 
         // create a group with bob, archive group
-        let group_id = chat::create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let group_id = chat::create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         chat::add_contact_to_chat(&t.ctx, group_id, bob_id).await;
