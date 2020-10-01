@@ -4365,7 +4365,7 @@ int dc_event_get_data2_int(dc_event_t* event);
  *
  * @memberof dc_event_t
  * @param event Event object as returned from dc_get_next_event().
- * @return "data2" as a string or 0
+ * @return "data2" as a string or NULL.
  *     the meaning depends on the event type associated with this event.
  *     Once you're done with the string, you have to unref it using dc_unref_str().
  */
