@@ -537,9 +537,29 @@ pub fn dc_open_file_std<P: AsRef<std::path::Path>>(
     }
 }
 
+pub(crate) async fn get_next_backup_path_old(
+    folder: impl AsRef<Path>,
+    backup_time: i64,
+) -> Result<PathBuf, Error> {
+    let folder = PathBuf::from(folder.as_ref());
+    let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
+        .format("delta-chat-%Y-%m-%d")
+        .to_string();
+
+    // 64 backup files per day should be enough for everyone
+    for i in 0..64 {
+        let mut path = folder.clone();
+        path.push(format!("{}-{}.bak", stem, i));
+        if !path.exists().await {
+            return Ok(path);
+        }
+    }
+    bail!("could not create backup file, disk full?");
+}
+
 /// Returns Ok((temp_path, dest_path)) on success. The backup can then be written to temp_path. If the backup succeeded,
 /// it can be renamed to dest_path. This guarantees that the backup is complete.
-pub(crate) async fn get_next_backup_path(
+pub(crate) async fn get_next_backup_path_new(
     folder: impl AsRef<Path>,
     backup_time: i64,
 ) -> Result<(PathBuf, PathBuf), Error> {
