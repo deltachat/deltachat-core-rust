@@ -145,7 +145,6 @@ pub enum Chattype {
     Undefined = 0,
     Single = 100,
     Group = 120,
-    VerifiedGroup = 130,
 }
 
 impl Default for Chattype {

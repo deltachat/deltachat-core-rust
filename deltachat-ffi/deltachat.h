@@ -2769,7 +2769,6 @@ char*            dc_chat_get_info_json       (dc_context_t* context, size_t chat
 #define         DC_CHAT_TYPE_UNDEFINED       0
 #define         DC_CHAT_TYPE_SINGLE          100
 #define         DC_CHAT_TYPE_GROUP           120
-#define         DC_CHAT_TYPE_VERIFIED_GROUP  130
 
 
 /**
@@ -2809,9 +2808,6 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
  *
  * - DC_CHAT_TYPE_GROUP  (120) - a group chat, chats_contacts contain all group
  *   members, incl. DC_CONTACT_ID_SELF
- *
- * - DC_CHAT_TYPE_VERIFIED_GROUP  (130) - a verified group chat. In verified groups,
- *   all members are verified and encryption is always active and cannot be disabled.
  *
  * @memberof dc_chat_t
  * @param chat The chat object.

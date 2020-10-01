@@ -544,9 +544,7 @@ impl Message {
             return ret;
         };
 
-        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32
-            && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
-        {
+        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32 && chat.typ == Chattype::Group {
             Contact::get_by_id(context, self.from_id).await.ok()
         } else {
             None
@@ -976,7 +974,7 @@ impl Lot {
                 );
                 self.text1_meaning = Meaning::Text1Self;
             }
-        } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+        } else if chat.typ == Chattype::Group {
             if msg.is_info() || contact.is_none() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
@@ -1661,7 +1659,7 @@ pub(crate) async fn handle_ndn(
     if let Ok((msg_id, chat_id, chat_type)) = res {
         set_msg_failed(context, msg_id, error).await;
 
-        if chat_type == Chattype::Group || chat_type == Chattype::VerifiedGroup {
+        if chat_type == Chattype::Group {
             if let Some(failed_recipient) = &failed.failed_recipient {
                 let contact_id =
                     Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;

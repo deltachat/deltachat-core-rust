@@ -786,15 +786,12 @@ impl Chat {
         let mut to_id = 0;
         let mut location_id = 0;
 
-        if !(self.typ == Chattype::Single
-            || self.typ == Chattype::Group
-            || self.typ == Chattype::VerifiedGroup)
-        {
+        if !(self.typ == Chattype::Single || self.typ == Chattype::Group) {
             error!(context, "Cannot send to chat type #{}.", self.typ,);
             bail!("Cannot set to chat type #{}", self.typ);
         }
 
-        if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+        if self.typ == Chattype::Group
             && !is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await
         {
             emit_event!(
@@ -811,7 +808,7 @@ impl Chat {
 
         let new_rfc724_mid = {
             let grpid = match self.typ {
-                Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
+                Chattype::Group => Some(self.grpid.as_str()),
                 _ => None,
             };
             dc_create_outgoing_rfc724_mid(grpid, &from)
@@ -835,7 +832,7 @@ impl Chat {
                 );
                 bail!("Cannot set message, contact for {} not found.", self.id);
             }
-        } else if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+        } else if self.typ == Chattype::Group
             && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
         {
             msg.param.set_int(Param::AttachGroupImage, 1);
@@ -2059,7 +2056,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         }
     } else {
         // else continue and send status mail
-        if chat.typ == Chattype::VerifiedGroup
+        if chat.is_protected()
             && contact.is_verified(context).await != VerifiedStatus::BidirectVerified
         {
             error!(
@@ -2102,7 +2099,7 @@ async fn real_group_exists(context: &Context, chat_id: ChatId) -> bool {
     context
         .sql
         .exists(
-            "SELECT id FROM chats WHERE id=? AND (type=120 OR type=130);",
+            "SELECT id FROM chats WHERE id=? AND type=120;",
             paramsv![chat_id],
         )
         .await
