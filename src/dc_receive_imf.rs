@@ -1625,7 +1625,7 @@ async fn create_mailinglist_record(
 
     if !chat_id.is_unset() {
         let mut chat = Chat::load_from_db(context, chat_id).await?;
-        chat.param.set(Param::MailingList, "true");
+        chat.param.set(Param::MailingList, "1");
         chat.update_param(context).await?;
     }
 

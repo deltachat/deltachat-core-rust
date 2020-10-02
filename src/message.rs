@@ -726,8 +726,8 @@ impl Message {
                 return 0;
             }
         };
-        let list = chat.is_mailing_list();
-        match (decision, list) {
+
+        match (decision, chat.is_mailing_list()) {
             (0, _) => match chat::create_by_msg_id(context, self.id).await {
                 Ok(id) => return id.to_u32(),
                 Err(e) => warn!(context, "decide_on_contact_request error: {}", e),

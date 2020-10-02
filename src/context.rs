@@ -1,11 +1,11 @@
 //! Context module
 
+use std::ffi::OsString;
 use std::ops::Deref;
 use std::{
     collections::{BTreeMap, HashMap},
     panic,
 };
-use std::ffi::OsString;
 
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
