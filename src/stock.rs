@@ -233,6 +233,9 @@ pub enum StockMessage {
         fallback = "Could not find your mail server.\n\nPlease check your internet connection."
     ))]
     ErrorNoNetwork = 87,
+
+    #[strum(props(fallback = "Unnamed newsletter"))]
+    UnnamedNewsletter = 88,
 }
 
 /*
