@@ -643,7 +643,7 @@ int             dc_preconfigure_keypair        (dc_context_t* context, const cha
  *   The last of these messages is represented by DC_CHAT_ID_DEADDROP and you can retrieve details
  *   about it with dc_chatlist_get_msg_id(). Typically, the UI asks the user "Do you want to chat with NAME?"
  *   and offers the options "Yes", "Never" or "Not now".
- *   Call decide_on_contact_request() when the user selected one of these options.
+ *   Call dc_decide_on_contact_request() when the user selected one of these options.
  * - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
  *   archived _any_ chat using dc_set_chat_visibility(). The UI should show a link as
  *   "Show archived chats", if the user clicks this item, the UI should show a
@@ -685,6 +685,8 @@ dc_chatlist_t*  dc_get_chatlist              (dc_context_t* context, int flags, 
 // handle chats
 
 /**
+ * DEPRECATED Use dc_decide_on_contact_request().
+ *
  * Create a normal chat or a group chat by a messages ID that comes typically
  * from the deaddrop, DC_CHAT_ID_DEADDROP (1).
  *
@@ -704,6 +706,7 @@ dc_chatlist_t*  dc_get_chatlist              (dc_context_t* context, int flags, 
  * same group may be shown or not - so, all in all, it is fine to show the
  * contact name only.
  *
+ * @deprecated Use dc_decide_on_contact_request() instead
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param msg_id The message ID to create the chat for.
@@ -1115,7 +1118,7 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
  * (IMAP/MDNs is not done for noticed messages).
  *
  * Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
- * See also dc_marknoticed_contact() and dc_markseen_msgs().
+ * See also dc_markseen_msgs().
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -1490,6 +1493,8 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
 
 
 /**
+ * DEPRECATED
+ *
  * Mark all messages sent by the given contact as _noticed_.
  * This function is typically used to ignore a user in the deaddrop temporarily ("Not now" button).
  *
@@ -1498,6 +1503,9 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  *
  * See also dc_marknoticed_chat() and dc_markseen_msgs()
  *
+ * @deprecated Use dc_decide_on_contact_request() if the user just hit "Not now" on a button in the deaddrop,
+ *      dc_marknoticed_chat() if the user has entered a chat
+ *      and dc_markseen_msgs() if the user actually _saw_ a message.
  * @memberof dc_context_t
  * @param context The context object.
  * @param contact_id The contact ID of which all messages should be marked as noticed.
@@ -1509,7 +1517,7 @@ void            dc_marknoticed_contact       (dc_context_t* context, uint32_t co
  * Mark a message as _seen_, updates the IMAP state and
  * sends MDNs. If the message is not in a real chat (eg. a contact request), the
  * message is only marked as NOTICED and no IMAP/MDNs is done.  See also
- * dc_marknoticed_chat() and dc_marknoticed_contact()
+ * dc_marknoticed_chat().
  *
  * Moreover, if messages belong to a chat with ephemeral messages enabled,
  * the ephemeral timer is started for these messages.
@@ -2822,7 +2830,7 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
  * @memberof dc_chat_t
  * @return 1 if this group chat shows a mailing list, 0 otherwise
  */
-int             dc_chat_is_list              (const dc_chat_t* chat);
+int             dc_chat_is_mailing_list              (const dc_chat_t* chat);
 
 /**
  * Get name of a chat. For one-to-one chats, this is the name of the contact.
@@ -3102,7 +3110,7 @@ int             dc_msg_get_viewtype           (const dc_msg_t* msg);
  *
  * Incoming message states:
  * - DC_STATE_IN_FRESH (10) - Incoming _fresh_ message. Fresh messages are neither noticed nor seen and are typically shown in notifications. Use dc_get_fresh_msgs() to get all fresh messages.
- * - DC_STATE_IN_NOTICED (13) - Incoming _noticed_ message. E.g. chat opened but message not yet read - noticed messages are not counted as unread but did not marked as read nor resulted in MDNs. Use dc_marknoticed_chat() or dc_marknoticed_contact() to mark messages as being noticed.
+ * - DC_STATE_IN_NOTICED (13) - Incoming _noticed_ message. E.g. chat opened but message not yet read - noticed messages are not counted as unread but did not marked as read nor resulted in MDNs. Use dc_marknoticed_chat() to mark messages as being noticed.
  * - DC_STATE_IN_SEEN (16) - Incoming message, really _seen_ by the user. Marked as read on IMAP and MDN may be sent. Use dc_markseen_msgs() to mark messages as being seen.
  *
  * Outgoing message states:
@@ -3565,6 +3573,21 @@ char*           dc_msg_get_error               (const dc_msg_t* msg);
 
 /**
  * Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
+ *
+ * If the decision is Yes (0), this will create a new chat and return the chat id.
+ * If the decision is No (1), this will usually block the sender.
+ * If the decision is Not now (2), this will usually mark all messages from this sender as read.
+ *
+ * If the message belongs to a mailing list, makes sure that all messages from this mailing list are
+ * blocked or marked as noticed.
+ *
+ * The user should be asked whether he wants to chat with the _contact_ belonging to the message;
+ * the group names may be really weird when taken from the subject of implicit (= ad-hoc)
+ * groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
+ *
+ * If chat.dc_chat_is_mailing_list() returns true, you can also ask
+ * "Would you like to read MAILING LIST NAME in Delta Chat?"
+ *
  * @memberof dc_msg_t
  * @param msg The message object.
  * @param context The context.
@@ -4642,7 +4665,7 @@ void dc_event_unref(dc_event_t* event);
  * Messages were marked noticed or seen.
  * The ui may update badge counters or stop showing a chatlist-item with a bold font.
  *
- * This event is emitted eg. when calling dc_markseen_msgs(), dc_marknoticed_chat() or dc_marknoticed_contact().
+ * This event is emitted eg. when calling dc_markseen_msgs() or dc_marknoticed_chat().
  * Do not try to derive the state of an item from just the fact you received the event;
  * use eg. dc_msg_get_state() or dc_get_fresh_msg_cnt() for this purpose.
  *
