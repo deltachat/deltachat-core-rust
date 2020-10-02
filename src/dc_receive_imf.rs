@@ -1384,7 +1384,10 @@ async fn create_or_lookup_mailinglist(
     }
 
     if name.is_empty() {
-        name = context.stock_str(StockMessage::UnnamedNewsletter).await.into();
+        name = context
+            .stock_str(StockMessage::UnnamedNewsletter)
+            .await
+            .into();
     }
 
     if allow_creation {
