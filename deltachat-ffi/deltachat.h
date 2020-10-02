@@ -642,9 +642,8 @@ int             dc_preconfigure_keypair        (dc_context_t* context, const cha
  *   messages from addresses that have no relationship to the configured account.
  *   The last of these messages is represented by DC_CHAT_ID_DEADDROP and you can retrieve details
  *   about it with dc_chatlist_get_msg_id(). Typically, the UI asks the user "Do you want to chat with NAME?"
- *   and offers the options "Yes" (call dc_create_chat_by_msg_id()), "Never" (call dc_block_contact())
- *   or "Not now".
- *   The UI can also offer a "Close" button that calls dc_marknoticed_contact() then.
+ *   and offers the options "Yes", "Never" or "Not now".
+ *   Call decide_on_contact_request() when the user selected one of these options.
  * - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
  *   archived _any_ chat using dc_set_chat_visibility(). The UI should show a link as
  *   "Show archived chats", if the user clicks this item, the UI should show a
@@ -2819,6 +2818,11 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
  */
 int             dc_chat_get_type             (const dc_chat_t* chat);
 
+/**
+ * @memberof dc_chat_t
+ * @return 1 if this group chat shows a mailing list, 0 otherwise
+ */
+int             dc_chat_is_list              (const dc_chat_t* chat);
 
 /**
  * Get name of a chat. For one-to-one chats, this is the name of the contact.
@@ -3381,6 +3385,20 @@ char*           dc_msg_get_summarytext        (const dc_msg_t* msg, int approx_c
 
 
 /**
+ * Get the name that should be shown over the message (in a group chat)
+ * Usually the displayname of the contact the message is from,
+ * but if this is a mailing list, this may be different.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return the name to show over this message
+ *     The returned string must be released using dc_str_unref().
+ *     Returns an empty string on errors, never returns NULL.
+ */
+char*           dc_msg_get_sender_name       (const dc_msg_t* msg);
+
+
+/**
  * Check if a message has a deviating timestamp.
  * A message has a deviating timestamp
  * when it is sent on another day as received/sorted by.
@@ -3522,7 +3540,7 @@ char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
  *     If the message is no videochat invitation, NULL is returned.
  *     Must be released using dc_str_unref() when done.
  */
-char* dc_msg_get_videochat_url (const dc_msg_t* msg);
+char*           dc_msg_get_videochat_url (const dc_msg_t* msg);
 
 /**
  * Gets the error status of the message.
@@ -3545,6 +3563,15 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  */
 char*           dc_msg_get_error               (const dc_msg_t* msg);
 
+/**
+ * Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param context The context.
+ * @param decision 0 = Yes, 1 = No, 2 = Not now
+ * @return The chat id of the created chat, if any.
+ */
+uint32_t        dc_decide_on_contact_request (const dc_msg_t* msg, int decision);
 
 /**
  * Get type of videochat.

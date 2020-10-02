@@ -1,4 +1,5 @@
 use itertools::join;
+use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use regex::Regex;
 use sha2::{Digest, Sha256};
@@ -143,7 +144,7 @@ pub(crate) async fn dc_receive_imf_inner(
             } else {
                 Origin::IncomingUnknownTo
             },
-            None,
+            list_id_header.is_some(),
         )
         .await?,
     );
@@ -298,7 +299,7 @@ pub async fn from_field_to_contact_id(
         context,
         from_address_list,
         Origin::IncomingUnknownFrom,
-        list_id_header,
+        list_id_header.is_some(),
     )
     .await?;
 
@@ -511,6 +512,7 @@ async fn add_parts(
                     },
                     create_blocked,
                     list_id_header,
+                    &mime_parser.get_subject().unwrap_or_default(),
                 )
                 .await;
 
@@ -1382,13 +1384,21 @@ async fn create_or_lookup_mailinglist(
     allow_creation: bool,
     create_blocked: Blocked,
     list_id_header: &str,
+    subject: &str,
 ) -> (ChatId, Blocked) {
-    let re = Regex::new(r"^(.*.)<(.*.)>$").unwrap();
-    let (name, listid) = match re.captures(list_id_header) {
+    lazy_static! {
+        static ref LIST_ID: Regex = Regex::new(r"^(.*.)<(.*.)>$").unwrap();
+        static ref SUBJECT: Regex = Regex::new(r"[(.*.)]").unwrap();
+    }
+    let (mut name, listid) = match LIST_ID.captures(list_id_header) {
         Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
         None => (
-            list_id_header.trim().to_string(),
-            list_id_header.trim().to_string(),
+            "".to_string(),
+            list_id_header
+                .trim()
+                .trim_start_matches('<')
+                .trim_end_matches('>')
+                .to_string(),
         ),
     };
 
@@ -1396,11 +1406,22 @@ async fn create_or_lookup_mailinglist(
         return (chat_id, blocked);
     }
 
+    if let Some(cap) = SUBJECT.captures(subject) {
+        name = cap[1].to_string();
+    }
+
+    if name.is_empty() {
+        name = "Unnamed newsletter".to_string(); //TODO make stock string
+    }
+
     if allow_creation {
         // list does not exist but should be created
         match create_mailinglist_record(context, &listid, &name, create_blocked).await {
             Ok(chat_id) => {
                 chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
+                if let Err(e) = add_list_contact(context, &name, &listid, chat_id).await {
+                    warn!(context, "add_list_contact failed: {}", e);
+                }
                 (chat_id, create_blocked)
             }
             Err(e) => {
@@ -1418,6 +1439,28 @@ async fn create_or_lookup_mailinglist(
         info!(context, "creating list forbidden by caller");
         (ChatId::new(0), Blocked::Not)
     }
+}
+
+/// Adds a pseudo conact of the form {List-Id}@mailing.list
+async fn add_list_contact(
+    context: &Context,
+    name: &str,
+    listid: &str,
+    chat_id: ChatId,
+) -> Result<()> {
+    let contact_id =
+        add_or_lookup_contact_by_addr(context, Some(name), &listid, Origin::IncomingUnknownFrom)
+            .await?;
+
+    chat::add_to_chat_contacts_table(context, chat_id, contact_id).await;
+
+    let mut contact = Contact::load_from_db(context, contact_id).await?;
+    contact
+        .param
+        .set_int(Param::MailingListPseudoContact, chat_id.to_u32() as i32);
+    contact.update_param(context).await?;
+
+    Ok(())
 }
 
 /// try extract a grpid from a message-id list header value
@@ -1961,17 +2004,22 @@ async fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     address_list: &[SingleInfo],
     origin: Origin,
-    list_id_header: Option<&String>,
+    is_mailing_list: bool,
 ) -> Result<ContactIds> {
     let mut contact_ids = ContactIds::new();
     for info in address_list.iter() {
         contact_ids.insert(
             add_or_lookup_contact_by_addr(
                 context,
-                &info.display_name,
+                if is_mailing_list {
+                    // Don't change the displayname because in a mailing list the sender displayname
+                    // sometimes does not belong to the sender email address
+                    Some("")
+                } else {
+                    info.display_name.as_deref()
+                },
                 &info.addr,
                 origin,
-                list_id_header,
             )
             .await?,
         );
@@ -1983,45 +2031,16 @@ async fn dc_add_or_lookup_contacts_by_address_list(
 /// Add contacts to database on receiving messages.
 async fn add_or_lookup_contact_by_addr(
     context: &Context,
-    display_name: &Option<String>,
+    display_name: Option<impl AsRef<str>>,
     addr: &str,
     origin: Origin,
-    list_id_header: Option<&String>,
 ) -> Result<u32> {
     if context.is_self_addr(addr).await? {
         return Ok(DC_CONTACT_ID_SELF);
     }
     let display_name_normalized = display_name
-        .as_ref()
         .map(normalize_name)
         .unwrap_or_default();
-
-    if let Some(list_id) = list_id_header {
-        let list_id = list_id.trim().trim_end_matches('>');
-        let addr_email = EmailAddress::new(&addr)?;
-        let mut addr_domain_parts = addr_email.domain.split('.');
-        let mut list_id_parts = list_id.split('.');
-        if list_id_parts.next_back() == addr_domain_parts.next_back()
-            && list_id_parts.next_back() == addr_domain_parts.next_back()
-        {
-            // list_id was something like "name <name.github.com" (after trimming the last '>')
-            // and addr was something like "notifications@github.com".
-            // addr is not the address of the actual sender but the one of the mailing list.
-            // Add the display name to the addr to make it distinguishable from other people
-            // who sent to the same mailing list.
-            let addr = format!("{}-{}", display_name_normalized, addr);
-
-            let (row_id, _modified) =
-                Contact::add_or_lookup(context, display_name_normalized, &addr, origin).await?;
-            ensure!(row_id > 0, "could not add contact: {:?}", addr);
-
-            let mut c = Contact::load_from_db(context, row_id).await?;
-            c.param.set_int(Param::MailingListPseudoContact, 0);
-            c.update_param(context).await?;
-
-            return Ok(row_id);
-        }
-    }
 
     let (row_id, _modified) =
         Contact::add_or_lookup(context, display_name_normalized, addr, origin).await?;

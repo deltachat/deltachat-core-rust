@@ -22,6 +22,10 @@ pub enum Param {
     /// For messages and jobs
     File = b'f',
 
+    /// For messages: This name should be shown instead of contact.get_display_name()
+    /// (used if this is a mailinglist)
+    OverrideDisplayname = b'O',
+
     /// For Messages
     Width = b'w',
 
@@ -113,8 +117,7 @@ pub enum Param {
     ProfileImage = b'i',
 
     /// For contacts, contains the chat id of the mailing list if this is a pseudo contacts.
-    /// Pseudo contacts are added if we can't the mailing list message does not contain the 
-    /// email address of the original sender.
+    /// If the List-Id is e.g. delta.chat.1234, then the pseudo contact is delta.chat.1234@mailing.list
     MailingListPseudoContact = b'p',
 
     /// For Chats

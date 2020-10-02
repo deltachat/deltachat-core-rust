@@ -2296,6 +2296,16 @@ pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_chat_is_list(chat: *mut dc_chat_t) -> libc::c_int {
+    if chat.is_null() {
+        eprintln!("ignoring careless call to dc_chat_get_type()");
+        return 0;
+    }
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_mailing_list() as libc::c_int
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_char {
     if chat.is_null() {
         eprintln!("ignoring careless call to dc_chat_get_name()");
@@ -2768,6 +2778,18 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_sender_name(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_summarytext()");
+        return "".strdup();
+    }
+    let ffi_msg = &mut *msg;
+    let ctx = &*ffi_msg.context;
+
+    block_on({ ffi_msg.message.get_sender_name(&ctx) }).strdup()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg_t) -> libc::c_int {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_has_deviating_timestamp()");
@@ -2850,6 +2872,20 @@ pub unsafe extern "C" fn dc_msg_get_videochat_url(msg: *mut dc_msg_t) -> *mut li
         .get_videochat_url()
         .unwrap_or_default()
         .strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_decide_on_contact_request(
+    msg: *mut dc_msg_t,
+    decision: libc::c_int,
+) -> u32 {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_decide_on_contact_request()");
+    }
+    let ffi_msg = &*msg;
+    let ctx = &*ffi_msg.context;
+
+    block_on(ffi_msg.message.decide_on_contact_request(ctx, decision))
 }
 
 #[no_mangle]

@@ -568,6 +568,20 @@ impl Message {
         .await
     }
 
+    pub async fn get_sender_name(&self, context: &Context) -> String {
+        if let Some(name) = self.param.get(Param::OverrideDisplayname) {
+            name.to_string()
+        } else {
+            match Contact::load_from_db(context, self.from_id).await {
+                Err(e) => {
+                    warn!(context, "can't load contact: {}", e);
+                    "".to_string()
+                }
+                Ok(c) => c.get_display_name().to_string(),
+            }
+        }
+    }
+
     pub fn has_deviating_timestamp(&self) -> bool {
         let cnv_to_local = dc_gm2local_offset();
         let sort_timestamp = self.get_sort_timestamp() as i64 + cnv_to_local;
@@ -702,6 +716,36 @@ impl Message {
             }
         }
         None
+    }
+
+    pub async fn decide_on_contact_request(&self, context: &Context, decision: i32) -> u32 {
+        let chat = match Chat::load_from_db(context, self.chat_id).await {
+            Ok(c) => c,
+            Err(e) => {
+                warn!(context, "Can't load chat: {}", e);
+                return 0;
+            }
+        };
+        let list = chat.is_mailing_list();
+        match (decision, list) {
+            (0, _) => match chat::create_by_msg_id(context, self.id).await {
+                Ok(id) => return id.to_u32(),
+                Err(e) => warn!(context, "decide_on_contact_request error: {}", e),
+            },
+
+            (1, false) => Contact::block(context, self.from_id).await,
+            (1, true) => Contact::block(context, self.from_id).await, //TODO find mail sender addr    pub async fn decide_on_contact_request(&self, context: &Context, decision: i32) -> u32 {
+
+            (2, false) => Contact::mark_noticed(context, self.from_id).await,
+            (2, true) => {
+                if let Err(e) = chat::marknoticed_chat(context, self.chat_id).await {
+                    warn!(context, "Marknoticed failed: {}", e)
+                }
+            }
+
+            _ => warn!(context, "invalid contact request decision {}", decision),
+        }
+        0
     }
 
     pub fn set_text(&mut self, text: Option<String>) {

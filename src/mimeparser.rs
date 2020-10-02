@@ -386,7 +386,7 @@ impl MimeMessage {
                 }
             }
         }
-        
+
         if self.is_forwarded {
             for part in self.parts.iter_mut() {
                 part.param.set_int(Param::Forwarded, 1);

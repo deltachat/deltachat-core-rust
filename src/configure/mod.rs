@@ -112,6 +112,8 @@ impl Context {
             }
         }
 
+        self.set_config(Config::ShowEmails, Some("2")).await?; //TODO dbg
+
         match success {
             Ok(_) => {
                 self.set_config(Config::NotifyAboutWrongPw, Some("1"))

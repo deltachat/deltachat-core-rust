@@ -1,8 +1,11 @@
 //! Context module
 
-use std::collections::{BTreeMap, HashMap};
-use std::ffi::OsString;
 use std::ops::Deref;
+use std::{
+    collections::{BTreeMap, HashMap},
+    panic,
+};
+use std::{ffi::OsString, time::Duration};
 
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
@@ -144,6 +147,12 @@ impl Context {
     /// Starts the IO scheduler.
     pub async fn start_io(&self) {
         info!(self, "starting IO");
+        // panic::set_hook(Box::new(|panic_info| {//TODO dbg
+        //     let backtrace = Backtrace::new();
+        //     //  Do something with backtrace and panic_info.
+        //     println!("{:?}", Backtrace::new());
+        //     eprintln!("{:?}", Backtrace::new());
+        // }));
         if self.is_io_running().await {
             info!(self, "IO is already running");
             return;
@@ -162,6 +171,8 @@ impl Context {
 
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
+        warn!(self, "dbg stop1");
+        task::sleep(Duration::from_secs(2)).await;
         info!(self, "stopping IO");
         if !self.is_io_running().await {
             info!(self, "IO is not running");
@@ -169,6 +180,8 @@ impl Context {
         }
 
         self.inner.stop_io().await;
+        warn!(self, "dbg stop2");
+        task::sleep(Duration::from_secs(2)).await;
     }
 
     /// Returns a reference to the underlying SQL instance.
@@ -483,15 +496,22 @@ impl InnerContext {
     }
 
     async fn stop_io(&self) {
+        eprintln!("dbg s 1");
+        async_std::task::sleep(Duration::from_secs(1)).await;
+
         assert!(self.is_io_running().await, "context is already stopped");
         let token = {
             let lock = &*self.scheduler.read().await;
             lock.pre_stop().await
         };
+        eprintln!("dbg s 2");
+        async_std::task::sleep(Duration::from_secs(1)).await;
         {
             let lock = &mut *self.scheduler.write().await;
             lock.stop(token).await;
         }
+        eprintln!("dbg s 2");
+        async_std::task::sleep(Duration::from_secs(1)).await;
     }
 }
 

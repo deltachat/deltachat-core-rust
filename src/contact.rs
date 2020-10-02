@@ -342,6 +342,31 @@ impl Contact {
         addr: impl AsRef<str>,
         origin: Origin,
     ) -> Result<(u32, Modifier)> {
+        let addr = addr_normalize(addr.as_ref()).to_string();
+        if !may_be_valid_addr(&addr) {
+            warn!(
+                context,
+                "Bad address \"{}\" for contact \"{}\".",
+                &addr,
+                if !name.as_ref().is_empty() {
+                    name.as_ref()
+                } else {
+                    "<unset>"
+                },
+            );
+            bail!("Bad address supplied: {:?}", addr);
+        }
+
+        Contact::add_or_lookup_inner(context, name, addr, origin).await
+    }
+
+    /// As add_or_lookup but does not check for address validity
+    pub(crate) async fn add_or_lookup_inner(
+        context: &Context,
+        name: impl AsRef<str>,
+        addr: impl AsRef<str>,
+        origin: Origin,
+    ) -> Result<(u32, Modifier)> {
         let mut sth_modified = Modifier::None;
 
         ensure!(
@@ -358,20 +383,6 @@ impl Contact {
 
         if addr_cmp(&addr, addr_self) {
             return Ok((DC_CONTACT_ID_SELF, sth_modified));
-        }
-
-        if !may_be_valid_addr(&addr) {
-            warn!(
-                context,
-                "Bad address \"{}\" for contact \"{}\".",
-                addr,
-                if !name.as_ref().is_empty() {
-                    name.as_ref()
-                } else {
-                    "<unset>"
-                },
-            );
-            bail!("Bad address supplied: {:?}", addr);
         }
 
         let mut update_addr = false;
