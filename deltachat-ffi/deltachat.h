@@ -3693,7 +3693,7 @@ void            dc_msg_latefiling_mediasize   (dc_msg_t* msg, int width, int hei
  * instead of replying implicitly to the end of the chat.
  *
  * dc_msg_set_quote() copies some basic data from the quoted message object
- * so that dc_msg_get_quoted_text() and dc_msg_get_quoted_name() will always work.
+ * so that dc_msg_get_quoted_text() will always work.
  * dc_msg_get_quoted_msg() gets back the quoted message only if it is _not_ deleted.
  *
  * @memberof dc_msg_t
@@ -3710,8 +3710,7 @@ void             dc_msg_set_quote             (dc_msg_t* msg, const dc_msg_t* qu
  * The text is a summary of the original text,
  * similar to what is shown in the chatlist.
  *
- * To get the name of the user wroting the quoted message, use dc_msg_get_quoted_name()
- * and, if available, you can get the whole quoted message object using dc_msg_get_quoted_msg().
+ * If available, you can get the whole quoted message object using dc_msg_get_quoted_msg().
  *
  * @memberof dc_msg_t
  * @param msg The message object.
@@ -3719,21 +3718,6 @@ void             dc_msg_set_quote             (dc_msg_t* msg, const dc_msg_t* qu
  *     Returned strings must be released using dc_str_unref().
  */
 char*           dc_msg_get_quoted_text        (const dc_msg_t* msg);
-
-
-/**
- * Get name of quoted user, if any.
- * The name is equal to what dc_contact_get_display_name() returns
- * at the time the quote was set with dc_msg_set_quote();
- * if the user name is changed afterwards or is deleted,
- * this does not affect the name returned by this dc_msg_get_quoted_name().
- *
- * @memberof dc_msg_t
- * @param msg The message object.
- * @return The quoted user's name or NULL if there is no quote.
- *     Returned strings must be released using dc_str_unref().
- */
-char*           dc_msg_get_quoted_name        (const dc_msg_t* msg);
 
 
 /**
@@ -3747,7 +3731,7 @@ char*           dc_msg_get_quoted_name        (const dc_msg_t* msg);
  * Therefore, do not use this function to check if there is a quote for a message.
  * To check if a message has a quote, use dc_msg_get_quoted_text().
  *
- * To display the quote in the chat, use dc_msg_get_quoted_text() and dc_msg_get_quoted_name() as primary source,
+ * To display the quote in the chat, use dc_msg_get_quoted_text() as a primary source,
  * however, one might add information from the message object (eg. an image).
  *
  * It is not guaranteed that the message belong to the same chat.
