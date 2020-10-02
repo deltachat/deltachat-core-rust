@@ -495,46 +495,19 @@ async fn add_parts(
         if chat_id.is_unset() {
             // check if the message belongs to a mailing list
             if let Some(list_id_header) = mime_parser.get(HeaderDef::ListId) {
-                let create_blocked = if !test_normal_chat_id.is_unset()
-                    && test_normal_chat_id_blocked == Blocked::Not
-                {
-                    Blocked::Not
-                } else {
-                    Blocked::Deaddrop
-                };
+                let create_blocked = Blocked::Deaddrop;
 
                 let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
                     context,
-                    if test_normal_chat_id.is_unset() {
-                        allow_creation
-                    } else {
-                        true
-                    },
+                    allow_creation,
                     create_blocked,
                     list_id_header,
                     &mime_parser.get_subject().unwrap_or_default(),
                 )
                 .await;
 
-                let mut contact = Contact::load_from_db(context, from_id).await?;
-                if contact.param.get(Param::MailingListPseudoContact) == Some("0") {
-                    // The MailingListPseudoContact param was "0" to indicate that this is a
-                    // pseudo contact. Update it to the chat id.
-                    contact
-                        .param
-                        .set_int(Param::MailingListPseudoContact, new_chat_id.to_u32() as i32);
-                    contact.update_param(context).await?
-                }
-
                 *chat_id = new_chat_id;
                 chat_id_blocked = new_chat_id_blocked;
-                if !chat_id.is_unset()
-                    && chat_id_blocked != Blocked::Not
-                    && create_blocked == Blocked::Not
-                {
-                    new_chat_id.unblock(context).await;
-                    chat_id_blocked = Blocked::Not;
-                }
             }
         }
 
@@ -1411,7 +1384,7 @@ async fn create_or_lookup_mailinglist(
     }
 
     if name.is_empty() {
-        name = "Unnamed newsletter".to_string(); //TODO make stock string
+        name = "Unnamed newsletter".to_string();
     }
 
     if allow_creation {
@@ -1419,9 +1392,16 @@ async fn create_or_lookup_mailinglist(
         match create_mailinglist_record(context, &listid, &name, create_blocked).await {
             Ok(chat_id) => {
                 chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
-                if let Err(e) = add_list_contact(context, &name, &listid, chat_id).await {
-                    warn!(context, "add_list_contact failed: {}", e);
+
+                match Contact::grpid_to_mailinglist_contact(context, &name, &listid, chat_id).await
+                {
+                    Err(e) => warn!(context, "grpid_to_mailinglist_contact failed: {}", e),
+                    Ok(contact) => if contact.is_blocked() {
+                        chat_id.set_blocked(context, Blocked::Manually).await;
+                        return (chat_id, Blocked::Manually);
+                    },
                 }
+
                 (chat_id, create_blocked)
             }
             Err(e) => {
@@ -1439,28 +1419,6 @@ async fn create_or_lookup_mailinglist(
         info!(context, "creating list forbidden by caller");
         (ChatId::new(0), Blocked::Not)
     }
-}
-
-/// Adds a pseudo conact of the form {List-Id}@mailing.list
-async fn add_list_contact(
-    context: &Context,
-    name: &str,
-    listid: &str,
-    chat_id: ChatId,
-) -> Result<()> {
-    let contact_id =
-        add_or_lookup_contact_by_addr(context, Some(name), &listid, Origin::IncomingUnknownFrom)
-            .await?;
-
-    chat::add_to_chat_contacts_table(context, chat_id, contact_id).await;
-
-    let mut contact = Contact::load_from_db(context, contact_id).await?;
-    contact
-        .param
-        .set_int(Param::MailingListPseudoContact, chat_id.to_u32() as i32);
-    contact.update_param(context).await?;
-
-    Ok(())
 }
 
 /// try extract a grpid from a message-id list header value
@@ -2038,9 +1996,7 @@ async fn add_or_lookup_contact_by_addr(
     if context.is_self_addr(addr).await? {
         return Ok(DC_CONTACT_ID_SELF);
     }
-    let display_name_normalized = display_name
-        .map(normalize_name)
-        .unwrap_or_default();
+    let display_name_normalized = display_name.map(normalize_name).unwrap_or_default();
 
     let (row_id, _modified) =
         Contact::add_or_lookup(context, display_name_normalized, addr, origin).await?;

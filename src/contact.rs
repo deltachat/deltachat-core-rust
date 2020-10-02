@@ -6,7 +6,6 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
 use crate::config::Config;
 use crate::constants::*;
@@ -22,6 +21,7 @@ use crate::param::*;
 use crate::peerstate::*;
 use crate::provider::Socket;
 use crate::stock::StockMessage;
+use crate::{aheader::EncryptPreference, chat};
 
 /// An object representing a single contact in memory.
 ///
@@ -1038,6 +1038,28 @@ impl Contact {
             )
             .await
             .is_ok()
+    }
+
+    /// Looks up or creates a pseudo conact of the form {List-Id}@mailing.list
+    pub(crate) async fn grpid_to_mailinglist_contact(
+        context: &Context,
+        name: &str,
+        grpid: &str,
+        chat_id: ChatId,
+    ) -> Result<Contact> {
+        let addr = format!("{}@mailing.list", grpid);
+        let (contact_id, _) =
+            Contact::add_or_lookup(context, name, addr, Origin::IncomingUnknownFrom).await?;
+
+        chat::add_to_chat_contacts_table(context, chat_id, contact_id).await;
+
+        let mut contact = Contact::load_from_db(context, contact_id).await?;
+        contact
+            .param
+            .set_int(Param::MailingListPseudoContact, chat_id.to_u32() as i32);
+        contact.update_param(context).await?;
+
+        Ok(contact)
     }
 }
 

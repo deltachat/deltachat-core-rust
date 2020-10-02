@@ -734,7 +734,19 @@ impl Message {
             },
 
             (1, false) => Contact::block(context, self.from_id).await,
-            (1, true) => Contact::block(context, self.from_id).await, //TODO find mail sender addr    pub async fn decide_on_contact_request(&self, context: &Context, decision: i32) -> u32 {
+            (1, true) => {
+                match Contact::grpid_to_mailinglist_contact(
+                    context,
+                    &chat.name,
+                    &chat.grpid,
+                    self.chat_id,
+                )
+                .await
+                {
+                    Err(e) => warn!(context, "Can't get mailing list contact: {}", e),
+                    Ok(contact) => Contact::block(context, contact.id).await,
+                }
+            }
 
             (2, false) => Contact::mark_noticed(context, self.from_id).await,
             (2, true) => {

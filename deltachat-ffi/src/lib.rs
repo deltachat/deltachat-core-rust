@@ -2786,7 +2786,7 @@ pub unsafe extern "C" fn dc_msg_get_sender_name(msg: *mut dc_msg_t) -> *mut libc
     let ffi_msg = &mut *msg;
     let ctx = &*ffi_msg.context;
 
-    block_on({ ffi_msg.message.get_sender_name(&ctx) }).strdup()
+    block_on(ffi_msg.message.get_sender_name(&ctx)).strdup()
 }
 
 #[no_mangle]

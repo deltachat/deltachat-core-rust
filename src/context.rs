@@ -147,12 +147,6 @@ impl Context {
     /// Starts the IO scheduler.
     pub async fn start_io(&self) {
         info!(self, "starting IO");
-        // panic::set_hook(Box::new(|panic_info| {//TODO dbg
-        //     let backtrace = Backtrace::new();
-        //     //  Do something with backtrace and panic_info.
-        //     println!("{:?}", Backtrace::new());
-        //     eprintln!("{:?}", Backtrace::new());
-        // }));
         if self.is_io_running().await {
             info!(self, "IO is already running");
             return;
