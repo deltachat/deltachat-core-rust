@@ -127,7 +127,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // we do not check Return-Path any more as this is unreliable, see
     // https://github.com/deltachat/deltachat-core/issues/150)
     let (from_id, _from_id_blocked, incoming_origin) =
-        from_field_to_contact_id(context, &mime_parser.from, list_id_header).await?;
+        from_field_to_contact_id(context, &mime_parser.from, list_id_header.is_some()).await?;
 
     let incoming = from_id != DC_CONTACT_ID_SELF;
 
@@ -293,13 +293,13 @@ pub(crate) async fn dc_receive_imf_inner(
 pub async fn from_field_to_contact_id(
     context: &Context,
     from_address_list: &[SingleInfo],
-    list_id_header: Option<&String>,
+    is_mailing_list: bool,
 ) -> Result<(u32, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
         from_address_list,
         Origin::IncomingUnknownFrom,
-        list_id_header.is_some(),
+        is_mailing_list,
     )
     .await?;
 
@@ -1396,10 +1396,12 @@ async fn create_or_lookup_mailinglist(
                 match Contact::grpid_to_mailinglist_contact(context, &name, &listid, chat_id).await
                 {
                     Err(e) => warn!(context, "grpid_to_mailinglist_contact failed: {}", e),
-                    Ok(contact) => if contact.is_blocked() {
-                        chat_id.set_blocked(context, Blocked::Manually).await;
-                        return (chat_id, Blocked::Manually);
-                    },
+                    Ok(contact) => {
+                        if contact.is_blocked() {
+                            chat_id.set_blocked(context, Blocked::Manually).await;
+                            return (chat_id, Blocked::Manually);
+                        }
+                    }
                 }
 
                 (chat_id, create_blocked)
@@ -1971,7 +1973,7 @@ async fn dc_add_or_lookup_contacts_by_address_list(
                 context,
                 if is_mailing_list {
                     // Don't change the displayname because in a mailing list the sender displayname
-                    // sometimes does not belong to the sender email address
+                    // sometimes does not belong to the sender email address.
                     Some("")
                 } else {
                     info.display_name.as_deref()

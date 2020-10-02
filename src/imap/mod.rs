@@ -1647,7 +1647,7 @@ pub(crate) async fn prefetch_should_download(
     let (_contact_id, blocked_contact, origin) = from_field_to_contact_id(
         context,
         &mimeparser::get_from(headers),
-        headers.get_header_value(HeaderDef::ListId).as_ref(),
+        headers.get_header_value(HeaderDef::ListId).is_some(),
     )
     .await?;
     let accepted_contact = origin.is_known();
