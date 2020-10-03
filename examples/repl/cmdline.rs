@@ -379,6 +379,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  unarchive <chat-id>\n\
                  pin <chat-id>\n\
                  unpin <chat-id>\n\
+                 protect <chat-id>\n\
+                 unprotect <chat-id>\n\
                  delchat <chat-id>\n\
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
@@ -913,6 +915,20 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                         "archive" => ChatVisibility::Archived,
                         "unarchive" | "unpin" => ChatVisibility::Normal,
                         "pin" => ChatVisibility::Pinned,
+                        _ => panic!("Unexpected command (This should never happen)"),
+                    },
+                )
+                .await?;
+        }
+        "protect" | "unprotect" => {
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = ChatId::new(arg1.parse()?);
+            chat_id
+                .set_protection(
+                    &context,
+                    match arg0 {
+                        "protect" => ProtectionStatus::Protected,
+                        "unprotect" => ProtectionStatus::Unprotected,
                         _ => panic!("Unexpected command (This should never happen)"),
                     },
                 )

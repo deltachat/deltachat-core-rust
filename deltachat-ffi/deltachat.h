@@ -1171,6 +1171,24 @@ uint32_t        dc_get_next_media            (dc_context_t* context, uint32_t ms
 
 
 /**
+ * Enable or disable protection against active attacks.
+ * To enable protection, it is needed that all members are verified;
+ * if this condition is met, end-to-end-encryption is always enabled
+ * and only the verified keys are used.
+ *
+ * Sends out #DC_EVENT_CHAT_MODIFIED on changes
+ * and #DC_EVENT_MSGS_CHANGED if a status message was sent.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @param chat_id The ID of the chat to change the protection for.
+ * @param protect 1=protect chat, 0=unprotect chat
+ * @return 1=success, 0=error, eg. some members may be unverified
+ */
+int             dc_set_chat_protection       (dc_context_t* context, uint32_t chat_id, int protect);
+
+
+/**
  * Set chat visibility to pinned, archived or normal.
  *
  * Calling this function usually results in the event #DC_EVENT_MSGS_CHANGED

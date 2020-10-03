@@ -1058,6 +1058,35 @@ pub unsafe extern "C" fn dc_get_next_media(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_set_chat_protection(
+    context: *mut dc_context_t,
+    chat_id: u32,
+    protect: libc::c_int,
+) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_set_chat_protection()");
+        return 0;
+    }
+    let ctx = &*context;
+    let protect = if let Some(s) = contact::ProtectionStatus::from_i32(protect) {
+        s
+    } else {
+        eprintln!("bad protect-value for dc_set_chat_protection()");
+        return 0;
+    };
+
+    block_on(async move {
+        match ChatId::new(chat_id).set_protection(&ctx, protect).await {
+            Ok(()) => 1,
+            Err(err) => {
+                error!(ctx, "Cannot protect chat. Are all members verified?");
+                0
+            }
+        }
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_set_chat_visibility(
     context: *mut dc_context_t,
     chat_id: u32,

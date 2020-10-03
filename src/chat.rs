@@ -174,6 +174,79 @@ impl ChatId {
         self.set_blocked(context, Blocked::Not).await;
     }
 
+    /// Set protection without sending a message.
+    /// Used when a message arrives indicating that someone else has
+    /// changed the protection value for a chat.
+    pub(crate) async fn inner_set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+        send_to_others: bool,
+    ) -> Result<(), Error> {
+        ensure!(!self.is_special(), "set protection: invalid chat-id.");
+
+        let chat = Chat::load_from_db(context, self).await?;
+
+        if protect == chat.protected {
+            info!(context, "Protection status unchanged for {}.", self);
+            return Ok(());
+        }
+
+        match protect {
+            ProtectionStatus::Protected => match chat.typ {
+                Chattype::Single | Chattype::Group => {
+                    let contact_ids = get_chat_contacts(context, self).await;
+                    for contact_id in contact_ids.into_iter() {
+                        let contact = Contact::get_by_id(context, contact_id).await?;
+                        if contact.is_verified(context).await != VerifiedStatus::BidirectVerified {
+                            bail!(
+                                "{} is not verified; cannot enable protection.",
+                                contact.get_display_name()
+                            );
+                        }
+                    }
+                }
+                Chattype::Undefined => bail!("set protection: undefined group type"),
+            },
+            ProtectionStatus::Unprotected => {}
+        };
+
+        context
+            .sql
+            .execute(
+                "UPDATE chats SET protected=? WHERE id=?;",
+                paramsv![protect, self],
+            )
+            .await?;
+
+        context.emit_event(EventType::ChatModified(self));
+
+        if send_to_others {}
+
+        Ok(())
+    }
+
+    pub async fn set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+    ) -> Result<(), Error> {
+        ensure!(!self.is_special(), "set protection: invalid chat-id.");
+
+        let chat = Chat::load_from_db(context, self).await?;
+
+        match self
+            .inner_set_protection(context, protect, chat.is_promoted())
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                error!(context, "{}", err); // make error user-visible
+                Err(err)
+            }
+        }
+    }
+
     /// Archives or unarchives a chat.
     pub async fn set_visibility(
         self,
@@ -1904,13 +1977,12 @@ pub async fn create_group_chat(
     let grpid = dc_create_id();
 
     context.sql.execute(
-        "INSERT INTO chats (type, name, grpid, param, created_timestamp, protected) VALUES(?, ?, ?, \'U=1\', ?, ?);",
+        "INSERT INTO chats (type, name, grpid, param, created_timestamp) VALUES(?, ?, ?, \'U=1\', ?);",
         paramsv![
             Chattype::Group,
             chat_name,
             grpid,
             time(),
-            protect,
         ],
     ).await?;
 
@@ -1930,6 +2002,12 @@ pub async fn create_group_chat(
         msg_id: MsgId::new(0),
         chat_id: ChatId::new(0),
     });
+
+    if protect == ProtectionStatus::Protected {
+        chat_id
+            .inner_set_protection(context, protect, false)
+            .await?;
+    }
 
     Ok(chat_id)
 }
