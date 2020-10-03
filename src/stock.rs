@@ -119,9 +119,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Archived chats"))]
     ArchivedChats = 40,
 
-    #[strum(props(fallback = "Starred messages"))]
-    StarredMsgs = 41,
-
     #[strum(props(fallback = "Autocrypt Setup Message"))]
     AcSetupMsgSubject = 42,
 

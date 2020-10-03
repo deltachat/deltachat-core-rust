@@ -1465,23 +1465,6 @@ pub unsafe extern "C" fn dc_markseen_msgs(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_star_msgs(
-    context: *mut dc_context_t,
-    msg_ids: *const u32,
-    msg_cnt: libc::c_int,
-    star: libc::c_int,
-) {
-    if context.is_null() || msg_ids.is_null() || msg_cnt <= 0 {
-        eprintln!("ignoring careless call to dc_star_msgs()");
-        return;
-    }
-    let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
-    let ctx = &*context;
-
-    block_on(message::star_msgs(&ctx, msg_ids, star == 1));
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> *mut dc_msg_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_msg()");
@@ -2812,16 +2795,6 @@ pub unsafe extern "C" fn dc_msg_is_sent(msg: *mut dc_msg_t) -> libc::c_int {
     }
     let ffi_msg = &*msg;
     ffi_msg.message.is_sent().into()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_starred(msg: *mut dc_msg_t) -> libc::c_int {
-    if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_is_starred()");
-        return 0;
-    }
-    let ffi_msg = &*msg;
-    ffi_msg.message.is_starred().into()
 }
 
 #[no_mangle]
