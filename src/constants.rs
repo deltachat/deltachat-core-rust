@@ -118,10 +118,6 @@ pub const DC_OUTDATED_WARNING_DAYS: i64 = 365;
 pub const DC_CHAT_ID_DEADDROP: u32 = 1;
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
 pub const DC_CHAT_ID_TRASH: u32 = 3;
-/// a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
-pub const DC_CHAT_ID_MSGS_IN_CREATION: u32 = 4;
-/// virtual chat showing all messages flagged with msgs.starred=2
-pub const DC_CHAT_ID_STARRED: u32 = 5;
 /// only an indicator in a chatlist
 pub const DC_CHAT_ID_ARCHIVED_LINK: u32 = 6;
 /// only an indicator in a chatlist

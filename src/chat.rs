@@ -92,13 +92,6 @@ impl ChatId {
         self.0 == DC_CHAT_ID_TRASH
     }
 
-    // DC_CHAT_ID_MSGS_IN_CREATION seems unused?
-
-    /// Virtual chat showing all starred messages.
-    pub fn is_starred(self) -> bool {
-        self.0 == DC_CHAT_ID_STARRED
-    }
-
     /// Chat ID signifying there are **any** number of archived chats.
     ///
     /// This chat ID can be returned in a [Chatlist] and signals to
@@ -508,8 +501,6 @@ impl std::fmt::Display for ChatId {
             write!(f, "Chat#Deadrop")
         } else if self.is_trash() {
             write!(f, "Chat#Trash")
-        } else if self.is_starred() {
-            write!(f, "Chat#Starred")
         } else if self.is_archived_link() {
             write!(f, "Chat#ArchivedLink")
         } else if self.is_alldone_hint() {
@@ -610,8 +601,6 @@ impl Chat {
                     let tempname = context.stock_str(StockMessage::ArchivedChats).await;
                     let cnt = dc_get_archived_cnt(context).await;
                     chat.name = format!("{} ({})", tempname, cnt);
-                } else if chat.id.is_starred() {
-                    chat.name = context.stock_str(StockMessage::StarredMsgs).await.into();
                 } else {
                     if chat.typ == Chattype::Single {
                         let contacts = get_chat_contacts(context, chat.id).await;
@@ -1727,23 +1716,6 @@ pub async fn get_chat_msgs(
                 AND m.msgrmsg>=?
               ORDER BY m.timestamp,m.id;",
                 paramsv![if show_emails == ShowEmails::All { 0 } else { 1 }],
-                process_row,
-                process_rows,
-            )
-            .await
-    } else if chat_id.is_starred() {
-        context
-            .sql
-            .query_map(
-                "SELECT m.id AS id, m.timestamp AS timestamp
-               FROM msgs m
-               LEFT JOIN contacts ct
-                      ON m.from_id=ct.id
-              WHERE m.starred=1
-                AND m.hidden=0
-                AND ct.blocked=0
-              ORDER BY m.timestamp,m.id;",
-                paramsv![],
                 process_row,
                 process_rows,
             )

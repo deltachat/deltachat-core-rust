@@ -263,7 +263,6 @@ pub struct Message {
     pub(crate) server_folder: Option<String>,
     pub(crate) server_uid: u32,
     pub(crate) is_dc_message: MessengerMessage,
-    pub(crate) starred: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
     pub(crate) error: String,
@@ -307,7 +306,6 @@ impl Message {
                     "    m.msgrmsg AS msgrmsg,",
                     "    m.txt AS txt,",
                     "    m.param AS param,",
-                    "    m.starred AS starred,",
                     "    m.hidden AS hidden,",
                     "    m.location_id AS location,",
                     "    c.blocked AS blocked",
@@ -357,7 +355,6 @@ impl Message {
                     msg.text = Some(text);
 
                     msg.param = row.get::<_, String>("param")?.parse().unwrap_or_default();
-                    msg.starred = row.get("starred")?;
                     msg.hidden = row.get("hidden")?;
                     msg.location_id = row.get("location")?;
                     msg.chat_blocked = row
@@ -580,10 +577,6 @@ impl Message {
 
     pub fn is_sent(&self) -> bool {
         self.state as i32 >= MessageState::OutDelivered as i32
-    }
-
-    pub fn is_starred(&self) -> bool {
-        self.starred
     }
 
     pub fn is_forwarded(&self) -> bool {
@@ -1299,23 +1292,6 @@ pub async fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageSt
             "UPDATE msgs SET state=? WHERE id=?;",
             paramsv![state, msg_id],
         )
-        .await
-        .is_ok()
-}
-
-pub async fn star_msgs(context: &Context, msg_ids: Vec<MsgId>, star: bool) -> bool {
-    if msg_ids.is_empty() {
-        return false;
-    }
-    context
-        .sql
-        .with_conn(move |conn| {
-            let mut stmt = conn.prepare("UPDATE msgs SET starred=? WHERE id=?;")?;
-            for msg_id in msg_ids.into_iter() {
-                stmt.execute(paramsv![star as i32, msg_id])?;
-            }
-            Ok(())
-        })
         .await
         .is_ok()
 }
