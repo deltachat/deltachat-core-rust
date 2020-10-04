@@ -257,6 +257,10 @@ impl MimeMessage {
                 self.is_system_message = SystemMessage::LocationStreamingEnabled;
             } else if value == "ephemeral-timer-changed" {
                 self.is_system_message = SystemMessage::EphemeralTimerChanged;
+            } else if value == "protection-enabled" {
+                self.is_system_message = SystemMessage::ChatProtectionEnabled;
+            } else if value == "protection-disabled" {
+                self.is_system_message = SystemMessage::ChatProtectionDisabled;
             }
         }
         Ok(())

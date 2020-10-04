@@ -181,7 +181,6 @@ impl ChatId {
         self,
         context: &Context,
         protect: ProtectionStatus,
-        send_to_others: bool,
     ) -> Result<(), Error> {
         ensure!(!self.is_special(), "set protection: invalid chat-id.");
 
@@ -224,7 +223,16 @@ impl ChatId {
         // make sure, the receivers will get all keys
         reset_gossiped_timestamp(context, self).await?;
 
-        // add info message
+        Ok(())
+    }
+
+    // adds or sends out a protection-info-message
+    pub(crate) async fn add_protection_msg(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+        promote: bool,
+    ) -> Result<(), Error> {
         let msg_text = context
             .stock_system_msg(
                 match protect {
@@ -236,7 +244,8 @@ impl ChatId {
                 DC_CONTACT_ID_SELF as u32,
             )
             .await;
-        if send_to_others {
+
+        if promote {
             let mut msg = Message::default();
             msg.viewtype = Viewtype::Text;
             msg.text = Some(msg_text);
@@ -261,16 +270,12 @@ impl ChatId {
 
         let chat = Chat::load_from_db(context, self).await?;
 
-        match self
-            .inner_set_protection(context, protect, chat.is_promoted())
-            .await
-        {
-            Ok(()) => Ok(()),
-            Err(err) => {
-                error!(context, "{}", err); // make error user-visible
-                Err(err)
-            }
+        if let Err(e) = self.inner_set_protection(context, protect).await {
+            error!(context, "{}", e); // make error user-visible
+            return Err(e);
         }
+
+        self.add_protection_msg(context, protect, chat.is_promoted()).await
     }
 
     /// Archives or unarchives a chat.
@@ -2030,9 +2035,7 @@ pub async fn create_group_chat(
     });
 
     if protect == ProtectionStatus::Protected {
-        chat_id
-            .inner_set_protection(context, protect, false)
-            .await?;
+        chat_id.set_protection(context, protect).await?;
     }
 
     Ok(chat_id)

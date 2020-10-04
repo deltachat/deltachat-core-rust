@@ -714,6 +714,17 @@ async fn add_parts(
         ephemeral_timer = EphemeralTimer::Disabled;
     }
 
+    // change chat protection
+    if mime_parser.is_system_message == SystemMessage::ChatProtectionEnabled {
+        chat_id
+            .inner_set_protection(context, ProtectionStatus::Protected)
+            .await?;
+    } else if mime_parser.is_system_message == SystemMessage::ChatProtectionDisabled {
+        chat_id
+            .inner_set_protection(context, ProtectionStatus::Unprotected)
+            .await?;
+    }
+
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need from_id to be set
     let in_fresh = state == MessageState::InFresh;
@@ -1227,6 +1238,10 @@ async fn create_or_lookup_group(
         .await;
         chat_id_blocked = create_blocked;
         recreate_member_list = true;
+
+        if create_protected == ProtectionStatus::Protected {
+            chat_id.add_protection_msg(context, ProtectionStatus::Protected, false).await?;
+        }
     }
 
     // again, check chat_id
@@ -1278,7 +1293,15 @@ async fn create_or_lookup_group(
                 }
             }
         }
+    } else if mime_parser.is_system_message == SystemMessage::ChatProtectionEnabled {
+        recreate_member_list = true;
+        if let Err(e) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
+            warn!(context, "checking verified properties failed: {}", e);
+            let s = format!("{}. See 'Info' for more details", e);
+            mime_parser.repl_msg_by_error(s);
+        }
     }
+
     if let Some(avatar_action) = &mime_parser.group_avatar {
         info!(context, "group-avatar change for {}", chat_id);
         if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
