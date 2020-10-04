@@ -852,6 +852,7 @@ impl MimeMessage {
     }
 
     pub fn repl_msg_by_error(&mut self, error_msg: impl AsRef<str>) {
+        self.is_system_message = SystemMessage::Unknown;
         if let Some(part) = self.parts.first_mut() {
             part.typ = Viewtype::Text;
             part.msg = format!("[{}]", error_msg.as_ref());
