@@ -704,8 +704,8 @@ impl MimeMessage {
                             }
                         };
 
-                        let (simplified_txt, is_forwarded) = if decoded_data.is_empty() {
-                            ("".into(), false)
+                        let (simplified_txt, is_forwarded, top_quote) = if decoded_data.is_empty() {
+                            ("".to_string(), false, None)
                         } else {
                             let is_html = mime_type == mime::TEXT_HTML;
                             let out = if is_html {
@@ -723,7 +723,7 @@ impl MimeMessage {
                             false
                         };
 
-                        let simplified_txt = if mime_type.type_() == mime::TEXT
+                        let (simplified_txt, simplified_quote) = if mime_type.type_() == mime::TEXT
                             && mime_type.subtype() == mime::PLAIN
                             && is_format_flowed
                         {
@@ -732,9 +732,11 @@ impl MimeMessage {
                             } else {
                                 false
                             };
-                            unformat_flowed(&simplified_txt, delsp)
+                            let unflowed_text = unformat_flowed(&simplified_txt, delsp);
+                            let unflowed_quote = top_quote.map(|q| unformat_flowed(&q, delsp));
+                            (unflowed_text, unflowed_quote)
                         } else {
-                            simplified_txt
+                            (simplified_txt, top_quote)
                         };
 
                         if !simplified_txt.is_empty() {
@@ -742,6 +744,9 @@ impl MimeMessage {
                             part.typ = Viewtype::Text;
                             part.mimetype = Some(mime_type);
                             part.msg = simplified_txt;
+                            if let Some(quote) = simplified_quote {
+                                part.param.set(Param::Quote, quote);
+                            }
                             part.msg_raw = Some(decoded_data);
                             self.do_add_single_part(part);
                         }
@@ -2119,12 +2124,39 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
         assert!(test.is_empty());
     }
 
-    #[test]
-    fn test_mime_parse_format_flowed() {
-        let mime_type = "text/plain; charset=utf-8; Format=Flowed; DelSp=No"
-            .parse::<mime::Mime>()
+    #[async_std::test]
+    async fn parse_format_flowed_quote() {
+        let context = TestContext::new().await;
+        let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Subject: Re: swipe-to-reply
+MIME-Version: 1.0
+In-Reply-To: <bar@example.org>
+Date: Tue, 06 Oct 2020 00:00:00 +0000
+Chat-Version: 1.0
+Message-ID: <foo@example.org>
+To: bob <bob@example.org>
+From: alice <alice@example.org>
+
+> Long 
+> quote.
+
+Reply
+"##;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
             .unwrap();
-        let format_param = mime_type.get_param("format").unwrap();
-        assert_eq!(format_param.as_str().to_ascii_lowercase(), "flowed");
+        assert_eq!(
+            message.get_subject(),
+            Some("Re: swipe-to-reply".to_string())
+        );
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Text);
+        assert_eq!(
+            message.parts[0].param.get(Param::Quote).unwrap(),
+            "Long quote."
+        );
+        assert_eq!(message.parts[0].msg, "Reply");
     }
 }
