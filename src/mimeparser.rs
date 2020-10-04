@@ -86,6 +86,10 @@ pub enum SystemMessage {
 
     /// Chat ephemeral message timer is changed.
     EphemeralTimerChanged = 10,
+
+    // Chat protection state changed
+    ChatProtectionEnabled = 11,
+    ChatProtectionDisabled = 12,
 }
 
 impl Default for SystemMessage {

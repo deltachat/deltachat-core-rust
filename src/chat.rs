@@ -221,7 +221,33 @@ impl ChatId {
 
         context.emit_event(EventType::ChatModified(self));
 
-        if send_to_others {}
+        // make sure, the receivers will get all keys
+        reset_gossiped_timestamp(context, self).await?;
+
+        // add info message
+        let msg_text = context
+            .stock_system_msg(
+                match protect {
+                    ProtectionStatus::Protected => StockMessage::ProtectionEnabled,
+                    ProtectionStatus::Unprotected => StockMessage::ProtectionDisabled,
+                },
+                "",
+                "",
+                DC_CONTACT_ID_SELF as u32,
+            )
+            .await;
+        if send_to_others {
+            let mut msg = Message::default();
+            msg.viewtype = Viewtype::Text;
+            msg.text = Some(msg_text);
+            msg.param.set_cmd(match protect {
+                ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
+                ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
+            });
+            send_msg(context, self, &mut msg).await?;
+        } else {
+            add_info_msg(context, self, msg_text).await;
+        }
 
         Ok(())
     }

@@ -233,6 +233,12 @@ pub enum StockMessage {
         fallback = "Could not find your mail server.\n\nPlease check your internet connection."
     ))]
     ErrorNoNetwork = 87,
+
+    #[strum(props(fallback = "Chat protection enabled."))]
+    ProtectionEnabled = 88,
+
+    #[strum(props(fallback = "Chat protection disabled."))]
+    ProtectionDisabled = 89,
 }
 
 /*

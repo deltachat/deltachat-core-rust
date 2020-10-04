@@ -846,6 +846,18 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     };
                 }
             }
+            SystemMessage::ChatProtectionEnabled => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".to_string(),
+                    "protection-enabled".to_string(),
+                ));
+            }
+            SystemMessage::ChatProtectionDisabled => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".to_string(),
+                    "protection-disabled".to_string(),
+                ));
+            }
             _ => {}
         }
 
