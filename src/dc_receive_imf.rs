@@ -1361,7 +1361,7 @@ async fn create_or_lookup_mailinglist(
 ) -> (ChatId, Blocked) {
     lazy_static! {
         static ref LIST_ID: Regex = Regex::new(r"^(.*.)<(.*.)>$").unwrap();
-        static ref SUBJECT: Regex = Regex::new(r"[(.*.)]").unwrap();
+        static ref SUBJECT: Regex = Regex::new(r".{0,5}\[(.*.)\]").unwrap();
     }
     let (mut name, listid) = match LIST_ID.captures(list_id_header) {
         Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
@@ -2841,7 +2841,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(contacts.len(), 0); // mailing list recipients and senders do not count as "known contacts"
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
 
         let msg = get_chat_msg(&t, chat_id, 0, 2).await;
         let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
@@ -2885,8 +2884,8 @@ mod tests {
 
     static DC_MAILINGLIST2: &[u8] = b"From: Charlie <charlie@posteo.org>\n\
     To: delta-dev@codespeak.net\n\
-    Subject: Re: [delta-dev] What's up?\n\
-    Message-ID: <38942@posteo.org>\n\
+    Subject: Re: [delta-dev] DC is nice!\n\
+    Message-ID: <38943@posteo.org>\n\
     List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
@@ -2907,6 +2906,8 @@ mod tests {
         let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
             .await
             .unwrap();
+        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert_eq!(chat.name, "delta-dev");
 
         let msg = get_chat_msg(&t, chat_id, 0, 1).await;
         let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
@@ -2915,7 +2916,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_block_mailing_list() {
+    async fn test_mailing_list_decide_block() {
         let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
         let t = TestContext::new_alice().await;
         t.ctx
@@ -2949,5 +2950,69 @@ mod tests {
         assert_eq!(chats.len(), 0); // Test that the message is not shown
         let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None).await;
         assert_eq!(msgs.len(), 0);
+    }
+
+    #[async_std::test]
+    async fn test_mailing_list_decide_not_now() {
+        let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST, "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
+        // Answer "not now" on the contact request
+        // ==================================
+        msg.decide_on_contact_request(&t.ctx, 2).await;
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 0); // Test that the message disappeared
+        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None).await;
+        assert_eq!(msgs.len(), 1); // ...but is still shown in the deaddrop
+
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1); // Test that the new mailing list message is shown again
+        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None).await;
+        assert_eq!(msgs.len(), 2);
+    }
+
+    #[async_std::test]
+    async fn test_mailing_list_decide_accept() {
+        let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST, "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
+        // Answer "yes" on the contact request
+        // ==================================
+        msg.decide_on_contact_request(&t.ctx, 0).await;
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1); // Test that the message is shown
+        let chat_id = chats.get_chat_id(0);
+        assert_ne!(chat_id, deaddrop);
+
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 2);
     }
 }
