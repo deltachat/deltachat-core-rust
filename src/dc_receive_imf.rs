@@ -126,6 +126,9 @@ pub(crate) async fn dc_receive_imf_inner(
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see
     // https://github.com/deltachat/deltachat-core/issues/150)
+    //
+    // If this is a mailing list email (i.e. list_id_header is some), don't change the displayname because in
+    // a mailing list the sender displayname sometimes does not belong to the sender email address.
     let (from_id, _from_id_blocked, incoming_origin) =
         from_field_to_contact_id(context, &mime_parser.from, list_id_header.is_some()).await?;
 
@@ -293,13 +296,13 @@ pub(crate) async fn dc_receive_imf_inner(
 pub async fn from_field_to_contact_id(
     context: &Context,
     from_address_list: &[SingleInfo],
-    is_mailing_list: bool,
+    prevent_rename: bool,
 ) -> Result<(u32, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
         from_address_list,
         Origin::IncomingUnknownFrom,
-        is_mailing_list,
+        prevent_rename,
     )
     .await?;
 
@@ -511,8 +514,7 @@ async fn add_parts(
                 if let Some(from) = mime_parser.from.first() {
                     if let Some(from_name) = &from.display_name {
                         for part in mime_parser.parts.iter_mut() {
-                            part.param
-                                .set(Param::OverrideDisplayname, from_name);
+                            part.param.set(Param::OverrideDisplayname, from_name);
                         }
                     }
                 }
@@ -1975,16 +1977,14 @@ async fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     address_list: &[SingleInfo],
     origin: Origin,
-    is_mailing_list: bool,
+    prevent_rename: bool,
 ) -> Result<ContactIds> {
     let mut contact_ids = ContactIds::new();
     for info in address_list.iter() {
         contact_ids.insert(
             add_or_lookup_contact_by_addr(
                 context,
-                if is_mailing_list {
-                    // Don't change the displayname because in a mailing list the sender displayname
-                    // sometimes does not belong to the sender email address.
+                if prevent_rename {
                     Some("")
                 } else {
                     info.display_name.as_deref()
