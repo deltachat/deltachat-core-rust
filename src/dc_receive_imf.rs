@@ -712,20 +712,6 @@ async fn add_parts(
         // hour, only the message about the change to 1
         // week is left.
         ephemeral_timer = EphemeralTimer::Disabled;
-    } else if mime_parser.is_system_message == SystemMessage::ChatProtectionEnabled {
-        set_better_msg(
-            mime_parser,
-            chat_id
-                .get_protection_msg(context, ProtectionStatus::Protected, from_id)
-                .await,
-        );
-    } else if mime_parser.is_system_message == SystemMessage::ChatProtectionDisabled {
-        set_better_msg(
-            mime_parser,
-            chat_id
-                .get_protection_msg(context, ProtectionStatus::Unprotected, from_id)
-                .await,
-        );
     }
 
     // change chat protection
@@ -733,10 +719,22 @@ async fn add_parts(
         chat_id
             .inner_set_protection(context, ProtectionStatus::Protected)
             .await?;
+        set_better_msg(
+            mime_parser,
+            chat_id
+                .get_protection_msg(context, ProtectionStatus::Protected, from_id)
+                .await,
+        );
     } else if mime_parser.is_system_message == SystemMessage::ChatProtectionDisabled {
         chat_id
             .inner_set_protection(context, ProtectionStatus::Unprotected)
             .await?;
+        set_better_msg(
+            mime_parser,
+            chat_id
+                .get_protection_msg(context, ProtectionStatus::Unprotected, from_id)
+                .await,
+        );
     }
 
     // correct message_timestamp, it should not be used before,
