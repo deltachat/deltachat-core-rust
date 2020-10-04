@@ -21,27 +21,56 @@
 /// length. However, this should be rare and should not result in
 /// immediate mail rejection: SMTP (RFC 2821) limit is 998 characters,
 /// and Spam Assassin limit is 78 characters.
-fn format_line_flowed(line: &str) -> String {
+fn format_line_flowed(line: &str, prefix: &str) -> String {
     let mut result = String::new();
-    let mut buffer = String::new();
+    let mut buffer = prefix.to_string();
     let mut after_space = false;
 
     for c in line.chars() {
         if c == ' ' {
             buffer.push(c);
             after_space = true;
+        } else if c == '>' {
+            if buffer.is_empty() {
+                // Space stuffing, see RFC 3676
+                buffer.push(' ');
+            }
+            buffer.push(c);
+            after_space = false;
         } else {
-            if after_space && buffer.len() >= 72 && !c.is_whitespace() && c != '>' {
+            if after_space && buffer.len() >= 72 && !c.is_whitespace() {
                 // Flush the buffer and insert soft break (SP CRLF).
                 result += &buffer;
                 result += "\r\n";
-                buffer = String::new();
+                buffer = prefix.to_string();
             }
             buffer.push(c);
             after_space = false;
         }
     }
     result + &buffer
+}
+
+fn format_flowed_prefix(text: &str, prefix: &str) -> String {
+    let mut result = String::new();
+
+    for line in text.split('\n') {
+        if !result.is_empty() {
+            result += "\r\n";
+        }
+        let line = line.trim_end();
+        if prefix.len() + line.len() > 78 {
+            result += &format_line_flowed(line, prefix);
+        } else {
+            result += prefix;
+            if prefix.is_empty() && line.starts_with('>') {
+                // Space stuffing, see RFC 3676
+                result.push(' ');
+            }
+            result += line;
+        }
+    }
+    result
 }
 
 /// Returns text formatted according to RFC 3767 (format=flowed).
@@ -52,20 +81,12 @@ fn format_line_flowed(line: &str) -> String {
 /// RFC 2646 technique is used to insert soft line breaks, so DelSp
 /// SHOULD be set to "no" when sending.
 pub fn format_flowed(text: &str) -> String {
-    let mut result = String::new();
+    format_flowed_prefix(text, "")
+}
 
-    for line in text.split('\n') {
-        if !result.is_empty() {
-            result += "\r\n";
-        }
-        let line = line.trim_end();
-        if line.len() > 78 {
-            result += &format_line_flowed(line);
-        } else {
-            result += line;
-        }
-    }
-    result
+/// Same as format_flowed(), but adds "> " prefix to each line.
+pub fn format_flowed_quote(text: &str) -> String {
+    format_flowed_prefix(text, "> ")
 }
 
 /// Joins lines in format=flowed text.
@@ -122,6 +143,9 @@ mod tests {
                         To decrypt and use your key, open the message in an Autocrypt-compliant \r\n\
                         client and enter the setup code presented on the generating device.";
         assert_eq!(format_flowed(text), expected);
+
+        let text = "> Not a quote";
+        assert_eq!(format_flowed(text), " > Not a quote");
     }
 
     #[test]
@@ -132,5 +156,22 @@ mod tests {
             "this is a very long message that should be wrapped using format=flowed and \
                         unwrapped on the receiver";
         assert_eq!(unformat_flowed(text, false), expected);
+    }
+
+    #[test]
+    fn test_format_flowed_quote() {
+        let quote = "this is a quoted line";
+        let expected = "> this is a quoted line";
+        assert_eq!(format_flowed_quote(quote), expected);
+
+        let quote = "> foo bar baz";
+        let expected = "> > foo bar baz";
+        assert_eq!(format_flowed_quote(quote), expected);
+
+        let quote = "this is a very long quote that should be wrapped using format=flowed and unwrapped on the receiver";
+        let expected =
+            "> this is a very long quote that should be wrapped using format=flowed and \r\n\
+            > unwrapped on the receiver";
+        assert_eq!(format_flowed_quote(quote), expected);
     }
 }

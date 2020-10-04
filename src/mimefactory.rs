@@ -11,7 +11,7 @@ use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{bail, ensure, format_err, Error};
-use crate::format_flowed::format_flowed;
+use crate::format_flowed::{format_flowed, format_flowed_quote};
 use crate::location;
 use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;
@@ -917,12 +917,17 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
         };
 
+        let quoted_text = self
+            .msg
+            .quoted_text()
+            .map(|quote| format_flowed_quote(&quote) + "\r\n");
         let flowed_text = format_flowed(final_text);
 
         let footer = &self.selfstatus;
         let message_text = format!(
-            "{}{}{}{}{}",
+            "{}{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
+            quoted_text.unwrap_or_default(),
             escape_message_footer_marks(&flowed_text),
             if !final_text.is_empty() && !footer.is_empty() {
                 "\r\n\r\n"

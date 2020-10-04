@@ -741,6 +741,55 @@ impl Message {
         self.update_param(context).await;
     }
 
+    /// Sets message quote.
+    ///
+    /// Message-Id is used to set Reply-To field, message text is used for quote.
+    ///
+    /// Encryption is required if quoted message was encrypted.
+    ///
+    /// The message itself is not required to exist in the database,
+    /// it may even be deleted from the database by the time the message is prepared.
+    pub fn set_quote(&mut self, quote: &Message) -> Result<(), Error> {
+        ensure!(
+            !quote.rfc724_mid.is_empty(),
+            "Message without Message-Id cannot be quoted"
+        );
+        self.in_reply_to = Some(quote.rfc724_mid.clone());
+
+        if quote
+            .param
+            .get_bool(Param::GuaranteeE2ee)
+            .unwrap_or_default()
+        {
+            self.param.set(Param::GuaranteeE2ee, "1");
+        }
+
+        self.param
+            .set(Param::Quote, quote.get_text().unwrap_or_default());
+
+        Ok(())
+    }
+
+    pub fn quoted_text(&self) -> Option<String> {
+        self.param.get(Param::Quote).map(|s| s.to_string())
+    }
+
+    pub async fn quoted_message(&self, context: &Context) -> Result<Option<Message>, Error> {
+        if self.param.get(Param::Quote).is_some() {
+            if let Some(in_reply_to) = &self.in_reply_to {
+                if let Some((_folder, _uid, msg_id)) = rfc724_mid_exists(
+                    context,
+                    in_reply_to.trim_start_matches('<').trim_end_matches('>'),
+                )
+                .await?
+                {
+                    return Ok(Some(Message::load_from_db(context, msg_id).await?));
+                }
+            }
+        }
+        Ok(None)
+    }
+
     pub async fn update_param(&mut self, context: &Context) -> bool {
         context
             .sql
@@ -2013,5 +2062,44 @@ mod tests {
             }
         }
         assert!(has_image);
+    }
+
+    #[async_std::test]
+    async fn test_quote() {
+        use crate::config::Config;
+
+        let d = test::TestContext::new().await;
+        let ctx = &d.ctx;
+
+        let contact = Contact::create(ctx, "", "dest@example.com")
+            .await
+            .expect("failed to create contact");
+
+        let res = ctx
+            .set_config(Config::ConfiguredAddr, Some("self@example.com"))
+            .await;
+        assert!(res.is_ok());
+
+        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("Quoted message".to_string()));
+
+        // Prepare message for sending, so it gets a Message-Id.
+        assert!(msg.rfc724_mid.is_empty());
+        let msg_id = chat::prepare_msg(ctx, chat, &mut msg).await.unwrap();
+        let msg = Message::load_from_db(ctx, msg_id).await.unwrap();
+        assert!(!msg.rfc724_mid.is_empty());
+
+        let mut msg2 = Message::new(Viewtype::Text);
+        msg2.set_quote(&msg).expect("can't set quote");
+        assert!(msg2.quoted_text() == msg.get_text());
+
+        let quoted_msg = msg2
+            .quoted_message(ctx)
+            .await
+            .expect("error while retrieving quoted message")
+            .expect("quoted message not found");
+        assert!(quoted_msg.get_text() == msg2.quoted_text());
     }
 }
