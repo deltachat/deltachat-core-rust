@@ -53,6 +53,9 @@ pub enum Param {
     /// For Messages
     Forwarded = b'a',
 
+    /// For Messages: quoted text.
+    Quote = b'q',
+
     /// For Messages
     Cmd = b'S',
 

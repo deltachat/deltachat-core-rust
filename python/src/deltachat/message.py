@@ -175,6 +175,27 @@ class Message(object):
         if ts:
             return datetime.utcfromtimestamp(ts)
 
+    @property
+    def quoted_text(self):
+        """Text inside the quote
+
+        :returns: Quoted text"""
+        return from_dc_charpointer(lib.dc_msg_get_quoted_text(self._dc_msg))
+
+    @property
+    def quote(self):
+        """Quote getter
+
+        :returns: Quoted message, if found in the database"""
+        msg = lib.dc_msg_get_quoted_msg(self._dc_msg)
+        if msg:
+            return Message(self.account, ffi.gc(msg, lib.dc_msg_unref))
+
+    @quote.setter
+    def quote(self, quoted_message):
+        """Quote setter"""
+        lib.dc_msg_set_quote(self._dc_msg, quoted_message._dc_msg)
+
     def get_mime_headers(self):
         """ return mime-header object for an incoming message.
 

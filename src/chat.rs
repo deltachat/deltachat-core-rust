@@ -753,7 +753,6 @@ impl Chat {
         timestamp: i64,
     ) -> Result<MsgId, Error> {
         let mut new_references = "".into();
-        let mut new_in_reply_to = "".into();
         let mut msg_id = 0;
         let mut to_id = 0;
         let mut location_id = 0;
@@ -828,8 +827,11 @@ impl Chat {
             if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
                 self.id.get_parent_mime_headers(context).await
             {
-                if !parent_rfc724_mid.is_empty() {
-                    new_in_reply_to = parent_rfc724_mid.clone();
+                // "In-Reply-To:" is not changed if it is set manually.
+                // This does not affect "References:" header, it will contain "default parent" (the
+                // latest message in the thread) anyway.
+                if msg.in_reply_to.is_none() && !parent_rfc724_mid.is_empty() {
+                    msg.in_reply_to = Some(parent_rfc724_mid.clone());
                 }
 
                 // the whole list of messages referenced may be huge;
@@ -928,7 +930,7 @@ impl Chat {
                     msg.text.as_ref().cloned().unwrap_or_default(),
                     msg.param.to_string(),
                     msg.hidden,
-                    new_in_reply_to,
+                    msg.in_reply_to.as_deref().unwrap_or_default(),
                     new_references,
                     location_id as i32,
                     ephemeral_timer,
