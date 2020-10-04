@@ -1833,6 +1833,23 @@ mod tests {
         assert_eq!(_msg2.get_filemime(), None);
     }
 
+    /// Tests that message cannot be prepared if account has no configured address.
+    #[async_std::test]
+    async fn test_prepare_not_configured() {
+        let d = test::TestContext::new().await;
+        let ctx = &d.ctx;
+
+        let contact = Contact::create(ctx, "", "dest@example.com")
+            .await
+            .expect("failed to create contact");
+
+        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+
+        let mut msg = Message::new(Viewtype::Text);
+
+        assert!(chat::prepare_msg(ctx, chat, &mut msg).await.is_err());
+    }
+
     #[async_std::test]
     async fn test_get_summarytext_by_raw() {
         let d = test::TestContext::new().await;

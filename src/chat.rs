@@ -1015,7 +1015,7 @@ impl Chat {
                         );
                     }
         } else {
-            error!(context, "Cannot send message, not configured.",);
+            bail!("Cannot prepare message for sending, address is not configured.");
         }
         schedule_ephemeral_task(context).await;
 
