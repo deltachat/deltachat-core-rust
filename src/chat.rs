@@ -226,14 +226,14 @@ impl ChatId {
         Ok(())
     }
 
-    // adds or sends out a protection-info-message
-    pub(crate) async fn add_protection_msg(
+    /// returns a stock message saying that protection status gas changed.
+    pub(crate) async fn get_protection_msg(
         self,
         context: &Context,
         protect: ProtectionStatus,
-        promote: bool,
-    ) -> Result<(), Error> {
-        let msg_text = context
+        from_id: u32,
+    ) -> String {
+        context
             .stock_system_msg(
                 match protect {
                     ProtectionStatus::Protected => StockMessage::ProtectionEnabled,
@@ -241,9 +241,20 @@ impl ChatId {
                 },
                 "",
                 "",
-                DC_CONTACT_ID_SELF as u32,
+                from_id,
             )
-            .await;
+            .await
+    }
+
+    /// adds or sends out a protection-info-message
+    pub(crate) async fn add_protection_msg(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+        promote: bool,
+        from_id: u32,
+    ) -> Result<(), Error> {
+        let msg_text = self.get_protection_msg(context, protect, from_id).await;
 
         if promote {
             let mut msg = Message::default();
@@ -261,6 +272,7 @@ impl ChatId {
         Ok(())
     }
 
+    /// Set protection and sends or adds a message.
     pub async fn set_protection(
         self,
         context: &Context,
@@ -275,7 +287,8 @@ impl ChatId {
             return Err(e);
         }
 
-        self.add_protection_msg(context, protect, chat.is_promoted()).await
+        self.add_protection_msg(context, protect, chat.is_promoted(), DC_CONTACT_ID_SELF)
+            .await
     }
 
     /// Archives or unarchives a chat.
