@@ -1144,7 +1144,7 @@ pub struct ChatInfo {
     ///
     /// On the C API this number is one of the
     /// `DC_CHAT_TYPE_UNDEFINED`, `DC_CHAT_TYPE_SINGLE`,
-    /// `DC_CHAT_TYPE_GROUP` or `DC_CHAT_TYPE_VERIFIED_GROUP`
+    /// or `DC_CHAT_TYPE_GROUP`
     /// constants.
     #[serde(rename = "type")]
     pub type_: u32,
