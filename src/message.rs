@@ -589,6 +589,10 @@ impl Message {
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
     }
 
+    pub fn get_info_type(&self) -> SystemMessage {
+        self.param.get_cmd()
+    }
+
     pub fn is_system_message(&self) -> bool {
         let cmd = self.param.get_cmd();
         cmd != SystemMessage::Unknown

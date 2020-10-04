@@ -3478,6 +3478,32 @@ int             dc_msg_is_info                (const dc_msg_t* msg);
 
 
 /**
+ * Get the type of an informational message.
+ * If dc_msg_is_info() returns 1, this function returns the type of the informational message.
+ * UIs can display eg. an icon based upon the type.
+ *
+ * Currently, the following types are defined:
+ * - DC_INFO_PROTECTION_ENABLED (11) - Info-message for "Chat is now protected"
+ * - DC_INFO_PROTECTION_DISABLED (12) - Info-message for "Chat is no longer protected"
+ *
+ * Even when you display an icon,
+ * you should still display the text of the informational message using dc_msg_get_text()
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return One of the DC_INFO* constants.
+ *     0 or other values indicate unspecified types
+ *     or that the message is not an info-message.
+ */
+int             dc_msg_get_info_type          (const dc_msg_t* msg);
+
+
+// DC_INFO* uses the same values as SystemMessage in rust-land
+#define         DC_INFO_PROTECTION_ENABLED     11
+#define         DC_INFO_PROTECTION_DISABLED    12
+
+
+/**
  * Check if a message is still in creation.  A message is in creation between
  * the calls to dc_prepare_msg() and dc_send_msg().
  *

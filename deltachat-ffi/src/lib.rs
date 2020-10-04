@@ -2844,6 +2844,16 @@ pub unsafe extern "C" fn dc_msg_is_info(msg: *mut dc_msg_t) -> libc::c_int {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_info_type(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_info_type()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_info_type() as libc::c_int
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg_t) -> libc::c_int {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_is_increation()");
