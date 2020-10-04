@@ -10,7 +10,6 @@ use async_std::sync::RwLock;
 use chat::ChatItem;
 use tempfile::{tempdir, TempDir};
 
-use crate::{chat::{self, ChatId}, message::Message};
 use crate::config::Config;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
@@ -19,6 +18,10 @@ use crate::job::Action;
 use crate::key::{self, DcKey};
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
+use crate::{
+    chat::{self, ChatId},
+    message::Message,
+};
 
 /// A Context and temporary directory.
 ///
@@ -261,7 +264,12 @@ pub(crate) fn bob_keypair() -> key::KeyPair {
     }
 }
 
-pub(crate) async fn get_chat_msg(t: &TestContext, chat_id: ChatId, get_index: usize, asserted_msgs_count: usize) -> Message {
+pub(crate) async fn get_chat_msg(
+    t: &TestContext,
+    chat_id: ChatId,
+    get_index: usize,
+    asserted_msgs_count: usize,
+) -> Message {
     let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
     assert_eq!(msgs.len(), asserted_msgs_count);
     let msg_id = if let ChatItem::Message { msg_id } = msgs[get_index] {
