@@ -718,6 +718,26 @@ impl Message {
         None
     }
 
+    /// Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
+    ///
+    /// If the decision is Yes (0), this will create a new chat and return the chat id.
+    /// If the decision is No (1), this will usually block the sender.
+    /// If the decision is Not now (2), this will usually mark all messages from this sender as read.
+    ///
+    /// If the message belongs to a mailing list, makes sure that all messages from this mailing list are
+    /// blocked or marked as noticed.
+    ///
+    /// The user should be asked whether he wants to chat with the _contact_ belonging to the message;
+    /// the group names may be really weird when taken from the subject of implicit (= ad-hoc)
+    /// groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
+    ///
+    /// If chat.dc_chat_is_mailing_list() returns true, you can also ask
+    /// "Would you like to read MAILING LIST NAME in Delta Chat?"
+    ///
+    /// @param msg The message object.
+    /// @param context The context.
+    /// @param decision 0 = Yes, 1 = No, 2 = Not now
+    /// @return The chat id of the created chat, if any.
     pub async fn decide_on_contact_request(&self, context: &Context, decision: i32) -> u32 {
         let chat = match Chat::load_from_db(context, self.chat_id).await {
             Ok(c) => c,

@@ -7,9 +7,10 @@ use std::time::{Duration, Instant};
 
 use async_std::path::PathBuf;
 use async_std::sync::RwLock;
+use chat::ChatItem;
 use tempfile::{tempdir, TempDir};
 
-use crate::chat::ChatId;
+use crate::{chat::{self, ChatId}, message::Message};
 use crate::config::Config;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
@@ -258,4 +259,15 @@ pub(crate) fn bob_keypair() -> key::KeyPair {
         public,
         secret,
     }
+}
+
+pub(crate) async fn get_chat_msg(t: &TestContext, chat_id: ChatId, get_index: usize, asserted_msgs_count: usize) -> Message {
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+    assert_eq!(msgs.len(), asserted_msgs_count);
+    let msg_id = if let ChatItem::Message { msg_id } = msgs[get_index] {
+        msg_id
+    } else {
+        panic!("Wrong item type");
+    };
+    Message::load_from_db(&t.ctx, msg_id).await.unwrap()
 }

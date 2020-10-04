@@ -2352,16 +2352,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let msgs = chat::get_chat_msgs(&t.ctx, group_id, 0, None).await;
-        assert_eq!(msgs.len(), 1);
-        let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
-            msg_id
-        } else {
-            panic!("Wrong item type");
-        };
-        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
-            .await
-            .unwrap();
+        let msg = get_chat_msg(&t, group_id, 0, 1).await;
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert_eq!(msg.text.unwrap(), "hello");
         assert_eq!(msg.state, MessageState::OutDelivered);
@@ -2410,7 +2401,7 @@ mod tests {
             chat::get_chat_msgs(&t.ctx, group_id, 0, None).await.len(),
             1
         );
-        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
+        let msg = message::Message::load_from_db(&t.ctx, msg.id)
             .await
             .unwrap();
         assert_eq!(msg.state, MessageState::OutMdnRcvd);
@@ -2491,16 +2482,7 @@ mod tests {
                 .get_authname(),
             "Имя, Фамилия",
         );
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
-        assert_eq!(msgs.len(), 1);
-        let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
-            msg_id
-        } else {
-            panic!("Wrong item type");
-        };
-        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
-            .await
-            .unwrap();
+        let msg = get_chat_msg(&t, chat_id, 0, 1).await;
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert_eq!(msg.text.unwrap(), "hello");
         assert_eq!(msg.param.get_int(Param::WantsMdn).unwrap(), 1);
@@ -2802,5 +2784,170 @@ mod tests {
         let msg_id = chats.get_msg_id(0).unwrap();
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
         assert_eq!(msg.text.unwrap(), "   Guten Abend,   \n\n   Lots of text   \n\n   text with Umlaut ä...   \n\n   MfG    [...]");
+    }
+
+    static GH_MAILINGLIST: &[u8] = b"From: Max Mustermann <notifications@github.com>\n\
+    To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
+    Subject: [deltachat/deltachat-core-rust] PR run failed\n\
+    Message-ID: <3333@example.org>\n\
+    List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
+    Precedence: list\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    hello\n";
+
+    static GH_MAILINGLIST2: &[u8] = b"From: Github <notifications@github.com>\n\
+    To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
+    Subject: [deltachat/deltachat-core-rust] PR run failed\n\
+    Message-ID: <3334@example.org>\n\
+    List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
+    Precedence: list\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    hello back\n";
+
+    #[async_std::test]
+    async fn test_github_mailing_list() {
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        dc_receive_imf(&t.ctx, GH_MAILINGLIST, "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
+
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+            .await
+            .unwrap();
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+
+        assert!(chat.is_mailing_list());
+        assert_eq!(chat.can_send(), false);
+        assert_eq!(chat.name, "deltachat/deltachat-core-rust");
+        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await.len(), 2);
+
+        dc_receive_imf(&t.ctx, GH_MAILINGLIST2, "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
+        let contacts = Contact::get_all(&t.ctx, 0, None as Option<String>)
+            .await
+            .unwrap();
+        assert_eq!(contacts.len(), 0); // mailing list recipients and senders do not count as "known contacts"
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+
+        let msg = get_chat_msg(&t, chat_id, 0, 2).await;
+        let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
+        assert_eq!(contact1.get_addr(), "notifications@github.com");
+        assert_eq!(contact1.get_display_name(), "notifications@github.com"); // Make sure this is not "Max Mustermann" or somethinng
+
+        let msg = get_chat_msg(&t, chat_id, 1, 2).await;
+        let contact2 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
+        assert_eq!(contact2.get_addr(), "notifications@github.com");
+
+        let pseudo_contact = Contact::grpid_to_mailinglist_contact(
+            &t.ctx,
+            "",
+            "deltachat-core-rust.deltachat.github.com",
+            chat_id,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            pseudo_contact.get_display_name(),
+            "deltachat/deltachat-core-rust"
+        );
+        assert_eq!(
+            pseudo_contact
+                .param
+                .get(Param::MailingListPseudoContact)
+                .unwrap(),
+            &chat_id.to_u32().to_string()
+        );
+    }
+
+    static DC_MAILINGLIST: &[u8] = b"From: Bob <bob@posteo.org>\n\
+    To: delta-dev@codespeak.net\n\
+    Subject: Re: [delta-dev] What's up?\n\
+    Message-ID: <38942@posteo.org>\n\
+    List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
+    Precedence: list\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    body\n";
+
+    static DC_MAILINGLIST2: &[u8] = b"From: Charlie <charlie@posteo.org>\n\
+    To: delta-dev@codespeak.net\n\
+    Subject: Re: [delta-dev] What's up?\n\
+    Message-ID: <38942@posteo.org>\n\
+    List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
+    Precedence: list\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    body 4\n";
+
+    #[async_std::test]
+    async fn test_classic_mailing_list() {
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST, "INBOX", 1, false)
+            .await
+            .unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+            .await
+            .unwrap();
+
+        let msg = get_chat_msg(&t, chat_id, 0, 1).await;
+        let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
+        assert_eq!(contact1.get_addr(), "bob@posteo.org");
+        assert_eq!(contact1.param.get(Param::MailingListPseudoContact), None);
+    }
+
+    #[async_std::test]
+    async fn test_block_mailing_list() {
+        let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST, "INBOX", 1, false)
+            .await
+            .unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), deaddrop); // Test that the message is shown in the deaddrop
+
+        let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
+        // Answer "no" on the contact request
+        // ==================================
+        msg.decide_on_contact_request(&t.ctx, 1).await;
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 0); // Test that the message disappeared
+        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None).await;
+        assert_eq!(msgs.len(), 0);
+
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        // Test that the mailing list stays disappeared
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 0); // Test that the message is not shown
+        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None).await;
+        assert_eq!(msgs.len(), 0);
     }
 }

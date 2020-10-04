@@ -1124,6 +1124,17 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
                 Contact::mark_noticed(context, contact_id).await;
                 context.emit_event(EventType::ContactsChanged(Some(contact_id)));
             }
+
+            if let Some(chat_id) = contact.param.get_int(Param::MailingListPseudoContact) {
+                let new_blocked = if new_blocking {
+                    Blocked::Manually
+                } else {
+                    Blocked::Not
+                };
+                ChatId::new(chat_id as u32)
+                    .set_blocked(context, new_blocked)
+                    .await;
+            }
         }
     }
 }
