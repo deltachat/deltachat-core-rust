@@ -264,6 +264,7 @@ pub(crate) fn bob_keypair() -> key::KeyPair {
     }
 }
 
+#[allow(clippy::indexing_slicing)]
 pub(crate) async fn get_chat_msg(
     t: &TestContext,
     chat_id: ChatId,

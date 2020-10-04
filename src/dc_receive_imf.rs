@@ -508,6 +508,14 @@ async fn add_parts(
 
                 *chat_id = new_chat_id;
                 chat_id_blocked = new_chat_id_blocked;
+                if let Some(from) = mime_parser.from.first() {
+                    if let Some(from_name) = &from.display_name {
+                        for part in mime_parser.parts.iter_mut() {
+                            part.param
+                                .set(Param::OverrideDisplayname, from_name);
+                        }
+                    }
+                }
             }
         }
 
@@ -2842,13 +2850,13 @@ mod tests {
             .unwrap();
         assert_eq!(contacts.len(), 0); // mailing list recipients and senders do not count as "known contacts"
 
-        let msg = get_chat_msg(&t, chat_id, 0, 2).await;
-        let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
+        let msg1 = get_chat_msg(&t, chat_id, 0, 2).await;
+        let contact1 = Contact::load_from_db(&t.ctx, msg1.from_id).await.unwrap();
         assert_eq!(contact1.get_addr(), "notifications@github.com");
         assert_eq!(contact1.get_display_name(), "notifications@github.com"); // Make sure this is not "Max Mustermann" or somethinng
 
-        let msg = get_chat_msg(&t, chat_id, 1, 2).await;
-        let contact2 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
+        let msg2 = get_chat_msg(&t, chat_id, 1, 2).await;
+        let contact2 = Contact::load_from_db(&t.ctx, msg2.from_id).await.unwrap();
         assert_eq!(contact2.get_addr(), "notifications@github.com");
 
         let pseudo_contact = Contact::grpid_to_mailinglist_contact(
@@ -2870,6 +2878,8 @@ mod tests {
                 .unwrap(),
             &chat_id.to_u32().to_string()
         );
+        assert_eq!(msg1.get_sender_name(&t.ctx).await, "Max Mustermann");
+        assert_eq!(msg2.get_sender_name(&t.ctx).await, "Github");
     }
 
     static DC_MAILINGLIST: &[u8] = b"From: Bob <bob@posteo.org>\n\
