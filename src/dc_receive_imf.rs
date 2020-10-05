@@ -1371,7 +1371,7 @@ async fn create_or_lookup_mailinglist(
 ) -> (ChatId, Blocked) {
     lazy_static! {
         static ref LIST_ID: Regex = Regex::new(r"^(.*.)<(.*.)>$").unwrap();
-        static ref SUBJECT: Regex = Regex::new(r".{0,5}\[(.*.)\]").unwrap();
+        static ref SUBJECT: Regex = Regex::new(r"^.{0,5}\[(.*.)\]").unwrap();
     }
     let (mut name, listid) = match LIST_ID.captures(list_id_header) {
         Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
@@ -2797,7 +2797,7 @@ mod tests {
 
     static GH_MAILINGLIST: &[u8] = b"From: Max Mustermann <notifications@github.com>\n\
     To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
-    Subject: [deltachat/deltachat-core-rust] PR run failed\n\
+    Subject: Let's put some [braces here that] have nothing to do with the topic\n\
     Message-ID: <3333@example.org>\n\
     List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
     Precedence: list\n\
