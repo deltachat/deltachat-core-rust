@@ -2885,7 +2885,13 @@ pub unsafe extern "C" fn dc_decide_on_contact_request(
     let ffi_msg = &*msg;
     let ctx = &*ffi_msg.context;
 
-    block_on(ffi_msg.message.decide_on_contact_request(ctx, decision))
+    match from_prim(decision) {
+        None => {
+            warn!(ctx, "{} is not a valid decision, ignoring", decision);
+            0
+        }
+        Some(d) => block_on(ffi_msg.message.decide_on_contact_request(ctx, d)),
+    }
 }
 
 #[no_mangle]

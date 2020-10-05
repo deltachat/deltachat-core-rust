@@ -738,7 +738,12 @@ impl Message {
     /// @param context The context.
     /// @param decision 0 = Yes, 1 = No, 2 = Not now
     /// @return The chat id of the created chat, if any.
-    pub async fn decide_on_contact_request(&self, context: &Context, decision: i32) -> u32 {
+    pub async fn decide_on_contact_request(
+        &self,
+        context: &Context,
+        decision: ContactRequestDecision,
+    ) -> u32 {
+        use ContactRequestDecision::*;
         let chat = match Chat::load_from_db(context, self.chat_id).await {
             Ok(c) => c,
             Err(e) => {
@@ -748,13 +753,13 @@ impl Message {
         };
 
         match (decision, chat.is_mailing_list()) {
-            (0, _) => match chat::create_by_msg_id(context, self.id).await {
+            (Yes, _) => match chat::create_by_msg_id(context, self.id).await {
                 Ok(id) => return id.to_u32(),
                 Err(e) => warn!(context, "decide_on_contact_request error: {}", e),
             },
 
-            (1, false) => Contact::block(context, self.from_id).await,
-            (1, true) => {
+            (No, false) => Contact::block(context, self.from_id).await,
+            (No, true) => {
                 match Contact::grpid_to_mailinglist_contact(
                     context,
                     &chat.name,
@@ -768,14 +773,12 @@ impl Message {
                 }
             }
 
-            (2, false) => Contact::mark_noticed(context, self.from_id).await,
-            (2, true) => {
+            (NotNow, false) => Contact::mark_noticed(context, self.from_id).await,
+            (NotNow, true) => {
                 if let Err(e) = chat::marknoticed_chat(context, self.chat_id).await {
                     warn!(context, "Marknoticed failed: {}", e)
                 }
             }
-
-            _ => warn!(context, "invalid contact request decision {}", decision),
         }
         0
     }
@@ -898,6 +901,13 @@ impl Message {
     pub fn error(&self) -> Option<String> {
         self.error.clone()
     }
+}
+
+#[derive(Display, Debug, FromPrimitive)]
+pub enum ContactRequestDecision {
+    Yes = 0,
+    No = 1,
+    NotNow = 2,
 }
 
 #[derive(

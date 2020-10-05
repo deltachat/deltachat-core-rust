@@ -2039,6 +2039,7 @@ mod tests {
     use super::*;
     use crate::chat::{ChatItem, ChatVisibility};
     use crate::chatlist::Chatlist;
+    use crate::message::ContactRequestDecision::*;
     use crate::message::Message;
     use crate::test_utils::*;
 
@@ -2944,7 +2945,7 @@ mod tests {
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
         // Answer "no" on the contact request
         // ==================================
-        msg.decide_on_contact_request(&t.ctx, 1).await;
+        msg.decide_on_contact_request(&t.ctx, No).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
@@ -2978,7 +2979,7 @@ mod tests {
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
         // Answer "not now" on the contact request
         // ==================================
-        msg.decide_on_contact_request(&t.ctx, 2).await;
+        msg.decide_on_contact_request(&t.ctx, NotNow).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
@@ -3011,7 +3012,7 @@ mod tests {
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
         // Answer "yes" on the contact request
         // ==================================
-        msg.decide_on_contact_request(&t.ctx, 0).await;
+        msg.decide_on_contact_request(&t.ctx, Yes).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1); // Test that the message is shown
