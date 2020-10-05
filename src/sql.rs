@@ -1008,6 +1008,8 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             .await?;
             sql.execute("CREATE INDEX chats_index2 ON chats (archived);", paramsv![])
                 .await?;
+            // 'starred' column is not used currently
+            // (dropping is not easily doable and stop adding it will make reusing it complicated)
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN starred INTEGER DEFAULT 0;",
                 paramsv![],
