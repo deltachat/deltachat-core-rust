@@ -915,7 +915,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                         "archive" => ChatVisibility::Archived,
                         "unarchive" | "unpin" => ChatVisibility::Normal,
                         "pin" => ChatVisibility::Pinned,
-                        _ => panic!("Unexpected command (This should never happen)"),
+                        _ => unreachable!("arg0={:?}", arg0),
                     },
                 )
                 .await?;
@@ -929,7 +929,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     match arg0 {
                         "protect" => ProtectionStatus::Protected,
                         "unprotect" => ProtectionStatus::Unprotected,
-                        _ => panic!("Unexpected command (This should never happen)"),
+                        _ => unreachable!("arg0={:?}", arg0),
                     },
                 )
                 .await?;
