@@ -2242,6 +2242,7 @@ pub async fn remove_contact_from_chat(
     /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
     /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
+        ensure!(!chat.is_mailing_list(), "Mailing lists can't be changed");
         if real_group_exists(context, chat_id).await {
             if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
                 emit_event!(
