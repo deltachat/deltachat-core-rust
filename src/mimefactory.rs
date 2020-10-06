@@ -145,7 +145,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             selfstatus: context
                 .get_config(Config::Selfstatus)
                 .await
-                .unwrap_or_else(|| default_str),
+                .unwrap_or(default_str),
             recipients,
             timestamp: msg.timestamp_sort,
             loaded: Loaded::Message { chat },
@@ -183,7 +183,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let selfstatus = context
             .get_config(Config::Selfstatus)
             .await
-            .unwrap_or_else(|| default_str);
+            .unwrap_or(default_str);
         let timestamp = dc_create_smeared_timestamp(context).await;
 
         let res = MimeFactory::<'a, 'b> {

@@ -51,23 +51,41 @@ impl EncryptHelper {
     }
 
     /// Determines if we can and should encrypt.
+    ///
+    /// For encryption to be enabled, `e2ee_guaranteed` should be true, or strictly more than a half
+    /// of peerstates should prefer encryption. Own preference is counted equally to peer
+    /// preferences, even if message copy is not sent to self.
+    ///
+    /// `e2ee_guaranteed` should be set to true for replies to encrypted messages (as required by
+    /// Autocrypt Level 1, version 1.1) and for messages sent in verified groups.
+    ///
+    /// Returns an error if `e2ee_guaranteed` is true, but one or more keys are missing.
+    ///
+    /// Always returns `false` if one of the peerstates does not support Autocrypt (is in "reset"
+    /// state) or does not have a known key.
     pub fn should_encrypt(
         &self,
         context: &Context,
         e2ee_guaranteed: bool,
         peerstates: &[(Option<Peerstate>, &str)],
     ) -> Result<bool> {
-        if !(self.prefer_encrypt == EncryptPreference::Mutual || e2ee_guaranteed) {
-            return Ok(false);
-        }
-
+        let mut prefer_encrypt_count = if self.prefer_encrypt == EncryptPreference::Mutual {
+            1
+        } else {
+            0
+        };
         for (peerstate, addr) in peerstates {
             match peerstate {
                 Some(peerstate) => {
-                    if peerstate.prefer_encrypt != EncryptPreference::Mutual && !e2ee_guaranteed {
-                        info!(context, "peerstate for {:?} is no-encrypt", addr);
-                        return Ok(false);
-                    }
+                    info!(
+                        context,
+                        "peerstate for {:?} is {}", addr, peerstate.prefer_encrypt
+                    );
+                    match peerstate.prefer_encrypt {
+                        EncryptPreference::NoPreference => {}
+                        EncryptPreference::Mutual => prefer_encrypt_count += 1,
+                        EncryptPreference::Reset => return Ok(false),
+                    };
                 }
                 None => {
                     let msg = format!("peerstate for {:?} missing, cannot encrypt", addr);
@@ -81,7 +99,11 @@ impl EncryptHelper {
             }
         }
 
-        Ok(true)
+        // Count number of recipients, including self.
+        // This does not depend on whether we send a copy to self or not.
+        let recipients_count = peerstates.len() + 1;
+
+        Ok(e2ee_guaranteed || 2 * prefer_encrypt_count > recipients_count)
     }
 
     /// Tries to encrypt the passed in `mail`.

@@ -229,19 +229,7 @@ impl Imap {
                 }
             }
             Err(err) => {
-                let message = {
-                    let config = &self.config;
-                    let imap_server: &str = config.lp.server.as_ref();
-                    let imap_port = config.lp.port;
-                    context
-                        .stock_string_repl_str2(
-                            StockMessage::ServerResponse,
-                            format!("IMAP {}:{}", imap_server, imap_port),
-                            err.to_string(),
-                        )
-                        .await
-                };
-                bail!("{}: {}", message, err);
+                bail!(err);
             }
         };
 
@@ -286,7 +274,7 @@ impl Imap {
                 }
 
                 self.trigger_reconnect();
-                Err(format_err!("{}: {}", message, err))
+                Err(format_err!("{}\n\n{}", message, err))
             }
         }
     }
@@ -476,16 +464,8 @@ impl Imap {
             // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
             let mut parts = entry.split(':');
             (
-                parts
-                    .next()
-                    .unwrap_or_default()
-                    .parse()
-                    .unwrap_or_else(|_| 0),
-                parts
-                    .next()
-                    .unwrap_or_default()
-                    .parse()
-                    .unwrap_or_else(|_| 0),
+                parts.next().unwrap_or_default().parse().unwrap_or(0),
+                parts.next().unwrap_or_default().parse().unwrap_or(0),
             )
         } else {
             (0, 0)
@@ -1266,7 +1246,9 @@ impl Imap {
                 } else if let FolderMeaning::SentObjects = get_folder_meaning(&folder) {
                     // Always takes precedent
                     sentbox_folder = Some(folder.name().to_string());
-                } else if let FolderMeaning::SentObjects = get_folder_meaning_by_name(&folder) {
+                } else if let FolderMeaning::SentObjects =
+                    get_folder_meaning_by_name(&folder.name())
+                {
                     // only set iff none has been already set
                     if sentbox_folder.is_none() {
                         sentbox_folder = Some(folder.name().to_string());
@@ -1345,11 +1327,43 @@ impl Imap {
 // only watching this folder is not working. at least, this is no show stopper.
 // CAVE: if possible, take care not to add a name here that is "sent" in one language
 // but sth. different in others - a hard job.
-fn get_folder_meaning_by_name(folder_name: &Name) -> FolderMeaning {
-    let sent_names = vec!["sent", "sentmail", "sent objects", "gesendet"];
-    let lower = folder_name.name().to_lowercase();
+fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
+    // source: https://stackoverflow.com/questions/2185391/localized-gmail-imap-folders
+    let sent_names = vec![
+        "sent",
+        "sentmail",
+        "sent objects",
+        "gesendet",
+        "Sent Mail",
+        "Sendte e-mails",
+        "Enviados",
+        "Messages envoyés",
+        "Messages envoyes",
+        "Posta inviata",
+        "Verzonden berichten",
+        "Wyslane",
+        "E-mails enviados",
+        "Correio enviado",
+        "Enviada",
+        "Enviado",
+        "Gönderildi",
+        "Inviati",
+        "Odeslaná pošta",
+        "Sendt",
+        "Skickat",
+        "Verzonden",
+        "Wysłane",
+        "Éléments envoyés",
+        "Απεσταλμένα",
+        "Отправленные",
+        "寄件備份",
+        "已发送邮件",
+        "送信済み",
+        "보낸편지함",
+    ];
+    let lower = folder_name.to_lowercase();
 
-    if sent_names.into_iter().any(|s| s == lower) {
+    if sent_names.into_iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::SentObjects
     } else {
         FolderMeaning::Unknown
@@ -1594,4 +1608,33 @@ async fn message_needs_processing(
 
 fn get_fallback_folder(delimiter: &str) -> String {
     format!("INBOX{}DeltaChat", delimiter)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_get_folder_meaning_by_name() {
+        assert_eq!(
+            get_folder_meaning_by_name("Gesendet"),
+            FolderMeaning::SentObjects
+        );
+        assert_eq!(
+            get_folder_meaning_by_name("GESENDET"),
+            FolderMeaning::SentObjects
+        );
+        assert_eq!(
+            get_folder_meaning_by_name("gesendet"),
+            FolderMeaning::SentObjects
+        );
+        assert_eq!(
+            get_folder_meaning_by_name("Messages envoyés"),
+            FolderMeaning::SentObjects
+        );
+        assert_eq!(
+            get_folder_meaning_by_name("mEsSaGes envoyÉs"),
+            FolderMeaning::SentObjects
+        );
+        assert_eq!(get_folder_meaning_by_name("xxx"), FolderMeaning::Unknown);
+    }
 }

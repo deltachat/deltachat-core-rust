@@ -4,8 +4,6 @@ export BRANCH=${CIRCLE_BRANCH:?branch to build}
 export REPONAME=${CIRCLE_PROJECT_REPONAME:?repository name}
 export SSHTARGET=${SSHTARGET-ci@b1.delta.chat}
 
-# we construct the BUILDDIR such that we can easily share the
-# CARGO_TARGET_DIR between runs ("..")
 export BUILDDIR=ci_builds/$REPONAME/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}
 
 echo "--- Copying files to $SSHTARGET:$BUILDDIR"
@@ -30,9 +28,6 @@ ssh $SSHTARGET <<_HERE
 
     export RUSTC_WRAPPER=\`which sccache\`
     cd $BUILDDIR
-    # let's share the target dir with our last run on this branch/job-type
-    # cargo will make sure to block/unblock us properly 
-    export CARGO_TARGET_DIR=\`pwd\`/../target
     export TARGET=release
     export DCC_PY_LIVECONFIG=$DCC_PY_LIVECONFIG
     export DCC_NEW_TMP_EMAIL=$DCC_NEW_TMP_EMAIL

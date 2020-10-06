@@ -185,7 +185,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let temp2 = dc_timestamp_to_str(msg.get_timestamp());
     let msgtext = msg.get_text();
     println!(
-        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}{} [{}]",
+        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
         prefix.as_ref(),
         msg.get_id(),
         if msg.get_showpadlock() { "🔒" } else { "" },
@@ -193,7 +193,6 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         &contact_name,
         contact_id,
         msgtext.unwrap_or_default(),
-        if msg.is_starred() { "★" } else { "" },
         if msg.get_from_id() == 1 as libc::c_uint {
             ""
         } else if msg.get_state() == MessageState::InSeen {
@@ -387,8 +386,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  listfresh\n\
                  forward <msg-id> <chat-id>\n\
                  markseen <msg-id>\n\
-                 star <msg-id>\n\
-                 unstar <msg-id>\n\
                  delmsg <msg-id>\n\
                  ===========================Contact commands==\n\
                  listcontacts [<query>]\n\
@@ -947,12 +944,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let mut msg_ids = vec![MsgId::new(0)];
             msg_ids[0] = MsgId::new(arg1.parse()?);
             message::markseen_msgs(&context, msg_ids).await;
-        }
-        "star" | "unstar" => {
-            ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
-            let mut msg_ids = vec![MsgId::new(0); 1];
-            msg_ids[0] = MsgId::new(arg1.parse()?);
-            message::star_msgs(&context, msg_ids, arg0 == "star").await;
         }
         "delmsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");

@@ -3,12 +3,13 @@ use std::fmt;
 use std::str;
 
 use async_std::path::PathBuf;
+use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::blob::{BlobError, BlobObject};
 use crate::context::Context;
-use crate::error::{self, bail, ensure};
+use crate::error::{self, bail};
 use crate::message::MsgId;
 use crate::mimeparser::SystemMessage;
 
@@ -146,7 +147,12 @@ impl fmt::Display for Params {
             if i > 0 {
                 writeln!(f)?;
             }
-            write!(f, "{}={}", *key as u8 as char, value)?;
+            write!(
+                f,
+                "{}={}",
+                *key as u8 as char,
+                value.split('\n').join("\n\n")
+            )?;
         }
         Ok(())
     }
@@ -157,27 +163,28 @@ impl str::FromStr for Params {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let mut inner = BTreeMap::new();
-        for pair in s.trim().lines() {
-            let pair = pair.trim();
-            if pair.is_empty() {
-                continue;
-            }
-            // TODO: probably nicer using a regex
-            ensure!(pair.len() > 1, "Invalid key pair: '{}'", pair);
-            let mut split = pair.splitn(2, '=');
-            let key = split.next();
-            let value = split.next();
+        let mut lines = s.lines().peekable();
 
-            ensure!(key.is_some(), "Missing key");
-            ensure!(value.is_some(), "Missing value");
+        while let Some(line) = lines.next() {
+            if let [key, value] = line.splitn(2, '=').collect::<Vec<_>>()[..] {
+                let key = key.to_string();
+                let mut value = value.to_string();
+                while let Some(s) = lines.peek() {
+                    if !s.is_empty() {
+                        break;
+                    }
+                    lines.next();
+                    value.push('\n');
+                    value += lines.next().unwrap_or_default();
+                }
 
-            let key = key.unwrap_or_default().trim();
-            let value = value.unwrap_or_default().trim();
-
-            if let Some(key) = key.as_bytes().first().and_then(|key| Param::from_u8(*key)) {
-                inner.insert(key, value.to_string());
+                if let Some(key) = key.as_bytes().first().and_then(|key| Param::from_u8(*key)) {
+                    inner.insert(key, value);
+                } else {
+                    bail!("Unknown key: {}", key);
+                }
             } else {
-                bail!("Unknown key: {}", key);
+                bail!("Not a key-value pair: {:?}", line);
             }
         }
 
@@ -373,7 +380,7 @@ mod tests {
 
     #[test]
     fn test_dc_param() {
-        let mut p1: Params = "\r\n\r\na=1\nf=2\n\nc = 3 ".parse().unwrap();
+        let mut p1: Params = "a=1\nf=2\nc=3".parse().unwrap();
 
         assert_eq!(p1.get_int(Param::Forwarded), Some(1));
         assert_eq!(p1.get_int(Param::File), Some(2));
@@ -405,6 +412,14 @@ mod tests {
 
         assert!(p1.is_empty());
         assert_eq!(p1.len(), 0)
+    }
+
+    #[test]
+    fn test_roundtrip() {
+        let mut params = Params::new();
+        params.set(Param::Height, "foo\nbar=baz\nquux");
+        params.set(Param::Width, "\n\n\na=\n=");
+        assert_eq!(params.to_string().parse::<Params>().unwrap(), params);
     }
 
     #[test]

@@ -119,9 +119,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Archived chats"))]
     ArchivedChats = 40,
 
-    #[strum(props(fallback = "Starred messages"))]
-    StarredMsgs = 41,
-
     #[strum(props(fallback = "Autocrypt Setup Message"))]
     AcSetupMsgSubject = 42,
 
@@ -217,8 +214,25 @@ pub enum StockMessage {
     #[strum(props(fallback = "You are invited to a video chat, click %1$s to join."))]
     VideochatInviteMsgBody = 83,
 
-    #[strum(props(fallback = "Configuration failed. Error: “%1$s”"))]
+    #[strum(props(fallback = "Error:\n\n“%1$s”"))]
     ConfigurationFailed = 84,
+
+    #[strum(props(
+        fallback = "⚠️ Date or time of your device seem to be inaccurate (%1$s).\n\n\
+                    Adjust your clock ⏰🔧 to ensure your messages are received correctly."
+    ))]
+    BadTimeMsgBody = 85,
+
+    #[strum(props(fallback = "⚠️ Your Delta Chat version might be outdated.\n\n\
+                    This may cause problems because your chat partners use newer versions - \
+                    and you are missing the latest features 😳\n\
+                    Please check https://get.delta.chat or your app store for updates."))]
+    UpdateReminderMsgBody = 86,
+
+    #[strum(props(
+        fallback = "Could not find your mail server.\n\nPlease check your internet connection."
+    ))]
+    ErrorNoNetwork = 87,
 }
 
 /*
@@ -387,7 +401,7 @@ impl Context {
     pub async fn update_device_chats(&self) -> Result<(), Error> {
         // check for the LAST added device message - if it is present, we can skip message creation.
         // this is worthwhile as this function is typically called
-        // by the ui on every probram start or even on every opening of the chatlist.
+        // by the UI on every program start or even on every opening of the chatlist.
         if chat::was_device_msg_ever_added(&self, "core-welcome").await? {
             return Ok(());
         }

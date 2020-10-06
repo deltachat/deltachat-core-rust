@@ -218,7 +218,7 @@ pub unsafe extern "C" fn dc_set_config_from_qr(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_get_info(context: *const dc_context_t) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_info()");
         return "".strdup();
@@ -316,7 +316,6 @@ pub unsafe extern "C" fn dc_get_id(context: *mut dc_context_t) -> libc::c_int {
     ctx.get_id() as libc::c_int
 }
 
-#[no_mangle]
 pub type dc_event_t = Event;
 
 #[no_mangle]
@@ -363,6 +362,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
+        | EventType::MsgsNoticed(chat_id)
         | EventType::MsgDelivered { chat_id, .. }
         | EventType::MsgFailed { chat_id, .. }
         | EventType::MsgRead { chat_id, .. }
@@ -408,6 +408,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ConfigureProgress { .. }
         | EventType::ImexProgress(_)
         | EventType::ImexFileWritten(_)
+        | EventType::MsgsNoticed(_)
         | EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
@@ -447,6 +448,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         }
         EventType::MsgsChanged { .. }
         | EventType::IncomingMsg { .. }
+        | EventType::MsgsNoticed(_)
         | EventType::MsgDelivered { .. }
         | EventType::MsgFailed { .. }
         | EventType::MsgRead { .. }
@@ -481,7 +483,6 @@ pub unsafe extern "C" fn dc_event_get_account_id(event: *mut dc_event_t) -> u32 
     (*event).id
 }
 
-#[no_mangle]
 pub type dc_event_emitter_t = EventEmitter;
 
 #[no_mangle]
@@ -499,7 +500,7 @@ pub unsafe extern "C" fn dc_get_event_emitter(
 #[no_mangle]
 pub unsafe extern "C" fn dc_event_emitter_unref(emitter: *mut dc_event_emitter_t) {
     if emitter.is_null() {
-        eprintln!("ignoring careless call to dc_event_mitter_unref()");
+        eprintln!("ignoring careless call to dc_event_emitter_unref()");
         return;
     }
 
@@ -509,6 +510,7 @@ pub unsafe extern "C" fn dc_event_emitter_unref(emitter: *mut dc_event_emitter_t
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_next_event(events: *mut dc_event_emitter_t) -> *mut dc_event_t {
     if events.is_null() {
+        eprintln!("ignoring careless call to dc_get_next_event()");
         return ptr::null_mut();
     }
     let events = &*events;
@@ -968,22 +970,6 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
         chat::marknoticed_chat(&ctx, ChatId::new(chat_id))
             .await
             .log_err(ctx, "Failed marknoticed chat")
-            .unwrap_or(())
-    })
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_marknoticed_all_chats()");
-        return;
-    }
-    let ctx = &*context;
-
-    block_on(async move {
-        chat::marknoticed_all_chats(&ctx)
-            .await
-            .log_err(ctx, "Failed marknoticed all chats")
             .unwrap_or(())
     })
 }
@@ -1479,23 +1465,6 @@ pub unsafe extern "C" fn dc_markseen_msgs(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_star_msgs(
-    context: *mut dc_context_t,
-    msg_ids: *const u32,
-    msg_cnt: libc::c_int,
-    star: libc::c_int,
-) {
-    if context.is_null() || msg_ids.is_null() || msg_cnt <= 0 {
-        eprintln!("ignoring careless call to dc_star_msgs()");
-        return;
-    }
-    let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
-    let ctx = &*context;
-
-    block_on(message::star_msgs(&ctx, msg_ids, star == 1));
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> *mut dc_msg_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_msg()");
@@ -1819,7 +1788,7 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
         {
             Ok(()) => 1,
             Err(err) => {
-                error!(&ctx, "dc_continue_key_transfer: {}", err);
+                warn!(&ctx, "dc_continue_key_transfer: {}", err);
                 0
             }
         }
@@ -1989,7 +1958,6 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
 
 // dc_array_t
 
-#[no_mangle]
 pub type dc_array_t = dc_array::dc_array_t;
 
 #[no_mangle]
@@ -2172,7 +2140,6 @@ pub struct ChatlistWrapper {
     list: chatlist::Chatlist,
 }
 
-#[no_mangle]
 pub type dc_chatlist_t = ChatlistWrapper;
 
 #[no_mangle]
@@ -2296,7 +2263,6 @@ pub struct ChatWrapper {
     chat: chat::Chat,
 }
 
-#[no_mangle]
 pub type dc_chat_t = ChatWrapper;
 
 #[no_mangle]
@@ -2522,7 +2488,6 @@ pub struct MessageWrapper {
     message: message::Message,
 }
 
-#[no_mangle]
 pub type dc_msg_t = MessageWrapper;
 
 #[no_mangle]
@@ -2833,16 +2798,6 @@ pub unsafe extern "C" fn dc_msg_is_sent(msg: *mut dc_msg_t) -> libc::c_int {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_starred(msg: *mut dc_msg_t) -> libc::c_int {
-    if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_is_starred()");
-        return 0;
-    }
-    let ffi_msg = &*msg;
-    ffi_msg.message.is_starred().into()
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_forwarded(msg: *mut dc_msg_t) -> libc::c_int {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_is_forwarded()");
@@ -3021,7 +2976,6 @@ pub struct ContactWrapper {
     contact: contact::Contact,
 }
 
-#[no_mangle]
 pub type dc_contact_t = ContactWrapper;
 
 #[no_mangle]
@@ -3154,7 +3108,6 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
 
 // dc_lot_t
 
-#[no_mangle]
 pub type dc_lot_t = lot::Lot;
 
 #[no_mangle]
@@ -3263,7 +3216,8 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
 
     fn log_err(self, ctx: &Context, message: &str) -> Result<T, E> {
         self.map_err(|err| {
-            warn!(ctx, "{}: {}", message, err);
+            // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+            warn!(ctx, "{}: {:#}", message, err);
             err
         })
     }
@@ -3295,7 +3249,6 @@ fn convert_and_prune_message_ids(msg_ids: *const u32, msg_cnt: libc::c_int) -> V
 
 // dc_provider_t
 
-#[no_mangle]
 pub type dc_provider_t = provider::Provider;
 
 #[no_mangle]
@@ -3386,7 +3339,8 @@ pub unsafe extern "C" fn dc_accounts_new(
     match accs {
         Ok(accs) => Box::into_raw(Box::new(accs)),
         Err(err) => {
-            eprintln!("failed to create accounts: {}", err);
+            // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+            eprintln!("failed to create accounts: {:#}", err);
             ptr::null_mut()
         }
     }
@@ -3447,7 +3401,7 @@ pub unsafe extern "C" fn dc_accounts_select_account(
     let accounts = &*accounts;
     block_on(accounts.select_account(id))
         .map(|_| 1)
-        .unwrap_or_else(|_| 0)
+        .unwrap_or(0)
 }
 
 #[no_mangle]
@@ -3459,7 +3413,7 @@ pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -
 
     let accounts = &*accounts;
 
-    block_on(accounts.add_account()).unwrap_or_else(|_| 0)
+    block_on(accounts.add_account()).unwrap_or(0)
 }
 
 #[no_mangle]
@@ -3561,7 +3515,6 @@ pub unsafe extern "C" fn dc_accounts_maybe_network(accounts: *mut dc_accounts_t)
     block_on(accounts.maybe_network());
 }
 
-#[no_mangle]
 pub type dc_accounts_event_emitter_t = deltachat::accounts::EventEmitter;
 
 #[no_mangle]
@@ -3595,9 +3548,10 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
     emitter: *mut dc_accounts_event_emitter_t,
 ) -> *mut dc_event_t {
     if emitter.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_next_event()");
         return ptr::null_mut();
     }
-    let emitter = &*emitter;
+    let emitter = &mut *emitter;
 
     emitter
         .recv_sync()

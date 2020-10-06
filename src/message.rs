@@ -2,7 +2,7 @@
 
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
-use lazy_static::lazy_static;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
@@ -19,10 +19,7 @@ use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::*;
 use crate::pgp::*;
 use crate::stock::StockMessage;
-
-lazy_static! {
-    static ref UNWRAP_RE: regex::Regex = regex::Regex::new(r"\s+").unwrap();
-}
+use std::collections::BTreeMap;
 
 // In practice, the user additionally cuts the string themselves
 // pixel-accurate.
@@ -266,7 +263,6 @@ pub struct Message {
     pub(crate) server_folder: Option<String>,
     pub(crate) server_uid: u32,
     pub(crate) is_dc_message: MessengerMessage,
-    pub(crate) starred: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
     pub(crate) error: String,
@@ -310,7 +306,6 @@ impl Message {
                     "    m.msgrmsg AS msgrmsg,",
                     "    m.txt AS txt,",
                     "    m.param AS param,",
-                    "    m.starred AS starred,",
                     "    m.hidden AS hidden,",
                     "    m.location_id AS location,",
                     "    c.blocked AS blocked",
@@ -360,7 +355,6 @@ impl Message {
                     msg.text = Some(text);
 
                     msg.param = row.get::<_, String>("param")?.parse().unwrap_or_default();
-                    msg.starred = row.get("starred")?;
                     msg.hidden = row.get("hidden")?;
                     msg.location_id = row.get("location")?;
                     msg.chat_blocked = row
@@ -583,10 +577,6 @@ impl Message {
 
     pub fn is_sent(&self) -> bool {
         self.state as i32 >= MessageState::OutDelivered as i32
-    }
-
-    pub fn is_starred(&self) -> bool {
-        self.starred
     }
 
     pub fn is_forwarded(&self) -> bool {
@@ -866,13 +856,13 @@ impl From<MessageState> for LotState {
 
 impl MessageState {
     pub fn can_fail(self) -> bool {
-        match self {
+        matches!(
+            self,
             MessageState::OutPreparing
-            | MessageState::OutPending
-            | MessageState::OutDelivered
-            | MessageState::OutMdnRcvd => true, // OutMdnRcvd can still fail because it could be a group message and only some recipients failed.
-            _ => false,
-        }
+                | MessageState::OutPending
+                | MessageState::OutDelivered
+                | MessageState::OutMdnRcvd // OutMdnRcvd can still fail because it could be a group message and only some recipients failed.
+        )
     }
 }
 
@@ -1230,6 +1220,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         .with_conn(move |conn| {
             let mut stmt = conn.prepare_cached(concat!(
                 "SELECT",
+                "    m.chat_id AS chat_id,",
                 "    m.state AS state,",
                 "    c.blocked AS blocked",
                 " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
@@ -1240,6 +1231,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
             for id in msg_ids.into_iter() {
                 let query_res = stmt.query_row(paramsv![id], |row| {
                     Ok((
+                        row.get::<_, ChatId>("chat_id")?,
                         row.get::<_, MessageState>("state")?,
                         row.get::<_, Option<Blocked>>("blocked")?
                             .unwrap_or_default(),
@@ -1248,8 +1240,8 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
                 if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
                     continue;
                 }
-                let (state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
-                msgs.push((id, state, blocked));
+                let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
+                msgs.push((id, chat_id, state, blocked));
             }
 
             Ok(msgs)
@@ -1257,9 +1249,9 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         .await
         .unwrap_or_default();
 
-    let mut send_event = false;
+    let mut updated_chat_ids = BTreeMap::new();
 
-    for (id, curr_state, curr_blocked) in msgs.into_iter() {
+    for (id, curr_chat_id, curr_state, curr_blocked) in msgs.into_iter() {
         if let Err(err) = id.start_ephemeral_timer(context).await {
             error!(
                 context,
@@ -1278,19 +1270,16 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
                     job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
                 )
                 .await;
-                send_event = true;
+                updated_chat_ids.insert(curr_chat_id, true);
             }
         } else if curr_state == MessageState::InFresh {
             update_msg_state(context, id, MessageState::InNoticed).await;
-            send_event = true;
+            updated_chat_ids.insert(ChatId::new(DC_CHAT_ID_DEADDROP), true);
         }
     }
 
-    if send_event {
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: ChatId::new(0),
-            msg_id: MsgId::new(0),
-        });
+    for updated_chat_id in updated_chat_ids.keys() {
+        context.emit_event(EventType::MsgsNoticed(*updated_chat_id));
     }
 
     true
@@ -1303,23 +1292,6 @@ pub async fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageSt
             "UPDATE msgs SET state=? WHERE id=?;",
             paramsv![state, msg_id],
         )
-        .await
-        .is_ok()
-}
-
-pub async fn star_msgs(context: &Context, msg_ids: Vec<MsgId>, star: bool) -> bool {
-    if msg_ids.is_empty() {
-        return false;
-    }
-    context
-        .sql
-        .with_conn(move |conn| {
-            let mut stmt = conn.prepare("UPDATE msgs SET starred=? WHERE id=?;")?;
-            for msg_id in msg_ids.into_iter() {
-                stmt.execute(paramsv![star as i32, msg_id])?;
-            }
-            Ok(())
-        })
         .await
         .is_ok()
 }
@@ -1402,7 +1374,7 @@ pub async fn get_summarytext_by_raw(
         prefix
     };
 
-    UNWRAP_RE.replace_all(&summary, " ").to_string()
+    summary.split_whitespace().join(" ")
 }
 
 // as we do not cut inside words, this results in about 32-42 characters.
@@ -1837,12 +1809,29 @@ mod tests {
         assert_eq!(_msg2.get_filemime(), None);
     }
 
+    /// Tests that message cannot be prepared if account has no configured address.
+    #[async_std::test]
+    async fn test_prepare_not_configured() {
+        let d = test::TestContext::new().await;
+        let ctx = &d.ctx;
+
+        let contact = Contact::create(ctx, "", "dest@example.com")
+            .await
+            .expect("failed to create contact");
+
+        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+
+        let mut msg = Message::new(Viewtype::Text);
+
+        assert!(chat::prepare_msg(ctx, chat, &mut msg).await.is_err());
+    }
+
     #[async_std::test]
     async fn test_get_summarytext_by_raw() {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let some_text = Some("bla bla".to_string());
+        let some_text = Some(" bla \t\n\tbla\n\t".to_string());
         let empty_text = Some("".to_string());
         let no_text: Option<String> = None;
 

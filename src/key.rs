@@ -222,7 +222,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     let addr = context
         .get_config(Config::ConfiguredAddr)
         .await
-        .ok_or_else(|| Error::NoConfiguredAddr)?;
+        .ok_or(Error::NoConfiguredAddr)?;
     let addr = EmailAddress::new(&addr)?;
     let _guard = context.generating_key_mutex.lock().await;
 

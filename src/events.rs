@@ -58,12 +58,18 @@ impl EventEmitter {
 
     /// Async recv of an event. Return `None` if the `Sender` has been droped.
     pub async fn recv(&self) -> Option<Event> {
-        // TODO: change once we can use async channels internally.
         self.0.recv().await.ok()
     }
+}
 
-    pub fn try_recv(&self) -> Result<Event, async_std::sync::TryRecvError> {
-        self.0.try_recv()
+impl async_std::stream::Stream for EventEmitter {
+    type Item = Event;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        std::pin::Pin::new(&mut self.0).poll_next(cx)
     }
 }
 
@@ -185,6 +191,11 @@ pub enum EventType {
     /// There is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.
     #[strum(props(id = "2005"))]
     IncomingMsg { chat_id: ChatId, msg_id: MsgId },
+
+    /// Messages were seen or noticed.
+    /// chat id is always set.
+    #[strum(props(id = "2008"))]
+    MsgsNoticed(ChatId),
 
     /// A single message is sent successfully. State changed from  DC_STATE_OUT_PENDING to
     /// DC_STATE_OUT_DELIVERED, see dc_msg_get_state().

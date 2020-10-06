@@ -4,6 +4,7 @@
 # and tox/pytest. 
 
 set -e -x
+shopt -s huponexit
 
 # for core-building and python install step
 export DCC_RS_TARGET=debug
