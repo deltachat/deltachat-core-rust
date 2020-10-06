@@ -70,10 +70,7 @@ impl ChatId {
     ///
     /// This kind of chat ID can not be used for real chats.
     pub fn is_special(self) -> bool {
-        match self.0 {
-            0..=DC_CHAT_ID_LAST_SPECIAL => true,
-            _ => false,
-        }
+        matches!(self.0, 0..=DC_CHAT_ID_LAST_SPECIAL)
     }
 
     /// Chat ID which represents the deaddrop chat.
@@ -93,13 +90,6 @@ impl ChatId {
     /// remains known and downloading them again can be avoided.
     pub fn is_trash(self) -> bool {
         self.0 == DC_CHAT_ID_TRASH
-    }
-
-    // DC_CHAT_ID_MSGS_IN_CREATION seems unused?
-
-    /// Virtual chat showing all starred messages.
-    pub fn is_starred(self) -> bool {
-        self.0 == DC_CHAT_ID_STARRED
     }
 
     /// Chat ID signifying there are **any** number of archived chats.
@@ -511,8 +501,6 @@ impl std::fmt::Display for ChatId {
             write!(f, "Chat#Deadrop")
         } else if self.is_trash() {
             write!(f, "Chat#Trash")
-        } else if self.is_starred() {
-            write!(f, "Chat#Starred")
         } else if self.is_archived_link() {
             write!(f, "Chat#ArchivedLink")
         } else if self.is_alldone_hint() {
@@ -613,8 +601,6 @@ impl Chat {
                     let tempname = context.stock_str(StockMessage::ArchivedChats).await;
                     let cnt = dc_get_archived_cnt(context).await;
                     chat.name = format!("{} ({})", tempname, cnt);
-                } else if chat.id.is_starred() {
-                    chat.name = context.stock_str(StockMessage::StarredMsgs).await.into();
                 } else {
                     if chat.typ == Chattype::Single {
                         let contacts = get_chat_contacts(context, chat.id).await;
@@ -1018,7 +1004,7 @@ impl Chat {
                         );
                     }
         } else {
-            error!(context, "Cannot send message, not configured.",);
+            bail!("Cannot prepare message for sending, address is not configured.");
         }
         schedule_ephemeral_task(context).await;
 
@@ -1734,23 +1720,6 @@ pub async fn get_chat_msgs(
                 process_rows,
             )
             .await
-    } else if chat_id.is_starred() {
-        context
-            .sql
-            .query_map(
-                "SELECT m.id AS id, m.timestamp AS timestamp
-               FROM msgs m
-               LEFT JOIN contacts ct
-                      ON m.from_id=ct.id
-              WHERE m.starred=1
-                AND m.hidden=0
-                AND ct.blocked=0
-              ORDER BY m.timestamp,m.id;",
-                paramsv![],
-                process_row,
-                process_rows,
-            )
-            .await
     } else {
         context
             .sql
@@ -1798,42 +1767,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), 
         )
         .await?;
 
-    context.emit_event(EventType::MsgsChanged {
-        chat_id: ChatId::new(0),
-        msg_id: MsgId::new(0),
-    });
-
-    Ok(())
-}
-
-pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
-    if !context
-        .sql
-        .exists(
-            "SELECT id
-           FROM msgs
-          WHERE state=10;",
-            paramsv![],
-        )
-        .await?
-    {
-        return Ok(());
-    }
-
-    context
-        .sql
-        .execute(
-            "UPDATE msgs
-            SET state=13
-          WHERE state=10;",
-            paramsv![],
-        )
-        .await?;
-
-    context.emit_event(EventType::MsgsChanged {
-        msg_id: MsgId::new(0),
-        chat_id: ChatId::new(0),
-    });
+    context.emit_event(EventType::MsgsNoticed(chat_id));
 
     Ok(())
 }
@@ -2756,14 +2690,35 @@ pub async fn add_device_msg_with_importance(
         prepare_msg_blob(context, msg).await?;
         chat_id.unarchive(context).await?;
 
+        let timestamp_sent = dc_create_smeared_timestamp(context).await;
+
+        // makes sure, the added message is the last one,
+        // even if the date is wrong (useful esp. when warning about bad dates)
+        let mut timestamp_sort = timestamp_sent;
+        if let Some(last_msg_time) = context
+            .sql
+            .query_get_value(
+                context,
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+                paramsv![chat_id],
+            )
+            .await
+        {
+            if timestamp_sort <= last_msg_time {
+                timestamp_sort = last_msg_time + 1;
+            }
+        }
+
         context.sql.execute(
-            "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid) \
-             VALUES (?,?,?, ?,?,?, ?,?,?);",
+            "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,timestamp_sent,timestamp_rcvd,type,state, txt,param,rfc724_mid) \
+             VALUES (?,?,?, ?,?,?,?,?, ?,?,?);",
             paramsv![
                 chat_id,
                 DC_CONTACT_ID_DEVICE,
                 DC_CONTACT_ID_SELF,
-                dc_create_smeared_timestamp(context).await,
+                timestamp_sort,
+                timestamp_sent,
+                timestamp_sent, // timestamp_sent equals timestamp_rcvd
                 msg.viewtype,
                 MessageState::InFresh,
                 msg.text.as_ref().cloned().unwrap_or_default(),

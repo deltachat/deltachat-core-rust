@@ -4,8 +4,6 @@ export BRANCH=${CIRCLE_BRANCH:?branch to build}
 export REPONAME=${CIRCLE_PROJECT_REPONAME:?repository name}
 export SSHTARGET=${SSHTARGET-ci@b1.delta.chat}
 
-# we construct the BUILDDIR such that we can easily share the
-# CARGO_TARGET_DIR between runs ("..")
 export BUILDDIR=ci_builds/$REPONAME/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}
 
 set -e
@@ -24,9 +22,6 @@ ssh $SSHTARGET <<_HERE
     shopt -s huponexit
     export RUSTC_WRAPPER=\`which sccache\`
     cd $BUILDDIR
-    # let's share the target dir with our last run on this branch/job-type
-    # cargo will make sure to block/unblock us properly 
-    export CARGO_TARGET_DIR=\`pwd\`/../target
     export TARGET=x86_64-unknown-linux-gnu
     export RUSTC_WRAPPER=sccache
 

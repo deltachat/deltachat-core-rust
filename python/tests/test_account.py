@@ -166,6 +166,16 @@ class TestOfflineContact:
         with pytest.raises(ValueError):
             ac1.create_chat(ac3)
 
+    def test_contact_rename(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        contact = ac1.create_contact("some1@example.com", name="some1")
+        chat = ac1.create_chat(contact)
+        assert chat.get_name() == "some1"
+        ac1.create_contact("some1@example.com", name="renamed")
+        ev = ac1._evtracker.get_matching("DC_EVENT_CHAT_MODIFIED")
+        assert ev.data1 == chat.id
+        assert chat.get_name() == "renamed"
+
 
 class TestOfflineChat:
     @pytest.fixture
@@ -872,7 +882,13 @@ class TestOnlineAccount:
         lp.sec("mark messages as seen on ac2, wait for changes on ac1")
         ac2.direct_imap.idle_start()
         ac1.direct_imap.idle_start()
+
         ac2.mark_seen_messages([msg2, msg4])
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
+        assert msg2.chat.id == msg4.chat.id
+        assert ev.data1 == msg2.chat.id
+        assert ev.data2 == 0
+
         ac2.direct_imap.idle_check(terminate=True)
         lp.step("1")
         for i in range(2):
@@ -1000,6 +1016,56 @@ class TestOnlineAccount:
         msg_in = ac2._evtracker.wait_next_incoming_message()
         assert msg_in.text == text2
         assert ac1.get_config("addr") in [x.addr for x in msg_in.chat.get_contacts()]
+
+    def test_prefer_encrypt(self, acfactory, lp):
+        """Test quorum rule for encryption preference in 1:1 and group chat."""
+        ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
+        ac1.set_config("e2ee_enabled", "0")
+        ac2.set_config("e2ee_enabled", "1")
+        ac3.set_config("e2ee_enabled", "0")
+
+        # Make sure we do not send a copy to ourselves. This is to
+        # test that we count own preference even when we are not in
+        # the recipient list.
+        ac1.set_config("bcc_self", "0")
+        ac2.set_config("bcc_self", "0")
+        ac3.set_config("bcc_self", "0")
+
+        acfactory.introduce_each_other([ac1, ac2, ac3])
+
+        lp.sec("ac1: sending message to ac2")
+        chat1 = ac1.create_chat(ac2)
+        msg1 = chat1.send_text("message1")
+        assert not msg1.is_encrypted()
+        ac2._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac2: sending message to ac1")
+        chat2 = ac2.create_chat(ac1)
+        msg2 = chat2.send_text("message2")
+        assert not msg2.is_encrypted()
+        ac1._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac1: sending message to group chat with ac2 and ac3")
+        group = ac1.create_group_chat("hello")
+        group.add_contact(ac2)
+        group.add_contact(ac3)
+        msg3 = group.send_text("message3")
+        assert not msg3.is_encrypted()
+        ac2._evtracker.wait_next_incoming_message()
+        ac3._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac3: start preferring encryption and inform ac1")
+        ac3.set_config("e2ee_enabled", "1")
+        chat3 = ac3.create_chat(ac1)
+        msg4 = chat3.send_text("message4")
+        # ac1 still does not prefer encryption
+        assert not msg4.is_encrypted()
+        ac1._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac1: sending another message to group chat with ac2 and ac3")
+        msg5 = group.send_text("message5")
+        # Majority prefers encryption now
+        assert msg5.is_encrypted()
 
     def test_reply_encrypted(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1417,6 +1483,8 @@ class TestOnlineAccount:
         contact = ac1.create_contact(ac2)
         contact.set_blocked()
         assert contact.is_blocked()
+        ev = ac1._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
+        assert ev.data1 == contact.id
 
         lp.sec("ac2 sends a message to ac1 that does not arrive because it is blocked")
         ac2.create_chat(ac1).send_text("This will not arrive!")
@@ -1727,6 +1795,37 @@ class TestOnlineAccount:
 
         assert len(imap2.get_all_messages()) == 1
 
+    def test_configure_error_msgs(self, acfactory):
+        ac1, configdict = acfactory.get_online_config()
+        ac1.update_config(configdict)
+        ac1.set_config("mail_pw", "abc")  # Wrong mail pw
+        ac1.configure()
+        while True:
+            ev = ac1._evtracker.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
+            if ev.data1 == 0:
+                break
+        # Password is wrong so it definitely has to say something about "password"
+        assert "password" in ev.data2
+
+        ac2, configdict = acfactory.get_online_config()
+        ac2.update_config(configdict)
+        ac2.set_config("addr", "abc@def.invalid")  # mail server can't be reached
+        ac2.configure()
+        while True:
+            ev = ac2._evtracker.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
+            if ev.data1 == 0:
+                break
+        # Can't connect so it probably should say something about "internet"
+        # again, should not repeat itself
+        # If this fails then probably `e.msg.to_lowercase().contains("could not resolve")`
+        # in configure/mod.rs returned false because the error message was changed
+        # (i.e. did not contain "could not resolve" anymore)
+        assert (ev.data2.count("internet") + ev.data2.count("network")) == 1
+        # Should mention that it can't connect:
+        assert ev.data2.count("connect") == 1
+        # The users do not know what "configuration" is
+        assert "configuration" not in ev.data2.lower()
+
     def test_name_changes(self, acfactory):
         ac1, ac2 = acfactory.get_two_online_accounts()
         ac1.set_config("displayname", "Account 1")
@@ -1750,6 +1849,8 @@ class TestOnlineAccount:
         # Explicitly rename contact on ac2 to "Renamed"
         ac2.create_contact(contact, name="Renamed")
         assert contact.name == "Renamed"
+        ev = ac2._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
+        assert ev.data1 == contact.id
 
         # ac1 also renames itself into "Renamed"
         assert update_name() == "Renamed"

@@ -4,7 +4,8 @@ mod data;
 
 use crate::config::Config;
 use crate::dc_tools::EmailAddress;
-use crate::provider::data::PROVIDER_DATA;
+use crate::provider::data::{PROVIDER_DATA, PROVIDER_UPDATED};
+use chrono::{NaiveDateTime, NaiveTime};
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
@@ -91,11 +92,18 @@ pub fn get_provider_info(addr: &str) -> Option<&Provider> {
     None
 }
 
+// returns update timestamp in seconds, UTC, compatible for comparison with time() and database times
+pub fn get_provider_update_timestamp() -> i64 {
+    NaiveDateTime::new(*PROVIDER_UPDATED, NaiveTime::from_hms(0, 0, 0)).timestamp_millis() / 1_000
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
+    use crate::dc_tools::time;
+    use chrono::NaiveDate;
 
     #[test]
     fn test_get_provider_info_unexistant() {
@@ -137,5 +145,17 @@ mod tests {
 
         let provider = get_provider_info("user@googlemail.com").unwrap();
         assert!(provider.status == Status::PREPARATION);
+    }
+
+    #[test]
+    fn test_get_provider_update_timestamp() {
+        let timestamp_past = NaiveDateTime::new(
+            NaiveDate::from_ymd(2020, 9, 9),
+            NaiveTime::from_hms(0, 0, 0),
+        )
+        .timestamp_millis()
+            / 1_000;
+        assert!(get_provider_update_timestamp() <= time());
+        assert!(get_provider_update_timestamp() > timestamp_past);
     }
 }

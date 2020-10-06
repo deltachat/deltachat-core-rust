@@ -30,7 +30,7 @@ pub enum Error {
         error: error::Error,
     },
 
-    #[error("SMTP: failed to connect: {0:?}")]
+    #[error("SMTP: failed to connect: {0}")]
     ConnectionFailure(#[source] smtp::error::Error),
 
     #[error("SMTP: failed to setup connection {0:?}")]

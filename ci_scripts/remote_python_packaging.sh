@@ -4,8 +4,6 @@ export BRANCH=${CIRCLE_BRANCH:?branch to build}
 export REPONAME=${CIRCLE_PROJECT_REPONAME:?repository name}
 export SSHTARGET=${SSHTARGET-ci@b1.delta.chat}
 
-# we construct the BUILDDIR such that we can easily share the
-# CARGO_TARGET_DIR between runs ("..")
 export BUILDDIR=ci_builds/$REPONAME/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}
 
 echo "--- Copying files to $SSHTARGET:$BUILDDIR"

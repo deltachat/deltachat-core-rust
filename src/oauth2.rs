@@ -170,16 +170,14 @@ pub async fn dc_get_oauth2_access_token(
         }
 
         // ... and POST
-        let response = surf::post(post_url).body_form(&post_param);
-        if response.is_err() {
-            warn!(
-                context,
-                "Error calling OAuth2 at {}: {:?}", token_url, response
-            );
+        let mut req = surf::post(post_url).build();
+        if let Err(err) = req.body_form(&post_param) {
+            warn!(context, "Error calling OAuth2 at {}: {:?}", token_url, err);
             return None;
         }
 
-        let parsed: Result<Response, _> = response.unwrap().recv_json().await;
+        let client = surf::Client::new();
+        let parsed: Result<Response, _> = client.recv_json(req).await;
         if parsed.is_err() {
             warn!(
                 context,
@@ -305,7 +303,7 @@ impl Oauth2 {
 
                     let mut fqdn: String = String::from(domain.as_ref());
                     if !fqdn.ends_with('.') {
-                        fqdn.push_str(".");
+                        fqdn.push('.');
                     }
 
                     if let Ok(res) = resolver.mx_lookup(fqdn).await {
@@ -323,7 +321,7 @@ impl Oauth2 {
     }
 
     async fn get_addr(&self, context: &Context, access_token: impl AsRef<str>) -> Option<String> {
-        let userinfo_url = self.get_userinfo.unwrap_or_else(|| "");
+        let userinfo_url = self.get_userinfo.unwrap_or("");
         let userinfo_url = replace_in_uri(&userinfo_url, "$ACCESS_TOKEN", access_token);
 
         // should returns sth. as

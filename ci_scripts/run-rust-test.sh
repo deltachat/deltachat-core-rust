@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -ex
+shopt -s huponexit
 
 #export RUST_TEST_THREADS=1
 export RUST_BACKTRACE=1

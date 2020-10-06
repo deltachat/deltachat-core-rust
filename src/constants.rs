@@ -108,14 +108,16 @@ pub const DC_GCL_ADD_SELF: usize = 0x02;
 // unchanged user avatars are resent to the recipients every some days
 pub const DC_RESEND_USER_AVATAR_DAYS: i64 = 14;
 
+// warn about an outdated app after a given number of days.
+// as we use the "provider-db generation date" as reference (that might not be updated very often)
+// and as not all system get speedy updates,
+// do not use too small value that will annoy users checking for nonexistant updates.
+pub const DC_OUTDATED_WARNING_DAYS: i64 = 365;
+
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
 pub const DC_CHAT_ID_DEADDROP: u32 = 1;
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
 pub const DC_CHAT_ID_TRASH: u32 = 3;
-/// a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
-pub const DC_CHAT_ID_MSGS_IN_CREATION: u32 = 4;
-/// virtual chat showing all messages flagged with msgs.starred=2
-pub const DC_CHAT_ID_STARRED: u32 = 5;
 /// only an indicator in a chatlist
 pub const DC_CHAT_ID_ARCHIVED_LINK: u32 = 6;
 /// only an indicator in a chatlist

@@ -142,7 +142,7 @@ impl Sql {
         &self,
     ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
         let conn = pool.get()?;
 
         Ok(conn)
@@ -156,7 +156,7 @@ impl Sql {
             + FnOnce(r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Result<H>,
     {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
         let conn = pool.get()?;
 
         g(conn)
@@ -168,7 +168,7 @@ impl Sql {
         Fut: Future<Output = Result<H>> + Send,
     {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let conn = pool.get()?;
         g(conn).await
@@ -678,7 +678,10 @@ async fn open(
         .with_flags(open_flags)
         .with_init(|c| {
             c.execute_batch(&format!(
-                "PRAGMA secure_delete=on; PRAGMA busy_timeout = {};",
+                "PRAGMA secure_delete=on;
+                 PRAGMA busy_timeout = {};
+                 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+                 ",
                 Duration::from_secs(10).as_millis()
             ))?;
             Ok(())
@@ -713,8 +716,9 @@ async fn open(
                 "First time init: creating tables in {:?}.",
                 dbfile.as_ref(),
             );
-            sql.with_conn(move |conn| {
-                conn.execute_batch(
+            sql.with_conn(move |mut conn| {
+                let tx = conn.transaction()?;
+                tx.execute_batch(
                     r#"
 CREATE TABLE config (id INTEGER PRIMARY KEY, keyname TEXT, value TEXT);
 CREATE INDEX config_index1 ON config (keyname);
@@ -899,6 +903,7 @@ CREATE TABLE devmsglabels (
 CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
 "#,
                 )?;
+                tx.commit()?;
                 Ok(())
             })
             .await?;
@@ -934,7 +939,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 1;
             sql.set_raw_config_int(context, "dbversion", 1).await?;
         }
         if dbversion < 2 {
@@ -944,7 +948,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 2;
             sql.set_raw_config_int(context, "dbversion", 2).await?;
         }
         if dbversion < 7 {
@@ -960,7 +963,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 7;
             sql.set_raw_config_int(context, "dbversion", 7).await?;
         }
         if dbversion < 10 {
@@ -981,7 +983,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 10;
             sql.set_raw_config_int(context, "dbversion", 10).await?;
         }
         if dbversion < 12 {
@@ -996,7 +997,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 12;
             sql.set_raw_config_int(context, "dbversion", 12).await?;
         }
         if dbversion < 17 {
@@ -1008,6 +1008,8 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             .await?;
             sql.execute("CREATE INDEX chats_index2 ON chats (archived);", paramsv![])
                 .await?;
+            // 'starred' column is not used currently
+            // (dropping is not easily doable and stop adding it will make reusing it complicated)
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN starred INTEGER DEFAULT 0;",
                 paramsv![],
@@ -1015,7 +1017,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             .await?;
             sql.execute("CREATE INDEX msgs_index5 ON msgs (starred);", paramsv![])
                 .await?;
-            dbversion = 17;
             sql.set_raw_config_int(context, "dbversion", 17).await?;
         }
         if dbversion < 18 {
@@ -1030,7 +1031,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 18;
             sql.set_raw_config_int(context, "dbversion", 18).await?;
         }
         if dbversion < 27 {
@@ -1054,7 +1054,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 27;
             sql.set_raw_config_int(context, "dbversion", 27).await?;
         }
         if dbversion < 34 {
@@ -1090,7 +1089,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             )
             .await?;
             recalc_fingerprints = true;
-            dbversion = 34;
             sql.set_raw_config_int(context, "dbversion", 34).await?;
         }
         if dbversion < 39 {
@@ -1114,7 +1112,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 39;
             sql.set_raw_config_int(context, "dbversion", 39).await?;
         }
         if dbversion < 40 {
@@ -1124,14 +1121,12 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 40;
             sql.set_raw_config_int(context, "dbversion", 40).await?;
         }
         if dbversion < 44 {
             info!(context, "[migration] v44");
             sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", paramsv![])
                 .await?;
-            dbversion = 44;
             sql.set_raw_config_int(context, "dbversion", 44).await?;
         }
         if dbversion < 46 {
@@ -1156,7 +1151,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 47;
             sql.set_raw_config_int(context, "dbversion", 47).await?;
         }
         if dbversion < 48 {
@@ -1167,8 +1161,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-
-            dbversion = 48;
             sql.set_raw_config_int(context, "dbversion", 48).await?;
         }
         if dbversion < 49 {
@@ -1178,7 +1170,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 49;
             sql.set_raw_config_int(context, "dbversion", 49).await?;
         }
         if dbversion < 50 {
@@ -1190,7 +1181,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 sql.set_raw_config_int(context, "show_emails", ShowEmails::All as i32)
                     .await?;
             }
-            dbversion = 50;
             sql.set_raw_config_int(context, "dbversion", 50).await?;
         }
         if dbversion < 53 {
@@ -1231,7 +1221,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 53;
             sql.set_raw_config_int(context, "dbversion", 53).await?;
         }
         if dbversion < 54 {
@@ -1246,7 +1235,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 paramsv![],
             )
             .await?;
-            dbversion = 54;
             sql.set_raw_config_int(context, "dbversion", 54).await?;
         }
         if dbversion < 55 {

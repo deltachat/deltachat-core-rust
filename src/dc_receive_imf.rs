@@ -1530,7 +1530,7 @@ async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
             },
         )
         .await
-        .unwrap_or_else(|_| member_cs);
+        .unwrap_or(member_cs);
 
     hex_hash(&members)
 }
@@ -1558,7 +1558,7 @@ async fn search_chat_ids_by_contact_ids(
             }
         }
         if !contact_ids.is_empty() {
-            contact_ids.sort();
+            contact_ids.sort_unstable();
             let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
             context.sql.query_map(
                 format!(
