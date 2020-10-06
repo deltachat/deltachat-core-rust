@@ -1679,6 +1679,11 @@ async fn check_verified_properties(
 
     ensure!(mimeparser.was_encrypted(), "This message is not encrypted.");
 
+    ensure!(
+        mimeparser.get(HeaderDef::ChatVerified).is_some(),
+        "Sender did not mark the message as protected."
+    );
+
     // ensure, the contact is verified
     // and the message is signed with a verified key of the sender.
     // this check is skipped for SELF as there is no proper SELF-peerstate

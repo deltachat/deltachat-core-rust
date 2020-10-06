@@ -127,6 +127,7 @@ impl MimeMessage {
 
         // remove headers that are allowed _only_ in the encrypted part
         headers.remove("secure-join-fingerprint");
+        headers.remove("chat-verified");
 
         // Memory location for a possible decrypted message.
         let mail_raw;
