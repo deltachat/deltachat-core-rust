@@ -189,8 +189,6 @@ workflows:
               only: /.*/
 
       - remote_python_packaging:
-          requires: 
-             - remote_tests_python
           filters:
             branches:
               only: master
