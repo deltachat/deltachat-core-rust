@@ -226,7 +226,7 @@ impl ChatId {
         Ok(())
     }
 
-    /// returns a stock message saying that protection status gas changed.
+    /// returns a stock message saying that protection status has changed.
     pub(crate) async fn get_protection_msg(
         self,
         context: &Context,
