@@ -258,12 +258,12 @@ impl ChatId {
         self,
         context: &Context,
         protect: ProtectionStatus,
-        promote: bool,
+        promoted: bool,
         from_id: u32,
     ) -> Result<(), Error> {
         let msg_text = self.get_protection_msg(context, protect, from_id).await;
 
-        if promote {
+        if promoted {
             let mut msg = Message::default();
             msg.viewtype = Viewtype::Text;
             msg.text = Some(msg_text);
