@@ -174,7 +174,8 @@ impl ChatId {
         self.set_blocked(context, Blocked::Not).await;
     }
 
-    /// Set protection without sending a message.
+    /// Sets protection without sending a message.
+    ///
     /// Used when a message arrives indicating that someone else has
     /// changed the protection value for a chat.
     pub(crate) async fn inner_set_protection(
@@ -226,7 +227,7 @@ impl ChatId {
         Ok(())
     }
 
-    /// returns a stock message saying that protection status has changed.
+    /// Returns a stock message saying that protection status has changed.
     pub(crate) async fn get_protection_msg(
         self,
         context: &Context,
@@ -246,7 +247,7 @@ impl ChatId {
             .await
     }
 
-    /// adds or sends out a protection-info-message
+    /// Adds or sends out a protection-info-message.
     pub(crate) async fn add_protection_msg(
         self,
         context: &Context,
@@ -272,7 +273,7 @@ impl ChatId {
         Ok(())
     }
 
-    /// Set protection and sends or adds a message.
+    /// Sets protection and sends or adds a message.
     pub async fn set_protection(
         self,
         context: &Context,
