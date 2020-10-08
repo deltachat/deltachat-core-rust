@@ -247,7 +247,13 @@ impl ChatId {
             .await
     }
 
-    /// Adds or sends out a protection-info-message.
+    /// Send protected status message to the chat.
+    ///
+    /// This sends the message with the protected status change to the chat,
+    /// notifying the user on this device as well as the other users in the chat.
+    /// If `promoted` is false this means the chat only exists on this device so far
+    /// and does not need to be sent out.
+    /// In this case an local info message is added to the chat.
     pub(crate) async fn add_protection_msg(
         self,
         context: &Context,
