@@ -336,6 +336,9 @@ class Account(object):
     def get_deaddrop_chat(self):
         return Chat(self, const.DC_CHAT_ID_DEADDROP)
 
+    def get_device_chat(self):
+        return Chat(self, const.DC_CONTACT_ID_DEVICE)
+
     def get_message_by_id(self, msg_id):
         """ return Message instance.
         :param msg_id: integer id of this message.
