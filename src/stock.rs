@@ -5,7 +5,6 @@ use std::borrow::Cow;
 use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
-use crate::{blob::BlobObject, config::Config};
 use crate::chat;
 use crate::chat::ProtectionStatus;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
@@ -15,6 +14,7 @@ use crate::error::{bail, Error};
 use crate::message::Message;
 use crate::param::Param;
 use crate::stock::StockMessage::{DeviceMessagesHint, WelcomeMessage};
+use crate::{blob::BlobObject, config::Config};
 
 /// Stock strings
 ///
