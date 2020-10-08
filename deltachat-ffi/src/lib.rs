@@ -1071,7 +1071,7 @@ pub unsafe extern "C" fn dc_set_chat_protection(
     let protect = if let Some(s) = ProtectionStatus::from_i32(protect) {
         s
     } else {
-        eprintln!("bad protect-value for dc_set_chat_protection()");
+        warn!(ctx, "bad protect-value for dc_set_chat_protection()");
         return 0;
     };
 
@@ -1207,6 +1207,7 @@ pub unsafe extern "C" fn dc_create_group_chat(
     let protect = if let Some(s) = ProtectionStatus::from_i32(protect) {
         s
     } else {
+        warn!(ctx, "bad protect-value for dc_create_group_chat()");
         return 0;
     };
 
