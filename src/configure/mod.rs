@@ -342,11 +342,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     drop(imap);
 
     progress!(ctx, 910);
-
-    // Make sure update_device_chats is done before we set the "configured" config
-    // so that no DC_EVENT_MSGS_CHANGED is sent (this would confuse bots and python tests)
-    update_device_chats_handle.await?;
-
     // configuration success - write back the configured parameters with the
     // "configured_" prefix; also write the "configured"-flag */
     // the trailing underscore is correct
@@ -365,6 +360,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     .await;
 
     progress!(ctx, 940);
+    update_device_chats_handle.await?;
 
     Ok(())
 }

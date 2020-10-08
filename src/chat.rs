@@ -1259,12 +1259,10 @@ pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<
         }
     };
 
-    if context.is_configured().await {
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: ChatId::new(0),
-            msg_id: MsgId::new(0),
-        });
-    }
+    context.emit_event(EventType::MsgsChanged {
+        chat_id: ChatId::new(0),
+        msg_id: MsgId::new(0),
+    });
 
     Ok(chat_id)
 }
@@ -2842,7 +2840,7 @@ pub async fn add_device_msg_with_importance(
             .await?;
     }
 
-    if !msg_id.is_unset() && context.is_configured().await {
+    if !msg_id.is_unset() {
         if important {
             context.emit_event(EventType::IncomingMsg { chat_id, msg_id });
         } else {
