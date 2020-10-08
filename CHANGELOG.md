@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- breaking change: update_device_chats() was removed. This is now done automatically during configure.
+- breaking change: `dc_update_device_chats()` was removed. This is now done automatically during configure.
+
+- Added a `bot` config. Currently, it only prevents filling the device chats automatically.
 
 ## 1.46.0
 
