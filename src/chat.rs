@@ -3,6 +3,7 @@
 use std::convert::TryFrom;
 use std::time::{Duration, SystemTime};
 
+use anyhow::Context as _;
 use async_std::path::{Path, PathBuf};
 use itertools::Itertools;
 use num_traits::FromPrimitive;
@@ -775,10 +776,10 @@ impl Chat {
             bail!("Cannot set message; self not in group.");
         }
 
-        let from = match context.get_config(Config::ConfiguredAddr).await {
-            Some(from) => from,
-            None => bail!("Cannot prepare message for sending, address is not configured."),
-        };
+        let from = context
+            .get_config(Config::ConfiguredAddr)
+            .await
+            .context("Cannot prepare message for sending, address is not configured.")?;
 
         let new_rfc724_mid = {
             let grpid = match self.typ {
