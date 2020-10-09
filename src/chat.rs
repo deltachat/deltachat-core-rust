@@ -335,8 +335,8 @@ impl ChatId {
         context
             .sql
             .execute(
-                "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden)
-         VALUES (?,?,?, ?,?,?,?,?);",
+                "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to)
+         VALUES (?,?,?, ?,?,?,?,?,?);",
                 paramsv![
                     self,
                     DC_CONTACT_ID_SELF,
@@ -346,6 +346,7 @@ impl ChatId {
                     msg.text.as_deref().unwrap_or(""),
                     msg.param.to_string(),
                     1,
+                    msg.in_reply_to,
                 ],
             )
             .await?;
