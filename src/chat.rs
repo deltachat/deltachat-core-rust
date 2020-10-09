@@ -293,6 +293,7 @@ impl ChatId {
         match self.get_draft_msg_id(context).await {
             Some(draft_msg_id) => {
                 let msg = Message::load_from_db(context, draft_msg_id).await?;
+                warn!(context, "dbg loaded {:?}", msg.text);
                 Ok(Some(msg))
             }
             None => Ok(None),
@@ -332,11 +333,12 @@ impl ChatId {
                 msg.param.set(Param::File, blob.as_name());
             }
         }
+        warn!(context, "dbg saving, param: {}", msg.param);
         context
             .sql
             .execute(
-                "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden)
-         VALUES (?,?,?, ?,?,?,?,?);",
+                "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to)
+         VALUES (?,?,?, ?,?,?,?,?,?);",
                 paramsv![
                     self,
                     DC_CONTACT_ID_SELF,
@@ -346,6 +348,7 @@ impl ChatId {
                     msg.text.as_deref().unwrap_or(""),
                     msg.param.to_string(),
                     1,
+                    msg.in_reply_to,
                 ],
             )
             .await?;
