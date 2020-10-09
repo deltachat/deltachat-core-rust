@@ -1360,7 +1360,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
         }
         if dbversion < 68 {
             info!(context, "[migration] v68");
-            // the index is used to speed up get_fresh_msg_cnt(), see comment there for more details
+            // the index is used to speed up get_fresh_msg_cnt() (see comment there for more details) and marknoticed_chat()
             sql.execute(
                 "CREATE INDEX IF NOT EXISTS msgs_index7 ON msgs (state, hidden, chat_id);",
                 paramsv![],
