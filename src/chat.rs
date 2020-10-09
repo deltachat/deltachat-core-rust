@@ -472,20 +472,6 @@ impl ChatId {
         }
     }
 
-    async fn parent_is_encrypted(self, context: &Context) -> Result<bool, Error> {
-        let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?));
-        let res: Option<(String, String)> =
-            self.parent_query(context, "param, error", collect).await?;
-
-        if let Some((ref packed, ref error)) = res {
-            let param = packed.parse::<Params>()?;
-            Ok(error.is_empty() && param.exists(Param::GuaranteeE2ee))
-        } else {
-            // No messages
-            Ok(false)
-        }
-    }
-
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -829,69 +815,6 @@ impl Chat {
             self.update_param(context).await?;
         }
 
-        /* check if we want to encrypt this message.  If yes and circumstances change
-        so that E2EE is no longer available at a later point (reset, changed settings),
-        we might not send the message out at all */
-        if !msg
-            .param
-            .get_bool(Param::ForcePlaintext)
-            .unwrap_or_default()
-        {
-            let mut can_encrypt = true;
-            let mut all_mutual = context.get_config_bool(Config::E2eeEnabled).await;
-
-            // take care that this statement returns NULL rows
-            // if there is no peerstates for a chat member!
-            // for DC_PARAM_SELFTALK this statement does not return any row
-            let res = context
-                .sql
-                .query_map(
-                    "SELECT ps.prefer_encrypted, c.addr \
-                     FROM chats_contacts cc  \
-                     LEFT JOIN contacts c ON cc.contact_id=c.id  \
-                     LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
-                     WHERE cc.chat_id=?  AND cc.contact_id>9;",
-                    paramsv![self.id],
-                    |row| {
-                        let addr: String = row.get(1)?;
-
-                        if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
-                            // the peerstate exist, so we have either public_key or gossip_key
-                            // and can encrypt potentially
-                            if prefer_encrypted != 1 {
-                                info!(
-                                    context,
-                                    "[autocrypt] peerstate for {} is {}",
-                                    addr,
-                                    if prefer_encrypted == 0 {
-                                        "NOPREFERENCE"
-                                    } else {
-                                        "RESET"
-                                    },
-                                );
-                                all_mutual = false;
-                            }
-                        } else {
-                            info!(context, "[autocrypt] no peerstate for {}", addr,);
-                            can_encrypt = false;
-                            all_mutual = false;
-                        }
-                        Ok(())
-                    },
-                    |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-                )
-                .await;
-            match res {
-                Ok(_) => {}
-                Err(err) => {
-                    warn!(context, "chat: failed to load peerstates: {:?}", err);
-                }
-            }
-
-            if can_encrypt && (all_mutual || self.id.parent_is_encrypted(context).await?) {
-                msg.param.set_int(Param::GuaranteeE2ee, 1);
-            }
-        }
         // reset encrypt error state eg. for forwarding
         msg.param.remove(Param::ErroneousE2ee);
 
@@ -3512,19 +3435,5 @@ mod tests {
                 .is_muted(),
             false
         );
-    }
-
-    #[async_std::test]
-    async fn test_parent_is_encrypted() {
-        let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
-            .await
-            .unwrap();
-        assert!(!chat_id.parent_is_encrypted(&t.ctx).await.unwrap());
-
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("hello".to_string()));
-        chat_id.set_draft(&t.ctx, Some(&mut msg)).await;
-        assert!(!chat_id.parent_is_encrypted(&t.ctx).await.unwrap());
     }
 }

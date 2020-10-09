@@ -1067,6 +1067,7 @@ class TestOnlineAccount:
         # Majority prefers encryption now
         assert msg5.is_encrypted()
 
+    @pytest.mark.xfail(reason="Sticky encryption rule was removed")
     def test_reply_encrypted(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
