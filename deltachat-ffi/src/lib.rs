@@ -2983,10 +2983,11 @@ pub unsafe extern "C" fn dc_msg_set_quote(msg: *mut dc_msg_t, quote: *const dc_m
     }
     let ffi_msg = &mut *msg;
     let ffi_quote = &*quote;
+    let ctx = &*ffi_msg.context;
 
     ffi_msg
         .message
-        .set_quote(&ffi_quote.message)
+        .set_quote(ctx, &ffi_quote.message)
         .log_err(&*ffi_msg.context, "failed to set quote")
         .ok();
 }

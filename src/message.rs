@@ -749,7 +749,7 @@ impl Message {
     ///
     /// The message itself is not required to exist in the database,
     /// it may even be deleted from the database by the time the message is prepared.
-    pub fn set_quote(&mut self, quote: &Message) -> Result<(), Error> {
+    pub fn set_quote(context: &Context, &mut self, quote: &Message) -> Result<(), Error> {
         ensure!(
             !quote.rfc724_mid.is_empty(),
             "Message without Message-Id cannot be quoted"
@@ -765,7 +765,7 @@ impl Message {
         }
 
         self.param
-            .set(Param::Quote, quote.get_text().unwrap_or_default());
+            .set(Param::Quote, quote.get_summarytext(context, 500));
 
         Ok(())
     }
