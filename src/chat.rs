@@ -316,14 +316,11 @@ impl ChatId {
     async fn do_set_draft(self, context: &Context, msg: &mut Message) -> Result<(), Error> {
         match msg.viewtype {
             Viewtype::Unknown => bail!("Can not set draft of unknown type."),
-            Viewtype::Text => match msg.text.as_ref() {
-                Some(text) => {
-                    if text.is_empty() {
-                        bail!("No text in draft");
-                    }
+            Viewtype::Text => {
+                if msg.text.is_none_or_empty() && msg.in_reply_to.is_none_or_empty() {
+                    bail!("No text and no quote in draft");
                 }
-                None => bail!("No text in draft"),
-            },
+            }
             _ => {
                 let blob = msg
                     .param
@@ -348,7 +345,7 @@ impl ChatId {
                     msg.text.as_deref().unwrap_or(""),
                     msg.param.to_string(),
                     1,
-                    msg.in_reply_to,
+                    msg.in_reply_to.as_deref().unwrap_or_default(),
                 ],
             )
             .await?;
