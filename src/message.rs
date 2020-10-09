@@ -777,13 +777,11 @@ impl Message {
     pub async fn quoted_message(&self, context: &Context) -> Result<Option<Message>, Error> {
         if self.param.get(Param::Quote).is_some() {
             if let Some(in_reply_to) = &self.in_reply_to {
-                if let Some((_folder, _uid, msg_id)) = rfc724_mid_exists(
-                    context,
-                    in_reply_to.trim_start_matches('<').trim_end_matches('>'),
-                )
-                .await?
-                {
-                    return Ok(Some(Message::load_from_db(context, msg_id).await?));
+                let rfc724_mid = in_reply_to.trim_start_matches('<').trim_end_matches('>');
+                if !rfc724_mid.is_empty() {
+                    if let Some((_, _, msg_id)) = rfc724_mid_exists(context, rfc724_mid).await? {
+                        return Ok(Some(Message::load_from_db(context, msg_id).await?));
+                    }
                 }
             }
         }
