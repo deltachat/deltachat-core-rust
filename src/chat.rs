@@ -795,218 +795,236 @@ impl Chat {
             None => bail!("Cannot prepare message for sending, address is not configured."),
         };
 
-            let new_rfc724_mid = {
-                let grpid = match self.typ {
-                    Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
-                    _ => None,
-                };
-                dc_create_outgoing_rfc724_mid(grpid, &from)
+        let new_rfc724_mid = {
+            let grpid = match self.typ {
+                Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
+                _ => None,
             };
+            dc_create_outgoing_rfc724_mid(grpid, &from)
+        };
 
-            if self.typ == Chattype::Single {
-                if let Some(id) = context
-                    .sql
-                    .query_get_value(
-                        context,
-                        "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
-                        paramsv![self.id],
-                    )
-                    .await
-                {
-                    to_id = id;
-                } else {
-                    error!(
-                        context,
-                        "Cannot send message, contact for {} not found.", self.id,
-                    );
-                    bail!("Cannot set message, contact for {} not found.", self.id);
-                }
-            } else if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
-                && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+        if self.typ == Chattype::Single {
+            if let Some(id) = context
+                .sql
+                .query_get_value(
+                    context,
+                    "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
+                    paramsv![self.id],
+                )
+                .await
             {
-                msg.param.set_int(Param::AttachGroupImage, 1);
-                self.param.remove(Param::Unpromoted);
-                self.update_param(context).await?;
+                to_id = id;
+            } else {
+                error!(
+                    context,
+                    "Cannot send message, contact for {} not found.", self.id,
+                );
+                bail!("Cannot set message, contact for {} not found.", self.id);
             }
+        } else if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+            && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+        {
+            msg.param.set_int(Param::AttachGroupImage, 1);
+            self.param.remove(Param::Unpromoted);
+            self.update_param(context).await?;
+        }
 
-            /* check if we want to encrypt this message.  If yes and circumstances change
-            so that E2EE is no longer available at a later point (reset, changed settings),
-            we might not send the message out at all */
-            if !msg
-                .param
-                .get_bool(Param::ForcePlaintext)
-                .unwrap_or_default()
-            {
-                let mut can_encrypt = true;
-                let mut all_mutual = context.get_config_bool(Config::E2eeEnabled).await;
+        /* check if we want to encrypt this message.  If yes and circumstances change
+        so that E2EE is no longer available at a later point (reset, changed settings),
+        we might not send the message out at all */
+        if !msg
+            .param
+            .get_bool(Param::ForcePlaintext)
+            .unwrap_or_default()
+        {
+            let mut can_encrypt = true;
+            let mut all_mutual = context.get_config_bool(Config::E2eeEnabled).await;
 
-                // take care that this statement returns NULL rows
-                // if there is no peerstates for a chat member!
-                // for DC_PARAM_SELFTALK this statement does not return any row
-                let res = context
-                    .sql
-                    .query_map(
-                        "SELECT ps.prefer_encrypted, c.addr \
+            // take care that this statement returns NULL rows
+            // if there is no peerstates for a chat member!
+            // for DC_PARAM_SELFTALK this statement does not return any row
+            let res = context
+                .sql
+                .query_map(
+                    "SELECT ps.prefer_encrypted, c.addr \
                      FROM chats_contacts cc  \
                      LEFT JOIN contacts c ON cc.contact_id=c.id  \
                      LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
                      WHERE cc.chat_id=?  AND cc.contact_id>9;",
-                        paramsv![self.id],
-                        |row| {
-                            let addr: String = row.get(1)?;
+                    paramsv![self.id],
+                    |row| {
+                        let addr: String = row.get(1)?;
 
-                            if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
-                                // the peerstate exist, so we have either public_key or gossip_key
-                                // and can encrypt potentially
-                                if prefer_encrypted != 1 {
-                                    info!(
-                                        context,
-                                        "[autocrypt] peerstate for {} is {}",
-                                        addr,
-                                        if prefer_encrypted == 0 {
-                                            "NOPREFERENCE"
-                                        } else {
-                                            "RESET"
-                                        },
-                                    );
-                                    all_mutual = false;
-                                }
-                            } else {
-                                info!(context, "[autocrypt] no peerstate for {}", addr,);
-                                can_encrypt = false;
+                        if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
+                            // the peerstate exist, so we have either public_key or gossip_key
+                            // and can encrypt potentially
+                            if prefer_encrypted != 1 {
+                                info!(
+                                    context,
+                                    "[autocrypt] peerstate for {} is {}",
+                                    addr,
+                                    if prefer_encrypted == 0 {
+                                        "NOPREFERENCE"
+                                    } else {
+                                        "RESET"
+                                    },
+                                );
                                 all_mutual = false;
                             }
-                            Ok(())
-                        },
-                        |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-                    )
-                    .await;
-                match res {
-                    Ok(_) => {}
-                    Err(err) => {
-                        warn!(context, "chat: failed to load peerstates: {:?}", err);
-                    }
-                }
-
-                if can_encrypt && (all_mutual || self.id.parent_is_encrypted(context).await?) {
-                    msg.param.set_int(Param::GuaranteeE2ee, 1);
-                }
-            }
-            // reset encrypt error state eg. for forwarding
-            msg.param.remove(Param::ErroneousE2ee);
-
-            // set "In-Reply-To:" to identify the message to which the composed message is a reply;
-            // set "References:" to identify the "thread" of the conversation;
-            // both according to RFC 5322 3.6.4, page 25
-            //
-            // as self-talks are mainly used to transfer data between devices,
-            // we do not set In-Reply-To/References in this case.
-            if !self.is_self_talk() {
-                if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
-                    self.id.get_parent_mime_headers(context).await
-                {
-                    if !parent_rfc724_mid.is_empty() {
-                        new_in_reply_to = parent_rfc724_mid.clone();
-                    }
-
-                    // the whole list of messages referenced may be huge;
-                    // only use the oldest and and the parent message
-                    let parent_references = parent_references
-                        .find(' ')
-                        .and_then(|n| parent_references.get(..n))
-                        .unwrap_or(&parent_references);
-
-                    if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
-                        // angle brackets are added by the mimefactory later
-                        new_references = format!("{} {}", parent_references, parent_rfc724_mid);
-                    } else if !parent_references.is_empty() {
-                        new_references = parent_references.to_string();
-                    } else if !parent_in_reply_to.is_empty() && !parent_rfc724_mid.is_empty() {
-                        new_references = format!("{} {}", parent_in_reply_to, parent_rfc724_mid);
-                    } else if !parent_in_reply_to.is_empty() {
-                        new_references = parent_in_reply_to;
-                    }
+                        } else {
+                            info!(context, "[autocrypt] no peerstate for {}", addr,);
+                            can_encrypt = false;
+                            all_mutual = false;
+                        }
+                        Ok(())
+                    },
+                    |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+                )
+                .await;
+            match res {
+                Ok(_) => {}
+                Err(err) => {
+                    warn!(context, "chat: failed to load peerstates: {:?}", err);
                 }
             }
 
-            // add independent location to database
+            if can_encrypt && (all_mutual || self.id.parent_is_encrypted(context).await?) {
+                msg.param.set_int(Param::GuaranteeE2ee, 1);
+            }
+        }
+        // reset encrypt error state eg. for forwarding
+        msg.param.remove(Param::ErroneousE2ee);
 
-            if msg.param.exists(Param::SetLatitude)
-                && context
-                    .sql
-                    .execute(
-                        "INSERT INTO locations \
+        // set "In-Reply-To:" to identify the message to which the composed message is a reply;
+        // set "References:" to identify the "thread" of the conversation;
+        // both according to RFC 5322 3.6.4, page 25
+        //
+        // as self-talks are mainly used to transfer data between devices,
+        // we do not set In-Reply-To/References in this case.
+        if !self.is_self_talk() {
+            if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
+                self.id.get_parent_mime_headers(context).await
+            {
+                if !parent_rfc724_mid.is_empty() {
+                    new_in_reply_to = parent_rfc724_mid.clone();
+                }
+
+                // the whole list of messages referenced may be huge;
+                // only use the oldest and and the parent message
+                let parent_references = parent_references
+                    .find(' ')
+                    .and_then(|n| parent_references.get(..n))
+                    .unwrap_or(&parent_references);
+
+                if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
+                    // angle brackets are added by the mimefactory later
+                    new_references = format!("{} {}", parent_references, parent_rfc724_mid);
+                } else if !parent_references.is_empty() {
+                    new_references = parent_references.to_string();
+                } else if !parent_in_reply_to.is_empty() && !parent_rfc724_mid.is_empty() {
+                    new_references = format!("{} {}", parent_in_reply_to, parent_rfc724_mid);
+                } else if !parent_in_reply_to.is_empty() {
+                    new_references = parent_in_reply_to;
+                }
+            }
+        }
+
+        // add independent location to database
+
+        if msg.param.exists(Param::SetLatitude)
+            && context
+                .sql
+                .execute(
+                    "INSERT INTO locations \
                      (timestamp,from_id,chat_id, latitude,longitude,independent)\
                      VALUES (?,?,?, ?,?,1);", // 1=DC_CONTACT_ID_SELF
-                        paramsv![
-                            timestamp,
-                            DC_CONTACT_ID_SELF,
-                            self.id,
-                            msg.param.get_float(Param::SetLatitude).unwrap_or_default(),
-                            msg.param.get_float(Param::SetLongitude).unwrap_or_default(),
-                        ],
-                    )
-                    .await
-                    .is_ok()
-            {
-                location_id = context
-                    .sql
-                    .get_rowid2(
-                        context,
-                        "locations",
-                        "timestamp",
+                    paramsv![
                         timestamp,
-                        "from_id",
-                        DC_CONTACT_ID_SELF as i32,
-                    )
-                    .await?;
-            }
+                        DC_CONTACT_ID_SELF,
+                        self.id,
+                        msg.param.get_float(Param::SetLatitude).unwrap_or_default(),
+                        msg.param.get_float(Param::SetLongitude).unwrap_or_default(),
+                    ],
+                )
+                .await
+                .is_ok()
+        {
+            location_id = context
+                .sql
+                .get_rowid2(
+                    context,
+                    "locations",
+                    "timestamp",
+                    timestamp,
+                    "from_id",
+                    DC_CONTACT_ID_SELF as i32,
+                )
+                .await?;
+        }
 
-            let ephemeral_timer = if msg.param.get_cmd() == SystemMessage::EphemeralTimerChanged {
-                EphemeralTimer::Disabled
-            } else {
-                self.id.get_ephemeral_timer(context).await?
-            };
-            let ephemeral_timestamp = match ephemeral_timer {
-                EphemeralTimer::Disabled => 0,
-                EphemeralTimer::Enabled { duration } => timestamp + i64::from(duration),
-            };
+        let ephemeral_timer = if msg.param.get_cmd() == SystemMessage::EphemeralTimerChanged {
+            EphemeralTimer::Disabled
+        } else {
+            self.id.get_ephemeral_timer(context).await?
+        };
+        let ephemeral_timestamp = match ephemeral_timer {
+            EphemeralTimer::Disabled => 0,
+            EphemeralTimer::Enabled { duration } => timestamp + i64::from(duration),
+        };
 
-            // add message to the database
+        // add message to the database
 
-            if context.sql.execute(
-                        "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id, ephemeral_timer, ephemeral_timestamp) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?);",
-                        paramsv![
-                            new_rfc724_mid,
-                            self.id,
-                            DC_CONTACT_ID_SELF,
-                            to_id as i32,
-                            timestamp,
-                            msg.viewtype,
-                            msg.state,
-                            msg.text.as_ref().cloned().unwrap_or_default(),
-                            msg.param.to_string(),
-                            msg.hidden,
-                            new_in_reply_to,
-                            new_references,
-                            location_id as i32,
-                            ephemeral_timer,
-                            ephemeral_timestamp
-                        ]
-                    ).await.is_ok() {
-                        msg_id = context.sql.get_rowid(
-                            context,
-                            "msgs",
-                            "rfc724_mid",
-                            new_rfc724_mid,
-                        ).await?;
-                    } else {
-                        error!(
-                            context,
-                            "Cannot send message, cannot insert to database ({}).",
-                            self.id,
-                        );
-                    }
+        if context
+            .sql
+            .execute(
+                "INSERT INTO msgs (
+                        rfc724_mid,
+                        chat_id,
+                        from_id,
+                        to_id,
+                        timestamp,
+                        type,
+                        state,
+                        txt,
+                        param,
+                        hidden,
+                        mime_in_reply_to,
+                        mime_references,
+                        location_id,
+                        ephemeral_timer,
+                        ephemeral_timestamp)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
+                paramsv![
+                    new_rfc724_mid,
+                    self.id,
+                    DC_CONTACT_ID_SELF,
+                    to_id as i32,
+                    timestamp,
+                    msg.viewtype,
+                    msg.state,
+                    msg.text.as_ref().cloned().unwrap_or_default(),
+                    msg.param.to_string(),
+                    msg.hidden,
+                    new_in_reply_to,
+                    new_references,
+                    location_id as i32,
+                    ephemeral_timer,
+                    ephemeral_timestamp
+                ],
+            )
+            .await
+            .is_ok()
+        {
+            msg_id = context
+                .sql
+                .get_rowid(context, "msgs", "rfc724_mid", new_rfc724_mid)
+                .await?;
+        } else {
+            error!(
+                context,
+                "Cannot send message, cannot insert to database ({}).", self.id,
+            );
+        }
         schedule_ephemeral_task(context).await;
 
         Ok(MsgId::new(msg_id))
