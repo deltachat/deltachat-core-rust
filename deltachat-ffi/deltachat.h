@@ -4558,7 +4558,8 @@ void dc_event_unref(dc_event_t* event);
  * Messages were marked noticed or seen.
  * The ui may update badge counters or stop showing a chatlist-item with a bold font.
  *
- * This event is emitted eg. when calling dc_markseen_msgs(), dc_marknoticed_chat() or dc_marknoticed_contact().
+ * This event is emitted eg. when calling dc_markseen_msgs(), dc_marknoticed_chat() or dc_marknoticed_contact()
+ * or when a chat is answered on another device.
  * Do not try to derive the state of an item from just the fact you received the event;
  * use eg. dc_msg_get_state() or dc_get_fresh_msg_cnt() for this purpose.
  *

@@ -845,6 +845,11 @@ async fn add_parts(
         "Message has {} parts and is assigned to chat #{}.", icnt, chat_id,
     );
 
+    // new outgoing message from another device marks the chat as noticed.
+    if !incoming && !*hidden && !chat_id.is_special() {
+        chat::marknoticed_chat_if_older_than(context, chat_id, sort_timestamp).await?;
+    }
+
     // check event to send
     if chat_id.is_trash() || *hidden {
         *create_event_to_send = None;
