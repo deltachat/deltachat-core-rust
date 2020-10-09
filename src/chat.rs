@@ -790,7 +790,11 @@ impl Chat {
             bail!("Cannot set message; self not in group.");
         }
 
-        if let Some(from) = context.get_config(Config::ConfiguredAddr).await {
+        let from = match context.get_config(Config::ConfiguredAddr).await {
+            Some(from) => from,
+            None => bail!("Cannot prepare message for sending, address is not configured."),
+        };
+
             let new_rfc724_mid = {
                 let grpid = match self.typ {
                     Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
@@ -1003,9 +1007,6 @@ impl Chat {
                             self.id,
                         );
                     }
-        } else {
-            bail!("Cannot prepare message for sending, address is not configured.");
-        }
         schedule_ephemeral_task(context).await;
 
         Ok(MsgId::new(msg_id))
