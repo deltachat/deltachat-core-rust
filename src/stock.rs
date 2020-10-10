@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
-use crate::blob::BlobObject;
+use crate::{blob::BlobObject, config::Config};
 use crate::chat;
 use crate::chat::ProtectionStatus;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
@@ -424,6 +424,10 @@ impl Context {
     }
 
     pub(crate) async fn update_device_chats(&self) -> Result<(), Error> {
+        if self.get_config_bool(Config::Bot).await {
+            return Ok(());
+        }
+
         // check for the LAST added device message - if it is present, we can skip message creation.
         // this is worthwhile as this function is typically called
         // by the UI on every program start or even on every opening of the chatlist.

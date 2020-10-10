@@ -349,6 +349,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    https://github.com/cracker0dks/basicwebrtc which some UIs have native support for.
  *                    The type `jitsi:` may be handled by external apps.
  *                    If no type is prefixed, the videochat is handled completely in a browser.
+ * - `bot`          = Set to "1" if this is a bot. E.g. prevents adding the "Device messages" and "Saved messages" chats.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
