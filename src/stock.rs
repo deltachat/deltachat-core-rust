@@ -428,15 +428,8 @@ impl Context {
             return Ok(());
         }
 
-        // check for the LAST added device message - if it is present, we can skip message creation.
-        // this is worthwhile as this function is typically called
-        // by the UI on every program start or even on every opening of the chatlist.
-        if chat::was_device_msg_ever_added(&self, "core-welcome").await? {
-            return Ok(());
-        }
-
-        // create saved-messages chat;
-        // we do this only once, if the user has deleted the chat, he can recreate it manually.
+        // create saved-messages chat; we do this only once, if the user has deleted the chat,
+        // he can recreate it manually (make sure we do not re-add it when configure() was called a second time)
         if !self.sql.get_raw_config_bool(&self, "self-chat-added").await {
             self.sql
                 .set_raw_config_bool(&self, "self-chat-added", true)

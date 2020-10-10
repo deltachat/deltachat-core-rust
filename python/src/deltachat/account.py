@@ -337,7 +337,7 @@ class Account(object):
         return Chat(self, const.DC_CHAT_ID_DEADDROP)
 
     def get_device_chat(self):
-        return Chat(self, const.DC_CONTACT_ID_DEVICE)
+        return Contact(self, const.DC_CONTACT_ID_DEVICE).create_chat()
 
     def get_message_by_id(self, msg_id):
         """ return Message instance.

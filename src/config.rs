@@ -123,7 +123,6 @@ pub enum Config {
 
     Bot,
 
-    #[strum(props(default = "0"))]
     /// Whether we send a warning if the password is wrong (set to false when we send a warning
     /// because we do not want to send a second warning)
     #[strum(props(default = "0"))]
