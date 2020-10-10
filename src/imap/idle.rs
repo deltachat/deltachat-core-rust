@@ -113,12 +113,13 @@ impl Imap {
         // in this case, we're waiting for a configure job (and an interrupt).
 
         let fake_idle_start_time = SystemTime::now();
-        info!(context, "IMAP-fake-IDLEing...");
 
         // Do not poll, just wait for an interrupt when no folder is passed in.
         if watch_folder.is_none() {
+            info!(context, "IMAP-fake-IDLE: no folder, waiting for interrupt");
             return self.idle_interrupt.recv().await.unwrap_or_default();
         }
+        info!(context, "IMAP-fake-IDLEing folder={:?}", watch_folder);
 
         // check every minute if there are new messages
         // TODO: grow sleep durations / make them more flexible
