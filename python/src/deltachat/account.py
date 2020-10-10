@@ -546,6 +546,9 @@ class Account(object):
         You may call `stop_scheduler`, `wait_shutdown` or `shutdown` after the
         account is started.
 
+        If you are using this from a test, you may want to call
+        wait_all_initial_fetches() afterwards.
+
         :raises MissingCredentials: if `addr` and `mail_pw` values are not set.
         :raises ConfigureFailed: if the account could not be configured.
 

@@ -44,6 +44,17 @@ pub async fn dc_receive_imf(
     server_uid: u32,
     seen: bool,
 ) -> Result<()> {
+    dc_receive_imf_inner(context, imf_raw, server_folder, server_uid, seen, false).await
+}
+
+pub(crate) async fn dc_receive_imf_inner(
+    context: &Context,
+    imf_raw: &[u8],
+    server_folder: impl AsRef<str>,
+    server_uid: u32,
+    seen: bool,
+    fetching_existing_messages: bool,
+) -> Result<()> {
     info!(
         context,
         "Receiving message {}/{}, seen={}...",
@@ -169,6 +180,7 @@ pub async fn dc_receive_imf(
             &mut insert_msg_id,
             &mut created_db_entries,
             &mut create_event_to_send,
+            fetching_existing_messages,
         )
         .await
         {
@@ -335,6 +347,7 @@ async fn add_parts(
     insert_msg_id: &mut MsgId,
     created_db_entries: &mut Vec<(ChatId, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
+    fetching_existing_messages: bool,
 ) -> Result<()> {
     let mut state: MessageState;
     let mut chat_id_blocked = Blocked::Not;
@@ -389,7 +402,7 @@ async fn add_parts(
     let to_id: u32;
 
     if incoming {
-        state = if seen {
+        state = if seen || fetching_existing_messages {
             MessageState::InSeen
         } else {
             MessageState::InFresh
@@ -532,6 +545,10 @@ async fn add_parts(
             && show_emails != ShowEmails::All
         {
             state = MessageState::InNoticed;
+        } else if fetching_existing_messages && Blocked::Deaddrop == chat_id_blocked {
+            // The fetched existing message should be shown in the chatlist-contact-request because
+            // a new user won't find the contact request in the menu
+            state = MessageState::InFresh;
         }
     } else {
         // Outgoing
@@ -626,6 +643,12 @@ async fn add_parts(
         if chat_id.is_unset() {
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
         }
+    }
+
+    if fetching_existing_messages && mime_parser.decrypting_failed {
+        *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+        // We are only gathering old messages on first start. We do not want to add loads of non-decryptable messages to the chats.
+        info!(context, "Dropping existing non-decipherable message.");
     }
 
     // Extract ephemeral timer from the message.

@@ -1,6 +1,7 @@
 import threading
 import time
 import re
+import os
 from queue import Queue, Empty
 
 import deltachat
@@ -48,6 +49,15 @@ class FFIEventLogger:
         if self.logid:
             locname += "-" + self.logid
         s = "{:2.2f} [{}] {}".format(elapsed, locname, message)
+
+        if os.name == "posix":
+            WARN = '\033[93m'
+            ERROR = '\033[91m'
+            ENDC = '\033[0m'
+            if message.startswith("DC_EVENT_WARNING"):
+                s = WARN + s + ENDC
+            if message.startswith("DC_EVENT_ERROR"):
+                s = ERROR + s + ENDC
         with self._loglock:
             print(s, flush=True)
 
@@ -110,6 +120,15 @@ class FFIEventTracker:
             if event.data2 >= target:
                 print("** SECUREJOINT-INVITER PROGRESS {}".format(target), self.account)
                 break
+
+    def wait_all_initial_fetches(self):
+        """Has to be called after start_io() to wait for fetch_existing_msgs to run
+        so that new messages are not mistaken for old ones:
+        - ac1 and ac2 are created
+        - ac1 sends a message to ac2
+        - ac2 is still running FetchExsistingMsgs job and thinks it's an existing, old message
+        - therefore no DC_EVENT_INCOMING_MSG is sent"""
+        self.get_info_contains("Done fetching existing messages")
 
     def wait_next_incoming_message(self):
         """ wait for and return next incoming message. """
