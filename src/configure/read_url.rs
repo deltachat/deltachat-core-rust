@@ -12,7 +12,7 @@ pub async fn read_url(context: &Context, url: &str) -> Result<String, Error> {
     match surf::get(url).recv_string().await {
         Ok(res) => Ok(res),
         Err(err) => {
-            info!(context, "Can\'t read URL {}", url);
+            info!(context, "Can\'t read URL {}: {}", url, err);
 
             Err(Error::GetError(err))
         }

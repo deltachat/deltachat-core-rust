@@ -581,14 +581,14 @@ pub enum Error {
     #[error("Invalid email address: {0:?}")]
     InvalidEmailAddress(String),
 
-    #[error("XML error at position {position}")]
+    #[error("XML error at position {position}: {error}")]
     InvalidXml {
         position: usize,
         #[source]
         error: quick_xml::Error,
     },
 
-    #[error("Failed to get URL")]
+    #[error("Failed to get URL: {0}")]
     ReadUrlError(#[from] self::read_url::Error),
 
     #[error("Number of redirection is exceeded")]
