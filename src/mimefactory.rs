@@ -920,7 +920,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let quoted_text = self
             .msg
             .quoted_text()
-            .map(|quote| format_flowed_quote(&quote) + "\r\n");
+            .map(|quote| format_flowed_quote(&quote) + "\r\n\r\n");
         let flowed_text = format_flowed(final_text);
 
         let footer = &self.selfstatus;
