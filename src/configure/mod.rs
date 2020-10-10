@@ -9,11 +9,10 @@ use anyhow::{bail, ensure, Context as _, Result};
 use async_std::prelude::*;
 use async_std::task;
 use itertools::Itertools;
+use job::Action;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
-use crate::constants::*;
-use crate::context::Context;
 use crate::dc_tools::*;
 use crate::imap::Imap;
 use crate::login_param::{LoginParam, ServerLoginParam};
@@ -23,6 +22,8 @@ use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
 use crate::stock::StockMessage;
 use crate::{chat, e2ee, provider};
+use crate::{constants::*, job};
+use crate::{context::Context, param::Params};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
@@ -348,6 +349,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
+
+    job::add(
+        ctx,
+        job::Job::new(Action::FetchExistingMsgs, 0, Params::new(), 0),
+    )
+    .await;
 
     progress!(ctx, 940);
 

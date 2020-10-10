@@ -342,10 +342,15 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 mvbox_move=account.get_config("mvbox_move"),
                 sentbox_watch=account.get_config("sentbox_watch"),
             ))
+            if hasattr(account, "direct_imap"):
+                # Attach the existing direct_imap. If we did not do this, a new one would be created and
+                # delete existing messages (see dc_account_extra_configure(configure))
+                ac.direct_imap = account.direct_imap
             ac._configtracker = ac.configure()
             return ac
 
         def wait_configure_and_start_io(self):
+            started_accounts = []
             for acc in self._accounts:
                 if hasattr(acc, "_configtracker"):
                     acc._configtracker.wait_finish()
@@ -353,8 +358,11 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 acc.set_config("bcc_self", "0")
                 if acc.is_configured() and not acc.is_started():
                     acc.start_io()
+                    started_accounts.append(acc)
                 print("{}: {} account was successfully setup".format(
                     acc.get_config("displayname"), acc.get_config("addr")))
+            for acc in started_accounts:
+                acc._evtracker.wait_all_initial_fetches()
 
         def run_bot_process(self, module, ffi=True):
             fn = module.__file__

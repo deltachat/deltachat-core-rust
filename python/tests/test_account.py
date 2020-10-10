@@ -1644,6 +1644,7 @@ class TestOnlineAccount:
         chat41 = ac4.create_chat(ac1)
         chat42 = ac4.create_chat(ac2)
         ac4.start_io()
+        ac4._evtracker.wait_all_initial_fetches()
 
         lp.sec("ac1: creating group chat with 2 other members")
         chat = ac1.create_group_chat("title", contacts=[ac2, ac3])
@@ -1922,6 +1923,43 @@ class TestOnlineAccount:
         assert received_reply.text == "reply"
         assert received_reply.quoted_text == "hello"
         assert received_reply.quote.id == out_msg.id
+
+    @pytest.mark.parametrize("mvbox_move", [False, True])
+    def test_add_all_recipients_as_contacts(self, acfactory, lp, mvbox_move):
+        """Delta Chat reads the recipients from old emails sent by the user and adds them as contacts.
+        This way, we can already offer them some email addresses they can write to.
+
+        Also test that existing emails are fetched during onboarding.
+
+        Lastly, tests that bcc_self messages moved to the mvbox are marked as read."""
+        ac1 = acfactory.get_online_configuring_account(mvbox=mvbox_move, move=mvbox_move)
+        ac2 = acfactory.get_online_configuring_account()
+
+        acfactory.wait_configure_and_start_io()
+
+        chat = acfactory.get_accepted_chat(ac1, ac2)
+
+        lp.sec("send out message with bcc to ourselves")
+        if mvbox_move:
+            ac1.direct_imap.select_config_folder("mvbox")
+        ac1.direct_imap.idle_start()
+        ac1.set_config("bcc_self", "1")
+        chat.send_text("message text")
+
+        # now wait until the bcc_self message arrives
+        # Also test that bcc_self messages moved to the mvbox are marked as read.
+        assert ac1.direct_imap.idle_wait_for_seen()
+
+        ac1_clone = acfactory.clone_online_account(ac1)
+        ac1_clone._configtracker.wait_finish()
+        ac1_clone.start_io()
+
+        ac1_clone._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
+        ac2_addr = ac2.get_config("addr")
+        assert any(c.addr == ac2_addr for c in ac1_clone.get_contacts())
+
+        msg = ac1_clone._evtracker.wait_next_messages_changed()
+        assert msg.text == "message text"
 
 
 class TestGroupStressTests:

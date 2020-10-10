@@ -24,12 +24,13 @@ def dc_account_extra_configure(account):
     """ Reset the account (we reuse accounts across tests)
     and make 'account.direct_imap' available for direct IMAP ops.
     """
-    imap = DirectImap(account)
-    if imap.select_config_folder("mvbox"):
+    if not hasattr(account, "direct_imap"):
+        imap = DirectImap(account)
+        if imap.select_config_folder("mvbox"):
+            imap.delete(ALL, expunge=True)
+        assert imap.select_config_folder("inbox")
         imap.delete(ALL, expunge=True)
-    assert imap.select_config_folder("inbox")
-    imap.delete(ALL, expunge=True)
-    setattr(account, "direct_imap", imap)
+        setattr(account, "direct_imap", imap)
 
 
 @deltachat.global_hookimpl

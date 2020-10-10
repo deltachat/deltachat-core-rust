@@ -121,9 +121,9 @@ pub enum Config {
     #[strum(serialize = "sys.config_keys")]
     SysConfigKeys,
 
-    #[strum(props(default = "0"))]
     /// Whether we send a warning if the password is wrong (set to false when we send a warning
     /// because we do not want to send a second warning)
+    #[strum(props(default = "0"))]
     NotifyAboutWrongPw,
 
     /// address to webrtc instance to use for videochats

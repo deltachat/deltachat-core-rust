@@ -160,7 +160,7 @@ impl Imap {
                     // will not find any new.
 
                     if let Some(ref watch_folder) = watch_folder {
-                        match self.fetch_new_messages(context, watch_folder).await {
+                        match self.fetch_new_messages(context, watch_folder, false).await {
                             Ok(res) => {
                                 info!(context, "fetch_new_messages returned {:?}", res);
                                 if res {

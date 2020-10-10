@@ -14,7 +14,6 @@ use async_smtp::smtp::response::Category;
 use async_smtp::smtp::response::Code;
 use async_smtp::smtp::response::Detail;
 
-use crate::blob::BlobObject;
 use crate::chat::{self, ChatId};
 use crate::config::Config;
 use crate::contact::Contact;
@@ -30,6 +29,7 @@ use crate::message::{self, Message, MessageState};
 use crate::mimefactory::MimeFactory;
 use crate::param::*;
 use crate::smtp::Smtp;
+use crate::{blob::BlobObject, contact::normalize_name, contact::Modifier, contact::Origin};
 use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
@@ -92,6 +92,7 @@ pub enum Action {
 
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
+    FetchExistingMsgs = 110,
     MarkseenMsgOnImap = 130,
 
     // Moving message is prioritized lower than deletion so we don't
@@ -124,6 +125,7 @@ impl From<Action> for Thread {
             Unknown => Thread::Unknown,
 
             Housekeeping => Thread::Imap,
+            FetchExistingMsgs => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
             ResyncFolders => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
@@ -619,6 +621,38 @@ impl Job {
         }
     }
 
+    /// Read the recipients from old emails sent by the user and add them as contacts.
+    /// This way, we can already offer them some email addresses they can write to.
+    ///
+    /// Then, Fetch the last messages DC_FETCH_EXISTING_MSGS_COUNT emails from the server
+    /// and show them in the chat list.
+    async fn fetch_existing_msgs(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(err) = imap.connect_configured(context).await {
+            warn!(context, "could not connect: {:?}", err);
+            return Status::RetryLater;
+        }
+
+        add_all_recipients_as_contacts(context, imap, Config::ConfiguredSentboxFolder).await;
+        add_all_recipients_as_contacts(context, imap, Config::ConfiguredMvboxFolder).await;
+        add_all_recipients_as_contacts(context, imap, Config::ConfiguredInboxFolder).await;
+
+        for config in &[
+            Config::ConfiguredMvboxFolder,
+            Config::ConfiguredInboxFolder,
+            Config::ConfiguredSentboxFolder,
+        ] {
+            if let Some(folder) = context.get_config(*config).await {
+                if let Err(e) = imap.fetch_new_messages(context, folder, true).await {
+                    // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+                    warn!(context, "Could not fetch messages, retrying: {:#}", e);
+                    return Status::RetryLater;
+                };
+            }
+        }
+        info!(context, "Done fetching existing messages.");
+        Status::Finished(Ok(()))
+    }
+
     /// Synchronizes UIDs for sentbox, inbox and mvbox, in this order.
     ///
     /// If a copy of the message is present in multiple folders, mvbox
@@ -757,6 +791,50 @@ async fn set_delivered(context: &Context, msg_id: MsgId) {
         .await
         .unwrap_or_default();
     context.emit_event(EventType::MsgDelivered { chat_id, msg_id });
+}
+
+async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, folder: Config) {
+    let mailbox = if let Some(m) = context.get_config(folder).await {
+        m
+    } else {
+        return;
+    };
+    if let Err(e) = imap.select_with_uidvalidity(context, &mailbox).await {
+        warn!(context, "Could not select {}: {}", mailbox, e);
+        return;
+    }
+    match imap.get_all_recipients(context).await {
+        Ok(contacts) => {
+            let mut any_modified = false;
+            for contact in contacts {
+                let display_name_normalized = contact
+                    .display_name
+                    .as_ref()
+                    .map(normalize_name)
+                    .unwrap_or_default();
+
+                match Contact::add_or_lookup(
+                    context,
+                    display_name_normalized,
+                    contact.addr,
+                    Origin::OutgoingTo,
+                )
+                .await
+                {
+                    Ok((_, modified)) => {
+                        if modified != Modifier::None {
+                            any_modified = true;
+                        }
+                    }
+                    Err(e) => warn!(context, "Could not add recipient: {}", e),
+                }
+            }
+            if any_modified {
+                context.emit_event(EventType::ContactsChanged(None));
+            }
+        }
+        Err(e) => warn!(context, "Could not add recipients: {}", e),
+    };
 }
 
 /// Constructs a job for sending a message.
@@ -1007,6 +1085,7 @@ async fn perform_job_action(
         Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
         Action::MarkseenMsgOnImap => job.markseen_msg_on_imap(context, connection.inbox()).await,
         Action::MoveMsg => job.move_msg(context, connection.inbox()).await,
+        Action::FetchExistingMsgs => job.fetch_existing_msgs(context, connection.inbox()).await,
         Action::Housekeeping => {
             sql::housekeeping(context).await;
             Status::Finished(Ok(()))
@@ -1072,6 +1151,7 @@ pub async fn add(context: &Context, job: Job) {
             | Action::DeleteMsgOnImap
             | Action::ResyncFolders
             | Action::MarkseenMsgOnImap
+            | Action::FetchExistingMsgs
             | Action::MoveMsg => {
                 info!(context, "interrupt: imap");
                 context
