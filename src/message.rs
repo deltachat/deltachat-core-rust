@@ -764,8 +764,16 @@ impl Message {
             self.param.set(Param::GuaranteeE2ee, "1");
         }
 
-        self.param
-            .set(Param::Quote, quote.get_summarytext(context, 500).await);
+        let text = quote.get_text().unwrap_or_default();
+        self.param.set(
+            Param::Quote,
+            if text.is_empty() {
+                // Use summary, similar to "Image" to avoid sending empty quote.
+                quote.get_summarytext(context, 500).await
+            } else {
+                text
+            },
+        );
 
         Ok(())
     }

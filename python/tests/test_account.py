@@ -479,7 +479,7 @@ class TestOfflineChat:
     def test_quote(self, chat1):
         """Offline quoting test"""
         msg = Message.new_empty(chat1.account, "text")
-        msg.set_text("message")
+        msg.set_text("Multi\nline\nmessage")
         assert msg.quoted_text is None
 
         # Prepare message to assign it a Message-Id.
@@ -489,7 +489,7 @@ class TestOfflineChat:
         reply_msg = Message.new_empty(chat1.account, "text")
         reply_msg.set_text("reply")
         reply_msg.quote = msg
-        assert reply_msg.quoted_text == "message"
+        assert reply_msg.quoted_text == "Multi\nline\nmessage"
 
     def test_group_chat_many_members_add_remove(self, ac1, lp):
         lp.sec("ac1: creating group chat with 10 other members")
