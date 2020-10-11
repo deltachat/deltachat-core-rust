@@ -777,16 +777,18 @@ impl Chat {
             bail!("Cannot set message; self not in group.");
         }
 
-        if let Some(from) = context.get_config(Config::ConfiguredAddr).await {
-            let new_rfc724_mid = {
-                let grpid = match self.typ {
-                    // bcc_groups do not get a group id because for the receiver it doesn't look like a group
-                    Chattype::Group | Chattype::VerifiedGroup if !self.bcc_group => {
-                        Some(self.grpid.as_str())
-                    }
-                    _ => None,
-                };
-                dc_create_outgoing_rfc724_mid(grpid, &from)
+        let from = context
+            .get_config(Config::ConfiguredAddr)
+            .await
+            .context("Cannot prepare message for sending, address is not configured.")?;
+
+        let new_rfc724_mid = {
+            let grpid = match self.typ {
+                // bcc_groups do not get a group id because for the receiver it doesn't look like a group
+                Chattype::Group | Chattype::VerifiedGroup if !self.bcc_group => {
+                    Some(self.grpid.as_str())
+                }
+                _ => None,
             };
             dc_create_outgoing_rfc724_mid(grpid, &from)
         };
