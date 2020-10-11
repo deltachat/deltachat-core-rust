@@ -351,7 +351,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         .await
                         .into_owned()
                 } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-                    let re = if self.in_reply_to.is_empty() {
+                    let re = if self.in_reply_to.is_empty() || chat.bcc_group {
                         ""
                     } else {
                         "Re: "
