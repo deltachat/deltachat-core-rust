@@ -5,13 +5,6 @@ mod auto_outlook;
 mod read_url;
 mod server_params;
 
-use anyhow::{bail, ensure, Context as _, Result};
-use async_std::prelude::*;
-use async_std::task;
-use itertools::Itertools;
-use job::Action;
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
-
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
@@ -27,7 +20,14 @@ use crate::smtp::Smtp;
 use crate::stock::StockMessage;
 use crate::EventType;
 use crate::{chat, e2ee, provider};
+use anyhow::{bail, ensure, Context as _, Result};
+use async_std::prelude::*;
+use async_std::task;
 use auto_mozilla::moz_autoconfigure;
+use auto_outlook::outlk_autodiscover;
+use itertools::Itertools;
+use job::Action;
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use server_params::{expand_param_vector, ServerParams};
 
 impl Context {
@@ -51,7 +51,7 @@ impl Context {
         let cancel_channel = self.alloc_ongoing().await?;
 
         let ctx2 = self.clone();
-        let progress = ProgressHandler::new(20.0, move |p| {
+        let progress = ProgressHandler::new(15.0, move |p| {
             ctx2.emit_event(EventType::ConfigureProgress {
                 progress: p,
                 comment: None,

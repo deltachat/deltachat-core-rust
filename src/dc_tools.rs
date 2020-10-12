@@ -46,7 +46,7 @@ impl<F> ProgressHandler<F>
 where
     F: 'static + Fn(usize) + Send,
 {
-    /// If step_fraction is e.g. 10, then every 100ms we will step by 1/10th of the remaining interval.
+    /// If step_fraction is e.g. 15, then every 100ms we will step by 1/15th of the remaining interval.
     /// The bigger this value, the slower the progress bar will move in the beginning.
     /// f is the function that is invoked when progress is made.
     pub fn new(step_fraction: f64, f: F) -> Self {
