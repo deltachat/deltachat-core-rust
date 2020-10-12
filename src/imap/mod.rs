@@ -765,7 +765,7 @@ impl Imap {
                 match get_fetch_headers(&msg) {
                     Ok(headers) => {
                         let (from_id, _, _) =
-                            from_field_to_contact_id(context, &mimeparser::get_from(&headers))
+                            from_field_to_contact_id(context, &mimeparser::get_from(&headers), false)
                                 .await?;
                         if from_id == DC_CONTACT_ID_SELF {
                             result.extend(mimeparser::get_recipients(&headers));
