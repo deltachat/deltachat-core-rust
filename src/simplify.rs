@@ -77,19 +77,15 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, Opti
     let (lines, top_quote) = remove_top_quote(lines);
 
     let text = if is_chat_message {
-        render_message(lines, false, false)
+        render_message(lines, false)
     } else {
         let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
         let (lines, has_bottom_quote) = remove_bottom_quote(lines);
 
         if lines.iter().all(|it| it.trim().is_empty()) {
-            render_message(original_lines, false, false)
+            render_message(original_lines, false)
         } else {
-            render_message(
-                lines,
-                top_quote.is_some(),
-                has_nonstandard_footer || has_bottom_quote,
-            )
+            render_message(lines, has_nonstandard_footer || has_bottom_quote)
         }
     };
     (text, is_forwarded, top_quote)
@@ -173,11 +169,8 @@ fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>) {
     }
 }
 
-fn render_message(lines: &[&str], is_cut_at_begin: bool, is_cut_at_end: bool) -> String {
+fn render_message(lines: &[&str], is_cut_at_end: bool) -> String {
     let mut ret = String::new();
-    if is_cut_at_begin {
-        ret += "[...]";
-    }
     /* we write empty lines only in case and non-empty line follows */
     let mut pending_linebreaks = 0;
     let mut empty_body = true;
@@ -200,7 +193,7 @@ fn render_message(lines: &[&str], is_cut_at_begin: bool, is_cut_at_end: bool) ->
             pending_linebreaks = 1
         }
     }
-    if is_cut_at_end && (!is_cut_at_begin || !empty_body) {
+    if is_cut_at_end && !empty_body {
         ret += " [...]";
     }
     // redo escaping done by escape_message_footer_marks()
