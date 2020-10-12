@@ -218,6 +218,7 @@ impl MimeMessage {
             failure_report: None,
         };
         parser.parse_mime_recursive(context, &mail).await?;
+        parser.maybe_remove_bad_parts().await;
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context)?;
 
@@ -704,12 +705,17 @@ impl MimeMessage {
                             }
                         };
 
+                        let mut dehtml_failed = false;
+
                         let (simplified_txt, is_forwarded, top_quote) = if decoded_data.is_empty() {
                             ("".to_string(), false, None)
                         } else {
                             let is_html = mime_type == mime::TEXT_HTML;
                             let out = if is_html {
-                                dehtml(&decoded_data)
+                                dehtml(&decoded_data).unwrap_or_else(|| {
+                                    dehtml_failed = true;
+                                    decoded_data.clone()
+                                })
                             } else {
                                 decoded_data.clone()
                             };
@@ -741,6 +747,7 @@ impl MimeMessage {
 
                         if !simplified_txt.is_empty() {
                             let mut part = Part::default();
+                            part.dehtlm_failed = dehtml_failed;
                             part.typ = Viewtype::Text;
                             part.mimetype = Some(mime_type);
                             part.msg = simplified_txt;
@@ -982,11 +989,21 @@ impl MimeMessage {
         Ok(None)
     }
 
+    async fn maybe_remove_bad_parts(&mut self) {
+        let good_parts = self.parts.iter().filter(|p| !p.dehtlm_failed).count();
+        if good_parts == 0 {
+            // We have no good part but show at least one bad part in order to show anything at all
+            self.parts.truncate(1);
+        } else if good_parts < self.parts.len() {
+            self.parts.retain(|p| !p.dehtlm_failed);
+        }
+    }
+
     /// Some providers like GMX and Yahoo do not send standard NDNs (Non Delivery notifications).
     /// If you improve heuristics here you might also have to change prefetch_should_download() in imap/mod.rs.
     /// Also you should add a test in dc_receive_imf.rs (there already are lots of test_parse_ndn_* tests).
     #[allow(clippy::indexing_slicing)]
-    async fn heuristically_parse_ndn(&mut self, context: &Context) -> Option<()> {
+    async fn heuristically_parse_ndn(&mut self, context: &Context) {
         let maybe_ndn = if let Some(from) = self.get(HeaderDef::From_) {
             let from = from.to_ascii_lowercase();
             from.contains("mailer-daemon") || from.contains("mail-daemon")
@@ -1016,7 +1033,6 @@ impl MimeMessage {
                 }
             }
         }
-        None // Always return None, we just return anything so that we can use the '?' operator.
     }
 
     /// Handle reports
@@ -1185,6 +1201,7 @@ pub struct Part {
     pub param: Params,
     org_filename: Option<String>,
     pub error: Option<String>,
+    dehtlm_failed: bool,
 }
 
 /// return mimetype and viewtype for a parsed mail
@@ -1864,6 +1881,55 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::File);
         assert_eq!(message.parts[0].msg, "Hello!");
+    }
+
+    #[async_std::test]
+    async fn test_hide_html_without_content() {
+        let t = TestContext::new().await;
+        let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
+From: sender@example.com
+To: receiver@example.com
+Subject: Mail with inline attachment
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+	boundary="----=_Part_25_46172632.1581201680436"
+
+------=_Part_25_46172632.1581201680436
+Content-Type: text/html; charset=utf-8
+
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=Windows-1252">
+<meta name="GENERATOR" content="MSHTML 11.00.10570.1001"></head>
+<body><img align="baseline" alt="" src="cid:1712254131-1" border="0" hspace="0">
+</body>
+
+------=_Part_25_46172632.1581201680436
+Content-Type: application/pdf; name="some_pdf.pdf"
+Content-Transfer-Encoding: base64
+Content-Disposition: inline; filename="some_pdf.pdf"
+
+JVBERi0xLjUKJcOkw7zDtsOfCjIgMCBvYmoKPDwvTGVuZ3RoIDMgMCBSL0ZpbHRlci9GbGF0ZURl
+Y29kZT4+CnN0cmVhbQp4nGVOuwoCMRDs8xVbC8aZvC4Hx4Hno7ATAhZi56MTtPH33YtXiLKQ3ZnM
+MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
+------=_Part_25_46172632.1581201680436--
+"#;
+
+        let message = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::File);
+        assert_eq!(message.parts[0].msg, "");
+
+        // Make sure the file is there even though the html is wrong:
+        let param = &message.parts[0].param;
+        let blob: BlobObject = param
+            .get_blob(Param::File, &t.ctx, false)
+            .await
+            .unwrap()
+            .unwrap();
+        let f = async_std::fs::File::open(blob.to_abs_path()).await.unwrap();
+        let size = f.metadata().await.unwrap().len();
+        assert_eq!(size, 154);
     }
 
     #[async_std::test]

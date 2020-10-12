@@ -22,18 +22,18 @@ enum AddText {
     YesPreserveLineEnds,
 }
 
-// dehtml() returns way too many newlines; however, an optimisation on this issue is not needed as
-// the newlines are typically removed in further processing by the caller
-pub fn dehtml(buf: &str) -> String {
+/// dehtml() returns way too many newlines; however, an optimisation on this issue is not needed as
+/// the newlines are typically removed in further processing by the caller
+pub fn dehtml(buf: &str) -> Option<String> {
     let s = dehtml_quick_xml(buf);
     if !s.trim().is_empty() {
-        return s;
+        return Some(s);
     }
     let s = dehtml_manually(buf);
     if !s.trim().is_empty() {
-        return s;
+        return Some(s);
     }
-    buf.to_string()
+    None
 }
 
 pub fn dehtml_quick_xml(buf: &str) -> String {
@@ -222,21 +222,23 @@ mod tests {
                 "<a href='https://get.delta.chat/'/>",
                 "[](https://get.delta.chat/)",
             ),
-            ("", ""),
             ("<!doctype html>\n<b>fat text</b>", "*fat text*"),
             // Invalid html (at least DC should show the text if the html is invalid):
             ("<!some invalid html code>\n<b>some text</b>", "some text"),
-            ("<This text is in brackets>", "<This text is in brackets>"),
         ];
         for (input, output) in cases {
-            assert_eq!(simplify(dehtml(input), true).0, output);
+            assert_eq!(simplify(dehtml(input).unwrap(), true).0, output);
+        }
+        let none_cases = vec!["<html> </html>", ""];
+        for input in none_cases {
+            assert_eq!(dehtml(input), None);
         }
     }
 
     #[test]
     fn test_dehtml_parse_br() {
         let html = "\r\r\nline1<br>\r\n\r\n\r\rline2<br/>line3\n\r";
-        let plain = dehtml(html);
+        let plain = dehtml(html).unwrap();
 
         assert_eq!(plain, "line1\n\r\r\rline2\nline3");
     }
@@ -244,7 +246,7 @@ mod tests {
     #[test]
     fn test_dehtml_parse_href() {
         let html = "<a href=url>text</a";
-        let plain = dehtml(html);
+        let plain = dehtml(html).unwrap();
 
         assert_eq!(plain, "[text](url)");
     }
@@ -252,7 +254,7 @@ mod tests {
     #[test]
     fn test_dehtml_bold_text() {
         let html = "<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>";
-        let plain = dehtml(html);
+        let plain = dehtml(html).unwrap();
 
         assert_eq!(plain, "text *bold*<>");
     }
@@ -262,7 +264,7 @@ mod tests {
         let html =
                 "&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;";
 
-        let plain = dehtml(html);
+        let plain = dehtml(html).unwrap();
 
         assert_eq!(
             plain,
@@ -285,7 +287,7 @@ mod tests {
         </body>
         </html>
         "##;
-        let txt = dehtml(input);
+        let txt = dehtml(input).unwrap();
         assert_eq!(txt.trim(), "lots of text");
     }
 }
