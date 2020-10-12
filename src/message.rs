@@ -780,6 +780,13 @@ impl Message {
                 }
             }
         }
+
+        // Multiple chats may have changed, so send 0s
+        // (performance is not so important because this function is not called very often)
+        context.emit_event(EventType::MsgsChanged {
+            chat_id: ChatId::new(0),
+            msg_id: MsgId::new(0),
+        });
         0
     }
 
