@@ -998,16 +998,23 @@ impl Lot {
             }
         }
 
-        self.text2 = Some(
-            get_summarytext_by_raw(
-                msg.viewtype,
-                msg.text.as_ref(),
-                &msg.param,
-                SUMMARY_CHARACTERS,
-                context,
-            )
-            .await,
-        );
+        let mut text2 = get_summarytext_by_raw(
+            msg.viewtype,
+            msg.text.as_ref(),
+            &msg.param,
+            SUMMARY_CHARACTERS,
+            context,
+        )
+        .await;
+
+        if text2.is_empty() && msg.quoted_text().is_some() {
+            text2 = context
+                .stock_str(StockMessage::ReplyNoun)
+                .await
+                .into_owned()
+        }
+
+        self.text2 = Some(text2);
 
         self.timestamp = msg.get_timestamp();
         self.state = msg.state.into();
