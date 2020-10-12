@@ -1687,12 +1687,34 @@ pub async fn get_chat_msgs(
     }
 }
 
+pub(crate) async fn marknoticed_chat_if_older_than(
+    context: &Context,
+    chat_id: ChatId,
+    timestamp: i64,
+) -> Result<(), Error> {
+    if let Some(chat_timestamp) = context
+        .sql
+        .query_get_value(
+            context,
+            "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+            paramsv![chat_id],
+        )
+        .await
+    {
+        if timestamp > chat_timestamp {
+            marknoticed_chat(context, chat_id).await?;
+        }
+    }
+    Ok(())
+}
+
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), Error> {
+    // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
     if !context
         .sql
         .exists(
-            "SELECT id FROM msgs  WHERE chat_id=? AND state=?;",
-            paramsv![chat_id, MessageState::InFresh],
+            "SELECT id FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
+            paramsv![MessageState::InFresh, chat_id],
         )
         .await?
     {
@@ -1703,10 +1725,11 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), 
         .sql
         .execute(
             "UPDATE msgs
-            SET state=13
-          WHERE chat_id=?
-            AND state=10;",
-            paramsv![chat_id],
+            SET state=?
+          WHERE state=?
+            AND hidden=0
+            AND chat_id=?;",
+            paramsv![MessageState::InNoticed, MessageState::InFresh, chat_id],
         )
         .await?;
 
