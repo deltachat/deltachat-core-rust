@@ -183,7 +183,7 @@ impl ChatId {
         context: &Context,
         protect: ProtectionStatus,
     ) -> Result<(), Error> {
-        ensure!(!self.is_special(), "set protection: invalid chat-id.");
+        ensure!(!self.is_special(), "Invalid chat-id.");
 
         let chat = Chat::load_from_db(context, self).await?;
 
@@ -199,14 +199,11 @@ impl ChatId {
                     for contact_id in contact_ids.into_iter() {
                         let contact = Contact::get_by_id(context, contact_id).await?;
                         if contact.is_verified(context).await != VerifiedStatus::BidirectVerified {
-                            bail!(
-                                "{} is not verified; cannot enable protection.",
-                                contact.get_display_name()
-                            );
+                            bail!("{} is not verified.", contact.get_display_name());
                         }
                     }
                 }
-                Chattype::Undefined => bail!("set protection: undefined group type"),
+                Chattype::Undefined => bail!("Undefined group type"),
             },
             ProtectionStatus::Unprotected => {}
         };
@@ -290,7 +287,7 @@ impl ChatId {
         let chat = Chat::load_from_db(context, self).await?;
 
         if let Err(e) = self.inner_set_protection(context, protect).await {
-            error!(context, "{}", e); // make error user-visible
+            error!(context, "Cannot set protection: {}", e); // make error user-visible
             return Err(e);
         }
 
