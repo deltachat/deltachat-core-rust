@@ -715,25 +715,15 @@ async fn add_parts(
     }
 
     // change chat protection
-    if mime_parser.is_system_message == SystemMessage::ChatProtectionEnabled {
-        chat_id
-            .inner_set_protection(context, ProtectionStatus::Protected)
-            .await?;
+    if let Some(new_status) = match mime_parser.is_system_message {
+        SystemMessage::ChatProtectionEnabled => Some(ProtectionStatus::Protected),
+        SystemMessage::ChatProtectionDisabled => Some(ProtectionStatus::Unprotected),
+        _ => None,
+    } {
+        chat_id.inner_set_protection(context, new_status).await?;
         set_better_msg(
             mime_parser,
-            context
-                .stock_protection_msg(ProtectionStatus::Protected, from_id)
-                .await,
-        );
-    } else if mime_parser.is_system_message == SystemMessage::ChatProtectionDisabled {
-        chat_id
-            .inner_set_protection(context, ProtectionStatus::Unprotected)
-            .await?;
-        set_better_msg(
-            mime_parser,
-            context
-                .stock_protection_msg(ProtectionStatus::Unprotected, from_id)
-                .await,
+            context.stock_protection_msg(new_status, from_id).await,
         );
     }
 
