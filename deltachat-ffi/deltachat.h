@@ -5002,8 +5002,6 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_PROTECTION_ENABLED         88
 #define DC_STR_PROTECTION_DISABLED        89
 
-#define DC_STR_COUNT                      89
-
 /*
  * @}
  */
