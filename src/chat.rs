@@ -1,5 +1,6 @@
 //! # Chat module
 
+use deltachat_derive::{FromSql, ToSql};
 use std::convert::TryFrom;
 use std::time::{Duration, SystemTime};
 
@@ -43,6 +44,33 @@ pub enum ChatItem {
         /// Marker timestamp, for day markers
         timestamp: i64,
     },
+}
+
+#[derive(
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+    IntoStaticStr,
+    Serialize,
+    Deserialize,
+)]
+#[repr(u32)]
+pub enum ProtectionStatus {
+    Unprotected = 0,
+    Protected = 1,
+}
+
+impl Default for ProtectionStatus {
+    fn default() -> Self {
+        ProtectionStatus::Unprotected
+    }
 }
 
 /// Chat ID, including reserved IDs.
@@ -144,6 +172,107 @@ impl ChatId {
 
     pub async fn unblock(self, context: &Context) {
         self.set_blocked(context, Blocked::Not).await;
+    }
+
+    /// Sets protection without sending a message.
+    ///
+    /// Used when a message arrives indicating that someone else has
+    /// changed the protection value for a chat.
+    pub(crate) async fn inner_set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+    ) -> Result<(), Error> {
+        ensure!(!self.is_special(), "Invalid chat-id.");
+
+        let chat = Chat::load_from_db(context, self).await?;
+
+        if protect == chat.protected {
+            info!(context, "Protection status unchanged for {}.", self);
+            return Ok(());
+        }
+
+        match protect {
+            ProtectionStatus::Protected => match chat.typ {
+                Chattype::Single | Chattype::Group => {
+                    let contact_ids = get_chat_contacts(context, self).await;
+                    for contact_id in contact_ids.into_iter() {
+                        let contact = Contact::get_by_id(context, contact_id).await?;
+                        if contact.is_verified(context).await != VerifiedStatus::BidirectVerified {
+                            bail!("{} is not verified.", contact.get_display_name());
+                        }
+                    }
+                }
+                Chattype::Undefined => bail!("Undefined group type"),
+            },
+            ProtectionStatus::Unprotected => {}
+        };
+
+        context
+            .sql
+            .execute(
+                "UPDATE chats SET protected=? WHERE id=?;",
+                paramsv![protect, self],
+            )
+            .await?;
+
+        context.emit_event(EventType::ChatModified(self));
+
+        // make sure, the receivers will get all keys
+        reset_gossiped_timestamp(context, self).await?;
+
+        Ok(())
+    }
+
+    /// Send protected status message to the chat.
+    ///
+    /// This sends the message with the protected status change to the chat,
+    /// notifying the user on this device as well as the other users in the chat.
+    /// If `promoted` is false this means the chat only exists on this device so far
+    /// and does not need to be sent out.
+    /// In this case an local info message is added to the chat.
+    pub(crate) async fn add_protection_msg(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+        promoted: bool,
+        from_id: u32,
+    ) -> Result<(), Error> {
+        let msg_text = context.stock_protection_msg(protect, from_id).await;
+
+        if promoted {
+            let mut msg = Message::default();
+            msg.viewtype = Viewtype::Text;
+            msg.text = Some(msg_text);
+            msg.param.set_cmd(match protect {
+                ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
+                ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
+            });
+            send_msg(context, self, &mut msg).await?;
+        } else {
+            add_info_msg(context, self, msg_text).await;
+        }
+
+        Ok(())
+    }
+
+    /// Sets protection and sends or adds a message.
+    pub async fn set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+    ) -> Result<(), Error> {
+        ensure!(!self.is_special(), "set protection: invalid chat-id.");
+
+        let chat = Chat::load_from_db(context, self).await?;
+
+        if let Err(e) = self.inner_set_protection(context, protect).await {
+            error!(context, "Cannot set protection: {}", e); // make error user-visible
+            return Err(e);
+        }
+
+        self.add_protection_msg(context, protect, chat.is_promoted(), DC_CONTACT_ID_SELF)
+            .await
     }
 
     /// Archives or unarchives a chat.
@@ -538,6 +667,7 @@ pub struct Chat {
     pub param: Params,
     is_sending_locations: bool,
     pub mute_duration: MuteDuration,
+    protected: ProtectionStatus,
 }
 
 impl Chat {
@@ -547,7 +677,7 @@ impl Chat {
             .sql
             .query_row(
                 "SELECT c.type, c.name, c.grpid, c.param, c.archived,
-                    c.blocked, c.locations_send_until, c.muted_until
+                    c.blocked, c.locations_send_until, c.muted_until, c.protected
              FROM chats c
              WHERE c.id=?;",
                 paramsv![chat_id],
@@ -562,6 +692,7 @@ impl Chat {
                         blocked: row.get::<_, Option<_>>(5)?.unwrap_or_default(),
                         is_sending_locations: row.get(6)?,
                         mute_duration: row.get(7)?,
+                        protected: row.get(8)?,
                     };
                     Ok(c)
                 },
@@ -727,9 +858,9 @@ impl Chat {
         !self.is_unpromoted()
     }
 
-    /// Returns true if chat is a verified group chat.
-    pub fn is_verified(&self) -> bool {
-        self.typ == Chattype::VerifiedGroup
+    /// Returns true if chat protection is enabled.
+    pub fn is_protected(&self) -> bool {
+        self.protected == ProtectionStatus::Protected
     }
 
     /// Returns true if location streaming is enabled in the chat.
@@ -756,15 +887,12 @@ impl Chat {
         let mut to_id = 0;
         let mut location_id = 0;
 
-        if !(self.typ == Chattype::Single
-            || self.typ == Chattype::Group
-            || self.typ == Chattype::VerifiedGroup)
-        {
+        if !(self.typ == Chattype::Single || self.typ == Chattype::Group) {
             error!(context, "Cannot send to chat type #{}.", self.typ,);
             bail!("Cannot set to chat type #{}", self.typ);
         }
 
-        if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+        if self.typ == Chattype::Group
             && !is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await
         {
             emit_event!(
@@ -781,7 +909,7 @@ impl Chat {
 
         let new_rfc724_mid = {
             let grpid = match self.typ {
-                Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
+                Chattype::Group => Some(self.grpid.as_str()),
                 _ => None,
             };
             dc_create_outgoing_rfc724_mid(grpid, &from)
@@ -805,7 +933,7 @@ impl Chat {
                 );
                 bail!("Cannot set message, contact for {} not found.", self.id);
             }
-        } else if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+        } else if self.typ == Chattype::Group
             && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
         {
             msg.param.set_int(Param::AttachGroupImage, 1);
@@ -1000,7 +1128,7 @@ pub struct ChatInfo {
     ///
     /// On the C API this number is one of the
     /// `DC_CHAT_TYPE_UNDEFINED`, `DC_CHAT_TYPE_SINGLE`,
-    /// `DC_CHAT_TYPE_GROUP` or `DC_CHAT_TYPE_VERIFIED_GROUP`
+    /// or `DC_CHAT_TYPE_GROUP`
     /// constants.
     #[serde(rename = "type")]
     pub type_: u32,
@@ -1865,7 +1993,7 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Vec<u32> {
 
 pub async fn create_group_chat(
     context: &Context,
-    verified: VerifiedStatus,
+    protect: ProtectionStatus,
     chat_name: impl AsRef<str>,
 ) -> Result<ChatId, Error> {
     let chat_name = improve_single_line_input(chat_name);
@@ -1879,11 +2007,7 @@ pub async fn create_group_chat(
     context.sql.execute(
         "INSERT INTO chats (type, name, grpid, param, created_timestamp) VALUES(?, ?, ?, \'U=1\', ?);",
         paramsv![
-            if verified != VerifiedStatus::Unverified {
-                Chattype::VerifiedGroup
-            } else {
-                Chattype::Group
-            },
+            Chattype::Group,
             chat_name,
             grpid,
             time(),
@@ -1906,6 +2030,10 @@ pub async fn create_group_chat(
         msg_id: MsgId::new(0),
         chat_id: ChatId::new(0),
     });
+
+    if protect == ProtectionStatus::Protected {
+        chat_id.set_protection(context, protect).await?;
+    }
 
     Ok(chat_id)
 }
@@ -2032,12 +2160,12 @@ pub(crate) async fn add_contact_to_chat_ex(
         }
     } else {
         // else continue and send status mail
-        if chat.typ == Chattype::VerifiedGroup
+        if chat.is_protected()
             && contact.is_verified(context).await != VerifiedStatus::BidirectVerified
         {
             error!(
                 context,
-                "Only bidirectional verified contacts can be added to verified groups."
+                "Only bidirectional verified contacts can be added to protected chats."
             );
             return Ok(false);
         }
@@ -2075,7 +2203,7 @@ async fn real_group_exists(context: &Context, chat_id: ChatId) -> bool {
     context
         .sql
         .exists(
-            "SELECT id FROM chats WHERE id=? AND (type=120 OR type=130);",
+            "SELECT id FROM chats WHERE id=? AND type=120;",
             paramsv![chat_id],
         )
         .await
@@ -2601,7 +2729,7 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> usize {
     }
 }
 
-/// Returns a tuple of `(chatid, is_verified, blocked)`.
+/// Returns a tuple of `(chatid, is_protected, blocked)`.
 pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,
@@ -2609,14 +2737,16 @@ pub(crate) async fn get_chat_id_by_grpid(
     context
         .sql
         .query_row(
-            "SELECT id, blocked, type FROM chats WHERE grpid=?;",
+            "SELECT id, blocked, protected FROM chats WHERE grpid=?;",
             paramsv![grpid.as_ref()],
             |row| {
                 let chat_id = row.get::<_, ChatId>(0)?;
 
                 let b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
-                let v = row.get::<_, Option<Chattype>>(2)?.unwrap_or_default();
-                Ok((chat_id, v == Chattype::VerifiedGroup, b))
+                let p = row
+                    .get::<_, Option<ProtectionStatus>>(2)?
+                    .unwrap_or_default();
+                Ok((chat_id, p == ProtectionStatus::Protected, b))
             },
         )
         .await
@@ -2898,7 +3028,7 @@ mod tests {
     async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         let added = add_contact_to_chat_ex(&t.ctx, chat_id, DC_CONTACT_ID_SELF, false)
@@ -3284,7 +3414,7 @@ mod tests {
             .await
             .unwrap();
         async_std::task::sleep(std::time::Duration::from_millis(1000)).await;
-        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id3 = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
 
@@ -3329,7 +3459,7 @@ mod tests {
     #[async_std::test]
     async fn test_set_chat_name() {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         assert_eq!(
@@ -3372,7 +3502,7 @@ mod tests {
     #[async_std::test]
     async fn test_shall_attach_selfavatar() {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         assert!(!shall_attach_selfavatar(&t.ctx, chat_id).await.unwrap());
@@ -3396,7 +3526,7 @@ mod tests {
     #[async_std::test]
     async fn test_set_mute_duration() {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         // Initial

@@ -7,6 +7,7 @@ use strum_macros::EnumProperty;
 
 use crate::blob::BlobObject;
 use crate::chat;
+use crate::chat::ProtectionStatus;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::*;
 use crate::context::Context;
@@ -233,6 +234,12 @@ pub enum StockMessage {
         fallback = "Could not find your mail server.\n\nPlease check your internet connection."
     ))]
     ErrorNoNetwork = 87,
+
+    #[strum(props(fallback = "Chat protection enabled."))]
+    ProtectionEnabled = 88,
+
+    #[strum(props(fallback = "Chat protection disabled."))]
+    ProtectionDisabled = 89,
 }
 
 /*
@@ -396,6 +403,20 @@ impl Context {
                     .await
             }
         }
+    }
+
+    /// Returns a stock message saying that protection status has changed.
+    pub async fn stock_protection_msg(&self, protect: ProtectionStatus, from_id: u32) -> String {
+        self.stock_system_msg(
+            match protect {
+                ProtectionStatus::Protected => StockMessage::ProtectionEnabled,
+                ProtectionStatus::Unprotected => StockMessage::ProtectionDisabled,
+            },
+            "",
+            "",
+            from_id,
+        )
+        .await
     }
 
     pub async fn update_device_chats(&self) -> Result<(), Error> {

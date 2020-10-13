@@ -86,6 +86,10 @@ pub enum SystemMessage {
 
     /// Chat ephemeral message timer is changed.
     EphemeralTimerChanged = 10,
+
+    // Chat protection state changed
+    ChatProtectionEnabled = 11,
+    ChatProtectionDisabled = 12,
 }
 
 impl Default for SystemMessage {
@@ -123,6 +127,7 @@ impl MimeMessage {
 
         // remove headers that are allowed _only_ in the encrypted part
         headers.remove("secure-join-fingerprint");
+        headers.remove("chat-verified");
 
         // Memory location for a possible decrypted message.
         let mail_raw;
@@ -253,6 +258,10 @@ impl MimeMessage {
                 self.is_system_message = SystemMessage::LocationStreamingEnabled;
             } else if value == "ephemeral-timer-changed" {
                 self.is_system_message = SystemMessage::EphemeralTimerChanged;
+            } else if value == "protection-enabled" {
+                self.is_system_message = SystemMessage::ChatProtectionEnabled;
+            } else if value == "protection-disabled" {
+                self.is_system_message = SystemMessage::ChatProtectionDisabled;
             }
         }
         Ok(())
@@ -848,6 +857,7 @@ impl MimeMessage {
     }
 
     pub fn repl_msg_by_error(&mut self, error_msg: impl AsRef<str>) {
+        self.is_system_message = SystemMessage::Unknown;
         if let Some(part) = self.parts.first_mut() {
             part.typ = Viewtype::Text;
             part.msg = format!("[{}]", error_msg.as_ref());

@@ -1343,7 +1343,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
         lp.sec("ac1: create verified-group QR, ac2 scans and joins")
         chat1 = ac1.create_group_chat("hello", verified=True)
-        assert chat1.is_verified()
+        assert chat1.is_protected()
         qr = chat1.get_join_qr()
         lp.sec("ac2: start QR-code based join-group protocol")
         chat2 = ac2.qr_join_chat(qr)
@@ -1362,7 +1362,7 @@ class TestOnlineAccount:
         lp.sec("ac2: read message and check it's verified chat")
         msg = ac2._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
-        assert msg.chat.is_verified()
+        assert msg.chat.is_protected()
         assert msg.is_encrypted()
 
         lp.sec("ac2: send message and let ac1 read it")

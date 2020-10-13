@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use anyhow::{bail, ensure};
 use async_std::path::Path;
-use deltachat::chat::{self, Chat, ChatId, ChatItem, ChatVisibility};
+use deltachat::chat::{self, Chat, ChatId, ChatItem, ChatVisibility, ProtectionStatus};
 use deltachat::chatlist::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
@@ -357,7 +357,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  createchat <contact-id>\n\
                  createchatbymsg <msg-id>\n\
                  creategroup <name>\n\
-                 createverified <name>\n\
+                 createprotected <name>\n\
                  addmember <contact-id>\n\
                  removemember <contact-id>\n\
                  groupname <name>\n\
@@ -379,6 +379,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  unarchive <chat-id>\n\
                  pin <chat-id>\n\
                  unpin <chat-id>\n\
+                 protect <chat-id>\n\
+                 unprotect <chat-id>\n\
                  delchat <chat-id>\n\
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
@@ -523,7 +525,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 for i in (0..cnt).rev() {
                     let chat = Chat::load_from_db(&context, chatlist.get_chat_id(i)).await?;
                     println!(
-                        "{}#{}: {} [{} fresh] {}",
+                        "{}#{}: {} [{} fresh] {}{}",
                         chat_prefix(&chat),
                         chat.get_id(),
                         chat.get_name(),
@@ -533,6 +535,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                             ChatVisibility::Archived => "📦",
                             ChatVisibility::Pinned => "📌",
                         },
+                        if chat.is_protected() { "🛡️" } else { "" },
                     );
                     let lot = chatlist.get_summary(&context, i, Some(&chat)).await;
                     let statestr = if chat.visibility == ChatVisibility::Archived {
@@ -607,7 +610,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 format!("{} member(s)", members.len())
             };
             println!(
-                "{}#{}: {} [{}]{}{}",
+                "{}#{}: {} [{}]{}{} {}",
                 chat_prefix(sel_chat),
                 sel_chat.get_id(),
                 sel_chat.get_name(),
@@ -623,6 +626,11 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                         _ => " Icon: Err".to_string(),
                     },
                     _ => "".to_string(),
+                },
+                if sel_chat.is_protected() {
+                    "🛡️"
+                } else {
+                    ""
                 },
             );
             log_msglist(&context, &msglist).await?;
@@ -654,15 +662,16 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "creategroup" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
             let chat_id =
-                chat::create_group_chat(&context, VerifiedStatus::Unverified, arg1).await?;
+                chat::create_group_chat(&context, ProtectionStatus::Unprotected, arg1).await?;
 
             println!("Group#{} created successfully.", chat_id);
         }
-        "createverified" => {
+        "createprotected" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            let chat_id = chat::create_group_chat(&context, VerifiedStatus::Verified, arg1).await?;
+            let chat_id =
+                chat::create_group_chat(&context, ProtectionStatus::Protected, arg1).await?;
 
-            println!("VerifiedGroup#{} created successfully.", chat_id);
+            println!("Group#{} created and protected successfully.", chat_id);
         }
         "addmember" => {
             ensure!(sel_chat.is_some(), "No chat selected");
@@ -906,7 +915,21 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                         "archive" => ChatVisibility::Archived,
                         "unarchive" | "unpin" => ChatVisibility::Normal,
                         "pin" => ChatVisibility::Pinned,
-                        _ => panic!("Unexpected command (This should never happen)"),
+                        _ => unreachable!("arg0={:?}", arg0),
+                    },
+                )
+                .await?;
+        }
+        "protect" | "unprotect" => {
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = ChatId::new(arg1.parse()?);
+            chat_id
+                .set_protection(
+                    &context,
+                    match arg0 {
+                        "protect" => ProtectionStatus::Protected,
+                        "unprotect" => ProtectionStatus::Unprotected,
+                        _ => unreachable!("arg0={:?}", arg0),
                     },
                 )
                 .await?;

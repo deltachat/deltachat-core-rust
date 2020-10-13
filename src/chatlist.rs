@@ -362,9 +362,7 @@ impl Chatlist {
         let mut lastcontact = None;
 
         let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id).await {
-            if lastmsg.from_id != DC_CONTACT_ID_SELF
-                && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
-            {
+            if lastmsg.from_id != DC_CONTACT_ID_SELF && chat.typ == Chattype::Group {
                 lastcontact = Contact::load_from_db(context, lastmsg.from_id).await.ok();
             }
 
@@ -440,13 +438,13 @@ mod tests {
     #[async_std::test]
     async fn test_try_load() {
         let t = TestContext::new().await;
-        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
+        let chat_id1 = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "a chat")
             .await
             .unwrap();
-        let chat_id2 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "b chat")
+        let chat_id2 = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "b chat")
             .await
             .unwrap();
-        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "c chat")
+        let chat_id3 = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "c chat")
             .await
             .unwrap();
 
@@ -489,7 +487,7 @@ mod tests {
     async fn test_sort_self_talk_up_on_forward() {
         let t = TestContext::new().await;
         t.ctx.update_device_chats().await.unwrap();
-        create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
+        create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "a chat")
             .await
             .unwrap();
 
@@ -546,7 +544,7 @@ mod tests {
     #[async_std::test]
     async fn test_get_summary_unwrap() {
         let t = TestContext::new().await;
-        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
+        let chat_id1 = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "a chat")
             .await
             .unwrap();
 

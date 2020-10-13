@@ -57,10 +57,7 @@ class Chat(object):
 
         :returns: True if chat is a group-chat, false if it's a contact 1:1 chat.
         """
-        return lib.dc_chat_get_type(self._dc_chat) in (
-            const.DC_CHAT_TYPE_GROUP,
-            const.DC_CHAT_TYPE_VERIFIED_GROUP
-        )
+        return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_GROUP
 
     def is_deaddrop(self):
         """ return true if this chat is a deaddrop chat.
@@ -85,12 +82,12 @@ class Chat(object):
         """
         return not lib.dc_chat_is_unpromoted(self._dc_chat)
 
-    def is_verified(self):
-        """ return True if this chat is a verified group.
+    def is_protected(self):
+        """ return True if this chat is a protected chat.
 
-        :returns: True if chat is verified, False otherwise.
+        :returns: True if chat is protected, False otherwise.
         """
-        return lib.dc_chat_is_verified(self._dc_chat)
+        return lib.dc_chat_is_protected(self._dc_chat)
 
     def get_name(self):
         """ return name of this chat.

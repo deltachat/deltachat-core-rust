@@ -233,7 +233,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     fn is_e2ee_guaranteed(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
-                if chat.typ == Chattype::VerifiedGroup {
+                if chat.is_protected() {
                     return true;
                 }
 
@@ -255,7 +255,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     fn min_verified(&self) -> PeerstateVerifiedStatus {
         match &self.loaded {
             Loaded::Message { chat } => {
-                if chat.typ == Chattype::VerifiedGroup {
+                if chat.is_protected() {
                     PeerstateVerifiedStatus::BidirectVerified
                 } else {
                     PeerstateVerifiedStatus::Unverified
@@ -268,7 +268,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     fn should_force_plaintext(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
-                if chat.typ == Chattype::VerifiedGroup {
+                if chat.is_protected() {
                     false
                 } else {
                     self.msg
@@ -345,7 +345,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         .stock_str(StockMessage::AcSetupMsgSubject)
                         .await
                         .into_owned()
-                } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+                } else if chat.typ == Chattype::Group {
                     let re = if self.in_reply_to.is_empty() {
                         ""
                     } else {
@@ -708,11 +708,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut placeholdertext = None;
         let mut meta_part = None;
 
-        if chat.typ == Chattype::VerifiedGroup {
+        if chat.is_protected() {
             protected_headers.push(Header::new("Chat-Verified".to_string(), "1".to_string()));
         }
 
-        if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+        if chat.typ == Chattype::Group {
             protected_headers.push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
 
             let encoded = encode_words(&chat.name);
@@ -845,6 +845,18 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         protected_headers.push(Header::new("Secure-Join-Group".into(), id.into()));
                     };
                 }
+            }
+            SystemMessage::ChatProtectionEnabled => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".to_string(),
+                    "protection-enabled".to_string(),
+                ));
+            }
+            SystemMessage::ChatProtectionDisabled => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".to_string(),
+                    "protection-disabled".to_string(),
+                ));
             }
             _ => {}
         }

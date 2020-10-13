@@ -1368,6 +1368,20 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             .await?;
             sql.set_raw_config_int(context, "dbversion", 68).await?;
         }
+        if dbversion < 69 {
+            info!(context, "[migration] v69");
+            sql.execute(
+                "ALTER TABLE chats ADD COLUMN protected INTEGER DEFAULT 0;",
+                paramsv![],
+            )
+            .await?;
+            sql.execute(
+                "UPDATE chats SET protected=1, type=120 WHERE type=130;", // 120=group, 130=old verified group
+                paramsv![],
+            )
+            .await?;
+            sql.set_raw_config_int(context, "dbversion", 69).await?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)

@@ -1171,6 +1171,24 @@ uint32_t        dc_get_next_media            (dc_context_t* context, uint32_t ms
 
 
 /**
+ * Enable or disable protection against active attacks.
+ * To enable protection, it is needed that all members are verified;
+ * if this condition is met, end-to-end-encryption is always enabled
+ * and only the verified keys are used.
+ *
+ * Sends out #DC_EVENT_CHAT_MODIFIED on changes
+ * and #DC_EVENT_MSGS_CHANGED if a status message was sent.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @param chat_id The ID of the chat to change the protection for.
+ * @param protect 1=protect chat, 0=unprotect chat
+ * @return 1=success, 0=error, eg. some members may be unverified
+ */
+int             dc_set_chat_protection       (dc_context_t* context, uint32_t chat_id, int protect);
+
+
+/**
  * Set chat visibility to pinned, archived or normal.
  *
  * Calling this function usually results in the event #DC_EVENT_MSGS_CHANGED
@@ -1299,15 +1317,15 @@ dc_chat_t*      dc_get_chat                  (dc_context_t* context, uint32_t ch
  *
  * @memberof dc_context_t
  * @param context The context object.
- * @param verified If set to 1 the function creates a secure verified group.
- *     Only secure-verified members are allowed in these groups
+ * @param protect If set to 1 the function creates group with protection initially enabled.
+ *     Only verified members are allowed in these groups
  *     and end-to-end-encryption is always enabled.
  * @param name The name of the group chat to create.
  *     The name may be changed later using dc_set_chat_name().
  *     To find out the name of a group later, see dc_chat_get_name()
  * @return The chat ID of the new group chat, 0 on errors.
  */
-uint32_t        dc_create_group_chat         (dc_context_t* context, int verified, const char* name);
+uint32_t        dc_create_group_chat         (dc_context_t* context, int protect, const char* name);
 
 
 /**
@@ -1329,7 +1347,7 @@ int             dc_is_contact_in_chat        (dc_context_t* context, uint32_t ch
  * If the group is already _promoted_ (any message was sent to the group),
  * all group members are informed by a special status message that is sent automatically by this function.
  *
- * If the group is a verified group, only verified contacts can be added to the group.
+ * If the group has group protection enabled, only verified contacts can be added to the group.
  *
  * Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.
  *
@@ -1973,7 +1991,7 @@ dc_lot_t*       dc_check_qr                  (dc_context_t* context, const char*
  * @param context The context object.
  * @param chat_id If set to a group-chat-id,
  *     the Verified-Group-Invite protocol is offered in the QR code;
- *     works for verified groups as well as for normal groups.
+ *     works for protected groups as well as for normal groups.
  *     If set to 0, the Setup-Contact protocol is offered in the QR code.
  *     See https://countermitm.readthedocs.io/en/latest/new.html
  *     for details about both protocols.
@@ -2003,7 +2021,7 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
  *   When the protocol has finished, an info-message is added to that chat.
  * - If the given QR code starts the Verified-Group-Invite protocol,
  *   the function waits until the protocol has finished.
- *   This is because the verified group is not opportunistic
+ *   This is because the protected group is not opportunistic
  *   and can be created only when the contacts have verified each other.
  *
  * See https://countermitm.readthedocs.io/en/latest/new.html
@@ -2015,8 +2033,8 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
  *     to dc_check_qr().
  * @return Chat-id of the joined chat, the UI may redirect to the this chat.
  *     If the out-of-band verification failed or was aborted, 0 is returned.
- *     A returned chat-id does not guarantee that the chat or the belonging contact is verified.
- *     If needed, this be checked with dc_chat_is_verified() and dc_contact_is_verified(),
+ *     A returned chat-id does not guarantee that the chat is protected or the belonging contact is verified.
+ *     If needed, this be checked with dc_chat_is_protected() and dc_contact_is_verified(),
  *     however, in practise, the UI will just listen to #DC_EVENT_CONTACTS_CHANGED unconditionally.
  */
 uint32_t        dc_join_securejoin           (dc_context_t* context, const char* qr);
@@ -2769,7 +2787,6 @@ char*            dc_chat_get_info_json       (dc_context_t* context, size_t chat
 #define         DC_CHAT_TYPE_UNDEFINED       0
 #define         DC_CHAT_TYPE_SINGLE          100
 #define         DC_CHAT_TYPE_GROUP           120
-#define         DC_CHAT_TYPE_VERIFIED_GROUP  130
 
 
 /**
@@ -2809,9 +2826,6 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
  *
  * - DC_CHAT_TYPE_GROUP  (120) - a group chat, chats_contacts contain all group
  *   members, incl. DC_CONTACT_ID_SELF
- *
- * - DC_CHAT_TYPE_VERIFIED_GROUP  (130) - a verified group chat. In verified groups,
- *   all members are verified and encryption is always active and cannot be disabled.
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
@@ -2942,15 +2956,16 @@ int             dc_chat_can_send              (const dc_chat_t* chat);
 
 
 /**
- * Check if a chat is verified.  Verified chats contain only verified members
- * and encryption is alwasy enabled.  Verified chats are created using
- * dc_create_group_chat() by setting the 'verified' parameter to true.
+ * Check if a chat is protected.
+ * Protected chats contain only verified members and encryption is always enabled.
+ * Protected chats are created using dc_create_group_chat() by setting the 'protect' parameter to 1.
+ * The status can be changed using dc_set_chat_protection().
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
- * @return 1=chat verified, 0=chat is not verified
+ * @return 1=chat protected, 0=chat is not protected
  */
-int             dc_chat_is_verified          (const dc_chat_t* chat);
+int             dc_chat_is_protected         (const dc_chat_t* chat);
 
 
 /**
@@ -3444,7 +3459,8 @@ int             dc_msg_is_forwarded           (const dc_msg_t* msg);
 /**
  * Check if the message is an informational message, created by the
  * device or by another users. Such messages are not "typed" by the user but
- * created due to other actions, eg. dc_set_chat_name(), dc_set_chat_profile_image()
+ * created due to other actions,
+ * eg. dc_set_chat_name(), dc_set_chat_profile_image(), dc_set_chat_protection()
  * or dc_add_contact_to_chat().
  *
  * These messages are typically shown in the center of the chat view,
@@ -3458,6 +3474,32 @@ int             dc_msg_is_forwarded           (const dc_msg_t* msg);
  * @return 1=message is a system command, 0=normal message
  */
 int             dc_msg_is_info                (const dc_msg_t* msg);
+
+
+/**
+ * Get the type of an informational message.
+ * If dc_msg_is_info() returns 1, this function returns the type of the informational message.
+ * UIs can display eg. an icon based upon the type.
+ *
+ * Currently, the following types are defined:
+ * - DC_INFO_PROTECTION_ENABLED (11) - Info-message for "Chat is now protected"
+ * - DC_INFO_PROTECTION_DISABLED (12) - Info-message for "Chat is no longer protected"
+ *
+ * Even when you display an icon,
+ * you should still display the text of the informational message using dc_msg_get_text()
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return One of the DC_INFO* constants.
+ *     0 or other values indicate unspecified types
+ *     or that the message is not an info-message.
+ */
+int             dc_msg_get_info_type          (const dc_msg_t* msg);
+
+
+// DC_INFO* uses the same values as SystemMessage in rust-land
+#define         DC_INFO_PROTECTION_ENABLED     11
+#define         DC_INFO_PROTECTION_DISABLED    12
 
 
 /**
@@ -4957,8 +4999,10 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_BAD_TIME_MSG_BODY          85
 #define DC_STR_UPDATE_REMINDER_MSG_BODY   86
 #define DC_STR_ERROR_NO_NETWORK           87
+#define DC_STR_PROTECTION_ENABLED         88
+#define DC_STR_PROTECTION_DISABLED        89
 
-#define DC_STR_COUNT                      87
+#define DC_STR_COUNT                      89
 
 /*
  * @}

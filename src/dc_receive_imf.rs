@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 
 use mailparse::SingleInfo;
 
-use crate::chat::{self, Chat, ChatId};
+use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
@@ -714,6 +714,19 @@ async fn add_parts(
         ephemeral_timer = EphemeralTimer::Disabled;
     }
 
+    // change chat protection
+    if let Some(new_status) = match mime_parser.is_system_message {
+        SystemMessage::ChatProtectionEnabled => Some(ProtectionStatus::Protected),
+        SystemMessage::ChatProtectionDisabled => Some(ProtectionStatus::Unprotected),
+        _ => None,
+    } {
+        chat_id.inner_set_protection(context, new_status).await?;
+        set_better_msg(
+            mime_parser,
+            context.stock_protection_msg(new_status, from_id).await,
+        );
+    }
+
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need from_id to be set
     let in_fresh = state == MessageState::InFresh;
@@ -1199,7 +1212,7 @@ async fn create_or_lookup_group(
                 || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
     {
         // group does not exist but should be created
-        let create_verified = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
+        let create_protected = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
             if let Err(err) =
                 check_verified_properties(context, mime_parser, from_id as u32, to_ids).await
             {
@@ -1207,9 +1220,9 @@ async fn create_or_lookup_group(
                 let s = format!("{}. See 'Info' for more details", err);
                 mime_parser.repl_msg_by_error(&s);
             }
-            VerifiedStatus::Verified
+            ProtectionStatus::Protected
         } else {
-            VerifiedStatus::Unverified
+            ProtectionStatus::Unprotected
         };
 
         if !allow_creation {
@@ -1222,11 +1235,17 @@ async fn create_or_lookup_group(
             &grpid,
             grpname.as_ref().unwrap(),
             create_blocked,
-            create_verified,
+            create_protected,
         )
         .await;
         chat_id_blocked = create_blocked;
         recreate_member_list = true;
+
+        if create_protected == ProtectionStatus::Protected {
+            chat_id
+                .add_protection_msg(context, ProtectionStatus::Protected, false, from_id)
+                .await?;
+        }
     }
 
     // again, check chat_id
@@ -1278,7 +1297,15 @@ async fn create_or_lookup_group(
                 }
             }
         }
+    } else if mime_parser.is_system_message == SystemMessage::ChatProtectionEnabled {
+        recreate_member_list = true;
+        if let Err(e) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
+            warn!(context, "checking verified properties failed: {}", e);
+            let s = format!("{}. See 'Info' for more details", e);
+            mime_parser.repl_msg_by_error(s);
+        }
     }
+
     if let Some(avatar_action) = &mime_parser.group_avatar {
         info!(context, "group-avatar change for {}", chat_id);
         if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
@@ -1463,7 +1490,7 @@ async fn create_or_lookup_adhoc_group(
         &grpid,
         grpname,
         create_blocked,
-        VerifiedStatus::Unverified,
+        ProtectionStatus::Unprotected,
     )
     .await;
     for &member_id in &member_ids {
@@ -1480,20 +1507,17 @@ async fn create_group_record(
     grpid: impl AsRef<str>,
     grpname: impl AsRef<str>,
     create_blocked: Blocked,
-    create_verified: VerifiedStatus,
+    create_protected: ProtectionStatus,
 ) -> ChatId {
     if context.sql.execute(
-        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
+        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);",
         paramsv![
-            if VerifiedStatus::Unverified != create_verified {
-                Chattype::VerifiedGroup
-            } else {
-                Chattype::Group
-            },
+            Chattype::Group,
             grpname.as_ref(),
             grpid.as_ref(),
             create_blocked,
             time(),
+            create_protected,
         ],
     ).await
     .is_err()
@@ -1645,6 +1669,11 @@ async fn check_verified_properties(
 
     ensure!(mimeparser.was_encrypted(), "This message is not encrypted.");
 
+    ensure!(
+        mimeparser.get(HeaderDef::ChatVerified).is_some(),
+        "Sender did not mark the message as protected."
+    );
+
     // ensure, the contact is verified
     // and the message is signed with a verified key of the sender.
     // this check is skipped for SELF as there is no proper SELF-peerstate
@@ -1734,7 +1763,7 @@ async fn check_verified_properties(
         }
         if !is_verified {
             bail!(
-                "{} is not a member of this verified group",
+                "{} is not a member of this protected chat",
                 to_addr.to_string()
             );
         }
@@ -2182,7 +2211,7 @@ mod tests {
         assert!(one2one.get_visibility() == ChatVisibility::Archived);
 
         // create a group with bob, archive group
-        let group_id = chat::create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let group_id = chat::create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         chat::add_contact_to_chat(&t.ctx, group_id, bob_id).await;
