@@ -2966,7 +2966,6 @@ int             dc_chat_can_send              (const dc_chat_t* chat);
  * @return 1=chat protected, 0=chat is not protected
  */
 int             dc_chat_is_protected         (const dc_chat_t* chat);
-#define         dc_chat_is_verified          dc_chat_is_protected // allow using old function name for a while
 
 
 /**
