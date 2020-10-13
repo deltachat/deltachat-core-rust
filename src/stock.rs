@@ -7,6 +7,7 @@ use strum_macros::EnumProperty;
 
 use crate::blob::BlobObject;
 use crate::chat;
+use crate::chat::ProtectionStatus;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::*;
 use crate::context::Context;
@@ -402,6 +403,20 @@ impl Context {
                     .await
             }
         }
+    }
+
+    /// Returns a stock message saying that protection status has changed.
+    pub async fn stock_protection_msg(&self, protect: ProtectionStatus, from_id: u32) -> String {
+        self.stock_system_msg(
+            match protect {
+                ProtectionStatus::Protected => StockMessage::ProtectionEnabled,
+                ProtectionStatus::Unprotected => StockMessage::ProtectionDisabled,
+            },
+            "",
+            "",
+            from_id,
+        )
+        .await
     }
 
     pub async fn update_device_chats(&self) -> Result<(), Error> {

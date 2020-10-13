@@ -224,26 +224,6 @@ impl ChatId {
         Ok(())
     }
 
-    /// Returns a stock message saying that protection status has changed.
-    pub(crate) async fn get_protection_msg(
-        self,
-        context: &Context,
-        protect: ProtectionStatus,
-        from_id: u32,
-    ) -> String {
-        context
-            .stock_system_msg(
-                match protect {
-                    ProtectionStatus::Protected => StockMessage::ProtectionEnabled,
-                    ProtectionStatus::Unprotected => StockMessage::ProtectionDisabled,
-                },
-                "",
-                "",
-                from_id,
-            )
-            .await
-    }
-
     /// Send protected status message to the chat.
     ///
     /// This sends the message with the protected status change to the chat,
@@ -258,7 +238,7 @@ impl ChatId {
         promoted: bool,
         from_id: u32,
     ) -> Result<(), Error> {
-        let msg_text = self.get_protection_msg(context, protect, from_id).await;
+        let msg_text = context.stock_protection_msg(protect, from_id).await;
 
         if promoted {
             let mut msg = Message::default();

@@ -721,8 +721,8 @@ async fn add_parts(
             .await?;
         set_better_msg(
             mime_parser,
-            chat_id
-                .get_protection_msg(context, ProtectionStatus::Protected, from_id)
+            context
+                .stock_protection_msg(ProtectionStatus::Protected, from_id)
                 .await,
         );
     } else if mime_parser.is_system_message == SystemMessage::ChatProtectionDisabled {
@@ -731,8 +731,8 @@ async fn add_parts(
             .await?;
         set_better_msg(
             mime_parser,
-            chat_id
-                .get_protection_msg(context, ProtectionStatus::Unprotected, from_id)
+            context
+                .stock_protection_msg(ProtectionStatus::Unprotected, from_id)
                 .await,
         );
     }
