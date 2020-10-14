@@ -57,7 +57,7 @@ impl EncryptHelper {
     /// preferences, even if message copy is not sent to self.
     ///
     /// `e2ee_guaranteed` should be set to true for replies to encrypted messages (as required by
-    /// Autocrypt Level 1, version 1.1) and for messages sent in verified groups.
+    /// Autocrypt Level 1, version 1.1) and for messages sent in protected groups.
     ///
     /// Returns an error if `e2ee_guaranteed` is true, but one or more keys are missing.
     ///
@@ -84,7 +84,11 @@ impl EncryptHelper {
                     match peerstate.prefer_encrypt {
                         EncryptPreference::NoPreference => {}
                         EncryptPreference::Mutual => prefer_encrypt_count += 1,
-                        EncryptPreference::Reset => return Ok(false),
+                        EncryptPreference::Reset => {
+                            if !e2ee_guaranteed {
+                                return Ok(false);
+                            }
+                        }
                     };
                 }
                 None => {
