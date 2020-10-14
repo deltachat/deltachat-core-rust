@@ -60,9 +60,6 @@ impl EncryptHelper {
     /// Autocrypt Level 1, version 1.1) and for messages sent in protected groups.
     ///
     /// Returns an error if `e2ee_guaranteed` is true, but one or more keys are missing.
-    ///
-    /// Always returns `false` if one of the peerstates does not support Autocrypt (is in "reset"
-    /// state) or does not have a known key.
     pub fn should_encrypt(
         &self,
         context: &Context,
