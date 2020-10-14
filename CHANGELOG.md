@@ -1,5 +1,9 @@
 # Changelog 
 
+## Unreleased
+
+- breaking change: update_device_chats() was removed. This is now done automatically during configure.
+
 ## 1.46.0
 
 - breaking change: `dc_configure()` report errors in
