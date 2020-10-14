@@ -1643,9 +1643,9 @@ pub(crate) async fn handle_ndn(
         return;
     }
 
-    let res = context
+    let res: Result<Vec<_>, _> = context
         .sql
-        .query_row(
+        .query_map(
             concat!(
                 "SELECT",
                 "    m.id AS msg_id,",
@@ -1662,34 +1662,51 @@ pub(crate) async fn handle_ndn(
                     row.get::<_, Chattype>("type")?,
                 ))
             },
+            |rows| Ok(rows.collect::<Vec<_>>()),
         )
         .await;
+
     if let Err(ref err) = res {
         info!(context, "Failed to select NDN {:?}", err);
     }
 
-    if let Ok((msg_id, chat_id, chat_type)) = res {
-        set_msg_failed(context, msg_id, error).await;
-
-        if chat_type == Chattype::Group {
-            if let Some(failed_recipient) = &failed.failed_recipient {
-                let contact_id =
-                    Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;
-                if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-                    // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
-                    chat::add_info_msg(
-                        context,
-                        chat_id,
-                        context
-                            .stock_string_repl_str(
-                                StockMessage::FailedSendingTo,
-                                contact.get_display_name(),
-                            )
-                            .await,
-                    )
-                    .await;
-                    context.emit_event(EventType::ChatModified(chat_id));
+    if let Ok(msgs) = res {
+        for msg in msgs.iter() {
+            match msg {
+                Ok((msg_id, chat_id, chat_type)) => {
+                    set_msg_failed(context, *msg_id, error.as_ref()).await;
+                    ndn_maybe_add_info_msg(context, failed, *chat_id, *chat_type).await;
                 }
+                Err(e) => warn!(context, "ndn error: {}", e),
+            }
+        }
+    }
+}
+
+async fn ndn_maybe_add_info_msg(
+    context: &Context,
+    failed: &FailureReport,
+    chat_id: ChatId,
+    chat_type: Chattype,
+) {
+    if chat_type == Chattype::Group {
+        if let Some(failed_recipient) = &failed.failed_recipient {
+            let contact_id =
+                Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;
+            if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
+                // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
+                chat::add_info_msg(
+                    context,
+                    chat_id,
+                    context
+                        .stock_string_repl_str(
+                            StockMessage::FailedSendingTo,
+                            contact.get_display_name(),
+                        )
+                        .await,
+                )
+                .await;
+                context.emit_event(EventType::ChatModified(chat_id));
             }
         }
     }
