@@ -240,6 +240,10 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Chat protection disabled."))]
     ProtectionDisabled = 89,
+
+    // used in summaries, a noun, not a verb (not: "to reply")
+    #[strum(props(fallback = "Reply"))]
+    ReplyNoun = 90,
 }
 
 /*
