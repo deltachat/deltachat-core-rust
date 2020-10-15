@@ -1669,10 +1669,16 @@ async fn check_verified_properties(
 
     ensure!(mimeparser.was_encrypted(), "This message is not encrypted.");
 
-    ensure!(
-        mimeparser.get(HeaderDef::ChatVerified).is_some(),
-        "Sender did not mark the message as protected."
-    );
+    if mimeparser.get(HeaderDef::ChatVerified).is_none() {
+        // we do not fail here currently, this would exclude (a) non-deltas
+        // and (b) deltas with different protection views across multiple devices.
+        // for group creation or protection enabled/disabled, however, Chat-Verified is respected.
+        warn!(
+            context,
+            "{} did not mark message as protected.",
+            contact.get_addr()
+        );
+    }
 
     // ensure, the contact is verified
     // and the message is signed with a verified key of the sender.
