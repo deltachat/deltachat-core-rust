@@ -1184,17 +1184,15 @@ async fn create_or_lookup_group(
     let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
         .await
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
-    if !chat_id.is_unset() {
-        if !chat::is_contact_in_chat(context, chat_id, from_id as u32).await {
-            // The From-address is not part of this group.
-            // It could be a new user or a DSN from a mailer-daemon.
-            // in any case we do not want to recreate the member list
-            // but still show the message as part of the chat.
-            // After all, the sender has a reference/in-reply-to that
-            // points to this chat.
-            let s = context.stock_str(StockMessage::UnknownSenderForChat).await;
-            mime_parser.repl_msg_by_error(s.to_string());
-        }
+    if !chat_id.is_unset() && !chat::is_contact_in_chat(context, chat_id, from_id as u32).await {
+        // The From-address is not part of this group.
+        // It could be a new user or a DSN from a mailer-daemon.
+        // in any case we do not want to recreate the member list
+        // but still show the message as part of the chat.
+        // After all, the sender has a reference/in-reply-to that
+        // points to this chat.
+        let s = context.stock_str(StockMessage::UnknownSenderForChat).await;
+        mime_parser.repl_msg_by_error(s.to_string());
     }
 
     // check if the group does not exist but should be created
