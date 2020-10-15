@@ -20,8 +20,8 @@ enum AddText {
     YesPreserveLineEnds,
 }
 
-/// dehtml() returns way too many newlines; however, an optimisation on this issue is not needed as
-/// the newlines are typically removed in further processing by the caller
+// dehtml() returns way too many newlines; however, an optimisation on this issue is not needed as
+// the newlines are typically removed in further processing by the caller
 pub fn dehtml(buf: &str) -> Option<String> {
     let s = dehtml_quick_xml(buf);
     if !s.trim().is_empty() {
