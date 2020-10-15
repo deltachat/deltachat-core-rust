@@ -69,6 +69,9 @@ pub enum Config {
     #[strum(props(default = "0"))] // also change MediaQuality.default() on changes
     MediaQuality,
 
+    #[strum(props(default = "1"))]
+    Prefetch,
+
     #[strum(props(default = "0"))]
     KeyGenType,
 
