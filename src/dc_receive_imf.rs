@@ -714,17 +714,31 @@ async fn add_parts(
         ephemeral_timer = EphemeralTimer::Disabled;
     }
 
-    // change chat protection
-    if let Some(new_status) = match mime_parser.is_system_message {
-        SystemMessage::ChatProtectionEnabled => Some(ProtectionStatus::Protected),
-        SystemMessage::ChatProtectionDisabled => Some(ProtectionStatus::Unprotected),
-        _ => None,
-    } {
-        chat_id.inner_set_protection(context, new_status).await?;
-        set_better_msg(
-            mime_parser,
-            context.stock_protection_msg(new_status, from_id).await,
-        );
+    // if a chat is protected, check additional properties
+    if !chat_id.is_special() {
+        let chat = Chat::load_from_db(context, *chat_id).await?;
+        if chat.is_protected() {
+            if let Err(err) =
+                check_verified_properties(context, mime_parser, from_id as u32, to_ids).await
+            {
+                warn!(context, "verification problem: {}", err);
+                let s = format!("{}. See 'Info' for more details", err);
+                mime_parser.repl_msg_by_error(s);
+            } else {
+                // change chat protection only when verification check passes
+                if let Some(new_status) = match mime_parser.is_system_message {
+                    SystemMessage::ChatProtectionEnabled => Some(ProtectionStatus::Protected),
+                    SystemMessage::ChatProtectionDisabled => Some(ProtectionStatus::Unprotected),
+                    _ => None,
+                } {
+                    chat_id.inner_set_protection(context, new_status).await?;
+                    set_better_msg(
+                        mime_parser,
+                        context.stock_protection_msg(new_status, from_id).await,
+                    );
+                }
+            }
+        }
     }
 
     // correct message_timestamp, it should not be used before,
@@ -1167,19 +1181,10 @@ async fn create_or_lookup_group(
     set_better_msg(mime_parser, &better_msg);
 
     // check, if we have a chat with this group ID
-    let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
+    let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
         .await
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
     if !chat_id.is_unset() {
-        if chat_id_verified {
-            if let Err(err) =
-                check_verified_properties(context, mime_parser, from_id as u32, to_ids).await
-            {
-                warn!(context, "verification problem: {}", err);
-                let s = format!("{}. See 'Info' for more details", err);
-                mime_parser.repl_msg_by_error(s);
-            }
-        }
         if !chat::is_contact_in_chat(context, chat_id, from_id as u32).await {
             // The From-address is not part of this group.
             // It could be a new user or a DSN from a mailer-daemon.
@@ -1299,11 +1304,6 @@ async fn create_or_lookup_group(
         }
     } else if mime_parser.is_system_message == SystemMessage::ChatProtectionEnabled {
         recreate_member_list = true;
-        if let Err(e) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
-            warn!(context, "checking verified properties failed: {}", e);
-            let s = format!("{}. See 'Info' for more details", e);
-            mime_parser.repl_msg_by_error(s);
-        }
     }
 
     if let Some(avatar_action) = &mime_parser.group_avatar {
