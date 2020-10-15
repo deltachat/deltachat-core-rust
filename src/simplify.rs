@@ -71,10 +71,9 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, Opti
     let lines = split_lines(&input);
     let (lines, is_forwarded) = skip_forward_header(&lines);
 
-    let original_lines = &lines;
-
-    let lines = remove_message_footer(lines);
     let (lines, top_quote) = remove_top_quote(lines);
+    let original_lines = &lines;
+    let lines = remove_message_footer(lines);
 
     let text = if is_chat_message {
         render_message(lines, false)

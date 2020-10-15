@@ -748,7 +748,7 @@ impl MimeMessage {
                             (simplified_txt, top_quote)
                         };
 
-                        if !simplified_txt.is_empty() {
+                        if !simplified_txt.is_empty() || simplified_quote.is_some() {
                             let mut part = Part::default();
                             part.typ = Viewtype::Text;
                             part.mimetype = Some(mime_type);
@@ -2168,5 +2168,37 @@ Reply
             "Long quote."
         );
         assert_eq!(message.parts[0].msg, "Reply");
+    }
+
+    #[async_std::test]
+    async fn parse_quote_without_reply() {
+        let context = TestContext::new().await;
+        let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Subject: Re: swipe-to-reply
+MIME-Version: 1.0
+In-Reply-To: <bar@example.org>
+Date: Tue, 06 Oct 2020 00:00:00 +0000
+Message-ID: <foo@example.org>
+To: bob <bob@example.org>
+From: alice <alice@example.org>
+
+> Just a quote.
+"##;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(
+            message.get_subject(),
+            Some("Re: swipe-to-reply".to_string())
+        );
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Text);
+        assert_eq!(
+            message.parts[0].param.get(Param::Quote).unwrap(),
+            "Just a quote."
+        );
+        assert_eq!(message.parts[0].msg, "");
     }
 }
