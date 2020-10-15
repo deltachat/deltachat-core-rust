@@ -1638,12 +1638,12 @@ pub(crate) async fn handle_ndn(
     context: &Context,
     failed: &FailureReport,
     error: Option<impl AsRef<str>>,
-) {
+) -> anyhow::Result<()> {
     if failed.rfc724_mid.is_empty() {
         return;
     }
 
-    let res: Result<Vec<_>, _> = context
+    let msgs: Result<Vec<_>, _> = context
         .sql
         .query_map(
             concat!(
@@ -1664,23 +1664,20 @@ pub(crate) async fn handle_ndn(
             },
             |rows| Ok(rows.collect::<Vec<_>>()),
         )
-        .await;
+        .await?;
 
-    if let Err(ref err) = res {
-        info!(context, "Failed to select NDN {:?}", err);
+    for msg in msgs.iter() {
+        let (msg_id, chat_id, chat_type) = msg?;
+        set_msg_failed(context, *msg_id, error.as_ref()).await?;
     }
 
-    if let Ok(msgs) = res {
-        for msg in msgs.iter() {
-            match msg {
-                Ok((msg_id, chat_id, chat_type)) => {
-                    set_msg_failed(context, *msg_id, error.as_ref()).await;
-                    ndn_maybe_add_info_msg(context, failed, *chat_id, *chat_type).await;
-                }
-                Err(e) => warn!(context, "ndn error: {}", e),
-            }
-        }
+    if let Some(msg) = msgs.last() {
+        let (msg_id, chat_id, chat_type) = msg?;
+        // Add only one info msg for all failed messages
+        ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
     }
+
+    Ok(())
 }
 
 async fn ndn_maybe_add_info_msg(
@@ -1688,28 +1685,28 @@ async fn ndn_maybe_add_info_msg(
     failed: &FailureReport,
     chat_id: ChatId,
     chat_type: Chattype,
-) {
+) -> anyhow::Result<()> {
     if chat_type == Chattype::Group {
         if let Some(failed_recipient) = &failed.failed_recipient {
             let contact_id =
                 Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;
-            if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-                // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
-                chat::add_info_msg(
-                    context,
-                    chat_id,
-                    context
-                        .stock_string_repl_str(
-                            StockMessage::FailedSendingTo,
-                            contact.get_display_name(),
-                        )
-                        .await,
-                )
-                .await;
-                context.emit_event(EventType::ChatModified(chat_id));
-            }
+            let contact = Contact::load_from_db(context, contact_id).await?;
+            // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
+            chat::add_info_msg(
+                context,
+                chat_id,
+                context
+                    .stock_string_repl_str(
+                        StockMessage::FailedSendingTo,
+                        contact.get_display_name(),
+                    )
+                    .await,
+            )
+            .await;
+            context.emit_event(EventType::ChatModified(chat_id));
         }
     }
+    Ok(())
 }
 
 /// The number of messages assigned to real chat (!=deaddrop, !=trash)

@@ -1071,7 +1071,9 @@ impl MimeMessage {
                 .iter()
                 .find(|p| p.typ == Viewtype::Text)
                 .map(|p| p.msg.clone());
-            message::handle_ndn(context, failure_report, error).await
+            if let Err(e) = message::handle_ndn(context, failure_report, error).await {
+                warn!(context, "Could not handle ndn: {}", e);
+            }
         }
     }
 
