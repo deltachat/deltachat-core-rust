@@ -77,6 +77,7 @@ def run_cmdline(argv=None, account_plugins=None):
         ac.set_config("mvbox_move", "0")
         ac.set_config("mvbox_watch", "0")
         ac.set_config("sentbox_watch", "0")
+        ac.set_config("bot", "1")
         configtracker = ac.configure()
         configtracker.wait_finish()
 

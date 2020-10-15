@@ -808,21 +808,6 @@ pub unsafe extern "C" fn dc_add_device_msg(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_update_device_chats(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_update_device_chats()");
-        return;
-    }
-    let ctx = &mut *context;
-
-    block_on(async move {
-        ctx.update_device_chats()
-            .await
-            .unwrap_or_log_default(&ctx, "Failed to add device message")
-    })
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_was_device_msg_ever_added(
     context: *mut dc_context_t,
     label: *const libc::c_char,

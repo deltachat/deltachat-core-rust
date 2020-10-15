@@ -354,6 +354,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             for acc in self._accounts:
                 if hasattr(acc, "_configtracker"):
                     acc._configtracker.wait_finish()
+                    acc._evtracker.consume_events()
+                    acc.get_device_chat().mark_noticed()
                     del acc._configtracker
                 acc.set_config("bcc_self", "0")
                 if acc.is_configured() and not acc.is_started():

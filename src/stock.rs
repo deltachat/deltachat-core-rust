@@ -5,7 +5,6 @@ use std::borrow::Cow;
 use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
-use crate::blob::BlobObject;
 use crate::chat;
 use crate::chat::ProtectionStatus;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
@@ -15,6 +14,7 @@ use crate::error::{bail, Error};
 use crate::message::Message;
 use crate::param::Param;
 use crate::stock::StockMessage::{DeviceMessagesHint, WelcomeMessage};
+use crate::{blob::BlobObject, config::Config};
 
 /// Stock strings
 ///
@@ -423,16 +423,13 @@ impl Context {
         .await
     }
 
-    pub async fn update_device_chats(&self) -> Result<(), Error> {
-        // check for the LAST added device message - if it is present, we can skip message creation.
-        // this is worthwhile as this function is typically called
-        // by the UI on every program start or even on every opening of the chatlist.
-        if chat::was_device_msg_ever_added(&self, "core-welcome").await? {
+    pub(crate) async fn update_device_chats(&self) -> Result<(), Error> {
+        if self.get_config_bool(Config::Bot).await {
             return Ok(());
         }
 
-        // create saved-messages chat;
-        // we do this only once, if the user has deleted the chat, he can recreate it manually.
+        // create saved-messages chat; we do this only once, if the user has deleted the chat,
+        // he can recreate it manually (make sure we do not re-add it when configure() was called a second time)
         if !self.sql.get_raw_config_bool(&self, "self-chat-added").await {
             self.sql
                 .set_raw_config_bool(&self, "self-chat-added", true)

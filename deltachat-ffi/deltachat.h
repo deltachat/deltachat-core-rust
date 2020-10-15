@@ -349,6 +349,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    https://github.com/cracker0dks/basicwebrtc which some UIs have native support for.
  *                    The type `jitsi:` may be handled by external apps.
  *                    If no type is prefixed, the videochat is handled completely in a browser.
+ * - `bot`          = Set to "1" if this is a bot. E.g. prevents adding the "Device messages" and "Saved messages" chats.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
@@ -983,24 +984,6 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  * ~~~
  */
 uint32_t        dc_add_device_msg            (dc_context_t* context, const char* label, dc_msg_t* msg);
-
-
-/**
- * Init device-messages and saved-messages chat.
- * This function adds the device-chat and saved-messages chat
- * and adds one or more welcome or update-messages.
- * The ui can add messages on its own using dc_add_device_msg() -
- * for ordering, either before or after or even without calling this function.
- *
- * Chat and message creation is done only once.
- * So if the user has manually deleted things, they won't be re-created
- * (however, not seen device messages are added and may re-create the device-chat).
- *
- * @memberof dc_context_t
- * @param context The context object.
- */
-void            dc_update_device_chats       (dc_context_t* context);
-
 
 /**
  * Check if a device-message with a given label was ever added.

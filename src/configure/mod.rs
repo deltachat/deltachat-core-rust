@@ -163,6 +163,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         DC_LP_AUTH_NORMAL as i32
     };
 
+    let ctx2 = ctx.clone();
+    let update_device_chats_handle = task::spawn(async move { ctx2.update_device_chats().await });
+
     // Step 1: Load the parameters and check email-address and password
 
     if oauth2 {
@@ -357,6 +360,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     .await;
 
     progress!(ctx, 940);
+    update_device_chats_handle.await?;
 
     Ok(())
 }

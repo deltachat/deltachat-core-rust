@@ -881,9 +881,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             msg.set_text(Some(arg1.to_string()));
             chat::add_device_msg(&context, None, Some(&mut msg)).await?;
         }
-        "updatedevicechats" => {
-            context.update_device_chats().await?;
-        }
         "listmedia" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
 
