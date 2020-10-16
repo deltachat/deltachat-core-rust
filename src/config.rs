@@ -70,7 +70,7 @@ pub enum Config {
     MediaQuality,
 
     #[strum(props(default = "1"))]
-    Prefetch,
+    FetchExisting,
 
     #[strum(props(default = "0"))]
     KeyGenType,
