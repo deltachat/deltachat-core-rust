@@ -219,9 +219,6 @@ lazy_static::lazy_static! {
         after_login_hint: "",
         overview_page: "https://providers.delta.chat/five-chat",
         server: vec![
-            Server { protocol: IMAP, socket: STARTTLS, hostname: "five.chat", port: 143, username_pattern: EMAIL },
-            Server { protocol: IMAP, socket: SSL, hostname: "five.chat", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "five.chat", port: 587, username_pattern: EMAIL },
         ],
         config_defaults: Some(vec![
             ConfigDefault { key: Config::BccSelf, value: "1" },
