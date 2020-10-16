@@ -408,6 +408,7 @@ lazy_static::lazy_static! {
             ConfigDefault { key: Config::MvboxMove, value: "0" },
             ConfigDefault { key: Config::E2eeEnabled, value: "0" },
             ConfigDefault { key: Config::MediaQuality, value: "1" },
+            ConfigDefault { key: Config::FetchExisting, value: "0" },
         ]),
         strict_tls: false,
         oauth2_authorizer: None,
@@ -827,5 +828,5 @@ lazy_static::lazy_static! {
         ("ziggo.nl", &*P_ZIGGO_NL),
     ].iter().copied().collect();
 
-    pub static ref PROVIDER_UPDATED: chrono::NaiveDate = chrono::NaiveDate::from_ymd(2020, 9, 22);
+    pub static ref PROVIDER_UPDATED: chrono::NaiveDate = chrono::NaiveDate::from_ymd(2020, 10, 16);
 }
