@@ -353,13 +353,11 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
 
-    if ctx.get_config_bool(Config::Prefetch).await {
-        job::add(
-            ctx,
-            job::Job::new(Action::FetchExistingMsgs, 0, Params::new(), 0),
-        )
-        .await;
-    }
+    job::add(
+        ctx,
+        job::Job::new(Action::FetchExistingMsgs, 0, Params::new(), 0),
+    )
+    .await;
 
     progress!(ctx, 940);
     update_device_chats_handle.await?;

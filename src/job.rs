@@ -636,17 +636,19 @@ impl Job {
         add_all_recipients_as_contacts(context, imap, Config::ConfiguredMvboxFolder).await;
         add_all_recipients_as_contacts(context, imap, Config::ConfiguredInboxFolder).await;
 
-        for config in &[
-            Config::ConfiguredMvboxFolder,
-            Config::ConfiguredInboxFolder,
-            Config::ConfiguredSentboxFolder,
-        ] {
-            if let Some(folder) = context.get_config(*config).await {
-                if let Err(e) = imap.fetch_new_messages(context, folder, true).await {
-                    // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-                    warn!(context, "Could not fetch messages, retrying: {:#}", e);
-                    return Status::RetryLater;
-                };
+        if context.get_config_bool(Config::FetchExisting).await {
+            for config in &[
+                Config::ConfiguredMvboxFolder,
+                Config::ConfiguredInboxFolder,
+                Config::ConfiguredSentboxFolder,
+            ] {
+                if let Some(folder) = context.get_config(*config).await {
+                    if let Err(e) = imap.fetch_new_messages(context, folder, true).await {
+                        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+                        warn!(context, "Could not fetch messages, retrying: {:#}", e);
+                        return Status::RetryLater;
+                    };
+                }
             }
         }
         info!(context, "Done fetching existing messages.");
