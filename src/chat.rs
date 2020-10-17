@@ -2034,7 +2034,9 @@ pub async fn create_group_chat(
     });
 
     if protect == ProtectionStatus::Protected {
-        chat_id.set_protection(context, protect).await?;
+        // this part is to stay compatible to verified groups,
+        // in some future, we will drop the "protect"-flag from create_group_chat()
+        chat_id.inner_set_protection(context, protect).await?;
     }
 
     Ok(chat_id)
