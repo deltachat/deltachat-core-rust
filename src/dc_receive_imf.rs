@@ -1245,8 +1245,10 @@ async fn create_or_lookup_group(
         recreate_member_list = true;
 
         if create_protected == ProtectionStatus::Protected {
+            // set from_id=0 as it is not clear that the sender of this random group message
+            // actually really has enabled chat-protection at some point.
             chat_id
-                .add_protection_msg(context, ProtectionStatus::Protected, false, from_id)
+                .add_protection_msg(context, ProtectionStatus::Protected, false, 0)
                 .await?;
         }
     }
