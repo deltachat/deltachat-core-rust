@@ -3606,6 +3606,22 @@ mod tests {
         let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
+        add_info_msg(&t.ctx, chat_id, "foo info").await;
+
+        let msg = t.get_last_msg(chat_id).await;
+        assert_eq!(msg.get_chat_id(), chat_id);
+        assert_eq!(msg.get_viewtype(), Viewtype::Text);
+        assert_eq!(msg.get_text().unwrap(), "foo info");
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::Unknown);
+    }
+
+    #[async_std::test]
+    async fn test_add_info_msg_with_cmd() {
+        let t = TestContext::new().await;
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
+            .await
+            .unwrap();
         let msg_id = add_info_msg_with_cmd(
             &t.ctx,
             chat_id,
@@ -3621,6 +3637,9 @@ mod tests {
         assert_eq!(msg.get_text().unwrap(), "foo bar info");
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::EphemeralTimerChanged);
+
+        let msg2 = t.get_last_msg(chat_id).await;
+        assert_eq!(msg.get_id(), msg2.get_id());
     }
 
     #[async_std::test]
