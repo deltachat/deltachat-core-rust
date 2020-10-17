@@ -2900,18 +2900,22 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 /// Adds an informational message to chat.
 ///
 /// For example, it can be a message showing that a member was added to a group.
-pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
+pub(crate) async fn add_info_msg_with_cmd(
+    context: &Context,
+    chat_id: ChatId,
+    text: impl AsRef<str>,
+    cmd: SystemMessage,
+) -> Result<MsgId, Error> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
-    let ephemeral_timer = match chat_id.get_ephemeral_timer(context).await {
-        Err(e) => {
-            warn!(context, "Could not get timer for info msg: {}", e);
-            return;
-        }
-        Ok(ephemeral_timer) => ephemeral_timer,
-    };
+    let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
 
-    if let Err(e) = context.sql.execute(
-        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid,ephemeral_timer) VALUES (?,?,?, ?,?,?, ?,?,?);",
+    let mut param = Params::new();
+    if cmd != SystemMessage::Unknown {
+        param.set_cmd(cmd)
+    }
+
+    context.sql.execute(
+        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid,ephemeral_timer, param) VALUES (?,?,?, ?,?,?, ?,?,?, ?);",
         paramsv![
             chat_id,
             DC_CONTACT_ID_INFO,
@@ -2921,22 +2925,25 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
             MessageState::InNoticed,
             text.as_ref().to_string(),
             rfc724_mid,
-            ephemeral_timer
+            ephemeral_timer,
+            param.to_string(),
         ]
-    ).await {
-        warn!(context, "Could not add info msg: {}", e);
-        return;
-    }
+    ).await?;
 
     let row_id = context
         .sql
         .get_rowid(context, "msgs", "rfc724_mid", &rfc724_mid)
         .await
         .unwrap_or_default();
-    context.emit_event(EventType::MsgsChanged {
-        chat_id,
-        msg_id: MsgId::new(row_id),
-    });
+    let msg_id = MsgId::new(row_id);
+    context.emit_event(EventType::MsgsChanged { chat_id, msg_id });
+    Ok(msg_id)
+}
+
+pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
+    if let Err(e) = add_info_msg_with_cmd(context, chat_id, text, SystemMessage::Unknown).await {
+        warn!(context, "Could not add info msg: {}", e);
+    }
 }
 
 #[cfg(test)]
@@ -3590,5 +3597,98 @@ mod tests {
                 .is_muted(),
             false
         );
+    }
+
+    #[async_std::test]
+    async fn test_add_info_msg() {
+        let t = TestContext::new().await;
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
+            .await
+            .unwrap();
+        let msg_id = add_info_msg_with_cmd(
+            &t.ctx,
+            chat_id,
+            "foo bar info",
+            SystemMessage::EphemeralTimerChanged,
+        )
+        .await
+        .unwrap();
+
+        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+        assert_eq!(msg.get_chat_id(), chat_id);
+        assert_eq!(msg.get_viewtype(), Viewtype::Text);
+        assert_eq!(msg.get_text().unwrap(), "foo bar info");
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::EphemeralTimerChanged);
+    }
+
+    #[async_std::test]
+    async fn test_set_protection() {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
+            .await
+            .unwrap();
+        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert!(!chat.is_protected());
+        assert!(chat.is_unpromoted());
+
+        // enable protection on unpromoted chat, the info-message is added via add_info_msg()
+        chat_id
+            .set_protection(&t.ctx, ProtectionStatus::Protected)
+            .await
+            .unwrap();
+
+        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert!(chat.is_protected());
+        assert!(chat.is_unpromoted());
+
+        let msgs = get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 1);
+
+        let msg = t.get_last_msg(chat_id).await;
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
+        assert_eq!(msg.get_state(), MessageState::InNoticed);
+
+        // disable protection again, still unpromoted
+        chat_id
+            .set_protection(&t.ctx, ProtectionStatus::Unprotected)
+            .await
+            .unwrap();
+
+        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert!(!chat.is_protected());
+        assert!(chat.is_unpromoted());
+
+        let msg = t.get_last_msg(chat_id).await;
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionDisabled);
+        assert_eq!(msg.get_state(), MessageState::InNoticed);
+
+        // send a message, this switches to promoted state
+        send_text_msg(&t.ctx, chat_id, "hi!".to_string())
+            .await
+            .unwrap();
+
+        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert!(!chat.is_protected());
+        assert!(!chat.is_unpromoted());
+
+        let msgs = get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 3);
+
+        // enable protection on promoted chat, the info-message is sent via send_msg() this time
+        chat_id
+            .set_protection(&t.ctx, ProtectionStatus::Protected)
+            .await
+            .unwrap();
+        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert!(chat.is_protected());
+        assert!(!chat.is_unpromoted());
+
+        let msg = t.get_last_msg(chat_id).await;
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
+        assert_eq!(msg.get_state(), MessageState::OutDelivered); // as bcc-self is disabled and there is nobody else in the chat
     }
 }
