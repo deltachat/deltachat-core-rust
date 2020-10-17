@@ -240,18 +240,19 @@ impl ChatId {
         from_id: u32,
     ) -> Result<(), Error> {
         let msg_text = context.stock_protection_msg(protect, from_id).await;
+        let cmd = match protect {
+            ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
+            ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
+        };
 
         if promote {
             let mut msg = Message::default();
             msg.viewtype = Viewtype::Text;
             msg.text = Some(msg_text);
-            msg.param.set_cmd(match protect {
-                ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
-                ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
-            });
+            msg.param.set_cmd(cmd);
             send_msg(context, self, &mut msg).await?;
         } else {
-            add_info_msg(context, self, msg_text).await;
+            add_info_msg_with_cmd(context, self, msg_text, cmd).await?;
         }
 
         Ok(())
