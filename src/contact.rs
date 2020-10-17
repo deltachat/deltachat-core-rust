@@ -3,7 +3,7 @@
 use async_std::path::PathBuf;
 use deltachat_derive::*;
 use itertools::Itertools;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::aheader::EncryptPreference;
@@ -1053,9 +1053,7 @@ pub fn addr_normalize(addr: &str) -> &str {
 }
 
 fn sanitize_name_and_addr(name: impl AsRef<str>, addr: impl AsRef<str>) -> (String, String) {
-    lazy_static! {
-        static ref ADDR_WITH_NAME_REGEX: Regex = Regex::new("(.*)<(.*)>").unwrap();
-    }
+    static ADDR_WITH_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new("(.*)<(.*)>").unwrap());
     if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
         (
             if name.as_ref().is_empty() {

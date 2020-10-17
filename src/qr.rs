@@ -1,6 +1,6 @@
 //! # QR code module
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 
@@ -358,12 +358,10 @@ async fn decode_matmsg(context: &Context, qr: &str) -> Lot {
     Lot::from_address(context, name, addr).await
 }
 
-lazy_static! {
-    static ref VCARD_NAME_RE: regex::Regex =
-        regex::Regex::new(r"(?m)^N:([^;]*);([^;\n]*)").unwrap();
-    static ref VCARD_EMAIL_RE: regex::Regex =
-        regex::Regex::new(r"(?m)^EMAIL([^:\n]*):([^;\n]*)").unwrap();
-}
+static VCARD_NAME_RE: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"(?m)^N:([^;]*);([^;\n]*)").unwrap());
+static VCARD_EMAIL_RE: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"(?m)^EMAIL([^:\n]*):([^;\n]*)").unwrap());
 
 /// Extract address for the matmsg scheme.
 ///

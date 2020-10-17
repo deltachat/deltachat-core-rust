@@ -6,660 +6,939 @@ use crate::provider::UsernamePattern::*;
 use crate::provider::*;
 use std::collections::HashMap;
 
-lazy_static::lazy_static! {
+use once_cell::sync::Lazy;
 
-    // aktivix.org.md: aktivix.org
-    static ref P_AKTIVIX_ORG: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/aktivix-org",
-        server: vec![
-            Server { protocol: IMAP, socket: STARTTLS, hostname: "newyear.aktivix.org", port: 143, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "newyear.aktivix.org", port: 25, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// aktivix.org.md: aktivix.org
+static P_AKTIVIX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/aktivix-org",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: STARTTLS,
+            hostname: "newyear.aktivix.org",
+            port: 143,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "newyear.aktivix.org",
+            port: 25,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // aol.md: aol.com
-    static ref P_AOL: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "To log in to AOL with Delta Chat, you need to set up an app password in the AOL web interface.",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/aol",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// aol.md: aol.com
+static P_AOL: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::PREPARATION,
+    before_login_hint: "To log in to AOL with Delta Chat, you need to set up an app password in the AOL web interface.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/aol",
+    server: vec![
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // arcor.de.md: arcor.de
-    static ref P_ARCOR_DE: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/arcor-de",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.arcor.de", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "mail.arcor.de", port: 465, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// arcor.de.md: arcor.de
+static P_ARCOR_DE: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/arcor-de",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imap.arcor.de",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "mail.arcor.de",
+            port: 465,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // autistici.org.md: autistici.org
-    static ref P_AUTISTICI_ORG: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/autistici-org",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "mail.autistici.org", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "smtp.autistici.org", port: 465, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// autistici.org.md: autistici.org
+static P_AUTISTICI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/autistici-org",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "mail.autistici.org",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "smtp.autistici.org",
+            port: 465,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // bluewin.ch.md: bluewin.ch
-    static ref P_BLUEWIN_CH: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/bluewin-ch",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imaps.bluewin.ch", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "smtpauths.bluewin.ch", port: 465, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// bluewin.ch.md: bluewin.ch
+static P_BLUEWIN_CH: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/bluewin-ch",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imaps.bluewin.ch",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "smtpauths.bluewin.ch",
+            port: 465,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // buzon.uy.md: buzon.uy
-    static ref P_BUZON_UY: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/buzon-uy",
-        server: vec![
-            Server { protocol: IMAP, socket: STARTTLS, hostname: "buzon.uy", port: 143, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "buzon.uy", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// buzon.uy.md: buzon.uy
+static P_BUZON_UY: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/buzon-uy",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: STARTTLS,
+            hostname: "buzon.uy",
+            port: 143,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "buzon.uy",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // chello.at.md: chello.at
-    static ref P_CHELLO_AT: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/chello-at",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "mail.mymagenta.at", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "mail.mymagenta.at", port: 465, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// chello.at.md: chello.at
+static P_CHELLO_AT: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/chello-at",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "mail.mymagenta.at",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "mail.mymagenta.at",
+            port: 465,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // comcast.md: xfinity.com, comcast.net
-    static ref P_COMCAST: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/comcast",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// comcast.md: xfinity.com, comcast.net
+static P_COMCAST: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/comcast",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // dismail.de.md: dismail.de
-    static ref P_DISMAIL_DE: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/dismail-de",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// dismail.de.md: dismail.de
+static P_DISMAIL_DE: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/dismail-de",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // disroot.md: disroot.org
-    static ref P_DISROOT: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/disroot",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// disroot.md: disroot.org
+static P_DISROOT: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/disroot",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // dubby.org.md: dubby.org
-    static ref P_DUBBY_ORG: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/dubby-org",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "dubby.org", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "dubby.org", port: 587, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "dubby.org", port: 465, username_pattern: EMAIL },
-        ],
-        config_defaults: Some(vec![
-            ConfigDefault { key: Config::BccSelf, value: "1" },
-            ConfigDefault { key: Config::SentboxWatch, value: "0" },
-            ConfigDefault { key: Config::MvboxWatch, value: "0" },
-            ConfigDefault { key: Config::MvboxMove, value: "0" },
-        ]),
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// dubby.org.md: dubby.org
+static P_DUBBY_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/dubby-org",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "dubby.org",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "dubby.org",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "dubby.org",
+            port: 465,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: Some(vec![
+        ConfigDefault {
+            key: Config::BccSelf,
+            value: "1",
+        },
+        ConfigDefault {
+            key: Config::SentboxWatch,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MvboxWatch,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MvboxMove,
+            value: "0",
+        },
+    ]),
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // example.com.md: example.com, example.org
-    static ref P_EXAMPLE_COM: Provider = Provider {
-        status: Status::BROKEN,
-        before_login_hint: "Hush this provider doesn't exist!",
-        after_login_hint: "This provider doesn't really exist, so you can't use it :/ If you need an email provider for Delta Chat, take a look at providers.delta.chat!",
-        overview_page: "https://providers.delta.chat/example-com",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.example.com", port: 1337, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.example.com", port: 1337, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// example.com.md: example.com, example.org
+static P_EXAMPLE_COM: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::BROKEN,
+    before_login_hint: "Hush this provider doesn't exist!",
+    after_login_hint: "This provider doesn't really exist, so you can't use it :/ If you need an email provider for Delta Chat, take a look at providers.delta.chat!",
+    overview_page: "https://providers.delta.chat/example-com",
+    server: vec![
+        Server { protocol: IMAP, socket: SSL, hostname: "imap.example.com", port: 1337, username_pattern: EMAIL },
+        Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.example.com", port: 1337, username_pattern: EMAIL },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // fastmail.md: fastmail.com
-    static ref P_FASTMAIL: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "You must create an app-specific password for Delta Chat before you can log in.",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/fastmail",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// fastmail.md: fastmail.com
+static P_FASTMAIL: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::PREPARATION,
+    before_login_hint:
+        "You must create an app-specific password for Delta Chat before you can log in.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/fastmail",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // firemail.de.md: firemail.at, firemail.de
-    static ref P_FIREMAIL_DE: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "Firemail erlaubt nur bei bezahlten Accounts den vollen Zugriff auf das E-Mail-Protokoll. Wenn Sie nicht für Firemail bezahlen, verwenden Sie bitte einen anderen E-Mail-Anbieter.",
-        after_login_hint: "Leider schränkt Firemail die maximale Gruppengröße ein. Je nach Bezahlmodell sind nur 5 bis 30 Gruppenmitglieder erlaubt.",
-        overview_page: "https://providers.delta.chat/firemail-de",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// firemail.de.md: firemail.at, firemail.de
+static P_FIREMAIL_DE: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::PREPARATION,
+    before_login_hint: "Firemail erlaubt nur bei bezahlten Accounts den vollen Zugriff auf das E-Mail-Protokoll. Wenn Sie nicht für Firemail bezahlen, verwenden Sie bitte einen anderen E-Mail-Anbieter.",
+    after_login_hint: "Leider schränkt Firemail die maximale Gruppengröße ein. Je nach Bezahlmodell sind nur 5 bis 30 Gruppenmitglieder erlaubt.",
+    overview_page: "https://providers.delta.chat/firemail-de",
+    server: vec![
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // five.chat.md: five.chat
-    static ref P_FIVE_CHAT: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/five-chat",
-        server: vec![
-        ],
-        config_defaults: Some(vec![
-            ConfigDefault { key: Config::BccSelf, value: "1" },
-            ConfigDefault { key: Config::SentboxWatch, value: "0" },
-            ConfigDefault { key: Config::MvboxWatch, value: "0" },
-            ConfigDefault { key: Config::MvboxMove, value: "0" },
-        ]),
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// five.chat.md: five.chat
+static P_FIVE_CHAT: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/five-chat",
+    server: vec![],
+    config_defaults: Some(vec![
+        ConfigDefault {
+            key: Config::BccSelf,
+            value: "1",
+        },
+        ConfigDefault {
+            key: Config::SentboxWatch,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MvboxWatch,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MvboxMove,
+            value: "0",
+        },
+    ]),
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // freenet.de.md: freenet.de
-    static ref P_FREENET_DE: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/freenet-de",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "mx.freenet.de", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "mx.freenet.de", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// freenet.de.md: freenet.de
+static P_FREENET_DE: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/freenet-de",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "mx.freenet.de",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "mx.freenet.de",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // gmail.md: gmail.com, googlemail.com
-    static ref P_GMAIL: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "For Gmail accounts, you need to create an app-password if you have \"2-Step Verification\" enabled. If this setting is not available, you need to enable \"less secure apps\".",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/gmail",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.gmail.com", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "smtp.gmail.com", port: 465, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: true,
-        oauth2_authorizer: Some(Oauth2Authorizer::Gmail),
-    };
+// gmail.md: gmail.com, googlemail.com
+static P_GMAIL: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::PREPARATION,
+    before_login_hint: "For Gmail accounts, you need to create an app-password if you have \"2-Step Verification\" enabled. If this setting is not available, you need to enable \"less secure apps\".",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/gmail",
+    server: vec![
+        Server { protocol: IMAP, socket: SSL, hostname: "imap.gmail.com", port: 993, username_pattern: EMAIL },
+        Server { protocol: SMTP, socket: SSL, hostname: "smtp.gmail.com", port: 465, username_pattern: EMAIL },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    oauth2_authorizer: Some(Oauth2Authorizer::Gmail),
+}
+});
 
-    // gmx.net.md: gmx.net, gmx.de, gmx.at, gmx.ch, gmx.org, gmx.eu, gmx.info, gmx.biz, gmx.com
-    static ref P_GMX_NET: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "You must allow IMAP access to your account before you can login.",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/gmx-net",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.gmx.net", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "mail.gmx.net", port: 465, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "mail.gmx.net", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// gmx.net.md: gmx.net, gmx.de, gmx.at, gmx.ch, gmx.org, gmx.eu, gmx.info, gmx.biz, gmx.com
+static P_GMX_NET: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::PREPARATION,
+    before_login_hint: "You must allow IMAP access to your account before you can login.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/gmx-net",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imap.gmx.net",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "mail.gmx.net",
+            port: 465,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "mail.gmx.net",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // hermes.radio.md: hermes.radio
-    static ref P_HERMES_RADIO: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/hermes-radio",
-        server: vec![
-        ],
-        config_defaults: Some(vec![
-            ConfigDefault { key: Config::MdnsEnabled, value: "0" },
-            ConfigDefault { key: Config::E2eeEnabled, value: "0" },
-            ConfigDefault { key: Config::MediaQuality, value: "1" },
-            ConfigDefault { key: Config::ShowEmails, value: "2" },
-        ]),
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// hermes.radio.md: hermes.radio
+static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/hermes-radio",
+    server: vec![],
+    config_defaults: Some(vec![
+        ConfigDefault {
+            key: Config::MdnsEnabled,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::E2eeEnabled,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MediaQuality,
+            value: "1",
+        },
+        ConfigDefault {
+            key: Config::ShowEmails,
+            value: "2",
+        },
+    ]),
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // hey.com.md: hey.com
-    static ref P_HEY_COM: Provider = Provider {
-        status: Status::BROKEN,
-        before_login_hint: "hey.com does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to hey.com.",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/hey-com",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// hey.com.md: hey.com
+static P_HEY_COM: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::BROKEN,
+    before_login_hint: "hey.com does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to hey.com.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/hey-com",
+    server: vec![
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // i.ua.md: i.ua
-    static ref P_I_UA: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/i-ua",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// i.ua.md: i.ua
+static P_I_UA: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/i-ua",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // icloud.md: icloud.com, me.com, mac.com
-    static ref P_ICLOUD: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "You must create an app-specific password for Delta Chat before you can login.",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/icloud",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.mail.me.com", port: 993, username_pattern: EMAILLOCALPART },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.mail.me.com", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// icloud.md: icloud.com, me.com, mac.com
+static P_ICLOUD: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::PREPARATION,
+    before_login_hint:
+        "You must create an app-specific password for Delta Chat before you can login.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/icloud",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imap.mail.me.com",
+            port: 993,
+            username_pattern: EMAILLOCALPART,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "smtp.mail.me.com",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // kolst.com.md: kolst.com
-    static ref P_KOLST_COM: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/kolst-com",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// kolst.com.md: kolst.com
+static P_KOLST_COM: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/kolst-com",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // kontent.com.md: kontent.com
-    static ref P_KONTENT_COM: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/kontent-com",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// kontent.com.md: kontent.com
+static P_KONTENT_COM: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/kontent-com",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // mail.ru.md: mail.ru, inbox.ru, bk.ru, list.ru
-    static ref P_MAIL_RU: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/mail-ru",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// mail.ru.md: mail.ru, inbox.ru, bk.ru, list.ru
+static P_MAIL_RU: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/mail-ru",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // mailbox.org.md: mailbox.org, secure.mailbox.org
-    static ref P_MAILBOX_ORG: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/mailbox-org",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// mailbox.org.md: mailbox.org, secure.mailbox.org
+static P_MAILBOX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/mailbox-org",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // nauta.cu.md: nauta.cu
-    static ref P_NAUTA_CU: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "Atención - con nauta.cu, puede enviar mensajes sólo a un máximo de 20 personas a la vez. En grupos más grandes, no puede enviar mensajes o abandonar el grupo.",
-        overview_page: "https://providers.delta.chat/nauta-cu",
-        server: vec![
-            Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.nauta.cu", port: 143, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.nauta.cu", port: 25, username_pattern: EMAIL },
-        ],
-        config_defaults: Some(vec![
-            ConfigDefault { key: Config::DeleteServerAfter, value: "1" },
-            ConfigDefault { key: Config::BccSelf, value: "0" },
-            ConfigDefault { key: Config::SentboxWatch, value: "0" },
-            ConfigDefault { key: Config::MvboxWatch, value: "0" },
-            ConfigDefault { key: Config::MvboxMove, value: "0" },
-            ConfigDefault { key: Config::E2eeEnabled, value: "0" },
-            ConfigDefault { key: Config::MediaQuality, value: "1" },
-            ConfigDefault { key: Config::FetchExisting, value: "0" },
-        ]),
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// nauta.cu.md: nauta.cu
+static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "Atención - con nauta.cu, puede enviar mensajes sólo a un máximo de 20 personas a la vez. En grupos más grandes, no puede enviar mensajes o abandonar el grupo.",
+    overview_page: "https://providers.delta.chat/nauta-cu",
+    server: vec![
+        Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.nauta.cu", port: 143, username_pattern: EMAIL },
+        Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.nauta.cu", port: 25, username_pattern: EMAIL },
+    ],
+    config_defaults: Some(vec![
+        ConfigDefault { key: Config::DeleteServerAfter, value: "1" },
+        ConfigDefault { key: Config::BccSelf, value: "0" },
+        ConfigDefault { key: Config::SentboxWatch, value: "0" },
+        ConfigDefault { key: Config::MvboxWatch, value: "0" },
+        ConfigDefault { key: Config::MvboxMove, value: "0" },
+        ConfigDefault { key: Config::E2eeEnabled, value: "0" },
+        ConfigDefault { key: Config::MediaQuality, value: "1" },
+        ConfigDefault { key: Config::FetchExisting, value: "0" },
+    ]),
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
-    static ref P_OUTLOOK_COM: Provider = Provider {
-        status: Status::BROKEN,
-        before_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
-        after_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Unencrypted 1-on-1 chats kind of work, but groups and encryption don't. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
-        overview_page: "https://providers.delta.chat/outlook-com",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap-mail.outlook.com", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp-mail.outlook.com", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
+static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::BROKEN,
+    before_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
+    after_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Unencrypted 1-on-1 chats kind of work, but groups and encryption don't. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
+    overview_page: "https://providers.delta.chat/outlook-com",
+    server: vec![
+        Server { protocol: IMAP, socket: SSL, hostname: "imap-mail.outlook.com", port: 993, username_pattern: EMAIL },
+        Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp-mail.outlook.com", port: 587, username_pattern: EMAIL },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
-    static ref P_POSTEO: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/posteo",
-        server: vec![
-            Server { protocol: IMAP, socket: STARTTLS, hostname: "posteo.de", port: 143, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "posteo.de", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
+static P_POSTEO: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/posteo",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: STARTTLS,
+            hostname: "posteo.de",
+            port: 143,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "posteo.de",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // protonmail.md: protonmail.com, protonmail.ch
-    static ref P_PROTONMAIL: Provider = Provider {
-        status: Status::BROKEN,
-        before_login_hint: "Protonmail does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to Protonmail.",
-        after_login_hint: "To use Delta Chat with Protonmail, the IMAP bridge must be running in the background. If you have connectivity issues, double check whether it works as expected.",
-        overview_page: "https://providers.delta.chat/protonmail",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// protonmail.md: protonmail.com, protonmail.ch
+static P_PROTONMAIL: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::BROKEN,
+    before_login_hint: "Protonmail does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to Protonmail.",
+    after_login_hint: "To use Delta Chat with Protonmail, the IMAP bridge must be running in the background. If you have connectivity issues, double check whether it works as expected.",
+    overview_page: "https://providers.delta.chat/protonmail",
+    server: vec![
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // riseup.net.md: riseup.net
-    static ref P_RISEUP_NET: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/riseup-net",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// riseup.net.md: riseup.net
+static P_RISEUP_NET: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/riseup-net",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // rogers.com.md: rogers.com
-    static ref P_ROGERS_COM: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/rogers-com",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// rogers.com.md: rogers.com
+static P_ROGERS_COM: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/rogers-com",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // systemli.org.md: systemli.org
-    static ref P_SYSTEMLI_ORG: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/systemli-org",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// systemli.org.md: systemli.org
+static P_SYSTEMLI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/systemli-org",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // t-online.md: t-online.de, magenta.de
-    static ref P_T_ONLINE: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "To use Delta Chat with a T-Online email address, you need to create an app password in the web interface.",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/t-online",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// t-online.md: t-online.de, magenta.de
+static P_T_ONLINE: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::PREPARATION,
+    before_login_hint: "To use Delta Chat with a T-Online email address, you need to create an app password in the web interface.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/t-online",
+    server: vec![
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // testrun.md: testrun.org
-    static ref P_TESTRUN: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/testrun",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "testrun.org", port: 993, username_pattern: EMAIL },
-            Server { protocol: IMAP, socket: STARTTLS, hostname: "testrun.org", port: 143, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "testrun.org", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: Some(vec![
-            ConfigDefault { key: Config::BccSelf, value: "1" },
-            ConfigDefault { key: Config::SentboxWatch, value: "0" },
-            ConfigDefault { key: Config::MvboxWatch, value: "0" },
-            ConfigDefault { key: Config::MvboxMove, value: "0" },
-        ]),
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// testrun.md: testrun.org
+static P_TESTRUN: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/testrun",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "testrun.org",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: IMAP,
+            socket: STARTTLS,
+            hostname: "testrun.org",
+            port: 143,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "testrun.org",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: Some(vec![
+        ConfigDefault {
+            key: Config::BccSelf,
+            value: "1",
+        },
+        ConfigDefault {
+            key: Config::SentboxWatch,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MvboxWatch,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MvboxMove,
+            value: "0",
+        },
+    ]),
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // tiscali.it.md: tiscali.it
-    static ref P_TISCALI_IT: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/tiscali-it",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.tiscali.it", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "smtp.tiscali.it", port: 465, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// tiscali.it.md: tiscali.it
+static P_TISCALI_IT: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/tiscali-it",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imap.tiscali.it",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "smtp.tiscali.it",
+            port: 465,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // ukr.net.md: ukr.net
-    static ref P_UKR_NET: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/ukr-net",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// ukr.net.md: ukr.net
+static P_UKR_NET: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/ukr-net",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // undernet.uy.md: undernet.uy
-    static ref P_UNDERNET_UY: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/undernet-uy",
-        server: vec![
-            Server { protocol: IMAP, socket: STARTTLS, hostname: "undernet.uy", port: 143, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "undernet.uy", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: true,
-        oauth2_authorizer: None,
-    };
+// undernet.uy.md: undernet.uy
+static P_UNDERNET_UY: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/undernet-uy",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: STARTTLS,
+            hostname: "undernet.uy",
+            port: 143,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "undernet.uy",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    oauth2_authorizer: None,
+});
 
-    // vfemail.md: vfemail.net
-    static ref P_VFEMAIL: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/vfemail",
-        server: vec![
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// vfemail.md: vfemail.net
+static P_VFEMAIL: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/vfemail",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // vodafone.de.md: vodafone.de, vodafonemail.de
-    static ref P_VODAFONE_DE: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/vodafone-de",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.vodafonemail.de", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.vodafonemail.de", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// vodafone.de.md: vodafone.de, vodafonemail.de
+static P_VODAFONE_DE: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/vodafone-de",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imap.vodafonemail.de",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "smtp.vodafonemail.de",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    // web.de.md: web.de, email.de, flirt.ms, hallo.ms, kuss.ms, love.ms, magic.ms, singles.ms, cool.ms, kanzler.ms, okay.ms, party.ms, pop.ms, stars.ms, techno.ms, clever.ms, deutschland.ms, genial.ms, ich.ms, online.ms, smart.ms, wichtig.ms, action.ms, fussball.ms, joker.ms, planet.ms, power.ms
-    static ref P_WEB_DE: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "You must allow IMAP access to your account before you can login.",
-        after_login_hint: "Note: if you have your web.de spam settings too strict, you won't receive contact requests from new people. If you want to receive contact requests, you should disable the \"3-Wege-Spamschutz\" in the web.de settings.  Read how: https://hilfe.web.de/email/spam-und-viren/spamschutz-einstellungen.html",
-        overview_page: "https://providers.delta.chat/web-de",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.web.de", port: 993, username_pattern: EMAILLOCALPART },
-            Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.web.de", port: 143, username_pattern: EMAILLOCALPART },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.web.de", port: 587, username_pattern: EMAILLOCALPART },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// web.de.md: web.de, email.de, flirt.ms, hallo.ms, kuss.ms, love.ms, magic.ms, singles.ms, cool.ms, kanzler.ms, okay.ms, party.ms, pop.ms, stars.ms, techno.ms, clever.ms, deutschland.ms, genial.ms, ich.ms, online.ms, smart.ms, wichtig.ms, action.ms, fussball.ms, joker.ms, planet.ms, power.ms
+static P_WEB_DE: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::PREPARATION,
+    before_login_hint: "You must allow IMAP access to your account before you can login.",
+    after_login_hint: "Note: if you have your web.de spam settings too strict, you won't receive contact requests from new people. If you want to receive contact requests, you should disable the \"3-Wege-Spamschutz\" in the web.de settings.  Read how: https://hilfe.web.de/email/spam-und-viren/spamschutz-einstellungen.html",
+    overview_page: "https://providers.delta.chat/web-de",
+    server: vec![
+        Server { protocol: IMAP, socket: SSL, hostname: "imap.web.de", port: 993, username_pattern: EMAILLOCALPART },
+        Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.web.de", port: 143, username_pattern: EMAILLOCALPART },
+        Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.web.de", port: 587, username_pattern: EMAILLOCALPART },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // yahoo.md: yahoo.com, yahoo.de, yahoo.it, yahoo.fr, yahoo.es, yahoo.se, yahoo.co.uk, yahoo.co.nz, yahoo.com.au, yahoo.com.ar, yahoo.com.br, yahoo.com.mx, ymail.com, rocketmail.com, yahoodns.net
-    static ref P_YAHOO: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "To use Delta Chat with your Yahoo email address you have to create an \"App-Password\" in the account security screen.",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/yahoo",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.mail.yahoo.com", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "smtp.mail.yahoo.com", port: 465, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// yahoo.md: yahoo.com, yahoo.de, yahoo.it, yahoo.fr, yahoo.es, yahoo.se, yahoo.co.uk, yahoo.co.nz, yahoo.com.au, yahoo.com.ar, yahoo.com.br, yahoo.com.mx, ymail.com, rocketmail.com, yahoodns.net
+static P_YAHOO: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    status: Status::PREPARATION,
+    before_login_hint: "To use Delta Chat with your Yahoo email address you have to create an \"App-Password\" in the account security screen.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/yahoo",
+    server: vec![
+        Server { protocol: IMAP, socket: SSL, hostname: "imap.mail.yahoo.com", port: 993, username_pattern: EMAIL },
+        Server { protocol: SMTP, socket: SSL, hostname: "smtp.mail.yahoo.com", port: 465, username_pattern: EMAIL },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+}
+});
 
-    // yandex.ru.md: yandex.com, yandex.by, yandex.kz, yandex.ru, yandex.ua, ya.ru, narod.ru
-    static ref P_YANDEX_RU: Provider = Provider {
-        status: Status::PREPARATION,
-        before_login_hint: "For Yandex accounts, you have to set IMAP protocol option turned on.",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/yandex-ru",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.yandex.com", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: SSL, hostname: "smtp.yandex.com", port: 465, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: true,
-        oauth2_authorizer: Some(Oauth2Authorizer::Yandex),
-    };
+// yandex.ru.md: yandex.com, yandex.by, yandex.kz, yandex.ru, yandex.ua, ya.ru, narod.ru
+static P_YANDEX_RU: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::PREPARATION,
+    before_login_hint: "For Yandex accounts, you have to set IMAP protocol option turned on.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/yandex-ru",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imap.yandex.com",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "smtp.yandex.com",
+            port: 465,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    oauth2_authorizer: Some(Oauth2Authorizer::Yandex),
+});
 
-    // ziggo.nl.md: ziggo.nl
-    static ref P_ZIGGO_NL: Provider = Provider {
-        status: Status::OK,
-        before_login_hint: "",
-        after_login_hint: "",
-        overview_page: "https://providers.delta.chat/ziggo-nl",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap.ziggo.nl", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.ziggo.nl", port: 587, username_pattern: EMAIL },
-        ],
-        config_defaults: None,
-        strict_tls: false,
-        oauth2_authorizer: None,
-    };
+// ziggo.nl.md: ziggo.nl
+static P_ZIGGO_NL: Lazy<Provider> = Lazy::new(|| Provider {
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/ziggo-nl",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imap.ziggo.nl",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "smtp.ziggo.nl",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: false,
+    oauth2_authorizer: None,
+});
 
-    pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [
+pub static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
+    [
         ("aktivix.org", &*P_AKTIVIX_ORG),
         ("aol.com", &*P_AOL),
         ("arcor.de", &*P_ARCOR_DE),
@@ -823,7 +1102,11 @@ lazy_static::lazy_static! {
         ("ya.ru", &*P_YANDEX_RU),
         ("narod.ru", &*P_YANDEX_RU),
         ("ziggo.nl", &*P_ZIGGO_NL),
-    ].iter().copied().collect();
+    ]
+    .iter()
+    .copied()
+    .collect()
+});
 
-    pub static ref PROVIDER_UPDATED: chrono::NaiveDate = chrono::NaiveDate::from_ymd(2020, 10, 16);
-}
+pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2020, 10, 17));
