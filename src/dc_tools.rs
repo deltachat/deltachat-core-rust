@@ -717,10 +717,7 @@ where
     T: AsRef<str>,
 {
     fn is_none_or_empty(&self) -> bool {
-        match self {
-            Some(s) if !s.as_ref().is_empty() => false,
-            _ => true,
-        }
+        !matches!(self, Some(s) if !s.as_ref().is_empty())
     }
 }
 

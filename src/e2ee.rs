@@ -235,9 +235,9 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Result<&'a ParsedMail
     }
 }
 
-async fn decrypt_if_autocrypt_message<'a>(
+async fn decrypt_if_autocrypt_message(
     context: &Context,
-    mail: &ParsedMail<'a>,
+    mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
     ret_valid_signatures: &mut HashSet<Fingerprint>,
