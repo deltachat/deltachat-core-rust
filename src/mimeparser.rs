@@ -3,9 +3,9 @@ use std::future::Future;
 use std::pin::Pin;
 
 use deltachat_derive::{FromSql, ToSql};
-use lazy_static::lazy_static;
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
+use once_cell::sync::Lazy;
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -1004,9 +1004,8 @@ impl MimeMessage {
             false
         };
         if maybe_ndn && self.failure_report.is_none() {
-            lazy_static! {
-                static ref RE: regex::Regex = regex::Regex::new(r"Message-ID:(.*)").unwrap();
-            }
+            static RE: Lazy<regex::Regex> =
+                Lazy::new(|| regex::Regex::new(r"Message-ID:(.*)").unwrap());
             for captures in self
                 .parts
                 .iter()

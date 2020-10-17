@@ -1,11 +1,9 @@
 //! # Constants
 use deltachat_derive::*;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-lazy_static! {
-    pub static ref DC_VERSION_STR: String = env!("CARGO_PKG_VERSION").to_string();
-}
+pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION").to_string());
 
 #[derive(
     Debug,

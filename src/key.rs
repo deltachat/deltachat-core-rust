@@ -431,11 +431,9 @@ mod tests {
     use std::error::Error;
 
     use async_std::sync::Arc;
-    use lazy_static::lazy_static;
+    use once_cell::sync::Lazy;
 
-    lazy_static! {
-        static ref KEYPAIR: KeyPair = alice_keypair();
-    }
+    static KEYPAIR: Lazy<KeyPair> = Lazy::new(alice_keypair);
 
     #[test]
     fn test_from_armored_string() {

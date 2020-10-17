@@ -2,12 +2,10 @@
 //!
 //! A module to remove HTML tags from the email text
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
-lazy_static! {
-    static ref LINE_RE: regex::Regex = regex::Regex::new(r"(\r?\n)+").unwrap();
-}
+static LINE_RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"(\r?\n)+").unwrap());
 
 struct Dehtml {
     strbuilder: String,
