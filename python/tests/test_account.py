@@ -283,6 +283,15 @@ class TestOfflineChat:
         chat.remove_profile_image()
         assert chat.get_profile_image() is None
 
+    def test_no_draft_if_cant_send(self, ac1):
+        """Tests that no quote can be set if the user can't send to this chat"""
+        device_chat = ac1.get_device_chat()
+        msg = Message.new_empty(ac1, "text")
+        device_chat.set_draft(msg)
+
+        assert not device_chat.can_send()
+        assert device_chat.get_draft() == None
+
     def test_mute(self, ac1):
         chat = ac1.create_group_chat(name="title1")
         assert not chat.is_muted()

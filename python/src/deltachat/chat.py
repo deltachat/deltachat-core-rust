@@ -82,6 +82,14 @@ class Chat(object):
         """
         return not lib.dc_chat_is_unpromoted(self._dc_chat)
 
+    def can_send(self):
+        """Check if messages can be sent to a give chat.
+        This is not true eg. for the deaddrop or for the device-talk
+
+        :returns: True if the chat is writable, False otherwise
+        """
+        return lib.dc_chat_can_send(self._dc_chat)
+
     def is_protected(self):
         """ return True if this chat is a protected chat.
 
