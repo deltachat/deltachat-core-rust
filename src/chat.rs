@@ -228,19 +228,20 @@ impl ChatId {
     ///
     /// This sends the message with the protected status change to the chat,
     /// notifying the user on this device as well as the other users in the chat.
-    /// If `promoted` is false this means the chat only exists on this device so far
-    /// and does not need to be sent out.
-    /// In this case an local info message is added to the chat.
+    ///
+    /// If `promote` is false this means, the message must not be sent out
+    /// and only a local info message should be added to the chat.
+    /// This is used when protection is enabled implicitly or when a chat is not yet promoted.
     pub(crate) async fn add_protection_msg(
         self,
         context: &Context,
         protect: ProtectionStatus,
-        promoted: bool,
+        promote: bool,
         from_id: u32,
     ) -> Result<(), Error> {
         let msg_text = context.stock_protection_msg(protect, from_id).await;
 
-        if promoted {
+        if promote {
             let mut msg = Message::default();
             msg.viewtype = Viewtype::Text;
             msg.text = Some(msg_text);
