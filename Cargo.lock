@@ -2932,9 +2932,9 @@ dependencies = [
 
 [[package]]
 name = "sanitize-filename"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23fd0fec94ec480abfd86bb8f4f6c57e0efb36dac5c852add176ea7b04c74801"
+checksum = "bf18934a12018228c5b55a6dae9df5d0641e3566b3630cb46cc55564068e7c2f"
 dependencies = [
  "lazy_static",
  "regex",
