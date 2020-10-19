@@ -460,6 +460,12 @@ impl ChatId {
                 msg.param.set(Param::File, blob.as_name());
             }
         }
+
+        let chat = Chat::load_from_db(context, self).await?;
+        if !chat.can_send() {
+            bail!("Can't set a draft: Can't send");
+        }
+
         context
             .sql
             .execute(
