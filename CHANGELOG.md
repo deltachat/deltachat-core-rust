@@ -1,10 +1,73 @@
 # Changelog 
 
-## Unreleased
+## 1.47.0
 
-- breaking change: `dc_update_device_chats()` was removed. This is now done automatically during configure.
+- breaking change: `dc_update_device_chats()` removed;
+  this is now done automatically during configure
+  unless the new config-option `bot` is set #1957
 
-- Added a `bot` config. Currently, it only prevents filling the device chats automatically.
+- breaking change: split `DC_EVENT_MSGS_NOTICED` off `DC_EVENT_MSGS_CHANGED`
+  and remove `dc_marknoticed_all_chats()` #1942 #1981
+
+- breaking change: remove unused starring options #1965
+
+- breaking change: `DC_CHAT_TYPE_VERIFIED_GROUP` replaced by
+  `dc_chat_is_protected()`; also single-chats may be protected now, this may
+  happen over the wire even if the UI do not offer an option for that #1968
+
+- breaking change: split quotes off message text,
+  UIs should use at least `dc_get_quoted_text()` to show quotes now #1975
+
+- new api for quote handling: `dc_msg_set_quote()`, `dc_msg_get_quoted_text()`,
+  `dc_msg_get_quoted_msg()` #1975 #1984 #1985 #1987 #1989 #2004
+
+- require quorum to enable encryption #1946
+
+- speed up and clean up account creation #1912 #1927 #1960 #1961
+
+- configure now collects recent contacts and fetches last messages
+  unless disabled by `fetch_existing` config-option #1913 #2003
+
+- emit `DC_EVENT_CHAT_MODIFIED` on contact rename
+  and set contact-id on `DC_EVENT_CONTACTS_CHANGED` #1935 #1936 #1937
+
+- add `dc_set_chat_protection()`; the `protect` parameter in
+  `dc_create_group_chat()` will be removed in an upcoming release;
+  up to then, UIs using the "verified group" paradigm
+  should not use `dc_set_chat_protection()` #1968 #2014 #2001 #2012 #2007
+
+- remove unneeded remove `DC_STR_COUNT` #1991
+
+- mark all failed messages as failed when receiving an NDN #1993
+
+- fix import temporary directory usage #1929
+
+- fix forcing encryption for reset peers #1998
+
+- fix: do not allow to save drafts in non-writeable chats #1997
+
+- fix: do not show HTML if there is no content and there is an attachment #1988
+
+- fix recovering offline/lost connections, fixes background receive bug #1983
+
+- fix ordering of accounts returned by `dc_accounts_get_all()` #1909
+
+- fix whitespace for summaries #1938
+
+- fix: improve sentbox name guessing #1941
+
+- fix: avoid manual poll impl for accounts events #1944
+
+- fix encoding newlines in param as a preparation for storing quotes #1945
+
+- fix: internal and ffi error handling #1967 #1966 #1959 #1911 #1916 #1917 #1915
+
+- fix ci #1928 #1931 #1932 #1933 #1934 #1943
+
+- update provider-database #1940 #2005 #2006
+
+- update dependencies #1919 #1908 #1950 #1963 #1996 #2010 #2013
+
 
 ## 1.46.0
 
