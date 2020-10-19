@@ -1684,17 +1684,10 @@ async fn ndn_maybe_add_info_msg(
                 Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;
             let contact = Contact::load_from_db(context, contact_id).await?;
             // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
-            chat::add_info_msg(
-                context,
-                chat_id,
-                context
-                    .stock_string_repl_str(
-                        StockMessage::FailedSendingTo,
-                        contact.get_display_name(),
-                    )
-                    .await,
-            )
-            .await;
+            let text = context
+                .stock_string_repl_str(StockMessage::FailedSendingTo, contact.get_display_name())
+                .await;
+            chat::add_info_msg(context, chat_id, text).await;
             context.emit_event(EventType::ChatModified(chat_id));
         }
     }
