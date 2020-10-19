@@ -283,15 +283,6 @@ class TestOfflineChat:
         chat.remove_profile_image()
         assert chat.get_profile_image() is None
 
-    def test_no_draft_if_cant_send(self, ac1):
-        """Tests that no quote can be set if the user can't send to this chat"""
-        device_chat = ac1.get_device_chat()
-        msg = Message.new_empty(ac1, "text")
-        device_chat.set_draft(msg)
-
-        assert not device_chat.can_send()
-        assert device_chat.get_draft() is None
-
     def test_mute(self, ac1):
         chat = ac1.create_group_chat(name="title1")
         assert not chat.is_muted()
@@ -1040,6 +1031,16 @@ class TestOnlineAccount:
         msg_in = ac2._evtracker.wait_next_incoming_message()
         assert msg_in.text == text2
         assert ac1.get_config("addr") in [x.addr for x in msg_in.chat.get_contacts()]
+
+    def test_no_draft_if_cant_send(self, acfactory):
+        """Tests that no quote can be set if the user can't send to this chat"""
+        ac1 = acfactory.get_one_online_account()
+        device_chat = ac1.get_device_chat()
+        msg = Message.new_empty(ac1, "text")
+        device_chat.set_draft(msg)
+
+        assert not device_chat.can_send()
+        assert device_chat.get_draft() is None
 
     def test_prefer_encrypt(self, acfactory, lp):
         """Test quorum rule for encryption preference in 1:1 and group chat."""
