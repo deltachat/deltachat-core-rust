@@ -1640,11 +1640,12 @@ pub(crate) async fn handle_ndn(
     error: Option<impl AsRef<str>>,
 ) -> anyhow::Result<()> {
     if failed.rfc724_mid.is_empty() {
-        return;
+        return Ok(());
     }
-/// The NDN might be for a message-id that had attachments and was sent from a non-Delta Chat client.
-/// In this case we need to mark multiple "msgids" as failed that all refer to the same message-id. 
-    let msgs: Result<Vec<_>, _> = context
+
+    // The NDN might be for a message-id that had attachments and was sent from a non-Delta Chat client.
+    // In this case we need to mark multiple "msgids" as failed that all refer to the same message-id.
+    let msgs: Vec<_> = context
         .sql
         .query_map(
             concat!(
@@ -1667,15 +1668,13 @@ pub(crate) async fn handle_ndn(
         )
         .await?;
 
-    for msg in msgs.iter() {
+    for (i, msg) in msgs.into_iter().enumerate() {
         let (msg_id, chat_id, chat_type) = msg?;
-        set_msg_failed(context, *msg_id, error.as_ref()).await?;
-    }
-
-    if let Some(msg) = msgs.last() {
-        let (msg_id, chat_id, chat_type) = msg?;
-        // Add only one info msg for all failed messages
-        ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
+        set_msg_failed(context, msg_id, error.as_ref()).await;
+        if i == 0 {
+            // Add only one info msg for all failed messages
+            ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
+        }
     }
 
     Ok(())
