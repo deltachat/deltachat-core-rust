@@ -1642,7 +1642,8 @@ pub(crate) async fn handle_ndn(
     if failed.rfc724_mid.is_empty() {
         return;
     }
-
+/// The NDN might be for a message-id that had attachments and was sent from a non-Delta Chat client.
+/// In this case we need to mark multiple "msgids" as failed that all refer to the same message-id. 
     let msgs: Result<Vec<_>, _> = context
         .sql
         .query_map(
