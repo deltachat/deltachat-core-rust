@@ -36,7 +36,7 @@
   up to then, UIs using the "verified group" paradigm
   should not use `dc_set_chat_protection()` #1968 #2014 #2001 #2012 #2007
 
-- remove unneeded remove `DC_STR_COUNT` #1991
+- remove unneeded `DC_STR_COUNT` #1991
 
 - mark all failed messages as failed when receiving an NDN #1993
 
@@ -814,4 +814,3 @@
 For a full list of changes, please see our closed Pull Requests: 
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
-
