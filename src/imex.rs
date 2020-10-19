@@ -494,10 +494,20 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
     );
 
     let backup_file = File::open(backup_to_import).await?;
+    let file_size = backup_file.metadata().await?.len();
     let archive = Archive::new(backup_file);
+
     let mut entries = archive.entries()?;
     while let Some(file) = entries.next().await {
         let f = &mut file?;
+
+        let current_pos = f.raw_file_position();
+        let progress = 1000 * current_pos / file_size;
+        if progress > 10 && progress < 1000 {
+            // We already emitted ImexProgress(10) above
+            context.emit_event(EventType::ImexProgress(progress as usize));
+        }
+
         if f.path()?.file_name() == Some(OsStr::new(DBFILE_BACKUP_NAME)) {
             // async_tar can't unpack to a specified file name, so we just unpack to the blobdir and then move the unpacked file.
             f.unpack_in(context.get_blobdir()).await?;
@@ -506,7 +516,6 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
                 context.get_dbfile(),
             )
             .await?;
-            context.emit_event(EventType::ImexProgress(400)); // Just guess the progress, we at least have the dbfile by now
         } else {
             // async_tar will unpack to blobdir/BLOBS_BACKUP_NAME, so we move the file afterwards.
             f.unpack_in(context.get_blobdir()).await?;
@@ -706,11 +715,32 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
         .append_path_with_name(context.get_dbfile(), DBFILE_BACKUP_NAME)
         .await?;
 
-    context.emit_event(EventType::ImexProgress(500));
+    let read_dir: Vec<_> = fs::read_dir(context.get_blobdir()).await?.collect().await;
+    let count = read_dir.len();
+    let mut written_files = 0;
 
-    builder
-        .append_dir_all(BLOBS_BACKUP_NAME, context.get_blobdir())
-        .await?;
+    for entry in read_dir.into_iter() {
+        let entry = entry?;
+        let name = entry.file_name();
+        if !entry.file_type().await?.is_file() {
+            warn!(
+                context,
+                "Export: Found dir entry {} that is not a file, ignoring",
+                name.to_string_lossy()
+            );
+            continue;
+        }
+        let mut file = File::open(entry.path()).await?;
+        let path_in_archive = PathBuf::from(BLOBS_BACKUP_NAME).join(name);
+        builder.append_file(path_in_archive, &mut file).await?;
+
+        written_files += 1;
+        let progress = 1000 * written_files / count;
+        if progress > 10 && progress < 1000 {
+            // We already emitted ImexProgress(10) above
+            emit_event!(context, EventType::ImexProgress(progress));
+        }
+    }
 
     builder.finish().await?;
     Ok(())
