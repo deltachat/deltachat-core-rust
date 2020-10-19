@@ -290,7 +290,7 @@ class TestOfflineChat:
         device_chat.set_draft(msg)
 
         assert not device_chat.can_send()
-        assert device_chat.get_draft() == None
+        assert device_chat.get_draft() is None
 
     def test_mute(self, ac1):
         chat = ac1.create_group_chat(name="title1")
