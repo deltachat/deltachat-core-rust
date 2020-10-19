@@ -627,6 +627,9 @@ impl Job {
     /// Then, Fetch the last messages DC_FETCH_EXISTING_MSGS_COUNT emails from the server
     /// and show them in the chat list.
     async fn fetch_existing_msgs(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if context.get_config_bool(Config::Bot).await {
+            return Status::Finished(Ok(())); // Bots don't want those messages
+        }
         if let Err(err) = imap.connect_configured(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
