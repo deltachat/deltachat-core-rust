@@ -1005,12 +1005,26 @@ impl MimeMessage {
     }
 
     async fn maybe_remove_bad_parts(&mut self) {
+        // Remove parts where dehtml failed
         let good_parts = self.parts.iter().filter(|p| !p.dehtlm_failed).count();
         if good_parts == 0 {
             // We have no good part but show at least one bad part in order to show anything at all
             self.parts.truncate(1);
         } else if good_parts < self.parts.len() {
             self.parts.retain(|p| !p.dehtlm_failed);
+        }
+
+        // Remove images if there are too many low-resolution images; sometimes a large HTML mail contains lots of low-res images
+        fn is_low_res_image(p: &&Part) -> bool {
+            (p.typ == Viewtype::Image || p.typ == Viewtype::Gif) && {
+                let height = p.param.get_int(Param::Height).unwrap_or(5000);
+                let width = p.param.get_int(Param::Width).unwrap_or(5000);
+                height < 500 || width < 500
+            }
+        }
+        let low_res_images = self.parts.iter().filter(is_low_res_image).count();
+        if low_res_images > 3 {
+            self.parts.retain(|p| !is_low_res_image(&p));
         }
     }
 
