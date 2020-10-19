@@ -6,6 +6,7 @@ import queue
 import time
 from deltachat import const, Account
 from deltachat.message import Message
+from deltachat.tracker import ImexTracker
 from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
 
@@ -1245,8 +1246,16 @@ class TestOnlineAccount:
         backupdir = tmpdir.mkdir("backup")
 
         lp.sec("export all to {}".format(backupdir))
-        path = ac1.export_all(backupdir.strpath)
-        assert os.path.exists(path)
+        with ac1.temp_plugin(ImexTracker()) as imex_tracker:
+            path = ac1.export_all(backupdir.strpath)
+            assert os.path.exists(path)
+
+        # check progress events for export
+        imex_tracker.wait_progress(250)
+        imex_tracker.wait_progress(500)
+        imex_tracker.wait_progress(750)
+        imex_tracker.wait_progress(1000)
+        # return mex_tracker.wait_finish()
         t = time.time()
 
         lp.sec("get fresh empty account")
@@ -1257,7 +1266,15 @@ class TestOnlineAccount:
         assert path2 == path
 
         lp.sec("import backup and check it's proper")
-        ac2.import_all(path)
+        with ac2.temp_plugin(ImexTracker()) as imex_tracker:
+            ac2.import_all(path)
+
+        # check progress events for import
+        imex_tracker.wait_progress(250)
+        imex_tracker.wait_progress(500)
+        imex_tracker.wait_progress(750)
+        imex_tracker.wait_progress(1000)
+
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
         contact2 = contacts[0]
