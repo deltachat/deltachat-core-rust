@@ -129,6 +129,20 @@ class TestOfflineContact:
         assert not contact1.is_blocked()
         assert not contact1.is_verified()
 
+    def test_get_blocked(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        contact1 = ac1.create_contact("some1@example.org", name="some1")
+        contact2 = ac1.create_contact("some2@example.org", name="some2")
+        ac1.create_contact("some3@example.org", name="some3")
+        assert ac1.get_blocked_contacts() == []
+        contact1.block()
+        assert ac1.get_blocked_contacts() == [contact1]
+        contact2.block()
+        blocked = ac1.get_blocked_contacts()
+        assert len(blocked) == 2 and contact1 in blocked and contact2 in blocked
+        contact2.unblock()
+        assert ac1.get_blocked_contacts() == [contact1]
+
     def test_create_self_contact(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact(ac1.get_config("addr"))

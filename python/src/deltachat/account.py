@@ -263,6 +263,17 @@ class Account(object):
         """
         return Contact(self, contact_id)
 
+    def get_blocked_contacts(self):
+        """ return a list of all blocked contacts.
+
+        :returns: list of :class:`deltachat.contact.Contact` objects.
+        """
+        dc_array = ffi.gc(
+            lib.dc_get_blocked_contacts(self._dc_context),
+            lib.dc_array_unref
+        )
+        return list(iter_array(dc_array, lambda x: Contact(self, x)))
+
     def get_contacts(self, query=None, with_self=False, only_verified=False):
         """ get a (filtered) list of contacts.
 
