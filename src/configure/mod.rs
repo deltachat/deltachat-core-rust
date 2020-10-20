@@ -217,28 +217,32 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 500);
 
-    let servers = expand_param_vector(
-        param_autoconfig.unwrap_or_else(|| {
-            vec![
-                ServerParams {
-                    protocol: Protocol::IMAP,
-                    hostname: param.imap.server.clone(),
-                    port: param.imap.port,
-                    socket: param.imap.security,
-                    username: param.imap.user.clone(),
-                },
-                ServerParams {
-                    protocol: Protocol::SMTP,
-                    hostname: param.smtp.server.clone(),
-                    port: param.smtp.port,
-                    socket: param.smtp.security,
-                    username: param.smtp.user.clone(),
-                },
-            ]
-        }),
-        &param.addr,
-        &param_domain,
-    );
+    let mut servers = param_autoconfig.unwrap_or_default();
+    if !servers
+        .iter()
+        .any(|server| server.protocol == Protocol::IMAP)
+    {
+        servers.push(ServerParams {
+            protocol: Protocol::IMAP,
+            hostname: param.imap.server.clone(),
+            port: param.imap.port,
+            socket: param.imap.security,
+            username: param.imap.user.clone(),
+        })
+    }
+    if !servers
+        .iter()
+        .any(|server| server.protocol == Protocol::SMTP)
+    {
+        servers.push(ServerParams {
+            protocol: Protocol::SMTP,
+            hostname: param.smtp.server.clone(),
+            port: param.smtp.port,
+            socket: param.smtp.security,
+            username: param.smtp.user.clone(),
+        })
+    }
+    let servers = expand_param_vector(servers, &param.addr, &param_domain);
 
     progress!(ctx, 550);
 
@@ -560,7 +564,9 @@ async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationE
     let first_err = if let Some(f) = errors.first() {
         f
     } else {
-        return "".to_string();
+        // This means configuration failed but no errors have been captured. This should never
+        // happen, but if it does, the user will see classic "Error: no error".
+        return "no error".to_string();
     };
 
     if errors
