@@ -16,7 +16,7 @@
   happen over the wire even if the UI do not offer an option for that #1968
 
 - breaking change: split quotes off message text,
-  UIs should use at least `dc_get_quoted_text()` to show quotes now #1975
+  UIs should use at least `dc_msg_get_quoted_text()` to show quotes now #1975
 
 - new api for quote handling: `dc_msg_set_quote()`, `dc_msg_get_quoted_text()`,
   `dc_msg_get_quoted_msg()` #1975 #1984 #1985 #1987 #1989 #2004
