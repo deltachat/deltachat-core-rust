@@ -7,7 +7,7 @@ mod server_params;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_std::prelude::*;
-//use async_std::task;
+use async_std::task;
 use itertools::Itertools;
 use job::Action;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
@@ -258,7 +258,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .cloned()
         .collect();
 
-    //let smtp_config_task = task::spawn(async move {
+    let smtp_config_task = task::spawn(async move {
         let mut smtp_configured = false;
         let mut errors = Vec::new();
         for smtp_server in smtp_servers {
@@ -278,10 +278,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             }
         }
 
-        if !smtp_configured {
-            bail!(nicer_configuration_error(ctx, errors).await);
+        if smtp_configured {
+            Ok(smtp_param)
+        } else {
+            Err(errors)
         }
-    //});
+    });
 
     progress!(ctx, 600);
 
@@ -321,14 +323,14 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 850);
 
     // Wait for SMTP configuration
-    /*match smtp_config_task.await {
+    match smtp_config_task.await {
         Ok(smtp_param) => {
             param.smtp = smtp_param;
         }
         Err(errors) => {
             bail!(nicer_configuration_error(ctx, errors).await);
         }
-    }*/
+    }
 
     progress!(ctx, 900);
 
