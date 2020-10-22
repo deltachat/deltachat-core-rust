@@ -288,6 +288,24 @@ class TestOfflineChat:
         qr = chat.get_join_qr()
         assert ac2.check_qr(qr).is_ask_verifygroup
 
+    def test_removing_blocked_user_from_group(self, ac1, lp):
+        """
+        Tests that blocked contact is not unblocked if you remove the contact from a group.
+        See https://github.com/deltachat/deltachat-core-rust/issues/2030
+        """
+        lp.sec("Create a group chat with a contact")
+        contact = ac1.create_contact("some1@example.org")
+        group = ac1.create_group_chat("title", contacts=[contact])
+        group.send_text("First group message")
+
+        lp.sec("ac1 blocks contact")
+        contact.block()
+        assert contact.is_blocked()
+
+        lp.sec("ac1 removes contact from their group")
+        group.remove_contact(contact)
+        assert contact.is_blocked()
+
     def test_get_set_profile_image_simple(self, ac1, data):
         chat = ac1.create_group_chat(name="title1")
         p = data.get_path("d.png")
