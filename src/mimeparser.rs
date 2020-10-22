@@ -1022,9 +1022,11 @@ impl MimeMessage {
                 height < 500 || width < 500
             }
         }
-        let low_res_images = self.parts.iter().filter(is_low_res_image).count();
-        if low_res_images > 3 {
-            self.parts.retain(|p| !is_low_res_image(&p));
+        if !self.has_chat_version() {
+            let low_res_images = self.parts.iter().filter(is_low_res_image).count();
+            if low_res_images > 3 {
+                self.parts.retain(|p| !is_low_res_image(&p));
+            }
         }
     }
 
