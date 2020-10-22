@@ -141,14 +141,14 @@ static P_BUZON_UY: Lazy<Provider> = Lazy::new(|| Provider {
         Server {
             protocol: IMAP,
             socket: STARTTLS,
-            hostname: "buzon.uy",
+            hostname: "mail.buzon.uy",
             port: 143,
             username_pattern: EMAIL,
         },
         Server {
             protocol: SMTP,
             socket: STARTTLS,
-            hostname: "buzon.uy",
+            hostname: "mail.buzon.uy",
             port: 587,
             username_pattern: EMAIL,
         },
@@ -1109,4 +1109,4 @@ pub static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy:
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2020, 10, 17));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2020, 10, 22));
