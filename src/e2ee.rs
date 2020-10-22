@@ -150,6 +150,7 @@ pub async fn try_decrypt(
     mail: &ParsedMail<'_>,
     message_time: i64,
 ) -> Result<(Option<Vec<u8>>, HashSet<Fingerprint>)> {
+    info!(context, "dbg starting");
     let from = mail
         .headers
         .get_header(HeaderDef::From_)
@@ -157,9 +158,9 @@ pub async fn try_decrypt(
         .and_then(|from| from.extract_single_info())
         .map(|from| from.addr)
         .unwrap_or_default();
-
+    info!(context, "dbg getting peerstate");
     let mut peerstate = Peerstate::from_addr(context, &from).await?;
-
+    info!(context, "dbg have peerstate");
     // Apply Autocrypt header
     if let Some(ref header) = Aheader::from_headers(context, &from, &mail.headers) {
         if let Some(ref mut peerstate) = peerstate {
@@ -171,7 +172,7 @@ pub async fn try_decrypt(
             peerstate = Some(p);
         }
     }
-
+    info!(context, "dbg will try to decrypt");
     // Possibly perform decryption
     let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context).await?;
     let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
@@ -185,7 +186,7 @@ pub async fn try_decrypt(
             public_keyring_for_validate.add(key.clone());
         }
     }
-
+    info!(context, "dbg have keyring");
     let out_mail = decrypt_if_autocrypt_message(
         context,
         mail,
@@ -194,7 +195,7 @@ pub async fn try_decrypt(
         &mut signatures,
     )
     .await?;
-
+    info!(context, "dbg decrypted");
     if let Some(mut peerstate) = peerstate {
         // If message is not encrypted and it is not a read receipt, degrade encryption.
         if out_mail.is_none()
@@ -252,6 +253,7 @@ async fn decrypt_if_autocrypt_message(
     info!(context, "Detected Autocrypt-mime message");
 
     decrypt_part(
+        context,
         encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
@@ -262,25 +264,27 @@ async fn decrypt_if_autocrypt_message(
 
 /// Returns Ok(None) if nothing encrypted was found.
 async fn decrypt_part(
+    context: &Context,
     mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
     ret_valid_signatures: &mut HashSet<Fingerprint>,
 ) -> Result<Option<Vec<u8>>> {
     let data = mail.get_body_raw()?;
-
+    warn!(context, "dbg got body");
     if has_decrypted_pgp_armor(&data) {
         // we should only have one decryption happening
         ensure!(ret_valid_signatures.is_empty(), "corrupt signatures");
-
+        warn!(context, "dbg will pk_decrypt");
         let plain = pgp::pk_decrypt(
+            context,
             data,
             private_keyring,
             public_keyring_for_validate,
             Some(ret_valid_signatures),
         )
         .await?;
-
+        warn!(context, "dbg decrypted");
         // If the message was wrongly or not signed, still return the plain text.
         // The caller has to check the signatures then.
 
