@@ -1079,37 +1079,24 @@ async fn create_or_lookup_group(
         set_better_msg(mime_parser, &better_msg);
     }
 
-    let mut grpid = "".to_string();
-    if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupId) {
-        grpid = optional_field.clone();
-    }
+    let grpid = try_getting_grpid(mime_parser);
 
     if grpid.is_empty() {
-        if let Some(extracted_grpid) = mime_parser
-            .get(HeaderDef::MessageId)
-            .and_then(|value| dc_extract_grpid_from_rfc724_mid(&value))
-        {
-            grpid = extracted_grpid.to_string();
-        } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
-            grpid = extracted_grpid.to_string();
-        } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References) {
-            grpid = extracted_grpid.to_string();
-        } else {
-            return create_or_lookup_adhoc_group(
-                context,
-                mime_parser,
-                allow_creation,
-                create_blocked,
-                from_id,
-                to_ids,
-            )
-            .await
-            .map_err(|err| {
-                info!(context, "could not create adhoc-group: {:?}", err);
-                err
-            });
-        }
+        return create_or_lookup_adhoc_group(
+            context,
+            mime_parser,
+            allow_creation,
+            create_blocked,
+            from_id,
+            to_ids,
+        )
+        .await
+        .map_err(|err| {
+            info!(context, "could not create adhoc-group: {:?}", err);
+            err
+        });
     }
+
     // now we have a grpid that is non-empty
     // but we might not know about this group
 
@@ -1376,6 +1363,27 @@ async fn create_or_lookup_group(
         context.emit_event(EventType::ChatModified(chat_id));
     }
     Ok((chat_id, chat_id_blocked))
+}
+
+fn try_getting_grpid(mime_parser: &MimeMessage) -> String {
+    if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupId) {
+        return optional_field.clone();
+    }
+
+    if let Some(extracted_grpid) = mime_parser
+        .get(HeaderDef::MessageId)
+        .and_then(|value| dc_extract_grpid_from_rfc724_mid(&value))
+    {
+        return extracted_grpid.to_string();
+    }
+    if !mime_parser.has_chat_version() {
+        if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
+            return extracted_grpid.to_string();
+        } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References) {
+            return extracted_grpid.to_string();
+        }
+    }
+    "".to_string()
 }
 
 /// try extract a grpid from a message-id list header value
