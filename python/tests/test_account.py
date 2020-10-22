@@ -290,7 +290,7 @@ class TestOfflineChat:
 
     def test_removing_blocked_user_from_group(self, ac1, lp):
         """
-        Tests that blocked contact is not unblocked if you remove the contact from a group.
+        Test that blocked contact is not unblocked when removed from a group.
         See https://github.com/deltachat/deltachat-core-rust/issues/2030
         """
         lp.sec("Create a group chat with a contact")
