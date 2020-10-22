@@ -66,6 +66,14 @@ class Chat(object):
         """
         return self.id == const.DC_CHAT_ID_DEADDROP
 
+    def is_self_talk(self):
+        """ Check if a chat is a self talk.  Self talks are normal chats with
+        the only contact DC_CONTACT_ID_SELF.
+
+        :returns: True if chat self talk ("saved messages"), False otherwise.
+        """
+        return lib.dc_chat_is_self_talk(self._dc_chat)
+
     def is_muted(self):
         """ return true if this chat is muted.
 

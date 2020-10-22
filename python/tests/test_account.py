@@ -858,6 +858,34 @@ class TestOnlineAccount:
         assert msg_in.text == "message2"
         assert msg_in.is_forwarded()
 
+    def test_forward_group_message_to_self(self, acfactory, lp):
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+        ac3 = acfactory.clone_online_account(ac1)
+        acfactory.wait_configure_and_start_io()
+
+        lp.sec("sending message")
+        group = ac1.create_group_chat("group")
+        group.add_contact(ac2)
+        ac1.set_config("bcc_self", "1")
+        msg_out = group.send_text("message")
+        assert not msg_out.chat.is_self_talk()
+
+        msg_second_device = ac3._evtracker.wait_next_messages_changed()
+        assert msg_second_device.text == "message"
+        assert not msg_second_device.is_forwarded()
+        assert not msg_second_device.chat.is_self_talk()
+
+        self_chat = ac1.create_chat(ac1)
+        ac1.set_config("bcc_self", "1")
+        ac1.forward_messages([msg_out], self_chat)
+
+        # wait for other account to receive
+        msg_second_device = ac3._evtracker.wait_next_messages_changed()
+        assert msg_second_device.text == "message"
+        assert msg_second_device.is_forwarded()
+        assert msg_second_device.chat.is_self_talk()
+
     def test_send_self_message(self, acfactory, lp):
         ac1 = acfactory.get_one_online_account(mvbox=True, move=True)
         lp.sec("ac1: create self chat")
