@@ -69,7 +69,7 @@ pub enum Config {
     #[strum(props(default = "0"))] // also change MediaQuality.default() on changes
     MediaQuality,
 
-    #[strum(props(default = "1"))]
+    #[strum(props(default = "0"))] // disabled for now, we'll set this back to "1" at some point
     FetchExisting,
 
     #[strum(props(default = "0"))]
