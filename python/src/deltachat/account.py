@@ -214,6 +214,20 @@ class Account(object):
         :param name: (optional) display name for this contact
         :returns: :class:`deltachat.contact.Contact` instance.
         """
+        (name, addr) = self.get_contact_addr_and_name(obj, name)
+        return self._create_contact(addr, name)
+
+    def _create_contact(self, addr, name):
+        addr = as_dc_charpointer(addr)
+        name = as_dc_charpointer(name)
+        contact_id = lib.dc_create_contact(self._dc_context, name, addr)
+        return Contact(self, contact_id)
+
+    def get_contact(self, obj):
+        (_, addr) = self.get_contact_addr_and_name(obj)
+        return self.get_contact_by_addr(addr)
+
+    def get_contact_addr_and_name(self, obj, name=None):
         if isinstance(obj, Account):
             if not obj.is_configured():
                 raise ValueError("can only add addresses from configured accounts")
@@ -229,13 +243,7 @@ class Account(object):
 
         if name is None and displayname:
             name = displayname
-        return self._create_contact(addr, name)
-
-    def _create_contact(self, addr, name):
-        addr = as_dc_charpointer(addr)
-        name = as_dc_charpointer(name)
-        contact_id = lib.dc_create_contact(self._dc_context, name, addr)
-        return Contact(self, contact_id)
+        return (name, addr)
 
     def delete_contact(self, contact):
         """ delete a Contact.

@@ -371,7 +371,7 @@ class Chat(object):
         :raises ValueError: if contact could not be removed
         :returns: None
         """
-        contact = self.account.create_contact(obj)
+        contact = self.account.get_contact(obj)
         ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not remove contact {!r} from chat".format(contact))
