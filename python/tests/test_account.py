@@ -306,6 +306,10 @@ class TestOfflineChat:
         group.remove_contact(contact)
         assert contact.is_blocked()
 
+        lp.sec("ac1 adding blocked contact unblocks it")
+        group.add_contact(contact)
+        assert not contact.is_blocked()
+
     def test_get_set_profile_image_simple(self, ac1, data):
         chat = ac1.create_group_chat(name="title1")
         p = data.get_path("d.png")
