@@ -215,15 +215,14 @@ class Account(object):
         :returns: :class:`deltachat.contact.Contact` instance.
         """
         (name, addr) = self.get_contact_addr_and_name(obj, name)
-        return self._create_contact(addr, name)
-
-    def _create_contact(self, addr, name):
-        addr = as_dc_charpointer(addr)
         name = as_dc_charpointer(name)
+        addr = as_dc_charpointer(addr)
         contact_id = lib.dc_create_contact(self._dc_context, name, addr)
         return Contact(self, contact_id)
 
     def get_contact(self, obj):
+        if isinstance(obj, Contact):
+            return obj
         (_, addr) = self.get_contact_addr_and_name(obj)
         return self.get_contact_by_addr(addr)
 
