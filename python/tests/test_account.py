@@ -1521,7 +1521,7 @@ class TestOnlineAccount:
 
         lp.sec("ac1 blocks ac2")
         contact = ac1.create_contact(ac2)
-        contact.set_blocked()
+        contact.block()
         assert contact.is_blocked()
         ev = ac1._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
         assert ev.data1 == contact.id
