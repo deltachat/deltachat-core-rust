@@ -282,19 +282,16 @@ pub async fn pk_encrypt(
 /// have valid signatures there.
 #[allow(clippy::implicit_hasher)]
 pub async fn pk_decrypt(
-    context: &crate::context::Context,
     ctext: Vec<u8>,
     private_keys_for_decryption: Keyring<SignedSecretKey>,
     public_keys_for_validation: Keyring<SignedPublicKey>,
     ret_signature_fingerprints: Option<&mut HashSet<Fingerprint>>,
 ) -> Result<Vec<u8>> {
-    let context = context.clone();
     let msgs = async_std::task::spawn_blocking(move || {
         let cursor = Cursor::new(ctext);
         let (msg, _) = Message::from_armor_single(cursor)?;
 
         let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption.keys().iter().collect();
-        warn!(context, "dbg skeys {:?}", skeys);
         let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
         decryptor.collect::<pgp::errors::Result<Vec<_>>>()
     })

@@ -277,7 +277,6 @@ async fn decrypt_part(
         ensure!(ret_valid_signatures.is_empty(), "corrupt signatures");
         warn!(context, "dbg will pk_decrypt");
         let plain = pgp::pk_decrypt(
-            context,
             data,
             private_keyring,
             public_keyring_for_validate,
