@@ -953,10 +953,10 @@ class TestOnlineAccount:
         msg_reply.set_text("message reply")
         msg_reply.quote = msg2
 
-        private_chat = ac2.create_chat(ac1)
-        private_chat.send_msg(msg_reply)
-
         private_chat1 = ac1.create_chat(ac2)
+        private_chat2 = ac2.create_chat(ac1)
+        private_chat2.send_msg(msg_reply)
+
         msg_reply1 = ac1._evtracker.wait_next_incoming_message()
         assert msg_reply1.quoted_text == "hello"
         assert not msg_reply1.chat.is_group()
