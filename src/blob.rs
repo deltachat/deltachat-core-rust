@@ -63,6 +63,12 @@ impl<'a> BlobObject<'a> {
                 blobname: name.clone(),
                 cause: err.into(),
             })?;
+
+        // workaround a bug in async-std
+        // (the executor does not handle blocking operation in Drop correctly,
+        // see https://github.com/async-rs/async-std/issues/900 )
+        let _ = file.flush().await;
+
         let blob = BlobObject {
             blobdir,
             name: format!("$BLOBDIR/{}", name),
@@ -151,6 +157,10 @@ impl<'a> BlobObject<'a> {
                 cause: err,
             });
         }
+
+        // workaround, see create() for details
+        let _ = dst_file.flush().await;
+
         let blob = BlobObject {
             blobdir: context.get_blobdir(),
             name: format!("$BLOBDIR/{}", name),
