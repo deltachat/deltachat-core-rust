@@ -938,6 +938,30 @@ class TestOnlineAccount:
         except queue.Empty:
             pass  # mark_seen_messages() has generated events before it returns
 
+    def test_reply_privately(self, acfactory):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        group1 = ac1.create_group_chat("group")
+        group1.add_contact(ac2)
+        group1.send_text("hello")
+
+        msg2 = ac2._evtracker.wait_next_messages_changed()
+        group2 = msg2.create_chat()
+        assert group2.get_name() == group1.get_name()
+
+        msg_reply = Message.new_empty(ac2, "text")
+        msg_reply.set_text("message reply")
+        msg_reply.quote = msg2
+
+        private_chat = ac2.create_chat(ac1)
+        #msg_reply = private_chat.prepare_message(msg_reply)
+        private_chat.send_msg(msg_reply)
+
+        private_chat1 = ac1.create_chat(ac2)
+        msg_reply1 = ac1._evtracker.wait_next_incoming_message()
+        assert not msg_reply1.chat.is_group()
+        assert msg_reply1.chat.id == private_chat1.id
+
     def test_mdn_asymetric(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts(move=True)
 
