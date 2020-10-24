@@ -2,7 +2,8 @@
 
 ## 1.48.0
 
-- `fetch_existing_msgs` disabled by default #2035
+- `fetch_existing` renamed to `fetch_existing_msgs` and disabled by default
+  #2035 #2042
 
 - skip fetch existing messages/contacts if config-option `bot` set #2017
 
@@ -44,7 +45,8 @@
 - speed up and clean up account creation #1912 #1927 #1960 #1961
 
 - configure now collects recent contacts and fetches last messages
-  unless disabled by `fetch_existing_msgs` config-option #1913 #2003
+  unless disabled by `fetch_existing` config-option #1913 #2003
+  EDIT: `fetch_existing` renamed to `fetch_existing_msgs` in 1.48.0 #2042
 
 - emit `DC_EVENT_CHAT_MODIFIED` on contact rename
   and set contact-id on `DC_EVENT_CONTACTS_CHANGED` #1935 #1936 #1937
@@ -57,6 +59,8 @@
 - remove unneeded `DC_STR_COUNT` #1991
 
 - mark all failed messages as failed when receiving an NDN #1993
+
+- check some easy cases for bad system clock and outdated app #1901
 
 - fix import temporary directory usage #1929
 
