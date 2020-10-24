@@ -18,6 +18,8 @@ from .capi import lib
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
 from deltachat import direct_imap
+from deltachat.account import parseaddr
+
 
 import deltachat
 
@@ -36,6 +38,9 @@ def pytest_addoption(parser):
         "--strict-tls", action="store_true",
         help="Never accept invalid TLS certificates for test accounts",
     )
+    parser.addoption(
+        "--provider-file", "-P", default=None,
+        help="file which contains config settings for real-world providers")
 
 
 def pytest_configure(config):
@@ -125,17 +130,30 @@ def pytest_report_header(config, startdir):
     return summary
 
 
+def parse_accountfile(fn):
+    if fn is None:
+        return []
+
+    for line in open(fn):
+        if line.strip() and not line.strip().startswith('#'):
+            config_dict = {}
+            for part in line.split():
+                name, value = part.split("=")
+                config_dict[name] = value
+            yield config_dict
+
+
+def pytest_generate_tests(metafunc):
+    if "real_provider_config" in metafunc.fixturenames:
+        account_configs = list(parse_accountfile(metafunc.config.getoption("--provider-file")))
+        ids = [parseaddr(cfg["addr"])[1] for cfg in account_configs]
+        metafunc.parametrize("real_provider_config", account_configs, ids=ids)
+
+
 class SessionLiveConfigFromFile:
     def __init__(self, fn):
         self.fn = fn
-        self.configlist = []
-        for line in open(fn):
-            if line.strip() and not line.strip().startswith('#'):
-                d = {}
-                for part in line.split():
-                    name, value = part.split("=")
-                    d[name] = value
-                self.configlist.append(d)
+        self.configlist = list(parse_accountfile(fn))
 
     def get(self, index):
         return self.configlist[index]
@@ -231,6 +249,15 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 acc.shutdown()
                 acc.disable_logging()
             deltachat.unregister_global_plugin(direct_imap)
+
+        def make_account_from_real_config(self, provider_config):
+            configdict = provider_config
+            addr = parseaddr(configdict["addr"])[1]
+            domain = addr.split("@")[1]
+            if "e2ee_enabled" not in configdict:
+                configdict["e2ee_enabled"] = "1"
+            tmpdb = tmpdir.join(domain)
+            return self.make_account(tmpdb.strpath, logid=domain)
 
         def make_account(self, path, logid, quiet=False):
             ac = Account(path, logging=self._logging)
@@ -361,6 +388,11 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 accounts = self._accounts[:]
             started_accounts = []
             for acc in accounts:
+                if hasattr(acc, "_configtracker"):
+                    acc._configtracker.wait_finish()
+                    acc._evtracker.consume_events()
+                    acc.get_device_chat().mark_noticed()
+                    del acc._configtracker
                 if acc not in started_accounts:
                     self.wait_configure(acc)
                     acc.set_config("bcc_self", "0")
@@ -369,6 +401,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                         started_accounts.append(acc)
                     print("{}: {} account was started".format(
                         acc.get_config("displayname"), acc.get_config("addr")))
+
             for acc in started_accounts:
                 acc._evtracker.wait_all_initial_fetches()
 
