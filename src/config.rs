@@ -69,8 +69,12 @@ pub enum Config {
     #[strum(props(default = "0"))] // also change MediaQuality.default() on changes
     MediaQuality,
 
-    #[strum(props(default = "0"))] // disabled for now, we'll set this back to "1" at some point
-    FetchExisting,
+    /// If set to "1", on the first time `start_io()` is called after configuring,
+    /// the newest existing messages are fetched.
+    /// Existing recipients are added to the contact database regardless of this setting.
+    #[strum(props(default = "0"))]
+    // disabled for now, we'll set this back to "1" at some point
+    FetchExistingMsgs,
 
     #[strum(props(default = "0"))]
     KeyGenType,

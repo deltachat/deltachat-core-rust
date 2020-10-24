@@ -350,7 +350,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    The type `jitsi:` may be handled by external apps.
  *                    If no type is prefixed, the videochat is handled completely in a browser.
  * - `bot`          = Set to "1" if this is a bot. E.g. prevents adding the "Device messages" and "Saved messages" chats.
- * - `fetch_existing` = 1=fetch most recent existing messages on configure (default),
+ * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
  *

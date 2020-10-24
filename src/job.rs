@@ -639,7 +639,7 @@ impl Job {
         add_all_recipients_as_contacts(context, imap, Config::ConfiguredMvboxFolder).await;
         add_all_recipients_as_contacts(context, imap, Config::ConfiguredInboxFolder).await;
 
-        if context.get_config_bool(Config::FetchExisting).await {
+        if context.get_config_bool(Config::FetchExistingMsgs).await {
             for config in &[
                 Config::ConfiguredMvboxFolder,
                 Config::ConfiguredInboxFolder,
