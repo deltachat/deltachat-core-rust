@@ -1,5 +1,23 @@
 # Changelog 
 
+## 1.48.0
+
+- `fetch_existing_msgs` disabled by default #2035
+
+- skip fetch existing messages/contacts if config-option `bot` set #2017
+
+- fix handling when getting empty autoconfigure files #2027
+
+- fix adding saved messages to wrong chats on multi-device #2034 #2039
+
+- fix hang on android4.4 and other systems
+  by adding a workaround to executer-blocking-handling bug #2040
+
+- improve python bindings #2021 #2036 #2038
+
+- update provider-database #2037
+
+
 ## 1.47.0
 
 - breaking change: `dc_update_device_chats()` removed;
