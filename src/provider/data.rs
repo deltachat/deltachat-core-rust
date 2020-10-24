@@ -575,7 +575,7 @@ static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| {
         ConfigDefault { key: Config::MvboxMove, value: "0" },
         ConfigDefault { key: Config::E2eeEnabled, value: "0" },
         ConfigDefault { key: Config::MediaQuality, value: "1" },
-        ConfigDefault { key: Config::FetchExisting, value: "0" },
+        ConfigDefault { key: Config::FetchExistingMsgs, value: "0" },
     ]),
     strict_tls: false,
     oauth2_authorizer: None,

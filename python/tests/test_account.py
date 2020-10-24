@@ -2021,7 +2021,7 @@ class TestOnlineAccount:
         assert ac1.direct_imap.idle_wait_for_seen()
 
         ac1_clone = acfactory.clone_online_account(ac1)
-        ac1_clone.set_config("fetch_existing", "1")
+        ac1_clone.set_config("fetch_existing_msgs", "1")
         ac1_clone._configtracker.wait_finish()
         ac1_clone.start_io()
 

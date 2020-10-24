@@ -26,7 +26,7 @@
 - speed up and clean up account creation #1912 #1927 #1960 #1961
 
 - configure now collects recent contacts and fetches last messages
-  unless disabled by `fetch_existing` config-option #1913 #2003
+  unless disabled by `fetch_existing_msgs` config-option #1913 #2003
 
 - emit `DC_EVENT_CHAT_MODIFIED` on contact rename
   and set contact-id on `DC_EVENT_CONTACTS_CHANGED` #1935 #1936 #1937
