@@ -893,6 +893,33 @@ class TestOnlineAccount:
         chat.send_text("hello")
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
+    def test_decrypt_self_message(self, acfactory, lp):
+        ac1 = acfactory.get_online_configuring_account()
+        # We are actually not using ac2, we just need an address to send a message to
+        ac2 = acfactory.get_online_configuring_account()
+        ac3 = acfactory.clone_online_account(ac1)
+        acfactory.wait_configure_and_start_io()
+
+        lp.sec("Sending message to normal chat with bcc_self")
+        chat = ac1.create_chat(ac2)
+        ac1.set_config("bcc_self", "1")
+        chat.send_text("message to normal chat")
+
+        lp.sec("Receiving bcc_self message on second device")
+        msg_second_device = ac3._evtracker.wait_next_messages_changed()
+        assert msg_second_device.text == "message to normal chat"
+        assert not msg_second_device.chat.is_self_talk()
+
+        lp.sec("Sending message only to self")
+        self_chat = ac1.create_chat(ac1)
+        ac1.set_config("bcc_self", "1")
+        self_chat.send_text("message only to self")
+
+        lp.sec("Receiving message in self-chat")
+        msg_second_device = ac3._evtracker.wait_next_messages_changed()
+        assert msg_second_device.text == "message only to self"
+        assert msg_second_device.chat.is_self_talk()
+
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
