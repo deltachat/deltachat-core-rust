@@ -7,12 +7,32 @@
 
 - skip fetch existing messages/contacts if config-option `bot` set #2017
 
-- fix handling when getting empty autoconfigure files #2027
+- always log why a message is sorted to trash #2045
+
+- display a quote if top posting is detected #2047
+
+- add ephemeral task cancellation to `dc_stop_io()`;
+  before, there was no way to quickly terminate pending ephemeral tasks #2051
+
+- when saved-messages chat is deleted,
+  a device-message about recreation is added #2050
+
+- use `max_smtp_rcpt_to` from provider-db,
+  sending messages to many recipients in configurable chunks #2056
+
+- fix handling of empty autoconfigure files #2027
 
 - fix adding saved messages to wrong chats on multi-device #2034 #2039
 
 - fix hang on android4.4 and other systems
   by adding a workaround to executer-blocking-handling bug #2040
+
+- fix secret key export/import roundtrip #2048
+
+- fix mistakenly unarchived chats #2057
+
+- fix outdated-reminder test that fails only 7 days a year,
+  including halloween :) #2059
 
 - improve python bindings #2021 #2036 #2038
 
