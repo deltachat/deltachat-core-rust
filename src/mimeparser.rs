@@ -2268,4 +2268,35 @@ From: alice <alice@example.org>
         );
         assert_eq!(message.parts[0].msg, "");
     }
+
+    #[async_std::test]
+    async fn parse_quote_top_posting() {
+        let context = TestContext::new().await;
+        let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Subject: Re: top posting
+MIME-Version: 1.0
+In-Reply-To: <bar@example.org>
+Message-ID: <foo@example.org>
+To: bob <bob@example.org>
+From: alice <alice@example.org>
+
+A reply.
+
+On 2020-10-25, Bob wrote:
+> A quote.
+"##;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(message.get_subject(), Some("Re: top posting".to_string()));
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Text);
+        assert_eq!(
+            message.parts[0].param.get(Param::Quote).unwrap(),
+            "A quote."
+        );
+        assert_eq!(message.parts[0].msg, "A reply.");
+    }
 }
