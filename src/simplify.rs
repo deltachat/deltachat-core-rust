@@ -71,7 +71,7 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, Opti
     let lines = split_lines(&input);
     let (lines, is_forwarded) = skip_forward_header(&lines);
 
-    let (lines, top_quote) = remove_top_quote(lines);
+    let (lines, mut top_quote) = remove_top_quote(lines);
     let original_lines = &lines;
     let lines = remove_message_footer(lines);
 
@@ -79,12 +79,16 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, Opti
         render_message(lines, false)
     } else {
         let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
-        let (lines, has_bottom_quote) = remove_bottom_quote(lines);
+        let (lines, mut bottom_quote) = remove_bottom_quote(lines);
+
+        if top_quote.is_none() && bottom_quote.is_some() {
+            std::mem::swap(&mut top_quote, &mut bottom_quote);
+        }
 
         if lines.iter().all(|it| it.trim().is_empty()) {
             render_message(original_lines, false)
         } else {
-            render_message(lines, has_nonstandard_footer || has_bottom_quote)
+            render_message(lines, has_nonstandard_footer || bottom_quote.is_some())
         }
     };
     (text, is_forwarded, top_quote)
@@ -105,16 +109,27 @@ fn skip_forward_header<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
 }
 
 #[allow(clippy::indexing_slicing)]
-fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>) {
+    let mut first_quoted_line = lines.len();
     let mut last_quoted_line = None;
     for (l, line) in lines.iter().enumerate().rev() {
         if is_plain_quote(line) {
+            if last_quoted_line.is_none() {
+                first_quoted_line = l + 1;
+            }
             last_quoted_line = Some(l)
         } else if !is_empty_line(line) {
             break;
         }
     }
     if let Some(mut l_last) = last_quoted_line {
+        let quoted_text = lines[l_last..first_quoted_line]
+            .iter()
+            .map(|s| {
+                s.strip_prefix(">")
+                    .map_or(*s, |u| u.strip_prefix(" ").unwrap_or(u))
+            })
+            .join("\n");
         if l_last > 1 && is_empty_line(lines[l_last - 1]) {
             l_last -= 1
         }
@@ -124,9 +139,9 @@ fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
                 l_last -= 1
             }
         }
-        (&lines[..l_last], true)
+        (&lines[..l_last], Some(quoted_text))
     } else {
-        (lines, false)
+        (lines, None)
     }
 }
 
