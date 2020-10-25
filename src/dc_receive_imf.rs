@@ -387,6 +387,7 @@ async fn add_parts(
         // this message is a classic email not a chat-message nor a reply to one
         match show_emails {
             ShowEmails::Off => {
+                info!(context, "Classical email not shown (TRASH)");
                 *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
                 allow_creation = false;
             }
@@ -445,10 +446,7 @@ async fn add_parts(
         // it might also be blocked and displayed in the deaddrop as a result
         if chat_id.is_unset() && mime_parser.failure_report.is_some() {
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
-            info!(
-                context,
-                "Message belongs to an NDN and is not shown in a chat.",
-            );
+            info!(context, "Message belongs to an NDN (TRASH)",);
         }
 
         if chat_id.is_unset() {
@@ -489,7 +487,7 @@ async fn add_parts(
             // check if the message belongs to a mailing list
             if mime_parser.is_mailinglist_message() {
                 *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
-                info!(context, "Message belongs to a mailing list and is ignored.",);
+                info!(context, "Message belongs to a mailing list (TRASH)");
             }
         }
 
@@ -533,6 +531,7 @@ async fn add_parts(
         if chat_id.is_unset() {
             // maybe from_id is null or sth. else is suspicious, move message to trash
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+            info!(context, "No chat id for incoming msg (TRASH)")
         }
 
         // if the chat_id is blocked,
@@ -642,13 +641,14 @@ async fn add_parts(
         }
         if chat_id.is_unset() {
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+            info!(context, "No chat id for outgoing message (TRASH)")
         }
     }
 
     if fetching_existing_messages && mime_parser.decrypting_failed {
         *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
         // We are only gathering old messages on first start. We do not want to add loads of non-decryptable messages to the chats.
-        info!(context, "Dropping existing non-decipherable message.");
+        info!(context, "Existing non-decipherable message. (TRASH)");
     }
 
     // Extract ephemeral timer from the message.
@@ -1266,6 +1266,7 @@ async fn create_or_lookup_group(
         } else {
             // The message was decrypted successfully, but contains a late "quit" or otherwise
             // unwanted message.
+            info!(context, "message belongs to unwanted group (TRASH)");
             return Ok((ChatId::new(DC_CHAT_ID_TRASH), chat_id_blocked));
         }
     }
