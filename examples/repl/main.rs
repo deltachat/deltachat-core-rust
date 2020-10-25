@@ -197,14 +197,12 @@ const CHAT_COMMANDS: [&str; 27] = [
     "unpin",
     "delchat",
 ];
-const MESSAGE_COMMANDS: [&str; 8] = [
+const MESSAGE_COMMANDS: [&str; 6] = [
     "listmsgs",
     "msginfo",
     "listfresh",
     "forward",
     "markseen",
-    "star",
-    "unstar",
     "delmsg",
 ];
 const CONTACT_COMMANDS: [&str; 6] = [
