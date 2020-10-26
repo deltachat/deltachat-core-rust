@@ -964,7 +964,7 @@ where
         let any_key = key as &dyn Any;
         let kind = if any_key.downcast_ref::<SignedPublicKey>().is_some() {
             "public"
-        } else if any_key.downcast_ref::<SignedPublicKey>().is_some() {
+        } else if any_key.downcast_ref::<SignedSecretKey>().is_some() {
             "private"
         } else {
             "unknown"
@@ -1040,7 +1040,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_export_key_to_asc_file() {
+    async fn test_export_public_key_to_asc_file() {
         let context = TestContext::new().await;
         let key = alice_keypair().public;
         let blobdir = "$BLOBDIR";
@@ -1049,6 +1049,21 @@ mod tests {
             .is_ok());
         let blobdir = context.ctx.get_blobdir().to_str().unwrap();
         let filename = format!("{}/public-key-default.asc", blobdir);
+        let bytes = async_std::fs::read(&filename).await.unwrap();
+
+        assert_eq!(bytes, key.to_asc(None).into_bytes());
+    }
+
+    #[async_std::test]
+    async fn test_export_private_key_to_asc_file() {
+        let context = TestContext::new().await;
+        let key = alice_keypair().secret;
+        let blobdir = "$BLOBDIR";
+        assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key)
+            .await
+            .is_ok());
+        let blobdir = context.ctx.get_blobdir().to_str().unwrap();
+        let filename = format!("{}/private-key-default.asc", blobdir);
         let bytes = async_std::fs::read(&filename).await.unwrap();
 
         assert_eq!(bytes, key.to_asc(None).into_bytes());
