@@ -31,6 +31,7 @@ use crate::param::*;
 use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
+use ::pgp::types::KeyTrait;
 use async_tar::Archive;
 
 // Name of the database file in the backup.
@@ -413,6 +414,8 @@ async fn set_self_key(
         },
     )
     .await?;
+
+    info!(context, "stored self key: {:?}", keypair.secret.key_id());
     Ok(())
 }
 
@@ -444,14 +447,16 @@ async fn imex_inner(
     what: ImexMode,
     param: Option<impl AsRef<Path>>,
 ) -> Result<()> {
-    ensure!(param.is_some(), "No Import/export dir/file given.");
+    let path = if let Some(ref p) = param {
+        info!(context, "Import/export dir: {}", p.as_ref().display());
+        p
+    } else {
+        return Err(format_err!("Imex: Param was None"));
+    };
 
-    info!(context, "Import/export process started.");
     context.emit_event(EventType::ImexProgress(10));
-
     ensure!(context.sql.is_open().await, "Database not opened.");
 
-    let path = param.ok_or_else(|| format_err!("Imex: Param was None"))?;
     if what == ImexMode::ExportBackup || what == ImexMode::ExportSelfKeys {
         // before we export anything, make sure the private key exists
         if e2ee::ensure_secret_key_exists(context).await.is_err() {
@@ -875,6 +880,12 @@ async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
                 continue;
             }
         }
+        info!(
+            context,
+            "considering key file: {}",
+            path_plus_name.display()
+        );
+
         match dc_read_file(context, &path_plus_name).await {
             Ok(buf) => {
                 let armored = std::string::String::from_utf8_lossy(&buf);
@@ -972,7 +983,12 @@ where
         let id = id.map_or("default".into(), |i| i.to_string());
         dir.as_ref().join(format!("{}-key-{}.asc", kind, &id))
     };
-    info!(context, "Exporting key {}", file_name.display());
+    info!(
+        context,
+        "Exporting key {:?} to {}",
+        key.key_id(),
+        file_name.display()
+    );
     dc_delete_file(context, &file_name).await;
 
     let content = key.to_asc(None).into_bytes();
@@ -1078,8 +1094,9 @@ mod tests {
             .await
             .is_ok());
 
-        let blobdir = context.ctx.get_blobdir().to_str().unwrap();
-        assert!(imex(&context.ctx, ImexMode::ImportSelfKeys, Some(blobdir))
+        let context2 = TestContext::new().await;
+        context2.configure_alice().await;
+        assert!(imex(&context2.ctx, ImexMode::ImportSelfKeys, Some(blobdir))
             .await
             .is_ok());
     }

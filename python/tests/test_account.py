@@ -668,7 +668,7 @@ class TestOnlineAccount:
         except Exception:
             pass
 
-    def test_export_import_self_keys(self, acfactory, tmpdir):
+    def test_export_import_self_keys(self, acfactory, tmpdir, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         dir = tmpdir.mkdir("exportdir")
@@ -676,8 +676,17 @@ class TestOnlineAccount:
         assert len(export_files) == 2
         for x in export_files:
             assert x.startswith(dir.strpath)
+        key_id, = ac1._evtracker.get_info_regex_groups(r".*xporting.*KeyId\((.*)\).*")
         ac1._evtracker.consume_events()
+
+        lp.sec("exported keys (private and public)")
+        for name in os.listdir(dir.strpath):
+            lp.indent(dir.strpath + os.sep + name)
+        lp.sec("importing into existing account")
         ac2.import_self_keys(dir.strpath)
+        key_id2, = ac2._evtracker.get_info_regex_groups(
+            r".*stored.*KeyId\((.*)\).*", check_error=False)
+        assert key_id2 == key_id
 
     def test_one_account_send_bcc_setting(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
