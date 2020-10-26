@@ -330,6 +330,13 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             return accounts
 
         def clone_online_account(self, account, pre_generated_key=True):
+            """ Clones addr, mail_pw, mvbox_watch, mvbox_move, sentbox_watch and the 
+            direct_imap object of an online account. This simulates the user setting
+            up a new device without importing a backup.
+
+            `pre_generated_key` only means that a key from python/tests/data/key is
+            used in order to speed things up.
+            """
             self.live_count += 1
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
