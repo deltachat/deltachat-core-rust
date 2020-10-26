@@ -503,6 +503,9 @@ def lp():
         def step(self, msg):
             print("-" * 5, "step " + msg, "-" * 5)
 
+        def indent(self, msg):
+            print("  " + msg)
+
     return Printer()
 
 

@@ -103,6 +103,14 @@ class FFIEventTracker:
             if rex.search(ev.data2):
                 return ev
 
+    def get_info_regex_groups(self, regex, check_error=True):
+        rex = re.compile(regex)
+        while 1:
+            ev = self.get_matching("DC_EVENT_INFO", check_error=check_error)
+            m = rex.match(ev.data2)
+            if m is not None:
+                return m.groups()
+
     def ensure_event_not_queued(self, event_name_regex):
         __tracebackhide__ = True
         rex = re.compile("(?:{}).*".format(event_name_regex))
