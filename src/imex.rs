@@ -79,11 +79,7 @@ pub enum ImexMode {
 ///
 /// Only one import-/export-progress can run at the same time.
 /// To cancel an import-/export-progress, drop the future returned by this function.
-pub async fn imex(
-    context: &Context,
-    what: ImexMode,
-    param1: Option<impl AsRef<Path>>,
-) -> Result<()> {
+pub async fn imex(context: &Context, what: ImexMode, param1: impl AsRef<Path>) -> Result<()> {
     let cancel = context.alloc_ongoing().await?;
 
     let res = async {
@@ -442,20 +438,10 @@ pub fn normalize_setup_code(s: &str) -> String {
     out
 }
 
-async fn imex_inner(
-    context: &Context,
-    what: ImexMode,
-    param: Option<impl AsRef<Path>>,
-) -> Result<()> {
-    let path = if let Some(ref p) = param {
-        info!(context, "Import/export dir: {}", p.as_ref().display());
-        p
-    } else {
-        return Err(format_err!("Imex: Param was None"));
-    };
-
-    context.emit_event(EventType::ImexProgress(10));
+async fn imex_inner(context: &Context, what: ImexMode, path: impl AsRef<Path>) -> Result<()> {
+    info!(context, "Import/export dir: {}", path.as_ref().display());
     ensure!(context.sql.is_open().await, "Database not opened.");
+    context.emit_event(EventType::ImexProgress(10));
 
     if what == ImexMode::ExportBackup || what == ImexMode::ExportSelfKeys {
         // before we export anything, make sure the private key exists
@@ -1089,16 +1075,16 @@ mod tests {
     async fn test_export_and_import_key() {
         let context = TestContext::new().await;
         context.configure_alice().await;
-        let blobdir = "$BLOBDIR";
-        assert!(imex(&context.ctx, ImexMode::ExportSelfKeys, Some(blobdir))
-            .await
-            .is_ok());
+        let blobdir = context.ctx.get_blobdir().to_str().unwrap();
+        if let Err(err) = imex(&context.ctx, ImexMode::ExportSelfKeys, blobdir).await {
+            panic!("got error on export: {:?}", err);
+        }
 
         let context2 = TestContext::new().await;
         context2.configure_alice().await;
-        assert!(imex(&context2.ctx, ImexMode::ImportSelfKeys, Some(blobdir))
-            .await
-            .is_ok());
+        if let Err(err) = imex(&context2.ctx, ImexMode::ImportSelfKeys, blobdir).await {
+            panic!("got error on import: {:?}", err);
+        }
     }
 
     #[test]

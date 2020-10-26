@@ -443,20 +443,20 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "export-backup" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportBackup, Some(&dir)).await?;
+            imex(&context, ImexMode::ExportBackup, &dir).await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            imex(&context, ImexMode::ImportBackup, Some(arg1)).await?;
+            imex(&context, ImexMode::ImportBackup, arg1).await?;
         }
         "export-keys" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportSelfKeys, Some(&dir)).await?;
+            imex(&context, ImexMode::ExportSelfKeys, &dir).await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-keys" => {
-            imex(&context, ImexMode::ImportSelfKeys, Some(arg1)).await?;
+            imex(&context, ImexMode::ImportSelfKeys, arg1).await?;
         }
         "export-setup" => {
             let setup_code = create_setup_code(&context);

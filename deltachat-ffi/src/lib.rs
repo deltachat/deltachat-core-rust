@@ -1727,13 +1727,15 @@ pub unsafe extern "C" fn dc_imex(
 
     let ctx = &*context;
 
-    let param1 = to_opt_string_lossy(param1);
-
-    spawn(async move {
-        imex::imex(&ctx, what, param1)
-            .await
-            .log_err(ctx, "IMEX failed")
-    });
+    if let Some(param1) = to_opt_string_lossy(param1) {
+        spawn(async move {
+            imex::imex(&ctx, what, &param1)
+                .await
+                .log_err(ctx, "IMEX failed")
+        });
+    } else {
+        eprintln!("dc_imex called without a valid directory");
+    }
 }
 
 #[no_mangle]

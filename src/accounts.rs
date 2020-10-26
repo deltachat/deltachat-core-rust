@@ -188,7 +188,7 @@ impl Accounts {
         let id = self.add_account().await?;
         let ctx = self.get_account(id).await.expect("just added");
 
-        match crate::imex::imex(&ctx, crate::imex::ImexMode::ImportBackup, Some(file)).await {
+        match crate::imex::imex(&ctx, crate::imex::ImexMode::ImportBackup, &file).await {
             Ok(_) => Ok(id),
             Err(err) => {
                 // remove temp account
