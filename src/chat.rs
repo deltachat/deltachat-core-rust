@@ -337,7 +337,7 @@ impl ChatId {
         );
         /* Up to 2017-11-02 deleting a group also implied leaving it, see above why we have changed this. */
 
-        let _chat = Chat::load_from_db(context, self).await?;
+        let chat = Chat::load_from_db(context, self).await?;
         context
             .sql
             .execute(
@@ -372,6 +372,17 @@ impl ChatId {
         job::kill_action(context, Action::Housekeeping).await;
         let j = job::Job::new(Action::Housekeeping, 0, Params::new(), 10);
         job::add(context, j).await;
+
+        if chat.is_self_talk() {
+            let mut msg = Message::new(Viewtype::Text);
+            msg.text = Some(
+                context
+                    .stock_str(StockMessage::SelfDeletedMsgBody)
+                    .await
+                    .into(),
+            );
+            add_device_msg(&context, None, Some(&mut msg)).await?;
+        }
 
         Ok(())
     }

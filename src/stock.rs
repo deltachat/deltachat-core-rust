@@ -244,6 +244,10 @@ pub enum StockMessage {
     // used in summaries, a noun, not a verb (not: "to reply")
     #[strum(props(fallback = "Reply"))]
     ReplyNoun = 90,
+
+    #[strum(props(fallback = "You deleted the \"Saved messages\" chat.\n\n\
+                    To use the \"Saved messages\" feature again, create a new chat with yourself."))]
+    SelfDeletedMsgBody = 91,
 }
 
 /*
