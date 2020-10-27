@@ -467,6 +467,7 @@ mod tests {
 
     use crate::constants::DC_CONTACT_ID_SELF;
 
+    use crate::chat::Chat;
     use crate::chatlist::Chatlist;
     use num_traits::ToPrimitive;
 
@@ -658,8 +659,31 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
 
-        chats.get_chat_id(0).delete(&t.ctx).await.ok();
-        chats.get_chat_id(1).delete(&t.ctx).await.ok();
+        let chat0 = Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
+            .await
+            .unwrap();
+        let (self_talk_id, device_chat_id) = if chat0.is_self_talk() {
+            (chats.get_chat_id(0), chats.get_chat_id(1))
+        } else {
+            (chats.get_chat_id(1), chats.get_chat_id(0))
+        };
+
+        // delete self-talk first; this adds a message to device-chat about how self-talk can be restored
+        let device_chat_msgs_before = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None)
+            .await
+            .len();
+        self_talk_id.delete(&t.ctx).await.ok();
+        assert_eq!(
+            chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None)
+                .await
+                .len(),
+            device_chat_msgs_before + 1
+        );
+
+        // delete device chat
+        device_chat_id.delete(&t.ctx).await.ok();
+
+        // check, that the chatlist is empty
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
