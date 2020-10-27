@@ -330,7 +330,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             return accounts
 
         def clone_online_account(self, account, pre_generated_key=True):
-            """ Clones addr, mail_pw, mvbox_watch, mvbox_move, sentbox_watch and the 
+            """ Clones addr, mail_pw, mvbox_watch, mvbox_move, sentbox_watch and the
             direct_imap object of an online account. This simulates the user setting
             up a new device without importing a backup.
 
