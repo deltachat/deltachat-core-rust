@@ -562,9 +562,12 @@ void            dc_start_io     (dc_context_t* context);
 int             dc_is_io_running(const dc_context_t* context);
 
 /**
- * Stop job and IMAP/SMTP tasks and return when they are finished. 
- * If IO is not running, nothing happens.
+ * Stop job, IMAP, SMTP and other tasks and return when they
+ * are finished.
  * To check the current IO state, use dc_is_io_running().
+ * Even if IO is not running, there may be pending tasks,
+ * so this function should always be called before releasing
+ * context to ensure clean termination of event loop.
  *
  * If the context was created by the dc_accounts_t account manager,
  * use dc_accounts_stop_io() instead of this function.
@@ -2373,7 +2376,6 @@ void           dc_accounts_start_io             (dc_accounts_t* accounts);
 
 /**
  * Stop job and IMAP/SMTP tasks for all accounts and return when they are finished.
- * If IO is not running, nothing happens.
  * This is similar to dc_stop_io(), which, however,
  * must not be called for accounts handled by the account manager.
  *

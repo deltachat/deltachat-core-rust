@@ -163,10 +163,6 @@ impl Context {
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
         info!(self, "stopping IO");
-        if !self.is_io_running().await {
-            info!(self, "IO is not running");
-            return;
-        }
 
         self.inner.stop_io().await;
     }
@@ -483,14 +479,19 @@ impl InnerContext {
     }
 
     async fn stop_io(&self) {
-        assert!(self.is_io_running().await, "context is already stopped");
-        let token = {
-            let lock = &*self.scheduler.read().await;
-            lock.pre_stop().await
-        };
-        {
-            let lock = &mut *self.scheduler.write().await;
-            lock.stop(token).await;
+        if self.is_io_running().await {
+            let token = {
+                let lock = &*self.scheduler.read().await;
+                lock.pre_stop().await
+            };
+            {
+                let lock = &mut *self.scheduler.write().await;
+                lock.stop(token).await;
+            }
+        }
+
+        if let Some(ephemeral_task) = self.ephemeral_task.write().await.take() {
+            ephemeral_task.cancel().await;
         }
     }
 }
