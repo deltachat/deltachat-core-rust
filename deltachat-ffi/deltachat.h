@@ -353,10 +353,6 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
- * - `max_smtp_rcpt_to` = set the max. number of recipients that should be used for `RCPT TO:` smtp header.
- *                    If a message needs to be sent to more recipients, multiple messages are sent out,
- *                    each with exactly the same MIME-message (with `To:` mime headers that may contain all recipients)
- *                    (defaults to 50)
  *
  * If you want to retrieve a value, use dc_get_config().
  *

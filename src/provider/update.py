@@ -104,6 +104,9 @@ def process_data(data, file):
     strict_tls = data.get("strict_tls", False)
     strict_tls = "true" if strict_tls else "false"
 
+    max_smtp_rcpt_to = data.get("max_smtp_rcpt_to", 0)
+    max_smtp_rcpt_to = "Some(" + str(max_smtp_rcpt_to) + ")" if max_smtp_rcpt_to != 0 else "None"
+
     oauth2 = data.get("oauth2", "")
     oauth2 = "Some(Oauth2Authorizer::" + camel(oauth2) + ")" if oauth2 != "" else "None"
 
@@ -119,6 +122,7 @@ def process_data(data, file):
         provider += "    server: vec![\n" + server + "    ],\n"
         provider += "    config_defaults: " + config_defaults + ",\n"
         provider += "    strict_tls: " + strict_tls + ",\n"
+        provider += "    max_smtp_rcpt_to: " + max_smtp_rcpt_to + ",\n"
         provider += "    oauth2_authorizer: " + oauth2 + ",\n"
         provider += "});\n\n"
     else:

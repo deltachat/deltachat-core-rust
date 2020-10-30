@@ -75,6 +75,7 @@ pub struct Provider {
     pub server: Vec<Server>,
     pub config_defaults: Option<Vec<ConfigDefault>>,
     pub strict_tls: bool,
+    pub max_smtp_rcpt_to: Option<u16>,
     pub oauth2_authorizer: Option<Oauth2Authorizer>,
 }
 

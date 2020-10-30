@@ -4,8 +4,10 @@ use super::Smtp;
 use async_smtp::*;
 
 use crate::config::Config;
+use crate::constants::DEFAULT_MAX_SMTP_RCPT_TO;
 use crate::context::Context;
 use crate::events::EventType;
+use crate::provider::get_provider_info;
 use itertools::Itertools;
 use std::time::Duration;
 
@@ -34,7 +36,18 @@ impl Smtp {
         job_id: u32,
     ) -> Result<()> {
         let message_len_bytes = message.len();
-        let chunk_size = context.get_config_int(Config::MaxSmtpRcptTo).await as usize;
+
+        let mut chunk_size = DEFAULT_MAX_SMTP_RCPT_TO;
+        if let Some(provider) = get_provider_info(
+            &context
+                .get_config(Config::ConfiguredAddr)
+                .await
+                .unwrap_or_default(),
+        ) {
+            if let Some(max_smtp_rcpt_to) = provider.max_smtp_rcpt_to {
+                chunk_size = max_smtp_rcpt_to as usize;
+            }
+        }
 
         for recipients_chunk in recipients.chunks(chunk_size).into_iter() {
             let recipients = recipients_chunk.to_vec();

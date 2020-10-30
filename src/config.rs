@@ -69,9 +69,6 @@ pub enum Config {
     #[strum(props(default = "0"))] // also change MediaQuality.default() on changes
     MediaQuality,
 
-    #[strum(props(default = "50"))]
-    MaxSmtpRcptTo,
-
     /// If set to "1", on the first time `start_io()` is called after configuring,
     /// the newest existing messages are fetched.
     /// Existing recipients are added to the contact database regardless of this setting.
