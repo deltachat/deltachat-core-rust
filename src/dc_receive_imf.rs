@@ -2227,7 +2227,7 @@ mod tests {
         let t = TestContext::new_alice().await;
 
         // create one-to-one with bob, archive one-to-one
-        let bob_id = Contact::create(&t.ctx, "bob", "bob@exampel.org")
+        let bob_id = Contact::create(&t.ctx, "bob", "bob@example.com")
             .await
             .unwrap();
         let one2one_id = chat::create_by_contact_id(&t.ctx, bob_id).await.unwrap();
