@@ -1174,22 +1174,16 @@ mod tests {
         assert_eq!(msgs.len(), 1);
 
         // do not repeat the warning every day ...
+        // (we test that for the 2 subsequent days, this may be the next month, so the result should be 1 or 2 device message)
         maybe_warn_on_outdated(
             &t.ctx,
             timestamp_now + (365 + 1) * 24 * 60 * 60,
             get_provider_update_timestamp(),
         )
         .await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        assert_eq!(chats.len(), 1);
-        let device_chat_id = chats.get_chat_id(0);
-        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
-        assert_eq!(msgs.len(), 1);
-
-        // ... but every month
         maybe_warn_on_outdated(
             &t.ctx,
-            timestamp_now + (365 + 31) * 24 * 60 * 60,
+            timestamp_now + (365 + 2) * 24 * 60 * 60,
             get_provider_update_timestamp(),
         )
         .await;
@@ -1197,6 +1191,21 @@ mod tests {
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0);
         let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
-        assert_eq!(msgs.len(), 2);
+        let test_len = msgs.len();
+        assert!(test_len == 1 || test_len == 2);
+
+        // ... but every month
+        // (forward generous 33 days to avoid being in the same month as in the previous check)
+        maybe_warn_on_outdated(
+            &t.ctx,
+            timestamp_now + (365 + 33) * 24 * 60 * 60,
+            get_provider_update_timestamp(),
+        )
+        .await;
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
+        let device_chat_id = chats.get_chat_id(0);
+        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        assert_eq!(msgs.len(), test_len + 1);
     }
 }
