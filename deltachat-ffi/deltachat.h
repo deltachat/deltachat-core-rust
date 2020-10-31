@@ -4990,6 +4990,7 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_PROTECTION_ENABLED         88
 #define DC_STR_PROTECTION_DISABLED        89
 #define DC_STR_REPLY_NOUN                 90 /* eg. "Reply", used in summaries, a noun, not a verb (not: "to reply") */
+#define DC_STR_SELF_DELETED_MSG_BODY      91
 
 /*
  * @}
