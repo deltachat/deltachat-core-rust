@@ -1,5 +1,44 @@
 # Changelog 
 
+## 1.48.0
+
+- `fetch_existing` renamed to `fetch_existing_msgs` and disabled by default
+  #2035 #2042
+
+- skip fetch existing messages/contacts if config-option `bot` set #2017
+
+- always log why a message is sorted to trash #2045
+
+- display a quote if top posting is detected #2047
+
+- add ephemeral task cancellation to `dc_stop_io()`;
+  before, there was no way to quickly terminate pending ephemeral tasks #2051
+
+- when saved-messages chat is deleted,
+  a device-message about recreation is added #2050
+
+- use `max_smtp_rcpt_to` from provider-db,
+  sending messages to many recipients in configurable chunks #2056
+
+- fix handling of empty autoconfigure files #2027
+
+- fix adding saved messages to wrong chats on multi-device #2034 #2039
+
+- fix hang on android4.4 and other systems
+  by adding a workaround to executer-blocking-handling bug #2040
+
+- fix secret key export/import roundtrip #2048
+
+- fix mistakenly unarchived chats #2057
+
+- fix outdated-reminder test that fails only 7 days a year,
+  including halloween :) #2059
+
+- improve python bindings #2021 #2036 #2038
+
+- update provider-database #2037
+
+
 ## 1.47.0
 
 - breaking change: `dc_update_device_chats()` removed;
@@ -26,7 +65,8 @@
 - speed up and clean up account creation #1912 #1927 #1960 #1961
 
 - configure now collects recent contacts and fetches last messages
-  unless disabled by `fetch_existing_msgs` config-option #1913 #2003
+  unless disabled by `fetch_existing` config-option #1913 #2003
+  EDIT: `fetch_existing` renamed to `fetch_existing_msgs` in 1.48.0 #2042
 
 - emit `DC_EVENT_CHAT_MODIFIED` on contact rename
   and set contact-id on `DC_EVENT_CONTACTS_CHANGED` #1935 #1936 #1937
@@ -39,6 +79,8 @@
 - remove unneeded `DC_STR_COUNT` #1991
 
 - mark all failed messages as failed when receiving an NDN #1993
+
+- check some easy cases for bad system clock and outdated app #1901
 
 - fix import temporary directory usage #1929
 
