@@ -205,6 +205,11 @@ pub const WORSE_IMAGE_SIZE: u32 = 640;
 // this value can be increased if the folder configuration is changed and must be redone on next program start
 pub const DC_FOLDERS_CONFIGURED_VERSION: i32 = 3;
 
+// if more recipients are needed in SMTP's `RCPT TO:` header, recipient-list is splitted to chunks.
+// this does not affect MIME'e `To:` header.
+// can be overwritten by the setting `max_smtp_rcpt_to` in provider-db.
+pub const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
+
 #[derive(
     Debug,
     Display,
