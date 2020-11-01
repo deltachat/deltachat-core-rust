@@ -380,7 +380,16 @@ impl<'a> BlobObject<'a> {
     pub async fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
         let blob_abs = self.to_abs_path();
 
-        self.recode_to_size(context, blob_abs, AVATAR_SIZE).await
+        let img_wh = if MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+            .unwrap_or_default()
+            == MediaQuality::Balanced
+        {
+            BALANCED_AVATAR_SIZE
+        } else {
+            WORSE_AVATAR_SIZE
+        };
+
+        self.recode_to_size(context, blob_abs, img_wh).await
     }
 
     pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
