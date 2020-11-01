@@ -377,27 +377,10 @@ impl<'a> BlobObject<'a> {
         true
     }
 
-    pub fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
+    pub async fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
         let blob_abs = self.to_abs_path();
-        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err,
-        })?;
 
-        if img.width() <= AVATAR_SIZE && img.height() <= AVATAR_SIZE {
-            return Ok(());
-        }
-
-        let img = img.thumbnail(AVATAR_SIZE, AVATAR_SIZE);
-
-        img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err.into(),
-        })?;
-
-        Ok(())
+        self.recode_to_size(context, blob_abs, AVATAR_SIZE).await
     }
 
     pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
@@ -459,7 +442,7 @@ impl<'a> BlobObject<'a> {
                 cause: err.into(),
             })?;
         }
-        
+
         Ok(())
     }
 
