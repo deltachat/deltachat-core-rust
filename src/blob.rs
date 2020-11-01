@@ -426,30 +426,40 @@ impl<'a> BlobObject<'a> {
         blob_abs: PathBuf,
         img_wh: u32,
     ) -> Result<(), BlobError> {
-        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
+        let mut img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
             cause: err,
         })?;
+        let orientation = self.get_exif_orientation(context);
 
-        if img.width() <= img_wh && img.height() <= img_wh {
-            return Ok(());
+        let do_scale = img.width() > img_wh || img.height() > img_wh;
+        let do_rotate = match orientation {
+            Ok(90) | Ok(180) | Ok(270) => true,
+            _ => false,
+        };
+
+        if do_scale || do_rotate {
+            if do_scale {
+                img = img.thumbnail(img_wh, img_wh);
+            }
+
+            if do_rotate {
+                img = match orientation {
+                    Ok(90) => img.rotate90(),
+                    Ok(180) => img.rotate180(),
+                    Ok(270) => img.rotate270(),
+                    _ => img,
+                }
+            }
+
+            img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
+                blobdir: context.get_blobdir().to_path_buf(),
+                blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+                cause: err.into(),
+            })?;
         }
-
-        let mut img = img.thumbnail(img_wh, img_wh);
-        match self.get_exif_orientation(context) {
-            Ok(90) => img = img.rotate90(),
-            Ok(180) => img = img.rotate180(),
-            Ok(270) => img = img.rotate270(),
-            _ => {}
-        }
-
-        img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err.into(),
-        })?;
-
+        
         Ok(())
     }
 
