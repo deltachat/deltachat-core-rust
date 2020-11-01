@@ -408,12 +408,6 @@ impl<'a> BlobObject<'a> {
             return Ok(());
         }
 
-        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err,
-        })?;
-
         let img_wh = if MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
             .unwrap_or_default()
             == MediaQuality::Balanced
@@ -422,6 +416,21 @@ impl<'a> BlobObject<'a> {
         } else {
             WORSE_IMAGE_SIZE
         };
+
+        self.recode_to_size(context, blob_abs, img_wh).await
+    }
+
+    async fn recode_to_size(
+        &self,
+        context: &Context,
+        blob_abs: PathBuf,
+        img_wh: u32,
+    ) -> Result<(), BlobError> {
+        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
+            blobdir: context.get_blobdir().to_path_buf(),
+            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+            cause: err,
+        })?;
 
         if img.width() <= img_wh && img.height() <= img_wh {
             return Ok(());
