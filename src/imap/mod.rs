@@ -684,7 +684,7 @@ impl Imap {
 
         // check passed, go fetch the emails
         let (new_last_seen_uid_processed, error_cnt) = self
-            .fetch_many_msgs(context, &folder, &uids, fetch_existing_msgs)
+            .fetch_many_msgs(context, &folder, uids, fetch_existing_msgs)
             .await;
         read_errors += error_cnt;
 
@@ -722,10 +722,14 @@ impl Imap {
             .ok_or_else(|| format_err!("Not configured"))?;
 
         let search_command = format!("FROM \"{}\"", self_addr);
-        let uids = session.uid_search(search_command).await?;
+        let uids = session
+            .uid_search(search_command)
+            .await?
+            .into_iter()
+            .collect();
 
         let mut result = Vec::new();
-        for uid_set in &build_sequence_sets(uids.into_iter()) {
+        for uid_set in &build_sequence_sets(uids) {
             let mut list = session
                 .uid_fetch(uid_set, "(UID BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
                 .await
@@ -842,7 +846,7 @@ impl Imap {
         &mut self,
         context: &Context,
         folder: S,
-        server_uids: &[u32],
+        server_uids: Vec<u32>,
         fetching_existing_messages: bool,
     ) -> (Option<u32>, usize) {
         if server_uids.is_empty() {
@@ -863,7 +867,7 @@ impl Imap {
 
         let session = self.session.as_mut().unwrap();
 
-        let sets = build_sequence_sets(server_uids.iter().copied());
+        let sets = build_sequence_sets(server_uids.clone());
         let mut read_errors = 0;
         let mut count = 0;
         let mut last_uid = None;
@@ -1703,7 +1707,9 @@ async fn get_config_last_seen_uid<S: AsRef<str>>(context: &Context, folder: S) -
 /// Builds a list of sequence/uid sets. The returned sets have each no more than around 1000
 /// characters because according to https://tools.ietf.org/html/rfc2683#section-3.2.1.5
 /// command lines should not be much more than 1000 chars (servers should allow at least 8000 chars)
-fn build_sequence_sets(uids: impl Iterator<Item = u32>) -> Vec<String> {
+fn build_sequence_sets(mut uids: Vec<u32>) -> Vec<String> {
+    uids.sort_unstable();
+
     // first, try to find consecutive ranges:
     let mut ranges: Vec<UidRange> = vec![];
 
@@ -1796,14 +1802,14 @@ mod tests {
             (vec![1, 2, 3], vec!["1:3"]),
             (vec![1, 4, 5, 6], vec!["1,4:6"]),
             ((1..=500).collect(), vec!["1:500"]),
-            (vec![2, 3, 4, 8, 9, 10, 11, 39, 50], vec!["2:4,8:11,39,50"]),
+            (vec![3, 4, 8, 9, 10, 11, 39, 50, 2], vec!["2:4,8:11,39,50"]),
         ];
         for (input, output) in cases {
-            assert_eq!(build_sequence_sets(input.into_iter()), output);
+            assert_eq!(build_sequence_sets(input), output);
         }
 
         let numbers: Vec<_> = (2..=500).step_by(2).collect();
-        let result = build_sequence_sets(numbers.iter().copied());
+        let result = build_sequence_sets(numbers.clone());
         for set in &result {
             assert!(set.len() < 1010);
             assert!(!set.ends_with(','));
@@ -1817,7 +1823,7 @@ mod tests {
         }
 
         let numbers: Vec<_> = (1..=1000).step_by(3).collect();
-        let result = build_sequence_sets(numbers.iter().copied());
+        let result = build_sequence_sets(numbers.clone());
         for set in &result {
             assert!(set.len() < 1010);
             assert!(!set.ends_with(','));
@@ -1832,7 +1838,7 @@ mod tests {
         }
 
         let numbers: Vec<_> = (30000000..=30002500).step_by(4).collect();
-        let result = build_sequence_sets(numbers.iter().copied());
+        let result = build_sequence_sets(numbers.clone());
         for set in &result {
             assert!(set.len() < 1010);
             assert!(!set.ends_with(','));
