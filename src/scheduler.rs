@@ -142,6 +142,12 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 warn!(ctx, "{}", err);
             }
 
+            if let Err(err) = connection.scan_folders(&ctx).await {
+                // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
+                // but maybe there is a problem with maybe_fetch_all_folders() (at least that's the idea)
+                warn!(ctx, "{}", err);
+            }
+
             // idle
             if connection.can_idle() {
                 connection

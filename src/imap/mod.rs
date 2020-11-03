@@ -35,6 +35,7 @@ use crate::{config::*, dc_receive_imf::dc_receive_imf_inner};
 mod client;
 mod idle;
 pub mod select_folder;
+pub mod scan_folders;
 mod session;
 
 use chat::get_chat_id_by_grpid;
