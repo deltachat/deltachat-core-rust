@@ -1382,17 +1382,17 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             .await?;
             sql.set_raw_config_int(context, "dbversion", 69).await?;
         }
-        if dbversion < 70 {
-            info!(context, "[migration] v70");
-            sql.execute(
-                "CREATE TABLE imap_sync (folder INTEGER PRIMARY KEY, uidvalidity INTEGER, last_uidnext INTEGER);",
-                // TODO do we want an index? Or sth else?
-                // TODO put existing uidvalidity and lastseen here?
-                paramsv![],
-            )
-            .await?;
-            sql.set_raw_config_int(context, "dbversion", 70).await?;
-        }
+        // if dbversion < 70 {
+        //     info!(context, "[migration] v70");
+        //     sql.execute(
+        //         "CREATE TABLE imap_sync (folder INTEGER PRIMARY KEY, uidvalidity INTEGER, last_uidnext INTEGER);",
+        //         // TODO do we want an index? Or sth else?
+        //         // TODO put existing uidvalidity and lastseen here?
+        //         paramsv![],
+        //     )
+        //     .await?;
+        //     sql.set_raw_config_int(context, "dbversion", 70).await?;
+        // }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)

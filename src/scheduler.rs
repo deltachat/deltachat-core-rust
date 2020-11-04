@@ -61,6 +61,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
         let mut jobs_loaded = 0;
         let mut info = InterruptInfo::default();
         loop {
+            info!(ctx, "dbg in loop start");
             match job::load_next(&ctx, Thread::Imap, &info).await {
                 Some(job) if jobs_loaded <= 20 => {
                     jobs_loaded += 1;
@@ -76,6 +77,8 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                     }
                 }
                 None => {
+                    info!(ctx, "dbg in loop none");
+
                     jobs_loaded = 0;
 
                     // Expunge folder if needed, e.g. if some jobs have
@@ -86,6 +89,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 
                     maybe_add_time_based_warnings(&ctx).await;
 
+                    info!(ctx, "dbg in loop fetch_idle");
                     info = if ctx.get_config_bool(Config::InboxWatch).await {
                         fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await
                     } else {
@@ -141,12 +145,14 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 connection.trigger_reconnect();
                 warn!(ctx, "{}", err);
             }
+            info!(ctx, "dbg fetched");
 
             if let Err(err) = connection.scan_folders(&ctx).await {
                 // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
                 // but maybe there is a problem with maybe_fetch_all_folders() (at least that's the idea)
                 warn!(ctx, "{}", err);
             }
+            info!(ctx, "dbg scanned");
 
             // idle
             if connection.can_idle() {
