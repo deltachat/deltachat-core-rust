@@ -1141,13 +1141,23 @@ async fn build_body_file(
         Viewtype::Image | Viewtype::Gif => format!(
             "{}.{}",
             if base_name.is_empty() {
-                "image"
+                chrono::Utc
+                    .timestamp(msg.timestamp_sort as i64, 0)
+                    .format("image_%Y-%m-%d_%H-%M-%S")
+                    .to_string()
             } else {
-                base_name
+                base_name.to_string()
             },
             &suffix,
         ),
-        Viewtype::Video => format!("video.{}", &suffix),
+        Viewtype::Video => format!(
+            "video_{}.{}",
+            chrono::Utc
+                .timestamp(msg.timestamp_sort as i64, 0)
+                .format("%Y-%m-%d_%H-%M-%S")
+                .to_string(),
+            &suffix
+        ),
         _ => blob.as_file_name().to_string(),
     };
 
