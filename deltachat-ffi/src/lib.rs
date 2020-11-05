@@ -3008,6 +3008,11 @@ pub unsafe extern "C" fn dc_msg_set_quote(msg: *mut dc_msg_t, quote: *const dc_m
     let ffi_msg = &mut *msg;
     let ffi_quote = &*quote;
 
+    if ffi_msg.context != ffi_quote.context {
+        eprintln!("ignoring attempt to quote message from a different context");
+        return;
+    }
+
     block_on(async move {
         ffi_msg
             .message
