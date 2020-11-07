@@ -2295,9 +2295,10 @@ uint32_t       dc_accounts_migrate_account      (dc_accounts_t* accounts, const 
  *
  * @memberof dc_accounts_t
  * @param accounts Account manager as created by dc_accounts_new().
+ * @param account_id The account-id as returned e.g. by dc_accounts_add_account().
  * @return 1=success, 0=error
  */
-int            dc_accounts_remove_account       (dc_accounts_t* accounts, uint32_t);
+int            dc_accounts_remove_account       (dc_accounts_t* accounts, uint32_t account_id);
 
 
 /**
