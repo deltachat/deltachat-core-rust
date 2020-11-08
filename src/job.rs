@@ -805,7 +805,8 @@ async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, fold
         return;
     };
     if let Err(e) = imap.select_with_uidvalidity(context, &mailbox).await {
-        warn!(context, "Could not select {}: {}", mailbox, e);
+        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+        warn!(context, "Could not select {}: {:#}", mailbox, e);
         return;
     }
     match imap.get_all_recipients(context).await {

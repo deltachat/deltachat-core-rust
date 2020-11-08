@@ -3,7 +3,7 @@
 //! uses [async-email/async-imap](https://github.com/async-email/async-imap)
 //! to implement connect, fetch, delete functionality with standard IMAP servers.
 
-use std::{cmp, collections::BTreeMap};
+use std::{cmp, cmp::max, collections::BTreeMap};
 
 use anyhow::Context as _;
 use async_imap::{
@@ -558,40 +558,32 @@ impl Imap {
         };
 
         let largest_uid = match mailbox.uid_next {
-            Some(uid_next) => {
-                uid_next - 1 // XXX could uid_next be 0?
-            }
+            Some(uid_next) => max(uid_next, 1) - 1,
             None => {
                 warn!(
                     context,
                     "IMAP folder has no uid_next, fall back to fetching"
                 );
-                if let Some(ref mut session) = &mut self.session {
-                    // note that we use fetch by sequence number
-                    // and thus we only need to get exactly the
-                    // last-index message.
-                    let set = format!("{}", mailbox.exists);
-                    match session.fetch(set, JUST_UID).await {
-                        Ok(mut list) => {
-                            let mut new_last_seen_uid = None;
-                            while let Some(fetch) = list.next().await.transpose()? {
-                                if fetch.message == mailbox.exists && fetch.uid.is_some() {
-                                    new_last_seen_uid = fetch.uid;
-                                }
-                            }
-                            if let Some(new_last_seen_uid) = new_last_seen_uid {
-                                new_last_seen_uid
-                            } else {
-                                bail!("failed to fetch");
-                            }
-                        }
-                        Err(err) => {
-                            bail!("IMAP Could not fetch: {}", err);
-                        }
+                let session = self
+                    .session
+                    .as_mut()
+                    .context("select: IMAP No Connection established")?;
+                // note that we use fetch by sequence number
+                // and thus we only need to get exactly the
+                // last-index message.
+                let set = format!("{}", mailbox.exists);
+                let mut list = session
+                    .fetch(set, JUST_UID)
+                    .await
+                    .map_err(|e| format_err!("select: IMAP Could not fetch: {}", e))?;
+
+                let mut new_last_seen_uid = None;
+                while let Some(fetch) = list.next().await.transpose()? {
+                    if fetch.message == mailbox.exists && fetch.uid.is_some() {
+                        new_last_seen_uid = fetch.uid;
                     }
-                } else {
-                    bail!("IMAP No Connection established");
                 }
+                new_last_seen_uid.context("select: failed to fetch")?
             }
         };
 
