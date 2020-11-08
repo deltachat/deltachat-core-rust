@@ -634,6 +634,10 @@ impl Imap {
             .select_with_uidvalidity(context, folder.as_ref())
             .await?;
 
+        if !new_emails {
+            return Ok(false);
+        }
+
         let msgs = if fetch_existing_msgs {
             self.fetch_existing_msgs_prefetch().await?
         } else {
