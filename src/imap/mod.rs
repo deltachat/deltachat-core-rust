@@ -34,8 +34,8 @@ use crate::{config::*, dc_receive_imf::dc_receive_imf_inner};
 
 mod client;
 mod idle;
-pub mod select_folder;
 pub mod scan_folders;
+pub mod select_folder;
 mod session;
 
 use chat::get_chat_id_by_grpid;
@@ -533,12 +533,12 @@ impl Imap {
         Ok(())
     }
 
-    /// return Result with (uid_validity, last_seen_uid) tuple.
+    /// return Result with (uid_validity, last_seen_uid, new_emails) tuple.
     pub(crate) async fn select_with_uidvalidity(
         &mut self,
         context: &Context,
         folder: &str,
-    ) -> Result<(u32, u32)> {
+    ) -> Result<(u32, u32, bool)> {
         self.select_folder(context, Some(folder)).await?;
 
         // compare last seen UIDVALIDITY against the current one
@@ -557,24 +557,7 @@ impl Imap {
             }
         };
 
-        if new_uid_validity == uid_validity {
-            return Ok((uid_validity, last_seen_uid));
-        }
-
-        if mailbox.exists == 0 {
-            info!(context, "Folder \"{}\" is empty.", folder);
-
-            // set lastseenuid=0 for empty folders.
-            // id we do not do this here, we'll miss the first message
-            // as we will get in here again and fetch from lastseenuid+1 then
-
-            set_config_last_seen_uid(context, &folder, new_uid_validity, 0).await;
-            return Ok((new_uid_validity, 0));
-        }
-
-        // uid_validity has changed or is being set the first time.
-        // find the last seen uid within the new uid_validity scope.
-        let new_last_seen_uid = match mailbox.uid_next {
+        let largest_uid = match mailbox.uid_next {
             Some(uid_next) => {
                 uid_next - 1 // XXX could uid_next be 0?
             }
@@ -612,19 +595,38 @@ impl Imap {
             }
         };
 
-        set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid).await;
+        if new_uid_validity == uid_validity {
+            return Ok((uid_validity, last_seen_uid, largest_uid > last_seen_uid));
+        }
+
+        if mailbox.exists == 0 {
+            info!(context, "Folder \"{}\" is empty.", folder);
+
+            // set lastseenuid=0 for empty folders.
+            // id we do not do this here, we'll miss the first message
+            // as we will get in here again and fetch from lastseenuid+1 then
+
+            set_config_last_seen_uid(context, &folder, new_uid_validity, 0).await;
+            return Ok((new_uid_validity, 0, false));
+        }
+
+        // uid_validity has changed or is being set the first time.
+        // Set the lastseen uid to the largest UID in the mailbox.
+        // TODO what if UIDvalidity changed and since then new messages arrived?
+        // Currently we will miss these messages
+        set_config_last_seen_uid(context, &folder, new_uid_validity, largest_uid).await;
         if uid_validity != 0 || last_seen_uid != 0 {
             job::schedule_resync(context).await;
         }
         info!(
             context,
             "uid/validity change: new {}/{} current {}/{}",
-            new_last_seen_uid,
+            largest_uid,
             new_uid_validity,
             uid_validity,
             last_seen_uid
         );
-        Ok((new_uid_validity, new_last_seen_uid))
+        Ok((new_uid_validity, largest_uid, true))
     }
 
     pub(crate) async fn fetch_new_messages<S: AsRef<str>>(
@@ -636,7 +638,7 @@ impl Imap {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await)
             .unwrap_or_default();
 
-        let (uid_validity, last_seen_uid) = self
+        let (uid_validity, last_seen_uid, new_emails) = self
             .select_with_uidvalidity(context, folder.as_ref())
             .await?;
 
