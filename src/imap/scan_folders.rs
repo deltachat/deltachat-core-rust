@@ -12,7 +12,8 @@ impl Imap {
         warn!(context, "dbg starting scan");
         let mut last_scan = context.last_full_folder_scan.lock().await;
         if let Some(time) = *last_scan {
-            if time.elapsed().as_secs() < 60 {
+            if time.elapsed().as_secs() < 10 {
+                // TODO set back to 60s
                 warn!(context, "dbg not scanning, less than a minute elapsed");
                 return Ok(());
             }
