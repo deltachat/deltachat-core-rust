@@ -1,0 +1,27 @@
+Subject: Message from Alice
+MIME-Version: 1.0
+In-Reply-To: <Mr.7h_HyOuM3Dz.xcp4v8QiQua@testrun.org>
+Date: Sun, 08 Nov 2020 01:16:26 +0000
+Chat-Version: 1.0
+Message-ID: <Mr.126R7OsBKvk.dGGBC5WcsLF@testrun.org>
+To: Bob <bob@example.org>
+From: Alice <alice@testrun.org>
+Content-Type: multipart/mixed; boundary="uWbWY2IyEtJ8wZmp282Na11hxBBXlV"
+
+
+--uWbWY2IyEtJ8wZmp282Na11hxBBXlV
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+> Quote
+
+Reply
+
+--uWbWY2IyEtJ8wZmp282Na11hxBBXlV
+Content-Type: text/plain
+Content-Disposition: attachment; filename="attachment.txt"
+Content-Transfer-Encoding: base64
+
+ZGF0YSB0byBzZW5k
+
+--uWbWY2IyEtJ8wZmp282Na11hxBBXlV--
+

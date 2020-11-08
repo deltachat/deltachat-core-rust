@@ -295,7 +295,8 @@ impl MimeMessage {
     /// Squashes mutlipart chat messages with attachment into single-part messages.
     ///
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
-    /// containing an explanation. If such a message is detected, first part can be safely dropped.
+    /// containing a description. If such a message is detected, text from the first part can be
+    /// moved to the second part, and the first part dropped.
     #[allow(clippy::indexing_slicing)]
     fn squash_attachment_parts(&mut self) {
         if let [textpart, filepart] = &self.parts[..] {
@@ -315,6 +316,9 @@ impl MimeMessage {
 
                 // insert new one
                 filepart.msg = self.parts[0].msg.clone();
+                if let Some(quote) = self.parts[0].param.get(Param::Quote) {
+                    filepart.param.set(Param::Quote, quote);
+                }
 
                 // forget the one we use now
                 self.parts[0].msg = "".to_string();
@@ -2298,5 +2302,23 @@ On 2020-10-25, Bob wrote:
             "A quote."
         );
         assert_eq!(message.parts[0].msg, "A reply.");
+    }
+
+    #[async_std::test]
+    async fn test_attachment_quote() {
+        let context = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/quote_attach.eml");
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+
+        assert_eq!(mimeparser.get_subject().unwrap(), "Message from Alice");
+        assert_eq!(mimeparser.parts.len(), 1);
+        assert_eq!(mimeparser.parts[0].msg, "Reply");
+        assert_eq!(
+            mimeparser.parts[0].param.get(Param::Quote).unwrap(),
+            "Quote"
+        );
+        assert_eq!(mimeparser.parts[0].typ, Viewtype::File);
     }
 }
