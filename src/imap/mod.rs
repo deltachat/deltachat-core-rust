@@ -534,30 +534,27 @@ impl Imap {
     }
 
     /// return Result with (uid_validity, last_seen_uid, new_emails) tuple.
+    /// If in doubt, returns new_emails=true so emails are fetched.
     pub(crate) async fn select_with_uidvalidity(
         &mut self,
         context: &Context,
         folder: &str,
     ) -> Result<(u32, u32, bool)> {
-        self.select_folder(context, Some(folder)).await?;
+        let newly_selected = self.select_folder(context, Some(folder)).await?;
         warn!(context, "dbg selected {}", folder);
 
         // compare last seen UIDVALIDITY against the current one
         let (uid_validity, last_seen_uid) = get_config_last_seen_uid(context, &folder).await;
 
-        let config = &mut self.config;
-        let mailbox = config
-            .selected_mailbox
-            .as_ref()
-            .ok_or_else(|| format_err!("No mailbox selected, folder: {}", folder))?;
+        let mailbox = &mut self.config.selected_mailbox.as_ref();
+        let mailbox =
+            mailbox.with_context(|| format!("No mailbox selected, folder: {}", folder))?;
 
-        let new_uid_validity = match mailbox.uid_validity {
-            Some(v) => v,
-            None => {
-                bail!("No UIDVALIDITY for folder {}", folder);
-            }
-        };
+        let new_uid_validity = mailbox
+            .uid_validity
+            .with_context(|| format!("No UIDVALIDITY for folder {}", folder))?;
 
+        //TODO in some cases we don't need largest_uid
         let largest_uid = match mailbox.uid_next {
             Some(uid_next) => max(uid_next, 1) - 1,
             None => {
@@ -594,7 +591,16 @@ impl Imap {
         );
 
         if new_uid_validity == uid_validity {
-            return Ok((uid_validity, last_seen_uid, largest_uid > last_seen_uid));
+            let new_emails = if newly_selected {
+                largest_uid > last_seen_uid
+            } else {
+                true
+                // The folder was not newly selected i.e. no SELECT command was run. This means that mailbox.uid_next
+                // was not updated and largest_uid may contain an incorrect value. So, just return true so that
+                // the caller tries to fetch new messages (we could of course run a SELECT command but it would be
+                // unnecessary as trying to fetch new messages is only one command, just as a SELECT command)
+            };
+            return Ok((uid_validity, last_seen_uid, new_emails));
         }
 
         if mailbox.exists == 0 {
@@ -1120,7 +1126,7 @@ impl Imap {
             }
         }
         match self.select_folder(context, Some(&folder)).await {
-            Ok(()) => None,
+            Ok(_) => None,
             Err(select_folder::Error::ConnectionLost) => {
                 warn!(context, "Lost imap connection");
                 Some(ImapActionResult::RetryLater)
