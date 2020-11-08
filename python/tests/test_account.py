@@ -1161,8 +1161,8 @@ class TestOnlineAccount:
         # Majority prefers encryption now
         assert msg5.is_encrypted()
 
-    def test_reply_encrypted(self, acfactory, lp):
-        """Test that replies to encrypted messages are encrypted."""
+    def test_quote_encrypted(self, acfactory, lp):
+        """Test that replies to encrypted messages with quotes are encrypted."""
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
@@ -1210,6 +1210,39 @@ class TestOnlineAccount:
             assert msg_in.text == "message reply"
             assert msg_in.quoted_text == quoted_msg.text
             assert msg_in.is_encrypted() == quoted_msg.is_encrypted()
+
+    def test_quote_attachment(self, tmpdir, acfactory, lp):
+        """Test that replies with an attachment and a quote are received correctly."""
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        lp.sec("ac1 creates chat with ac2")
+        chat1 = ac1.create_chat(ac2)
+
+        lp.sec("ac1 sends text message to ac2")
+        chat1.send_text("hi")
+
+        lp.sec("ac2 receives contact request from ac1")
+        received_message = ac2._evtracker.wait_next_messages_changed()
+        assert received_message.text == "hi"
+
+        basename = "attachment.txt"
+        p = os.path.join(tmpdir.strpath, basename)
+        with open(p, "w") as f:
+            f.write("data to send")
+
+        lp.sec("ac2 sends a reply to ac1")
+        chat2 = received_message.create_chat()
+        reply = Message.new_empty(ac2, "file")
+        reply.set_text("message reply")
+        reply.set_file(p)
+        reply.quote = received_message
+        chat2.send_msg(reply)
+
+        lp.sec("ac1 receives a reply from ac2")
+        received_reply = ac1._evtracker.wait_next_incoming_message()
+        assert received_reply.text == "message reply"
+        assert received_reply.quoted_text == received_message.text
+        assert open(received_reply.filename).read() == "data to send"
 
     def test_saved_mime_on_received_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
