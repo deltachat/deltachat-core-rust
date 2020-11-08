@@ -23,7 +23,6 @@ impl Imap {
         let session = self.session.as_mut();
         let session = session.context("scan_folders(): IMAP No Connection established")?;
         let folders: Vec<_> = session.list(Some(""), Some("*")).await?.collect().await;
-        drop(session);
 
         for folder in folders {
             // TODO Maybe exclude folders that are watched anyway
