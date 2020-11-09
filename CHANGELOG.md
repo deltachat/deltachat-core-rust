@@ -1,5 +1,14 @@
 # Changelog 
 
+## 1.49.0
+
+- add timestamps to image and video filenames #2068
+
+- forbid quoting messages from another context #2069
+
+- fix: preserve quotes in messages with attachments #2070
+
+
 ## 1.48.0
 
 - `fetch_existing` renamed to `fetch_existing_msgs` and disabled by default
