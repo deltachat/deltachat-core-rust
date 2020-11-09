@@ -347,7 +347,6 @@ impl Config {
 
             inner.accounts.push(AccountConfig {
                 id,
-                name: String::new(),
                 dir: target_dir.into(),
                 uuid,
             });
@@ -414,8 +413,6 @@ impl Config {
 pub struct AccountConfig {
     /// Unique id.
     pub id: u32,
-    /// Display name
-    pub name: String,
     /// Root directory for all data for this account.
     pub dir: std::path::PathBuf,
     pub uuid: Uuid,
