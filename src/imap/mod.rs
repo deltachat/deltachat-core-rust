@@ -646,9 +646,8 @@ impl Imap {
             .select_with_uidvalidity(context, folder.as_ref())
             .await?;
 
-        if !new_emails {
-            warn!(context, "dbg no new emails {}", folder.as_ref());
-
+        if !new_emails && !fetch_existing_msgs {
+            info!(context, "No new emails in folder {}", folder.as_ref());
             return Ok(false);
         }
 
