@@ -141,6 +141,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 connection.trigger_reconnect();
                 warn!(ctx, "{}", err);
             }
+            info!(ctx, "verbose (issue 2065): step 1 done fetching");
 
             // idle
             if connection.can_idle() {
