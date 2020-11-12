@@ -101,6 +101,7 @@ impl async_imap::Authenticator for OAuth2 {
 #[derive(Debug, PartialEq)]
 enum FolderMeaning {
     Unknown,
+    Spam,
     SentObjects,
     Other,
 }
@@ -935,6 +936,12 @@ impl Imap {
             let body = msg.body().unwrap();
             let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
 
+            let mailbox = self.config.selected_mailbox.as_ref();
+            let mut spam_folder = false;
+            if let Some(mailbox) = mailbox {
+                //if mailbox.flags.iter().any(|f| f == )
+            }
+
             match dc_receive_imf_inner(
                 &context,
                 &body,
@@ -1295,6 +1302,7 @@ impl Imap {
             let mut delimiter = ".".to_string();
             let mut delimiter_is_default = true;
             let mut sentbox_folder = None;
+            let mut spam_folder = None;
             let mut mvbox_folder = None;
             let mut fallback_folder = get_fallback_folder(&delimiter);
 
@@ -1311,6 +1319,8 @@ impl Imap {
                     }
                 }
 
+                let folder_meaning = get_folder_meaning(&folder);
+                let folder_name_meaning = get_folder_meaning_by_name(&folder.name());
                 if folder.name() == "DeltaChat" {
                     // Always takes precendent
                     mvbox_folder = Some(folder.name().to_string());
@@ -1319,15 +1329,19 @@ impl Imap {
                     if mvbox_folder.is_none() {
                         mvbox_folder = Some(folder.name().to_string());
                     }
-                } else if let FolderMeaning::SentObjects = get_folder_meaning(&folder) {
+                } else if folder_meaning == FolderMeaning::SentObjects {
                     // Always takes precedent
                     sentbox_folder = Some(folder.name().to_string());
-                } else if let FolderMeaning::SentObjects =
-                    get_folder_meaning_by_name(&folder.name())
-                {
+                } else if folder_name_meaning == FolderMeaning::SentObjects {
                     // only set iff none has been already set
                     if sentbox_folder.is_none() {
                         sentbox_folder = Some(folder.name().to_string());
+                    }
+                } else if folder_meaning == FolderMeaning::Spam {
+                    spam_folder = Some(folder.name().to_string());
+                } else if folder_name_meaning == FolderMeaning::Spam {
+                    if spam_folder.is_none() {
+                        spam_folder = Some(folder.name().to_string());
                     }
                 }
             }
@@ -1437,17 +1451,40 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
         "送信済み",
         "보낸편지함",
     ];
+    let spam_names = vec![
+        "spam",
+        "junk",
+        "Correio electrónico não solicitado",
+        "Correo basura",
+        "Lixo",
+        "Nettsøppel",
+        "Nevyžádaná pošta",
+        "No solicitado",
+        "Ongewenst",
+        "Posta indesiderata",
+        "Skräp",
+        "Wiadomości-śmieci",
+        "Önemsiz",
+        "Ανεπιθύμητα",
+        "Спам",
+        "垃圾邮件",
+        "垃圾郵件",
+        "迷惑メール",
+        "스팸",
+    ];
     let lower = folder_name.to_lowercase();
 
     if sent_names.into_iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::SentObjects
+    } else if spam_names.into_iter().any(|s| s.to_lowercase() == lower) {
+        FolderMeaning::Spam
     } else {
         FolderMeaning::Unknown
     }
 }
 
 fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
-    let special_names = vec!["\\Spam", "\\Trash", "\\Drafts", "\\Junk"];
+    let special_names = vec!["\\Trash", "\\Drafts"];
 
     for attr in folder_name.attributes() {
         if let NameAttribute::Custom(ref label) = attr {
@@ -1455,6 +1492,8 @@ fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
                 return FolderMeaning::Other;
             } else if label == "\\Sent" {
                 return FolderMeaning::SentObjects;
+            } else if label == "\\Spam" || label == "\\Junk" {
+                return FolderMeaning::Spam;
             }
         }
     }
