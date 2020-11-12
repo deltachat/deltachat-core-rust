@@ -246,6 +246,7 @@ pub(crate) async fn dc_receive_imf_inner(
             .needs_move(context, server_folder.as_ref())
             .await
             .unwrap_or_default()
+            .is_some()
         {
             // Move message if we don't delete it immediately.
             job::add(

@@ -508,11 +508,28 @@ impl Job {
         }
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-        let dest_folder = context.get_config(Config::ConfiguredMvboxFolder).await;
+        let server_folder = msg.server_folder.as_ref().unwrap();
+
+        let dest_folder = match msg
+            .id
+            .needs_move(context, msg.server_folder.as_ref().unwrap())
+            .await
+        {
+            Err(e) => {
+                warn!(context, "could not load dest folder: {}", e);
+                return Status::RetryLater;
+            }
+            Ok(None) => {
+                warn!(
+                    context,
+                    "msg {} does not need to be moved from {:?}", msg.id, msg.server_folder
+                );
+                return Status::Finished(Ok(()));
+            }
+            Ok(Some(config)) => context.get_config(config).await,
+        };
 
         if let Some(dest_folder) = dest_folder {
-            let server_folder = msg.server_folder.as_ref().unwrap();
-
             match imap
                 .mv(context, server_folder, msg.server_uid, &dest_folder)
                 .await

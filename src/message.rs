@@ -77,7 +77,48 @@ impl MsgId {
     }
 
     /// Returns true if the message needs to be moved from `folder`.
-    pub async fn needs_move(self, context: &Context, folder: &str) -> Result<bool, Error> {
+    /// If yes, returns `ConfiguredInboxFolder` or `ConfiguredMvboxFolder`, depending
+    /// on where the message should be moved
+    ///
+    /// If you already have it, you can pass a Message to `msg` to speed things up. TODO not implemented
+    pub async fn needs_move(
+        self,
+        context: &Context,
+        folder: &str,
+    ) -> Result<Option<Config>, Error> {
+        use Config::*;
+        if context.is_mvbox(folder).await {
+            return Ok(None);
+        }
+
+        let msg = Message::load_from_db(context, self).await?; // TODO sometimes not needed
+
+        if context.is_spam_folder(folder).await {
+            return if msg.chat_blocked == Blocked::Not {
+                if self.needs_move_to_mvbox(context, folder, &msg).await? {
+                    Ok(Some(ConfiguredMvboxFolder))
+                } else {
+                    Ok(Some(ConfiguredInboxFolder))
+                }
+            } else {
+                // Blocked/deaddrop message in the spam folder, leave it there
+                Ok(None)
+            };
+        }
+
+        if self.needs_move_to_mvbox(context, folder, &msg).await? {
+            Ok(Some(ConfiguredMvboxFolder))
+        } else {
+            Ok(None) // TODO here we could move self-sent, non-setupmessage chat messages to the Sent folder if `mvbox_move` is off
+        }
+    }
+
+    async fn needs_move_to_mvbox(
+        self,
+        context: &Context,
+        folder: &str,
+        msg: &Message,
+    ) -> Result<bool, Error> {
         if !context.get_config_bool(Config::MvboxMove).await {
             return Ok(false);
         }
@@ -85,8 +126,6 @@ impl MsgId {
         if context.is_mvbox(folder).await {
             return Ok(false);
         }
-
-        let msg = Message::load_from_db(context, self).await?;
 
         if msg.is_setupmessage() {
             // do not move setup messages;

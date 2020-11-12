@@ -471,6 +471,11 @@ impl Context {
             == Some(folder_name.as_ref().to_string())
     }
 
+    pub async fn is_spam_folder(&self, folder_name: impl AsRef<str>) -> bool {
+        self.get_config(Config::ConfiguredSpamFolder).await
+            == Some(folder_name.as_ref().to_string())
+    }
+
     pub fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());

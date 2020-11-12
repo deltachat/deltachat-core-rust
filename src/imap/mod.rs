@@ -936,12 +936,6 @@ impl Imap {
             let body = msg.body().unwrap();
             let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
 
-            let mailbox = self.config.selected_mailbox.as_ref();
-            let mut spam_folder = false;
-            if let Some(mailbox) = mailbox {
-                //if mailbox.flags.iter().any(|f| f == )
-            }
-
             match dc_receive_imf_inner(
                 &context,
                 &body,
@@ -1522,6 +1516,7 @@ async fn precheck_imf(
                     .needs_move(context, server_folder)
                     .await
                     .unwrap_or_default()
+                    .is_some()
                 {
                     // If the bcc-self message is not moved, directly
                     // add MarkSeen job, otherwise MarkSeen job is
