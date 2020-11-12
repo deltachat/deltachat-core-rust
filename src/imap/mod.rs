@@ -1326,17 +1326,15 @@ impl Imap {
                 } else if folder_meaning == FolderMeaning::SentObjects {
                     // Always takes precedent
                     sentbox_folder = Some(folder.name().to_string());
+                } else if folder_meaning == FolderMeaning::Spam {
+                    spam_folder = Some(folder.name().to_string());
                 } else if folder_name_meaning == FolderMeaning::SentObjects {
                     // only set iff none has been already set
                     if sentbox_folder.is_none() {
                         sentbox_folder = Some(folder.name().to_string());
                     }
-                } else if folder_meaning == FolderMeaning::Spam {
+                } else if folder_name_meaning == FolderMeaning::Spam && spam_folder.is_none() {
                     spam_folder = Some(folder.name().to_string());
-                } else if folder_name_meaning == FolderMeaning::Spam {
-                    if spam_folder.is_none() {
-                        spam_folder = Some(folder.name().to_string());
-                    }
                 }
             }
             drop(folders);
