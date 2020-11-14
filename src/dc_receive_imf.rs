@@ -2741,4 +2741,34 @@ mod tests {
         .await;
         assert_eq!(msg.text.unwrap(), "   Guten Abend,   \n\n   Lots of text   \n\n   text with Umlaut ä...   \n\n   MfG    [...]");
     }
+
+    #[async_std::test]
+    async fn test_pdf_filename_simple() {
+        let t = TestContext::new_alice().await;
+        let msg = load_imf_email(
+            &t.ctx,
+            include_bytes!("../test-data/message/pdf_filename_simple.eml"),
+        )
+        .await;
+        assert_eq!(msg.viewtype, Viewtype::File);
+        assert_eq!(msg.text.unwrap(), "mail body");
+        assert_eq!(msg.param.get(Param::File).unwrap(), "$BLOBDIR/simple.pdf");
+    }
+
+    #[async_std::test]
+    async fn test_pdf_filename_continuation() {
+        // test filenames split across multiple header lines, see rfc 2231
+        let t = TestContext::new_alice().await;
+        let msg = load_imf_email(
+            &t.ctx,
+            include_bytes!("../test-data/message/pdf_filename_continuation.eml"),
+        )
+        .await;
+        assert_eq!(msg.viewtype, Viewtype::File);
+        assert_eq!(msg.text.unwrap(), "mail body");
+        assert_eq!(
+            msg.param.get(Param::File).unwrap(),
+            "$BLOBDIR/test pdf äöüß.pdf"
+        );
+    }
 }
