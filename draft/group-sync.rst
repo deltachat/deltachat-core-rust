@@ -43,7 +43,7 @@ Solution: replay group modification messages on inconsistencies
 For brevity let's abbreviate "group membership modification" as **GMM**.
 
 Delta chat has explicit GMM messages, typically encrypted to the group members
-as seen by the device that sends the GMM. The [Spec](https://github.com/deltachat/deltachat-core-rust/blob/master/spec.md#add-and-remove-members) details the Mime headers and format.
+as seen by the device that sends the GMM. The `Spec <https://github.com/deltachat/deltachat-core-rust/blob/master/spec.md#add-and-remove-members>`_ details the Mime headers and format.
 
 If we detect membership inconsistencies we can resend relevant GMM messages
 to the respective chat.  The receiving devices can process those GMM messages
