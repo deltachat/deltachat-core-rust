@@ -62,7 +62,11 @@ impl Imap {
                 Interrupt(InterruptInfo),
             }
 
-            info!(context, "Idle entering wait-on-remote state");
+            info!(
+                context,
+                "{}: Idle entering wait-on-remote state",
+                watch_folder.as_deref().unwrap_or("None")
+            );
             let fut = idle_wait.map(|ev| ev.map(Event::IdleResponse)).race(async {
                 let probe_network = self.idle_interrupt.recv().await;
 

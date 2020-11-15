@@ -1,6 +1,6 @@
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
-use crate::context::Context;
+use crate::{config::Config, context::Context};
 use anyhow::Context as _;
 
 use crate::error::Result;
@@ -10,12 +10,22 @@ use async_std::prelude::*;
 impl Imap {
     pub async fn scan_folders(&mut self, context: &Context) -> Result<()> {
         warn!(context, "dbg starting scan");
+
+        // First of all, debounce to once per minute:
         let mut last_scan = context.last_full_folder_scan.lock().await;
-        if let Some(time) = *last_scan {
-            if time.elapsed().as_secs() < 10 {
-                // TODO set back to 60s
-                warn!(context, "dbg not scanning, less than a minute elapsed");
-                return Ok(());
+        if let Some(last_scan) = *last_scan {
+            if last_scan.elapsed().as_secs() < 60 {
+                // For the first day after installation, we only debounce to 2s:
+                let configure = context.get_config(Config::ConfiguredTimestamp).await;
+                let configure = configure.context("scan_folders: not configured")?;
+                let configure: SystemTime = serde_json::from_str(&configure)?;
+
+                if configure.elapsed().unwrap().as_secs() > 24 * 60 * 60
+                    || last_scan.elapsed().as_secs() < 2
+                {
+                    warn!(context, "dbg not scanning, less than a minute elapsed");
+                    return Ok(());
+                }
             }
         }
         last_scan.replace(Instant::now());

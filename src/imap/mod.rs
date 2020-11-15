@@ -598,8 +598,8 @@ impl Imap {
                 true
                 // The folder was not newly selected i.e. no SELECT command was run. This means that mailbox.uid_next
                 // was not updated and largest_uid may contain an incorrect value. So, just return true so that
-                // the caller tries to fetch new messages (we could of course run a SELECT command but it would be
-                // unnecessary as trying to fetch new messages is only one command, just as a SELECT command)
+                // the caller tries to fetch new messages (we could of course run a SELECT command now, but trying to fetch
+                // new messages is only one command, just as a SELECT command)
             };
             return Ok((uid_validity, last_seen_uid, new_emails));
         }
@@ -704,7 +704,7 @@ impl Imap {
         // determine which last_seen_uid to use to update  to
         let new_last_seen_uid_processed = new_last_seen_uid_processed.unwrap_or_default();
         let new_last_seen_uid = new_last_seen_uid.unwrap_or_default();
-        let last_one = new_last_seen_uid.max(new_last_seen_uid_processed);
+        let last_one = max(new_last_seen_uid, new_last_seen_uid_processed); // TODO comment: not a semantical change but less confusing
 
         if last_one > last_seen_uid {
             set_config_last_seen_uid(context, &folder, uid_validity, last_one).await;

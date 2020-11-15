@@ -2036,6 +2036,29 @@ class TestOnlineAccount:
         assert received_reply.quoted_text == "hello"
         assert received_reply.quote.id == out_msg.id
 
+    def test_scan_folders(self, acfactory):
+        """Delta Chat periodically scans all folders for new messages to make sure we don't miss any."""
+        ac1, ac2 = acfactory.get_two_online_accounts(move=True)  # TODO test that it only works with move=true
+        ac1.set_config("mvbox_watch", "0")
+        acfactory.wait_configure_and_start_io()
+        # Wait until each folder was selected once and we are IDLEing:
+        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        ac1.stop_io()
+
+        # Send a message to ac1 and move it to the mvbox:
+        ac1.direct_imap.select_config_folder("inbox")
+        ac1.direct_imap.idle_start()
+        chat2 = acfactory.get_accepted_chat(ac2, ac1)
+        chat2.send_text("hello")
+        ac1.direct_imap.idle_check(terminate=True)
+        ac1.direct_imap.conn.move(["*"], "DeltaChat")  # "*" means "biggest UID in mailbox"
+
+        # Scanning is debounced to 2s, so wait 2s to make sure we scan now:
+        time.sleep(2)
+        ac1.start_io()
+        msg = ac1._evtracker.wait_next_incoming_message()
+        assert msg.text == "hello"
+
     @pytest.mark.parametrize("mvbox_move", [False, True])
     def test_add_all_recipients_as_contacts(self, acfactory, lp, mvbox_move):
         """Delta Chat reads the recipients from old emails sent by the user and adds them as contacts.

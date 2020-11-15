@@ -11,6 +11,7 @@ use async_std::task;
 use itertools::Itertools;
 use job::Action;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use std::time::SystemTime;
 
 use crate::config::Config;
 use crate::dc_tools::*;
@@ -351,6 +352,11 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     // the trailing underscore is correct
     param.save_to_database(ctx, "configured_").await?;
     ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
+    ctx.set_config(
+        Config::ConfiguredTimestamp,
+        serde_json::to_string(&SystemTime::now()).ok().as_deref(),
+    )
+    .await?;
 
     progress!(ctx, 920);
 
