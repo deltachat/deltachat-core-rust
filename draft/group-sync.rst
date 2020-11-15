@@ -5,69 +5,95 @@ Problem: missing eventual group consistency
 If group members are concurrently adding new members,
 the new members will miss each other's additions, example:
 
-- Alice and Bob are in a two-member group
+1. Alice and Bob are in a two-member group
 
-- Alice adds Carol, concurrently Bob adds Doris
+2. Then Alice adds Carol, while concurrently Bob adds Doris
 
-- Carol will see a three-member group (Alice, Bob, Carol),
-  Doris will see a different three-member group (Alice, Bob, Doris),
-  and only Alice and Bob will have all four members.
+Right now, the group has inconsistent memberships:
 
-Note that for verified groups any mitigation mechanism likely
-needs to make all clients to know who originally added a member.
+- Alice and Carol see a (Alice, Carol, Bob) group
+
+- Bob and Doris see a (Bob, Doris, Alice)
+
+This then leads to "sender is unknown" messages in the chat,
+for example when Alice receives a message from Doris,
+or when Bob receives a message from Carol.
+
+There are also other sources for group membership inconsistency:
+
+- leaving/deleting/adding in larger groups, while being offline,
+  increases chances for inconsistent group membership
+
+- dropped group-membership messages
+
+- group-membership messages landing in "Spam"
 
 
-solution: memorize+attach (possible encrypted) chat-meta mime messages
-----------------------------------------------------------------------
+Note that all these problems (can) also happen with verified groups,
+then raising "false alarms" which could lure people to ignore such issues.
 
-For reference, please see https://github.com/deltachat/deltachat-core-rust/blob/master/spec.md#add-and-remove-members how MemberAdded/Removed messages are shaped.
+IOW, it's clear we need to do something about it to improve overall
+reliability in group-settings.
 
 
-- All Chat-Group-Member-Added/Removed messages are recorded in their
-  full raw (signed and encrypted) mime-format in the DB
 
-- If an incoming member-add/member-delete messages has a member list
-  which is, apart from the added/removed member, not consistent
-  with our own view, broadcast a "Chat-Group-Member-Correction" message to
-  all members, attaching the original added/removed mime-message for all mismatching
-  contacts.  If we have no relevant add/del information, don't send a
-  correction message out.
+Solution: replay group modification messages on inconsistencies
+------------------------------------------------------------------
 
-- Upong receiving added/removed attachments we don't do the
-  check_consistency+correction message dance.
-  This avoids recursion problems and hard-to-reason-about chatter.
+For brevity let's abbreviate "group membership modification" as **GMM**.
 
-Notes:
+Delta chat has explicit GMM messages, typically encrypted to the group members
+as seen by the device that sends the GMM. The [Spec](https://github.com/deltachat/deltachat-core-rust/blob/master/spec.md#add-and-remove-members) details the Mime headers and format.
 
-- mechanism works for both encrypted and unencrypted add/del messages
+If we detect membership inconsistencies we can resend relevant GMM messages
+to the respective chat.  The receiving devices can process those GMM messages
+as if it would be an incoming message. If for example they have already seen
+the Message-ID of the GMM message, they will ignore the message. It's
+probably useful to record GMM message in their original MIME-format and
+not invent a new recording format. Few notes on three aspects:
 
-- we already have a "mime_headers" column in the DB for each incoming message.
-  We could extend it to also include the payload and store mime unconditionally
-  for member-added/removed messages.
+- **group-membership-tracking**: All valid GMM messages are persisted in
+  their full raw (signed/encrypted?) MIME-format in the DB. Note that GMM messages
+  already are in the msgs table, and there is a mime_header column which we could
+  extend to contain the raw Mime GMM message.
 
-- multiple member-added/removed messages can be attached in a single
-  correction message
+- **consistency_checking**: If an incoming GMM has a member list which is
+  not consistent with our own view, broadcast a "Group-Member-Correction"
+  message to all members containing a multipart list of GMMs.
 
-- it is minimal on the number of overall messages to reach group consistency
-  (best-case: no extra messages, the ABCD case above: max two extra messages)
+- **correcting_memberships**: Upon receiving a Group-Member-Correction
+  message we pass the contained GMMs to the "incoming mail pipeline"
+  (without **consistency_checking** them, to avoid recursion issues)
 
-- somewhat backward compatible: older clients will probably ignore
-  messages which are signed by someone who is not the outer From-address.
 
-- the correction-protocol also helps with dropped messages.  If a member
-  did not see a member-added/removed message, the next member add/removed
-  message in the group will likely heal group consistency for this member.
+Alice/Carol and Bob/Doris getting on the same page
+++++++++++++++++++++++++++++++++++++++++++++++++++
 
-- we can quite easily extend the mechanism to also provide the group-avatar or
-  other meta-information.
+Recall that Alice/Carol and Bob/Doris had a differening view of
+group membership. With the proposed solution, when Bob receives
+Alice's "Carol added" message, he will notice that Alice (and thus
+also carol) did not know about Doris.  Bob's device sends a
+"Chat-Group-Member-Correction" message containing his own GMM
+when adding Doris. Therefore, the group's membership is healed
+for everyone in a single broadcast message.
+
+Alice might also send a Group-member-Correction message,
+so there is a second chance that the group gets to know all GMMs.
+
+Note, for example, that if for some reason Bobs and Carols provider
+drop GMM messages between them (spam) that Alice and Doris can heal
+it by resending GMM messages whenever they detect them to be out of sync.
+
 
 Discussions of variants
 ++++++++++++++++++++++++
 
-- instead of acting on MemberAdded/Removed message we could send
-  corrections for any received message that addresses inconsistent group members but
-  a) this would delay group-membership healing
+- instead of acting on GMM messages we could send corrections
+  for any received message that addresses inconsistent group members but
+  a) this could delay group-membership healing
   b) could lead to a lot of members sending corrections
+  c) means we might rely on "To-Addresses" which we also like to strike
+     at least for protected chats.
 
 - instead of broadcasting correction messages we could only send it to
   the sender of the inconsistent member-added/removed message.
@@ -81,46 +107,5 @@ Discussions of variants
   Bob would broadcast a correction message to all four members as well.
   (Imagine a situation where Alice/Bob added Carol/Doris
   while both being in an offline or bad-connection situation).
-
-
-solution2: repeat member-added/removed messages
----------------------------------------------------
-
-Introduce a new Chat-Group-Member-Changed header and deprecate Chat-Group-Member-Added/Removed
-but keep sending out the old headers until the new protocol is sufficiently deployed.
-
-The new Chat-Group-Member-Changed header contains a Time-to-Live number (TTL)
-which controls repetition of the signed "add/del e-mail address" payload.
-
-Example::
-
-    Chat-Group-Member-Changed: TTL add "somedisplayname" someone@example.org
-        owEBYQGe/pANAwACAY47A6J5t3LWAcsxYgBeTQypYWRkICJzb21lZGlzcGxheW5h
-        bWUiIHNvbWVvbmVAZXhhbXBsZS5vcmcgCokBHAQAAQIABgUCXk0MqQAKCRCOOwOi
-        ebdy1hfRB/wJ74tgFQulicthcv9n+ZsqzwOtBKMEVIHqJCzzDB/Hg/2z8ogYoZNR
-        iUKKrv3Y1XuFvdKyOC+wC/unXAWKFHYzY6Tv6qDp6r+amt+ad+8Z02q53h9E55IP
-        FUBdq2rbS8hLGjQB+mVRowYrUACrOqGgNbXMZjQfuV7fSc7y813OsCQgi3tjstup
-        b+uduVzxCp3PChGhcZPs3iOGCnQvSB8VAaLGMWE2d7nTo/yMQ0Jx69x5qwfXogTk
-        mTt5rOJyrosbtf09TMKFzGgtqBcEqHLp3+mQpZQ+WHUKAbsRa8Jc9DOUOSKJ8SNM
-        clKdskprY+4LY0EBwLD3SQ7dPkTITCRD
-        =P6GG
-
-TTL is set to "2" on an initial Chat-Group-Member-Changed add/del message.
-Receivers will apply the add/del change to the group-membership,
-decrease the TTL by 1, and if TTL>0 re-sent the header.
-
-The "add|del e-mail address" payload is pgp-signed and repeated verbatim.
-This allows to propagate, in a cryptographically secured way,
-who added a member. This is particularly important for allowing
-to show in verified groups who added a member (planned).
-
-Disadvantage to solution 1:
-
-- requires to specify encoding and precise rules for what/how is signed.
-
-- causes O(N^2) extra messages
-
-- Not easily extendable for other things (without introducing a new
-  header / encoding)
 
 
