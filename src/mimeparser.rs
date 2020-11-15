@@ -26,6 +26,7 @@ use crate::param::*;
 use crate::peerstate::Peerstate;
 use crate::simplify::*;
 use crate::stock::StockMessage;
+use percent_encoding::percent_decode_str;
 
 /// A parsed MIME message.
 ///
@@ -1301,6 +1302,18 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
     // Content-Type and omit Content-Disposition.
     let desired_filename =
         desired_filename.or_else(|| mail.ctype.params.get("name").map(|s| s.to_string()));
+
+    // decode filename as CHARSET'LANG'test%2E%70%64%66.
+    // we're always assuming utf-8,
+    // however, due to lossy decoding, the extension is preserved
+    // and things should not be totally bad for other encodings.
+    // we can tweak that when we see sth. else really used in the wild nowadays.
+    let desired_filename = if let Some(name) = desired_filename {
+        let name = name.splitn(3, '\'').last().unwrap().to_string();
+        Some(percent_decode_str(&name).decode_utf8_lossy().to_string())
+    } else {
+        None
+    };
 
     // If there is no filename, but part is an attachment, guess filename
     if ct.disposition == DispositionType::Attachment && desired_filename.is_none() {
