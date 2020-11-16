@@ -69,9 +69,11 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                 }
                 Some(job) => {
                     // Let the fetch run, but return back to the job afterwards.
-                    info!(ctx, "postponing imap-job {} to run fetch...", job);
                     jobs_loaded = 0;
-                    fetch(&ctx, &mut connection).await;
+                    if ctx.get_config_bool(Config::InboxWatch).await {
+                        info!(ctx, "postponing imap-job {} to run fetch...", job);
+                        fetch(&ctx, &mut connection).await;
+                    }
                 }
                 None => {
                     jobs_loaded = 0;
