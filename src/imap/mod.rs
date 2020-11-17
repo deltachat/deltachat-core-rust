@@ -457,24 +457,6 @@ impl Imap {
         Ok(())
     }
 
-    async fn get_config_last_seen_uid<S: AsRef<str>>(
-        &self,
-        context: &Context,
-        folder: S,
-    ) -> (u32, u32) {
-        let key = format!("imap.mailbox.{}", folder.as_ref());
-        if let Some(entry) = context.sql.get_raw_config(context, &key).await {
-            // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
-            let mut parts = entry.split(':');
-            (
-                parts.next().unwrap_or_default().parse().unwrap_or(0),
-                parts.next().unwrap_or_default().parse().unwrap_or(0),
-            )
-        } else {
-            (0, 0)
-        }
-    }
-
     /// Synchronizes UIDs in the database with UIDs on the server.
     ///
     /// It is assumed that no operations are taking place on the same
@@ -559,7 +541,7 @@ impl Imap {
         self.select_folder(context, Some(folder)).await?;
 
         // compare last seen UIDVALIDITY against the current one
-        let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder).await;
+        let (uid_validity, last_seen_uid) = get_config_last_seen_uid(context, &folder).await;
 
         let config = &mut self.config;
         let mailbox = config
@@ -585,8 +567,7 @@ impl Imap {
             // id we do not do this here, we'll miss the first message
             // as we will get in here again and fetch from lastseenuid+1 then
 
-            self.set_config_last_seen_uid(context, &folder, new_uid_validity, 0)
-                .await;
+            set_config_last_seen_uid(context, &folder, new_uid_validity, 0).await;
             return Ok((new_uid_validity, 0));
         }
 
@@ -630,8 +611,7 @@ impl Imap {
             }
         };
 
-        self.set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid)
-            .await;
+        set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid).await;
         if uid_validity != 0 || last_seen_uid != 0 {
             job::schedule_resync(context).await;
         }
@@ -714,8 +694,7 @@ impl Imap {
         let last_one = new_last_seen_uid.max(new_last_seen_uid_processed);
 
         if last_one > last_seen_uid {
-            self.set_config_last_seen_uid(context, &folder, uid_validity, last_one)
-                .await;
+            set_config_last_seen_uid(context, &folder, uid_validity, last_one).await;
         }
 
         if read_errors == 0 {
@@ -859,23 +838,6 @@ impl Imap {
         }
 
         Ok(msgs)
-    }
-
-    async fn set_config_last_seen_uid<S: AsRef<str>>(
-        &self,
-        context: &Context,
-        folder: S,
-        uidvalidity: u32,
-        lastseenuid: u32,
-    ) {
-        let key = format!("imap.mailbox.{}", folder.as_ref());
-        let val = format!("{}:{}", uidvalidity, lastseenuid);
-
-        context
-            .sql
-            .set_raw_config(context, &key, Some(&val))
-            .await
-            .ok();
     }
 
     /// Fetches a list of messages by server UID.
@@ -1709,6 +1671,36 @@ async fn message_needs_processing(
 
 fn get_fallback_folder(delimiter: &str) -> String {
     format!("INBOX{}DeltaChat", delimiter)
+}
+
+pub async fn set_config_last_seen_uid<S: AsRef<str>>(
+    context: &Context,
+    folder: S,
+    uidvalidity: u32,
+    lastseenuid: u32,
+) {
+    let key = format!("imap.mailbox.{}", folder.as_ref());
+    let val = format!("{}:{}", uidvalidity, lastseenuid);
+
+    context
+        .sql
+        .set_raw_config(context, &key, Some(&val))
+        .await
+        .ok();
+}
+
+async fn get_config_last_seen_uid<S: AsRef<str>>(context: &Context, folder: S) -> (u32, u32) {
+    let key = format!("imap.mailbox.{}", folder.as_ref());
+    if let Some(entry) = context.sql.get_raw_config(context, &key).await {
+        // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
+        let mut parts = entry.split(':');
+        (
+            parts.next().unwrap_or_default().parse().unwrap_or(0),
+            parts.next().unwrap_or_default().parse().unwrap_or(0),
+        )
+    } else {
+        (0, 0)
+    }
 }
 
 #[cfg(test)]
