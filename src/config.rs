@@ -255,8 +255,8 @@ impl Context {
             }
             Config::InboxWatch => {
                 if self.get_config(Config::InboxWatch).await.as_deref() != value {
-                    // If Inbox-watch is disabled and then enabled again, we don't want
-                    // emails that arrived in the meantime to be fetched
+                    // If Inbox-watch is disabled and enabled again, do not fetch emails from in between.
+                    // this avoids unexpected mass-downloads and -deletions (if delete_server_after is set)
                     if let Some(inbox) = self.get_config(Config::ConfiguredInboxFolder).await {
                         crate::imap::set_config_last_seen_uid(self, inbox, 0, 0).await;
                     }
