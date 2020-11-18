@@ -1,5 +1,15 @@
 # Changelog 
 
+## 1.50.0
+
+- do not fetch emails in between inbox_watch disabled and enabled again #2087
+
+- fix: do not fetch from INBOX if inbox_watch is disabled #2085
+
+- fix: do not use STARTTLS when PLAIN connection is requested
+  and do not allow downgrade if STARTTLS is not available #2071
+
+
 ## 1.49.0
 
 - add timestamps to image and video filenames #2068
