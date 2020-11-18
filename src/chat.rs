@@ -3627,7 +3627,7 @@ mod tests {
             .unwrap();
         add_info_msg(&t.ctx, chat_id, "foo info").await;
 
-        let msg = t.get_last_msg(chat_id).await;
+        let msg = t.get_last_msg_in(chat_id).await;
         assert_eq!(msg.get_chat_id(), chat_id);
         assert_eq!(msg.get_viewtype(), Viewtype::Text);
         assert_eq!(msg.get_text().unwrap(), "foo info");
@@ -3657,7 +3657,7 @@ mod tests {
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::EphemeralTimerChanged);
 
-        let msg2 = t.get_last_msg(chat_id).await;
+        let msg2 = t.get_last_msg_in(chat_id).await;
         assert_eq!(msg.get_id(), msg2.get_id());
     }
 
@@ -3684,7 +3684,7 @@ mod tests {
         let msgs = get_chat_msgs(&t.ctx, chat_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
 
-        let msg = t.get_last_msg(chat_id).await;
+        let msg = t.get_last_msg_in(chat_id).await;
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
         assert_eq!(msg.get_state(), MessageState::InNoticed);
@@ -3699,7 +3699,7 @@ mod tests {
         assert!(!chat.is_protected());
         assert!(chat.is_unpromoted());
 
-        let msg = t.get_last_msg(chat_id).await;
+        let msg = t.get_last_msg_in(chat_id).await;
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionDisabled);
         assert_eq!(msg.get_state(), MessageState::InNoticed);
@@ -3725,7 +3725,7 @@ mod tests {
         assert!(chat.is_protected());
         assert!(!chat.is_unpromoted());
 
-        let msg = t.get_last_msg(chat_id).await;
+        let msg = t.get_last_msg_in(chat_id).await;
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
         assert_eq!(msg.get_state(), MessageState::OutDelivered); // as bcc-self is disabled and there is nobody else in the chat

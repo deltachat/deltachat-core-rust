@@ -4,6 +4,7 @@ import os
 import sys
 import queue
 import time
+import imaplib
 from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.hookspec import account_hookimpl
@@ -2036,10 +2037,24 @@ class TestOnlineAccount:
         assert received_reply.quoted_text == "hello"
         assert received_reply.quote.id == out_msg.id
 
-    def test_scan_folders(self, acfactory):
+    @pytest.mark.parametrize("folder,move,expected_destination,", [
+        ("xyz", False, "xyz"),  # Test that emails are recognized in a random folder but not moved
+        ("xyz", True, "DeltaChat"),  # ...emails are found in a random folder and moved to DeltaChat
+        ("Spam", False, "INBOX")  # ...emails are moved from the spam folder to the Inbox
+    ])
+    # Testrun.org does not support the CREATE-SPECIAL-USE capability, which means that we can't create a folder with
+    # the "\Junk" flag (see https://tools.ietf.org/html/rfc6154). So, we can't test spam folder detection by flag.
+    def test_scan_folders(self, acfactory, lp, folder, move, expected_destination):
         """Delta Chat periodically scans all folders for new messages to make sure we don't miss any."""
-        ac1, ac2 = acfactory.get_two_online_accounts(move=True)  # TODO test that it only works with move=true
-        ac1.set_config("mvbox_watch", "0")
+        ac1 = acfactory.get_online_configuring_account(move=move)
+        ac2 = acfactory.get_online_configuring_account()
+        ac1._configtracker.wait_finish()
+        ac1._evtracker.consume_events()
+        del ac1._configtracker
+        try:
+            ac1.direct_imap.conn.create_folder(folder)
+        except imaplib.IMAP4.error:
+            pass  # folder already exists
         acfactory.wait_configure_and_start_io()
         # Wait until each folder was selected once and we are IDLEing:
         ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
@@ -2048,16 +2063,24 @@ class TestOnlineAccount:
         # Send a message to ac1 and move it to the mvbox:
         ac1.direct_imap.select_config_folder("inbox")
         ac1.direct_imap.idle_start()
-        chat2 = acfactory.get_accepted_chat(ac2, ac1)
-        chat2.send_text("hello")
+        acfactory.get_accepted_chat(ac2, ac1).send_text("hello")
         ac1.direct_imap.idle_check(terminate=True)
-        ac1.direct_imap.conn.move(["*"], "DeltaChat")  # "*" means "biggest UID in mailbox"
+        ac1.direct_imap.conn.move(["*"], folder)  # "*" means "biggest UID in mailbox"
 
-        # Scanning is debounced to 2s, so wait 2s to make sure we scan now:
+        # Scanning is debounced to 2s, so wait 2s to make sure DeltaChat scans after start_io() is called:
         time.sleep(2)
+        lp.sec("Everything prepared, now see if DeltaChat finds the message")
         ac1.start_io()
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
+        
+        # Wait until the message was moved (if at all) and we are IDLEing again:
+        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        ac1.direct_imap.select_folder(expected_destination)
+        assert len(ac1.direct_imap.get_all_messages()) == 1
+        if folder != expected_destination:
+            ac1.direct_imap.select_folder(folder)
+            assert len(ac1.direct_imap.get_all_messages()) == 0
 
     @pytest.mark.parametrize("mvbox_move", [False, True])
     def test_add_all_recipients_as_contacts(self, acfactory, lp, mvbox_move):

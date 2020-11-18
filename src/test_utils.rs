@@ -9,7 +9,6 @@ use async_std::path::PathBuf;
 use async_std::sync::RwLock;
 use tempfile::{tempdir, TempDir};
 
-use crate::chat;
 use crate::chat::{ChatId, ChatItem};
 use crate::config::Config;
 use crate::context::Context;
@@ -20,6 +19,7 @@ use crate::key::{self, DcKey};
 use crate::message::Message;
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
+use crate::{chat, chatlist::Chatlist};
 
 /// A Context and temporary directory.
 ///
@@ -193,7 +193,7 @@ impl TestContext {
     /// Get the most recent message of a chat.
     ///
     /// Panics on errors or if the most recent message is a marker.
-    pub async fn get_last_msg(&self, chat_id: ChatId) -> Message {
+    pub async fn get_last_msg_in(&self, chat_id: ChatId) -> Message {
         let msgs = chat::get_chat_msgs(&self.ctx, chat_id, 0, None).await;
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
@@ -201,6 +201,12 @@ impl TestContext {
             panic!("Wrong item type");
         };
         Message::load_from_db(&self.ctx, *msg_id).await.unwrap()
+    }
+
+    pub async fn get_last_msg(&self) -> Message {
+        let chats = Chatlist::try_load(&self.ctx, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+        Message::load_from_db(&self.ctx, msg_id).await.unwrap()
     }
 }
 

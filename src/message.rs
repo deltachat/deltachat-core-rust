@@ -1907,6 +1907,7 @@ mod tests {
     use super::*;
     use crate::chat::ChatItem;
     use crate::test_utils as test;
+    use crate::test_utils::*;
 
     #[test]
     fn test_guess_msgtype_from_suffix() {
@@ -1914,6 +1915,185 @@ mod tests {
             guess_msgtype_from_suffix(Path::new("foo/bar-sth.mp3")),
             Some((Viewtype::Audio, "audio/mpeg"))
         );
+    }
+
+    #[async_std::test]
+    async fn test_needs_move() {
+        // chat_msg means that the message was sent by Delta Chat
+        // The tuples are (folder, mvbox_move, chat_msg, expected_destination)
+        let combinations_accepted_chat = vec![
+            ("INBOX", false, false, "INBOX"),
+            ("INBOX", false, true, "INBOX"),
+            ("INBOX", true, false, "INBOX"),
+            ("INBOX", true, true, "DeltaChat"),
+            ("Sent", false, false, "Sent"),
+            ("Sent", false, true, "Sent"),
+            ("Sent", true, false, "Sent"),
+            ("Sent", true, true, "DeltaChat"),
+            ("Spam", false, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
+            ("Spam", false, true, "INBOX"),
+            ("Spam", true, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
+            ("Spam", true, true, "DeltaChat"),
+        ];
+
+        // These are the same as above, but all messages in Spam stay in Spam
+        let combinations_deaddrop = vec![
+            ("INBOX", false, false, "INBOX"),
+            ("INBOX", false, true, "INBOX"),
+            ("INBOX", true, false, "INBOX"),
+            ("INBOX", true, true, "DeltaChat"),
+            ("Sent", false, false, "Sent"),
+            ("Sent", false, true, "Sent"),
+            ("Sent", true, false, "Sent"),
+            ("Sent", true, true, "DeltaChat"),
+            ("Spam", false, false, "Spam"),
+            ("Spam", false, true, "Spam"),
+            ("Spam", true, false, "Spam"),
+            ("Spam", true, true, "Spam"),
+        ];
+
+        for (folder, mvbox_move, chat_msg, expected_destination) in &combinations_accepted_chat {
+            test_needs_move_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                expected_destination,
+                true,
+                false,
+                false,
+            )
+            .await;
+        }
+
+        for (folder, mvbox_move, chat_msg, expected_destination) in &combinations_deaddrop {
+            test_needs_move_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                expected_destination,
+                false,
+                false,
+                false,
+            )
+            .await;
+        }
+
+        // Test outgoing emails
+        for (folder, mvbox_move, chat_msg, expected_destination) in &combinations_accepted_chat {
+            test_needs_move_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                expected_destination,
+                true, // Actually this could as well be true, chats for outgoing messages are always accepted
+                true,
+                false,
+            )
+            .await;
+        }
+
+        // Test setupmessages
+        for (folder, mvbox_move, chat_msg, _expected_destination) in &combinations_accepted_chat {
+            test_needs_move_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                folder, // Never move setup messages
+                true,
+                true,
+                true,
+            )
+            .await;
+        }
+    }
+
+    async fn test_needs_move_combination(
+        folder: &str,
+        mvbox_move: bool,
+        chat_msg: bool,
+        expected_destination: &str,
+        accepted_chat: bool,
+        outgoing: bool,
+        setupmessage: bool,
+    ) {
+        use crate::dc_receive_imf::dc_receive_imf;
+        println!("Testing: For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}",
+                               folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage);
+
+        let t = if outgoing {
+            TestContext::new_bob().await
+        } else {
+            TestContext::new_alice().await
+        };
+        t.ctx
+            .set_config(Config::ConfiguredSpamFolder, Some("Spam"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::ConfiguredMvboxFolder, Some("DeltaChat"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::ConfiguredSentboxFolder, Some("Sent"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::MvboxMove, Some(if mvbox_move { "1" } else { "0" }))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        if accepted_chat {
+            let contact_id = Contact::create(&t.ctx, "", "bob@example.net")
+                .await
+                .unwrap();
+            chat::create_by_contact_id(&t.ctx, contact_id)
+                .await
+                .unwrap();
+        }
+        dc_receive_imf(
+            &t.ctx,
+            format!(
+                "From: bob@example.net\n\
+                 To: alice@example.com\n\
+                 Subject: foo\n\
+                 Message-ID: <aehtri@example.com>\n\
+                 {}\
+                 {}\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+                if chat_msg { "Chat-Version: 1.0\n" } else { "" },
+                if setupmessage {
+                    "Autocrypt-Setup-Message: v1\n"
+                } else {
+                    ""
+                },
+            )
+            .as_bytes(),
+            folder,
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let msg = t.get_last_msg().await;
+        let actual = if let Some(config) = msg.id.needs_move(&t.ctx, folder).await.unwrap() {
+            Some(t.ctx.get_config(config).await.unwrap())
+        } else {
+            None
+        };
+        let expected = if expected_destination == folder {
+            None
+        } else {
+            Some(expected_destination)
+        };
+        assert_eq!(expected, actual.as_deref(), "For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}: expected {:?} , got {:?}",
+                                                     folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage, expected, actual);
     }
 
     #[async_std::test]
