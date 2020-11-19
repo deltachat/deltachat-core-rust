@@ -1309,8 +1309,11 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
     // and things should not be totally bad for other encodings.
     // we can tweak that when we see sth. else really used in the wild nowadays.
     let desired_filename = if let Some(name) = desired_filename {
-        let name = name.splitn(3, '\'').last().unwrap().to_string();
-        Some(percent_decode_str(&name).decode_utf8_lossy().to_string())
+        if let Some(name) = name.splitn(3, '\'').last() {
+            Some(percent_decode_str(&name).decode_utf8_lossy().to_string())
+        } else {
+            None
+        }
     } else {
         None
     };
