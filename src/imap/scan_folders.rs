@@ -40,7 +40,9 @@ impl Imap {
             let folder = folder?;
             let foldername = folder.name();
             info!(context, "Scanning folder: {}", foldername);
-            self.fetch_new_messages(context, foldername, false).await?;
+            if let Err(e) = self.fetch_new_messages(context, foldername, false).await {
+                warn!(context, "Can't fetch new msgs in scanned folder: {}", e);
+            }
             // let last_uidnext: u32 = context
             //     .sql
             //     .query_get_value_result(
