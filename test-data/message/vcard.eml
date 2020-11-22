@@ -1,0 +1,38 @@
+Return-Path: <alice@example.org>
+Delivered-To: bob@example.org
+To: bob@example.org
+From: Alice <alice@example.org>
+Subject: vCard example
+Message-ID: <foobar@example.org>
+Date: Sun, 22 Nov 2020 22:44:00 +0000
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:78.0) Gecko/20100101
+ Thunderbird/78.4.3
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+ boundary="------------01973B3475205164D5F9F507"
+Content-Language: en-US
+
+This is a multi-part message in MIME format.
+--------------01973B3475205164D5F9F507
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+An example of vCard sent from Thunderbird.
+
+--------------01973B3475205164D5F9F507
+Content-Type: text/x-vcard; charset=utf-8;
+ name="alice.vcf"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+ filename="alice.vcf"
+
+begin:vcard
+fn:Alice Foobar
+n:Foobar;Alice
+email;internet:alice@example.org
+x-mozilla-html:FALSE
+version:2.1
+end:vcard
+
+
+--------------01973B3475205164D5F9F507--
