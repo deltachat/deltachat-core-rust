@@ -814,6 +814,15 @@ impl MimeMessage {
                 return;
             }
         }
+
+        if mime_type.type_() == "text/x-vcard"
+            || mime_type.type_() == "text/vcard"
+            || filename.ends_with(".vcf")
+            || filename.ends_with(".vcard")
+        {
+            return;
+        }
+
         /* we have a regular file attachment,
         write decoded data to new blob object */
 
@@ -1628,6 +1637,22 @@ mod tests {
         assert!(mimeparser.parts[0]
             .msg
             .contains("https://example.org/p2p/?roomname=6HiduoAn4xN"));
+        assert_eq!(mimeparser.user_avatar, None);
+        assert_eq!(mimeparser.group_avatar, None);
+    }
+
+    #[async_std::test]
+    async fn test_mimeparser_with_vcard() {
+        let t = TestContext::new().await;
+
+        let raw = include_bytes!("../test-data/message/vcard.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
+        assert_eq!(mimeparser.parts.len(), 1);
+        assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "vCard example – An example of vCard sent from Thunderbird."
+        );
         assert_eq!(mimeparser.user_avatar, None);
         assert_eq!(mimeparser.group_avatar, None);
     }
