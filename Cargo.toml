@@ -62,6 +62,7 @@ async-std-resolver = "0.19.5"
 async-tar = "0.3.0"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 vcard = "0.4.6"
+ical = { version = "0.7.0", default-features = false, features = ["vcard"] }
 
 pretty_env_logger = { version = "0.4.0", optional = true }
 log = {version = "0.4.8", optional = true }
