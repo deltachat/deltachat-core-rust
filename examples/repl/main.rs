@@ -390,7 +390,7 @@ async fn handle_cmd(
             ctx.configure().await?;
         }
         "oauth2" => {
-            if let Some(addr) = ctx.get_config(config::Config::Addr).await {
+            if let Some(addr) = ctx.get_config(config::Config::Addr).await? {
                 let oauth2_url =
                     dc_get_oauth2_url(&ctx, &addr, "chat.delta:/com.b44t.messenger").await;
                 if oauth2_url.is_none() {
