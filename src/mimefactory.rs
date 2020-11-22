@@ -1006,7 +1006,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         }
                     };
 
-                    match build_vcard_part(context, &path) {
+                    match build_vcard_part(context, &path).await {
                         Ok(part) => {
                             parts.push(part);
                         }
@@ -1214,10 +1214,14 @@ async fn build_body_file(
     Ok((mail, filename_to_send))
 }
 
-fn build_vcard_file(context: &Context, avatar_path: &str) -> Result<String, Error> {
+async fn build_vcard_file(context: &Context, avatar_path: &str) -> Result<String, Error> {
     let avatar_blob = BlobObject::from_path(context, avatar_path)?;
 
-    let mut vcard = VCard::from_formatted_name_str("Display name goes here")?;
+    let displayname = context
+        .get_config(Config::Displayname)
+        .await
+        .unwrap_or_default();
+    let mut vcard = VCard::from_formatted_name_str(&displayname)?;
     // TODO: add KIND:individual
     let mut photos = HashSet::new();
     if let Ok(image_value) = ImageValue::from_file(avatar_blob.to_abs_path()) {
@@ -1228,8 +1232,8 @@ fn build_vcard_file(context: &Context, avatar_path: &str) -> Result<String, Erro
     Ok(vcard.to_string())
 }
 
-fn build_vcard_part(context: &Context, avatar_path: &str) -> Result<PartBuilder, Error> {
-    let body = build_vcard_file(context, avatar_path)?;
+async fn build_vcard_part(context: &Context, avatar_path: &str) -> Result<PartBuilder, Error> {
+    let body = build_vcard_file(context, avatar_path).await?;
     let encoded_body = wrapped_base64_encode(&body.as_bytes());
 
     let part = PartBuilder::new()
