@@ -92,12 +92,12 @@ impl<'a> MimeFactory<'a> {
 
         let from_addr = context
             .get_config(Config::ConfiguredAddr)
-            .await
+            .await?
             .unwrap_or_default();
 
         let config_displayname = context
             .get_config(Config::Displayname)
-            .await
+            .await?
             .unwrap_or_default();
         let (from_displayname, sender_displayname) =
             if let Some(override_name) = msg.param.get(Param::OverrideSenderDisplayname) {
@@ -137,7 +137,7 @@ impl<'a> MimeFactory<'a> {
                 )
                 .await?;
 
-            if !msg.is_system_message() && context.get_config_bool(Config::MdnsEnabled).await {
+            if !msg.is_system_message() && context.get_config_bool(Config::MdnsEnabled).await? {
                 req_mdn = true;
             }
         }
@@ -166,7 +166,7 @@ impl<'a> MimeFactory<'a> {
             sender_displayname,
             selfstatus: context
                 .get_config(Config::Selfstatus)
-                .await
+                .await?
                 .unwrap_or(default_str),
             recipients,
             timestamp: msg.timestamp_sort,
@@ -191,16 +191,16 @@ impl<'a> MimeFactory<'a> {
         let contact = Contact::load_from_db(context, msg.from_id).await?;
         let from_addr = context
             .get_config(Config::ConfiguredAddr)
-            .await
+            .await?
             .unwrap_or_default();
         let from_displayname = context
             .get_config(Config::Displayname)
-            .await
+            .await?
             .unwrap_or_default();
         let default_str = stock_str::status_line(context).await;
         let selfstatus = context
             .get_config(Config::Selfstatus)
-            .await
+            .await?
             .unwrap_or(default_str);
         let timestamp = dc_create_smeared_timestamp(context).await;
 
@@ -232,7 +232,7 @@ impl<'a> MimeFactory<'a> {
     ) -> Result<Vec<(Option<Peerstate>, &str)>, Error> {
         let self_addr = context
             .get_config(Config::ConfiguredAddr)
-            .await
+            .await?
             .ok_or_else(|| format_err!("Not configured"))?;
 
         let mut res = Vec::new();
@@ -309,18 +309,18 @@ impl<'a> MimeFactory<'a> {
         }
     }
 
-    async fn should_do_gossip(&self, context: &Context) -> bool {
+    async fn should_do_gossip(&self, context: &Context) -> Result<bool, Error> {
         match &self.loaded {
             Loaded::Message { chat } => {
                 // beside key- and member-changes, force re-gossip every 48 hours
-                let gossiped_timestamp = chat.get_gossiped_timestamp(context).await;
+                let gossiped_timestamp = chat.get_gossiped_timestamp(context).await?;
                 if time() > gossiped_timestamp + (2 * 24 * 60 * 60) {
-                    return true;
+                    Ok(true)
+                } else {
+                    Ok(self.msg.param.get_cmd() == SystemMessage::MemberAddedToGroup)
                 }
-
-                self.msg.param.get_cmd() == SystemMessage::MemberAddedToGroup
             }
-            Loaded::MDN { .. } => false,
+            Loaded::MDN { .. } => Ok(false),
         }
     }
 
@@ -357,7 +357,7 @@ impl<'a> MimeFactory<'a> {
     async fn subject_str(&self, context: &Context) -> anyhow::Result<String> {
         let quoted_msg_subject = self.msg.quoted_message(context).await?.map(|m| m.subject);
 
-        Ok(match self.loaded {
+        let subject = match self.loaded {
             Loaded::Message { ref chat } => {
                 if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
                     return Ok(stock_str::ac_setup_msg_subject(context).await);
@@ -387,16 +387,18 @@ impl<'a> MimeFactory<'a> {
                 if let Some(last_subject) = parent_subject {
                     format!("Re: {}", remove_subject_prefix(last_subject))
                 } else {
-                    let self_name = match context.get_config(Config::Displayname).await {
+                    let self_name = match context.get_config(Config::Displayname).await? {
                         Some(name) => name,
-                        None => context.get_config(Config::Addr).await.unwrap_or_default(),
+                        None => context.get_config(Config::Addr).await?.unwrap_or_default(),
                     };
 
                     stock_str::subject_for_new_contact(context, self_name).await
                 }
             }
             Loaded::MDN { .. } => stock_str::read_rcpt(context).await,
-        })
+        };
+
+        Ok(subject)
     }
 
     pub fn recipients(&self) -> Vec<String> {
@@ -567,7 +569,7 @@ impl<'a> MimeFactory<'a> {
 
         let outer_message = if is_encrypted {
             // Add gossip headers in chats with multiple recipients
-            if peerstates.len() > 1 && self.should_do_gossip(context).await {
+            if peerstates.len() > 1 && self.should_do_gossip(context).await? {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
                     if peerstate.peek_key(min_verified).is_some() {
                         if let Some(header) = peerstate.render_gossip_header(min_verified) {
@@ -966,7 +968,9 @@ impl<'a> MimeFactory<'a> {
         // for simplificity and to avoid conversion errors, we're generating the HTML-part from the original message.
         if self.msg.has_html() {
             let html = if let Some(orig_msg_id) = self.msg.param.get_int(Param::Forwarded) {
-                MsgId::new(orig_msg_id.try_into()?).get_html(context).await
+                MsgId::new(orig_msg_id.try_into()?)
+                    .get_html(context)
+                    .await?
             } else {
                 self.msg.param.get(Param::SendHtml).map(|s| s.to_string())
             };
@@ -1009,7 +1013,7 @@ impl<'a> MimeFactory<'a> {
         }
 
         if self.attach_selfavatar {
-            match context.get_config(Config::Selfavatar).await {
+            match context.get_config(Config::Selfavatar).await? {
                 Some(path) => match build_selfavatar_file(context, &path) {
                     Ok((part, filename)) => {
                         parts.push(part);

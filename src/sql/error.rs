@@ -12,8 +12,8 @@ pub enum Error {
     SqlFailedToOpen,
     #[error("{0}")]
     Io(#[from] std::io::Error),
-    #[error("{0:?}")]
-    BlobError(#[from] crate::blob::BlobError),
+    // #[error("{0:?}")]
+    // BlobError(#[from] crate::blob::BlobError),
     #[error("{0}")]
     Other(#[from] anyhow::Error),
 }

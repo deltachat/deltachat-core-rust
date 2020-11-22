@@ -260,7 +260,8 @@ impl Chatlist {
                 process_rows,
             ).await?;
             if !flag_no_specials {
-                if let Some(last_deaddrop_fresh_msg_id) = get_last_deaddrop_fresh_msg(context).await
+                if let Some(last_deaddrop_fresh_msg_id) =
+                    get_last_deaddrop_fresh_msg(context).await?
                 {
                     if !flag_for_forwarding {
                         ids.insert(
@@ -274,7 +275,7 @@ impl Chatlist {
             ids
         };
 
-        if add_archived_link_item && dc_get_archived_cnt(context).await > 0 {
+        if add_archived_link_item && dc_get_archived_cnt(context).await? > 0 {
             if ids.is_empty() && flag_add_alldone_hint {
                 ids.push((ChatId::new(DC_CHAT_ID_ALLDONE_HINT), MsgId::new(0)));
             }
@@ -400,25 +401,23 @@ impl Chatlist {
 }
 
 /// Returns the number of archived chats
-pub async fn dc_get_archived_cnt(context: &Context) -> u32 {
-    context
+pub async fn dc_get_archived_cnt(context: &Context) -> Result<u32> {
+    let count = context
         .sql
         .query_get_value(
-            context,
             "SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;",
             paramsv![],
         )
-        .await
-        .unwrap_or_default()
+        .await?;
+    Ok(count.unwrap_or_default())
 }
 
-async fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
+async fn get_last_deaddrop_fresh_msg(context: &Context) -> Result<Option<MsgId>> {
     // We have an index over the state-column, this should be
     // sufficient as there are typically only few fresh messages.
-    context
+    let id = context
         .sql
         .query_get_value(
-            context,
             concat!(
                 "SELECT m.id",
                 " FROM msgs m",
@@ -431,7 +430,8 @@ async fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
             ),
             paramsv![],
         )
-        .await
+        .await?;
+    Ok(id)
 }
 
 #[cfg(test)]
@@ -466,7 +466,7 @@ mod tests {
         // drafts are sorted to the top
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
-        chat_id2.set_draft(&t, Some(&mut msg)).await;
+        chat_id2.set_draft(&t, Some(&mut msg)).await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.get_chat_id(0), chat_id2);
 
@@ -554,7 +554,7 @@ mod tests {
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("foo:\nbar \r\n test".to_string()));
-        chat_id1.set_draft(&t, Some(&mut msg)).await;
+        chat_id1.set_draft(&t, Some(&mut msg)).await.unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         let summary = chats.get_summary(&t, 0, None).await;

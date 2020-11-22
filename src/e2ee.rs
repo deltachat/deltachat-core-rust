@@ -26,9 +26,9 @@ pub struct EncryptHelper {
 impl EncryptHelper {
     pub async fn new(context: &Context) -> Result<EncryptHelper> {
         let prefer_encrypt =
-            EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled).await)
+            EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled).await?)
                 .unwrap_or_default();
-        let addr = match context.get_config(Config::ConfiguredAddr).await {
+        let addr = match context.get_config(Config::ConfiguredAddr).await? {
             None => {
                 bail!("addr not configured!");
             }
@@ -329,7 +329,7 @@ fn contains_report(mail: &ParsedMail<'_>) -> bool {
 pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
-        .await
+        .await?
         .ok_or_else(|| {
             format_err!(concat!(
                 "Failed to get self address, ",

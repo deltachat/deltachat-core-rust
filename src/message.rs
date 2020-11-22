@@ -79,7 +79,7 @@ impl MsgId {
     pub async fn get_state(self, context: &Context) -> crate::sql::Result<MessageState> {
         let result = context
             .sql
-            .query_get_value_result("SELECT state FROM msgs WHERE id=?", paramsv![self])
+            .query_get_value("SELECT state FROM msgs WHERE id=?", paramsv![self])
             .await?
             .unwrap_or_default();
         Ok(result)
@@ -94,13 +94,13 @@ impl MsgId {
         folder: &str,
     ) -> Result<Option<Config>, Error> {
         use Config::*;
-        if context.is_mvbox(folder).await {
+        if context.is_mvbox(folder).await? {
             return Ok(None);
         }
 
         let msg = Message::load_from_db(context, self).await?;
 
-        if context.is_spam_folder(folder).await {
+        if context.is_spam_folder(folder).await? {
             return if msg.chat_blocked == Blocked::Not {
                 if self.needs_move_to_mvbox(context, &msg).await? {
                     Ok(Some(ConfiguredMvboxFolder))
@@ -119,9 +119,9 @@ impl MsgId {
                 && msg.is_dc_message == MessengerMessage::Yes
                 && !msg.is_setupmessage()
                 && msg.to_id != DC_CONTACT_ID_SELF // Leave self-chat-messages in the inbox, not sure about this
-                && context.is_inbox(folder).await
-                && context.get_config_bool(SentboxMove).await
-                && context.get_config(ConfiguredSentboxFolder).await.is_some()
+                && context.is_inbox(folder).await?
+                && context.get_config_bool(SentboxMove).await?
+                && context.get_config(ConfiguredSentboxFolder).await?.is_some()
         {
             Ok(Some(ConfiguredSentboxFolder))
         } else {
@@ -130,7 +130,7 @@ impl MsgId {
     }
 
     async fn needs_move_to_mvbox(self, context: &Context, msg: &Message) -> Result<bool, Error> {
-        if !context.get_config_bool(Config::MvboxMove).await {
+        if !context.get_config_bool(Config::MvboxMove).await? {
             return Ok(false);
         }
 
@@ -1208,28 +1208,18 @@ pub async fn decide_on_contact_request(
     created_chat_id
 }
 
-pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
-    let mut ret = String::new();
-
-    let msg = Message::load_from_db(context, msg_id).await;
-    if msg.is_err() {
-        return ret;
-    }
-
-    let msg = msg.unwrap_or_default();
-
+pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String, Error> {
+    let msg = Message::load_from_db(context, msg_id).await?;
     let rawtxt: Option<String> = context
         .sql
-        .query_get_value(
-            context,
-            "SELECT txt_raw FROM msgs WHERE id=?;",
-            paramsv![msg_id],
-        )
-        .await;
+        .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
+        .await?;
+
+    let mut ret = String::new();
 
     if rawtxt.is_none() {
         ret += &format!("Cannot load message {}.", msg_id);
-        return ret;
+        return Ok(ret);
     }
     let rawtxt = rawtxt.unwrap_or_default();
     let rawtxt = dc_truncate(rawtxt.trim(), DC_MAX_GET_INFO_LEN);
@@ -1268,7 +1258,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
 
     if msg.from_id == DC_CONTACT_ID_INFO || msg.to_id == DC_CONTACT_ID_INFO {
         // device-internal message, no further details needed
-        return ret;
+        return Ok(ret);
     }
 
     if let Ok(rows) = context
@@ -1353,7 +1343,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         }
     }
 
-    ret
+    Ok(ret)
 }
 
 pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
@@ -1431,15 +1421,15 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
     Some(info)
 }
 
-pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Option<String> {
-    context
+pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Option<String>, Error> {
+    let headers = context
         .sql
         .query_get_value(
-            context,
             "SELECT mime_headers FROM msgs WHERE id=?;",
             paramsv![msg_id],
         )
-        .await
+        .await?;
+    Ok(headers)
 }
 
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
@@ -1647,24 +1637,20 @@ pub async fn get_summarytext_by_raw(
 
 // Context functions to work with messages
 
-pub async fn exists(context: &Context, msg_id: MsgId) -> bool {
+pub async fn exists(context: &Context, msg_id: MsgId) -> anyhow::Result<bool> {
     if msg_id.is_special() {
-        return false;
+        return Ok(false);
     }
 
     let chat_id: Option<ChatId> = context
         .sql
-        .query_get_value(
-            context,
-            "SELECT chat_id FROM msgs WHERE id=?;",
-            paramsv![msg_id],
-        )
-        .await;
+        .query_get_value("SELECT chat_id FROM msgs WHERE id=?;", paramsv![msg_id])
+        .await?;
 
     if let Some(chat_id) = chat_id {
-        !chat_id.is_trash()
+        Ok(!chat_id.is_trash())
     } else {
-        false
+        Ok(false)
     }
 }
 
@@ -1706,9 +1692,9 @@ pub async fn handle_mdn(
     from_id: u32,
     rfc724_mid: &str,
     timestamp_sent: i64,
-) -> Option<(ChatId, MsgId)> {
+) -> anyhow::Result<Option<(ChatId, MsgId)>> {
     if from_id <= DC_CONTACT_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     let res = context
@@ -1773,26 +1759,24 @@ pub async fn handle_mdn(
                 let ist_cnt = context
                     .sql
                     .query_get_value::<isize>(
-                        context,
                         "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",
                         paramsv![msg_id],
                     )
-                    .await
+                    .await?
                     .unwrap_or_default() as usize;
-                /*
-                Groupsize:  Min. MDNs
 
-                1 S         n/a
-                2 SR        1
-                3 SRR       2
-                4 SRRR      2
-                5 SRRRR     3
-                6 SRRRRR    3
+                // Groupsize:  Min. MDNs
+                // 1 S         n/a
+                // 2 SR        1
+                // 3 SRR       2
+                // 4 SRRR      2
+                // 5 SRRRR     3
+                // 6 SRRRRR    3
+                //
+                // (S=Sender, R=Recipient)
 
-                (S=Sender, R=Recipient)
-                 */
                 // for rounding, SELF is already included!
-                let soll_cnt = (chat::get_chat_contact_cnt(context, chat_id).await + 1) / 2;
+                let soll_cnt = (chat::get_chat_contact_cnt(context, chat_id).await? + 1) / 2;
                 if ist_cnt >= soll_cnt {
                     update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await;
                     read_by_all = true;
@@ -1800,12 +1784,12 @@ pub async fn handle_mdn(
             }
         }
         return if read_by_all {
-            Some((chat_id, msg_id))
+            Ok(Some((chat_id, msg_id)))
         } else {
-            None
+            Ok(None)
         };
     }
-    None
+    Ok(None)
 }
 
 /// Marks a message as failed after an ndn (non-delivery-notification) arrived.
@@ -2259,7 +2243,7 @@ mod tests {
 
         let msg = t.get_last_msg().await;
         let actual = if let Some(config) = msg.id.needs_move(&t.ctx, folder).await.unwrap() {
-            Some(t.ctx.get_config(config).await.unwrap())
+            t.ctx.get_config(config).await.unwrap()
         } else {
             None
         };
@@ -2479,7 +2463,9 @@ mod tests {
                 .unwrap();
 
         let mut has_image = false;
-        let chatitems = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
+        let chatitems = chat::get_chat_msgs(&t, device_chat_id, 0, None)
+            .await
+            .unwrap();
         for chatitem in chatitems {
             if let ChatItem::Message { msg_id } = chatitem {
                 if let Ok(msg) = Message::load_from_db(&t, msg_id).await {

@@ -57,13 +57,12 @@ pub async fn lookup(
     context: &Context,
     namespace: Namespace,
     chat: Option<ChatId>,
-) -> Option<String> {
+) -> crate::sql::Result<Option<String>> {
     match chat {
         Some(chat_id) => {
             context
                 .sql
                 .query_get_value::<String>(
-                    context,
                     "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
                     paramsv![namespace, chat_id],
                 )
@@ -74,7 +73,6 @@ pub async fn lookup(
             context
                 .sql
                 .query_get_value::<String>(
-                    context,
                     "SELECT token FROM tokens WHERE namespc=? AND foreign_id=0;",
                     paramsv![namespace],
                 )
@@ -86,13 +84,13 @@ pub async fn lookup(
 pub async fn lookup_or_new(
     context: &Context,
     namespace: Namespace,
-    chat: Option<ChatId>,
+    foreign_id: Option<ChatId>,
 ) -> String {
-    if let Some(token) = lookup(context, namespace, chat).await {
+    if let Ok(Some(token)) = lookup(context, namespace, foreign_id).await {
         return token;
     }
 
-    save(context, namespace, chat).await
+    save(context, namespace, foreign_id).await
 }
 
 pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> bool {

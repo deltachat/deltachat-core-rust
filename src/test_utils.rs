@@ -302,7 +302,9 @@ impl TestContext {
     ///
     /// Panics on errors or if the most recent message is a marker.
     pub async fn get_last_msg_in(&self, chat_id: ChatId) -> Message {
-        let msgs = chat::get_chat_msgs(&self.ctx, chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&self.ctx, chat_id, 0, None)
+            .await
+            .unwrap();
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
         } else {
@@ -333,8 +335,14 @@ impl TestContext {
                 .ctx
                 .get_config(Config::Displayname)
                 .await
+                .unwrap_or_default()
                 .unwrap_or_default(),
-            other.ctx.get_config(Config::ConfiguredAddr).await.unwrap(),
+            other
+                .ctx
+                .get_config(Config::ConfiguredAddr)
+                .await
+                .unwrap()
+                .unwrap(),
             Origin::ManuallyCreated,
         )
         .await
@@ -394,7 +402,7 @@ impl TestContext {
     #[allow(dead_code)]
     #[allow(clippy::clippy::indexing_slicing)]
     pub async fn print_chat(&self, chat_id: ChatId) {
-        let msglist = chat::get_chat_msgs(self, chat_id, 0x1, None).await;
+        let msglist = chat::get_chat_msgs(self, chat_id, 0x1, None).await.unwrap();
         let msglist: Vec<MsgId> = msglist
             .into_iter()
             .map(|x| match x {
@@ -428,7 +436,7 @@ impl TestContext {
             } else {
                 ""
             },
-            match sel_chat.get_profile_image(self).await {
+            match sel_chat.get_profile_image(self).await.unwrap() {
                 Some(icon) => match icon.to_str() {
                     Some(icon) => format!(" Icon: {}", icon),
                     _ => " Icon: Err".to_string(),
@@ -563,7 +571,7 @@ pub(crate) async fn get_chat_msg(
     index: usize,
     asserted_msgs_count: usize,
 ) -> Message {
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
     assert_eq!(msgs.len(), asserted_msgs_count);
     let msg_id = if let ChatItem::Message { msg_id } = msgs[index] {
         msg_id

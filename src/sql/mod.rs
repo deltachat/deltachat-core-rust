@@ -12,6 +12,7 @@ use anyhow::Context as _;
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
+use crate::config::Config;
 use crate::constants::{Viewtype, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, time};
@@ -20,7 +21,6 @@ use crate::message::Message;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::stock_str;
-use crate::config::Config;
 
 mod error;
 mod migrations;
@@ -257,7 +257,7 @@ impl Sql {
     /// Executes a query which is expected to return one row and one
     /// column. If the query does not return a value or returns SQL
     /// `NULL`, returns `Ok(None)`.
-    pub async fn query_get_value_result<T>(
+    pub async fn query_get_value<T>(
         &self,
         query: &str,
         params: Vec<&dyn crate::ToSql>,
@@ -269,43 +269,17 @@ impl Sql {
             .await
     }
 
-    /// Not resultified version of `query_get_value_result`. Returns
-    /// `None` on error.
-    pub async fn query_get_value<T>(
-        &self,
-        context: &Context,
-        query: &str,
-        params: Vec<&dyn crate::ToSql>,
-    ) -> Option<T>
-    where
-        T: rusqlite::types::FromSql,
-    {
-        match self.query_get_value_result(query, params).await {
-            Ok(res) => res,
-            Err(err) => {
-                warn!(context, "sql: Failed query_row: {}", err);
-                None
-            }
-        }
-    }
-
     /// Set private configuration options.
     ///
     /// Setting `None` deletes the value.  On failure an error message
     /// will already have been logged.
-    pub async fn set_raw_config(
-        &self,
-        context: &Context,
-        key: impl AsRef<str>,
-        value: Option<&str>,
-    ) -> Result<()> {
+    pub async fn set_raw_config(&self, key: impl AsRef<str>, value: Option<&str>) -> Result<()> {
         if !self.is_open().await {
-            error!(context, "set_raw_config(): Database not ready.");
             return Err(Error::SqlNoConnection);
         }
 
         let key = key.as_ref();
-        let res = if let Some(value) = value {
+        if let Some(ref value) = value {
             let exists = self
                 .exists("SELECT value FROM config WHERE keyname=?;", paramsv![key])
                 .await?;
@@ -314,90 +288,67 @@ impl Sql {
                     "UPDATE config SET value=? WHERE keyname=?;",
                     paramsv![(*value).to_string(), key.to_string()],
                 )
-                .await
+                .await?;
             } else {
                 self.execute(
                     "INSERT INTO config (keyname, value) VALUES (?, ?);",
                     paramsv![key.to_string(), (*value).to_string()],
                 )
-                .await
+                .await?;
             }
         } else {
             self.execute("DELETE FROM config WHERE keyname=?;", paramsv![key])
-                .await
-        };
-
-        match res {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                error!(context, "set_raw_config(): Cannot change value. {:?}", &err);
-                Err(err)
-            }
+                .await?;
         }
+
+        Ok(())
     }
 
     /// Get configuration options from the database.
-    pub async fn get_raw_config(&self, context: &Context, key: impl AsRef<str>) -> Option<String> {
+    pub async fn get_raw_config(&self, key: impl AsRef<str>) -> Result<Option<String>> {
         if !self.is_open().await || key.as_ref().is_empty() {
-            return None;
+            return Err(Error::SqlNoConnection);
         }
         self.query_get_value(
-            context,
             "SELECT value FROM config WHERE keyname=?;",
             paramsv![key.as_ref().to_string()],
         )
         .await
     }
 
-    pub async fn set_raw_config_int(
-        &self,
-        context: &Context,
-        key: impl AsRef<str>,
-        value: i32,
-    ) -> Result<()> {
-        self.set_raw_config(context, key, Some(&format!("{}", value)))
-            .await
+    pub async fn set_raw_config_int(&self, key: impl AsRef<str>, value: i32) -> Result<()> {
+        self.set_raw_config(key, Some(&format!("{}", value))).await
     }
 
-    pub async fn get_raw_config_int(&self, context: &Context, key: impl AsRef<str>) -> Option<i32> {
-        self.get_raw_config(context, key)
+    pub async fn get_raw_config_int(&self, key: impl AsRef<str>) -> Result<Option<i32>> {
+        self.get_raw_config(key)
             .await
-            .and_then(|s| s.parse().ok())
+            .map(|s| s.and_then(|s| s.parse().ok()))
     }
 
-    pub async fn get_raw_config_bool(&self, context: &Context, key: impl AsRef<str>) -> bool {
+    pub async fn get_raw_config_bool(&self, key: impl AsRef<str>) -> Result<bool> {
         // Not the most obvious way to encode bool as string, but it is matter
         // of backward compatibility.
-        let res = self.get_raw_config_int(context, key).await;
-        res.unwrap_or_default() > 0
+        let res = self.get_raw_config_int(key).await?;
+        Ok(res.unwrap_or_default() > 0)
     }
 
-    pub async fn set_raw_config_bool<T>(&self, context: &Context, key: T, value: bool) -> Result<()>
+    pub async fn set_raw_config_bool<T>(&self, key: T, value: bool) -> Result<()>
     where
         T: AsRef<str>,
     {
         let value = if value { Some("1") } else { None };
-        self.set_raw_config(context, key, value).await
+        self.set_raw_config(key, value).await
     }
 
-    pub async fn set_raw_config_int64(
-        &self,
-        context: &Context,
-        key: impl AsRef<str>,
-        value: i64,
-    ) -> Result<()> {
-        self.set_raw_config(context, key, Some(&format!("{}", value)))
-            .await
+    pub async fn set_raw_config_int64(&self, key: impl AsRef<str>, value: i64) -> Result<()> {
+        self.set_raw_config(key, Some(&format!("{}", value))).await
     }
 
-    pub async fn get_raw_config_int64(
-        &self,
-        context: &Context,
-        key: impl AsRef<str>,
-    ) -> Option<i64> {
-        self.get_raw_config(context, key)
+    pub async fn get_raw_config_int64(&self, key: impl AsRef<str>) -> Result<Option<i64>> {
+        self.get_raw_config(key)
             .await
-            .and_then(|r| r.parse().ok())
+            .map(|s| s.and_then(|r| r.parse().ok()))
     }
 
     /// Alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
@@ -405,7 +356,6 @@ impl Sql {
     /// eg. if a Message-ID is split into different messages.
     pub async fn get_rowid(
         &self,
-        _context: &Context,
         table: impl AsRef<str>,
         field: impl AsRef<str>,
         value: impl AsRef<str>,
@@ -420,7 +370,6 @@ impl Sql {
 
     pub async fn get_rowid2(
         &self,
-        _context: &Context,
         table: impl AsRef<str>,
         field: impl AsRef<str>,
         value: i64,
@@ -476,7 +425,7 @@ pub fn get_rowid2(
     )
 }
 
-pub async fn housekeeping(context: &Context) -> anyhow::Result<()> {
+pub async fn housekeeping(context: &Context) -> Result<()> {
     if let Err(err) = crate::ephemeral::delete_expired_messages(context).await {
         warn!(context, "Failed to delete expired messages: {}", err);
     }
@@ -486,28 +435,28 @@ pub async fn housekeeping(context: &Context) -> anyhow::Result<()> {
 
     info!(context, "Start housekeeping...");
     maybe_add_from_param(
-        context,
+        &context.sql,
         &mut files_in_use,
         "SELECT param FROM msgs  WHERE chat_id!=3   AND type!=10;",
         Param::File,
     )
     .await?;
     maybe_add_from_param(
-        context,
+        &context.sql,
         &mut files_in_use,
         "SELECT param FROM jobs;",
         Param::File,
     )
     .await?;
     maybe_add_from_param(
-        context,
+        &context.sql,
         &mut files_in_use,
         "SELECT param FROM chats;",
         Param::ProfileImage,
     )
     .await?;
     maybe_add_from_param(
-        context,
+        &context.sql,
         &mut files_in_use,
         "SELECT param FROM contacts;",
         Param::ProfileImage,
@@ -602,7 +551,7 @@ pub async fn housekeeping(context: &Context) -> anyhow::Result<()> {
         );
     }
 
-    if let Err(err) = prune_tombstones(context).await {
+    if let Err(err) = prune_tombstones(&context.sql).await {
         warn!(
             context,
             "Housekeeping: Cannot prune message tombstones: {}", err
@@ -615,6 +564,7 @@ pub async fn housekeeping(context: &Context) -> anyhow::Result<()> {
     {
         warn!(context, "Can't set config: {}", e);
     }
+
     info!(context, "Housekeeping done.");
     Ok(())
 }
@@ -641,29 +591,29 @@ fn maybe_add_file(files_in_use: &mut HashSet<String>, file: impl AsRef<str>) {
 }
 
 async fn maybe_add_from_param(
-    context: &Context,
+    sql: &Sql,
     files_in_use: &mut HashSet<String>,
     query: &str,
     param_id: Param,
-) -> anyhow::Result<()> {
-    context
-        .sql
-        .query_map(
-            query,
-            paramsv![],
-            |row| row.get::<_, String>(0),
-            |rows| {
-                for row in rows {
-                    let param: Params = row?.parse().unwrap_or_default();
-                    if let Some(file) = param.get(param_id) {
-                        maybe_add_file(files_in_use, file);
-                    }
+) -> Result<()> {
+    sql.query_map(
+        query,
+        paramsv![],
+        |row| row.get::<_, String>(0),
+        |rows| {
+            for row in rows {
+                let param: Params = row?.parse().unwrap_or_default();
+                if let Some(file) = param.get(param_id) {
+                    maybe_add_file(files_in_use, file);
                 }
-                Ok(())
-            },
-        )
-        .await
-        .context(format!("housekeeping: failed to add_from_param {}", query))
+            }
+            Ok(())
+        },
+    )
+    .await
+    .context(format!("housekeeping: failed to add_from_param {}", query))?;
+
+    Ok(())
 }
 
 #[allow(clippy::cognitive_complexity)]
@@ -726,224 +676,13 @@ async fn open(
             .await
             .ok();
 
-        let mut exists_before_update = false;
-        // Init tables to dbversion=68
-        let mut dbversion_before_update: i32 = 68;
-        if !sql.table_exists("config").await? {
-            info!(
-                context,
-                "First time init: creating tables in {:?}.",
-                dbfile.as_ref(),
-            );
-            sql.with_conn(move |mut conn| {
-                let tx = conn.transaction()?;
-                tx.execute_batch(
-                    r#"
-CREATE TABLE config (id INTEGER PRIMARY KEY, keyname TEXT, value TEXT);
-CREATE INDEX config_index1 ON config (keyname);
-CREATE TABLE contacts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT DEFAULT '',
-    addr TEXT DEFAULT '' COLLATE NOCASE,
-    origin INTEGER DEFAULT 0,
-    blocked INTEGER DEFAULT 0,
-    last_seen INTEGER DEFAULT 0,
-    param TEXT DEFAULT '',
-    authname TEXT DEFAULT '',
-    selfavatar_sent INTEGER DEFAULT 0
-);
-CREATE INDEX contacts_index1 ON contacts (name COLLATE NOCASE);
-CREATE INDEX contacts_index2 ON contacts (addr COLLATE NOCASE);
-INSERT INTO contacts (id,name,origin) VALUES
-(1,'self',262144), (2,'info',262144), (3,'rsvd',262144),
-(4,'rsvd',262144), (5,'device',262144), (6,'rsvd',262144),
-(7,'rsvd',262144), (8,'rsvd',262144), (9,'rsvd',262144);
-
-CREATE TABLE chats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type INTEGER DEFAULT 0,
-    name TEXT DEFAULT '',
-    draft_timestamp INTEGER DEFAULT 0,
-    draft_txt TEXT DEFAULT '',
-    blocked INTEGER DEFAULT 0,
-    grpid TEXT DEFAULT '',
-    param TEXT DEFAULT '',
-    archived INTEGER DEFAULT 0,
-    gossiped_timestamp INTEGER DEFAULT 0,
-    locations_send_begin INTEGER DEFAULT 0,
-    locations_send_until INTEGER DEFAULT 0,
-    locations_last_sent INTEGER DEFAULT 0,
-    created_timestamp INTEGER DEFAULT 0,
-    muted_until INTEGER DEFAULT 0,
-    ephemeral_timer INTEGER
-);
-CREATE INDEX chats_index1 ON chats (grpid);
-CREATE INDEX chats_index2 ON chats (archived);
-CREATE INDEX chats_index3 ON chats (locations_send_until);
-INSERT INTO chats (id,type,name) VALUES
-(1,120,'deaddrop'), (2,120,'rsvd'), (3,120,'trash'),
-(4,120,'msgs_in_creation'), (5,120,'starred'), (6,120,'archivedlink'),
-(7,100,'rsvd'), (8,100,'rsvd'), (9,100,'rsvd');
-
-CREATE TABLE chats_contacts (chat_id INTEGER, contact_id INTEGER);
-CREATE INDEX chats_contacts_index1 ON chats_contacts (chat_id);
-CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);
-
-CREATE TABLE msgs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    rfc724_mid TEXT DEFAULT '',
-    server_folder TEXT DEFAULT '',
-    server_uid INTEGER DEFAULT 0,
-    chat_id INTEGER DEFAULT 0,
-    from_id INTEGER DEFAULT 0,
-    to_id INTEGER DEFAULT 0,
-    timestamp INTEGER DEFAULT 0,
-    type INTEGER DEFAULT 0,
-    state INTEGER DEFAULT 0,
-    msgrmsg INTEGER DEFAULT 1,
-    bytes INTEGER DEFAULT 0,
-    txt TEXT DEFAULT '',
-    txt_raw TEXT DEFAULT '',
-    param TEXT DEFAULT '',
-    starred INTEGER DEFAULT 0,
-    timestamp_sent INTEGER DEFAULT 0,
-    timestamp_rcvd INTEGER DEFAULT 0,
-    hidden INTEGER DEFAULT 0,
-    mime_headers TEXT,
-    mime_in_reply_to TEXT,
-    mime_references TEXT,
-    move_state INTEGER DEFAULT 1,
-    location_id INTEGER DEFAULT 0,
-    error TEXT DEFAULT '',
-
--- Timer value in seconds. For incoming messages this
--- timer starts when message is read, so we want to have
--- the value stored here until the timer starts.
-    ephemeral_timer INTEGER DEFAULT 0,
-
--- Timestamp indicating when the message should be
--- deleted. It is convenient to store it here because UI
--- needs this value to display how much time is left until
--- the message is deleted.
-    ephemeral_timestamp INTEGER DEFAULT 0
-);
-
-CREATE INDEX msgs_index1 ON msgs (rfc724_mid);
-CREATE INDEX msgs_index2 ON msgs (chat_id);
-CREATE INDEX msgs_index3 ON msgs (timestamp);
-CREATE INDEX msgs_index4 ON msgs (state);
-CREATE INDEX msgs_index5 ON msgs (starred);
-CREATE INDEX msgs_index6 ON msgs (location_id);
-CREATE INDEX msgs_index7 ON msgs (state, hidden, chat_id);
-INSERT INTO msgs (id,msgrmsg,txt) VALUES
-(1,0,'marker1'), (2,0,'rsvd'), (3,0,'rsvd'),
-(4,0,'rsvd'), (5,0,'rsvd'), (6,0,'rsvd'), (7,0,'rsvd'),
-(8,0,'rsvd'), (9,0,'daymarker');
-
-CREATE TABLE jobs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    added_timestamp INTEGER,
-    desired_timestamp INTEGER DEFAULT 0,
-    action INTEGER,
-    foreign_id INTEGER,
-    param TEXT DEFAULT '',
-    thread INTEGER DEFAULT 0,
-    tries INTEGER DEFAULT 0
-);
-CREATE INDEX jobs_index1 ON jobs (desired_timestamp);
-
-CREATE TABLE leftgrps (
-    id INTEGER PRIMARY KEY,
-    grpid TEXT DEFAULT ''
-);
-CREATE INDEX leftgrps_index1 ON leftgrps (grpid);
-
-CREATE TABLE keypairs (
-    id INTEGER PRIMARY KEY,
-    addr TEXT DEFAULT '' COLLATE NOCASE,
-    is_default INTEGER DEFAULT 0,
-    private_key,
-    public_key,
-    created INTEGER DEFAULT 0
-);
-
-CREATE TABLE acpeerstates (
-    id INTEGER PRIMARY KEY,
-    addr TEXT DEFAULT '' COLLATE NOCASE,
-    last_seen INTEGER DEFAULT 0,
-    last_seen_autocrypt INTEGER DEFAULT 0,
-    public_key,
-    prefer_encrypted INTEGER DEFAULT 0,
-    gossip_timestamp INTEGER DEFAULT 0,
-    gossip_key,
-    public_key_fingerprint TEXT DEFAULT '',
-    gossip_key_fingerprint TEXT DEFAULT '',
-    verified_key,
-    verified_key_fingerprint TEXT DEFAULT ''
-);
-CREATE INDEX acpeerstates_index1 ON acpeerstates (addr);
-CREATE INDEX acpeerstates_index3 ON acpeerstates (public_key_fingerprint);
-CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);
-CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);
-
-CREATE TABLE msgs_mdns (
-    msg_id INTEGER,
-    contact_id INTEGER,
-    timestamp_sent INTEGER DEFAULT 0
-);
-CREATE INDEX msgs_mdns_index1 ON msgs_mdns (msg_id);
-
-CREATE TABLE tokens (
-    id INTEGER PRIMARY KEY,
-    namespc INTEGER DEFAULT 0,
-    foreign_id INTEGER DEFAULT 0,
-    token TEXT DEFAULT '',
-    timestamp INTEGER DEFAULT 0
-);
-
-CREATE TABLE locations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    latitude REAL DEFAULT 0.0,
-    longitude REAL DEFAULT 0.0,
-    accuracy REAL DEFAULT 0.0,
-    timestamp INTEGER DEFAULT 0,
-    chat_id INTEGER DEFAULT 0,
-    from_id INTEGER DEFAULT 0,
-    independent INTEGER DEFAULT 0
-);
-CREATE INDEX locations_index1 ON locations (from_id);
-CREATE INDEX locations_index2 ON locations (timestamp);
-
-CREATE TABLE devmsglabels (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    label TEXT,
-    msg_id INTEGER DEFAULT 0
-);
-CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
-"#,
-                )?;
-                tx.commit()?;
-                Ok(())
-            })
-            .await?;
-
-            sql.set_raw_config_int(context, "dbversion", dbversion_before_update)
-                .await?;
-        } else {
-            exists_before_update = true;
-            dbversion_before_update = sql
-                .get_raw_config_int(context, "dbversion")
-                .await
-                .unwrap_or_default();
-        }
-
         // (1) update low-level database structure.
         // this should be done before updates that use high-level objects that
         // rely themselves on the low-level structure.
         // --------------------------------------------------------------------
 
         let (recalc_fingerprints, update_icons, disable_server_delete) =
-            migrations::run(context, sql, dbversion_before_update, exists_before_update).await?;
+            migrations::run(context, sql).await?;
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
@@ -953,7 +692,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             info!(context, "[migration] recalc fingerprints");
             let addrs = sql
                 .query_map(
-                    "SELECT addr FROM acpeerstates;",
+                    "select addr from acpeerstates;",
                     paramsv![],
                     |row| row.get::<_, String>(0),
                     |addrs| {
@@ -977,11 +716,13 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
         if disable_server_delete {
             // We now always watch all folders and delete messages there if delete_server is enabled.
             // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
-            if context.get_config_delete_server_after().await.is_some() {
+            if context.get_config_delete_server_after().await?.is_some() {
                 let mut msg = Message::new(Viewtype::Text);
                 msg.text = Some(stock_str::delete_server_turned_off(context).await);
                 add_device_msg(context, None, Some(&mut msg)).await?;
-                context.set_config(Config::DeleteServerAfter, Some("0")).await?;
+                context
+                    .set_config(Config::DeleteServerAfter, Some("0"))
+                    .await?;
             }
         }
     }
@@ -993,16 +734,14 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
 
 /// Removes from the database locally deleted messages that also don't
 /// have a server UID.
-async fn prune_tombstones(context: &Context) -> Result<()> {
-    context
-        .sql
-        .execute(
-            "DELETE FROM msgs \
+async fn prune_tombstones(sql: &Sql) -> Result<()> {
+    sql.execute(
+        "DELETE FROM msgs \
          WHERE (chat_id = ? OR hidden) \
          AND server_uid = 0",
-            paramsv![DC_CHAT_ID_TRASH],
-        )
-        .await?;
+        paramsv![DC_CHAT_ID_TRASH],
+    )
+    .await?;
     Ok(())
 }
 
@@ -1085,14 +824,14 @@ mod test {
         })
         .await;
 
-        let a = t.get_config(Config::Selfavatar).await.unwrap();
+        let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
 
         t.sql.close().await;
         housekeeping(&t).await.unwrap_err(); // housekeeping should fail as the db is closed
         t.sql.open(&t, &t.get_dbfile(), false).await.unwrap();
 
-        let a = t.get_config(Config::Selfavatar).await.unwrap();
+        let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
     }
 }

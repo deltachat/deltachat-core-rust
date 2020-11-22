@@ -17,7 +17,7 @@ impl Imap {
             let elapsed_secs = last_scan.elapsed().as_secs();
             let debounce_secs = context
                 .get_config_u64(Config::ScanAllFoldersDebounceSecs)
-                .await;
+                .await?;
 
             if elapsed_secs < debounce_secs {
                 return Ok(());
@@ -95,8 +95,8 @@ async fn get_watched_folders(context: &Context) -> Vec<String> {
         (Config::InboxWatch, Config::ConfiguredInboxFolder),
     ];
     for (watched, configured) in folder_watched_configured {
-        if context.get_config_bool(*watched).await {
-            if let Some(folder) = context.get_config(*configured).await {
+        if context.get_config_bool(*watched).await.unwrap_or_default() {
+            if let Ok(Some(folder)) = context.get_config(*configured).await {
                 res.push(folder);
             }
         }

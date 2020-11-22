@@ -173,9 +173,16 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> O
     let invitenumber = token::lookup_or_new(context, token::Namespace::InviteNumber, group).await;
     let auth = token::lookup_or_new(context, token::Namespace::Auth, group).await;
     let self_addr = match context.get_config(Config::ConfiguredAddr).await {
-        Some(addr) => addr,
-        None => {
-            error!(context, "Not configured, cannot generate QR code.",);
+        Ok(Some(addr)) => addr,
+        Ok(None) => {
+            error!(context, "Not configured, cannot generate QR code.");
+            return None;
+        }
+        Err(err) => {
+            error!(
+                context,
+                "Unable to retrieve configuration, cannot generate QR code: {:?}", err
+            );
             return None;
         }
     };
@@ -183,6 +190,7 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> O
     let self_name = context
         .get_config(Config::Displayname)
         .await
+        .ok()?
         .unwrap_or_default();
 
     let fingerprint: Fingerprint = match get_self_fingerprint(context).await {
@@ -1061,6 +1069,7 @@ mod tests {
             let chat = alice.create_chat(&bob).await;
             let msg_id = chat::get_chat_msgs(&alice.ctx, chat.get_id(), 0x1, None)
                 .await
+                .unwrap()
                 .into_iter()
                 .filter_map(|item| match item {
                     chat::ChatItem::Message { msg_id } => Some(msg_id),
@@ -1109,6 +1118,7 @@ mod tests {
             let chat = bob.create_chat(&alice).await;
             let msg_id = chat::get_chat_msgs(&bob.ctx, chat.get_id(), 0x1, None)
                 .await
+                .unwrap()
                 .into_iter()
                 .filter_map(|item| match item {
                     chat::ChatItem::Message { msg_id } => Some(msg_id),
