@@ -120,11 +120,11 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
         real_spec = spec.to_string();
         context
             .sql()
-            .set_raw_config(context, "import_spec", Some(&real_spec))
+            .set_raw_config("import_spec", Some(&real_spec))
             .await
             .unwrap();
     } else {
-        let rs = context.sql().get_raw_config(context, "import_spec").await;
+        let rs = context.sql().get_raw_config("import_spec").await.unwrap();
         if rs.is_none() {
             error!(context, "Import: No file or folder given.");
             return false;
@@ -543,7 +543,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                         chat_prefix(&chat),
                         chat.get_id(),
                         chat.get_name(),
-                        chat.get_id().get_fresh_msg_cnt(&context).await,
+                        chat.get_id().get_fresh_msg_cnt(&context).await?,
                         if chat.is_muted() { "🔇" } else { "" },
                         match chat.visibility {
                             ChatVisibility::Normal => "",
@@ -605,7 +605,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "Failed to select chat");
             let sel_chat = sel_chat.as_ref().unwrap();
 
-            let msglist = chat::get_chat_msgs(&context, sel_chat.get_id(), 0x1, None).await;
+            let msglist = chat::get_chat_msgs(&context, sel_chat.get_id(), 0x1, None).await?;
             let msglist: Vec<MsgId> = msglist
                 .into_iter()
                 .map(|x| match x {
@@ -638,7 +638,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 } else {
                     ""
                 },
-                match sel_chat.get_profile_image(&context).await {
+                match sel_chat.get_profile_image(&context).await? {
                     Some(icon) => match icon.to_str() {
                         Some(icon) => format!(" Icon: {}", icon),
                         _ => " Icon: Err".to_string(),
@@ -658,7 +658,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             println!(
                 "{} messages.",
-                sel_chat.get_id().get_msg_cnt(&context).await
+                sel_chat.get_id().get_msg_cnt(&context).await?
             );
             chat::marknoticed_chat(&context, sel_chat.get_id()).await?;
         }
@@ -915,7 +915,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     .unwrap()
                     .get_id()
                     .set_draft(&context, Some(&mut draft))
-                    .await;
+                    .await?;
                 println!("Draft saved.");
             } else {
                 sel_chat
@@ -923,7 +923,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     .unwrap()
                     .get_id()
                     .set_draft(&context, None)
-                    .await;
+                    .await?;
                 println!("Draft deleted.");
             }
         }
@@ -1012,7 +1012,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let id = MsgId::new(arg1.parse()?);
-            let res = message::get_msg_info(&context, id).await;
+            let res = message::get_msg_info(&context, id).await?;
             println!("{}", res);
         }
         "html" => {
@@ -1088,7 +1088,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let mut res = format!(
                 "Contact info for: {}:\nIcon: {}\n",
                 name_n_addr,
-                match contact.get_profile_image(&context).await {
+                match contact.get_profile_image(&context).await? {
                     Some(image) => image.to_str().unwrap().to_string(),
                     None => "NoIcon".to_string(),
                 }

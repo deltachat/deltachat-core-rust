@@ -225,17 +225,19 @@ pub unsafe extern "C" fn dc_get_info(context: *const dc_context_t) -> *mut libc:
     }
     let ctx = &*context;
     block_on(async move {
-        let info = ctx.get_info().await;
+        let info = ctx.get_info().await.log_err(ctx, "failed to get info").ok();
         render_info(info).unwrap_or_default().strdup()
     })
 }
 
 fn render_info(
-    info: BTreeMap<&'static str, String>,
+    info: Option<BTreeMap<&'static str, String>>,
 ) -> std::result::Result<String, std::fmt::Error> {
     let mut res = String::new();
-    for (key, value) in &info {
-        writeln!(&mut res, "{}={}", key, value)?;
+    if let Some(info) = info {
+        for (key, value) in &info {
+            writeln!(&mut res, "{}={}", key, value)?;
+        }
     }
 
     Ok(res)
@@ -283,7 +285,12 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
     }
     let ctx = &*context;
 
-    block_on(async move { ctx.is_configured().await as libc::c_int })
+    block_on(async move {
+        ctx.is_configured()
+            .await
+            .log_err(ctx, "failed to get configured state")
+            .unwrap_or_default() as libc::c_int
+    })
 }
 
 #[no_mangle]
@@ -768,7 +775,12 @@ pub unsafe extern "C" fn dc_set_draft(
         Some(&mut ffi_msg.message)
     };
 
-    block_on(ChatId::new(chat_id).set_draft(&ctx, msg))
+    block_on(async move {
+        ChatId::new(chat_id)
+            .set_draft(&ctx, msg)
+            .await
+            .unwrap_or_log_default(ctx, "failed to set draft");
+    });
 }
 
 #[no_mangle]
@@ -863,6 +875,7 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
         Box::into_raw(Box::new(
             chat::get_chat_msgs(&ctx, ChatId::new(chat_id), flags, marker_flag)
                 .await
+                .unwrap_or_log_default(ctx, "failed to get chat msgs")
                 .into(),
         ))
     })
@@ -876,7 +889,12 @@ pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context_t, chat_id: u32
     }
     let ctx = &*context;
 
-    block_on(async move { ChatId::new(chat_id).get_msg_cnt(&ctx).await as libc::c_int })
+    block_on(async move {
+        ChatId::new(chat_id)
+            .get_msg_cnt(&ctx)
+            .await
+            .unwrap_or_log_default(ctx, "faeild to get msg count") as libc::c_int
+    })
 }
 
 #[no_mangle]
@@ -890,7 +908,12 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
     }
     let ctx = &*context;
 
-    block_on(async move { ChatId::new(chat_id).get_fresh_msg_cnt(&ctx).await as libc::c_int })
+    block_on(async move {
+        ChatId::new(chat_id)
+            .get_fresh_msg_cnt(&ctx)
+            .await
+            .unwrap_or_log_default(ctx, "failed to get fresh msg cnt") as libc::c_int
+    })
 }
 
 #[no_mangle]
@@ -1406,7 +1429,12 @@ pub unsafe extern "C" fn dc_get_msg_info(
     }
     let ctx = &*context;
 
-    block_on(message::get_msg_info(&ctx, MsgId::new(msg_id))).strdup()
+    block_on(async move {
+        message::get_msg_info(&ctx, MsgId::new(msg_id))
+            .await
+            .unwrap_or_log_default(ctx, "failed to get msg id")
+            .strdup()
+    })
 }
 
 #[no_mangle]
@@ -1437,6 +1465,7 @@ pub unsafe extern "C" fn dc_get_mime_headers(
     block_on(async move {
         message::get_mime_headers(&ctx, MsgId::new(msg_id))
             .await
+            .unwrap_or_log_default(ctx, "failed to get mime headers")
             .map(|s| s.strdup())
             .unwrap_or_else(ptr::null_mut)
     })
@@ -1564,14 +1593,11 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     }
     let ctx = &*context;
 
-    block_on(Contact::lookup_id_by_addr(
-        &ctx,
-        to_string_lossy(addr),
-        Origin::IncomingReplyTo,
-    ))
-    .ok()
-    .flatten()
-    .unwrap_or_default()
+    block_on(async move {
+        Contact::lookup_id_by_addr(&ctx, to_string_lossy(addr), Origin::IncomingReplyTo)
+            .await
+            .unwrap_or_log_default(ctx, "failed to lookup id")
+    })
 }
 
 #[no_mangle]
@@ -1645,8 +1671,7 @@ pub unsafe extern "C" fn dc_get_blocked_cnt(context: *mut dc_context_t) -> libc:
     block_on(async move {
         Contact::get_all_blocked(&ctx)
             .await
-            .log_err(&ctx, "Can't get blocked count")
-            .unwrap_or_default()
+            .unwrap_or_log_default(ctx, "failed to get blocked count")
             .len() as libc::c_int
     })
 }
@@ -2392,8 +2417,12 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
 
     block_on(async move {
         match ffi_chat.chat.get_profile_image(&ctx).await {
-            Some(p) => p.to_string_lossy().strdup(),
-            None => ptr::null_mut(),
+            Ok(Some(p)) => p.to_string_lossy().strdup(),
+            Ok(None) => ptr::null_mut(),
+            Err(err) => {
+                error!(ctx, "failed to get profile image: {:?}", err);
+                ptr::null_mut()
+            }
         }
     })
 }
@@ -3318,6 +3347,7 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
             .contact
             .get_profile_image(&ctx)
             .await
+            .unwrap_or_log_default(ctx, "failed to get profile image")
             .map(|p| p.to_string_lossy().strdup())
             .unwrap_or_else(std::ptr::null_mut)
     })
