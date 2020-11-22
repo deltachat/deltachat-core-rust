@@ -384,7 +384,7 @@ impl<'a> BlobObject<'a> {
         let blob_abs = self.to_abs_path();
 
         let img_wh =
-            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
                 .unwrap_or_default()
             {
                 MediaQuality::Balanced => BALANCED_AVATAR_SIZE,
@@ -403,7 +403,7 @@ impl<'a> BlobObject<'a> {
         }
 
         let img_wh =
-            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
                 .unwrap_or_default()
             {
                 MediaQuality::Balanced => BALANCED_IMAGE_SIZE,
@@ -514,6 +514,10 @@ pub enum BlobError {
     WrongBlobdir { blobdir: PathBuf, src: PathBuf },
     #[error("Blob has a badname {}", .blobname.display())]
     WrongName { blobname: PathBuf },
+    #[error("Sql: {0}")]
+    Sql(#[from] crate::sql::Error),
+    #[error("{0}")]
+    Other(#[from] anyhow::Error),
 }
 
 #[cfg(test)]

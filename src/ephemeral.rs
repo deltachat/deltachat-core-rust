@@ -150,7 +150,7 @@ impl ChatId {
     pub async fn get_ephemeral_timer(self, context: &Context) -> Result<Timer, Error> {
         let timer = context
             .sql
-            .query_get_value_result(
+            .query_get_value(
                 "SELECT ephemeral_timer FROM chats WHERE id=?;",
                 paramsv![self],
             )
@@ -264,7 +264,7 @@ impl MsgId {
     pub(crate) async fn ephemeral_timer(self, context: &Context) -> crate::sql::Result<Timer> {
         let res = match context
             .sql
-            .query_get_value_result(
+            .query_get_value(
                 "SELECT ephemeral_timer FROM msgs WHERE id=?",
                 paramsv![self],
             )
@@ -321,7 +321,7 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, E
         .await?
         > 0;
 
-    if let Some(delete_device_after) = context.get_config_delete_device_after().await {
+    if let Some(delete_device_after) = context.get_config_delete_device_after().await? {
         let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
             .await
             .unwrap_or_default()
@@ -376,7 +376,7 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, E
 pub async fn schedule_ephemeral_task(context: &Context) {
     let ephemeral_timestamp: Option<i64> = match context
         .sql
-        .query_get_value_result(
+        .query_get_value(
             "SELECT ephemeral_timestamp \
          FROM msgs \
          WHERE ephemeral_timestamp != 0 \
@@ -439,7 +439,7 @@ pub async fn schedule_ephemeral_task(context: &Context) {
 pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<Option<MsgId>> {
     let now = time();
 
-    let threshold_timestamp = match context.get_config_delete_server_after().await {
+    let threshold_timestamp = match context.get_config_delete_server_after().await? {
         None => 0,
         Some(delete_server_after) => now - delete_server_after,
     };
@@ -717,7 +717,7 @@ mod tests {
     }
 
     async fn check_msg_was_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
-        let chat_items = chat::get_chat_msgs(t, chat.id, 0, None).await;
+        let chat_items = chat::get_chat_msgs(t, chat.id, 0, None).await.unwrap();
         // Check that the chat is empty except for possibly info messages:
         for item in &chat_items {
             if let ChatItem::Message { msg_id } = item {
@@ -733,8 +733,9 @@ mod tests {
             assert!(msg.text.is_none_or_empty(), msg.text);
             let rawtxt: Option<String> = t
                 .sql
-                .query_get_value(t, "SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
-                .await;
+                .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
+                .await
+                .unwrap();
             assert!(rawtxt.is_none_or_empty(), rawtxt);
         }
     }

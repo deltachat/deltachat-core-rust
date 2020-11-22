@@ -15,12 +15,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error("Envelope error: {}", _0)]
     EnvelopeError(#[from] async_smtp::error::Error),
-
     #[error("Send error: {}", _0)]
     SendError(#[from] async_smtp::smtp::error::Error),
-
     #[error("SMTP has no transport")]
     NoTransport,
+    #[error("{}", _0)]
+    Other(#[from] anyhow::Error),
 }
 
 impl Smtp {
@@ -36,7 +36,7 @@ impl Smtp {
         let message_len_bytes = message.len();
 
         let mut chunk_size = DEFAULT_MAX_SMTP_RCPT_TO;
-        if let Some(provider) = context.get_configured_provider().await {
+        if let Some(provider) = context.get_configured_provider().await? {
             if let Some(max_smtp_rcpt_to) = provider.max_smtp_rcpt_to {
                 chunk_size = max_smtp_rcpt_to as usize;
             }

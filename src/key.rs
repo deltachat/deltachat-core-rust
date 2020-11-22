@@ -41,6 +41,8 @@ pub enum Error {
     InvalidConfiguredAddr(#[from] InvalidEmailError),
     #[error("no data provided")]
     Empty,
+    #[error("{0}")]
+    Other(#[from] anyhow::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -221,7 +223,7 @@ impl DcSecretKey for SignedSecretKey {
 async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     let addr = context
         .get_config(Config::ConfiguredAddr)
-        .await
+        .await?
         .ok_or(Error::NoConfiguredAddr)?;
     let addr = EmailAddress::new(&addr)?;
     let _guard = context.generating_key_mutex.lock().await;
@@ -248,7 +250,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
         }),
         Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
             let start = std::time::SystemTime::now();
-            let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await)
+            let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
                 .unwrap_or_default();
             info!(context, "Generating keypair with type {}", keytype);
             let keypair =
@@ -620,8 +622,9 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 
         let nrows = || async {
             ctx.sql
-                .query_get_value::<u32>(&ctx, "SELECT COUNT(*) FROM keypairs;", paramsv![])
+                .query_get_value::<u32>("SELECT COUNT(*) FROM keypairs;", paramsv![])
                 .await
+                .unwrap()
                 .unwrap()
         };
         assert_eq!(nrows().await, 0);

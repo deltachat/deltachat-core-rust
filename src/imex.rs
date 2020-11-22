@@ -170,8 +170,8 @@ pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Re
                 match sql.open(context, &path, true).await {
                     Ok(_) => {
                         let curr_backup_time = sql
-                            .get_raw_config_int(context, "backup_time")
-                            .await
+                            .get_raw_config_int("backup_time")
+                            .await?
                             .unwrap_or_default();
                         if curr_backup_time > newest_backup_time {
                             newest_backup_path = Some(path);
@@ -271,7 +271,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
         bail!("Passphrase must be at least 2 chars long.");
     };
     let private_key = SignedSecretKey::load_self(context).await?;
-    let ac_headers = match context.get_config_bool(Config::E2eeEnabled).await {
+    let ac_headers = match context.get_config_bool(Config::E2eeEnabled).await? {
         false => None,
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
@@ -333,7 +333,7 @@ pub fn create_setup_code(_context: &Context) -> String {
 }
 
 async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
-    if !context.sql.get_raw_config_bool(context, "bcc_self").await {
+    if !context.sql.get_raw_config_bool("bcc_self").await? {
         let mut msg = Message::new(Viewtype::Text);
         // TODO: define this as a stockstring once the wording is settled.
         msg.text = Some(
@@ -394,7 +394,7 @@ async fn set_self_key(
             };
             context
                 .sql
-                .set_raw_config_int(context, "e2ee_enabled", e2ee_enabled)
+                .set_raw_config_int("e2ee_enabled", e2ee_enabled)
                 .await?;
         }
         None => {
@@ -404,7 +404,7 @@ async fn set_self_key(
         }
     };
 
-    let self_addr = context.get_config(Config::ConfiguredAddr).await;
+    let self_addr = context.get_config(Config::ConfiguredAddr).await?;
     ensure!(self_addr.is_some(), "Missing self addr");
     let addr = EmailAddress::new(&self_addr.unwrap_or_default())?;
     let keypair = pgp::KeyPair {
@@ -493,7 +493,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
     );
 
     ensure!(
-        !context.is_configured().await,
+        !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
     ensure!(
@@ -564,7 +564,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     );
 
     ensure!(
-        !context.is_configured().await,
+        !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
     ensure!(
@@ -594,8 +594,8 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
 
     let total_files_cnt = context
         .sql
-        .query_get_value::<isize>(context, "SELECT COUNT(*) FROM backup_blobs;", paramsv![])
-        .await
+        .query_get_value::<isize>("SELECT COUNT(*) FROM backup_blobs;", paramsv![])
+        .await?
         .unwrap_or_default() as usize;
     info!(
         context,
@@ -674,7 +674,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     context
         .sql
-        .set_raw_config_int(context, "backup_time", now as i32)
+        .set_raw_config_int("backup_time", now as i32)
         .await?;
     sql::housekeeping(context).await.ok_or_log(context);
 

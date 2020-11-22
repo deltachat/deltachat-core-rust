@@ -252,7 +252,7 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     // Get user-configured server deletion
-    let delete_server_after = context.get_config_delete_server_after().await;
+    let delete_server_after = context.get_config_delete_server_after().await?;
 
     if !created_db_entries.is_empty() {
         if needs_delete_job || delete_server_after == Some(0) {
@@ -417,7 +417,7 @@ async fn add_parts(
     // incoming non-chat messages may be discarded
     let mut allow_creation = true;
     let show_emails =
-        ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await).unwrap_or_default();
+        ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?).unwrap_or_default();
     if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage
         && is_dc_message == MessengerMessage::No
     {
@@ -651,7 +651,7 @@ async fn add_parts(
             }
         }
 
-        if !context.is_sentbox(&server_folder).await
+        if !context.is_sentbox(&server_folder).await?
             && mime_parser.get(HeaderDef::Received).is_none()
         {
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
@@ -841,7 +841,7 @@ async fn add_parts(
     // however, we cannot do this earlier as we need from_id to be set
     let in_fresh = state == MessageState::InFresh;
     let rcvd_timestamp = time();
-    let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, *chat_id, in_fresh).await;
+    let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, *chat_id, in_fresh).await?;
 
     // Ensure replies to messages are sorted after the parent message.
     //
@@ -860,7 +860,7 @@ async fn add_parts(
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
-    let save_mime_headers = context.get_config_bool(Config::SaveMimeHeaders).await;
+    let save_mime_headers = context.get_config_bool(Config::SaveMimeHeaders).await?;
     if let Some(raw) = mime_parser.get(HeaderDef::InReplyTo) {
         mime_in_reply_to = raw.clone();
     }
@@ -1139,7 +1139,7 @@ async fn calc_sort_timestamp(
     message_timestamp: i64,
     chat_id: ChatId,
     is_fresh_msg: bool,
-) -> i64 {
+) -> Result<i64> {
     let mut sort_timestamp = message_timestamp;
 
     // get newest non fresh message for this chat
@@ -1148,11 +1148,10 @@ async fn calc_sort_timestamp(
         let last_msg_time: Option<i64> = context
             .sql
             .query_get_value(
-                context,
                 "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
                 paramsv![chat_id, MessageState::InFresh],
             )
-            .await;
+            .await?;
 
         if let Some(last_msg_time) = last_msg_time {
             if last_msg_time > sort_timestamp {
@@ -1165,7 +1164,7 @@ async fn calc_sort_timestamp(
         sort_timestamp = dc_create_smeared_timestamp(context).await;
     }
 
-    sort_timestamp
+    Ok(sort_timestamp)
 }
 
 /// This function tries to extract the group-id from the message and returns the
@@ -1330,7 +1329,7 @@ async fn create_or_lookup_group(
         .unwrap_or_default();
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
-        .await
+        .await?
         .unwrap_or_default();
 
     if chat_id.is_unset()
@@ -1675,7 +1674,7 @@ async fn create_adhoc_group(
     }
 
     // Create a new ad-hoc group.
-    let grpid = create_adhoc_grp_id(context, member_ids).await;
+    let grpid = create_adhoc_grp_id(context, member_ids).await?;
 
     // use subject as initial chat name
     let grpname = mime_parser
@@ -1686,7 +1685,7 @@ async fn create_adhoc_group(
         context,
         Chattype::Group,
         &grpid,
-        grpname,
+        &grpname,
         create_blocked,
         ProtectionStatus::Unprotected,
     )
@@ -1722,7 +1721,7 @@ async fn create_multiuser_record(
 
     let row_id = context
         .sql
-        .get_rowid(context, "chats", "grpid", grpid.as_ref())
+        .get_rowid("chats", "grpid", grpid.as_ref())
         .await?;
 
     let chat_id = ChatId::new(row_id);
@@ -1733,6 +1732,7 @@ async fn create_multiuser_record(
         grpid.as_ref(),
         chat_id
     );
+
     Ok(chat_id)
 }
 
@@ -1747,11 +1747,11 @@ async fn create_multiuser_record(
 /// This ensures that different Delta Chat clients generate the same group ID unless some of them
 /// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
 /// so having the same ID prevents group split.
-async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
+async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> Result<String> {
     let member_ids_str = join(member_ids.iter().map(|x| x.to_string()), ",");
     let member_cs = context
         .get_config(Config::ConfiguredAddr)
-        .await
+        .await?
         .unwrap_or_else(|| "no-self".to_string())
         .to_lowercase();
 
@@ -1778,7 +1778,7 @@ async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
         .await
         .unwrap_or(member_cs);
 
-    hex_hash(&members)
+    Ok(hex_hash(&members))
 }
 
 #[allow(clippy::indexing_slicing)]
@@ -2142,7 +2142,7 @@ mod tests {
     #[async_std::test]
     async fn test_adhoc_group_show_chats_only() {
         let t = TestContext::new_alice().await;
-        assert_eq!(t.get_config_int(Config::ShowEmails).await, 0);
+        assert_eq!(t.get_config_int(Config::ShowEmails).await.unwrap(), 0);
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
@@ -2214,13 +2214,26 @@ mod tests {
         assert_eq!(chat.typ, Chattype::Single);
         assert_eq!(chat.name, "Bob");
         assert_eq!(chat::get_chat_contacts(&t, chat_id).await.len(), 1);
-        assert_eq!(chat::get_chat_msgs(&t, chat_id, 0, None).await.len(), 1);
+        assert_eq!(
+            chat::get_chat_msgs(&t, chat_id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
 
         // receive a non-delta-message from Bob, shows up because of the show_emails setting
         dc_receive_imf(&t, ONETOONE_NOREPLY_MAIL, "INBOX", 2, false)
             .await
             .unwrap();
-        assert_eq!(chat::get_chat_msgs(&t, chat_id, 0, None).await.len(), 2);
+
+        assert_eq!(
+            chat::get_chat_msgs(&t, chat_id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
 
         // let Bob create an adhoc-group by a non-delta-message, shows up because of the show_emails setting
         dc_receive_imf(&t, GRP_MAIL, "INBOX", 3, false)
@@ -2277,7 +2290,13 @@ mod tests {
             .await
             .unwrap();
         chat::add_contact_to_chat(&t, group_id, bob_id).await;
-        assert_eq!(chat::get_chat_msgs(&t, group_id, 0, None).await.len(), 0);
+        assert_eq!(
+            chat::get_chat_msgs(&t, group_id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            0
+        );
         group_id
             .set_visibility(&t, ChatVisibility::Archived)
             .await
@@ -2365,7 +2384,13 @@ mod tests {
             false,
         )
         .await.unwrap();
-        assert_eq!(chat::get_chat_msgs(&t, group_id, 0, None).await.len(), 1);
+        assert_eq!(
+            chat::get_chat_msgs(&t, group_id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
         let msg = message::Message::load_from_db(&t, msg.id).await.unwrap();
         assert_eq!(msg.state, MessageState::OutMdnRcvd);
 
@@ -2693,7 +2718,7 @@ mod tests {
 
         assert_eq!(msg.state, MessageState::OutFailed);
 
-        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap();
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
         } else {
@@ -2868,7 +2893,9 @@ mod tests {
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
-        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), 0);
 
         dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 1, false)
@@ -2878,7 +2905,9 @@ mod tests {
         // Test that the mailing list stays disappeared
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message is not shown
-        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), 0);
     }
 
@@ -2900,7 +2929,7 @@ mod tests {
         message::decide_on_contact_request(&t, msg.get_id(), Block).await;
         let blocked = Contact::get_all_blocked(&t).await.unwrap();
         assert_eq!(blocked.len(), 1);
-        let msgs = chat::get_chat_msgs(&t, deaddrop, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, deaddrop, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 0);
 
         // Unblock contact and check if the next message arrives in real chat
@@ -2913,9 +2942,9 @@ mod tests {
             .unwrap();
         let msg = t.get_last_msg().await;
         assert_ne!(msg.chat_id, deaddrop);
-        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 2);
-        let msgs = chat::get_chat_msgs(&t, deaddrop, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, deaddrop, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 0);
     }
 
@@ -2939,7 +2968,9 @@ mod tests {
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
-        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), 1); // ...but is still shown in the deaddrop
 
         dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 1, false)
@@ -2948,7 +2979,9 @@ mod tests {
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1); // Test that the new mailing list message is shown again
-        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), 2);
     }
 
@@ -2979,7 +3012,7 @@ mod tests {
             .await
             .unwrap();
 
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 2);
     }
 
@@ -3015,7 +3048,13 @@ mod tests {
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "mylist@bar.org");
         assert_eq!(chat.name, "ola");
-        assert_eq!(chat::get_chat_msgs(&t, chat.id, 0, None).await.len(), 1);
+        assert_eq!(
+            chat::get_chat_msgs(&t, chat.id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
 
         // receive another message with no sender name but the same address,
         // make sure this lands in the same chat
@@ -3036,7 +3075,13 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(chat::get_chat_msgs(&t, chat.id, 0, None).await.len(), 2);
+        assert_eq!(
+            chat::get_chat_msgs(&t, chat.id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     #[async_std::test]
@@ -3130,7 +3175,7 @@ mod tests {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
         let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
-        assert_eq!(get_chat_msgs(&t, deaddrop, 0, None).await.len(), 0);
+        assert_eq!(get_chat_msgs(&t, deaddrop, 0, None).await.unwrap().len(), 0);
 
         // the mailing list message contains two top-level texts.
         // the second text is a footer that is added by some mailing list software
@@ -3153,8 +3198,11 @@ mod tests {
         );
         assert!(msg.has_html());
         let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
-        assert_eq!(get_chat_msgs(&t, deaddrop, 0, None).await.len(), 1);
-        assert_eq!(get_chat_msgs(&t, msg.chat_id, 0, None).await.len(), 1);
+        assert_eq!(get_chat_msgs(&t, deaddrop, 0, None).await.unwrap().len(), 1);
+        assert_eq!(
+            get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap().len(),
+            1
+        );
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.blocked, Blocked::Deaddrop);
         assert_eq!(chat.grpid, "intern.lists.abc.de");
@@ -3176,12 +3224,15 @@ mod tests {
         .await
         .unwrap();
         let msg = t.get_last_msg().await;
-        assert_eq!(get_chat_msgs(&t, msg.chat_id, 0, None).await.len(), 1);
+        assert_eq!(
+            get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap().len(),
+            1
+        );
         let text = msg.text.clone().unwrap();
         assert!(text.contains("content text"));
         assert!(!text.contains("footer text"));
         assert!(msg.has_html());
-        let html = msg.get_id().get_html(&t).await.unwrap();
+        let html = msg.get_id().get_html(&t).await.unwrap().unwrap();
         assert!(html.contains("content text"));
         assert!(!html.contains("footer text"));
     }
@@ -3292,7 +3343,7 @@ YEAAAAAA!.
         assert_eq!(msg.viewtype, Viewtype::Image);
         assert!(msg.has_html());
         let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
-        assert_eq!(get_chat_msgs(&t, chat.id, 0, None).await.len(), 1);
+        assert_eq!(get_chat_msgs(&t, chat.id, 0, None).await.unwrap().len(), 1);
     }
 
     /// Test that classical MUA messages are assigned to group chats based on the `In-Reply-To`
@@ -3346,7 +3397,7 @@ YEAAAAAA!.
         assert_eq!(msg.get_text().unwrap(), "reply foo");
 
         // Load the first message from the same chat.
-        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap();
         let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
             msg_id
         } else {

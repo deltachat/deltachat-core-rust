@@ -50,8 +50,11 @@ macro_rules! progress {
 
 impl Context {
     /// Checks if the context is already configured.
-    pub async fn is_configured(&self) -> bool {
-        self.sql.get_raw_config_bool(self, "configured").await
+    pub async fn is_configured(&self) -> Result<bool> {
+        self.sql
+            .get_raw_config_bool("configured")
+            .await
+            .map_err(Into::into)
     }
 
     /// Configures this account with the currently set parameters.
@@ -84,14 +87,14 @@ impl Context {
     async fn inner_configure(&self) -> Result<()> {
         info!(self, "Configure ...");
 
-        let mut param = LoginParam::from_database(self, "").await;
+        let mut param = LoginParam::from_database(self, "").await?;
         let success = configure(self, &mut param).await;
         self.set_config(Config::NotifyAboutWrongPw, None).await?;
 
         if let Some(provider) = param.provider {
             if let Some(config_defaults) = &provider.config_defaults {
                 for def in config_defaults.iter() {
-                    if !self.config_exists(def.key).await {
+                    if !self.config_exists(def.key).await? {
                         info!(self, "apply config_defaults {}={}", def.key, def.value);
                         self.set_config(def.key, Some(def.value)).await?;
                     } else {
@@ -177,13 +180,13 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         // if dc_get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
         progress!(ctx, 10);
         if let Some(oauth2_addr) = dc_get_oauth2_addr(ctx, &param.addr, &param.imap.password)
-            .await
+            .await?
             .and_then(|e| e.parse().ok())
         {
             info!(ctx, "Authorized address is {}", oauth2_addr);
             param.addr = oauth2_addr;
             ctx.sql
-                .set_raw_config(ctx, "addr", Some(param.addr.as_str()))
+                .set_raw_config("addr", Some(param.addr.as_str()))
                 .await?;
         }
         progress!(ctx, 20);
@@ -397,8 +400,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 900);
 
-    let create_mvbox = ctx.get_config_bool(Config::MvboxWatch).await
-        || ctx.get_config_bool(Config::MvboxMove).await;
+    let create_mvbox = ctx.get_config_bool(Config::MvboxWatch).await?
+        || ctx.get_config_bool(Config::MvboxMove).await?;
 
     imap.configure_folders(ctx, create_mvbox).await?;
 
@@ -413,7 +416,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     // "configured_" prefix; also write the "configured"-flag */
     // the trailing underscore is correct
     param.save_to_database(ctx, "configured_").await?;
-    ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
+    ctx.sql.set_raw_config_bool("configured", true).await?;
     ctx.set_config(Config::ConfiguredTimestamp, Some(&time().to_string()))
         .await?;
 

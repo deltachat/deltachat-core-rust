@@ -1215,10 +1215,16 @@ impl MimeMessage {
             for original_message_id in
                 std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
             {
-                if let Some((chat_id, msg_id)) =
-                    message::handle_mdn(context, from_id, original_message_id, sent_timestamp).await
+                match message::handle_mdn(context, from_id, original_message_id, sent_timestamp)
+                    .await
                 {
-                    context.emit_event(EventType::MsgRead { chat_id, msg_id });
+                    Ok(Some((chat_id, msg_id))) => {
+                        context.emit_event(EventType::MsgRead { chat_id, msg_id });
+                    }
+                    Ok(None) => {}
+                    Err(err) => {
+                        warn!(context, "failed to handle_mdn: {:?}", err);
+                    }
                 }
             }
         }
@@ -1245,7 +1251,7 @@ impl MimeMessage {
         {
             context
                 .sql
-                .query_get_value_result(
+                .query_get_value(
                     "SELECT timestamp FROM msgs WHERE rfc724_mid=?",
                     paramsv![field],
                 )

@@ -412,7 +412,7 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
 
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
-        .await
+        .await?
         .unwrap_or_default();
 
     let (locations_send_begin, locations_send_until, locations_last_sent) = context.sql.query_row(

@@ -407,14 +407,18 @@ impl ChatId {
     /// Sets draft message.
     ///
     /// Passing `None` as message just deletes the draft
-    pub async fn set_draft(self, context: &Context, msg: Option<&mut Message>) {
+    pub async fn set_draft(
+        self,
+        context: &Context,
+        msg: Option<&mut Message>,
+    ) -> Result<(), Error> {
         if self.is_special() {
-            return;
+            return Ok(());
         }
 
         let changed = match msg {
-            None => self.maybe_delete_draft(context).await,
-            Some(msg) => self.set_draft_raw(context, msg).await,
+            None => self.maybe_delete_draft(context).await?,
+            Some(msg) => self.set_draft_raw(context, msg).await?,
         };
 
         if changed {
@@ -423,33 +427,35 @@ impl ChatId {
                 msg_id: MsgId::new(0),
             });
         }
+
+        Ok(())
     }
 
-    // similar to as dc_set_draft() but does not emit an event
-    async fn set_draft_raw(self, context: &Context, msg: &mut Message) -> bool {
-        let deleted = self.maybe_delete_draft(context).await;
+    /// Similar to as dc_set_draft() but does not emit an event
+    async fn set_draft_raw(self, context: &Context, msg: &mut Message) -> Result<bool, Error> {
+        let deleted = self.maybe_delete_draft(context).await?;
         let set = self.do_set_draft(context, msg).await.is_ok();
 
         // Can't inline. Both functions above must be called, no shortcut!
-        deleted || set
+        Ok(deleted || set)
     }
 
-    async fn get_draft_msg_id(self, context: &Context) -> Option<MsgId> {
+    async fn get_draft_msg_id(self, context: &Context) -> Result<Option<MsgId>, Error> {
         context
             .sql
             .query_get_value::<MsgId>(
-                context,
                 "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
                 paramsv![self, MessageState::OutDraft],
             )
             .await
+            .map_err(Into::into)
     }
 
     pub async fn get_draft(self, context: &Context) -> Result<Option<Message>, Error> {
         if self.is_special() {
             return Ok(None);
         }
-        match self.get_draft_msg_id(context).await {
+        match self.get_draft_msg_id(context).await? {
             Some(draft_msg_id) => {
                 let msg = Message::load_from_db(context, draft_msg_id).await?;
                 Ok(Some(msg))
@@ -461,10 +467,10 @@ impl ChatId {
     /// Delete draft message in specified chat, if there is one.
     ///
     /// Returns `true`, if message was deleted, `false` otherwise.
-    async fn maybe_delete_draft(self, context: &Context) -> bool {
-        match self.get_draft_msg_id(context).await {
-            Some(msg_id) => msg_id.delete_from_db(context).await.is_ok(),
-            None => false,
+    async fn maybe_delete_draft(self, context: &Context) -> Result<bool, Error> {
+        match self.get_draft_msg_id(context).await? {
+            Some(msg_id) => Ok(msg_id.delete_from_db(context).await.is_ok()),
+            None => Ok(false),
         }
     }
 
@@ -516,19 +522,15 @@ impl ChatId {
     }
 
     /// Returns number of messages in a chat.
-    pub async fn get_msg_cnt(self, context: &Context) -> usize {
-        context
+    pub async fn get_msg_cnt(self, context: &Context) -> Result<usize, Error> {
+        let count = context
             .sql
-            .query_get_value::<i32>(
-                context,
-                "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
-                paramsv![self],
-            )
-            .await
-            .unwrap_or_default() as usize
+            .query_get_value::<i32>("SELECT COUNT(*) FROM msgs WHERE chat_id=?;", paramsv![self])
+            .await?;
+        Ok(count.unwrap_or_default() as usize)
     }
 
-    pub async fn get_fresh_msg_cnt(self, context: &Context) -> usize {
+    pub async fn get_fresh_msg_cnt(self, context: &Context) -> Result<usize, Error> {
         // this function is typically used to show a badge counter beside _each_ chatlist item.
         // to make this as fast as possible, esp. on older devices, we added an combined index over the rows used for querying.
         // so if you alter the query here, you may want to alter the index over `(state, hidden, chat_id)` in `sql.rs`.
@@ -539,10 +541,9 @@ impl ChatId {
         // the times are average, no matter if there are fresh messages or not -
         // and have to be multiplied by the number of items shown at once on the chatlist,
         // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
-        context
+        let count = context
             .sql
             .query_get_value::<i32>(
-                context,
                 "SELECT COUNT(*)
                 FROM msgs
                 WHERE state=10
@@ -550,14 +551,14 @@ impl ChatId {
                 AND chat_id=?;",
                 paramsv![self],
             )
-            .await
-            .unwrap_or_default() as usize
+            .await?;
+        Ok(count.unwrap_or_default() as usize)
     }
 
     pub(crate) async fn get_param(self, context: &Context) -> Result<Params, Error> {
         let res: Option<String> = context
             .sql
-            .query_get_value_result("SELECT param FROM chats WHERE id=?", paramsv![self])
+            .query_get_value("SELECT param FROM chats WHERE id=?", paramsv![self])
             .await?;
         Ok(res
             .map(|s| s.parse().unwrap_or_default())
@@ -792,7 +793,7 @@ impl Chat {
                     chat.name = stock_str::dead_drop(context).await;
                 } else if chat.id.is_archived_link() {
                     let tempname = stock_str::archived_chats(context).await;
-                    let cnt = dc_get_archived_cnt(context).await;
+                    let cnt = dc_get_archived_cnt(context).await?;
                     chat.name = format!("{} ({})", tempname, cnt);
                 } else {
                     if chat.typ == Chattype::Single {
@@ -860,10 +861,10 @@ impl Chat {
         &self.name
     }
 
-    pub async fn get_profile_image(&self, context: &Context) -> Option<PathBuf> {
+    pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>, Error> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Some(dc_get_abs_path(context, image_rel));
+                return Ok(Some(dc_get_abs_path(context, image_rel)));
             }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(context, self.id).await;
@@ -874,10 +875,10 @@ impl Chat {
             }
         }
 
-        None
+        Ok(None)
     }
 
-    pub async fn get_gossiped_timestamp(&self, context: &Context) -> i64 {
+    pub async fn get_gossiped_timestamp(&self, context: &Context) -> Result<i64, Error> {
         get_gossiped_timestamp(context, self.id).await
     }
 
@@ -913,12 +914,12 @@ impl Chat {
             name: self.name.clone(),
             archived: self.visibility == ChatVisibility::Archived,
             param: self.param.to_string(),
-            gossiped_timestamp: self.get_gossiped_timestamp(context).await,
+            gossiped_timestamp: self.get_gossiped_timestamp(context).await?,
             is_sending_locations: self.is_sending_locations,
             color: self.get_color(context).await,
             profile_image: self
                 .get_profile_image(context)
-                .await
+                .await?
                 .map(Into::into)
                 .unwrap_or_else(std::path::PathBuf::new),
             draft,
@@ -985,7 +986,7 @@ impl Chat {
 
         let from = context
             .get_config(Config::ConfiguredAddr)
-            .await
+            .await?
             .context("Cannot prepare message for sending, address is not configured.")?;
 
         let new_rfc724_mid = {
@@ -1000,11 +1001,10 @@ impl Chat {
             if let Some(id) = context
                 .sql
                 .query_get_value(
-                    context,
                     "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
                     paramsv![self.id],
                 )
-                .await
+                .await?
             {
                 to_id = id;
             } else {
@@ -1094,7 +1094,6 @@ impl Chat {
             location_id = context
                 .sql
                 .get_rowid2(
-                    context,
                     "locations",
                     "timestamp",
                     timestamp,
@@ -1116,7 +1115,7 @@ impl Chat {
 
         let new_mime_headers = if msg.has_html() {
             let html = if msg.param.exists(Param::Forwarded) {
-                msg.get_id().get_html(context).await
+                msg.get_id().get_html(context).await?
             } else {
                 msg.param.get(Param::SendHtml).map(|s| s.to_string())
             };
@@ -1180,7 +1179,7 @@ impl Chat {
         {
             msg_id = context
                 .sql
-                .get_rowid(context, "msgs", "rfc724_mid", new_rfc724_mid)
+                .get_rowid("msgs", "rfc724_mid", new_rfc724_mid)
                 .await?;
         } else {
             error!(
@@ -1813,7 +1812,7 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
         chat_id
     );
 
-    let instance = if let Some(instance) = context.get_config(Config::WebrtcInstance).await {
+    let instance = if let Some(instance) = context.get_config(Config::WebrtcInstance).await? {
         if !instance.is_empty() {
             instance
         } else {
@@ -1839,7 +1838,7 @@ pub async fn get_chat_msgs(
     chat_id: ChatId,
     flags: u32,
     marker1before: Option<MsgId>,
-) -> Vec<ChatItem> {
+) -> Result<Vec<ChatItem>, Error> {
     match delete_expired_messages(context).await {
         Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
         Ok(messages_deleted) => {
@@ -1915,7 +1914,7 @@ pub async fn get_chat_msgs(
         Ok(ret)
     };
     let success = if chat_id.is_deaddrop() {
-        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await)
+        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
             .unwrap_or_default();
         context
             .sql
@@ -1974,10 +1973,10 @@ pub async fn get_chat_msgs(
             .await
     };
     match success {
-        Ok(ret) => ret,
+        Ok(ret) => Ok(ret),
         Err(e) => {
             error!(context, "Failed to get chat messages: {}", e);
-            Vec::new()
+            Ok(Vec::new())
         }
     }
 }
@@ -1990,11 +1989,10 @@ pub(crate) async fn marknoticed_chat_if_older_than(
     if let Some(chat_timestamp) = context
         .sql
         .query_get_value(
-            context,
             "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
             paramsv![chat_id],
         )
-        .await
+        .await?
     {
         if timestamp > chat_timestamp {
             marknoticed_chat(context, chat_id).await?;
@@ -2179,16 +2177,13 @@ pub async fn create_group_chat(
         ],
     ).await?;
 
-    let row_id = context
-        .sql
-        .get_rowid(context, "chats", "grpid", grpid)
-        .await?;
+    let row_id = context.sql.get_rowid("chats", "grpid", grpid).await?;
 
     let chat_id = ChatId::new(row_id);
     if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await {
         let mut draft_msg = Message::new(Viewtype::Text);
         draft_msg.set_text(Some(draft_txt));
-        chat_id.set_draft_raw(context, &mut draft_msg).await;
+        chat_id.set_draft_raw(context, &mut draft_msg).await?;
     }
 
     context.emit_event(EventType::MsgsChanged {
@@ -2310,7 +2305,7 @@ pub(crate) async fn add_contact_to_chat_ex(
     }
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
-        .await
+        .await?
         .unwrap_or_default();
     if addr_cmp(contact.get_addr(), &self_addr) {
         // ourself is added using DC_CONTACT_ID_SELF, do not add this address explicitly.
@@ -2363,16 +2358,15 @@ pub(crate) async fn reset_gossiped_timestamp(
 
 /// Get timestamp of the last gossip sent in the chat.
 /// Zero return value means that gossip was never sent.
-pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> i64 {
-    context
+pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<i64, Error> {
+    let timestamp = context
         .sql
         .query_get_value::<i64>(
-            context,
             "SELECT gossiped_timestamp FROM chats WHERE id=?;",
             paramsv![chat_id],
         )
-        .await
-        .unwrap_or_default()
+        .await?;
+    Ok(timestamp.unwrap_or_default())
 }
 
 pub(crate) async fn set_gossiped_timestamp(
@@ -2404,11 +2398,7 @@ pub(crate) async fn shall_attach_selfavatar(
     // versions before 12/2019 already allowed to set selfavatar, however, it was never sent to others.
     // to avoid sending out previously set selfavatars unexpectedly we added this additional check.
     // it can be removed after some time.
-    if !context
-        .sql
-        .get_raw_config_bool(context, "attach_selfavatar")
-        .await
-    {
+    if !context.sql.get_raw_config_bool("attach_selfavatar").await? {
         return Ok(false);
     }
 
@@ -2824,32 +2814,33 @@ pub async fn forward_msgs(
     Ok(())
 }
 
-pub(crate) async fn get_chat_contact_cnt(context: &Context, chat_id: ChatId) -> usize {
-    context
+pub(crate) async fn get_chat_contact_cnt(
+    context: &Context,
+    chat_id: ChatId,
+) -> Result<usize, Error> {
+    let count = context
         .sql
         .query_get_value::<isize>(
-            context,
             "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
             paramsv![chat_id],
         )
-        .await
-        .unwrap_or_default() as usize
+        .await?;
+    Ok(count.unwrap_or_default() as usize)
 }
 
-pub(crate) async fn get_chat_cnt(context: &Context) -> usize {
+pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize, Error> {
     if context.sql.is_open().await {
         /* no database, no chats - this is no error (needed eg. for information) */
-        context
+        let count = context
             .sql
             .query_get_value::<isize>(
-                context,
                 "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
                 paramsv![],
             )
-            .await
-            .unwrap_or_default() as usize
+            .await?;
+        Ok(count.unwrap_or_default() as usize)
     } else {
-        0
+        Ok(0)
     }
 }
 
@@ -2918,11 +2909,10 @@ pub async fn add_device_msg_with_importance(
         if let Some(last_msg_time) = context
             .sql
             .query_get_value(
-                context,
                 "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
                 paramsv![chat_id],
             )
-            .await
+            .await?
         {
             if timestamp_sort <= last_msg_time {
                 timestamp_sort = last_msg_time + 1;
@@ -2949,7 +2939,7 @@ pub async fn add_device_msg_with_importance(
 
         let row_id = context
             .sql
-            .get_rowid(context, "msgs", "rfc724_mid", &rfc724_mid)
+            .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
             .await?;
         msg_id = MsgId::new(row_id);
     }
@@ -3055,7 +3045,7 @@ pub(crate) async fn add_info_msg_with_cmd(
 
     let row_id = context
         .sql
-        .get_rowid(context, "msgs", "rfc724_mid", &rfc724_mid)
+        .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
         .await
         .unwrap_or_default();
     let msg_id = MsgId::new(row_id);
@@ -3143,7 +3133,8 @@ mod tests {
         let chat_id = &t.get_self_chat().await.id;
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
-        chat_id.set_draft(&t, Some(&mut msg)).await;
+
+        chat_id.set_draft(&t, Some(&mut msg)).await.unwrap();
         let draft = chat_id.get_draft(&t).await.unwrap().unwrap();
         let msg_text = msg.get_text();
         let draft_text = draft.get_text();
@@ -3198,7 +3189,7 @@ mod tests {
         assert!(!chat.is_device_talk());
         assert!(chat.can_send());
         assert_eq!(chat.name, stock_str::saved_messages(&t).await);
-        assert!(chat.get_profile_image(&t).await.is_some());
+        assert!(chat.get_profile_image(&t).await.unwrap().is_some());
     }
 
     #[async_std::test]
@@ -3248,7 +3239,7 @@ mod tests {
         assert_eq!(msg2.text.as_ref().unwrap(), "second message");
 
         // check device chat
-        assert_eq!(msg2.chat_id.get_msg_cnt(&t).await, 2);
+        assert_eq!(msg2.chat_id.get_msg_cnt(&t).await.unwrap(), 2);
     }
 
     #[async_std::test]
@@ -3281,7 +3272,8 @@ mod tests {
 
         // check device chat
         let chat_id = msg1.chat_id;
-        assert_eq!(chat_id.get_msg_cnt(&t).await, 1);
+
+        assert_eq!(chat_id.get_msg_cnt(&t).await.unwrap(), 1);
         assert!(!chat_id.is_special());
         let chat = Chat::load_from_db(&t, chat_id).await;
         assert!(chat.is_ok());
@@ -3290,8 +3282,9 @@ mod tests {
         assert!(chat.is_device_talk());
         assert!(!chat.is_self_talk());
         assert!(!chat.can_send());
+
         assert_eq!(chat.name, stock_str::device_messages(&t).await);
-        assert!(chat.get_profile_image(&t).await.is_some());
+        assert!(chat.get_profile_image(&t).await.unwrap().is_some());
 
         // delete device message, make sure it is not added again
         message::delete_msgs(&t, &[*msg1_id.as_ref().unwrap()]).await;
@@ -3426,7 +3419,8 @@ mod tests {
         let chat_id2 = t.get_self_chat().await.id;
         assert!(!chat_id1.is_special());
         assert!(!chat_id2.is_special());
-        assert_eq!(get_chat_cnt(&t).await, 2);
+
+        assert_eq!(get_chat_cnt(&t).await.unwrap(), 2);
         assert_eq!(chatlist_len(&t, 0).await, 2);
         assert_eq!(chatlist_len(&t, DC_GCL_NO_SPECIALS).await, 2);
         assert_eq!(chatlist_len(&t, DC_GCL_ARCHIVED_ONLY).await, 0);
@@ -3452,7 +3446,7 @@ mod tests {
                 .get_visibility()
                 == ChatVisibility::Normal
         );
-        assert_eq!(get_chat_cnt(&t).await, 2);
+        assert_eq!(get_chat_cnt(&t).await.unwrap(), 2);
         assert_eq!(chatlist_len(&t, 0).await, 2); // including DC_CHAT_ID_ARCHIVED_LINK now
         assert_eq!(chatlist_len(&t, DC_GCL_NO_SPECIALS).await, 1);
         assert_eq!(chatlist_len(&t, DC_GCL_ARCHIVED_ONLY).await, 1);
@@ -3476,7 +3470,7 @@ mod tests {
                 .get_visibility()
                 == ChatVisibility::Archived
         );
-        assert_eq!(get_chat_cnt(&t).await, 2);
+        assert_eq!(get_chat_cnt(&t).await.unwrap(), 2);
         assert_eq!(chatlist_len(&t, 0).await, 1); // only DC_CHAT_ID_ARCHIVED_LINK now
         assert_eq!(chatlist_len(&t, DC_GCL_NO_SPECIALS).await, 0);
         assert_eq!(chatlist_len(&t, DC_GCL_ARCHIVED_ONLY).await, 2);
@@ -3508,7 +3502,7 @@ mod tests {
                 .get_visibility()
                 == ChatVisibility::Normal
         );
-        assert_eq!(get_chat_cnt(&t).await, 2);
+        assert_eq!(get_chat_cnt(&t).await.unwrap(), 2);
         assert_eq!(chatlist_len(&t, 0).await, 2);
         assert_eq!(chatlist_len(&t, DC_GCL_NO_SPECIALS).await, 1);
         assert_eq!(chatlist_len(&t, DC_GCL_ARCHIVED_ONLY).await, 1);
@@ -3753,7 +3747,7 @@ mod tests {
         assert!(chat.is_protected());
         assert!(chat.is_unpromoted());
 
-        let msgs = get_chat_msgs(&t, chat_id, 0, None).await;
+        let msgs = get_chat_msgs(&t, chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         let msg = t.get_last_msg_in(chat_id).await;
@@ -3783,7 +3777,7 @@ mod tests {
         assert!(!chat.is_protected());
         assert!(!chat.is_unpromoted());
 
-        let msgs = get_chat_msgs(&t, chat_id, 0, None).await;
+        let msgs = get_chat_msgs(&t, chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 3);
 
         // enable protection on promoted chat, the info-message is sent via send_msg() this time
@@ -3874,7 +3868,13 @@ mod tests {
         send_text_msg(&alice, alice_chat_id, "hi!".to_string())
             .await
             .ok();
-        assert_eq!(get_chat_msgs(&alice, alice_chat_id, 0, None).await.len(), 1);
+        assert_eq!(
+            get_chat_msgs(&alice, alice_chat_id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
 
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
         let msg = alice.pop_sent_msg().await.payload();
@@ -3908,6 +3908,12 @@ mod tests {
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.chat_id, alice_chat_id);
         assert_eq!(msg.text, Some("ho!".to_string()));
-        assert_eq!(get_chat_msgs(&alice, alice_chat_id, 0, None).await.len(), 2);
+        assert_eq!(
+            get_chat_msgs(&alice, alice_chat_id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
     }
 }
