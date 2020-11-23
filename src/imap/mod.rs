@@ -1411,7 +1411,7 @@ impl Imap {
 // but sth. different in others - a hard job.
 fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
     // source: https://stackoverflow.com/questions/2185391/localized-gmail-imap-folders
-    let sent_names = vec![
+    const SENT_NAMES: &[&str] = &[
         "sent",
         "sentmail",
         "sent objects",
@@ -1443,7 +1443,7 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
         "送信済み",
         "보낸편지함",
     ];
-    let spam_names = vec![
+    const SPAM_NAMES: &[&str] = &[
         "spam",
         "junk",
         "Correio electrónico não solicitado",
@@ -1466,9 +1466,9 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
     ];
     let lower = folder_name.to_lowercase();
 
-    if sent_names.into_iter().any(|s| s.to_lowercase() == lower) {
+    if SENT_NAMES.into_iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::SentObjects
-    } else if spam_names.into_iter().any(|s| s.to_lowercase() == lower) {
+    } else if SPAM_NAMES.into_iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::Spam
     } else {
         FolderMeaning::Unknown
