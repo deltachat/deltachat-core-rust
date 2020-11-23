@@ -44,6 +44,8 @@ use mailparse::SingleInfo;
 use message::Message;
 use session::Session;
 
+use self::select_folder::NewlySelected;
+
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
 pub enum ImapActionResult {
     Failed,
@@ -592,7 +594,7 @@ impl Imap {
         );
 
         if new_uid_validity == uid_validity {
-            let new_emails = if newly_selected {
+            let new_emails = if newly_selected == NewlySelected::Yes {
                 largest_uid > last_seen_uid
             } else {
                 true

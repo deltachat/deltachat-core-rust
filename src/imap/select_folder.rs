@@ -61,13 +61,12 @@ impl Imap {
 
     /// select a folder, possibly update uid_validity and, if needed,
     /// expunge the folder to remove delete-marked messages.
-    /// Returns true if a new folder was selected. If this returns false, then no SELECT command was run
-    /// and self.config.selected_mailbox was not updated (so, e.g. it may contain an outdated uid_next)
+    /// Returns whether a new folder was selected.
     pub(super) async fn select_folder<S: AsRef<str>>(
         &mut self,
         context: &Context,
         folder: Option<S>,
-    ) -> Result<bool> {
+    ) -> Result<NewlySelected> {
         if self.session.is_none() {
             self.config.selected_folder = None;
             self.config.selected_folder_needs_expunge = false;
@@ -80,7 +79,7 @@ impl Imap {
         if let Some(ref folder) = folder {
             if let Some(ref selected_folder) = self.config.selected_folder {
                 if folder.as_ref() == selected_folder {
-                    return Ok(false);
+                    return Ok(NewlySelected::No);
                 }
             }
         }
@@ -101,7 +100,7 @@ impl Imap {
                     Ok(mailbox) => {
                         self.config.selected_folder = Some(folder.as_ref().to_string());
                         self.config.selected_mailbox = Some(mailbox);
-                        Ok(true)
+                        Ok(NewlySelected::Yes)
                     }
                     Err(async_imap::error::Error::ConnectionLost) => {
                         self.trigger_reconnect();
@@ -121,7 +120,15 @@ impl Imap {
                 Err(Error::NoSession)
             }
         } else {
-            Ok(false)
+            Ok(NewlySelected::No)
         }
     }
+}
+#[derive(PartialEq)]
+pub(super) enum NewlySelected {
+    /// The folder was newly selected during this call to select_folder().
+    Yes,
+    /// No SELECT command was run because the folder already was selected
+    /// and self.config.selected_mailbox was not updated (so, e.g. it may contain an outdated uid_next)
+    No,
 }
