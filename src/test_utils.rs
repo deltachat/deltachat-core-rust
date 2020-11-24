@@ -216,7 +216,7 @@ impl TestContext {
 
     pub async fn get_last_msg(&self) -> Message {
         let chats = Chatlist::try_load(&self.ctx, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg_id = chats.get_msg_id(chats.len() - 1).unwrap();
         Message::load_from_db(&self.ctx, msg_id).await.unwrap()
     }
 }

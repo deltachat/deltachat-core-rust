@@ -2000,14 +2000,14 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_need_move_setupmsg() {
+    async fn test_needs_move_setupmsg() {
         // Test setupmessages
         for (folder, mvbox_move, chat_msg, _expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
             check_needs_move_combination(
                 folder,
                 *mvbox_move,
                 *chat_msg,
-                folder, // Never move setup messages
+                if folder == &"Spam" { "INBOX" } else { folder }, // Never move setup messages, except if they are in "Spam"
                 true,
                 true,
                 true,
@@ -2029,11 +2029,7 @@ mod tests {
         println!("Testing: For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}",
                                folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage);
 
-        let t = if outgoing {
-            TestContext::new_bob().await
-        } else {
-            TestContext::new_alice().await
-        };
+        let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ConfiguredSpamFolder, Some("Spam"))
             .await
@@ -2063,26 +2059,29 @@ mod tests {
                 .await
                 .unwrap();
         }
+        let temp;
         dc_receive_imf(
             &t.ctx,
-            format!(
-                "From: bob@example.net\n\
-                 To: alice@example.com\n\
-                 Subject: foo\n\
-                 Message-ID: <aehtri@example.com>\n\
-                 {}\
-                 {}\
-                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
-                 \n\
-                 hello\n",
-                if chat_msg { "Chat-Version: 1.0\n" } else { "" },
-                if setupmessage {
-                    "Autocrypt-Setup-Message: v1\n"
-                } else {
-                    ""
-                },
-            )
-            .as_bytes(),
+            if setupmessage {
+                include_bytes!("../test-data/message/AutocryptSetupMessage.eml")
+            } else {
+                temp = format!(
+                    "{}\
+                    Subject: foo\n\
+                    Message-ID: <aehtri@example.com>\n\
+                    {}\
+                    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                    \n\
+                    hello\n",
+                    if outgoing {
+                        "From: alice@example.com\nTo: bob@example.net\n"
+                    } else {
+                        "From: bob@example.net\nTo: alice@example.com\n"
+                    },
+                    if chat_msg { "Chat-Version: 1.0\n" } else { "" },
+                );
+                temp.as_bytes()
+            },
             folder,
             1,
             false,
