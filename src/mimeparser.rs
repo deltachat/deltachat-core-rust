@@ -820,6 +820,17 @@ impl MimeMessage {
             || filename.ends_with(".vcf")
             || filename.ends_with(".vcard")
         {
+            println!("Parsing vcard {:?}", String::from_utf8_lossy(decoded_data));
+            for contact in ical::VcardParser::new(decoded_data) {
+                println!("Parsing contact {:?}", contact);
+                if let Ok(contact) = contact {
+                    for property in contact.properties {
+                        println!("Parsed property {:?}", property);
+                        if property.name == "email" {
+                        }
+                    }
+                }
+            }
             return;
         }
 
