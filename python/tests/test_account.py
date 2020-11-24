@@ -2075,7 +2075,7 @@ class TestOnlineAccount:
         ac1.start_io()
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
-        
+
         # Wait until the message was moved (if at all) and we are IDLEing again:
         ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
         ac1.direct_imap.select_folder(expected_destination)

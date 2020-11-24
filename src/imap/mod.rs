@@ -1470,9 +1470,9 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
     ];
     let lower = folder_name.to_lowercase();
 
-    if SENT_NAMES.into_iter().any(|s| s.to_lowercase() == lower) {
+    if SENT_NAMES.iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::SentObjects
-    } else if SPAM_NAMES.into_iter().any(|s| s.to_lowercase() == lower) {
+    } else if SPAM_NAMES.iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::Spam
     } else {
         FolderMeaning::Unknown
