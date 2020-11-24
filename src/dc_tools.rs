@@ -339,6 +339,24 @@ pub(crate) async fn dc_get_filebytes(context: &Context, path: impl AsRef<Path>) 
     }
 }
 
+pub(crate) async fn dc_get_dirbytes(context: &Context, path: impl AsRef<Path>) -> (usize, u64) {
+    let path_abs = dc_get_abs_path(context, &path);
+    let mut files: usize = 0;
+    let mut bytes: u64 = 0;
+    if let Ok(mut read_dir) = async_std::fs::read_dir(path_abs).await {
+        while let Some(entry) = read_dir.next().await {
+            if let Ok(entry) = entry {
+                files += 1;
+                bytes += match entry.metadata().await {
+                    Ok(meta) => meta.len(),
+                    Err(_err) => 0,
+                }
+            }
+        }
+    }
+    (files, bytes)
+}
+
 pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) -> bool {
     let path_abs = dc_get_abs_path(context, &path);
     if !path_abs.exists().await {

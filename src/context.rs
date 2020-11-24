@@ -12,7 +12,7 @@ use crate::chat::*;
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
-use crate::dc_tools::{dc_get_filebytes, duration_to_str};
+use crate::dc_tools::{dc_get_dirbytes, dc_get_filebytes, duration_to_str};
 use crate::error::*;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
@@ -262,6 +262,9 @@ impl Context {
      ******************************************************************************/
 
     pub async fn get_info(&self) -> BTreeMap<&'static str, String> {
+        let blobdir = self.get_blobdir();
+        let (blobdir_files, blobdir_bytes) = dc_get_dirbytes(self, blobdir).await;
+
         let unset = "0";
         let l = LoginParam::from_database(self, "").await;
         let l2 = LoginParam::from_database(self, "configured_").await;
@@ -330,7 +333,9 @@ impl Context {
             dc_get_filebytes(self, self.get_dbfile()).await.to_string(),
         );
         res.insert("journal_mode", journal_mode);
-        res.insert("blobdir", self.get_blobdir().display().to_string());
+        res.insert("blobdir", blobdir.display().to_string());
+        res.insert("blobdir_files", blobdir_files.to_string());
+        res.insert("blobdir_bytes", blobdir_bytes.to_string());
         res.insert("display_name", displayname.unwrap_or_else(|| unset.into()));
         res.insert(
             "selfavatar",
