@@ -544,7 +544,6 @@ impl Imap {
         folder: &str,
     ) -> Result<(u32, u32, bool)> {
         let newly_selected = self.select_folder(context, Some(folder)).await?;
-        warn!(context, "dbg selected {}", folder);
 
         // compare last seen UIDVALIDITY against the current one
         let (uid_validity, last_seen_uid) = get_config_last_seen_uid(context, &folder).await;
@@ -587,11 +586,6 @@ impl Imap {
                 new_last_seen_uid.context("select: failed to fetch")?
             }
         };
-
-        warn!(
-            context,
-            "dbg largest_uid {}, lastseen_uid {}", largest_uid, last_seen_uid
-        );
 
         if new_uid_validity == uid_validity {
             let new_emails = if newly_selected == NewlySelected::Yes {

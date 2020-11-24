@@ -2038,10 +2038,7 @@ mod tests {
             .set_config(Config::ConfiguredMvboxFolder, Some("DeltaChat"))
             .await
             .unwrap();
-        t.ctx
-            .set_config(Config::ConfiguredSentboxFolder, Some("Sent"))
-            .await
-            .unwrap();
+        // We do not need to set the ConfiguredSentboxFolder as for moving messages, the sentbox is treated the same as an unknown folder.
         t.ctx
             .set_config(Config::MvboxMove, Some(if mvbox_move { "1" } else { "0" }))
             .await
