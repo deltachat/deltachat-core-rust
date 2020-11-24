@@ -5,11 +5,11 @@
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
+use ansi_term::Color;
 use async_std::path::PathBuf;
 use async_std::sync::RwLock;
 use tempfile::{tempdir, TempDir};
 
-use crate::chat::{ChatId, ChatItem};
 use crate::config::Config;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
@@ -20,6 +20,10 @@ use crate::message::Message;
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
 use crate::{chat, chatlist::Chatlist};
+use crate::{
+    chat::{ChatId, ChatItem},
+    EventType,
+};
 
 /// A Context and temporary directory.
 ///
@@ -50,6 +54,13 @@ impl TestContext {
         let ctx = Context::new("FakeOS".into(), dbfile.into(), id)
             .await
             .unwrap();
+
+        let events = ctx.get_event_emitter();
+        async_std::task::spawn(async move {
+            while let Some(event) = events.recv().await {
+                receive_event(event.typ);
+            }
+        });
         Self {
             ctx,
             dir,
@@ -278,5 +289,94 @@ pub(crate) fn bob_keypair() -> key::KeyPair {
         addr,
         public,
         secret,
+    }
+}
+
+fn receive_event(event: EventType) {
+    let green = Color::Green.normal();
+    let yellow = Color::Yellow.normal();
+    let red = Color::Red.normal();
+
+    match event {
+        EventType::Info(msg) => {
+            /* do not show the event as this would fill the screen */
+            println!("{}", msg);
+        }
+        EventType::SmtpConnected(msg) => {
+            println!("[SMTP_CONNECTED] {}", msg);
+        }
+        EventType::ImapConnected(msg) => {
+            println!("[IMAP_CONNECTED] {}", msg);
+        }
+        EventType::SmtpMessageSent(msg) => {
+            println!("[SMTP_MESSAGE_SENT] {}", msg);
+        }
+        EventType::Warning(msg) => {
+            println!("{}", yellow.paint(msg));
+        }
+        EventType::Error(msg) => {
+            println!("{}", red.paint(msg));
+        }
+        EventType::ErrorNetwork(msg) => {
+            println!("{}", red.paint(format!("[NETWORK] msg={}", msg)));
+        }
+        EventType::ErrorSelfNotInGroup(msg) => {
+            println!("{}", red.paint(format!("[SELF_NOT_IN_GROUP] {}", msg)));
+        }
+        EventType::MsgsChanged { chat_id, msg_id } => {
+            println!(
+                "{}",
+                green.paint(format!(
+                    "Received MSGS_CHANGED(chat_id={}, msg_id={})",
+                    chat_id, msg_id,
+                ))
+            );
+        }
+        EventType::ContactsChanged(_) => {
+            println!("{}", green.paint("Received CONTACTS_CHANGED()"));
+        }
+        EventType::LocationChanged(contact) => {
+            println!(
+                "{}",
+                green.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
+            );
+        }
+        EventType::ConfigureProgress { progress, comment } => {
+            if let Some(comment) = comment {
+                println!(
+                    "{}",
+                    green.paint(format!(
+                        "Received CONFIGURE_PROGRESS({} ‰, {})",
+                        progress, comment
+                    ))
+                );
+            } else {
+                println!(
+                    "{}",
+                    green.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
+                );
+            }
+        }
+        EventType::ImexProgress(progress) => {
+            println!(
+                "{}",
+                green.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
+            );
+        }
+        EventType::ImexFileWritten(file) => {
+            println!(
+                "{}",
+                green.paint(format!("Received IMEX_FILE_WRITTEN({})", file.display()))
+            );
+        }
+        EventType::ChatModified(chat) => {
+            println!(
+                "{}",
+                green.paint(format!("Received CHAT_MODIFIED({})", chat))
+            );
+        }
+        _ => {
+            println!("Received {:?}", event);
+        }
     }
 }
