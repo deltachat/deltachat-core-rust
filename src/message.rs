@@ -1917,43 +1917,43 @@ mod tests {
         );
     }
 
+    // chat_msg means that the message was sent by Delta Chat
+    // The tuples are (folder, mvbox_move, chat_msg, expected_destination)
+    const COMBINATIONS_ACCEPTED_CHAT: &[(&str, bool, bool, &str)] = &[
+        ("INBOX", false, false, "INBOX"),
+        ("INBOX", false, true, "INBOX"),
+        ("INBOX", true, false, "INBOX"),
+        ("INBOX", true, true, "DeltaChat"),
+        ("Sent", false, false, "Sent"),
+        ("Sent", false, true, "Sent"),
+        ("Sent", true, false, "Sent"),
+        ("Sent", true, true, "DeltaChat"),
+        ("Spam", false, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
+        ("Spam", false, true, "INBOX"),
+        ("Spam", true, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
+        ("Spam", true, true, "DeltaChat"),
+    ];
+
+    // These are the same as above, but all messages in Spam stay in Spam
+    const COMBINATIONS_DEADDROP: &[(&str, bool, bool, &str)] = &[
+        ("INBOX", false, false, "INBOX"),
+        ("INBOX", false, true, "INBOX"),
+        ("INBOX", true, false, "INBOX"),
+        ("INBOX", true, true, "DeltaChat"),
+        ("Sent", false, false, "Sent"),
+        ("Sent", false, true, "Sent"),
+        ("Sent", true, false, "Sent"),
+        ("Sent", true, true, "DeltaChat"),
+        ("Spam", false, false, "Spam"),
+        ("Spam", false, true, "Spam"),
+        ("Spam", true, false, "Spam"),
+        ("Spam", true, true, "Spam"),
+    ];
+
     #[async_std::test]
-    async fn test_needs_move() {
-        // chat_msg means that the message was sent by Delta Chat
-        // The tuples are (folder, mvbox_move, chat_msg, expected_destination)
-        let combinations_accepted_chat = vec![
-            ("INBOX", false, false, "INBOX"),
-            ("INBOX", false, true, "INBOX"),
-            ("INBOX", true, false, "INBOX"),
-            ("INBOX", true, true, "DeltaChat"),
-            ("Sent", false, false, "Sent"),
-            ("Sent", false, true, "Sent"),
-            ("Sent", true, false, "Sent"),
-            ("Sent", true, true, "DeltaChat"),
-            ("Spam", false, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
-            ("Spam", false, true, "INBOX"),
-            ("Spam", true, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
-            ("Spam", true, true, "DeltaChat"),
-        ];
-
-        // These are the same as above, but all messages in Spam stay in Spam
-        let combinations_deaddrop = vec![
-            ("INBOX", false, false, "INBOX"),
-            ("INBOX", false, true, "INBOX"),
-            ("INBOX", true, false, "INBOX"),
-            ("INBOX", true, true, "DeltaChat"),
-            ("Sent", false, false, "Sent"),
-            ("Sent", false, true, "Sent"),
-            ("Sent", true, false, "Sent"),
-            ("Sent", true, true, "DeltaChat"),
-            ("Spam", false, false, "Spam"),
-            ("Spam", false, true, "Spam"),
-            ("Spam", true, false, "Spam"),
-            ("Spam", true, true, "Spam"),
-        ];
-
-        for (folder, mvbox_move, chat_msg, expected_destination) in &combinations_accepted_chat {
-            test_needs_move_combination(
+    async fn test_needs_move_incoming_accepted() {
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            check_needs_move_combination(
                 folder,
                 *mvbox_move,
                 *chat_msg,
@@ -1964,9 +1964,12 @@ mod tests {
             )
             .await;
         }
+    }
 
-        for (folder, mvbox_move, chat_msg, expected_destination) in &combinations_deaddrop {
-            test_needs_move_combination(
+    #[async_std::test]
+    async fn test_needs_move_incoming_deaddrop() {
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_DEADDROP {
+            check_needs_move_combination(
                 folder,
                 *mvbox_move,
                 *chat_msg,
@@ -1977,10 +1980,13 @@ mod tests {
             )
             .await;
         }
+    }
 
+    #[async_std::test]
+    async fn test_needs_move_outgoing() {
         // Test outgoing emails
-        for (folder, mvbox_move, chat_msg, expected_destination) in &combinations_accepted_chat {
-            test_needs_move_combination(
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            check_needs_move_combination(
                 folder,
                 *mvbox_move,
                 *chat_msg,
@@ -1991,10 +1997,13 @@ mod tests {
             )
             .await;
         }
+    }
 
+    #[async_std::test]
+    async fn test_need_move_setupmsg() {
         // Test setupmessages
-        for (folder, mvbox_move, chat_msg, _expected_destination) in &combinations_accepted_chat {
-            test_needs_move_combination(
+        for (folder, mvbox_move, chat_msg, _expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            check_needs_move_combination(
                 folder,
                 *mvbox_move,
                 *chat_msg,
@@ -2007,7 +2016,7 @@ mod tests {
         }
     }
 
-    async fn test_needs_move_combination(
+    async fn check_needs_move_combination(
         folder: &str,
         mvbox_move: bool,
         chat_msg: bool,
