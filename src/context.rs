@@ -323,7 +323,7 @@ impl Context {
         res.insert("number_of_chat_messages", real_msgs.to_string());
         res.insert("messages_in_contact_requests", deaddrop_msgs.to_string());
         res.insert("number_of_contacts", contacts.to_string());
-        res.insert("database_dir", self.get_dbfile().display().to_string());
+        res.insert("database", self.get_dbfile().display().to_string());
         res.insert("database_version", dbversion.to_string());
         res.insert("journal_mode", journal_mode);
         res.insert("blobdir", self.get_blobdir().display().to_string());
@@ -595,14 +595,14 @@ mod tests {
         let t = TestContext::new().await;
 
         let info = t.ctx.get_info().await;
-        assert!(info.get("database_dir").is_some());
+        assert!(info.get("database").is_some());
     }
 
     #[test]
     fn test_get_info_no_context() {
         let info = get_info();
         assert!(info.get("deltachat_core_version").is_some());
-        assert!(info.get("database_dir").is_none());
+        assert!(info.get("database").is_none());
         assert_eq!(info.get("level").unwrap(), "awesome");
     }
 }
