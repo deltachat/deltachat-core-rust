@@ -9,14 +9,20 @@ use std::time::Duration;
 
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
-use crate::chat::{update_device_icon, update_saved_messages_icon};
-use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::ephemeral::start_ephemeral_timers;
 use crate::error::format_err;
 use crate::param::*;
 use crate::peerstate::*;
+use crate::{
+    chat::{update_device_icon, update_saved_messages_icon},
+    config::Config,
+};
+use crate::{
+    constants::{ShowEmails, DC_CHAT_ID_TRASH},
+    imap,
+};
 
 #[macro_export]
 macro_rules! paramsv {
@@ -1382,17 +1388,31 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             .await?;
             sql.set_raw_config_int(context, "dbversion", 69).await?;
         }
-        // if dbversion < 70 {
-        //     info!(context, "[migration] v70");
-        //     sql.execute(
-        //         "CREATE TABLE imap_sync (folder INTEGER PRIMARY KEY, uidvalidity INTEGER, last_uidnext INTEGER);",
-        //         // TODO do we want an index? Or sth else?
-        //         // TODO put existing uidvalidity and lastseen here?
-        //         paramsv![],
-        //     )
-        //     .await?;
-        //     sql.set_raw_config_int(context, "dbversion", 70).await?;
-        // }
+        if dbversion < 70 {
+            use Config::*;
+            info!(context, "[migration] v70");
+            sql.execute(
+                "CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER, uid_next INTEGER);",
+                // TODO do we want an index? Or a default value? Or sth else?
+                paramsv![],
+            )
+            .await?;
+            for c in &[
+                ConfiguredInboxFolder,
+                ConfiguredSentboxFolder,
+                ConfiguredMvboxFolder,
+            ] {
+                if let Some(folder) = context.get_config(*c).await {
+                    let (uid_validity, last_seen_uid) =
+                        imap::get_config_last_seen_uid(context, &folder).await;
+                    if last_seen_uid > 0 {
+                        imap::set_uid_next(context, &folder, last_seen_uid + 1).await?;
+                        imap::set_uidvalidity(context, &folder, uid_validity).await?;
+                    }
+                }
+            }
+            sql.set_raw_config_int(context, "dbversion", 70).await?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)

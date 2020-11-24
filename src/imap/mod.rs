@@ -1721,6 +1721,85 @@ fn get_fallback_folder(delimiter: &str) -> String {
     format!("INBOX{}DeltaChat", delimiter)
 }
 
+/// uid_next is the next unique identifier value from the last time we fetched a folder
+/// See https://tools.ietf.org/html/rfc3501#section-2.3.1.1
+pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32) -> Result<()> {
+    // TODO I found lots of opinions on how I should update and if it doesn't exist, then insert
+    // and I rather randomly chose this one:
+    let modified = context
+        .sql
+        .execute(
+            "UPDATE imap_sync SET uid_next=? WHERE folder=?;",
+            paramsv![uid_next, folder],
+        )
+        .await?;
+    if modified == 0 {
+        context
+            .sql
+            .execute(
+                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?);",
+                paramsv![folder, 0u32, uid_next],
+            )
+            .await?;
+    }
+    Ok(())
+}
+
+/// uid_next is the next unique identifier value from the last time we fetched a folder
+/// See https://tools.ietf.org/html/rfc3501#section-2.3.1.1
+pub(crate) async fn get_uid_next(context: &Context, folder: &str) -> u32 {
+    context
+        .sql
+        .query_get_value(
+            context,
+            // TODO I found lots of opinions on how I should update and if it doesn't exist, then insert
+            // and I rather randomly chose this one:
+            "SELECT uid_next FROM imap_sync WHERE folder=?;",
+            paramsv![folder],
+        )
+        .await
+        .unwrap_or(0)
+}
+
+pub(crate) async fn set_uidvalidity(
+    context: &Context,
+    folder: &str,
+    uidvalidity: u32,
+) -> Result<()> {
+    // TODO I found lots of opinions on how I should update and if it doesn't exist, then insert
+    // and I rather randomly chose this one (because I don't know much SQL and rather wanted to do the logic in Rust)
+    let modified = context
+        .sql
+        .execute(
+            "UPDATE imap_sync SET uidvalidity=? WHERE folder=?;",
+            paramsv![uidvalidity, folder],
+        )
+        .await?;
+    if modified == 0 {
+        context
+            .sql
+            .execute(
+                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?);",
+                paramsv![folder, uidvalidity, 0u32],
+            )
+            .await?;
+    }
+    Ok(())
+}
+
+pub(crate) async fn get_uidvalidity(context: &Context, folder: &str) -> u32 {
+    context
+        .sql
+        .query_get_value(
+            context,
+            "SELECT uidvalidity FROM imap_sync WHERE folder=?;",
+            paramsv![folder],
+        )
+        .await
+        .unwrap_or(0)
+}
+
+/// Deprecated, use set_uid_next() and set_uidvalidity()
 pub async fn set_config_last_seen_uid<S: AsRef<str>>(
     context: &Context,
     folder: S,
@@ -1737,7 +1816,8 @@ pub async fn set_config_last_seen_uid<S: AsRef<str>>(
         .ok();
 }
 
-async fn get_config_last_seen_uid<S: AsRef<str>>(context: &Context, folder: S) -> (u32, u32) {
+/// Deprecated, use get_uid_next() and get_uidvalidity()
+pub async fn get_config_last_seen_uid<S: AsRef<str>>(context: &Context, folder: S) -> (u32, u32) {
     let key = format!("imap.mailbox.{}", folder.as_ref());
     if let Some(entry) = context.sql.get_raw_config(context, &key).await {
         // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
