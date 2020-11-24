@@ -50,6 +50,13 @@ impl Imap {
                 return Ok(info);
             }
 
+            if let Ok(info) = self.idle_interrupt.try_recv() {
+                // TODO this almost seems too easy and obvious, can we do this here?
+                info!(context, "skip idle, got interrupt {:?}", info);
+                self.session = Some(session); // TODO I almost forgot this line, maybe there is a possibility not to have to take ownership of the session?
+                return Ok(info);
+            }
+
             let mut handle = session.idle();
             if let Err(err) = handle.init().await {
                 bail!("IMAP IDLE protocol failed to init/complete: {}", err);
@@ -68,12 +75,12 @@ impl Imap {
                 watch_folder.as_deref().unwrap_or("None")
             );
             let fut = idle_wait.map(|ev| ev.map(Event::IdleResponse)).race(async {
-                let probe_network = self.idle_interrupt.recv().await;
+                let info = self.idle_interrupt.recv().await;
 
                 // cancel imap idle connection properly
                 drop(interrupt);
 
-                Ok(Event::Interrupt(probe_network.unwrap_or_default()))
+                Ok(Event::Interrupt(info.unwrap_or_default()))
             });
 
             match fut.await {

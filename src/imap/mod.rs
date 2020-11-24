@@ -1332,6 +1332,14 @@ impl Imap {
                 } else if folder_name_meaning == FolderMeaning::Spam && spam_folder.is_none() {
                     spam_folder = Some(folder.name().to_string());
                 }
+                warn!(
+                    context,
+                    "dbg folder {} has meaning {:?}/{:?}, spam_folder is {:?}",
+                    &folder.name(),
+                    &folder_meaning,
+                    &folder_name_meaning,
+                    &spam_folder
+                );
             }
             drop(folders);
 
@@ -1769,5 +1777,6 @@ mod tests {
             FolderMeaning::SentObjects
         );
         assert_eq!(get_folder_meaning_by_name("xxx"), FolderMeaning::Unknown);
+        assert_eq!(get_folder_meaning_by_name("SPAM"), FolderMeaning::Spam);
     }
 }

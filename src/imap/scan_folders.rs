@@ -7,8 +7,11 @@ use crate::error::Result;
 use crate::imap::Imap;
 use async_std::prelude::*;
 
+use super::{get_folder_meaning, get_folder_meaning_by_name, FolderMeaning};
+
 impl Imap {
     pub async fn scan_folders(&mut self, context: &Context) -> Result<()> {
+        use crate::config::Config::*;
         warn!(context, "dbg starting scan");
 
         // First of all, debounce to once per minute:
@@ -40,6 +43,35 @@ impl Imap {
             let folder = folder?;
             let foldername = folder.name();
             info!(context, "Scanning folder: {}", foldername);
+
+            let folder_meaning = get_folder_meaning(&folder);
+            let folder_name_meaning = get_folder_meaning_by_name(&foldername);
+            // TODO largely the same as in configure_folders
+            // TODO if there are two folders with the \Sent flag, then the sentfolder will change all the time
+            // (maybe not even that bad)
+            if folder_meaning == FolderMeaning::SentObjects {
+                context
+                    .set_config(ConfiguredSentboxFolder, Some(folder.name()))
+                    .await?;
+            } else if folder_meaning == FolderMeaning::Spam {
+                context
+                    .set_config(ConfiguredSpamFolder, Some(folder.name()))
+                    .await?;
+            } else if folder_name_meaning == FolderMeaning::SentObjects {
+                // only set iff none has been already set
+                if context.get_config(ConfiguredSentboxFolder).await.is_none() {
+                    context
+                        .set_config(ConfiguredSentboxFolder, Some(folder.name()))
+                        .await?;
+                }
+            } else if folder_name_meaning == FolderMeaning::Spam
+                && context.get_config(ConfiguredSpamFolder).await.is_none()
+            {
+                context
+                    .set_config(ConfiguredSpamFolder, Some(folder.name()))
+                    .await?;
+            }
+
             if let Err(e) = self.fetch_new_messages(context, foldername, false).await {
                 warn!(context, "Can't fetch new msgs in scanned folder: {}", e);
             }
