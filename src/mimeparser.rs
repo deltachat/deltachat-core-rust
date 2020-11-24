@@ -1392,6 +1392,7 @@ mod tests {
 
     use super::*;
     use crate::test_utils::*;
+    use mailparse::ParsedMail;
 
     impl AvatarAction {
         pub fn is_change(&self) -> bool {
@@ -1461,26 +1462,29 @@ mod tests {
         assert!(is_attachment_disposition(&mail.subparts[1]));
     }
 
-    #[test]
-    fn test_get_attachment_filename() {
-        let raw = include_bytes!("../test-data/message/html_attach.eml");
+    fn load_mail_with_attachment(raw: &[u8]) -> ParsedMail {
         let mail = mailparse::parse_mail(raw).unwrap();
         assert!(get_attachment_filename(&mail).unwrap().is_none());
         assert!(get_attachment_filename(&mail.subparts[0])
             .unwrap()
             .is_none());
+        mail
+    }
+
+    #[test]
+    fn test_get_attachment_filename() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_simple.eml"
+        ));
         let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("test.html".to_string()))
     }
 
     #[test]
     fn test_get_attachment_filename_encoded_words() {
-        let raw = include_bytes!("../test-data/message/html_attach_encoded_words.eml");
-        let mail = mailparse::parse_mail(raw).unwrap();
-        assert!(get_attachment_filename(&mail).unwrap().is_none());
-        assert!(get_attachment_filename(&mail.subparts[0])
-            .unwrap()
-            .is_none());
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words.eml"
+        ));
         let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
     }
@@ -1488,24 +1492,19 @@ mod tests {
     #[test]
     fn test_get_attachment_filename_encoded_words_cont() {
         // test continued encoded-words and also test apostropes work that way
-        let raw = include_bytes!("../test-data/message/html_attach_encoded_words_cont.eml");
-        let mail = mailparse::parse_mail(raw).unwrap();
-        assert!(get_attachment_filename(&mail).unwrap().is_none());
-        assert!(get_attachment_filename(&mail.subparts[0])
-            .unwrap()
-            .is_none());
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words_cont.eml"
+        ));
         let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßn'ah'men Okt. 2020.html".to_string()))
     }
 
     #[test]
     fn test_get_attachment_filename_combined() {
-        let raw = include_bytes!("../test-data/message/html_attach_combined.eml");
-        let mail = mailparse::parse_mail(raw).unwrap();
-        assert!(get_attachment_filename(&mail).unwrap().is_none());
-        assert!(get_attachment_filename(&mail.subparts[0])
-            .unwrap()
-            .is_none());
+        // test that if `filename` and `filename*0` are given, the filename is not doubled
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_combined.eml"
+        ));
         let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
     }
