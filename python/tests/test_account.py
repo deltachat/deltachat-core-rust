@@ -2046,6 +2046,8 @@ class TestOnlineAccount:
     # the "\Junk" flag (see https://tools.ietf.org/html/rfc6154). So, we can't test spam folder detection by flag.
     def test_scan_folders(self, acfactory, lp, folder, move, expected_destination):
         """Delta Chat periodically scans all folders for new messages to make sure we don't miss any."""
+        variant = folder + str(move) + expected_destination
+        lp.sec("Testing variant " + variant)
         ac1 = acfactory.get_online_configuring_account(move=move)
         ac2 = acfactory.get_online_configuring_account()
         ac1._configtracker.wait_finish()
@@ -2069,7 +2071,7 @@ class TestOnlineAccount:
 
         # Scanning is debounced to 2s, so wait 2s to make sure DeltaChat scans after start_io() is called:
         time.sleep(2)
-        lp.sec("Everything prepared, now see if DeltaChat finds the message")
+        lp.sec("Everything prepared, now see if DeltaChat finds the message (" + variant + ")")
         ac1.start_io()
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"

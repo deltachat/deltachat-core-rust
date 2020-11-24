@@ -53,7 +53,7 @@ impl Imap {
             if let Ok(info) = self.idle_interrupt.try_recv() {
                 // TODO this almost seems too easy and obvious, can we do this here?
                 info!(context, "skip idle, got interrupt {:?}", info);
-                self.session = Some(session); // TODO I almost forgot this line, maybe there is a possibility not to have to take ownership of the session?
+                self.session = Some(session);
                 return Ok(info);
             }
 

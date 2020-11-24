@@ -26,10 +26,9 @@ def dc_account_extra_configure(account):
     """
     if not hasattr(account, "direct_imap"):
         imap = DirectImap(account)
-        if imap.select_config_folder("mvbox"):
+        for folder in imap.list_folders():
+            assert imap.select_folder(folder)
             imap.delete(ALL, expunge=True)
-        assert imap.select_config_folder("inbox")
-        imap.delete(ALL, expunge=True)
         setattr(account, "direct_imap", imap)
 
 
