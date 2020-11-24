@@ -12,7 +12,7 @@ use crate::chat::*;
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
-use crate::dc_tools::duration_to_str;
+use crate::dc_tools::{dc_get_filebytes, duration_to_str};
 use crate::error::*;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
@@ -325,6 +325,10 @@ impl Context {
         res.insert("number_of_contacts", contacts.to_string());
         res.insert("database", self.get_dbfile().display().to_string());
         res.insert("database_version", dbversion.to_string());
+        res.insert(
+            "database_bytes",
+            dc_get_filebytes(self, self.get_dbfile()).await.to_string(),
+        );
         res.insert("journal_mode", journal_mode);
         res.insert("blobdir", self.get_blobdir().display().to_string());
         res.insert("display_name", displayname.unwrap_or_else(|| unset.into()));
@@ -596,6 +600,7 @@ mod tests {
 
         let info = t.ctx.get_info().await;
         assert!(info.get("database").is_some());
+        assert!(info.get("database_bytes").unwrap().parse::<u64>().unwrap() > 1000);
     }
 
     #[test]
@@ -603,6 +608,7 @@ mod tests {
         let info = get_info();
         assert!(info.get("deltachat_core_version").is_some());
         assert!(info.get("database").is_none());
+        assert!(info.get("database_bytes").is_none());
         assert_eq!(info.get("level").unwrap(), "awesome");
     }
 }
