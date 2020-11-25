@@ -12,7 +12,6 @@ use super::{get_folder_meaning, get_folder_meaning_by_name, FolderMeaning};
 impl Imap {
     pub async fn scan_folders(&mut self, context: &Context) -> Result<()> {
         use crate::config::Config::*;
-        warn!(context, "dbg starting scan");
 
         // First of all, debounce to once per minute:
         let mut last_scan = context.last_full_folder_scan.lock().await;
@@ -25,12 +24,14 @@ impl Imap {
 
                 if configure.elapsed().unwrap().as_secs() > 24 * 60 * 60
                     || last_scan.elapsed().as_secs() < 2
+                // For the first day after installation, only debounce to 2s
                 {
-                    warn!(context, "dbg not scanning, less than a minute elapsed");
+                    info!(context, "Not scanning, less than a minute elapsed");
                     return Ok(());
                 }
             }
         }
+        info!(context, "Starting full folder scan");
         last_scan.replace(Instant::now());
 
         self.setup_handle(context).await?;

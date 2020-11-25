@@ -565,29 +565,25 @@ impl Imap {
                 // the caller tries to fetch new messages (we could of course run a SELECT command now, but trying to fetch
                 // new messages is only one command, just as a SELECT command)
                 true
+            } else if let Some(uid_next) = mailbox.uid_next {
+                uid_next != old_uid_next // If uid_next changed, there are new emails
             } else {
-                if let Some(uid_next) = mailbox.uid_next {
-                    uid_next != old_uid_next // If uid_next changed, there are new emails
-                } else {
-                    true // No uid_next, just try to fetch
-                }
+                true
             };
             return Ok((old_uid_next, new_emails));
         }
 
-        /*         // TODO can this be safely deleted?:
-               // Check out master, remove it, and make sure that there is a test that fails*
-               if mailbox.exists == 0 {
-                   info!(context, "Folder \"{}\" is empty.", folder);
+        // // TODO can this be safely deleted?:
+        // if mailbox.exists == 0 {
+        //     info!(context, "Folder \"{}\" is empty.", folder);
 
-                   // set lastseenuid=0 for empty folders.
-                   // id we do not do this here, we'll miss the first message
-                   // as we will get in here again and fetch from lastseenuid+1 then
+        //     // set lastseenuid=0 for empty folders.
+        //     // id we do not do this here, we'll miss the first message
+        //     // as we will get in here again and fetch from lastseenuid+1 then
 
-                   set_config_last_seen_uid(context, &folder, new_uid_validity, 0).await;
-                   return Ok((0, false));
-               }
-        */
+        //     set_config_last_seen_uid(context, &folder, new_uid_validity, 0).await;
+        //     return Ok((0, false));
+        // }
 
         // uid_validity has changed or is being set the first time.
         // TODO what if UIDvalidity changed and since then new messages arrived?
@@ -1352,14 +1348,6 @@ impl Imap {
                 } else if folder_name_meaning == FolderMeaning::Spam && spam_folder.is_none() {
                     spam_folder = Some(folder.name().to_string());
                 }
-                warn!(
-                    context,
-                    "dbg folder {} has meaning {:?}/{:?}, spam_folder is {:?}",
-                    &folder.name(),
-                    &folder_meaning,
-                    &folder_name_meaning,
-                    &spam_folder
-                );
             }
             drop(folders);
 
