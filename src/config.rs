@@ -255,17 +255,6 @@ impl Context {
                 job::schedule_resync(self).await;
                 ret
             }
-            Config::InboxWatch => {
-                if self.get_config(Config::InboxWatch).await.as_deref() != value {
-                    // If Inbox-watch is disabled and enabled again, do not fetch emails from in between.
-                    // this avoids unexpected mass-downloads and -deletions (if delete_server_after is set)
-                    if let Some(inbox) = self.get_config(Config::ConfiguredInboxFolder).await {
-                        crate::imap::set_uid_next(self, &inbox, 0).await?;
-                        crate::imap::set_uidvalidity(self, &inbox, 0).await?;
-                    }
-                }
-                self.sql.set_raw_config(self, key, value).await
-            }
             _ => self.sql.set_raw_config(self, key, value).await,
         }
     }
