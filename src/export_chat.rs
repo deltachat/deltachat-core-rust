@@ -26,8 +26,8 @@ use crate::constants::Viewtype;
 use crate::contact::*;
 use crate::context::Context;
 // use crate::error::Error;
-use crate::message::*;
 use crate::dc_tools::time;
+use crate::message::*;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
@@ -42,21 +42,21 @@ use serde::Serialize;
 struct ExportChatResult {
     chat_json: String,
     // locations_geo_json: String,
-    message_info: Vec<(u32, String, Option<String>)>,
+    message_ids: Vec<MsgId>,
     referenced_blobs: Vec<String>,
 }
 
 pub async fn export_chat_to_zip(context: &Context, chat_id: ChatId, filename: &str) {
     let res = export_chat_data(&context, chat_id).await;
     let destination = std::path::Path::new(filename);
-    let pack_res = pack_exported_chat(&context, res, destination);
+    let pack_res = pack_exported_chat(&context, res, destination).await;
     match &pack_res {
         Ok(()) => println!("Exported chat successfully to {}", filename),
         Err(err) => println!("Error {:?}", err),
     };
 }
 
-fn pack_exported_chat(
+async fn pack_exported_chat(
     context: &Context,
     artifact: ExportChatResult,
     destination: &Path,
@@ -86,16 +86,14 @@ fn pack_exported_chat(
 
     zip.add_directory("msg_info/", Default::default())?;
     zip.add_directory("msg_source/", Default::default())?;
-    for msg_info in artifact.message_info {
-        zip.start_file(format!("msg_info/{}.txt", msg_info.0), options)?;
-        zip.write_all((msg_info.1).as_bytes())?;
-        if let Some(mime_headers) = msg_info.2 {
-            zip.start_file(format!("msg_source/{}.eml", msg_info.0), options)?;
+    for id in artifact.message_ids {
+        zip.start_file(format!("msg_info/{}.txt", id.to_u32()), options)?;
+        zip.write_all((get_msg_info(&context, id).await).as_bytes())?;
+        if let Some(mime_headers) = get_mime_headers(&context, id).await {
+            zip.start_file(format!("msg_source/{}.eml", id.to_u32()), options)?;
             zip.write_all((mime_headers).as_bytes())?;
         }
     }
-
-    // todo maybe memory optimisation -> load message source here and pack it directly into zip
 
     zip.finish()?;
     Ok(())
@@ -269,22 +267,20 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
         None => None,
     };
 
-    let mut message_info: Vec<(
-        u32,
-        String,         /* message info */
-        Option<String>, /* mime headers */
-    )> = Vec::new();
+    let mut message_ids: Vec<MsgId> = Vec::new();
+    for message in &messages {
+        if let Ok(msg) = &message {
+            message_ids.push(msg.id);
+        }
+    }
+    // drop(messages);
+
     let mut message_json: Vec<MessageJSON> = Vec::new();
 
     for message in &messages {
         if let Ok(msg) = &message {
             let msg_json: MessageJSON = MessageJSON::from_message(msg, &context).await;
             message_json.push(msg_json);
-            message_info.push((
-                msg.id.to_u32(),
-                get_msg_info(&context, msg.id).await,
-                get_mime_headers(&context, msg.id).await,
-            ));
         } else {
             // todo
         }
@@ -306,7 +302,7 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
     blobs.dedup();
     ExportChatResult {
         chat_json: serde_json::to_string(&chat_json).unwrap(),
-        message_info,
+        message_ids,
         referenced_blobs: blobs,
     }
 }
