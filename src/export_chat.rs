@@ -27,6 +27,7 @@ use crate::contact::*;
 use crate::context::Context;
 // use crate::error::Error;
 use crate::message::*;
+use crate::dc_tools::time;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
@@ -103,6 +104,7 @@ fn pack_exported_chat(
 #[derive(Serialize)]
 struct ChatJSON {
     chat_json_version: u8,
+    export_timestamp: i64,
     name: String,
     color: String,
     profile_img: Option<String>,
@@ -290,6 +292,7 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
 
     let chat_json = ChatJSON {
         chat_json_version: 1,
+        export_timestamp: time(),
         name: chat.get_name().to_owned(),
         color: format!("{:#}", chat.get_color(&context).await),
         profile_img: chat_avatar,
