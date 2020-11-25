@@ -45,7 +45,7 @@ struct ExportChatResult {
     referenced_blobs: Vec<String>,
 }
 
-pub async fn export_chat_to_zip(context: &Context, chat_id: ChatId, filename: &str) -> () {
+pub async fn export_chat_to_zip(context: &Context, chat_id: ChatId, filename: &str) {
     let res = export_chat_data(&context, chat_id).await;
     let destination = std::path::Path::new(filename);
     let pack_res = pack_exported_chat(&context, res, destination);
@@ -74,7 +74,7 @@ fn pack_exported_chat(
         let path = context.get_blobdir().join(&blob_name);
 
         // println!("adding file {:?} as {:?} ...", path, &blob_name);
-        zip.start_file_from_path(Path::new(&format!("blobs/{}", &blob_name)), options)?;
+        zip.start_file(format!("blobs/{}", &blob_name), options)?;
         let mut f = File::open(path)?;
 
         let mut buffer = Vec::new();
@@ -86,13 +86,10 @@ fn pack_exported_chat(
     zip.add_directory("msg_info/", Default::default())?;
     zip.add_directory("msg_source/", Default::default())?;
     for msg_info in artifact.message_info {
-        zip.start_file_from_path(Path::new(&format!("msg_info/{}.txt", msg_info.0)), options)?;
+        zip.start_file(format!("msg_info/{}.txt", msg_info.0), options)?;
         zip.write_all((msg_info.1).as_bytes())?;
         if let Some(mime_headers) = msg_info.2 {
-            zip.start_file_from_path(
-                Path::new(&format!("msg_source/{}.eml", msg_info.0)),
-                options,
-            )?;
+            zip.start_file(format!("msg_source/{}.eml", msg_info.0), options)?;
             zip.write_all((mime_headers).as_bytes())?;
         }
     }
@@ -185,10 +182,15 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
     let mut blobs = Vec::new();
     let mut chat_author_ids = Vec::new();
     // get all messages
-
-    let message_futures = get_chat_msgs(context, chat_id, 0, None)
-        .await
+    let chat_items = get_chat_msgs(context, chat_id, 0, None).await;
+    let message_futures = chat_items
+        .clone()
         .into_iter()
+        .map(|chat_item| match chat_item {
+            ChatItem::Message { msg_id } => msg_id,
+            _ => MsgId::new_unset(),
+        })
+        .filter(|msg_id| !msg_id.is_unset())
         .map(|msg_id| Message::load_from_db(context, msg_id))
         .collect::<Vec<_>>();
     let messages: Vec<std::result::Result<Message, anyhow::Error>> =
@@ -205,6 +207,7 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
         }
     }
     // deduplicate contact list and load the contacts
+    chat_author_ids.sort();
     chat_author_ids.dedup();
     // load information about the authors
     let mut chat_authors: HashMap<u32, ContactJSON> = HashMap::new();
@@ -300,7 +303,7 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
     blobs.dedup();
     ExportChatResult {
         chat_json: serde_json::to_string(&chat_json).unwrap(),
-        message_info: message_info,
+        message_info,
         referenced_blobs: blobs,
     }
 }
