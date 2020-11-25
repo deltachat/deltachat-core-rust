@@ -536,17 +536,16 @@ impl Imap {
         Ok(())
     }
 
-    /// return Result with (uid_validity, last_seen_uid, new_emails) tuple.
+    /// Select a folder and make sure that the uidvalidity has not changed.
+    /// If it has and on first
+    /// return Result with (uid_next, new_emails) tuple where uid_next is the uid we want to fetch from (not the current one)
     /// If in doubt, returns new_emails=true so emails are fetched.
     pub(crate) async fn select_with_uidvalidity(
         &mut self,
         context: &Context,
         folder: &str,
-    ) -> Result<(u32, u32, bool)> {
+    ) -> Result<(u32, bool)> {
         let newly_selected = self.select_folder(context, Some(folder)).await?;
-
-        // compare last seen UIDVALIDITY against the current one
-        let (uid_validity, last_seen_uid) = get_config_last_seen_uid(context, &folder).await;
 
         let mailbox = &mut self.config.selected_mailbox.as_ref();
         let mailbox =
@@ -556,8 +555,44 @@ impl Imap {
             .uid_validity
             .with_context(|| format!("No UIDVALIDITY for folder {}", folder))?;
 
-        //TODO in some cases we don't need largest_uid
-        let largest_uid = match mailbox.uid_next {
+        let old_uid_validity = get_uidvalidity(context, folder).await;
+        let old_uid_next = get_uid_next(context, folder).await;
+
+        if new_uid_validity == old_uid_validity {
+            let new_emails = if newly_selected == NewlySelected::No {
+                // The folder was not newly selected i.e. no SELECT command was run. This means that mailbox.uid_next
+                // was not updated and largest_uid may contain an incorrect value. So, just return true so that
+                // the caller tries to fetch new messages (we could of course run a SELECT command now, but trying to fetch
+                // new messages is only one command, just as a SELECT command)
+                true
+            } else {
+                if let Some(uid_next) = mailbox.uid_next {
+                    uid_next != old_uid_next // If uid_next changed, there are new emails
+                } else {
+                    true // No uid_next, just try to fetch
+                }
+            };
+            return Ok((old_uid_next, new_emails));
+        }
+
+        /*         // TODO can this be safely deleted?:
+               // Check out master, remove it, and make sure that there is a test that fails*
+               if mailbox.exists == 0 {
+                   info!(context, "Folder \"{}\" is empty.", folder);
+
+                   // set lastseenuid=0 for empty folders.
+                   // id we do not do this here, we'll miss the first message
+                   // as we will get in here again and fetch from lastseenuid+1 then
+
+                   set_config_last_seen_uid(context, &folder, new_uid_validity, 0).await;
+                   return Ok((0, false));
+               }
+        */
+
+        // uid_validity has changed or is being set the first time.
+        // TODO what if UIDvalidity changed and since then new messages arrived?
+        // Currently we will miss these messages
+        let new_uid_next = match mailbox.uid_next {
             Some(uid_next) => max(uid_next, 1) - 1,
             None => {
                 warn!(
@@ -587,47 +622,20 @@ impl Imap {
             }
         };
 
-        if new_uid_validity == uid_validity {
-            let new_emails = if newly_selected == NewlySelected::Yes {
-                largest_uid > last_seen_uid
-            } else {
-                true
-                // The folder was not newly selected i.e. no SELECT command was run. This means that mailbox.uid_next
-                // was not updated and largest_uid may contain an incorrect value. So, just return true so that
-                // the caller tries to fetch new messages (we could of course run a SELECT command now, but trying to fetch
-                // new messages is only one command, just as a SELECT command)
-            };
-            return Ok((uid_validity, last_seen_uid, new_emails));
-        }
-
-        if mailbox.exists == 0 {
-            info!(context, "Folder \"{}\" is empty.", folder);
-
-            // set lastseenuid=0 for empty folders.
-            // id we do not do this here, we'll miss the first message
-            // as we will get in here again and fetch from lastseenuid+1 then
-
-            set_config_last_seen_uid(context, &folder, new_uid_validity, 0).await;
-            return Ok((new_uid_validity, 0, false));
-        }
-
-        // uid_validity has changed or is being set the first time.
-        // Set the lastseen uid to the largest UID in the mailbox.
-        // TODO what if UIDvalidity changed and since then new messages arrived?
-        // Currently we will miss these messages
-        set_config_last_seen_uid(context, &folder, new_uid_validity, largest_uid).await;
-        if uid_validity != 0 || last_seen_uid != 0 {
+        set_uid_next(context, folder, new_uid_next).await?;
+        set_uidvalidity(context, folder, old_uid_validity).await?;
+        if old_uid_validity != 0 || old_uid_next != 0 {
             job::schedule_resync(context).await;
         }
         info!(
             context,
-            "uid/validity change: new {}/{} current {}/{}",
-            largest_uid,
+            "uid/validity change: new {}/{} previous {}/{}",
+            new_uid_next,
             new_uid_validity,
-            uid_validity,
-            last_seen_uid
+            old_uid_next,
+            old_uid_validity,
         );
-        Ok((new_uid_validity, largest_uid, true))
+        Ok((new_uid_next, true))
     }
 
     pub(crate) async fn fetch_new_messages<S: AsRef<str>>(
@@ -639,7 +647,7 @@ impl Imap {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await)
             .unwrap_or_default();
 
-        let (uid_validity, last_seen_uid, new_emails) = self
+        let (old_uid_next, new_emails) = self
             .select_with_uidvalidity(context, folder.as_ref())
             .await?;
 
@@ -649,16 +657,16 @@ impl Imap {
         }
 
         let msgs = if fetch_existing_msgs {
-            self.fetch_existing_msgs_prefetch().await?
+            self.prefetch_existing_msgs().await?
         } else {
-            self.fetch_after(context, last_seen_uid).await?
+            self.prefetch(context, old_uid_next).await?
         };
         let read_cnt = msgs.len();
         let folder: &str = folder.as_ref();
 
         let mut read_errors = 0;
         let mut uids = Vec::with_capacity(msgs.len());
-        let mut new_last_seen_uid = None;
+        let largest_uid = msgs.keys().last().copied(); // TODO test if this works
 
         for (current_uid, msg) in msgs.into_iter() {
             let (headers, msg_id) = match get_fetch_headers(&msg) {
@@ -685,25 +693,36 @@ impl Imap {
             {
                 // Trigger download and processing for this message.
                 uids.push(current_uid);
-            } else if read_errors == 0 {
-                // No errors so far, but this was skipped, so mark as last_seen_uid
-                new_last_seen_uid = Some(current_uid);
             }
         }
 
         // check passed, go fetch the emails
-        let (new_last_seen_uid_processed, error_cnt) = self
+        let (_, error_cnt) = self
             .fetch_many_msgs(context, &folder, &uids, fetch_existing_msgs)
             .await;
         read_errors += error_cnt;
 
         // determine which last_seen_uid to use to update  to
-        let new_last_seen_uid_processed = new_last_seen_uid_processed.unwrap_or_default();
-        let new_last_seen_uid = new_last_seen_uid.unwrap_or_default();
-        let last_one = max(new_last_seen_uid, new_last_seen_uid_processed); // TODO comment: not a semantical change but less confusing
+        let new_uid_next = max(
+            largest_uid.unwrap_or_default() + 1,
+            (self.config.selected_mailbox.as_ref())
+                .map(|m| m.uid_next)
+                .unwrap_or_default()
+                .unwrap_or_default(),
+        );
 
-        if last_one > last_seen_uid {
-            set_config_last_seen_uid(context, &folder, uid_validity, last_one).await;
+        // TODO this probably works but code style is very bad:
+        // The error_cnt == 0 condition is here because dc_receive_imf() returns an `Err` value only on recoverable
+        // errors, otherwise it just logs an error. This means that `fectch_many_msgs` will only increase the `read_errors`
+        // variable on recoverable errors and we can check the `error_cnt` to see if there was an error
+        // and if there was, not update uid_next so that the message is fetched again next time.
+        //
+        // This probably is the intended behavior, but there obviously is the problem that with there might be a message
+        // that for whatever reason causes an `Err` value to be returned every time. Before my PR, the "solution" was:
+        // Update the uid_next to the largest message uid that had NOT failed parsing. Not perfect either but maybe I should just
+        // implement a similar logic again.
+        if new_uid_next > old_uid_next && error_cnt == 0 {
+            set_uid_next(context, &folder, old_uid_next).await?;
         }
 
         if read_errors == 0 {
@@ -770,18 +789,18 @@ impl Imap {
         Ok(result)
     }
 
-    /// Fetch all uids larger than the passed in. Returns a sorted list of fetch results.
-    async fn fetch_after(
+    /// Prefetch all messages greater than or equal to `uid_next`. Return a list of fetch results.
+    async fn prefetch(
         &mut self,
         context: &Context,
-        uid: u32,
+        uid_next: u32,
     ) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
         let session = self.session.as_mut();
         let session = session.context("fetch_after(): IMAP No Connection established")?;
 
         // fetch messages with larger UID than the last one seen
         // `(UID FETCH lastseenuid+1:*)`, see RFC 4549
-        let set = format!("{}:*", uid + 1);
+        let set = format!("{}:*", uid_next);
         let mut list = session
             .uid_fetch(set, PREFETCH_FLAGS)
             .await
@@ -803,12 +822,15 @@ impl Imap {
         // See https://tools.ietf.org/html/rfc3501#page-61 for
         // standard reference. Therefore, sometimes we receive
         // already seen messages and have to filter them out.
-        let new_msgs = msgs.split_off(&(uid + 1));
+        let new_msgs = msgs.split_off(&uid_next);
 
+        // TODO Does this log add any useful information? I've seen it create confusion
+        // as people (including myself) thought that an something important was ignored.
+        // I'd like to remove it (and if not, rewrite the message)
         for current_uid in msgs.keys() {
             info!(
                 context,
-                "fetch_new_messages: ignoring uid {}, last seen was {}", current_uid, uid
+                "fetch_new_messages: ignoring uid {}, uid_next was {}", current_uid, uid_next
             );
         }
 
@@ -816,9 +838,7 @@ impl Imap {
     }
 
     /// Like fetch_after(), but not for new messages but existing ones (the DC_FETCH_EXISTING_MSGS_COUNT newest messages)
-    async fn fetch_existing_msgs_prefetch(
-        &mut self,
-    ) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
+    async fn prefetch_existing_msgs(&mut self) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
         let exists: i64 = {
             let mailbox = self.config.selected_mailbox.as_ref();
             let mailbox = mailbox.context("fetch_existing_msgs_prefetch(): no mailbox selected")?;
@@ -1797,23 +1817,6 @@ pub(crate) async fn get_uidvalidity(context: &Context, folder: &str) -> u32 {
         )
         .await
         .unwrap_or(0)
-}
-
-/// Deprecated, use set_uid_next() and set_uidvalidity()
-pub async fn set_config_last_seen_uid<S: AsRef<str>>(
-    context: &Context,
-    folder: S,
-    uidvalidity: u32,
-    lastseenuid: u32,
-) {
-    let key = format!("imap.mailbox.{}", folder.as_ref());
-    let val = format!("{}:{}", uidvalidity, lastseenuid);
-
-    context
-        .sql
-        .set_raw_config(context, &key, Some(&val))
-        .await
-        .ok();
 }
 
 /// Deprecated, use get_uid_next() and get_uidvalidity()

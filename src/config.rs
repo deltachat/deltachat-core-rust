@@ -260,7 +260,8 @@ impl Context {
                     // If Inbox-watch is disabled and enabled again, do not fetch emails from in between.
                     // this avoids unexpected mass-downloads and -deletions (if delete_server_after is set)
                     if let Some(inbox) = self.get_config(Config::ConfiguredInboxFolder).await {
-                        crate::imap::set_config_last_seen_uid(self, inbox, 0, 0).await;
+                        crate::imap::set_uid_next(self, &inbox, 0).await?;
+                        crate::imap::set_uidvalidity(self, &inbox, 0).await?;
                     }
                 }
                 self.sql.set_raw_config(self, key, value).await
