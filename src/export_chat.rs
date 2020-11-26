@@ -20,9 +20,9 @@
 //! ```
 //! [`SaveMimeHeaders`]: ../config/enum.Config.html#variant.SaveMimeHeaders
 
-use crate::constants::DC_GCM_ADDDAYMARKER;
 use crate::chat::*;
 use crate::constants::Viewtype;
+use crate::constants::DC_GCM_ADDDAYMARKER;
 use crate::contact::*;
 use crate::context::Context;
 // use crate::error::Error;
@@ -35,7 +35,6 @@ use std::path::Path;
 use zip::write::FileOptions;
 
 use crate::location::Location;
-use futures::future::join_all;
 use serde::Serialize;
 
 #[derive(Debug)]
@@ -191,31 +190,36 @@ impl ChatItemJSON {
 async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResult {
     let mut blobs = Vec::new();
     let mut chat_author_ids = Vec::new();
-    // get all messages
-    let chat_items = get_chat_msgs(context, chat_id, DC_GCM_ADDDAYMARKER, None).await;
-    let message_futures = chat_items
-        .clone()
-        .into_iter()
-        .map(|chat_item| match chat_item {
-            ChatItem::Message { msg_id } => msg_id,
-            _ => MsgId::new_unset(),
-        })
-        .filter(|msg_id| !msg_id.is_unset())
-        .map(|msg_id| Message::load_from_db(context, msg_id))
-        .collect::<Vec<_>>();
-    let messages: Vec<std::result::Result<Message, anyhow::Error>> =
-        join_all(message_futures).await;
-    // push all referenced blobs and populate contactid list
-    for message in &messages {
-        if let Ok(msg) = &message {
-            let filename = msg.get_filename();
-            if let Some(file) = filename {
-                // push referenced blobs (attachments)
-                blobs.push(file);
-            }
-            chat_author_ids.push(msg.from_id);
+    // message_ids var is used for writing message info to files
+    let mut message_ids: Vec<MsgId> = Vec::new();
+    let mut message_json: Vec<ChatItemJSON> = Vec::new();
+
+    for item in get_chat_msgs(context, chat_id, DC_GCM_ADDDAYMARKER, None).await {
+        if let Some(json_item) = match item {
+            ChatItem::Message { msg_id } => match Message::load_from_db(context, msg_id).await {
+                Ok(message) => {
+                    let filename = message.get_filename();
+                    if let Some(file) = filename {
+                        // push referenced blobs (attachments)
+                        blobs.push(file);
+                    }
+                    message_ids.push(message.id);
+                    // populate contactid list
+                    chat_author_ids.push(message.from_id);
+                    Some(ChatItemJSON::from_message(&message, &context).await)
+                }
+                Err(error_message) => Some(ChatItemJSON::MessageError {
+                    id: msg_id.to_u32(),
+                    error: error_message.to_string(),
+                }),
+            },
+            ChatItem::DayMarker { timestamp } => Some(ChatItemJSON::DayMarker { timestamp }),
+            ChatItem::Marker1 => None,
+        } {
+            message_json.push(json_item)
         }
     }
+
     // deduplicate contact list and load the contacts
     chat_author_ids.sort();
     chat_author_ids.dedup();
@@ -276,33 +280,6 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
         }
         None => None,
     };
-
-    let mut message_ids: Vec<MsgId> = Vec::new();
-    for message in &messages {
-        if let Ok(msg) = &message {
-            message_ids.push(msg.id);
-        }
-    }
-    drop(messages);
-
-    let mut message_json: Vec<ChatItemJSON> = Vec::new();
-
-    for item in chat_items {
-        let json_item_result = match item {
-            ChatItem::Message { msg_id } => match Message::load_from_db(context, msg_id).await {
-                Ok(message) => Some(ChatItemJSON::from_message(&message, &context).await),
-                Err(error_message) => Some(ChatItemJSON::MessageError {
-                    id: msg_id.to_u32(),
-                    error: error_message.to_string(),
-                }),
-            },
-            ChatItem::DayMarker { timestamp } => Some(ChatItemJSON::DayMarker { timestamp }),
-            ChatItem::Marker1 => None,
-        };
-        if let Some(json_item) = json_item_result {
-            message_json.push(json_item)
-        }
-    }
 
     let chat_json = ChatJSON {
         chat_json_version: 1,
