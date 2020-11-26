@@ -20,7 +20,7 @@
 //! ```
 //! [`SaveMimeHeaders`]: ../config/enum.Config.html#variant.SaveMimeHeaders
 
-// use crate::dc_tools::*;
+use crate::constants::DC_GCM_ADDDAYMARKER;
 use crate::chat::*;
 use crate::constants::Viewtype;
 use crate::contact::*;
@@ -107,7 +107,7 @@ struct ChatJSON {
     color: String,
     profile_img: Option<String>,
     contacts: HashMap<u32, ContactJSON>,
-    messages: Vec<MessageJSON>,
+    messages: Vec<ChatItemJSON>,
     locations: Vec<Location>,
 }
 
@@ -128,24 +128,34 @@ struct FileReference {
 }
 
 #[derive(Serialize)]
-struct MessageJSON {
-    id: u32,
-    author_id: u32, // from_id
-    view_type: Viewtype,
-    timestamp_sort: i64,
-    timestamp_sent: i64,
-    timestamp_rcvd: i64,
-    text: Option<String>,
-    attachment: Option<FileReference>,
-    location_id: Option<u32>,
-    is_info_message: bool,
-    show_padlock: bool,
+#[serde(tag = "type")]
+enum ChatItemJSON {
+    Message {
+        id: u32,
+        author_id: u32, // from_id
+        view_type: Viewtype,
+        timestamp_sort: i64,
+        timestamp_sent: i64,
+        timestamp_rcvd: i64,
+        text: Option<String>,
+        attachment: Option<FileReference>,
+        location_id: Option<u32>,
+        is_info_message: bool,
+        show_padlock: bool,
+    },
+    MessageError {
+        id: u32,
+        error: String,
+    },
+    DayMarker {
+        timestamp: i64,
+    },
 }
 
-impl MessageJSON {
-    pub async fn from_message(message: &Message, context: &Context) -> MessageJSON {
+impl ChatItemJSON {
+    pub async fn from_message(message: &Message, context: &Context) -> ChatItemJSON {
         let msg_id = message.get_id();
-        MessageJSON {
+        ChatItemJSON::Message {
             id: msg_id.to_u32(),
             author_id: message.get_from_id(), // from_id
             view_type: message.get_viewtype(),
@@ -182,7 +192,7 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
     let mut blobs = Vec::new();
     let mut chat_author_ids = Vec::new();
     // get all messages
-    let chat_items = get_chat_msgs(context, chat_id, 0, None).await;
+    let chat_items = get_chat_msgs(context, chat_id, DC_GCM_ADDDAYMARKER, None).await;
     let message_futures = chat_items
         .clone()
         .into_iter()
@@ -273,16 +283,24 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
             message_ids.push(msg.id);
         }
     }
-    // drop(messages);
+    drop(messages);
 
-    let mut message_json: Vec<MessageJSON> = Vec::new();
+    let mut message_json: Vec<ChatItemJSON> = Vec::new();
 
-    for message in &messages {
-        if let Ok(msg) = &message {
-            let msg_json: MessageJSON = MessageJSON::from_message(msg, &context).await;
-            message_json.push(msg_json);
-        } else {
-            // todo
+    for item in chat_items {
+        let json_item_result = match item {
+            ChatItem::Message { msg_id } => match Message::load_from_db(context, msg_id).await {
+                Ok(message) => Some(ChatItemJSON::from_message(&message, &context).await),
+                Err(error_message) => Some(ChatItemJSON::MessageError {
+                    id: msg_id.to_u32(),
+                    error: error_message.to_string(),
+                }),
+            },
+            ChatItem::DayMarker { timestamp } => Some(ChatItemJSON::DayMarker { timestamp }),
+            ChatItem::Marker1 => None,
+        };
+        if let Some(json_item) = json_item_result {
+            message_json.push(json_item)
         }
     }
 
