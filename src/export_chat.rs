@@ -106,6 +106,7 @@ struct ChatJSON {
     color: String,
     profile_img: Option<String>,
     contacts: HashMap<u32, ContactJSON>,
+    referenced_external_messages:Vec<ChatItemJSON>,
     messages: Vec<ChatItemJSON>,
     locations: Vec<Location>,
 }
@@ -127,6 +128,12 @@ struct FileReference {
 }
 
 #[derive(Serialize)]
+struct Qoute {
+    quoted_text: String,
+    message_id: Option<u32>,
+}
+
+#[derive(Serialize)]
 #[serde(tag = "type")]
 enum ChatItemJSON {
     Message {
@@ -141,6 +148,9 @@ enum ChatItemJSON {
         location_id: Option<u32>,
         is_info_message: bool,
         show_padlock: bool,
+        state: MessageState,
+        is_forwarded: bool,
+        quote: Option<Qoute>
     },
     MessageError {
         id: u32,
@@ -183,6 +193,21 @@ impl ChatItemJSON {
             },
             is_info_message: message.is_info(),
             show_padlock: message.get_showpadlock(),
+            state: message.get_state(),
+            is_forwarded: message.is_forwarded(),
+            quote: match message.quoted_text() {
+                Some(text) => match message.quoted_message(&context).await {
+                    Ok(Some(msg)) => Some(Qoute {
+                        quoted_text: text,
+                        message_id: Some(msg.get_id().to_u32())
+                    }),
+                    Err(_) | Ok(None) => Some(Qoute {
+                        quoted_text: text,
+                        message_id: None
+                    })
+                }
+                None => None
+            }
         }
     }
 }
@@ -193,6 +218,7 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
     // message_ids var is used for writing message info to files
     let mut message_ids: Vec<MsgId> = Vec::new();
     let mut message_json: Vec<ChatItemJSON> = Vec::new();
+    let mut referenced_external_messages: Vec<ChatItemJSON> = Vec::new();
 
     for item in get_chat_msgs(context, chat_id, DC_GCM_ADDDAYMARKER, None).await {
         if let Some(json_item) = match item {
@@ -206,6 +232,15 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
                     message_ids.push(message.id);
                     // populate contactid list
                     chat_author_ids.push(message.from_id);
+
+                    if let Ok(Some(ex_msg)) = message.quoted_message(&context).await {
+                        if ex_msg.get_chat_id() != chat_id {
+                            // if external add it to the file
+                            referenced_external_messages.push(ChatItemJSON::from_message(&ex_msg, &context).await)
+                            // contacts don't need to be referenced, because these should only be private replies
+                        }
+                    }
+
                     Some(ChatItemJSON::from_message(&message, &context).await)
                 }
                 Err(error_message) => Some(ChatItemJSON::MessageError {
@@ -288,6 +323,7 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
         color: format!("{:#}", chat.get_color(&context).await),
         profile_img: chat_avatar,
         contacts: chat_authors,
+        referenced_external_messages,
         messages: message_json,
         locations: crate::location::get_range(&context, chat_id, 0, 0, crate::dc_tools::time())
             .await,
