@@ -538,13 +538,13 @@ impl Imap {
 
     /// Select a folder and make sure that the uidvalidity has not changed.
     /// If it has and on first
-    /// return Result with (uid_next, new_emails) tuple where uid_next is the uid we want to fetch from (not the current one)
+    /// return Result with new_emails (i.e. whether new emails arrived)
     /// If in doubt, returns new_emails=true so emails are fetched.
     pub(crate) async fn select_with_uidvalidity(
         &mut self,
         context: &Context,
         folder: &str,
-    ) -> Result<(u32, bool)> {
+    ) -> Result<bool> {
         let newly_selected = self.select_folder(context, Some(folder)).await?;
 
         let mailbox = &mut self.config.selected_mailbox.as_ref();
@@ -570,7 +570,7 @@ impl Imap {
             } else {
                 true
             };
-            return Ok((old_uid_next, new_emails));
+            return Ok(new_emails);
         }
 
         // // TODO can this be safely deleted?:
@@ -585,7 +585,8 @@ impl Imap {
         //     return Ok((0, false));
         // }
 
-        // uid_validity has changed or is being set the first time.
+        // ==============  uid_validity has changed or is being set the first time.  ==============
+
         // TODO what if UIDvalidity changed and since then new messages arrived?
         // Currently we will miss these messages
         let new_uid_next = match mailbox.uid_next {
@@ -631,7 +632,7 @@ impl Imap {
             old_uid_next,
             old_uid_validity,
         );
-        Ok((new_uid_next, true))
+        Ok(true)
     }
 
     pub(crate) async fn fetch_new_messages<S: AsRef<str>>(
@@ -643,7 +644,7 @@ impl Imap {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await)
             .unwrap_or_default();
 
-        let (old_uid_next, new_emails) = self
+        let new_emails = self
             .select_with_uidvalidity(context, folder.as_ref())
             .await?;
 
@@ -651,6 +652,8 @@ impl Imap {
             info!(context, "No new emails in folder {}", folder.as_ref());
             return Ok(false);
         }
+
+        let old_uid_next = get_uid_next(context, folder.as_ref()).await;
 
         let msgs = if fetch_existing_msgs {
             self.prefetch_existing_msgs().await?
@@ -707,7 +710,7 @@ impl Imap {
                 .unwrap_or_default(),
         );
 
-        // TODO this probably works but code style is very bad:
+        // TODO:
         // The error_cnt == 0 condition is here because dc_receive_imf() returns an `Err` value only on recoverable
         // errors, otherwise it just logs an error. This means that `fectch_many_msgs` will only increase the `read_errors`
         // variable on recoverable errors and we can check the `error_cnt` to see if there was an error
@@ -716,7 +719,10 @@ impl Imap {
         // This probably is the intended behavior, but there obviously is the problem that with there might be a message
         // that for whatever reason causes an `Err` value to be returned every time. Before my PR, the "solution" was:
         // Update the uid_next to the largest message uid that had NOT failed parsing. Not perfect either but maybe I should just
-        // implement a similar logic again.
+        // implement a similar logic again?
+        //
+        // Also, code style is bad because to understand this code, one needs to know that dc_receive_imf() returns `Err` only
+        // on recoverable errors.
         if new_uid_next > old_uid_next && error_cnt == 0 {
             set_uid_next(context, &folder, old_uid_next).await?;
         }
@@ -1731,6 +1737,7 @@ fn get_fallback_folder(delimiter: &str) -> String {
 
 /// uid_next is the next unique identifier value from the last time we fetched a folder
 /// See https://tools.ietf.org/html/rfc3501#section-2.3.1.1
+/// This function is used to update our uid_next after fetching messages.
 pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32) -> Result<()> {
     // TODO I found lots of opinions on how I should update and if it doesn't exist, then insert
     // and I rather randomly chose this one:
@@ -1755,6 +1762,9 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
 
 /// uid_next is the next unique identifier value from the last time we fetched a folder
 /// See https://tools.ietf.org/html/rfc3501#section-2.3.1.1
+/// This method returns the uid_next from the last time we fetched messages.
+/// We can compare this to the current uid_next to find out whether there are new messages
+/// and fetch from this value on to get all new messages.
 pub(crate) async fn get_uid_next(context: &Context, folder: &str) -> u32 {
     context
         .sql
