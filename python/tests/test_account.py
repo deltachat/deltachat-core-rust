@@ -1357,11 +1357,11 @@ class TestOnlineAccount:
             assert os.path.exists(path)
 
             # check progress events for export
-            imex_tracker.wait_progress(1, progress_upper_limit=249)
-            imex_tracker.wait_progress(250, progress_upper_limit=499)
-            imex_tracker.wait_progress(500, progress_upper_limit=749)
-            imex_tracker.wait_progress(750, progress_upper_limit=999)
-            imex_tracker.wait_progress(1000)
+            assert imex_tracker.wait_progress(1, progress_upper_limit=249)
+            assert imex_tracker.wait_progress(250, progress_upper_limit=499)
+            assert imex_tracker.wait_progress(500, progress_upper_limit=749)
+            assert imex_tracker.wait_progress(750, progress_upper_limit=999)
+            assert imex_tracker.wait_progress(1000)
 
         t = time.time()
 
@@ -1377,10 +1377,10 @@ class TestOnlineAccount:
             ac2.import_all(path)
 
             # check progress events for import
-            imex_tracker.wait_progress(1, progress_upper_limit=249)
-            imex_tracker.wait_progress(500, progress_upper_limit=749)
-            imex_tracker.wait_progress(750, progress_upper_limit=999)
-            imex_tracker.wait_progress(1000)
+            assert imex_tracker.wait_progress(1, progress_upper_limit=249)
+            assert imex_tracker.wait_progress(500, progress_upper_limit=749)
+            assert imex_tracker.wait_progress(750, progress_upper_limit=999)
+            assert imex_tracker.wait_progress(1000)
 
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1

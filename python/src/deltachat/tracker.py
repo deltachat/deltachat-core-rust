@@ -27,7 +27,7 @@ class ImexTracker:
                 assert ev <= progress_upper_limit, \
                     str(ev) + " exceeded upper progress limit " + str(progress_upper_limit)
                 return ev
-            if ev == 1000 or ev == 0:
+            if ev == 0:
                 return None
 
     def wait_finish(self, progress_timeout=60):
