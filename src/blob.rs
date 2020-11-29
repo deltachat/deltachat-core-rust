@@ -380,14 +380,13 @@ impl<'a> BlobObject<'a> {
     pub async fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
         let blob_abs = self.to_abs_path();
 
-        let img_wh = if MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
-            .unwrap_or_default()
-            == MediaQuality::Balanced
-        {
-            BALANCED_AVATAR_SIZE
-        } else {
-            WORSE_AVATAR_SIZE
-        };
+        let img_wh =
+            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+                .unwrap_or_default()
+            {
+                MediaQuality::Balanced => BALANCED_AVATAR_SIZE,
+                MediaQuality::Worse => WORSE_AVATAR_SIZE,
+            };
 
         self.recode_to_size(context, blob_abs, img_wh).await
     }
@@ -400,14 +399,13 @@ impl<'a> BlobObject<'a> {
             return Ok(());
         }
 
-        let img_wh = if MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
-            .unwrap_or_default()
-            == MediaQuality::Balanced
-        {
-            BALANCED_IMAGE_SIZE
-        } else {
-            WORSE_IMAGE_SIZE
-        };
+        let img_wh =
+            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+                .unwrap_or_default()
+            {
+                MediaQuality::Balanced => BALANCED_IMAGE_SIZE,
+                MediaQuality::Worse => WORSE_IMAGE_SIZE,
+            };
 
         self.recode_to_size(context, blob_abs, img_wh).await
     }
