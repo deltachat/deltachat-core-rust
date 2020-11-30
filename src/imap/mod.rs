@@ -568,7 +568,7 @@ impl Imap {
             } else if let Some(uid_next) = mailbox.uid_next {
                 uid_next != old_uid_next // If uid_next changed, there are new emails
             } else {
-                true
+                true // We have no uid_next and if in doubt, return true
             };
             return Ok(new_emails);
         }
@@ -620,13 +620,14 @@ impl Imap {
         };
 
         set_uid_next(context, folder, new_uid_next).await?;
-        set_uidvalidity(context, folder, old_uid_validity).await?;
+        set_uidvalidity(context, folder, new_uid_validity).await?;
         if old_uid_validity != 0 || old_uid_next != 0 {
             job::schedule_resync(context).await;
         }
         info!(
             context,
-            "uid/validity change: new {}/{} previous {}/{}",
+            "uid/validity change folder {}: new {}/{} previous {}/{}",
+            folder,
             new_uid_next,
             new_uid_validity,
             old_uid_next,
@@ -716,15 +717,15 @@ impl Imap {
         // variable on recoverable errors and we can check the `error_cnt` to see if there was an error
         // and if there was, not update uid_next so that the message is fetched again next time.
         //
-        // This probably is the intended behavior, but there obviously is the problem that with there might be a message
-        // that for whatever reason causes an `Err` value to be returned every time. Before my PR, the "solution" was:
+        // Problem: There might be a message
+        // that for whatever reason causes an `Err` value to be returned every time. Before my PR, the solution was:
         // Update the uid_next to the largest message uid that had NOT failed parsing. Not perfect either but maybe I should just
         // implement a similar logic again?
         //
         // Also, code style is bad because to understand this code, one needs to know that dc_receive_imf() returns `Err` only
         // on recoverable errors.
         if new_uid_next > old_uid_next && error_cnt == 0 {
-            set_uid_next(context, &folder, old_uid_next).await?;
+            set_uid_next(context, &folder, new_uid_next).await?;
         }
 
         if read_errors == 0 {
@@ -1835,6 +1836,7 @@ pub async fn get_config_last_seen_uid<S: AsRef<str>>(context: &Context, folder: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*;
     #[test]
     fn test_get_folder_meaning_by_name() {
         assert_eq!(
@@ -1859,5 +1861,21 @@ mod tests {
         );
         assert_eq!(get_folder_meaning_by_name("xxx"), FolderMeaning::Unknown);
         assert_eq!(get_folder_meaning_by_name("SPAM"), FolderMeaning::Spam);
+    }
+
+    #[async_std::test]
+    async fn test_set_uid_next_validity() {
+        let t = TestContext::new_alice().await;
+        assert_eq!(get_uid_next(&t.ctx, "Inbox").await, 0);
+        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await, 0);
+
+        set_uidvalidity(&t.ctx, "Inbox", 7).await.unwrap();
+        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await, 7);
+        assert_eq!(get_uid_next(&t.ctx, "Inbox").await, 0);
+
+        set_uid_next(&t.ctx, "Inbox", 5).await.unwrap();
+        set_uidvalidity(&t.ctx, "Inbox", 6).await.unwrap();
+        assert_eq!(get_uid_next(&t.ctx, "Inbox").await, 5);
+        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await, 6);
     }
 }
