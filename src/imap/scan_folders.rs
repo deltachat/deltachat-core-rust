@@ -74,7 +74,7 @@ impl Imap {
             }
 
             if let Err(e) = self.fetch_new_messages(context, foldername, false).await {
-                warn!(context, "Can't fetch new msgs in scanned folder: {}", e);
+                warn!(context, "Can't fetch new msgs in scanned folder: {:#}", e);
             }
             // let last_uidnext: u32 = context
             //     .sql

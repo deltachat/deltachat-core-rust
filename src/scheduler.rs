@@ -117,7 +117,7 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
                 connection.trigger_reconnect();
-                warn!(ctx, "{}", err);
+                warn!(ctx, "{:#}", err);
             }
         }
         None => {
@@ -139,7 +139,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
                 connection.trigger_reconnect();
-                warn!(ctx, "{}", err);
+                warn!(ctx, "{:#}", err);
             }
 
             if let Err(err) = connection.scan_folders(&ctx).await {

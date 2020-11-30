@@ -590,16 +590,13 @@ impl Imap {
         // TODO what if UIDvalidity changed and since then new messages arrived?
         // Currently we will miss these messages
         let new_uid_next = match mailbox.uid_next {
-            Some(uid_next) => max(uid_next, 1) - 1,
+            Some(uid_next) => uid_next,
             None => {
                 warn!(
                     context,
                     "IMAP folder has no uid_next, fall back to fetching"
                 );
-                let session = self
-                    .session
-                    .as_mut()
-                    .context("select: IMAP No Connection established")?;
+                let session = self.session.as_mut().context("Get uid_next: Nosession")?;
                 // note that we use fetch by sequence number
                 // and thus we only need to get exactly the
                 // last-index message.
@@ -607,7 +604,7 @@ impl Imap {
                 let mut list = session
                     .fetch(set, JUST_UID)
                     .await
-                    .map_err(|e| format_err!("select: IMAP Could not fetch: {}", e))?;
+                    .context("Error fetching UID")?;
 
                 let mut new_last_seen_uid = None;
                 while let Some(fetch) = list.next().await.transpose()? {
@@ -615,7 +612,7 @@ impl Imap {
                         new_last_seen_uid = fetch.uid;
                     }
                 }
-                new_last_seen_uid.context("select: failed to fetch")?
+                new_last_seen_uid.context("select: failed to fetch")? - 1
             }
         };
 
