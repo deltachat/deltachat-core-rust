@@ -76,11 +76,9 @@ impl MsgId {
         Ok(result)
     }
 
-    /// Returns true if the message needs to be moved from `folder`.
-    /// If yes, returns `ConfiguredInboxFolder` or `ConfiguredMvboxFolder`, depending
-    /// on where the message should be moved
-    ///
-    /// If you already have it, you can pass a Message to `msg` to speed things up. TODO not implemented
+    /// Returns Some if the message needs to be moved from `folder`.
+    /// If yes, returns `ConfiguredInboxFolder`, `ConfiguredMvboxFolder` or `ConfiguredSentboxFolder`,
+    /// depending on where the message should be moved
     pub async fn needs_move(
         self,
         context: &Context,
@@ -91,7 +89,7 @@ impl MsgId {
             return Ok(None);
         }
 
-        let msg = Message::load_from_db(context, self).await?; // TODO sometimes not needed
+        let msg = Message::load_from_db(context, self).await?;
 
         if context.is_spam_folder(folder).await {
             return if msg.chat_blocked == Blocked::Not {

@@ -47,9 +47,8 @@ impl Imap {
 
             let folder_meaning = get_folder_meaning(&folder);
             let folder_name_meaning = get_folder_meaning_by_name(&foldername);
-            // TODO largely the same as in configure_folders
-            // TODO if there are two folders with the \Sent flag, then the sentfolder will change all the time
-            // (maybe not even that bad)
+            // If there are two folders with the \Sent or \Spam flag, then the sent/spam folder will change all the time.
+            // This should not be a problem though, worst thing that can happen is that messages are moved to different folders.
             if folder_meaning == FolderMeaning::SentObjects {
                 context
                     .set_config(ConfiguredSentboxFolder, Some(folder.name()))
