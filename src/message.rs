@@ -95,7 +95,7 @@ impl MsgId {
 
         if context.is_spam_folder(folder).await {
             return if msg.chat_blocked == Blocked::Not {
-                if self.needs_move_to_mvbox(context, folder, &msg).await? {
+                if self.needs_move_to_mvbox(context, &msg).await? {
                     Ok(Some(ConfiguredMvboxFolder))
                 } else {
                     Ok(Some(ConfiguredInboxFolder))
@@ -106,24 +106,25 @@ impl MsgId {
             };
         }
 
-        if self.needs_move_to_mvbox(context, folder, &msg).await? {
+        if self.needs_move_to_mvbox(context, &msg).await? {
             Ok(Some(ConfiguredMvboxFolder))
         } else {
-            Ok(None) // TODO here we could move self-sent, non-setupmessage chat messages to the Sent folder if `mvbox_move` is off
+            if msg.state.is_outgoing()
+                && msg.is_dc_message == MessengerMessage::Yes
+                && !msg.is_setupmessage()
+                && msg.to_id != DC_CONTACT_ID_SELF // Leave self-chat-messages in the inbox, not sure about this
+                && context.is_inbox(folder).await
+                && context.get_config(ConfiguredSentboxFolder).await.is_some()
+            {
+                Ok(Some(ConfiguredSentboxFolder))
+            } else {
+                Ok(None)
+            }
         }
     }
 
-    async fn needs_move_to_mvbox(
-        self,
-        context: &Context,
-        folder: &str,
-        msg: &Message,
-    ) -> Result<bool, Error> {
+    async fn needs_move_to_mvbox(self, context: &Context, msg: &Message) -> Result<bool, Error> {
         if !context.get_config_bool(Config::MvboxMove).await {
-            return Ok(false);
-        }
-
-        if context.is_mvbox(folder).await {
             return Ok(false);
         }
 
@@ -1968,7 +1969,10 @@ mod tests {
 
     #[async_std::test]
     async fn test_needs_move_incoming_deaddrop() {
-        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_DEADDROP {
+        for (folder, mvbox_move, chat_msg, mut expected_destination) in COMBINATIONS_DEADDROP {
+            if *folder == "INBOX" && !mvbox_move && *chat_msg {
+                expected_destination = "Sent"
+            }
             check_needs_move_combination(
                 folder,
                 *mvbox_move,
@@ -1991,7 +1995,7 @@ mod tests {
                 *mvbox_move,
                 *chat_msg,
                 expected_destination,
-                true, // Actually this could as well be true, chats for outgoing messages are always accepted
+                true,
                 true,
                 false,
             )

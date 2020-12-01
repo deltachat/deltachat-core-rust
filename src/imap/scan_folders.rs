@@ -76,26 +76,6 @@ impl Imap {
             if let Err(e) = self.fetch_new_messages(context, foldername, false).await {
                 warn!(context, "Can't fetch new msgs in scanned folder: {:#}", e);
             }
-            // let last_uidnext: u32 = context
-            //     .sql
-            //     .query_get_value_result(
-            //         "SELECT last_uidnext FROM imap_sync WHERE folder=?;",
-            //         paramsv![foldername],
-            //     )
-            //     .await?
-            //     .unwrap_or_default();
-            // if mailbox.uid_next.unwrap() != last_uidnext {
-            //     //TODO rm unwrap
-            //     self.fetch_new_messages(context, foldername, false).await?;
-
-            //     context
-            //         .sql
-            //         .execute(
-            //             "UPDATE imap_sync SET last_uidnext=? WHERE folder=?;",
-            //             paramsv![last_uidnext, foldername],
-            //         )
-            //         .await?;
-            // }
         }
         Ok(())
     }
