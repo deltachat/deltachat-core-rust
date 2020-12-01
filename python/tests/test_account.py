@@ -6,6 +6,7 @@ import queue
 import time
 from deltachat import const, Account
 from deltachat.message import Message
+from deltachat.tracker import ImexTracker
 from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
 
@@ -1337,18 +1338,31 @@ class TestOnlineAccount:
         m = message_queue.get()
         assert m == msg_in
 
-    def test_import_export_online_all(self, acfactory, tmpdir, lp):
+    def test_import_export_online_all(self, acfactory, tmpdir, data, lp):
         ac1 = acfactory.get_one_online_account()
 
         lp.sec("create some chat content")
-        contact1 = ac1.create_contact("some1@example.org", name="some1")
-        contact1.create_chat().send_text("msg1")
+        chat1 = ac1.create_contact("some1@example.org", name="some1").create_chat()
+        chat1.send_text("msg1")
         assert len(ac1.get_contacts(query="some1")) == 1
+
+        original_image_path = data.get_path("d.png")
+        chat1.send_image(original_image_path)
+
         backupdir = tmpdir.mkdir("backup")
 
         lp.sec("export all to {}".format(backupdir))
-        path = ac1.export_all(backupdir.strpath)
-        assert os.path.exists(path)
+        with ac1.temp_plugin(ImexTracker()) as imex_tracker:
+            path = ac1.export_all(backupdir.strpath)
+            assert os.path.exists(path)
+
+            # check progress events for export
+            assert imex_tracker.wait_progress(1, progress_upper_limit=249)
+            assert imex_tracker.wait_progress(250, progress_upper_limit=499)
+            assert imex_tracker.wait_progress(500, progress_upper_limit=749)
+            assert imex_tracker.wait_progress(750, progress_upper_limit=999)
+            assert imex_tracker.wait_progress(1000)
+
         t = time.time()
 
         lp.sec("get fresh empty account")
@@ -1359,15 +1373,25 @@ class TestOnlineAccount:
         assert path2 == path
 
         lp.sec("import backup and check it's proper")
-        ac2.import_all(path)
+        with ac2.temp_plugin(ImexTracker()) as imex_tracker:
+            ac2.import_all(path)
+
+            # check progress events for import
+            assert imex_tracker.wait_progress(1, progress_upper_limit=249)
+            assert imex_tracker.wait_progress(500, progress_upper_limit=749)
+            assert imex_tracker.wait_progress(750, progress_upper_limit=999)
+            assert imex_tracker.wait_progress(1000)
+
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
         contact2 = contacts[0]
         assert contact2.addr == "some1@example.org"
         chat2 = contact2.create_chat()
         messages = chat2.get_messages()
-        assert len(messages) == 1
+        assert len(messages) == 2
         assert messages[0].text == "msg1"
+        assert messages[1].filemime == "image/png"
+        assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
 
         # wait until a second passed since last backup
         # because get_latest_backupfile() shall return the latest backup
