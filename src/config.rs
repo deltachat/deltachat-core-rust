@@ -219,7 +219,7 @@ impl Context {
                 match value {
                     Some(value) => {
                         let blob = BlobObject::new_from_path(&self, value).await?;
-                        blob.recode_to_avatar_size(self)?;
+                        blob.recode_to_avatar_size(self).await?;
                         self.sql
                             .set_raw_config(self, key, Some(blob.as_name()))
                             .await
@@ -279,7 +279,7 @@ mod tests {
     use std::string::ToString;
 
     use crate::constants;
-    use crate::constants::AVATAR_SIZE;
+    use crate::constants::BALANCED_AVATAR_SIZE;
     use crate::test_utils::*;
     use image::GenericImageView;
     use num_traits::FromPrimitive;
@@ -328,8 +328,8 @@ mod tests {
         assert_eq!(img.height(), 1000);
 
         let img = image::open(avatar_blob).unwrap();
-        assert_eq!(img.width(), AVATAR_SIZE);
-        assert_eq!(img.height(), AVATAR_SIZE);
+        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
+        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
     }
 
     #[async_std::test]
@@ -354,8 +354,8 @@ mod tests {
         assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
 
         let img = image::open(avatar_src).unwrap();
-        assert_eq!(img.width(), AVATAR_SIZE);
-        assert_eq!(img.height(), AVATAR_SIZE);
+        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
+        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
     }
 
     #[async_std::test]

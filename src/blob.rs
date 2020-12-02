@@ -377,27 +377,18 @@ impl<'a> BlobObject<'a> {
         true
     }
 
-    pub fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
+    pub async fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
         let blob_abs = self.to_abs_path();
-        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err,
-        })?;
 
-        if img.width() <= AVATAR_SIZE && img.height() <= AVATAR_SIZE {
-            return Ok(());
-        }
+        let img_wh =
+            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+                .unwrap_or_default()
+            {
+                MediaQuality::Balanced => BALANCED_AVATAR_SIZE,
+                MediaQuality::Worse => WORSE_AVATAR_SIZE,
+            };
 
-        let img = img.thumbnail(AVATAR_SIZE, AVATAR_SIZE);
-
-        img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err.into(),
-        })?;
-
-        Ok(())
+        self.recode_to_size(context, blob_abs, img_wh).await
     }
 
     pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
@@ -408,38 +399,56 @@ impl<'a> BlobObject<'a> {
             return Ok(());
         }
 
-        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
+        let img_wh =
+            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+                .unwrap_or_default()
+            {
+                MediaQuality::Balanced => BALANCED_IMAGE_SIZE,
+                MediaQuality::Worse => WORSE_IMAGE_SIZE,
+            };
+
+        self.recode_to_size(context, blob_abs, img_wh).await
+    }
+
+    async fn recode_to_size(
+        &self,
+        context: &Context,
+        blob_abs: PathBuf,
+        img_wh: u32,
+    ) -> Result<(), BlobError> {
+        let mut img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
             cause: err,
         })?;
+        let orientation = self.get_exif_orientation(context);
 
-        let img_wh = if MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
-            .unwrap_or_default()
-            == MediaQuality::Balanced
-        {
-            BALANCED_IMAGE_SIZE
-        } else {
-            WORSE_IMAGE_SIZE
+        let do_scale = img.width() > img_wh || img.height() > img_wh;
+        let do_rotate = match orientation {
+            Ok(90) | Ok(180) | Ok(270) => true,
+            _ => false,
         };
 
-        if img.width() <= img_wh && img.height() <= img_wh {
-            return Ok(());
-        }
+        if do_scale || do_rotate {
+            if do_scale {
+                img = img.thumbnail(img_wh, img_wh);
+            }
 
-        let mut img = img.thumbnail(img_wh, img_wh);
-        match self.get_exif_orientation(context) {
-            Ok(90) => img = img.rotate90(),
-            Ok(180) => img = img.rotate180(),
-            Ok(270) => img = img.rotate270(),
-            _ => {}
-        }
+            if do_rotate {
+                img = match orientation {
+                    Ok(90) => img.rotate90(),
+                    Ok(180) => img.rotate180(),
+                    Ok(270) => img.rotate270(),
+                    _ => img,
+                }
+            }
 
-        img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err.into(),
-        })?;
+            img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
+                blobdir: context.get_blobdir().to_path_buf(),
+                blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+                cause: err.into(),
+            })?;
+        }
 
         Ok(())
     }

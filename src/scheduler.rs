@@ -147,6 +147,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 // but maybe there is a problem with maybe_fetch_all_folders() (at least that's the idea)
                 warn!(ctx, "{}", err);
             }
+            info!(ctx, "verbose (issue 2065): step 1 done fetching");
 
             // idle
             if connection.can_idle() {

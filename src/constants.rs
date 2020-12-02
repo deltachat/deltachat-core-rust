@@ -196,7 +196,8 @@ pub const DC_LP_AUTH_FLAGS: i32 = DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL;
 pub const DC_FETCH_EXISTING_MSGS_COUNT: i64 = 100;
 
 // max. width/height of an avatar
-pub const AVATAR_SIZE: u32 = 192;
+pub const BALANCED_AVATAR_SIZE: u32 = 256;
+pub const WORSE_AVATAR_SIZE: u32 = 128;
 
 // max. width/height of images
 pub const BALANCED_IMAGE_SIZE: u32 = 1280;
