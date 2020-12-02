@@ -1,0 +1,31 @@
+Subject: Test encoded-words
+Message-ID: 123456@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+Chat-Version: 1.0
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/mixed; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+testing encoded-words filenames with windows-1251 (cyrillic) encoding.
+
+as a side-effect, this also tests that encoded words work together with
+plain text as long as they're separated by spaces, see
+https://tools.ietf.org/html/rfc2047 5.1:
+
+"Ordinary ASCII text and 'encoded-word's may appear together in the
+same header field.  However, an 'encoded-word' that appears in a
+header field defined as '*text' MUST be separated from any adjacent
+'encoded-word' or 'text' by 'linear-white-space'."
+
+--==BREAK==
+Content-Type: text/html
+Content-Disposition: attachment; filename="file =?Windows-1251?B?1/LuIO3u4u7j7g==?= 2020.pdf";
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--==BREAK==--
