@@ -26,6 +26,7 @@ use crate::param::*;
 use crate::peerstate::Peerstate;
 use crate::simplify::*;
 use crate::stock::StockMessage;
+use percent_encoding::percent_decode_str;
 
 /// A parsed MIME message.
 ///
@@ -1275,46 +1276,68 @@ fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
 /// not specified, filename is guessed. If Content-Disposition cannot
 /// be parsed, returns an error.
 fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String>> {
-    // try to get file name from
-    //    `Content-Disposition: ... filename*=...`
-    // or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
-    // or `Content-Disposition: ... filename=...`
-
     let ct = mail.get_content_disposition();
 
-    let desired_filename: Option<String> = ct
-        .params
-        .iter()
-        .filter(|(key, _value)| key.starts_with("filename"))
-        .fold(None, |acc, (_key, value)| {
-            if let Some(acc) = acc {
-                Some(acc + value)
-            } else {
-                Some(value.to_string())
-            }
-        });
+    // try to get file name as "encoded-words" from
+    // `Content-Disposition: ... filename=...`
+    let mut desired_filename = ct.params.get("filename").map(|s| s.to_string());
 
-    let desired_filename =
-        desired_filename.or_else(|| ct.params.get("name").map(|s| s.to_string()));
+    // try to get file name from
+    // `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
+    // encoded as CHARSET'LANG'test%2E%70%64%66 (key ends with `*`)
+    // or as "encoded-words" (key does not end with `*`)
+    if desired_filename.is_none() {
+        let mut apostrophe_encoded = false;
+        desired_filename = ct
+            .params
+            .iter()
+            .filter(|(key, _value)| key.starts_with("filename"))
+            .fold(None, |acc, (key, value)| {
+                if key.ends_with('*') {
+                    apostrophe_encoded = true;
+                }
+                if let Some(acc) = acc {
+                    Some(acc + value)
+                } else {
+                    Some(value.to_string())
+                }
+            });
+        if apostrophe_encoded {
+            // we're currently always assuming utf-8, this might need adaption, however, should not break things.
+            if let Some(name) = desired_filename {
+                desired_filename = if let Some(name) = name.splitn(3, '\'').last() {
+                    Some(percent_decode_str(&name).decode_utf8_lossy().to_string())
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    // if no filename is set, try `Content-Disposition: ... name=...`
+    if desired_filename.is_none() {
+        desired_filename = ct.params.get("name").map(|s| s.to_string());
+    }
 
     // MS Outlook is known to specify filename in the "name" attribute of
     // Content-Type and omit Content-Disposition.
-    let desired_filename =
-        desired_filename.or_else(|| mail.ctype.params.get("name").map(|s| s.to_string()));
+    if desired_filename.is_none() {
+        desired_filename = mail.ctype.params.get("name").map(|s| s.to_string());
+    }
 
     // If there is no filename, but part is an attachment, guess filename
-    if ct.disposition == DispositionType::Attachment && desired_filename.is_none() {
+    if desired_filename.is_none() && ct.disposition == DispositionType::Attachment {
         if let Some(subtype) = mail.ctype.mimetype.split('/').nth(1) {
-            Ok(Some(format!("file.{}", subtype,)))
+            desired_filename = Some(format!("file.{}", subtype,));
         } else {
             bail!(
                 "could not determine attachment filename: {:?}",
                 ct.disposition
             );
-        }
-    } else {
-        Ok(desired_filename)
+        };
     }
+
+    Ok(desired_filename)
 }
 
 /// Returned addresses are normalized and lowercased.
@@ -1369,6 +1392,7 @@ mod tests {
 
     use super::*;
     use crate::test_utils::*;
+    use mailparse::ParsedMail;
 
     impl AvatarAction {
         pub fn is_change(&self) -> bool {
@@ -1438,16 +1462,51 @@ mod tests {
         assert!(is_attachment_disposition(&mail.subparts[1]));
     }
 
-    #[test]
-    fn test_get_attachment_filename() {
-        let raw = include_bytes!("../test-data/message/html_attach.eml");
+    fn load_mail_with_attachment(raw: &[u8]) -> ParsedMail {
         let mail = mailparse::parse_mail(raw).unwrap();
         assert!(get_attachment_filename(&mail).unwrap().is_none());
         assert!(get_attachment_filename(&mail.subparts[0])
             .unwrap()
             .is_none());
+        mail
+    }
+
+    #[test]
+    fn test_get_attachment_filename() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_simple.eml"
+        ));
         let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("test.html".to_string()))
+    }
+
+    #[test]
+    fn test_get_attachment_filename_encoded_words() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
+    }
+
+    #[test]
+    fn test_get_attachment_filename_encoded_words_cont() {
+        // test continued encoded-words and also test apostropes work that way
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words_cont.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßn'ah'men Okt. 2020.html".to_string()))
+    }
+
+    #[test]
+    fn test_get_attachment_filename_combined() {
+        // test that if `filename` and `filename*0` are given, the filename is not doubled
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_combined.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
     }
 
     #[test]

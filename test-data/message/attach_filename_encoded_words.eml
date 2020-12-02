@@ -1,0 +1,23 @@
+Subject: Test encoded-words filenames
+Message-ID: 123456@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+Chat-Version: 1.0
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/mixed; boundary="mwkNRwabw1M5n2xcr2ODfAqvTjcj9Z"
+
+
+--mwkNRwabw1M5n2xcr2ODfAqvTjcj9Z
+Content-Type: text/plain; charset=utf-8
+
+-- 
+Sent with my Delta Chat Messenger: https://delta.chat
+
+--mwkNRwabw1M5n2xcr2ODfAqvTjcj9Z
+Content-Type: text/html
+Content-Disposition: attachment; filename="=?utf-8?Q?Ma=C3=9Fnahmen_Okt=2E_2020=2Ehtml?=";
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--mwkNRwabw1M5n2xcr2ODfAqvTjcj9Z--
