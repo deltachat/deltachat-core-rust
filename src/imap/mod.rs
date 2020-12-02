@@ -578,7 +578,7 @@ impl Imap {
             // set uid_next=1 for empty folders.
             // If we do not do this here, we'll miss the first message
             // as we will get in here again and fetch from uid_next then.
-            // Also, the fetching fallback below needs a non-zero mailbox.exists to work.
+            // Also, the fall back to fetching below needs a non-zero mailbox.exists to work.
 
             set_uid_next(context, folder, 1).await?;
             set_uidvalidity(context, folder, new_uid_validity).await?;

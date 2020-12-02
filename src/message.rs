@@ -106,18 +106,16 @@ impl MsgId {
 
         if self.needs_move_to_mvbox(context, &msg).await? {
             Ok(Some(ConfiguredMvboxFolder))
-        } else {
-            if msg.state.is_outgoing()
+        } else if msg.state.is_outgoing()
                 && msg.is_dc_message == MessengerMessage::Yes
                 && !msg.is_setupmessage()
                 && msg.to_id != DC_CONTACT_ID_SELF // Leave self-chat-messages in the inbox, not sure about this
                 && context.is_inbox(folder).await
                 && context.get_config(ConfiguredSentboxFolder).await.is_some()
-            {
-                Ok(Some(ConfiguredSentboxFolder))
-            } else {
-                Ok(None)
-            }
+        {
+            Ok(Some(ConfiguredSentboxFolder))
+        } else {
+            Ok(None)
         }
     }
 
