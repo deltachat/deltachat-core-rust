@@ -1,0 +1,26 @@
+Subject: Test binary-encoded-words filenames
+Message-ID: 123456@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+Chat-Version: 1.0
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/mixed; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+test binary word-encoded filename,
+filename is " § 165 Abs" - note the leading space.
+
+as a side-effect, this also tests that the encoding-name
+also works in UPPERCASE.
+
+--==BREAK==
+Content-Type: text/html
+Content-Disposition: attachment; filename="=?UTF-8?B?IMKnIDE2NSBBYnM=?=";
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--==BREAK==--

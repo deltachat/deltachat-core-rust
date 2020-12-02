@@ -1490,6 +1490,15 @@ mod tests {
     }
 
     #[test]
+    fn test_get_attachment_filename_encoded_words_binary() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words_binary.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some(" § 165 Abs".to_string()))
+    }
+
+    #[test]
     fn test_get_attachment_filename_encoded_words_cont() {
         // test continued encoded-words and also test apostropes work that way
         let mail = load_mail_with_attachment(include_bytes!(
