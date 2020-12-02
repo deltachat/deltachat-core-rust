@@ -1731,16 +1731,14 @@ fn build_sequence_sets(mut uids: Vec<u32>) -> Vec<String> {
     let mut result = vec![String::new()];
     for range in ranges {
         if let Some(last) = result.last_mut() {
+            if !last.is_empty() {
+                last.push(',');
+            }
             last.push_str(&range.to_string());
-            last.push(',');
+
             if last.len() > 990 {
                 result.push(String::new()); // Start a new uid set
             }
-        }
-    }
-    for set in &mut result {
-        if set.ends_with(',') {
-            set.pop();
         }
     }
 
