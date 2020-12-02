@@ -536,8 +536,7 @@ impl Imap {
         Ok(())
     }
 
-    /// Select a folder and make sure that the uidvalidity has not changed.
-    /// If it has and on first
+    /// Select a folder and take care of uidvalidity changes.
     /// return Result with new_emails (i.e. whether new emails arrived)
     /// If in doubt, returns new_emails=true so emails are fetched.
     pub(crate) async fn select_with_uidvalidity(
@@ -573,17 +572,18 @@ impl Imap {
             return Ok(new_emails);
         }
 
-        // // TODO can this be safely deleted?:
-        // if mailbox.exists == 0 {
-        //     info!(context, "Folder \"{}\" is empty.", folder);
+        if mailbox.exists == 0 {
+            info!(context, "Folder \"{}\" is empty.", folder);
 
-        //     // set lastseenuid=0 for empty folders.
-        //     // id we do not do this here, we'll miss the first message
-        //     // as we will get in here again and fetch from lastseenuid+1 then
+            // set uid_next=1 for empty folders.
+            // If we do not do this here, we'll miss the first message
+            // as we will get in here again and fetch from uid_next then.
+            // Also, the fetching fallback below needs a non-zero mailbox.exists to work.
 
-        //     set_config_last_seen_uid(context, &folder, new_uid_validity, 0).await;
-        //     return Ok((0, false));
-        // }
+            set_uid_next(context, folder, 1).await?;
+            set_uidvalidity(context, folder, new_uid_validity).await?;
+            return Ok(false);
+        }
 
         // ==============  uid_validity has changed or is being set the first time.  ==============
 
@@ -612,7 +612,7 @@ impl Imap {
                         new_last_seen_uid = fetch.uid;
                     }
                 }
-                new_last_seen_uid.context("select: failed to fetch")? - 1
+                new_last_seen_uid.context("select: failed to fetch")? + 1
             }
         };
 
@@ -630,7 +630,7 @@ impl Imap {
             old_uid_next,
             old_uid_validity,
         );
-        Ok(true)
+        Ok(false)
     }
 
     pub(crate) async fn fetch_new_messages<S: AsRef<str>>(
@@ -799,7 +799,6 @@ impl Imap {
         let session = session.context("fetch_after(): IMAP No Connection established")?;
 
         // fetch messages with larger UID than the last one seen
-        // `(UID FETCH lastseenuid+1:*)`, see RFC 4549
         let set = format!("{}:*", uid_next);
         let mut list = session
             .uid_fetch(set, PREFETCH_FLAGS)
@@ -818,7 +817,7 @@ impl Imap {
         // If the mailbox is not empty, results always include
         // at least one UID, even if last_seen_uid+1 is past
         // the last UID in the mailbox.  It happens because
-        // uid+1:* is interpreted the same way as *:uid+1.
+        // uid:* is interpreted the same way as *:uid.
         // See https://tools.ietf.org/html/rfc3501#page-61 for
         // standard reference. Therefore, sometimes we receive
         // already seen messages and have to filter them out.
