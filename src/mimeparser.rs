@@ -1518,6 +1518,16 @@ mod tests {
     }
 
     #[test]
+    fn test_get_attachment_filename_encoded_words_bad_delimiter() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words_bad_delimiter.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        // not decoded as a space is missing after encoded-words part
+        assert_eq!(filename, Some("=?utf-8?q?foo?=.bar".to_string()))
+    }
+
+    #[test]
     fn test_get_attachment_filename_combined() {
         // test that if `filename` and `filename*0` are given, the filename is not doubled
         let mail = load_mail_with_attachment(include_bytes!(
