@@ -2719,25 +2719,57 @@ mod tests {
         assert_eq!(last_msg.from_id, DC_CONTACT_ID_INFO);
     }
 
-    #[async_std::test]
-    async fn test_html_only_mail() {
-        let t = TestContext::new_alice().await;
-        t.ctx
+    async fn load_imf_email(context: &Context, imf_raw: &[u8]) -> Message {
+        context
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
-        dc_receive_imf(
+        dc_receive_imf(&context, imf_raw, "INBOX", 0, false)
+            .await
+            .unwrap();
+        let chats = Chatlist::try_load(&context, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+        Message::load_from_db(&context, msg_id).await.unwrap()
+    }
+
+    #[async_std::test]
+    async fn test_html_only_mail() {
+        let t = TestContext::new_alice().await;
+        let msg = load_imf_email(
             &t.ctx,
             include_bytes!("../test-data/message/wrong-html.eml"),
-            "INBOX",
-            0,
-            false,
         )
-        .await
-        .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
-        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+        .await;
         assert_eq!(msg.text.unwrap(), "   Guten Abend,   \n\n   Lots of text   \n\n   text with Umlaut ä...   \n\n   MfG    [...]");
+    }
+
+    #[async_std::test]
+    async fn test_pdf_filename_simple() {
+        let t = TestContext::new_alice().await;
+        let msg = load_imf_email(
+            &t.ctx,
+            include_bytes!("../test-data/message/pdf_filename_simple.eml"),
+        )
+        .await;
+        assert_eq!(msg.viewtype, Viewtype::File);
+        assert_eq!(msg.text.unwrap(), "mail body");
+        assert_eq!(msg.param.get(Param::File).unwrap(), "$BLOBDIR/simple.pdf");
+    }
+
+    #[async_std::test]
+    async fn test_pdf_filename_continuation() {
+        // test filenames split across multiple header lines, see rfc 2231
+        let t = TestContext::new_alice().await;
+        let msg = load_imf_email(
+            &t.ctx,
+            include_bytes!("../test-data/message/pdf_filename_continuation.eml"),
+        )
+        .await;
+        assert_eq!(msg.viewtype, Viewtype::File);
+        assert_eq!(msg.text.unwrap(), "mail body");
+        assert_eq!(
+            msg.param.get(Param::File).unwrap(),
+            "$BLOBDIR/test pdf äöüß.pdf"
+        );
     }
 }
