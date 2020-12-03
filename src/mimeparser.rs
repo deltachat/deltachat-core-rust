@@ -1528,6 +1528,24 @@ mod tests {
     }
 
     #[test]
+    fn test_get_attachment_filename_apostrophed() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_apostrophed.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen Okt. 2021.html".to_string()))
+    }
+
+    #[test]
+    fn test_get_attachment_filename_apostrophed_cont() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_apostrophed_cont.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen März 2022.html".to_string()))
+    }
+
+    #[test]
     fn test_get_attachment_filename_combined() {
         // test that if `filename` and `filename*0` are given, the filename is not doubled
         let mail = load_mail_with_attachment(include_bytes!(
