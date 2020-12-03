@@ -1965,10 +1965,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_needs_move_incoming_deaddrop() {
-        for (folder, mvbox_move, chat_msg, mut expected_destination) in COMBINATIONS_DEADDROP {
-            if *folder == "INBOX" && !mvbox_move && *chat_msg {
-                expected_destination = "Sent"
-            }
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_DEADDROP {
             check_needs_move_combination(
                 folder,
                 *mvbox_move,
@@ -1985,7 +1982,10 @@ mod tests {
     #[async_std::test]
     async fn test_needs_move_outgoing() {
         // Test outgoing emails
-        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+        for (folder, mvbox_move, chat_msg, mut expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            if *folder == "INBOX" && !mvbox_move && *chat_msg {
+                expected_destination = "Sent"
+            }
             check_needs_move_combination(
                 folder,
                 *mvbox_move,
@@ -2038,7 +2038,10 @@ mod tests {
             .set_config(Config::ConfiguredMvboxFolder, Some("DeltaChat"))
             .await
             .unwrap();
-        // We do not need to set the ConfiguredSentboxFolder as for moving messages, the sentbox is treated the same as an unknown folder.
+        t.ctx
+            .set_config(Config::ConfiguredSentboxFolder, Some("Sent"))
+            .await
+            .unwrap();
         t.ctx
             .set_config(Config::MvboxMove, Some(if mvbox_move { "1" } else { "0" }))
             .await
