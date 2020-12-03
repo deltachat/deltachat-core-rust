@@ -26,6 +26,7 @@ use crate::param::*;
 use crate::peerstate::Peerstate;
 use crate::simplify::*;
 use crate::stock::StockMessage;
+use charset::Charset;
 use percent_encoding::percent_decode_str;
 
 /// A parsed MIME message.
@@ -1291,7 +1292,7 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
         desired_filename = ct
             .params
             .iter()
-            .filter(|(key, _value)| key.starts_with("filename"))
+            .filter(|(key, _value)| key.starts_with("filename*"))
             .fold(None, |acc, (key, value)| {
                 if key.ends_with('*') {
                     apostrophe_encoded = true;
@@ -1303,13 +1304,26 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
                 }
             });
         if apostrophe_encoded {
-            // we're currently always assuming utf-8, this might need adaption, however, should not break things.
             if let Some(name) = desired_filename {
-                desired_filename = if let Some(name) = name.splitn(3, '\'').last() {
-                    Some(percent_decode_str(&name).decode_utf8_lossy().to_string())
-                } else {
-                    None
-                }
+                let mut parts = name.splitn(3, '\'');
+                desired_filename =
+                    if let (Some(charset), Some(value)) = (parts.next(), parts.last()) {
+                        let decoded_bytes = percent_decode_str(&value);
+                        if charset.to_lowercase() == "utf-8" {
+                            Some(decoded_bytes.decode_utf8_lossy().to_string())
+                        } else {
+                            let charset = match Charset::for_label(charset.as_bytes()) {
+                                Some(c) => c,
+                                // encoded_words crate say, latin-1 is not reported; moreover, latin1 is a good default
+                                None => Charset::for_label(b"latin1").unwrap(),
+                            };
+                            let decoded_bytes = decoded_bytes.collect::<Vec<u8>>();
+                            let (utf8_str, _, _) = charset.decode(&*decoded_bytes);
+                            Some(utf8_str.into())
+                        }
+                    } else {
+                        None
+                    }
             }
         }
     }
@@ -1562,6 +1576,13 @@ mod tests {
         ));
         let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
+    }
+
+    #[test]
+    fn test_charset_latin1() {
+        // make sure, latin1 exists under this name
+        // as we're using it as default in get_attachment_filename() for non-utf-8
+        assert!(Charset::for_label(b"latin1").is_some());
     }
 
     #[test]
