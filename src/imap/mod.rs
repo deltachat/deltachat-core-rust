@@ -537,8 +537,10 @@ impl Imap {
     }
 
     /// Select a folder and take care of uidvalidity changes.
-    /// return Result with new_emails (i.e. whether new emails arrived)
-    /// If in doubt, returns new_emails=true so emails are fetched.
+    /// Also, when selecting a folder for the first time, sets the uid_next to the current
+    /// mailbox.uid_next so that no old emails are fetched.
+    /// Returns Result<new_emails> (i.e. whether new emails arrived),
+    /// if in doubt, returns new_emails=true so emails are fetched.
     pub(crate) async fn select_with_uidvalidity(
         &mut self,
         context: &Context,
@@ -560,7 +562,7 @@ impl Imap {
         if new_uid_validity == old_uid_validity {
             let new_emails = if newly_selected == NewlySelected::No {
                 // The folder was not newly selected i.e. no SELECT command was run. This means that mailbox.uid_next
-                // was not updated and largest_uid may contain an incorrect value. So, just return true so that
+                // was not updated and may contain an incorrect value. So, just return true so that
                 // the caller tries to fetch new messages (we could of course run a SELECT command now, but trying to fetch
                 // new messages is only one command, just as a SELECT command)
                 true
@@ -578,8 +580,7 @@ impl Imap {
             // set uid_next=1 for empty folders.
             // If we do not do this here, we'll miss the first message
             // as we will get in here again and fetch from uid_next then.
-            // Also, the fall back to fetching below needs a non-zero mailbox.exists to work.
-
+            // Also, the "fall back to fetching" below would need a non-zero mailbox.exists to work.
             set_uid_next(context, folder, 1).await?;
             set_uidvalidity(context, folder, new_uid_validity).await?;
             return Ok(false);
@@ -663,7 +664,7 @@ impl Imap {
 
         let mut read_errors = 0;
         let mut uids = Vec::with_capacity(msgs.len());
-        let largest_uid = msgs.keys().last().copied(); // TODO test if this works
+        let largest_uid = msgs.keys().last().copied();
 
         for (current_uid, msg) in msgs.into_iter() {
             let (headers, msg_id) = match get_fetch_headers(&msg) {
@@ -699,13 +700,12 @@ impl Imap {
             .await;
         read_errors += error_cnt;
 
-        // determine which last_seen_uid to use to update  to
+        // determine which uid_next to use to update  to
         let new_uid_next = max(
             largest_uid.unwrap_or_default() + 1,
             (self.config.selected_mailbox.as_ref())
-                .map(|m| m.uid_next)
-                .unwrap_or_default()
-                .unwrap_or_default(),
+                .and_then(|m| m.uid_next)
+                .unwrap_or(1),
         );
 
         // TODO:
@@ -1762,7 +1762,7 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
 /// This method returns the uid_next from the last time we fetched messages.
 /// We can compare this to the current uid_next to find out whether there are new messages
 /// and fetch from this value on to get all new messages.
-pub(crate) async fn get_uid_next(context: &Context, folder: &str) -> u32 {
+async fn get_uid_next(context: &Context, folder: &str) -> u32 {
     context
         .sql
         .query_get_value(
@@ -1802,7 +1802,7 @@ pub(crate) async fn set_uidvalidity(
     Ok(())
 }
 
-pub(crate) async fn get_uidvalidity(context: &Context, folder: &str) -> u32 {
+async fn get_uidvalidity(context: &Context, folder: &str) -> u32 {
     context
         .sql
         .query_get_value(
