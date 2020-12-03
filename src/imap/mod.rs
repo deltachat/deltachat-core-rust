@@ -719,7 +719,7 @@ impl Imap {
         // Update the uid_next to the largest message uid that had NOT failed parsing. Not perfect either but maybe I should just
         // implement a similar logic again?
         //
-        // Also, code style is bad because to understand this code, one needs to know that dc_receive_imf() returns `Err` only
+        // Also, code style is bad currently because to understand this code, one needs to know that dc_receive_imf() returns `Err` only
         // on recoverable errors.
         if new_uid_next > old_uid_next && error_cnt == 0 {
             set_uid_next(context, &folder, new_uid_next).await?;
@@ -867,7 +867,6 @@ impl Imap {
     }
 
     /// Fetches a list of messages by server UID.
-    /// The passed in list of uids must be sorted.
     ///
     /// Returns the last uid fetch successfully and an error count.
     async fn fetch_many_msgs<S: AsRef<str>>(
