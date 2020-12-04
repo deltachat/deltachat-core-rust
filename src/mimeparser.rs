@@ -26,6 +26,7 @@ use crate::param::*;
 use crate::peerstate::Peerstate;
 use crate::simplify::*;
 use crate::stock::StockMessage;
+use charset::Charset;
 use percent_encoding::percent_decode_str;
 
 /// A parsed MIME message.
@@ -687,7 +688,7 @@ impl MimeMessage {
         let (mime_type, msg_type) = get_mime_type(mail)?;
         let raw_mime = mail.ctype.mimetype.to_lowercase();
 
-        let filename = get_attachment_filename(mail)?;
+        let filename = get_attachment_filename(context, mail)?;
 
         let old_part_count = self.parts.len();
 
@@ -1275,7 +1276,10 @@ fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
 /// returned. If Content-Disposition is "attachment" but filename is
 /// not specified, filename is guessed. If Content-Disposition cannot
 /// be parsed, returns an error.
-fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String>> {
+fn get_attachment_filename(
+    context: &Context,
+    mail: &mailparse::ParsedMail,
+) -> Result<Option<String>> {
     let ct = mail.get_content_disposition();
 
     // try to get file name as "encoded-words" from
@@ -1291,7 +1295,7 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
         desired_filename = ct
             .params
             .iter()
-            .filter(|(key, _value)| key.starts_with("filename"))
+            .filter(|(key, _value)| key.starts_with("filename*"))
             .fold(None, |acc, (key, value)| {
                 if key.ends_with('*') {
                     apostrophe_encoded = true;
@@ -1303,13 +1307,30 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
                 }
             });
         if apostrophe_encoded {
-            // we're currently always assuming utf-8, this might need adaption, however, should not break things.
             if let Some(name) = desired_filename {
-                desired_filename = if let Some(name) = name.splitn(3, '\'').last() {
-                    Some(percent_decode_str(&name).decode_utf8_lossy().to_string())
-                } else {
-                    None
-                }
+                let mut parts = name.splitn(3, '\'');
+                desired_filename =
+                    if let (Some(charset), Some(value)) = (parts.next(), parts.last()) {
+                        let decoded_bytes = percent_decode_str(&value);
+                        if charset.to_lowercase() == "utf-8" {
+                            Some(decoded_bytes.decode_utf8_lossy().to_string())
+                        } else {
+                            // encoded_words crate say, latin-1 is not reported; moreover, latin1 is a good default
+                            if let Some(charset) = Charset::for_label(charset.as_bytes())
+                                .or_else(|| Charset::for_label(b"latin1"))
+                            {
+                                let decoded_bytes = decoded_bytes.collect::<Vec<u8>>();
+                                let (utf8_str, _, _) = charset.decode(&*decoded_bytes);
+                                Some(utf8_str.into())
+                            } else {
+                                warn!(context, "latin1 encoding does not exist");
+                                None
+                            }
+                        }
+                    } else {
+                        warn!(context, "apostroped encoding invalid");
+                        None
+                    }
             }
         }
     }
@@ -1462,51 +1483,144 @@ mod tests {
         assert!(is_attachment_disposition(&mail.subparts[1]));
     }
 
-    fn load_mail_with_attachment(raw: &[u8]) -> ParsedMail {
+    fn load_mail_with_attachment<'a>(t: &'a TestContext, raw: &'a [u8]) -> ParsedMail<'a> {
         let mail = mailparse::parse_mail(raw).unwrap();
-        assert!(get_attachment_filename(&mail).unwrap().is_none());
-        assert!(get_attachment_filename(&mail.subparts[0])
+        assert!(get_attachment_filename(&t.ctx, &mail).unwrap().is_none());
+        assert!(get_attachment_filename(&t.ctx, &mail.subparts[0])
             .unwrap()
             .is_none());
         mail
     }
 
-    #[test]
-    fn test_get_attachment_filename() {
-        let mail = load_mail_with_attachment(include_bytes!(
-            "../test-data/message/attach_filename_simple.eml"
-        ));
-        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+    #[async_std::test]
+    async fn test_get_attachment_filename() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_simple.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("test.html".to_string()))
     }
 
-    #[test]
-    fn test_get_attachment_filename_encoded_words() {
-        let mail = load_mail_with_attachment(include_bytes!(
-            "../test-data/message/attach_filename_encoded_words.eml"
-        ));
-        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
     }
 
-    #[test]
-    fn test_get_attachment_filename_encoded_words_cont() {
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words_binary() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words_binary.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some(" § 165 Abs".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words_windows1251() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words_windows1251.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("file Что нового 2020.pdf".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words_cont() {
         // test continued encoded-words and also test apostropes work that way
-        let mail = load_mail_with_attachment(include_bytes!(
-            "../test-data/message/attach_filename_encoded_words_cont.eml"
-        ));
-        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words_cont.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßn'ah'men Okt. 2020.html".to_string()))
     }
 
-    #[test]
-    fn test_get_attachment_filename_combined() {
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words_bad_delimiter() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words_bad_delimiter.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
+        // not decoded as a space is missing after encoded-words part
+        assert_eq!(filename, Some("=?utf-8?q?foo?=.bar".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen Okt. 2021.html".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed_cont() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed_cont.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen März 2022.html".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed_windows1251() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed_windows1251.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("программирование.HTM".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed_cp1252() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed_cp1252.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Auftragsbestätigung.pdf".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_combined() {
         // test that if `filename` and `filename*0` are given, the filename is not doubled
-        let mail = load_mail_with_attachment(include_bytes!(
-            "../test-data/message/attach_filename_combined.eml"
-        ));
-        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_combined.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
+    }
+
+    #[test]
+    fn test_charset_latin1() {
+        // make sure, latin1 exists under this name
+        // as we're using it as default in get_attachment_filename() for non-utf-8
+        assert!(Charset::for_label(b"latin1").is_some());
     }
 
     #[test]

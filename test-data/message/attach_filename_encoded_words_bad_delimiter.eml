@@ -1,0 +1,29 @@
+Subject: Test encoded-words filenames
+Message-ID: 123456@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+Chat-Version: 1.0
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/mixed; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+there MUST be a space between encoded words and plain text,
+if there is none, decoding should return the original string
+https://tools.ietf.org/html/rfc2047 5.1:
+
+"Ordinary ASCII text and 'encoded-word's may appear together in the
+same header field.  However, an 'encoded-word' that appears in a
+header field defined as '*text' MUST be separated from any adjacent
+'encoded-word' or 'text' by 'linear-white-space'."
+
+--==BREAK==
+Content-Type: text/html
+Content-Disposition: attachment; filename="=?utf-8?q?foo?=.bar";
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--==BREAK==--

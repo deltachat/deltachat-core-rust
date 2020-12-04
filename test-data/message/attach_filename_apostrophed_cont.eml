@@ -1,0 +1,34 @@
+Subject: Test apostrophed filenames
+Message-ID: 12345@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+X-Mailer: Kopano 8.7.16
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/mixed; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+apostrophed filenames as of
+https://tools.ietf.org/html/rfc2231,
+span over several header lines.
+
+note, that, in contrast to encoded-words,
+the character-set is not repeated.
+
+as a side-effect,
+this tests unquoted header attributes in filename*1*
+and lower-case-urlencoded utf-8
+
+--==BREAK==
+Content-Type: text/html
+Content-Disposition: attachment;
+ filename*0*="utf-8''Ma%C3%9Fna";
+ filename*1*=hm;
+ filename*2*="en%20M%c3%a4rz%202022.html";
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--==BREAK==--
