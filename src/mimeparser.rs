@@ -1569,6 +1569,15 @@ mod tests {
     }
 
     #[test]
+    fn test_get_attachment_filename_apostrophed_cp1252() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_apostrophed_cp1252.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Auftragsbestätigung.pdf".to_string()))
+    }
+
+    #[test]
     fn test_get_attachment_filename_combined() {
         // test that if `filename` and `filename*0` are given, the filename is not doubled
         let mail = load_mail_with_attachment(include_bytes!(
