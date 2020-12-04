@@ -1022,7 +1022,12 @@ impl MimeMessage {
                 height < 500 || width < 500
             }
         }
-        if !self.has_chat_version() {
+        if !self.has_chat_version()
+            && self
+                .parts
+                .iter()
+                .any(|p| p.mimetype == Some(mime::TEXT_HTML))
+        {
             let low_res_images = self.parts.iter().filter(is_low_res_image).count();
             if low_res_images > 3 {
                 self.parts.retain(|p| !is_low_res_image(&p));
