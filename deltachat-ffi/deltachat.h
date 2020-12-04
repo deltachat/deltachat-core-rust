@@ -332,7 +332,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    allow worse images/videos/voice quality to gain smaller sizes,
  *                    suitable for providers or areas known to have a bad connection.
  *                    The library uses the `media_quality` setting to use different defaults
- *                    for recoding images sent with type DC_MSG_IMAGE.
+ *                    for recoding images sent with type #DC_MSG_IMAGE.
  *                    If needed, recoding other file types is up to the UI.
  * - `webrtc_instance` = webrtc instance to use for videochats in the form
  *                    `[basicwebrtc:|jitsi:]https://example.com/subdir#roomname=$ROOM`
@@ -808,11 +808,11 @@ uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t ch
  * dc_msg_unref(msg);
  * ~~~
  *
- * If you send images with the DC_MSG_IMAGE type,
+ * If you send images with the #DC_MSG_IMAGE type,
  * they will be recoded to a reasonable size before sending, if possible
  * (cmp the dc_set_config()-option `media_quality`).
  * If that fails, is not possible, or the image is already small enough, the image is sent as original.
- * If you want images to be always sent as the original file, use the DC_MSG_FILE type.
+ * If you want images to be always sent as the original file, use the #DC_MSG_FILE type.
  *
  * Videos and other file types are currently not recoded by the library,
  * with dc_prepare_msg(), however, you can do that from the UI.
@@ -3509,7 +3509,7 @@ int             dc_msg_is_increation          (const dc_msg_t* msg);
  * @memberof dc_msg_t
  * @param msg The message object.
  * @return 1=message is a setup message, 0=no setup message.
- *     For setup messages, dc_msg_get_viewtype() returns DC_MSG_FILE.
+ *     For setup messages, dc_msg_get_viewtype() returns #DC_MSG_FILE.
  */
 int             dc_msg_is_setupmessage        (const dc_msg_t* msg);
 
@@ -4111,6 +4111,9 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * If you want to define the type of a dc_msg_t object for sending,
  * use dc_msg_new().
+ * Depending on the type, you will set more properties using eg.
+ * dc_msg_set_text() or dc_msg_set_file().
+ * To finally send the message, use dc_send_msg().
  *
  * To get the types of dc_msg_t objects received, use dc_msg_get_viewtype().
  *
@@ -4129,9 +4132,14 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * Image message.
- * If the image is an animated GIF, the type DC_MSG_GIF should be used.
- * File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
- * and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
+ * If the image is an animated GIF, the type #DC_MSG_GIF should be used.
+ * File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
+ * and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
+ *
+ * Before sending, the image is recoded to an reasonable size,
+ * see dc_set_config()-option `media_quality`.
+ * If you do not want images to be recoded,
+ * send them as #DC_MSG_FILE.
  */
 #define DC_MSG_IMAGE     20
 
