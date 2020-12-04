@@ -1312,14 +1312,16 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
                         if charset.to_lowercase() == "utf-8" {
                             Some(decoded_bytes.decode_utf8_lossy().to_string())
                         } else {
-                            let charset = match Charset::for_label(charset.as_bytes()) {
-                                Some(c) => c,
-                                // encoded_words crate say, latin-1 is not reported; moreover, latin1 is a good default
-                                None => Charset::for_label(b"latin1").unwrap(),
-                            };
-                            let decoded_bytes = decoded_bytes.collect::<Vec<u8>>();
-                            let (utf8_str, _, _) = charset.decode(&*decoded_bytes);
-                            Some(utf8_str.into())
+                            // encoded_words crate say, latin-1 is not reported; moreover, latin1 is a good default
+                            if let Some(charset) = Charset::for_label(charset.as_bytes())
+                                .or_else(|| Charset::for_label(b"latin1"))
+                            {
+                                let decoded_bytes = decoded_bytes.collect::<Vec<u8>>();
+                                let (utf8_str, _, _) = charset.decode(&*decoded_bytes);
+                                Some(utf8_str.into())
+                            } else {
+                                None
+                            }
                         }
                     } else {
                         None
