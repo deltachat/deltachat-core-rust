@@ -29,7 +29,7 @@ use crate::message::{self, Message, MessageState};
 use crate::mimefactory::MimeFactory;
 use crate::param::*;
 use crate::smtp::Smtp;
-use crate::{blob::BlobObject, contact::normalize_name, contact::Modifier, contact::Origin};
+use crate::{blob::BlobObject, contact::normalize_name, contact::Modifier};
 use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
@@ -811,20 +811,15 @@ async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, fold
     match imap.get_all_recipients(context).await {
         Ok(contacts) => {
             let mut any_modified = false;
-            for contact in contacts {
+            for (contact, origin) in contacts {
                 let display_name_normalized = contact
                     .display_name
                     .as_ref()
                     .map(normalize_name)
                     .unwrap_or_default();
 
-                match Contact::add_or_lookup(
-                    context,
-                    display_name_normalized,
-                    contact.addr,
-                    Origin::OutgoingTo,
-                )
-                .await
+                match Contact::add_or_lookup(context, display_name_normalized, contact.addr, origin)
+                    .await
                 {
                     Ok((_, modified)) => {
                         if modified != Modifier::None {

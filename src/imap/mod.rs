@@ -14,7 +14,6 @@ use async_std::prelude::*;
 use async_std::sync::Receiver;
 use num_traits::FromPrimitive;
 
-use crate::constants::*;
 use crate::context::Context;
 use crate::dc_receive_imf::{from_field_to_contact_id, is_msgrmsg_rfc724_mid_in_list};
 use crate::error::{bail, format_err, Result};
@@ -31,6 +30,7 @@ use crate::{
     chat, dc_tools::dc_extract_grpid_from_rfc724_mid, scheduler::InterruptInfo, stock::StockMessage,
 };
 use crate::{config::*, dc_receive_imf::dc_receive_imf_inner};
+use crate::{constants::*, contact::Origin};
 
 mod client;
 mod idle;
@@ -710,7 +710,10 @@ impl Imap {
     }
 
     /// Gets the from, to and bcc addresses from all existing outgoing emails.
-    pub async fn get_all_recipients(&mut self, context: &Context) -> Result<Vec<SingleInfo>> {
+    pub async fn get_all_recipients(
+        &mut self,
+        context: &Context,
+    ) -> Result<Vec<(SingleInfo, Origin)>> {
         if self.session.is_none() {
             bail!("IMAP No Connection established");
         }
@@ -745,7 +748,15 @@ impl Imap {
                             from_field_to_contact_id(context, &mimeparser::get_from(&headers))
                                 .await?;
                         if from_id == DC_CONTACT_ID_SELF {
-                            result.extend(mimeparser::get_recipients(&headers));
+                            let origin =
+                                if headers.get_header_value(HeaderDef::ChatVersion).is_some() {
+                                    Origin::OutgoingChatMsg
+                                } else {
+                                    Origin::OutgoingTo
+                                };
+                            for contact in mimeparser::get_recipients(&headers) {
+                                result.push((contact, origin));
+                            }
                         }
                     }
 

@@ -112,10 +112,13 @@ pub enum Origin {
     OutgoingTo = 0x4000,
 
     /// internal use
-    Internal = 0x40000,
+    Internal = 0x4_0000,
 
     /// address is in our address book
-    AddressBook = 0x80000,
+    AddressBook = 0x8_0000,
+
+    /// chat message sent by us (currently only used in add_all_recipients_as_contacts, to mark that a chat should be created when we get a message from this contact)
+    OutgoingChatMsg = 0x10_0000,
 
     /// set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
     SecurejoinInvited = 0x0100_0000,

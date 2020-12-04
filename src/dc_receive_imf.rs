@@ -452,12 +452,14 @@ async fn add_parts(
         if chat_id.is_unset() {
             // try to create a group
 
-            let create_blocked =
-                if !test_normal_chat_id.is_unset() && test_normal_chat_id_blocked == Blocked::Not {
-                    Blocked::Not
-                } else {
-                    Blocked::Deaddrop
-                };
+            let create_blocked = if (!test_normal_chat_id.is_unset()
+                && test_normal_chat_id_blocked == Blocked::Not)
+                || incoming_origin >= Origin::OutgoingChatMsg
+            {
+                Blocked::Not
+            } else {
+                Blocked::Deaddrop
+            };
 
             let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                 context,
@@ -493,11 +495,12 @@ async fn add_parts(
 
         if chat_id.is_unset() {
             // try to create a normal chat
-            let create_blocked = if from_id == to_id {
-                Blocked::Not
-            } else {
-                Blocked::Deaddrop
-            };
+            let create_blocked =
+                if from_id == DC_CONTACT_ID_SELF || incoming_origin >= Origin::OutgoingChatMsg {
+                    Blocked::Not
+                } else {
+                    Blocked::Deaddrop
+                };
 
             if !test_normal_chat_id.is_unset() {
                 *chat_id = test_normal_chat_id;
