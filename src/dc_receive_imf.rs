@@ -2771,4 +2771,34 @@ mod tests {
             "$BLOBDIR/test pdf äöüß.pdf"
         );
     }
+
+    #[async_std::test]
+    async fn test_many_images() {
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        dc_receive_imf(
+            &t.ctx,
+            include_bytes!("../test-data/message/many-images.eml"),
+            "INBOX",
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let contact_id = Contact::create(&t.ctx, "paula@example.org", "paula@example.org")
+            .await
+            .unwrap();
+        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id)
+            .await
+            .unwrap();
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 1);
+        let msg = t.get_last_msg(chat_id).await;
+        assert_eq!(msg.viewtype, Viewtype::Text);
+    }
 }
