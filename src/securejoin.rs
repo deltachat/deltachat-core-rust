@@ -1117,10 +1117,9 @@ mod tests {
             .unwrap();
 
         // Bob scans QR-code, sends vc-request
-        let bob_chatid = dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
+        dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
 
         let sent = bob.pop_sent_msg().await;
-        assert_eq!(sent.id(), bob_chatid);
         assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
