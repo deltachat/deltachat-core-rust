@@ -11,6 +11,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
 use crate::dc_tools::*;
+use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{ensure, Error};
 use crate::events::EventType;
 use crate::job::{self, Action};
@@ -255,7 +256,7 @@ pub struct Message {
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
     pub(crate) timestamp_rcvd: i64,
-    pub(crate) ephemeral_timer: u32,
+    pub(crate) ephemeral_timer: EphemeralTimer,
     pub(crate) ephemeral_timestamp: i64,
     pub(crate) text: Option<String>,
     pub(crate) rfc724_mid: String,
@@ -523,7 +524,7 @@ impl Message {
         self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
     }
 
-    pub fn get_ephemeral_timer(&self) -> u32 {
+    pub fn get_ephemeral_timer(&self) -> EphemeralTimer {
         self.ephemeral_timer
     }
 
@@ -1065,8 +1066,8 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         ret += "\n";
     }
 
-    if msg.ephemeral_timer != 0 {
-        ret += &format!("Ephemeral timer: {}\n", msg.ephemeral_timer);
+    if let EphemeralTimer::Enabled { duration } = msg.ephemeral_timer {
+        ret += &format!("Ephemeral timer: {}\n", duration);
     }
 
     if msg.ephemeral_timestamp != 0 {
