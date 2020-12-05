@@ -684,6 +684,9 @@ async fn add_parts(
     if !*hidden
         && !location_kml_is
         && !is_mdn
+        && (is_dc_message != MessengerMessage::Yes
+            || parent.is_none()
+            || parent.unwrap().ephemeral_timer != ephemeral_timer)
         && (*chat_id).get_ephemeral_timer(context).await? != ephemeral_timer
     {
         if let Err(err) = (*chat_id)
