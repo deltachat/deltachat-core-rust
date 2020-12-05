@@ -787,11 +787,8 @@ impl Message {
     pub async fn quoted_message(&self, context: &Context) -> Result<Option<Message>, Error> {
         if self.param.get(Param::Quote).is_some() {
             if let Some(in_reply_to) = &self.in_reply_to {
-                let rfc724_mid = in_reply_to.trim_start_matches('<').trim_end_matches('>');
-                if !rfc724_mid.is_empty() {
-                    if let Some((_, _, msg_id)) = rfc724_mid_exists(context, rfc724_mid).await? {
-                        return Ok(Some(Message::load_from_db(context, msg_id).await?));
-                    }
+                if let Some((_, _, msg_id)) = rfc724_mid_exists(context, in_reply_to).await? {
+                    return Ok(Some(Message::load_from_db(context, msg_id).await?));
                 }
             }
         }
@@ -1818,6 +1815,7 @@ pub(crate) async fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
 ) -> Result<Option<(String, u32, MsgId)>, Error> {
+    let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     if rfc724_mid.is_empty() {
         warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
         return Ok(None);
