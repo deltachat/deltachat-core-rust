@@ -13,9 +13,9 @@ use crate::dc_tools::*;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
-use crate::headerdef::HeaderDef;
+use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
-use crate::message::{self, MessageState, MessengerMessage, MsgId};
+use crate::message::{self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::*;
 use crate::param::*;
 use crate::peerstate::*;
@@ -370,10 +370,15 @@ async fn add_parts(
         return Ok(());
     }
 
+    let parent = get_parent_message(context, mime_parser).await?;
+
     let mut is_dc_message = if mime_parser.has_chat_version() {
         MessengerMessage::Yes
-    } else if is_reply_to_messenger_message(context, mime_parser).await {
-        MessengerMessage::Reply
+    } else if let Some(parent) = &parent {
+        match parent.is_dc_message {
+            MessengerMessage::No => MessengerMessage::No,
+            MessengerMessage::Yes | MessengerMessage::Reply => MessengerMessage::Reply,
+        }
     } else {
         MessengerMessage::No
     };
@@ -514,7 +519,7 @@ async fn add_parts(
                 if Blocked::Not == create_blocked {
                     chat_id.unblock(context).await;
                     chat_id_blocked = Blocked::Not;
-                } else if is_reply_to_known_message(context, mime_parser).await {
+                } else if get_parent_message(context, mime_parser).await?.is_some() {
                     // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                     // the contact requests will pop up and this should be just fine.
                     Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo).await;
@@ -1811,102 +1816,63 @@ fn set_better_msg(mime_parser: &mut MimeMessage, better_msg: impl AsRef<str>) {
     }
 }
 
-async fn is_reply_to_known_message(context: &Context, mime_parser: &MimeMessage) -> bool {
-    /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
-    `In-Reply-To`/`References:` (to support non-Delta-Clients) */
+/// Given a list of Message-IDs, returns the latest message found in the database.
+async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Option<Message>> {
+    if mid_list.is_empty() {
+        return Ok(None);
+    }
+
+    if let Ok(ids) = parse_message_ids(mid_list) {
+        for id in ids.iter().rev() {
+            if let Some((_, _, msg_id)) = rfc724_mid_exists(context, id).await? {
+                return Ok(Some(Message::load_from_db(context, msg_id).await?));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+/// Returns the last message referenced from References: header found in the database.
+///
+/// If none found, tries In-Reply-To: as a fallback for classic MUAs that don't set the
+/// References: header.
+async fn get_parent_message(
+    context: &Context,
+    mime_parser: &MimeMessage,
+) -> Result<Option<Message>> {
+    if let Some(field) = mime_parser.get(HeaderDef::References) {
+        if let Some(msg) = get_rfc724_mid_in_list(context, &field).await? {
+            return Ok(Some(msg));
+        }
+    }
 
     if let Some(field) = mime_parser.get(HeaderDef::InReplyTo) {
-        if is_known_rfc724_mid_in_list(context, &field).await {
-            return true;
+        if let Some(msg) = get_rfc724_mid_in_list(context, &field).await? {
+            return Ok(Some(msg));
         }
     }
 
-    if let Some(field) = mime_parser.get(HeaderDef::References) {
-        if is_known_rfc724_mid_in_list(context, &field).await {
-            return true;
-        }
-    }
-
-    false
+    Ok(None)
 }
 
-async fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
-    if mid_list.is_empty() {
-        return false;
-    }
-
-    if let Ok(ids) = parse_message_ids(mid_list) {
-        for id in ids.iter() {
-            if is_known_rfc724_mid(context, id).await {
-                return true;
-            }
+pub(crate) async fn get_prefetch_parent_message(
+    context: &Context,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<Option<Message>> {
+    if let Some(field) = headers.get_header_value(HeaderDef::References) {
+        if let Some(msg) = get_rfc724_mid_in_list(context, &field).await? {
+            return Ok(Some(msg));
         }
     }
 
-    false
-}
-
-/// Check if a message is a reply to a known message (messenger or non-messenger).
-async fn is_known_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
-    let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
-
-    context
-        .sql
-        .exists(
-            "SELECT m.id FROM msgs m  \
-             LEFT JOIN chats c ON m.chat_id=c.id  \
-             WHERE m.rfc724_mid=?  \
-             AND m.chat_id>9 AND c.blocked=0;",
-            paramsv![rfc724_mid],
-        )
-        .await
-        .unwrap_or_default()
-}
-
-/// Checks if the message defined by mime_parser references a message send by us from Delta Chat.
-/// This is similar to is_reply_to_known_message() but
-/// - checks also if any of the referenced IDs are send by a messenger
-/// - it is okay, if the referenced messages are moved to trash here
-/// - no check for the Chat-* headers (function is only called if it is no messenger message itself)
-async fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeMessage) -> bool {
-    if let Some(value) = mime_parser.get(HeaderDef::InReplyTo) {
-        if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
-            return true;
+    if let Some(field) = headers.get_header_value(HeaderDef::InReplyTo) {
+        if let Some(msg) = get_rfc724_mid_in_list(context, &field).await? {
+            return Ok(Some(msg));
         }
     }
 
-    if let Some(value) = mime_parser.get(HeaderDef::References) {
-        if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
-            return true;
-        }
-    }
-
-    false
-}
-
-pub(crate) async fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
-    if let Ok(ids) = parse_message_ids(mid_list) {
-        for id in ids.iter() {
-            if is_msgrmsg_rfc724_mid(context, id).await {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// Check if a message is a reply to any messenger message.
-async fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
-    let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
-
-    context
-        .sql
-        .exists(
-            "SELECT id FROM msgs  WHERE rfc724_mid=?  AND msgrmsg!=0  AND chat_id>9;",
-            paramsv![rfc724_mid],
-        )
-        .await
-        .unwrap_or_default()
+    Ok(None)
 }
 
 async fn dc_add_or_lookup_contacts_by_address_list(
@@ -2030,38 +1996,6 @@ mod tests {
             dc_create_incoming_rfc724_mid(123, 45, &members),
             Some("123-45-9@stub".into())
         );
-    }
-
-    #[async_std::test]
-    async fn test_is_known_rfc724_mid() {
-        let t = TestContext::new().await;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("first message".to_string());
-        let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg))
-            .await
-            .unwrap();
-        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
-
-        // Message-IDs may or may not be surrounded by angle brackets
-        assert!(is_known_rfc724_mid(&t.ctx, format!("<{}>", msg.rfc724_mid).as_str()).await);
-        assert!(is_known_rfc724_mid(&t.ctx, &msg.rfc724_mid).await);
-        assert!(!is_known_rfc724_mid(&t.ctx, "nonexistant@message.id").await);
-    }
-
-    #[async_std::test]
-    async fn test_is_msgrmsg_rfc724_mid() {
-        let t = TestContext::new().await;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("first message".to_string());
-        let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg))
-            .await
-            .unwrap();
-        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
-
-        // Message-IDs may or may not be surrounded by angle brackets
-        assert!(is_msgrmsg_rfc724_mid(&t.ctx, format!("<{}>", msg.rfc724_mid).as_str()).await);
-        assert!(is_msgrmsg_rfc724_mid(&t.ctx, &msg.rfc724_mid).await);
-        assert!(!is_msgrmsg_rfc724_mid(&t.ctx, "nonexistant@message.id").await);
     }
 
     static MSGRMSG: &[u8] = b"From: Bob <bob@example.com>\n\
