@@ -2724,7 +2724,7 @@ pub unsafe extern "C" fn dc_msg_get_ephemeral_timer(msg: *mut dc_msg_t) -> u32 {
         return 0;
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_ephemeral_timer()
+    ffi_msg.message.get_ephemeral_timer().to_u32()
 }
 
 #[no_mangle]
