@@ -17,7 +17,7 @@ use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
 use crate::job::Action;
 use crate::key::{self, DcKey};
-use crate::message::Message;
+use crate::message::{update_msg_state, Message, MessageState, MsgId};
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
 
@@ -146,7 +146,7 @@ impl TestContext {
                 panic!("no sent message found in jobs table");
             }
         };
-        let id = ChatId::new(foreign_id as u32);
+        let id = MsgId::new(foreign_id as u32);
         let params = Params::from_str(&raw_params).unwrap();
         let blob_path = params
             .get_blob(Param::File, &self.ctx, false)
@@ -159,11 +159,8 @@ impl TestContext {
             .execute("DELETE FROM jobs WHERE id=?;", paramsv![rowid])
             .await
             .expect("failed to remove job");
-        SentMessage {
-            id,
-            params,
-            blob_path,
-        }
+        update_msg_state(&self.ctx, id, MessageState::OutDelivered).await;
+        SentMessage { params, blob_path }
     }
 
     /// Parse a message.
@@ -210,17 +207,11 @@ impl TestContext {
 /// passed through a SMTP-IMAP pipeline.
 #[derive(Debug, Clone)]
 pub struct SentMessage {
-    id: ChatId,
     params: Params,
     blob_path: PathBuf,
 }
 
 impl SentMessage {
-    /// The ChatId the message belonged to.
-    pub fn id(&self) -> ChatId {
-        self.id
-    }
-
     /// A recipient the message was destined for.
     ///
     /// If there are multiple recipients this is just a random one, so is not very useful.
