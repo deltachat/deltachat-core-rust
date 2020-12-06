@@ -650,7 +650,7 @@ impl MimeMessage {
                                 self.failure_report = Some(report);
                             }
 
-                            // Add all parts (we need another part, preferrably text/plain, to show as an error message)
+                            // Add all parts (we need another part, preferably text/plain, to show as an error message)
                             for cur_data in mail.subparts.iter() {
                                 if self.parse_mime_recursive(context, cur_data).await? {
                                     any_part_added = true;
@@ -1272,7 +1272,7 @@ fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
 
 /// Tries to get attachment filename.
 ///
-/// If filename is explitictly specified in Content-Disposition, it is
+/// If filename is explicitly specified in Content-Disposition, it is
 /// returned. If Content-Disposition is "attachment" but filename is
 /// not specified, filename is guessed. If Content-Disposition cannot
 /// be parsed, returns an error.
@@ -1328,7 +1328,7 @@ fn get_attachment_filename(
                             }
                         }
                     } else {
-                        warn!(context, "apostroped encoding invalid: {}", name);
+                        warn!(context, "apostrophed encoding invalid: {}", name);
                         // be graceful and just use the original name.
                         // some MUA, including Delta Chat up to core1.50,
                         // use `filename*` mistakenly for simple encoded-words without following rfc2231
