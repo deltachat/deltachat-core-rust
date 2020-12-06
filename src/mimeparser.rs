@@ -1605,6 +1605,17 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed_invalid() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed_invalid.eml"),
+        );
+        let filename = get_attachment_filename(&t.ctx, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("somedäüta.html.zip".to_string()))
+    }
+
+    #[async_std::test]
     async fn test_get_attachment_filename_combined() {
         // test that if `filename` and `filename*0` are given, the filename is not doubled
         let t = TestContext::new().await;
