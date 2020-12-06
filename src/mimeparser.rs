@@ -2513,4 +2513,12 @@ On 2020-10-25, Bob wrote:
         );
         assert_eq!(mimeparser.parts[0].typ, Viewtype::File);
     }
+
+    #[async_std::test]
+    async fn test_quote_div() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/gmx-quote.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert_eq!(mimeparser.parts[0].msg, "Test\n\n[...]");
+    }
 }

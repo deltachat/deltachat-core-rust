@@ -11,6 +11,19 @@ struct Dehtml {
     strbuilder: String,
     add_text: AddText,
     last_href: Option<String>,
+    /// Some providers wrap a quote in <div name="quote">. After a <div name="quote">, this count is
+    /// increased at each <div> and decreased at each </div>. This way we know when the quote ends.
+    divs_since_quote_div: Option<i32>,
+}
+
+impl Dehtml {
+    fn line_prefix(&self) -> &str {
+        if self.divs_since_quote_div.is_some() {
+            "> "
+        } else {
+            ""
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -41,6 +54,7 @@ pub fn dehtml_quick_xml(buf: &str) -> String {
         strbuilder: String::with_capacity(buf.len()),
         add_text: AddText::YesRemoveLineEnds,
         last_href: None,
+        divs_since_quote_div: None,
     };
 
     let mut reader = quick_xml::Reader::from_str(buf);
@@ -87,7 +101,7 @@ fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
         if dehtml.add_text == AddText::YesRemoveLineEnds {
             dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
         } else {
-            dehtml.strbuilder += &last_added;
+            dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\n> ").as_ref();
         }
     }
 }
@@ -101,7 +115,7 @@ fn dehtml_cdata_cb(event: &BytesText, dehtml: &mut Dehtml) {
         if dehtml.add_text == AddText::YesRemoveLineEnds {
             dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
         } else {
-            dehtml.strbuilder += &last_added;
+            dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\n> ").as_ref();
         }
     }
 }
@@ -110,9 +124,21 @@ fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
     let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
 
     match tag.as_str() {
-        "p" | "div" | "table" | "td" | "style" | "script" | "title" | "pre" => {
-            dehtml.strbuilder += "\n\n";
+        "p" | "table" | "td" | "style" | "script" | "title" | "pre" => {
+            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
             dehtml.add_text = AddText::YesRemoveLineEnds;
+        }
+        "div" => {
+            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
+            dehtml.add_text = AddText::YesRemoveLineEnds;
+
+            if let Some(ref mut divs) = dehtml.divs_since_quote_div {
+                *divs -= 1;
+                if *divs <= 0 {
+                    //dehtml.strbuilder += "</div name=\"quote\">";
+                    dehtml.divs_since_quote_div = None;
+                }
+            }
         }
         "a" => {
             if let Some(ref last_href) = dehtml.last_href.take() {
@@ -139,19 +165,37 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
     let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
 
     match tag.as_str() {
-        "p" | "div" | "table" | "td" => {
-            dehtml.strbuilder += "\n\n";
+        "p" | "table" | "td" => {
+            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
+        "div" => {
+            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
+            dehtml.add_text = AddText::YesRemoveLineEnds;
+
+            if let Some(ref mut divs) = dehtml.divs_since_quote_div {
+                *divs += 1;
+            } else if event.attributes().any(|r| {
+                r.map(|a| {
+                    a.unescape_and_decode_value(reader)
+                        .map(|v| v == "quote")
+                        .unwrap_or(false)
+                })
+                .unwrap_or(false)
+            }) {
+                //dehtml.strbuilder += "<div name=\"quote\">";
+                dehtml.divs_since_quote_div = Some(1);
+            }
+        }
         "br" => {
-            dehtml.strbuilder += "\n";
+            dehtml.strbuilder += &("\n".to_owned() + dehtml.line_prefix());
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "style" | "script" | "title" => {
             dehtml.add_text = AddText::No;
         }
         "pre" => {
-            dehtml.strbuilder += "\n\n";
+            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
             dehtml.add_text = AddText::YesPreserveLineEnds;
         }
         "a" => {
@@ -287,5 +331,15 @@ mod tests {
         "##;
         let txt = dehtml(input).unwrap();
         assert_eq!(txt.trim(), "lots of text");
+    }
+
+    #[async_std::test]
+    async fn test_quote_div() {
+        let input = include_str!("../test-data/message/gmx-quote-body.eml");
+        let (msg, forwawded, top_quote) = simplify(dehtml(input).unwrap(), false);
+        println!("{}", msg);
+        assert_eq!(msg, "Test");
+        assert_eq!(forwawded, false);
+        assert_eq!(top_quote, None);
     }
 }
