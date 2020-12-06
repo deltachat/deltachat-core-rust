@@ -1180,7 +1180,7 @@ async fn build_body_file(
     // run into other problems ...
     let cd_value = if needs_encoding(&filename_to_send) {
         format!(
-            "attachment; filename*=\"{}\"",
+            "attachment; filename=\"{}\"",
             encode_words(&filename_to_send)
         )
     } else {
