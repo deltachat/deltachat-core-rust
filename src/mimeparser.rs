@@ -1328,8 +1328,11 @@ fn get_attachment_filename(
                             }
                         }
                     } else {
-                        warn!(context, "apostroped encoding invalid");
-                        None
+                        warn!(context, "apostroped encoding invalid: {}", name);
+                        // be graceful and just use the original name.
+                        // some MUA, including Delta Chat up to core1.50,
+                        // use `filename*` mistakenly for simple encoded-words without following rfc2231
+                        Some(name)
                     }
             }
         }
