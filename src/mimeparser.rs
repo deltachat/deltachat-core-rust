@@ -414,10 +414,15 @@ impl MimeMessage {
         if !self.decrypting_failed && !self.parts.is_empty() {
             if let Some(ref dn_to) = self.chat_disposition_notification_to {
                 if let Some(ref from) = self.from.get(0) {
-                    if from.addr == dn_to.addr {
+                    if from.addr.to_lowercase() == dn_to.addr.to_lowercase() {
                         if let Some(part) = self.parts.last_mut() {
                             part.param.set_int(Param::WantsMdn, 1);
                         }
+                    } else {
+                        warn!(
+                            context,
+                            "{} requested a read receipt to {}, ignoring", from.addr, dn_to.addr
+                        );
                     }
                 }
             }
