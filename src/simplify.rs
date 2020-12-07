@@ -225,7 +225,8 @@ fn is_empty_line(buf: &str) -> bool {
     //
     // See discussion at: https://github.com/deltachat/deltachat-core-rust/pull/402#discussion_r317062392
     for c in buf.chars() {
-        if c > ' ' && c != '\u{a0}' { // '\u{a0}' is a non-breaking space
+        if c > ' ' && c != '\u{a0}' {
+            // '\u{a0}' is a non-breaking space
             return false;
         }
     }

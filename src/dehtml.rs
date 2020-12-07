@@ -342,6 +342,6 @@ mod tests {
         println!("{}", msg);
         assert_eq!(msg, "Test");
         assert_eq!(forwawded, false);
-        assert_eq!(top_quote.as_deref(), Some(""));
+        assert_eq!(top_quote.as_deref(), Some("*Gesendet:*\u{a0}Freitag, 04. Dezember 2020 um 18:46 Uhr\n*Von:*\u{a0}\"Bob\" <bob@gmx.de>\n*An:*\u{a0}alice@gmx.de\n*Betreff:*\u{a0}test\n\n\n\ntest\n\n\n\n"));
     }
 }
