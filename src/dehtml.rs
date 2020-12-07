@@ -173,16 +173,17 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
             dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
             dehtml.add_text = AddText::YesRemoveLineEnds;
 
-            if let Some(ref mut divs) = dehtml.divs_since_quote_div {
-                *divs += 1;
-            } else if event.attributes().any(|r| {
+            let is_quote_div = event.attributes().any(|r| {
                 r.map(|a| {
                     a.unescape_and_decode_value(reader)
                         .map(|v| v == "quote")
                         .unwrap_or(false)
                 })
                 .unwrap_or(false)
-            }) {
+            });
+            if let Some(ref mut divs) = dehtml.divs_since_quote_div {
+                *divs += 1;
+            } else if is_quote_div {
                 //dehtml.strbuilder += "<div name=\"quote\">";
                 dehtml.divs_since_quote_div = Some(1);
             }
@@ -336,10 +337,11 @@ mod tests {
     #[async_std::test]
     async fn test_quote_div() {
         let input = include_str!("../test-data/message/gmx-quote-body.eml");
-        let (msg, forwawded, top_quote) = simplify(dehtml(input).unwrap(), false);
+        let dehtml = dehtml(input).unwrap();
+        let (msg, forwawded, top_quote) = simplify(dehtml, false);
         println!("{}", msg);
         assert_eq!(msg, "Test");
         assert_eq!(forwawded, false);
-        assert_eq!(top_quote, None);
+        assert_eq!(top_quote.as_deref(), Some(""));
     }
 }
