@@ -1,24 +1,38 @@
 Return-Path: <alice@gmx.de>
+Delivered-To: bob@gmx.de
 MIME-Version: 1.0
-Message-ID: <xyzm@3c-app-gmx-bap76>
+Message-ID: <trinity-fa44240c-65ef-4323-b531-d1d3e5e84313-1607428795002@3c-app-gmx-bs36>
 From: Alice <alice@gmx.de>
-To: Bob <bob@gmx.de>
-Subject: Aw: test
+To: bob@gmx.de
+Subject: Aw: Re: Re: Re: Message from bob@gmx.de
 Content-Type: text/html; charset=UTF-8
-Date: Fri, 4 Dec 2020 18:45:37 +0100
-In-Reply-To: <abcd@gmx.de>
+Date: Tue, 8 Dec 2020 12:59:55 +0100
+Importance: normal
+Sensitivity: Normal
+In-Reply-To: <Mr.3p9V5c7XjPQ.bcqzV4ls4ID@testrun.org>
+References: <Mr.SRvG2sUyI8E.pASbMFvaNqy@testrun.org>
+ <trinity-764a001f-6593-4c33-b681-942d2ffb9f9f-1607359668635@3c-app-gmx-bs26>
+ <Mr.3p9V5c7XjPQ.bcqzV4ls4ID@testrun.org>
 
-<html><head></head><body><div style="font-family: Verdana;font-size: 12.0px;"><div>Test</div>
+<html><head></head><body><div style="font-family: Verdana;font-size: 12.0px;"><div>YIPPEEEEEE</div>
+
+<div>&nbsp;</div>
+
+<div>Multi-line</div>
 
 <div>&nbsp;
 <div>&nbsp;
 <div name="quote" style="margin:10px 5px 5px 10px; padding: 10px 0 10px 10px; border-left:2px solid #C3D9E5; word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space;">
-<div style="margin:0 0 10px 0;"><b>Gesendet:</b>&nbsp;Freitag, 04. Dezember 2020 um 18:46 Uhr<br/>
-<b>Von:</b>&nbsp;&quot;Bob&quot; &lt;bob@gmx.de&gt;<br/>
-<b>An:</b>&nbsp;alice@gmx.de<br/>
-<b>Betreff:</b>&nbsp;test</div>
+<div style="margin:0 0 10px 0;"><b>Gesendet:</b>&nbsp;Dienstag, 08. Dezember 2020 um 12:59 Uhr<br/>
+<b>Von:</b>&nbsp;bob@gmx.de<br/>
+<b>An:</b>&nbsp;&quot;Alice&quot; &lt;alice@gmx.de&gt;<br/>
+<b>Betreff:</b>&nbsp;Re: Re: Re: Message from bob@gmx.de</div>
 
-<div name="quoted-content">test</div>
+<div name="quoted-content">Now?<br/>
+<br/>
+--<br/>
+Sent with my Delta Chat Messenger: <a href="https://delta.chat" target="_blank">https://delta.chat</a><br/>
+&nbsp;</div>
 </div>
 </div>
 </div></div></body></html>

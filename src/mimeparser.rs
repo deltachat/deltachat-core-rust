@@ -2519,7 +2519,7 @@ On 2020-10-25, Bob wrote:
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/gmx-quote.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
-        assert_eq!(mimeparser.parts[0].msg, "Test");
-        assert_eq!(mimeparser.parts[0].param.get(Param::Quote).unwrap(), "test");
+        assert_eq!(mimeparser.parts[0].msg, "YIPPEEEEEE\n\nMulti-line");
+        assert_eq!(mimeparser.parts[0].param.get(Param::Quote).unwrap(), "Now?");
     }
 }

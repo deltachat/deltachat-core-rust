@@ -91,7 +91,13 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, Opti
             render_message(lines, has_nonstandard_footer || bottom_quote.is_some())
         }
     };
-    (text, is_forwarded, top_quote)
+
+    let quote = top_quote.map(|quote| {
+        let quote_lines = split_lines(&quote);
+        let quote_lines = remove_message_footer(&quote_lines);
+        render_message(quote_lines, false)
+    });
+    (text, is_forwarded, quote)
 }
 
 /// Skips "forwarded message" header.
