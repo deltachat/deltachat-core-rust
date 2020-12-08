@@ -190,7 +190,7 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
 
     match tag.as_str() {
         "p" | "table" | "td" => {
-            dehtml.strbuilder = dehtml.append_prefix("\n\n");
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         #[rustfmt::skip]
