@@ -2,8 +2,13 @@
 //!
 //! A module to remove HTML tags from the email text
 
+use std::io::BufRead;
+
 use once_cell::sync::Lazy;
-use quick_xml::events::{BytesEnd, BytesStart, BytesText};
+use quick_xml::{
+    events::{BytesEnd, BytesStart, BytesText},
+    Reader,
+};
 
 static LINE_RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"(\r?\n)+").unwrap());
 
@@ -14,19 +19,31 @@ struct Dehtml {
     /// Some providers wrap a quote in <div name="quote">. After a <div name="quote">, this count is
     /// increased at each <div> and decreased at each </div>. This way we know when the quote ends.
     divs_since_quote_div: Option<i32>,
+    /// Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
+    divs_since_quoted_content_div: Option<i32>,
 }
 
 impl Dehtml {
     fn line_prefix(&self) -> &str {
-        if self.divs_since_quote_div.is_some() {
+        if self.divs_since_quoted_content_div.is_some() {
             "> "
         } else {
             ""
         }
     }
+    fn append_prefix(&self, line_end: impl AsRef<str>) -> String {
+        line_end.as_ref().to_owned() + self.line_prefix()
+    }
+    fn get_add_text(&self) -> AddText {
+        if self.divs_since_quote_div.is_some() && self.divs_since_quoted_content_div.is_none() {
+            AddText::No // Everything between <div name="quoted"> and <div name="quoted_content"> is metadata which we don't want
+        } else {
+            self.add_text
+        }
+    }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum AddText {
     No,
     YesRemoveLineEnds,
@@ -55,6 +72,7 @@ pub fn dehtml_quick_xml(buf: &str) -> String {
         add_text: AddText::YesRemoveLineEnds,
         last_href: None,
         divs_since_quote_div: None,
+        divs_since_quoted_content_div: None,
     };
 
     let mut reader = quick_xml::Reader::from_str(buf);
@@ -93,29 +111,35 @@ pub fn dehtml_quick_xml(buf: &str) -> String {
 }
 
 fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
-    if dehtml.add_text == AddText::YesPreserveLineEnds
-        || dehtml.add_text == AddText::YesRemoveLineEnds
+    if dehtml.get_add_text() == AddText::YesPreserveLineEnds
+        || dehtml.get_add_text() == AddText::YesRemoveLineEnds
     {
         let last_added = escaper::decode_html_buf_sloppy(event.escaped()).unwrap_or_default();
 
-        if dehtml.add_text == AddText::YesRemoveLineEnds {
+        if dehtml.get_add_text() == AddText::YesRemoveLineEnds {
             dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
+        } else if !dehtml.line_prefix().is_empty() {
+            let l = dehtml.append_prefix("\n");
+            dehtml.strbuilder += LINE_RE.replace_all(&last_added, l.as_str()).as_ref();
         } else {
-            dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\n> ").as_ref();
+            dehtml.strbuilder += &last_added;
         }
     }
 }
 
 fn dehtml_cdata_cb(event: &BytesText, dehtml: &mut Dehtml) {
-    if dehtml.add_text == AddText::YesPreserveLineEnds
-        || dehtml.add_text == AddText::YesRemoveLineEnds
+    if dehtml.get_add_text() == AddText::YesPreserveLineEnds
+        || dehtml.get_add_text() == AddText::YesRemoveLineEnds
     {
         let last_added = escaper::decode_html_buf_sloppy(event.escaped()).unwrap_or_default();
 
-        if dehtml.add_text == AddText::YesRemoveLineEnds {
+        if dehtml.get_add_text() == AddText::YesRemoveLineEnds {
             dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
+        } else if !dehtml.line_prefix().is_empty() {
+            let l = dehtml.append_prefix("\n");
+            dehtml.strbuilder += LINE_RE.replace_all(&last_added, l.as_str()).as_ref();
         } else {
-            dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\n> ").as_ref();
+            dehtml.strbuilder += &last_added;
         }
     }
 }
@@ -125,20 +149,15 @@ fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
 
     match tag.as_str() {
         "p" | "table" | "td" | "style" | "script" | "title" | "pre" => {
-            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "div" => {
-            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
-            dehtml.add_text = AddText::YesRemoveLineEnds;
+            pop_tag(&mut dehtml.divs_since_quote_div);
+            pop_tag(&mut dehtml.divs_since_quoted_content_div);
 
-            if let Some(ref mut divs) = dehtml.divs_since_quote_div {
-                *divs -= 1;
-                if *divs <= 0 {
-                    //dehtml.strbuilder += "</div name=\"quote\">";
-                    dehtml.divs_since_quote_div = None;
-                }
-            }
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
+            dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "a" => {
             if let Some(ref last_href) = dehtml.last_href.take() {
@@ -148,10 +167,14 @@ fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
             }
         }
         "b" | "strong" => {
-            dehtml.strbuilder += "*";
+            if dehtml.get_add_text() != AddText::No {
+                dehtml.strbuilder += "*";
+            }
         }
         "i" | "em" => {
-            dehtml.strbuilder += "_";
+            if dehtml.get_add_text() != AddText::No {
+                dehtml.strbuilder += "_";
+            }
         }
         _ => {}
     }
@@ -166,37 +189,26 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
 
     match tag.as_str() {
         "p" | "table" | "td" => {
-            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
+            dehtml.strbuilder = dehtml.append_prefix("\n\n");
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
+        #[rustfmt::skip]
         "div" => {
-            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
-            dehtml.add_text = AddText::YesRemoveLineEnds;
+            maybe_push_tag(event, reader, "quote", &mut dehtml.divs_since_quote_div);
+            maybe_push_tag(event, reader, "quoted-content", &mut dehtml.divs_since_quoted_content_div);
 
-            let is_quote_div = event.attributes().any(|r| {
-                r.map(|a| {
-                    a.unescape_and_decode_value(reader)
-                        .map(|v| v == "quote")
-                        .unwrap_or(false)
-                })
-                .unwrap_or(false)
-            });
-            if let Some(ref mut divs) = dehtml.divs_since_quote_div {
-                *divs += 1;
-            } else if is_quote_div {
-                //dehtml.strbuilder += "<div name=\"quote\">";
-                dehtml.divs_since_quote_div = Some(1);
-            }
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
+            dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "br" => {
-            dehtml.strbuilder += &("\n".to_owned() + dehtml.line_prefix());
+            dehtml.strbuilder += &dehtml.append_prefix("\n");
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "style" | "script" | "title" => {
             dehtml.add_text = AddText::No;
         }
         "pre" => {
-            dehtml.strbuilder += &("\n\n".to_owned() + dehtml.line_prefix());
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
             dehtml.add_text = AddText::YesPreserveLineEnds;
         }
         "a" => {
@@ -217,13 +229,51 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
             }
         }
         "b" | "strong" => {
-            dehtml.strbuilder += "*";
+            if dehtml.get_add_text() != AddText::No {
+                dehtml.strbuilder += "*";
+            }
         }
         "i" | "em" => {
-            dehtml.strbuilder += "_";
+            if dehtml.get_add_text() != AddText::No {
+                dehtml.strbuilder += "_";
+            }
         }
         _ => {}
     }
+}
+
+fn pop_tag(count: &mut Option<i32>) {
+    if let Some(ref mut divs) = count {
+        *divs -= 1;
+        if *divs <= 0 {
+            //dehtml.strbuilder += "</div name=\"quote\">";
+            *count = None;
+        }
+    }
+}
+
+fn maybe_push_tag(
+    event: &BytesStart,
+    reader: &Reader<impl BufRead>,
+    tag_name: &str,
+    count: &mut Option<i32>,
+) {
+    if let Some(ref mut divs) = count {
+        *divs += 1;
+    } else if tag_contains_attr(event, reader, tag_name) {
+        *count = Some(1);
+    }
+}
+
+fn tag_contains_attr(event: &BytesStart, reader: &Reader<impl BufRead>, name: &str) -> bool {
+    event.attributes().any(|r| {
+        r.map(|a| {
+            a.unescape_and_decode_value(reader)
+                .map(|v| v == name)
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
+    })
 }
 
 pub fn dehtml_manually(buf: &str) -> String {
@@ -338,10 +388,10 @@ mod tests {
     async fn test_quote_div() {
         let input = include_str!("../test-data/message/gmx-quote-body.eml");
         let dehtml = dehtml(input).unwrap();
+        println!("{}", dehtml);
         let (msg, forwawded, top_quote) = simplify(dehtml, false);
-        println!("{}", msg);
         assert_eq!(msg, "Test");
         assert_eq!(forwawded, false);
-        assert_eq!(top_quote.as_deref(), Some("*Gesendet:*\u{a0}Freitag, 04. Dezember 2020 um 18:46 Uhr\n*Von:*\u{a0}\"Bob\" <bob@gmx.de>\n*An:*\u{a0}alice@gmx.de\n*Betreff:*\u{a0}test\n\n\n\ntest\n\n\n\n"));
+        assert_eq!(top_quote.as_deref(), Some("test"));
     }
 }
