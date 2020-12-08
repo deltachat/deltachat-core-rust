@@ -16,10 +16,10 @@ struct Dehtml {
     strbuilder: String,
     add_text: AddText,
     last_href: Option<String>,
-    /// Some providers wrap a quote in <div name="quote">. After a <div name="quote">, this count is
-    /// increased at each <div> and decreased at each </div>. This way we know when the quote ends.
+    // Some providers wrap a quote in <div name="quote">. After a <div name="quote">, this count is
+    // increased at each <div> and decreased at each </div>. This way we know when the quote ends.
     divs_since_quote_div: Option<i32>,
-    /// Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
+    // Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
     divs_since_quoted_content_div: Option<i32>,
 }
 
@@ -32,6 +32,7 @@ impl Dehtml {
         }
     }
     fn append_prefix(&self, line_end: impl AsRef<str>) -> String {
+        // line_end is e.g. "\n\n". We add "> " if necessary.
         line_end.as_ref().to_owned() + self.line_prefix()
     }
     fn get_add_text(&self) -> AddText {
@@ -246,7 +247,6 @@ fn pop_tag(count: &mut Option<i32>) {
     if let Some(ref mut divs) = count {
         *divs -= 1;
         if *divs <= 0 {
-            //dehtml.strbuilder += "</div name=\"quote\">";
             *count = None;
         }
     }
