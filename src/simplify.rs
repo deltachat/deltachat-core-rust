@@ -92,12 +92,14 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, Opti
         }
     };
 
-    let quote = top_quote.map(|quote| {
-        let quote_lines = split_lines(&quote);
-        let quote_lines = remove_message_footer(&quote_lines);
-        render_message(quote_lines, false)
-    });
-    (text, is_forwarded, quote)
+    if !is_chat_message {
+        top_quote = top_quote.map(|quote| {
+            let quote_lines = split_lines(&quote);
+            let quote_lines = remove_message_footer(&quote_lines);
+            render_message(quote_lines, false)
+        });
+    }
+    (text, is_forwarded, top_quote)
 }
 
 /// Skips "forwarded message" header.
@@ -224,20 +226,10 @@ fn render_message(lines: &[&str], is_cut_at_end: bool) -> String {
  * Tools
  */
 fn is_empty_line(buf: &str) -> bool {
-    // XXX: can it be simplified to buf.chars().all(|c| c.is_whitespace())?
-    //
-    // Strictly speaking, it is not equivalent (^A is not whitespace, but less than ' '),
-    // but having control sequences in email body?!
-    //
-    // See discussion at: https://github.com/deltachat/deltachat-core-rust/pull/402#discussion_r317062392
-    for c in buf.chars() {
-        if c > ' ' && c != '\u{a0}' {
-            // '\u{a0}' is a non-breaking space
-            return false;
-        }
-    }
-
-    true
+    buf.chars().all(char::is_whitespace)
+    // for some time, this checked for `char <= ' '`,
+    // see discussion at: https://github.com/deltachat/deltachat-core-rust/pull/402#discussion_r317062392
+    // and https://github.com/deltachat/deltachat-core-rust/pull/2104/files#r538973613
 }
 
 fn is_quoted_headline(buf: &str) -> bool {
