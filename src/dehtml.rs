@@ -18,9 +18,9 @@ struct Dehtml {
     last_href: Option<String>,
     // GMX wraps a quote in <div name="quote">. After a <div name="quote">, this count is
     // increased at each <div> and decreased at each </div>. This way we know when the quote ends.
-    divs_since_quote_div: Option<i32>,
+    divs_since_quote_div: Option<u32>,
     // Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
-    divs_since_quoted_content_div: Option<i32>,
+    divs_since_quoted_content_div: Option<u32>,
 }
 
 impl Dehtml {
@@ -245,10 +245,11 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
 
 /// In order to know when a specific tag is closed, we need to count the opening and closing tags.
 /// The `counts`s are stored in the `Dehtml` struct.
-fn pop_tag(count: &mut Option<i32>) {
+fn pop_tag(count: &mut Option<u32>) {
     if let Some(ref mut divs) = count {
-        *divs -= 1;
-        if *divs <= 0 {
+        if *divs > 1 {
+            *divs -= 1;
+        } else {
             *count = None;
         }
     }
@@ -260,7 +261,7 @@ fn maybe_push_tag(
     event: &BytesStart,
     reader: &Reader<impl BufRead>,
     tag_name: &str,
-    count: &mut Option<i32>,
+    count: &mut Option<u32>,
 ) {
     if let Some(ref mut divs) = count {
         *divs += 1;
