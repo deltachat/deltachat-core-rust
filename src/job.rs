@@ -14,9 +14,6 @@ use async_smtp::smtp::response::Category;
 use async_smtp::smtp::response::Code;
 use async_smtp::smtp::response::Detail;
 
-use crate::chat::{self, ChatId};
-use crate::config::Config;
-use crate::contact::Contact;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::ephemeral::load_imap_deletion_msgid;
@@ -30,6 +27,12 @@ use crate::mimefactory::MimeFactory;
 use crate::param::*;
 use crate::smtp::Smtp;
 use crate::{blob::BlobObject, contact::normalize_name, contact::Modifier, contact::Origin};
+use crate::{
+    chat::{self, Chat, ChatId, ChatItem},
+    constants::DC_CHAT_ID_DEADDROP,
+};
+use crate::{config::Config, constants::Blocked};
+use crate::{constants::Chattype, contact::Contact};
 use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
@@ -654,6 +657,42 @@ impl Job {
                 }
             }
         }
+
+        // Make sure that if there now is a chat with a contact (created by an outgoing message), then group contact requests
+        // from this contact should also be unblocked.
+        // See https://github.com/deltachat/deltachat-core-rust/issues/2097.
+        for item in chat::get_chat_msgs(context, ChatId::new(DC_CHAT_ID_DEADDROP), 0, None).await {
+            if let ChatItem::Message { msg_id } = item {
+                let msg = match Message::load_from_db(context, msg_id).await {
+                    Err(e) => {
+                        warn!(context, "can't get msg: {:#}", e);
+                        return Status::RetryLater;
+                    }
+                    Ok(m) => m,
+                };
+                let chat = match Chat::load_from_db(context, msg.chat_id).await {
+                    Err(e) => {
+                        warn!(context, "can't get chat: {:#}", e);
+                        return Status::RetryLater;
+                    }
+                    Ok(c) => c,
+                };
+                if chat.typ == Chattype::Group {
+                    // The next lines are actually what we do in
+                    let (test_normal_chat_id, test_normal_chat_id_blocked) =
+                        chat::lookup_by_contact_id(context, msg.from_id)
+                            .await
+                            .unwrap_or_default();
+
+                    if !test_normal_chat_id.is_unset()
+                        && test_normal_chat_id_blocked == Blocked::Not
+                    {
+                        chat.id.unblock(context).await;
+                    }
+                }
+            }
+        }
+
         info!(context, "Done fetching existing messages.");
         Status::Finished(Ok(()))
     }
