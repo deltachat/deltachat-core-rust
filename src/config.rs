@@ -72,8 +72,7 @@ pub enum Config {
     /// If set to "1", on the first time `start_io()` is called after configuring,
     /// the newest existing messages are fetched.
     /// Existing recipients are added to the contact database regardless of this setting.
-    #[strum(props(default = "0"))]
-    // disabled for now, we'll set this back to "1" at some point
+    #[strum(props(default = "1"))]
     FetchExistingMsgs,
 
     #[strum(props(default = "0"))]
