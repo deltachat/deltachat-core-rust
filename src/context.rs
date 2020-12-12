@@ -8,9 +8,12 @@ use std::{
 };
 
 use anyhow::{bail, ensure, Result};
-use async_std::path::{Path, PathBuf};
-use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
-use async_std::task;
+use async_std::{
+    channel::{bounded as channel, Receiver, Sender},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex, RwLock},
+    task,
+};
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
@@ -249,7 +252,9 @@ impl Context {
         let s_a = &self.running_state;
         let mut s = s_a.write().await;
         if let Some(cancel) = s.cancel_sender.take() {
-            cancel.send(()).await;
+            if let Err(err) = cancel.send(()).await {
+                warn!(self, "could not cancel ongoing: {:?}", err);
+            }
         }
 
         if s.ongoing_running && !s.shall_stop_ongoing {

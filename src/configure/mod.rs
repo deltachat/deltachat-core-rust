@@ -341,7 +341,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 600);
 
     // Configure IMAP
-    let (_s, r) = async_std::sync::channel(1);
+    let (_s, r) = async_std::channel::bounded(1);
     let mut imap = Imap::new(r);
 
     let mut imap_configured = false;

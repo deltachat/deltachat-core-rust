@@ -299,7 +299,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         .output_stream(OutputStreamType::Stdout)
         .build();
     let mut selected_chat = ChatId::default();
-    let (reader_s, reader_r) = async_std::sync::channel(100);
+    let (reader_s, reader_r) = async_std::channel::bounded(100);
     let input_loop = async_std::task::spawn_blocking(move || {
         let h = DcHelper {
             completer: FilenameCompleter::new(),
@@ -322,7 +322,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
                 Ok(line) => {
                     // TODO: ignore "set mail_pw"
                     rl.add_history_entry(line.as_str());
-                    async_std::task::block_on(reader_s.send(line));
+                    async_std::task::block_on(reader_s.send(line)).unwrap();
                 }
                 Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                     println!("Exiting...");
