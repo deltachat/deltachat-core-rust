@@ -2,8 +2,8 @@
 
 use std::ops::Deref;
 
+use async_std::channel::{bounded as channel, Receiver, Sender, TrySendError};
 use async_std::path::PathBuf;
-use async_std::sync::{channel, Receiver, Sender, TrySendError};
 use strum::EnumProperty;
 
 use crate::chat::ChatId;
@@ -35,7 +35,7 @@ impl Events {
                 // try again
                 self.emit(event);
             }
-            Err(TrySendError::Disconnected(_)) => {
+            Err(TrySendError::Closed(_)) => {
                 unreachable!("unable to emit event, channel disconnected");
             }
         }
