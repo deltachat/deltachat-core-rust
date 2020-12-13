@@ -426,42 +426,40 @@ impl Peerstate {
     pub async fn save_to_db(&self, sql: &Sql, create: bool) -> crate::sql::Result<()> {
         if self.to_save == Some(ToSave::All) || create {
             sql.execute(
-                if create {
-                    "INSERT INTO acpeerstates (last_seen, last_seen_autocrypt, prefer_encrypted, \
+                (if create {
+                    sqlx::query("INSERT INTO acpeerstates (last_seen, last_seen_autocrypt, prefer_encrypted, \
                  public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                  verified_key, verified_key_fingerprint, addr \
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)"
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
                 } else {
-                    "UPDATE acpeerstates \
+                    sqlx::query(
+                        "UPDATE acpeerstates \
                  SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
                  public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
                  verified_key=?, verified_key_fingerprint=? \
-                 WHERE addr=?"
-                },
-                paramsv![
-                self.last_seen,
-                self.last_seen_autocrypt,
-                self.prefer_encrypt as i64,
-                self.public_key.as_ref().map(|k| k.to_bytes()),
-                self.gossip_timestamp,
-                self.gossip_key.as_ref().map(|k| k.to_bytes()),
-                self.public_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                self.verified_key.as_ref().map(|k| k.to_bytes()),
-                self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                self.addr,
-                ],
-                ).await?;
+                 WHERE addr=?")
+                }).bind(
+                    self.last_seen).bind(
+                    self.last_seen_autocrypt).bind(
+                    self.prefer_encrypt as i64).bind(
+                    self.public_key.as_ref().map(|k| k.to_bytes())).bind(
+                    self.gossip_timestamp).bind(
+                    self.gossip_key.as_ref().map(|k| k.to_bytes())).bind(
+                    self.public_key_fingerprint.as_ref().map(|fp| fp.hex())).bind(
+                    self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex())).bind(
+                    self.verified_key.as_ref().map(|k| k.to_bytes())).bind(
+                    self.verified_key_fingerprint.as_ref().map(|fp| fp.hex())).bind(
+                    &self.addr)
+
+            ).await?;
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql.execute(
-                "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
-                 WHERE addr=?;",
-                paramsv![
-                    self.last_seen,
-                    self.last_seen_autocrypt,
-                    self.gossip_timestamp,
-                    self.addr
-                ],
+                sqlx::query("UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
+                 WHERE addr=?;").bind(
+                    self.last_seen).bind(
+                    self.last_seen_autocrypt).bind(
+                    self.gossip_timestamp).bind(
+                    &self.addr)
             )
             .await?;
         }
@@ -616,7 +614,7 @@ mod tests {
         // can be loaded without errors.
         ctx.ctx
             .sql
-            .execute("INSERT INTO acpeerstates (addr) VALUES(?)", paramsv![addr])
+            .execute(sqlx::query("INSERT INTO acpeerstates (addr) VALUES(?)").bind(addr))
             .await
             .expect("Failed to write to the database");
 

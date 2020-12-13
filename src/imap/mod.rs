@@ -1530,13 +1530,13 @@ async fn precheck_imf(
                     // added after the Move Job completed.
                     job::add(
                         context,
-                        job::Job::new(Action::MoveMsg, msg_id.to_u32(), Params::new(), 0),
+                        job::Job::new(Action::MoveMsg, msg_id.to_i64(), Params::new(), 0),
                     )
                     .await;
                 } else {
                     job::add(
                         context,
-                        job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
+                        job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_i64(), Params::new(), 0),
                     )
                     .await;
                 }
@@ -1579,7 +1579,7 @@ async fn precheck_imf(
                 if message_state == MessageState::InSeen || message_state.is_outgoing() {
                     job::add(
                         context,
-                        job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
+                        job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_i64(), Params::new(), 0),
                     )
                     .await;
                 }
@@ -1726,9 +1726,15 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
     context
         .sql
         .execute(
-            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+            sqlx::query(
+                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
                 ON CONFLICT(folder) DO UPDATE SET uid_next=? WHERE folder=?;",
-            paramsv![folder, 0u32, uid_next, uid_next, folder],
+            )
+            .bind(folder)
+            .bind(0i32)
+            .bind(uid_next as i64)
+            .bind(uid_next as i64)
+            .bind(folder),
         )
         .await?;
     Ok(())
@@ -1758,9 +1764,15 @@ pub(crate) async fn set_uidvalidity(
     context
         .sql
         .execute(
-            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+            sqlx::query(
+                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
                 ON CONFLICT(folder) DO UPDATE SET uidvalidity=? WHERE folder=?;",
-            paramsv![folder, uidvalidity, 0u32, uidvalidity, folder],
+            )
+            .bind(folder)
+            .bind(uidvalidity as i32)
+            .bind(0i32)
+            .bind(uidvalidity as i32)
+            .bind(folder),
         )
         .await?;
     Ok(())

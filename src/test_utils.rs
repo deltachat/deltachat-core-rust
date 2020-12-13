@@ -259,7 +259,7 @@ impl TestContext {
             .to_abs_path();
         self.ctx
             .sql
-            .execute("DELETE FROM jobs WHERE id=?;", paramsv![rowid])
+            .execute(sqlx::query("DELETE FROM jobs WHERE id=?;").bind(rowid))
             .await
             .expect("failed to remove job");
         update_msg_state(&self.ctx, id, MessageState::OutDelivered).await;

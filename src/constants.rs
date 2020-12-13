@@ -3,6 +3,8 @@ use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
+use crate::chat::ChatId;
+
 pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION").to_string());
 
 #[derive(
@@ -18,8 +20,9 @@ pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION")
     ToSql,
     Serialize,
     Deserialize,
+    sqlx::Type,
 )]
-#[repr(u8)]
+#[repr(i8)]
 pub enum Blocked {
     Not = 0,
     Manually = 1,
@@ -122,15 +125,15 @@ pub const DC_RESEND_USER_AVATAR_DAYS: i64 = 14;
 pub const DC_OUTDATED_WARNING_DAYS: i64 = 365;
 
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
-pub const DC_CHAT_ID_DEADDROP: u32 = 1;
+pub const DC_CHAT_ID_DEADDROP: ChatId = ChatId::new(1);
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
-pub const DC_CHAT_ID_TRASH: u32 = 3;
+pub const DC_CHAT_ID_TRASH: ChatId = ChatId::new(3);
 /// only an indicator in a chatlist
-pub const DC_CHAT_ID_ARCHIVED_LINK: u32 = 6;
+pub const DC_CHAT_ID_ARCHIVED_LINK: ChatId = ChatId::new(6);
 /// only an indicator in a chatlist
-pub const DC_CHAT_ID_ALLDONE_HINT: u32 = 7;
+pub const DC_CHAT_ID_ALLDONE_HINT: ChatId = ChatId::new(7);
 /// larger chat IDs are "real" chats, their messages are "real" messages.
-pub const DC_CHAT_ID_LAST_SPECIAL: u32 = 9;
+pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 
 #[derive(
     Debug,
@@ -146,8 +149,9 @@ pub const DC_CHAT_ID_LAST_SPECIAL: u32 = 9;
     IntoStaticStr,
     Serialize,
     Deserialize,
+    sqlx::Type,
 )]
-#[repr(u32)]
+#[repr(i32)]
 pub enum Chattype {
     Undefined = 0,
     Single = 100,
@@ -196,11 +200,11 @@ pub const DC_MAX_GET_TEXT_LEN: usize = 30_000;
 /// approx. max. length returned by dc_get_msg_info()
 pub const DC_MAX_GET_INFO_LEN: usize = 100_000;
 
-pub const DC_CONTACT_ID_UNDEFINED: u32 = 0;
-pub const DC_CONTACT_ID_SELF: u32 = 1;
-pub const DC_CONTACT_ID_INFO: u32 = 2;
-pub const DC_CONTACT_ID_DEVICE: u32 = 5;
-pub const DC_CONTACT_ID_LAST_SPECIAL: u32 = 9;
+pub const DC_CONTACT_ID_UNDEFINED: i64 = 0;
+pub const DC_CONTACT_ID_SELF: i64 = 1;
+pub const DC_CONTACT_ID_INFO: i64 = 2;
+pub const DC_CONTACT_ID_DEVICE: i64 = 5;
+pub const DC_CONTACT_ID_LAST_SPECIAL: i64 = 9;
 
 // decorative address that is used for DC_CONTACT_ID_DEVICE
 // when an api that returns an email is called.
@@ -260,6 +264,7 @@ pub const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
     ToSql,
     Serialize,
     Deserialize,
+    sqlx::Type,
 )]
 #[repr(i32)]
 pub enum Viewtype {
