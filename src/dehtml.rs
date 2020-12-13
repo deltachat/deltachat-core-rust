@@ -16,16 +16,18 @@ struct Dehtml {
     strbuilder: String,
     add_text: AddText,
     last_href: Option<String>,
-    // GMX wraps a quote in <div name="quote">. After a <div name="quote">, this count is
-    // increased at each <div> and decreased at each </div>. This way we know when the quote ends.
-    divs_since_quote_div: Option<u32>,
-    // Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
-    divs_since_quoted_content_div: Option<u32>,
+    /// GMX wraps a quote in `<div name="quote">`. After a `<div name="quote">`, this count is
+    /// increased at each `<div>` and decreased at each `</div>`. This way we know when the quote ends.
+    /// If this is > `0`, then we are inside a `<div name="quote">`
+    divs_since_quote_div: u32,
+    /// Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
+    /// If this is > `0`, then we are inside a `<div name="quoted-content">`.
+    divs_since_quoted_content_div: u32,
 }
 
 impl Dehtml {
     fn line_prefix(&self) -> &str {
-        if self.divs_since_quoted_content_div.is_some() {
+        if self.divs_since_quoted_content_div > 0 {
             "> "
         } else {
             ""
@@ -36,7 +38,7 @@ impl Dehtml {
         line_end.as_ref().to_owned() + self.line_prefix()
     }
     fn get_add_text(&self) -> AddText {
-        if self.divs_since_quote_div.is_some() && self.divs_since_quoted_content_div.is_none() {
+        if self.divs_since_quote_div > 0 && self.divs_since_quoted_content_div == 0 {
             AddText::No // Everything between <div name="quoted"> and <div name="quoted_content"> is metadata which we don't want
         } else {
             self.add_text
@@ -72,8 +74,8 @@ pub fn dehtml_quick_xml(buf: &str) -> String {
         strbuilder: String::with_capacity(buf.len()),
         add_text: AddText::YesRemoveLineEnds,
         last_href: None,
-        divs_since_quote_div: None,
-        divs_since_quoted_content_div: None,
+        divs_since_quote_div: 0,
+        divs_since_quoted_content_div: 0,
     };
 
     let mut reader = quick_xml::Reader::from_str(buf);
@@ -245,13 +247,9 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
 
 /// In order to know when a specific tag is closed, we need to count the opening and closing tags.
 /// The `counts`s are stored in the `Dehtml` struct.
-fn pop_tag(count: &mut Option<u32>) {
-    if let Some(ref mut divs) = count {
-        if *divs > 1 {
-            *divs -= 1;
-        } else {
-            *count = None;
-        }
+fn pop_tag(count: &mut u32) {
+    if *count > 0 {
+        *count -= 1;
     }
 }
 
@@ -261,12 +259,10 @@ fn maybe_push_tag(
     event: &BytesStart,
     reader: &Reader<impl BufRead>,
     tag_name: &str,
-    count: &mut Option<u32>,
+    count: &mut u32,
 ) {
-    if let Some(ref mut divs) = count {
-        *divs += 1;
-    } else if tag_contains_attr(event, reader, tag_name) {
-        *count = Some(1);
+    if *count > 0 || tag_contains_attr(event, reader, tag_name) {
+        *count += 1;
     }
 }
 
