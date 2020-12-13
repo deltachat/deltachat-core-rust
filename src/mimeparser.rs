@@ -1207,7 +1207,7 @@ impl MimeMessage {
     pub async fn handle_reports(
         &self,
         context: &Context,
-        from_id: u32,
+        from_id: i64,
         sent_timestamp: i64,
         parts: &[Part],
     ) {
@@ -1924,8 +1924,9 @@ mod tests {
             .ctx
             .sql
             .execute(
-                "INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)",
-                paramsv!["Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp],
+                sqlx::query("INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)")
+                    .bind("Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org")
+                    .bind(timestamp),
             )
             .await
             .expect("Failed to write to the database");

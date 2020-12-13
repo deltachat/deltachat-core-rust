@@ -322,15 +322,16 @@ pub async fn store_self_keypair(
     context
         .sql
         .execute(
-            "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
-            paramsv![public_key, secret_key],
+            sqlx::query("DELETE FROM keypairs WHERE public_key=? OR private_key=?;")
+                .bind(&public_key)
+                .bind(&secret_key),
         )
         .await
         .map_err(|err| SaveKeyError::new("failed to remove old use of key", err))?;
     if default == KeyPairUse::Default {
         context
             .sql
-            .execute("UPDATE keypairs SET is_default=0;", paramsv![])
+            .execute("UPDATE keypairs SET is_default=0;")
             .await
             .map_err(|err| SaveKeyError::new("failed to clear default", err))?;
     }
@@ -342,13 +343,18 @@ pub async fn store_self_keypair(
     let addr = keypair.addr.to_string();
     let t = time();
 
-    let params = paramsv![addr, is_default, public_key, secret_key, t];
     context
         .sql
         .execute(
-            "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
+            sqlx::query(
+                "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
                 VALUES (?,?,?,?,?);",
-            params,
+            )
+            .bind(addr)
+            .bind(is_default)
+            .bind(&public_key)
+            .bind(&secret_key)
+            .bind(t),
         )
         .await
         .map_err(|err| SaveKeyError::new("failed to insert keypair", err))?;

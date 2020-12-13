@@ -358,8 +358,12 @@ impl BobState {
             )));
         }
         mark_peer_as_verified(context, self.invite.fingerprint()).await?;
-        Contact::scaleup_origin_by_id(context, self.invite.contact_id(), Origin::SecurejoinJoined)
-            .await;
+        Contact::scaleup_origin_by_id(
+            context,
+            self.invite.contact_id() as i64,
+            Origin::SecurejoinJoined,
+        )
+        .await;
         emit_event!(context, EventType::ContactsChanged(None));
 
         if let QrInvite::Group { .. } = self.invite {

@@ -15,7 +15,7 @@ pub struct Lot {
     pub(crate) text2: Option<String>,
     pub(crate) timestamp: i64,
     pub(crate) state: LotState,
-    pub(crate) id: u32,
+    pub(crate) id: i64,
     pub(crate) fingerprint: Option<Fingerprint>,
     pub(crate) invitenumber: Option<String>,
     pub(crate) auth: Option<String>,

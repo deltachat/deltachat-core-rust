@@ -398,7 +398,7 @@ async fn send_handshake_msg(
     Ok(())
 }
 
-async fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> u32 {
+async fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> i64 {
     if let [contact_id] = chat::get_chat_contacts(context, contact_chat_id).await[..] {
         contact_id
     } else {
@@ -436,6 +436,29 @@ async fn fingerprint_equals_sender(
         }
     }
     false
+}
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum HandshakeError {
+    #[error("Can not be called with special contact ID")]
+    SpecialContactId,
+    #[error("Not a Secure-Join message")]
+    NotSecureJoinMsg,
+    #[error("Failed to look up or create chat for contact #{contact_id}")]
+    NoChat {
+        contact_id: i64,
+        #[source]
+        cause: Error,
+    },
+    #[error("Chat for group {group} not found")]
+    ChatNotFound { group: String },
+    #[error("No configured self address found")]
+    NoSelfAddr,
+    #[error("Failed to send message")]
+    MsgSendFailed(#[from] SendMsgError),
+    #[error("Failed to parse fingerprint")]
+    BadFingerprint(#[from] crate::key::FingerprintError),
+    #[error("{}", _0)]
+    Other(#[from] anyhow::Error),
 }
 
 /// What to do with a Secure-Join handshake message after it was handled.
@@ -481,10 +504,10 @@ pub(crate) enum HandshakeMessage {
 pub(crate) async fn handle_securejoin_handshake(
     context: &Context,
     mime_message: &MimeMessage,
-    contact_id: u32,
-) -> Result<HandshakeMessage> {
+    contact_id: i64,
+) -> Result<HandshakeMessage, HandshakeError> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
-        return Err(Error::msg("Can not be called with special contact ID"));
+        return Err(Error::msg("Can not be called with special contact ID").into());
     }
     let step = mime_message
         .get(HeaderDef::SecureJoin)
@@ -564,7 +587,7 @@ pub(crate) async fn handle_securejoin_handshake(
                         Ok(HandshakeMessage::Done)
                     }
                     Some(_stage) => {
-                        joiner_progress!(context, bobstate.invite().contact_id(), 400);
+                        joiner_progress!(context, bobstate.invite().contact_id() as i64, 400);
                         Ok(HandshakeMessage::Done)
                     }
                     None => Ok(HandshakeMessage::Ignore),
@@ -667,7 +690,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     Err(err) => {
                         error!(context, "Chat {} not found: {}", &field_grpid, err);
                         return Err(Error::new(err)
-                            .context(format!("Chat for group {} not found", &field_grpid)));
+                            .context(format!("Chat for group {} not found", &field_grpid))
+                            .into());
                     }
                 }
             } else {
@@ -743,7 +767,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     if let Err(err) = chat::get_chat_id_by_grpid(context, &field_grpid).await {
                         warn!(context, "Failed to lookup chat_id from grpid: {}", err);
                         return Err(Error::new(err)
-                            .context(format!("Chat for group {} not found", &field_grpid)));
+                            .context(format!("Chat for group {} not found", &field_grpid))
+                            .into());
                     }
                 }
                 Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device
@@ -779,8 +804,8 @@ pub(crate) async fn handle_securejoin_handshake(
 pub(crate) async fn observe_securejoin_on_other_device(
     context: &Context,
     mime_message: &MimeMessage,
-    contact_id: u32,
-) -> Result<HandshakeMessage> {
+    contact_id: i64,
+) -> Result<HandshakeMessage, HandshakeError> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return Err(Error::msg("Can not be called with special contact ID"));
     }
@@ -856,7 +881,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
 }
 
 async fn secure_connection_established(context: &Context, contact_chat_id: ChatId) {
-    let contact_id: u32 = chat_id_2_contact_id(context, contact_chat_id).await;
+    let contact_id: i64 = chat_id_2_contact_id(context, contact_chat_id).await;
     let contact = Contact::get_by_id(context, contact_id).await;
 
     let addr = if let Ok(ref contact) = contact {

@@ -47,7 +47,7 @@ pub struct Contact {
     ///   `dc_set_config` using "addr".
     ///
     /// Normal contact IDs are larger than these special ones (larger than DC_CONTACT_ID_LAST_SPECIAL).
-    pub id: u32,
+    pub id: i64,
 
     /// Contact name. It is recommended to use `Contact::get_name`,
     /// `Contact::get_display_name` or `Contact::get_name_n_addr` to access this field.
@@ -77,7 +77,18 @@ pub struct Contact {
 
 /// Possible origins of a contact.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, FromSql, ToSql,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+    sqlx::Type,
 )]
 #[repr(i32)]
 pub enum Origin {
@@ -173,14 +184,14 @@ pub enum VerifiedStatus {
 }
 
 impl Contact {
-    pub async fn load_from_db(context: &Context, contact_id: u32) -> crate::sql::Result<Self> {
+    pub async fn load_from_db(context: &Context, contact_id: i64) -> crate::sql::Result<Self> {
         let mut res = context
             .sql
             .query_row(
                 "SELECT c.name, c.addr, c.origin, c.blocked, c.authname, c.param, c.status
                FROM contacts c
               WHERE c.id=?;",
-                paramsv![contact_id as i32],
+                paramsv![contact_id],
                 |row| {
                     let contact = Self {
                         id: contact_id,
@@ -219,7 +230,7 @@ impl Contact {
     }
 
     /// Check if a contact is blocked.
-    pub async fn is_blocked_load(context: &Context, id: u32) -> bool {
+    pub async fn is_blocked_load(context: &Context, id: i64) -> bool {
         Self::load_from_db(context, id)
             .await
             .map(|contact| contact.blocked)
@@ -227,12 +238,12 @@ impl Contact {
     }
 
     /// Block the given contact.
-    pub async fn block(context: &Context, id: u32) {
+    pub async fn block(context: &Context, id: i64) {
         set_block_contact(context, id, true).await;
     }
 
     /// Unblock the given contact.
-    pub async fn unblock(context: &Context, id: u32) {
+    pub async fn unblock(context: &Context, id: i64) {
         set_block_contact(context, id, false).await;
     }
 
@@ -249,7 +260,7 @@ impl Contact {
         context: &Context,
         name: impl AsRef<str>,
         addr: impl AsRef<str>,
-    ) -> Result<u32> {
+    ) -> Result<i64> {
         let name = improve_single_line_input(name);
         ensure!(
             !addr.as_ref().is_empty(),
@@ -277,17 +288,19 @@ impl Contact {
     /// Mark messages from a contact as noticed.
     /// The contact is expected to belong to the deaddrop,
     /// therefore, DC_EVENT_MSGS_NOTICED(DC_CHAT_ID_DEADDROP) is emitted.
-    pub async fn mark_noticed(context: &Context, id: u32) {
+    pub async fn mark_noticed(context: &Context, id: i64) {
         if context
             .sql
             .execute(
-                "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
-                paramsv![MessageState::InNoticed, id as i32, MessageState::InFresh],
+                sqlx::query("UPDATE msgs SET state=? WHERE from_id=? AND state=?;")
+                    .bind(MessageState::InNoticed)
+                    .bind(id as i32)
+                    .bind(MessageState::InFresh),
             )
             .await
             .is_ok()
         {
-            context.emit_event(EventType::MsgsNoticed(ChatId::new(DC_CHAT_ID_DEADDROP)));
+            context.emit_event(EventType::MsgsNoticed(DC_CHAT_ID_DEADDROP));
         }
     }
 
@@ -301,7 +314,7 @@ impl Contact {
         context: &Context,
         addr: impl AsRef<str>,
         min_origin: Origin,
-    ) -> Result<Option<u32>> {
+    ) -> Result<Option<i64>> {
         if addr.as_ref().is_empty() {
             bail!("lookup_id_by_addr: empty address");
         }
@@ -318,7 +331,7 @@ impl Contact {
             paramsv![
                 addr_normalized,
                 DC_CONTACT_ID_LAST_SPECIAL as i32,
-                min_origin as u32,
+                min_origin as i64,
             ],
         )
             .await
@@ -357,7 +370,7 @@ impl Contact {
         name: impl AsRef<str>,
         addr: impl AsRef<str>,
         mut origin: Origin,
-    ) -> Result<(u32, Modifier)> {
+    ) -> Result<(i64, Modifier)> {
         let mut sth_modified = Modifier::None;
 
         ensure!(
@@ -454,22 +467,20 @@ impl Contact {
                 context
                     .sql
                     .execute(
-                        "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
-                        paramsv![
-                            new_name,
-                            if update_addr { addr.to_string() } else { row_addr },
+                        sqlx::query("UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;").bind(
+                            &new_name).bind(
+                            if update_addr { addr.to_string() } else { row_addr }).bind(
                             if origin > row_origin {
                                 origin
                             } else {
                                 row_origin
-                            },
+                            }).bind(
                             if update_authname {
                                 name.to_string()
                             } else {
                                 row_authname
-                            },
-                            row_id
-                        ],
+                            }).bind(
+                            row_id)
                     )
                     .await
                     .ok();
@@ -477,16 +488,17 @@ impl Contact {
                 if update_name {
                     // Update the contact name also if it is used as a group name.
                     // This is one of the few duplicated data, however, getting the chat list is easier this way.
-                    let chat_id = context.sql.query_get_value::<i32>(
+                    let chat_id = context.sql.query_get_value::<i64>(
                         "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
                         paramsv![Chattype::Single, row_id]
                     ).await?;
                     if let Some(chat_id) = chat_id {
-                        match context.sql.execute("UPDATE chats SET name=? WHERE id=? AND name!=?1", paramsv![new_name, chat_id]).await {
+                        match context.sql.execute(
+                            sqlx::query("UPDATE chats SET name=? WHERE id=? AND name!=?1").bind(&new_name).bind(chat_id)).await {
                             Err(err) => warn!(context, "Can't update chat name: {}", err),
                             Ok(count) => if count > 0 {
                                 // Chat name updated
-                                context.emit_event(EventType::ChatModified(ChatId::new(chat_id as u32)));
+                                context.emit_event(EventType::ChatModified(ChatId::new(chat_id)));
                             }
                         }
                     }
@@ -500,13 +512,13 @@ impl Contact {
             if context
                 .sql
                 .execute(
-                    "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);",
-                    paramsv![
-                        if update_name { name.to_string() } else { "".to_string() },
-                        addr,
-                        origin,
-                        if update_authname { name.to_string() } else { "".to_string() }
-                    ],
+                    sqlx::query(
+                        "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);"
+                    )
+                        .bind(if update_name { name.to_string() } else { "".to_string() })
+                        .bind(&addr)
+                        .bind(origin)
+                        .bind(if update_authname { name.to_string() } else { "".to_string() })
                 )
                 .await
                 .is_ok()
@@ -582,7 +594,7 @@ impl Contact {
         context: &Context,
         listflags: u32,
         query: Option<impl AsRef<str>>,
-    ) -> Result<Vec<u32>> {
+    ) -> Result<Vec<i64>> {
         let self_addr = context
             .get_config(Config::ConfiguredAddr)
             .await?
@@ -621,10 +633,10 @@ impl Contact {
                         s3str_like_cmd,
                         if flag_verified_only { 0i32 } else { 1i32 },
                     ],
-                    |row| row.get::<_, i32>(0),
+                    |row| row.get::<_, i64>(0),
                     |ids| {
                         for id in ids {
-                            ret.push(id? as u32);
+                            ret.push(id?);
                         }
                         Ok(())
                     },
@@ -659,11 +671,11 @@ impl Contact {
                  AND origin>=?3
                  AND blocked=0
                  ORDER BY LOWER(iif(name='',authname,name)||addr),id;",
-                    paramsv![self_addr, DC_CONTACT_ID_LAST_SPECIAL as i32, 0x100],
+                    paramsv![self_addr, DC_CONTACT_ID_LAST_SPECIAL as i32, 0x100i32],
                     |row| row.get::<_, i32>(0),
                     |ids| {
                         for id in ids {
-                            ret.push(id? as u32);
+                            ret.push(id? as i64);
                         }
                         Ok(())
                     },
@@ -704,15 +716,17 @@ impl Contact {
             {
                 context
                     .sql
-                    .execute("INSERT INTO contacts (addr) VALUES (?);", paramsv![grpid])
+                    .execute(sqlx::query("INSERT INTO contacts (addr) VALUES (?);").bind(&grpid))
                     .await?;
             }
             // always do an update in case the blocking is reset or name is changed
             context
                 .sql
                 .execute(
-                    "UPDATE contacts SET name=?, origin=?, blocked=1 WHERE addr=?;",
-                    paramsv![name, Origin::MailinglistAddress, grpid],
+                    sqlx::query("UPDATE contacts SET name=?, origin=?, blocked=1 WHERE addr=?;")
+                        .bind(name)
+                        .bind(Origin::MailinglistAddress)
+                        .bind(&grpid),
                 )
                 .await?;
         }
@@ -731,7 +745,7 @@ impl Contact {
     }
 
     /// Get blocked contacts.
-    pub async fn get_all_blocked(context: &Context) -> Result<Vec<u32>> {
+    pub async fn get_all_blocked(context: &Context) -> Result<Vec<i64>> {
         if let Err(e) = Contact::update_blocked_mailinglist_contacts(context).await {
             warn!(
                 context,
@@ -744,7 +758,7 @@ impl Contact {
             .query_map(
                 "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(iif(name='',authname,name)||addr),id;",
                 paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
-                |row| row.get::<_, u32>(0),
+                |row| row.get::<_, i64>(0),
                 |ids| {
                     ids.collect::<std::result::Result<Vec<_>, _>>()
                         .map_err(Into::into)
@@ -759,7 +773,7 @@ impl Contact {
     /// This function returns a string explaining the encryption state
     /// of the contact and if the connection is encrypted the
     /// fingerprints of the keys involved.
-    pub async fn get_encrinfo(context: &Context, contact_id: u32) -> Result<String> {
+    pub async fn get_encrinfo(context: &Context, contact_id: i64) -> Result<String> {
         ensure!(
             contact_id > DC_CONTACT_ID_LAST_SPECIAL,
             "Can not provide encryption info for special contact"
@@ -828,7 +842,7 @@ impl Contact {
     /// possible as the contact is in use. In this case, the contact can be blocked.
     ///
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
-    pub async fn delete(context: &Context, contact_id: u32) -> Result<()> {
+    pub async fn delete(context: &Context, contact_id: i64) -> Result<()> {
         ensure!(
             contact_id > DC_CONTACT_ID_LAST_SPECIAL,
             "Can not delete special contact"
@@ -859,10 +873,7 @@ impl Contact {
         if count_msgs == 0 {
             match context
                 .sql
-                .execute(
-                    "DELETE FROM contacts WHERE id=?;",
-                    paramsv![contact_id as i32],
-                )
+                .execute(sqlx::query("DELETE FROM contacts WHERE id=?;").bind(contact_id as i32))
                 .await
             {
                 Ok(_) => {
@@ -888,7 +899,7 @@ impl Contact {
     /// For contact DC_CONTACT_ID_SELF (1), the function returns sth.
     /// like "Me" in the selected language and the email address
     /// defined by dc_set_config().
-    pub async fn get_by_id(context: &Context, contact_id: u32) -> Result<Contact> {
+    pub async fn get_by_id(context: &Context, contact_id: i64) -> Result<Contact> {
         let contact = Contact::load_from_db(context, contact_id).await?;
 
         Ok(contact)
@@ -899,8 +910,9 @@ impl Contact {
         context
             .sql
             .execute(
-                "UPDATE contacts SET param=? WHERE id=?",
-                paramsv![self.param.to_string(), self.id as i32],
+                sqlx::query("UPDATE contacts SET param=? WHERE id=?")
+                    .bind(self.param.to_string())
+                    .bind(self.id as i32),
             )
             .await?;
         Ok(())
@@ -911,15 +923,16 @@ impl Contact {
         context
             .sql
             .execute(
-                "UPDATE contacts SET status=? WHERE id=?",
-                paramsv![self.status, self.id as i32],
+                sqlx::query("UPDATE contacts SET status=? WHERE id=?")
+                    .bind(&self.status)
+                    .bind(self.id as i32),
             )
             .await?;
         Ok(())
     }
 
     /// Get the ID of the contact.
-    pub fn get_id(&self) -> u32 {
+    pub fn get_id(&self) -> i64 {
         self.id
     }
 
@@ -1057,7 +1070,7 @@ impl Contact {
     pub async fn addr_equals_contact(
         context: &Context,
         addr: impl AsRef<str>,
-        contact_id: u32,
+        contact_id: i64,
     ) -> bool {
         if addr.as_ref().is_empty() {
             return false;
@@ -1090,7 +1103,7 @@ impl Contact {
         Ok(count.unwrap_or_default() as usize)
     }
 
-    pub async fn real_exists_by_id(context: &Context, contact_id: u32) -> bool {
+    pub async fn real_exists_by_id(context: &Context, contact_id: i64) -> bool {
         if !context.sql.is_open().await || contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
             return false;
         }
@@ -1105,12 +1118,14 @@ impl Contact {
             .unwrap_or_default()
     }
 
-    pub async fn scaleup_origin_by_id(context: &Context, contact_id: u32, origin: Origin) -> bool {
+    pub async fn scaleup_origin_by_id(context: &Context, contact_id: i64, origin: Origin) -> bool {
         context
             .sql
             .execute(
-                "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
-                paramsv![origin, contact_id as i32, origin],
+                sqlx::query("UPDATE contacts SET origin=? WHERE id=? AND origin<?;")
+                    .bind(origin)
+                    .bind(contact_id as i32)
+                    .bind(origin),
             )
             .await
             .is_ok()
@@ -1154,7 +1169,7 @@ fn sanitize_name_and_addr(name: impl AsRef<str>, addr: impl AsRef<str>) -> (Stri
     }
 }
 
-async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
+async fn set_block_contact(context: &Context, contact_id: i64, new_blocking: bool) {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return;
     }
@@ -1164,8 +1179,9 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
             && context
                 .sql
                 .execute(
-                    "UPDATE contacts SET blocked=? WHERE id=?;",
-                    paramsv![new_blocking as i32, contact_id as i32],
+                    sqlx::query("UPDATE contacts SET blocked=? WHERE id=?;")
+                        .bind(new_blocking as i32)
+                        .bind(contact_id as i32),
                 )
                 .await
                 .is_ok()
@@ -1175,9 +1191,22 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
             // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
             // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
             // this would result in recreating the same group...)
-            if context.sql.execute(
-                "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                paramsv![new_blocking, 100, contact_id as i32]).await.is_ok()
+            if context
+                .sql
+                .execute(
+                    sqlx::query(
+                        "UPDATE chats \
+                     SET blocked=? \
+                     WHERE type=? AND id IN ( \
+                       SELECT chat_id FROM chats_contacts WHERE contact_id=?\
+                     );",
+                    )
+                    .bind(new_blocking)
+                    .bind(100)
+                    .bind(contact_id as i32),
+                )
+                .await
+                .is_ok()
             {
                 Contact::mark_noticed(context, contact_id).await;
                 context.emit_event(EventType::ContactsChanged(Some(contact_id)));
@@ -1204,7 +1233,7 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
 /// this typically happens if we see message with our own profile image, sent from another device.
 pub(crate) async fn set_profile_image(
     context: &Context,
-    contact_id: u32,
+    contact_id: i64,
     profile_image: &AvatarAction,
     was_encrypted: bool,
 ) -> Result<()> {
@@ -1246,12 +1275,12 @@ pub(crate) async fn set_profile_image(
 
 /// Sets contact status.
 pub(crate) async fn set_status(context: &Context, contact_id: u32, status: String) -> Result<()> {
-    let mut contact = Contact::load_from_db(context, contact_id).await?;
+    let mut contact = Contact::load_from_db(context, contact_id as i64).await?;
 
     if contact.status != status {
         contact.status = status;
         contact.update_status(context).await?;
-        context.emit_event(EventType::ContactsChanged(Some(contact_id)));
+        context.emit_event(EventType::ContactsChanged(Some(contact_id as i64)));
     }
     Ok(())
 }

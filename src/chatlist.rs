@@ -264,10 +264,7 @@ impl Chatlist {
                     get_last_deaddrop_fresh_msg(context).await?
                 {
                     if !flag_for_forwarding {
-                        ids.insert(
-                            0,
-                            (ChatId::new(DC_CHAT_ID_DEADDROP), last_deaddrop_fresh_msg_id),
-                        );
+                        ids.insert(0, (DC_CHAT_ID_DEADDROP, last_deaddrop_fresh_msg_id));
                     }
                 }
                 add_archived_link_item = true;
@@ -277,9 +274,9 @@ impl Chatlist {
 
         if add_archived_link_item && dc_get_archived_cnt(context).await? > 0 {
             if ids.is_empty() && flag_add_alldone_hint {
-                ids.push((ChatId::new(DC_CHAT_ID_ALLDONE_HINT), MsgId::new(0)));
+                ids.push((DC_CHAT_ID_ALLDONE_HINT, MsgId::new(0)));
             }
-            ids.push((ChatId::new(DC_CHAT_ID_ARCHIVED_LINK), MsgId::new(0)));
+            ids.push((DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0)));
         }
 
         Ok(Chatlist { ids })

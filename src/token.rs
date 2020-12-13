@@ -30,26 +30,36 @@ impl Default for Namespace {
 /// Creates a new token and saves it into the database.
 ///
 /// Returns created token.
-pub async fn save(context: &Context, namespace: Namespace, chat: Option<ChatId>) -> String {
+pub async fn save(context: &Context, namespace: Namespace, foreing_id: Option<ChatId>) -> String {
     let token = dc_create_id();
-    match chat {
-        Some(chat_id) => context
+    match foreing_id {
+        Some(foreign_id) => context
             .sql
             .execute(
-                "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
-                paramsv![namespace, chat_id, token, time()],
+                sqlx::query(
+                    "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);"
+                )
+                    .bind(namespace)
+                    .bind(foreign_id)
+                    .bind(token)
+                    .bind(time()),
             )
             .await
             .ok(),
         None => context
             .sql
             .execute(
-                "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);",
-                paramsv![namespace, token, time()],
+                sqlx::query(
+                    "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);"
+                )
+                    .bind(namespace)
+                    .bind(token)
+                    .bind(time()),
             )
             .await
             .ok(),
     };
+
     token
 }
 

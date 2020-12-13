@@ -31,8 +31,8 @@ use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on
 use crate::stock_str;
 use crate::{contact, location};
 
-// IndexSet is like HashSet but maintains order of insertion
-type ContactIds = indexmap::IndexSet<u32>;
+// IndexSet is like HashSet but maintains order of insertion.
+type ContactIds = indexmap::IndexSet<i64>;
 
 #[derive(Debug, PartialEq, Eq)]
 enum CreateEvent {
@@ -239,7 +239,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // Always update the status, even if there is no footer, to allow removing the status.
     if let Err(err) = contact::set_status(
         context,
-        from_id,
+        from_id as u32,
         mime_parser.footer.clone().unwrap_or_default(),
     )
     .await
@@ -257,7 +257,7 @@ pub(crate) async fn dc_receive_imf_inner(
                     context,
                     job::Job::new(
                         Action::DeleteMsgOnImap,
-                        db_entry.1.to_u32(),
+                        db_entry.1.to_i64(),
                         Params::new(),
                         0,
                     ),
@@ -273,7 +273,7 @@ pub(crate) async fn dc_receive_imf_inner(
             // Move message if we don't delete it immediately.
             job::add(
                 context,
-                job::Job::new(Action::MoveMsg, insert_msg_id.to_u32(), Params::new(), 0),
+                job::Job::new(Action::MoveMsg, insert_msg_id.to_i64(), Params::new(), 0),
             )
             .await;
         } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
@@ -282,7 +282,7 @@ pub(crate) async fn dc_receive_imf_inner(
                 context,
                 job::Job::new(
                     Action::MarkseenMsgOnImap,
-                    insert_msg_id.to_u32(),
+                    insert_msg_id.to_i64(),
                     Params::new(),
                     0,
                 ),
@@ -314,7 +314,7 @@ pub async fn from_field_to_contact_id(
     context: &Context,
     from_address_list: &[SingleInfo],
     prevent_rename: bool,
-) -> Result<(u32, bool, Origin)> {
+) -> Result<(i64, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
         from_address_list,
@@ -366,7 +366,7 @@ async fn add_parts(
     to_ids: &ContactIds,
     rfc724_mid: &str,
     sent_timestamp: &mut i64,
-    from_id: u32,
+    from_id: i64,
     hidden: &mut bool,
     chat_id: &mut ChatId,
     seen: bool,
@@ -421,7 +421,7 @@ async fn add_parts(
         match show_emails {
             ShowEmails::Off => {
                 info!(context, "Classical email not shown (TRASH)");
-                *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+                *chat_id = DC_CHAT_ID_TRASH;
                 allow_creation = false;
             }
             ShowEmails::AcceptedContacts => allow_creation = false,
@@ -433,7 +433,7 @@ async fn add_parts(
     // - outgoing messages introduce a chat with the first to: address if they are sent by a messenger
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
     // (of course, the user can add other chats manually later)
-    let to_id: u32;
+    let to_id: i64;
 
     if incoming {
         state = if seen || fetching_existing_messages {
@@ -477,7 +477,7 @@ async fn add_parts(
         // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
         // it might also be blocked and displayed in the deaddrop as a result
         if chat_id.is_unset() && mime_parser.failure_report.is_some() {
-            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+            *chat_id = DC_CHAT_ID_TRASH;
             info!(context, "Message belongs to an NDN (TRASH)",);
         }
 
@@ -599,7 +599,7 @@ async fn add_parts(
         }
         if chat_id.is_unset() {
             // maybe from_id is null or sth. else is suspicious, move message to trash
-            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+            *chat_id = DC_CHAT_ID_TRASH;
             info!(context, "No chat id for incoming msg (TRASH)")
         }
 
@@ -653,7 +653,7 @@ async fn add_parts(
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
             // So: If it's outgoing AND there is no Received header AND it's not in the sentbox, then ignore the email.
             info!(context, "Email is probably just a draft (TRASH)");
-            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+            *chat_id = DC_CHAT_ID_TRASH;
             allow_creation = false;
         }
 
@@ -719,13 +719,13 @@ async fn add_parts(
             }
         }
         if chat_id.is_unset() {
-            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+            *chat_id = DC_CHAT_ID_TRASH;
             info!(context, "No chat id for outgoing message (TRASH)")
         }
     }
 
     if fetching_existing_messages && mime_parser.decrypting_failed {
-        *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+        *chat_id = DC_CHAT_ID_TRASH;
         // We are only gathering old messages on first start. We do not want to add loads of non-decryptable messages to the chats.
         info!(context, "Existing non-decipherable message. (TRASH)");
     }
@@ -806,8 +806,7 @@ async fn add_parts(
         };
 
         if chat.is_protected() || new_status.is_some() {
-            if let Err(err) =
-                check_verified_properties(context, mime_parser, from_id as u32, to_ids).await
+            if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "verification problem: {}", err);
                 let s = format!("{}. See 'Info' for more details", err);
@@ -826,7 +825,9 @@ async fn add_parts(
                     }
                     set_better_msg(
                         mime_parser,
-                        context.stock_protection_msg(new_status, from_id).await,
+                        context
+                            .stock_protection_msg(new_status, from_id as u32)
+                            .await,
                     );
                 }
             }
@@ -1074,7 +1075,7 @@ async fn save_locations(
     context: &Context,
     mime_parser: &MimeMessage,
     chat_id: ChatId,
-    from_id: u32,
+    from_id: i64,
     insert_msg_id: MsgId,
     hidden: bool,
 ) {
@@ -1181,7 +1182,7 @@ async fn create_or_lookup_group(
     mime_parser: &mut MimeMessage,
     allow_creation: bool,
     create_blocked: Blocked,
-    from_id: u32,
+    from_id: i64,
     to_ids: &ContactIds,
 ) -> Result<(ChatId, Blocked)> {
     let mut chat_id_blocked = Blocked::Not;
@@ -1192,7 +1193,7 @@ async fn create_or_lookup_group(
     let mut better_msg: String = From::from("");
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
-        better_msg = stock_str::msg_location_enabled_by(context, from_id).await;
+        better_msg = stock_str::msg_location_enabled_by(context, from_id as u32).await;
         set_better_msg(mime_parser, &better_msg);
     }
 
@@ -1200,11 +1201,11 @@ async fn create_or_lookup_group(
         grpid
     } else {
         let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
-        if !member_ids.contains(&from_id) {
-            member_ids.push(from_id);
+        if !member_ids.contains(&(from_id as u32)) {
+            member_ids.push(from_id as u32);
         }
-        if !member_ids.contains(&DC_CONTACT_ID_SELF) {
-            member_ids.push(DC_CONTACT_ID_SELF);
+        if !member_ids.contains(&(DC_CONTACT_ID_SELF as u32)) {
+            member_ids.push(DC_CONTACT_ID_SELF as u32);
         }
 
         // Try to assign message to the same group as the parent message.
@@ -1308,7 +1309,7 @@ async fn create_or_lookup_group(
     let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
         .await
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
-    if !chat_id.is_unset() && !chat::is_contact_in_chat(context, chat_id, from_id as u32).await {
+    if !chat_id.is_unset() && !chat::is_contact_in_chat(context, chat_id, from_id).await {
         // The From-address is not part of this group.
         // It could be a new user or a DSN from a mailer-daemon.
         // in any case we do not want to recreate the member list
@@ -1340,8 +1341,7 @@ async fn create_or_lookup_group(
     {
         // group does not exist but should be created
         let create_protected = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
-            if let Err(err) =
-                check_verified_properties(context, mime_parser, from_id as u32, to_ids).await
+            if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "verification problem: {}", err);
                 let s = format!("{}. See 'Info' for more details", err);
@@ -1395,7 +1395,7 @@ async fn create_or_lookup_group(
             // The message was decrypted successfully, but contains a late "quit" or otherwise
             // unwanted message.
             info!(context, "message belongs to unwanted group (TRASH)");
-            return Ok((ChatId::new(DC_CHAT_ID_TRASH), chat_id_blocked));
+            return Ok((DC_CHAT_ID_TRASH, chat_id_blocked));
         }
     }
 
@@ -1421,8 +1421,9 @@ async fn create_or_lookup_group(
                 if context
                     .sql
                     .execute(
-                        "UPDATE chats SET name=? WHERE id=?;",
-                        paramsv![grpname.to_string(), chat_id],
+                        sqlx::query("UPDATE chats SET name=? WHERE id=?;")
+                            .bind(grpname.to_string())
+                            .bind(chat_id),
                     )
                     .await
                     .is_ok()
@@ -1459,20 +1460,17 @@ async fn create_or_lookup_group(
             // start from scratch.
             context
                 .sql
-                .execute(
-                    "DELETE FROM chats_contacts WHERE chat_id=?;",
-                    paramsv![chat_id],
-                )
+                .execute(sqlx::query("DELETE FROM chats_contacts WHERE chat_id=?;").bind(chat_id))
                 .await
                 .ok();
 
             chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
         }
         if from_id > DC_CONTACT_ID_LAST_SPECIAL
-            && !Contact::addr_equals_contact(context, &self_addr, from_id as u32).await
+            && !Contact::addr_equals_contact(context, &self_addr, from_id).await
             && !chat::is_contact_in_chat(context, chat_id, from_id).await
         {
-            chat::add_to_chat_contacts_table(context, chat_id, from_id as u32).await;
+            chat::add_to_chat_contacts_table(context, chat_id, from_id).await;
         }
         for &to_id in to_ids.iter() {
             info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
@@ -1638,7 +1636,7 @@ async fn create_adhoc_group(
     context: &Context,
     mime_parser: &MimeMessage,
     create_blocked: Blocked,
-    member_ids: &[u32],
+    member_ids: &[i64],
 ) -> Result<Option<ChatId>> {
     if mime_parser.is_mailinglist_message() {
         info!(
@@ -1704,15 +1702,15 @@ async fn create_multiuser_record(
     create_protected: ProtectionStatus,
 ) -> Result<ChatId> {
     context.sql.execute(
-        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);",
-        paramsv![
-            chattype,
-            grpname.as_ref(),
-            grpid.as_ref(),
-            create_blocked,
-            time(),
-            create_protected,
-        ],
+    sqlx::query(
+        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);")
+.bind(chattype)
+.bind(
+            grpname.as_ref()).bind(
+            grpid.as_ref()).bind(
+            create_blocked).bind(
+            time()).bind(
+            create_protected)
     ).await?;
 
     let row_id = context
@@ -1743,7 +1741,7 @@ async fn create_multiuser_record(
 /// This ensures that different Delta Chat clients generate the same group ID unless some of them
 /// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
 /// so having the same ID prevents group split.
-async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> Result<String> {
+async fn create_adhoc_grp_id(context: &Context, member_ids: &[i64]) -> Result<String> {
     let member_ids_str = join(member_ids.iter().map(|x| x.to_string()), ",");
     let member_cs = context
         .get_config(Config::ConfiguredAddr)
@@ -1784,10 +1782,75 @@ fn hex_hash(s: impl AsRef<str>) -> String {
     hex::encode(&result[..8])
 }
 
+async fn search_chat_ids_by_contact_ids(
+    context: &Context,
+    unsorted_contact_ids: &[i64],
+) -> Result<Vec<ChatId>> {
+    /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
+    let mut contact_ids = Vec::with_capacity(23);
+    let mut chat_ids = Vec::with_capacity(23);
+
+    /* copy array, remove duplicates and SELF, sort by ID */
+    if !unsorted_contact_ids.is_empty() {
+        for &curr_id in unsorted_contact_ids {
+            if curr_id != 1 && !contact_ids.contains(&curr_id) {
+                contact_ids.push(curr_id);
+            }
+        }
+        if !contact_ids.is_empty() {
+            contact_ids.sort_unstable();
+            let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
+            context.sql.query_map(
+                format!(
+                    "SELECT DISTINCT cc.chat_id, cc.contact_id
+                       FROM chats_contacts cc
+                       LEFT JOIN chats c ON c.id=cc.chat_id
+                      WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))
+                        AND c.type=120
+                        AND cc.contact_id!=1
+                      ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
+                    contact_ids_str
+                ),
+                paramsv![],
+                |row| Ok((row.get::<_, ChatId>(0)?, row.get::<_, i64>(1)?)),
+                |rows| {
+                    let mut last_chat_id = ChatId::new(0);
+                    let mut matches = 0;
+                    let mut mismatches = 0;
+
+                    for row in rows {
+                        let (chat_id, contact_id) = row?;
+                        if chat_id != last_chat_id {
+                            if matches == contact_ids.len() && mismatches == 0 {
+                                chat_ids.push(last_chat_id);
+                            }
+                            last_chat_id = chat_id;
+                            matches = 0;
+                            mismatches = 0;
+                        }
+                        if contact_ids.get(matches) == Some(&contact_id) {
+                            matches += 1;
+                        } else {
+                            mismatches += 1;
+                        }
+                    }
+
+                    if matches == contact_ids.len() && mismatches == 0 {
+                        chat_ids.push(last_chat_id);
+                    }
+                Ok(())
+                }
+            ).await?;
+        }
+    }
+
+    Ok(chat_ids)
+}
+
 async fn check_verified_properties(
     context: &Context,
     mimeparser: &MimeMessage,
-    from_id: u32,
+    from_id: i64,
     to_ids: &ContactIds,
 ) -> Result<()> {
     let contact = Contact::load_from_db(context, from_id).await?;
@@ -2001,7 +2064,7 @@ async fn add_or_lookup_contact_by_addr(
     display_name: Option<impl AsRef<str>>,
     addr: &str,
     origin: Origin,
-) -> Result<u32> {
+) -> Result<i64> {
     if context.is_self_addr(addr).await? {
         return Ok(DC_CONTACT_ID_SELF);
     }
@@ -2016,7 +2079,7 @@ async fn add_or_lookup_contact_by_addr(
 
 fn dc_create_incoming_rfc724_mid(
     message_timestamp: i64,
-    contact_id_from: u32,
+    contact_id_from: i64,
     contact_ids_to: &ContactIds,
 ) -> String {
     /* create a deterministic rfc724_mid from input such that
