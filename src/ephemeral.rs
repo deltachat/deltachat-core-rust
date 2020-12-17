@@ -461,7 +461,6 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> sql::Result<()>
 mod tests {
     use super::*;
     use crate::chat;
-    use crate::contact::{Contact, Origin};
     use crate::test_utils::*;
 
     #[async_std::test]
@@ -533,23 +532,8 @@ mod tests {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        let (contact_alice_id, _modified) = Contact::add_or_lookup(
-            &bob.ctx,
-            "Alice",
-            "alice@example.com",
-            Origin::ManuallyCreated,
-        )
-        .await?;
-        let (contact_bob_id, _modified) = Contact::add_or_lookup(
-            &alice.ctx,
-            "Bob",
-            "bob@example.net",
-            Origin::ManuallyCreated,
-        )
-        .await?;
-
-        let chat_alice = chat::create_by_contact_id(&alice.ctx, contact_bob_id).await?;
-        let chat_bob = chat::create_by_contact_id(&bob.ctx, contact_alice_id).await?;
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let chat_bob = bob.create_chat(&alice).await.id;
 
         // Alice sends message to Bob
         let mut msg = Message::new(Viewtype::Text);

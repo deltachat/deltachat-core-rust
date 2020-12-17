@@ -2,16 +2,13 @@
 //!
 //! This module is only compiled for test runs.
 
-use std::str::FromStr;
 use std::time::{Duration, Instant};
+use std::{ops::Deref, str::FromStr};
 
 use async_std::path::PathBuf;
 use async_std::sync::RwLock;
 use tempfile::{tempdir, TempDir};
 
-use crate::chat;
-use crate::chat::{ChatId, ChatItem};
-use crate::config::Config;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
@@ -20,6 +17,12 @@ use crate::key::{self, DcKey};
 use crate::message::{update_msg_state, Message, MessageState, MsgId};
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
+use crate::{chat, contact::Contact};
+use crate::{
+    chat::{Chat, ChatId, ChatItem},
+    contact::Origin,
+};
+use crate::{config::Config, constants::DC_CONTACT_ID_SELF};
 
 /// A Context and temporary directory.
 ///
@@ -198,6 +201,47 @@ impl TestContext {
             panic!("Wrong item type");
         };
         Message::load_from_db(&self.ctx, *msg_id).await.unwrap()
+    }
+
+    pub async fn create_chat(&self, other: &TestContext) -> Chat {
+        let (contact_id, _modified) = Contact::add_or_lookup(
+            self,
+            other
+                .ctx
+                .get_config(Config::Displayname)
+                .await
+                .unwrap_or_default(),
+            other.ctx.get_config(Config::ConfiguredAddr).await.unwrap(),
+            Origin::ManuallyCreated,
+        )
+        .await
+        .unwrap();
+
+        let chat_id = chat::create_by_contact_id(self, contact_id).await.unwrap();
+        Chat::load_from_db(self, chat_id).await.unwrap()
+    }
+
+    pub async fn chat_with_contact(&self, name: &str, addr: &str) -> Chat {
+        let contact = Contact::create(self, name, addr)
+            .await
+            .expect("failed to create contact");
+        let chat_id = chat::create_by_contact_id(self, contact).await.unwrap();
+        Chat::load_from_db(self, chat_id).await.unwrap()
+    }
+
+    pub async fn get_self_chat(&self) -> Chat {
+        let chat_id = chat::create_by_contact_id(self, DC_CONTACT_ID_SELF)
+            .await
+            .unwrap();
+        Chat::load_from_db(self, chat_id).await.unwrap()
+    }
+}
+
+impl Deref for TestContext {
+    type Target = Context;
+
+    fn deref(&self) -> &Context {
+        &self.ctx
     }
 }
 
