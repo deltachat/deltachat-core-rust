@@ -65,6 +65,10 @@ pub struct MimeMessage {
     pub(crate) group_avatar: Option<AvatarAction>,
     pub(crate) mdn_reports: Vec<Report>,
     pub(crate) failure_report: Option<FailureReport>,
+
+    // if this flag is set, the parts/text/etc. are just close to the original mime-message;
+    // clients should offer a way to view the original message in this case
+    pub is_mime_modified: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -223,6 +227,7 @@ impl MimeMessage {
             user_avatar: None,
             group_avatar: None,
             failure_report: None,
+            is_mime_modified: false,
         };
         parser.parse_mime_recursive(context, &mail).await?;
         parser.maybe_remove_bad_parts();

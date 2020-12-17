@@ -802,11 +802,17 @@ async fn add_parts(
     let mut parts = std::mem::replace(&mut mime_parser.parts, Vec::new());
     let server_folder = server_folder.as_ref().to_string();
     let is_system_message = mime_parser.is_system_message;
+
+    // if needed, we save the mime-message for the first part containing text
+    // (ui typically displays a button to load whole message)
+    let mut save_mime_modified = mime_parser.is_mime_modified;
+
     let mime_headers = if save_mime_headers {
         Some(String::from_utf8_lossy(imf_raw).to_string())
     } else {
         None
     };
+    
     let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
     let chat_id = *chat_id;
@@ -826,8 +832,9 @@ async fn add_parts(
                     "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
          timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error, ephemeral_timer, ephemeral_timestamp) \
-         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?);",
+         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, mime_modified, \
+         error, ephemeral_timer, ephemeral_timestamp) \
+         VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?);",
                 )?;
 
                 let is_location_kml = location_kml_is
@@ -839,6 +846,12 @@ async fn add_parts(
                     if incoming {
                         state = MessageState::InSeen; // Set the state to InSeen so that precheck_imf() adds a markseen job after we moved the message
                     }
+                }
+
+                let mut mime_modified = false;
+                if save_mime_modified && !part.msg.is_empty() {
+                    mime_modified = true;
+                    save_mime_modified = false;
                 }
 
                 if part.typ == Viewtype::Text {
@@ -880,6 +893,7 @@ async fn add_parts(
                     mime_headers,
                     mime_in_reply_to,
                     mime_references,
+                    mime_modified,
                     part.error.take().unwrap_or_default(),
                     ephemeral_timer,
                     ephemeral_timestamp
