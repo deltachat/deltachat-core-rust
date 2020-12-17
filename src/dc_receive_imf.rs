@@ -807,12 +807,12 @@ async fn add_parts(
     // (ui typically displays a button to load whole message)
     let mut save_mime_modified = mime_parser.is_mime_modified;
 
-    let mime_headers = if save_mime_headers {
+    let mime_headers = if save_mime_headers || save_mime_modified {
         Some(String::from_utf8_lossy(imf_raw).to_string())
     } else {
         None
     };
-    
+
     let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
     let chat_id = *chat_id;
@@ -890,7 +890,11 @@ async fn add_parts(
                     part.param.to_string(),
                     part.bytes as isize,
                     is_hidden,
-                    mime_headers,
+                    if save_mime_headers || mime_modified {
+                        mime_headers.clone()
+                    } else {
+                        None
+                    },
                     mime_in_reply_to,
                     mime_references,
                     mime_modified,
