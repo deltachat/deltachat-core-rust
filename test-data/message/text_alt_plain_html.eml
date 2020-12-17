@@ -1,0 +1,23 @@
+Subject: mime-modified test
+Message-ID: 12345@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/alternative; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+this is plain
+
+--==BREAK==
+Content-Type: text/html; charset=utf-8
+
+<html>
+  <p>
+    this is <b>html</b>
+  </p>
+</html>
+
+--==BREAK==--

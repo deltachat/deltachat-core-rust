@@ -603,6 +603,10 @@ impl MimeMessage {
                         }
                     }
                 }
+                if any_part_added && mail.subparts.len() > 1 {
+                    // there are other alternative parts, the resulting structure is probably modified
+                    self.is_mime_modified = true;
+                }
             }
             (mime::MULTIPART, "encrypted") => {
                 // we currently do not try to decrypt non-autocrypt messages
@@ -737,6 +741,7 @@ impl MimeMessage {
                         } else {
                             let is_html = mime_type == mime::TEXT_HTML;
                             let out = if is_html {
+                                self.is_mime_modified = true;
                                 dehtml(&decoded_data).unwrap_or_else(|| {
                                     dehtml_failed = true;
                                     decoded_data.clone()
@@ -2566,5 +2571,64 @@ On 2020-10-25, Bob wrote:
         assert_eq!(msg.get_width(), 64);
         assert_eq!(msg.get_height(), 64);
         assert_eq!(msg.get_filemime().unwrap(), "image/png");
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_plain() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(!mimeparser.is_mime_modified);
+        assert_eq!(mimeparser.parts[0].msg, "hi");
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_alt_plain_html() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(mimeparser.is_mime_modified);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "mime-modified test – this is plain"
+        );
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_alt_plain() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_alt_plain.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(!mimeparser.is_mime_modified);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "mime-modified test – \
+        mime-modified should not be set set as there is no html and no special stuff; \
+        although not being a delta-message."
+        );
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_alt_html() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_alt_html.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(mimeparser.is_mime_modified);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "mime-modified test – mime-modified *set*; simplify is always regarded as lossy."
+        );
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_html() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_html.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(mimeparser.is_mime_modified);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "mime-modified test – mime-modified *set*; simplify is always regarded as lossy."
+        );
     }
 }

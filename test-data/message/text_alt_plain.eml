@@ -1,0 +1,14 @@
+Subject: mime-modified test
+Message-ID: 12345@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/alternative; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+mime-modified should not be set set as there is no html and no special stuff; although not being a delta-message.
+
+--==BREAK==--
