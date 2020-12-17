@@ -567,8 +567,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[async_std::test]
     async fn test_load_self_generate_public() {
         let t = TestContext::new().await;
-        t
-            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+        t.set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
         let key = SignedPublicKey::load_self(&t).await;
@@ -578,8 +577,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[async_std::test]
     async fn test_load_self_generate_secret() {
         let t = TestContext::new().await;
-        t
-            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+        t.set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
         let key = SignedSecretKey::load_self(&t).await;
@@ -591,8 +589,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         use std::thread;
 
         let t = TestContext::new().await;
-        t
-            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+        t.set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
         let ctx = t.clone();

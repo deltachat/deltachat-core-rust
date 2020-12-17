@@ -1417,8 +1417,7 @@ mod tests {
         assert_eq!(first_subject_str(t).await, "Message from alice@example.com");
 
         let t = TestContext::new_alice().await;
-        t
-            .set_config(Config::Displayname, Some("Alice"))
+        t.set_config(Config::Displayname, Some("Alice"))
             .await
             .unwrap();
         assert_eq!(first_subject_str(t).await, "Message from Alice");
@@ -1492,9 +1491,7 @@ mod tests {
                  Original-Message-ID: <2893@example.com>\n\
                  Disposition: manual-action/MDN-sent-automatically; displayed\n\
                  \n", &t).await;
-        let mf = MimeFactory::from_msg(&t, &new_msg, false)
-            .await
-            .unwrap();
+        let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
         // The subject string should not be "Re: message opened"
         assert_eq!("Re: Hello, Charlie", mf.subject_str().await);
     }
@@ -1506,20 +1503,14 @@ mod tests {
                 .unwrap()
                 .0;
 
-        let chat_id = chat::create_by_contact_id(&t, contact_id)
-            .await
-            .unwrap();
+        let chat_id = chat::create_by_contact_id(&t, contact_id).await.unwrap();
 
         let mut new_msg = Message::new(Viewtype::Text);
         new_msg.set_text(Some("Hi".to_string()));
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(&t, chat_id, &mut new_msg)
-            .await
-            .unwrap();
+        chat::prepare_msg(&t, chat_id, &mut new_msg).await.unwrap();
 
-        let mf = MimeFactory::from_msg(&t, &new_msg, false)
-            .await
-            .unwrap();
+        let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
 
         mf.subject_str().await
     }
@@ -1527,9 +1518,7 @@ mod tests {
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
         let t = TestContext::new_alice().await;
         let new_msg = incoming_msg_to_reply_msg(imf_raw, &t).await;
-        let mf = MimeFactory::from_msg(&t, &new_msg, false)
-            .await
-            .unwrap();
+        let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
         mf.subject_str().await
     }
 

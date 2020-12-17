@@ -463,9 +463,7 @@ mod tests {
         assert_eq!(chats.get_chat_id(0), chat_id2);
 
         // check chatlist query and archive functionality
-        let chats = Chatlist::try_load(&t, 0, Some("b"), None)
-            .await
-            .unwrap();
+        let chats = Chatlist::try_load(&t, 0, Some("b"), None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
         let chats = Chatlist::try_load(&t, DC_GCL_ARCHIVED_ONLY, None, None)
@@ -522,8 +520,7 @@ mod tests {
             .unwrap();
         assert_eq!(chats.len(), 0);
 
-        t
-            .set_stock_translation(StockMessage::SavedMessages, "test-1234-save".to_string())
+        t.set_stock_translation(StockMessage::SavedMessages, "test-1234-save".to_string())
             .await
             .unwrap();
         let chats = Chatlist::try_load(&t, 0, Some("t-1234-s"), None)
@@ -531,8 +528,7 @@ mod tests {
             .unwrap();
         assert_eq!(chats.len(), 1);
 
-        t
-            .set_stock_translation(StockMessage::DeviceMessages, "test-5678-babbel".to_string())
+        t.set_stock_translation(StockMessage::DeviceMessages, "test-5678-babbel".to_string())
             .await
             .unwrap();
         let chats = Chatlist::try_load(&t, 0, Some("t-5678-b"), None)

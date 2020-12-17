@@ -536,36 +536,28 @@ mod tests {
     #[async_std::test]
     async fn test_lowercase_ext() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo.TXT", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.TXT", b"hello").await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/foo.txt");
     }
 
     #[async_std::test]
     async fn test_as_file_name() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_file_name(), "foo.txt");
     }
 
     #[async_std::test]
     async fn test_as_rel_path() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_rel_path(), Path::new("foo.txt"));
     }
 
     #[async_std::test]
     async fn test_suffix() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.suffix(), Some("txt"));
         let blob = BlobObject::create(&t, "bar", b"world").await.unwrap();
         assert_eq!(blob.suffix(), None);
@@ -574,14 +566,10 @@ mod tests {
     #[async_std::test]
     async fn test_create_dup() {
         let t = TestContext::new().await;
-        BlobObject::create(&t, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         let foo_path = t.get_blobdir().join("foo.txt");
         assert!(foo_path.exists().await);
-        BlobObject::create(&t, "foo.txt", b"world")
-            .await
-            .unwrap();
+        BlobObject::create(&t, "foo.txt", b"world").await.unwrap();
         let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
         while let Some(dirent) = dir.next().await {
             let fname = dirent.unwrap().file_name();
