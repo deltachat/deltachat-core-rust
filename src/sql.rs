@@ -1413,6 +1413,15 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
 
             sql.set_raw_config_int(context, "dbversion", 71).await?;
         }
+        if dbversion < 72 {
+            info!(context, "[migration] v72");
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN mime_modified INTEGER DEFAULT 0;",
+                paramsv![],
+            )
+            .await?;
+            sql.set_raw_config_int(context, "dbversion", 72).await?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
