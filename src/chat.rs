@@ -2976,11 +2976,7 @@ mod tests {
     #[async_std::test]
     async fn test_chat_info() {
         let t = TestContext::new().await;
-        let bob = Contact::create(&t.ctx, "bob", "bob@example.com")
-            .await
-            .unwrap();
-        let chat_id = create_by_contact_id(&t.ctx, bob).await.unwrap();
-        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        let chat = t.chat_with_contact("bob", "bob@example.com").await;
         let info = chat.get_info(&t.ctx).await.unwrap();
 
         // Ensure we can serialize this.
@@ -3011,10 +3007,8 @@ mod tests {
     #[async_std::test]
     async fn test_get_draft_no_draft() {
         let t = TestContext::new().await;
-        let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
-        let draft = chat_id.get_draft(&t.ctx).await.unwrap();
+        let chat = t.get_self_chat().await;
+        let draft = chat.id.get_draft(&t.ctx).await.unwrap();
         assert!(draft.is_none());
     }
 
@@ -3040,9 +3034,7 @@ mod tests {
     #[async_std::test]
     async fn test_get_draft() {
         let t = TestContext::new().await;
-        let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
+        let chat_id = &t.get_self_chat().await.id;
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
         chat_id.set_draft(&t.ctx, Some(&mut msg)).await;
@@ -3068,13 +3060,9 @@ mod tests {
     #[async_std::test]
     async fn test_self_talk() {
         let t = TestContext::new().await;
-        let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
+        let chat = &t.get_self_chat().await;
         assert_eq!(DC_CONTACT_ID_SELF, 1);
-        assert!(!chat_id.is_special());
-        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
-        assert_eq!(chat.id, chat_id);
+        assert!(!chat.id.is_special());
         assert!(chat.is_self_talk());
         assert!(chat.visibility == ChatVisibility::Normal);
         assert!(!chat.is_device_talk());
@@ -3321,9 +3309,7 @@ mod tests {
             .await
             .unwrap()
             .chat_id;
-        let chat_id2 = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
+        let chat_id2 = t.get_self_chat().await.id;
         assert!(!chat_id1.is_special());
         assert!(!chat_id2.is_special());
         assert_eq!(get_chat_cnt(&t.ctx).await, 2);
@@ -3438,9 +3424,7 @@ mod tests {
             .unwrap()
             .chat_id;
         async_std::task::sleep(std::time::Duration::from_millis(1000)).await;
-        let chat_id2 = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
+        let chat_id2 = t.get_self_chat().await.id;
         async_std::task::sleep(std::time::Duration::from_millis(1000)).await;
         let chat_id3 = create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
             .await

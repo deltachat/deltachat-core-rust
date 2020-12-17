@@ -1883,20 +1883,15 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let contact = Contact::create(ctx, "", "dest@example.com")
+        ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
             .await
-            .expect("failed to create contact");
+            .unwrap();
 
-        let res = ctx
-            .set_config(Config::ConfiguredAddr, Some("self@example.com"))
-            .await;
-        assert!(res.is_ok());
-
-        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+        let chat = d.chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
 
-        let msg_id = chat::prepare_msg(ctx, chat, &mut msg).await.unwrap();
+        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
 
         let _msg2 = Message::load_from_db(ctx, msg_id).await.unwrap();
         assert_eq!(_msg2.get_filemime(), None);
@@ -1908,15 +1903,11 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let contact = Contact::create(ctx, "", "dest@example.com")
-            .await
-            .expect("failed to create contact");
-
-        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+        let chat = d.chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
 
-        assert!(chat::prepare_msg(ctx, chat, &mut msg).await.is_err());
+        assert!(chat::prepare_msg(ctx, chat.id, &mut msg).await.is_err());
     }
 
     #[async_std::test]
@@ -2098,23 +2089,18 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let contact = Contact::create(ctx, "", "dest@example.com")
+        ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
             .await
-            .expect("failed to create contact");
+            .unwrap();
 
-        let res = ctx
-            .set_config(Config::ConfiguredAddr, Some("self@example.com"))
-            .await;
-        assert!(res.is_ok());
-
-        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+        let chat = d.chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("Quoted message".to_string()));
 
         // Prepare message for sending, so it gets a Message-Id.
         assert!(msg.rfc724_mid.is_empty());
-        let msg_id = chat::prepare_msg(ctx, chat, &mut msg).await.unwrap();
+        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
         let msg = Message::load_from_db(ctx, msg_id).await.unwrap();
         assert!(!msg.rfc724_mid.is_empty());
 

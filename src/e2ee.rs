@@ -346,7 +346,6 @@ mod tests {
 
     use crate::chat;
     use crate::constants::Viewtype;
-    use crate::contact::{Contact, Origin};
     use crate::message::Message;
     use crate::param::Param;
     use crate::test_utils::*;
@@ -415,23 +414,8 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        let (contact_alice_id, _modified) = Contact::add_or_lookup(
-            &bob.ctx,
-            "Alice",
-            "alice@example.com",
-            Origin::ManuallyCreated,
-        )
-        .await?;
-        let (contact_bob_id, _modified) = Contact::add_or_lookup(
-            &alice.ctx,
-            "Bob",
-            "bob@example.net",
-            Origin::ManuallyCreated,
-        )
-        .await?;
-
-        let chat_alice = chat::create_by_contact_id(&alice.ctx, contact_bob_id).await?;
-        let chat_bob = chat::create_by_contact_id(&bob.ctx, contact_alice_id).await?;
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let chat_bob = bob.create_chat(&alice).await.id;
 
         // Alice sends unencrypted message to Bob
         let mut msg = Message::new(Viewtype::Text);
