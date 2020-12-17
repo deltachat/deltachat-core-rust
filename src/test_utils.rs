@@ -77,7 +77,7 @@ impl TestContext {
         let t = Self::new().await;
         let keypair = bob_keypair();
         t.configure_addr(&keypair.addr.to_string()).await;
-        key::store_self_keypair(&t.ctx, &keypair, key::KeyPairUse::Default)
+        key::store_self_keypair(&t, &keypair, key::KeyPairUse::Default)
             .await
             .expect("Failed to save Bob's key");
         t

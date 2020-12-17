@@ -357,13 +357,13 @@ mod tests {
         async fn test_prexisting() {
             let t = TestContext::new().await;
             let test_addr = t.configure_alice().await;
-            assert_eq!(ensure_secret_key_exists(&t.ctx).await.unwrap(), test_addr);
+            assert_eq!(ensure_secret_key_exists(&t).await.unwrap(), test_addr);
         }
 
         #[async_std::test]
         async fn test_not_configured() {
             let t = TestContext::new().await;
-            assert!(ensure_secret_key_exists(&t.ctx).await.is_err());
+            assert!(ensure_secret_key_exists(&t).await.is_err());
         }
     }
 
@@ -526,28 +526,28 @@ Sent with my Delta Chat Messenger: https://delta.chat";
     #[async_std::test]
     async fn test_should_encrypt() {
         let t = TestContext::new_alice().await;
-        let encrypt_helper = EncryptHelper::new(&t.ctx).await.unwrap();
+        let encrypt_helper = EncryptHelper::new(&t).await.unwrap();
 
         // test with EncryptPreference::NoPreference:
         // if e2ee_eguaranteed is unset, there is no encryption as not more than half of peers want encryption
-        let ps = new_peerstates(&t.ctx, EncryptPreference::NoPreference);
-        assert!(encrypt_helper.should_encrypt(&t.ctx, true, &ps).unwrap());
-        assert!(!encrypt_helper.should_encrypt(&t.ctx, false, &ps).unwrap());
+        let ps = new_peerstates(&t, EncryptPreference::NoPreference);
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with EncryptPreference::Reset
-        let ps = new_peerstates(&t.ctx, EncryptPreference::Reset);
-        assert!(encrypt_helper.should_encrypt(&t.ctx, true, &ps).unwrap());
-        assert!(!encrypt_helper.should_encrypt(&t.ctx, false, &ps).unwrap());
+        let ps = new_peerstates(&t, EncryptPreference::Reset);
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with EncryptPreference::Mutual (self is also Mutual)
-        let ps = new_peerstates(&t.ctx, EncryptPreference::Mutual);
-        assert!(encrypt_helper.should_encrypt(&t.ctx, true, &ps).unwrap());
-        assert!(encrypt_helper.should_encrypt(&t.ctx, false, &ps).unwrap());
+        let ps = new_peerstates(&t, EncryptPreference::Mutual);
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with missing peerstate
         let mut ps = Vec::new();
         ps.push((None, "bob@foo.bar"));
-        assert!(encrypt_helper.should_encrypt(&t.ctx, true, &ps).is_err());
-        assert!(!encrypt_helper.should_encrypt(&t.ctx, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).is_err());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
     }
 }

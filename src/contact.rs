@@ -1320,11 +1320,11 @@ mod tests {
     #[async_std::test]
     async fn test_is_self_addr() -> Result<()> {
         let t = TestContext::new().await;
-        assert!(t.ctx.is_self_addr("me@me.org").await.is_err());
+        assert!(t.is_self_addr("me@me.org").await.is_err());
 
         let addr = t.configure_alice().await;
-        assert_eq!(t.ctx.is_self_addr("me@me.org").await?, false);
-        assert_eq!(t.ctx.is_self_addr(&addr).await?, true);
+        assert_eq!(t.is_self_addr("me@me.org").await?, false);
+        assert_eq!(t.is_self_addr(&addr).await?, true);
 
         Ok(())
     }
@@ -1341,16 +1341,16 @@ mod tests {
             "Name two\ntwo@deux.net\n", // should not be added again
             "\nWonderland, Alice <alice@w.de>\n",
         );
-        assert_eq!(Contact::add_address_book(&t.ctx, book).await.unwrap(), 4);
+        assert_eq!(Contact::add_address_book(&t, book).await.unwrap(), 4);
 
         // check first added contact, this does not modify because of lower origin
         let (contact_id, sth_modified) =
-            Contact::add_or_lookup(&t.ctx, "bla foo", "one@eins.org", Origin::IncomingUnknownTo)
+            Contact::add_or_lookup(&t, "bla foo", "one@eins.org", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::None);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_id(), contact_id);
         assert_eq!(contact.get_name(), "Name one");
         assert_eq!(contact.get_display_name(), "Name one");
@@ -1358,29 +1358,25 @@ mod tests {
         assert_eq!(contact.get_name_n_addr(), "Name one (one@eins.org)");
 
         // modify first added contact
-        let (contact_id_test, sth_modified) = Contact::add_or_lookup(
-            &t.ctx,
-            "Real one",
-            " one@eins.org  ",
-            Origin::ManuallyCreated,
-        )
-        .await
-        .unwrap();
+        let (contact_id_test, sth_modified) =
+            Contact::add_or_lookup(&t, "Real one", " one@eins.org  ", Origin::ManuallyCreated)
+                .await
+                .unwrap();
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Real one");
         assert_eq!(contact.get_addr(), "one@eins.org");
         assert!(!contact.is_blocked());
 
         // check third added contact (contact without name)
         let (contact_id, sth_modified) =
-            Contact::add_or_lookup(&t.ctx, "", "three@drei.sam", Origin::IncomingUnknownTo)
+            Contact::add_or_lookup(&t, "", "three@drei.sam", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::None);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "three@drei.sam");
         assert_eq!(contact.get_addr(), "three@drei.sam");
@@ -1388,7 +1384,7 @@ mod tests {
 
         // add name to third contact from incoming message (this becomes authorized name)
         let (contact_id_test, sth_modified) = Contact::add_or_lookup(
-            &t.ctx,
+            &t,
             "m. serious",
             "three@drei.sam",
             Origin::IncomingUnknownFrom,
@@ -1397,48 +1393,39 @@ mod tests {
         .unwrap();
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name_n_addr(), "m. serious (three@drei.sam)");
         assert!(!contact.is_blocked());
 
         // manually edit name of third contact (does not changed authorized name)
-        let (contact_id_test, sth_modified) = Contact::add_or_lookup(
-            &t.ctx,
-            "schnucki",
-            "three@drei.sam",
-            Origin::ManuallyCreated,
-        )
-        .await
-        .unwrap();
+        let (contact_id_test, sth_modified) =
+            Contact::add_or_lookup(&t, "schnucki", "three@drei.sam", Origin::ManuallyCreated)
+                .await
+                .unwrap();
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "m. serious");
         assert_eq!(contact.get_name_n_addr(), "schnucki (three@drei.sam)");
         assert!(!contact.is_blocked());
 
         // Fourth contact:
         let (contact_id, sth_modified) =
-            Contact::add_or_lookup(&t.ctx, "", "alice@w.de", Origin::IncomingUnknownTo)
+            Contact::add_or_lookup(&t, "", "alice@w.de", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::None);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Wonderland, Alice");
         assert_eq!(contact.get_display_name(), "Wonderland, Alice");
         assert_eq!(contact.get_addr(), "alice@w.de");
         assert_eq!(contact.get_name_n_addr(), "Wonderland, Alice (alice@w.de)");
 
         // check SELF
-        let contact = Contact::load_from_db(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
+        let contact = Contact::load_from_db(&t, DC_CONTACT_ID_SELF).await.unwrap();
         assert_eq!(DC_CONTACT_ID_SELF, 1);
-        assert_eq!(
-            contact.get_name(),
-            t.ctx.stock_str(StockMessage::SelfMsg).await
-        );
+        assert_eq!(contact.get_name(), t.stock_str(StockMessage::SelfMsg).await);
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
     }
@@ -1448,59 +1435,47 @@ mod tests {
         let t = TestContext::new().await;
 
         // incoming mail `From: bob1 <bob@example.org>` - this should init authname and name
-        let (contact_id, sth_modified) = Contact::add_or_lookup(
-            &t.ctx,
-            "bob1",
-            "bob@example.org",
-            Origin::IncomingUnknownFrom,
-        )
-        .await
-        .unwrap();
+        let (contact_id, sth_modified) =
+            Contact::add_or_lookup(&t, "bob1", "bob@example.org", Origin::IncomingUnknownFrom)
+                .await
+                .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Created);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob1");
         assert_eq!(contact.get_name(), "bob1");
         assert_eq!(contact.get_display_name(), "bob1");
 
         // incoming mail `From: bob2 <bob@example.org>` - this should update authname and name
-        let (contact_id, sth_modified) = Contact::add_or_lookup(
-            &t.ctx,
-            "bob2",
-            "bob@example.org",
-            Origin::IncomingUnknownFrom,
-        )
-        .await
-        .unwrap();
+        let (contact_id, sth_modified) =
+            Contact::add_or_lookup(&t, "bob2", "bob@example.org", Origin::IncomingUnknownFrom)
+                .await
+                .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "bob2");
         assert_eq!(contact.get_display_name(), "bob2");
 
         // manually edit name to "bob3" - authname should be still be "bob2" a given in `From:` above
-        let contact_id = Contact::create(&t.ctx, "bob3", "bob@example.org")
+        let contact_id = Contact::create(&t, "bob3", "bob@example.org")
             .await
             .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "bob3");
         assert_eq!(contact.get_display_name(), "bob3");
 
         // incoming mail `From: bob4 <bob@example.org>` - this should update authname, manually given name is still "bob3"
-        let (contact_id, sth_modified) = Contact::add_or_lookup(
-            &t.ctx,
-            "bob4",
-            "bob@example.org",
-            Origin::IncomingUnknownFrom,
-        )
-        .await
-        .unwrap();
+        let (contact_id, sth_modified) =
+            Contact::add_or_lookup(&t, "bob4", "bob@example.org", Origin::IncomingUnknownFrom)
+                .await
+                .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob4");
         assert_eq!(contact.get_name(), "bob3");
         assert_eq!(contact.get_display_name(), "bob3");
@@ -1511,18 +1486,16 @@ mod tests {
         let t = TestContext::new().await;
 
         // manually create "claire@example.org" without a given name
-        let contact_id = Contact::create(&t.ctx, "", "claire@example.org")
-            .await
-            .unwrap();
+        let contact_id = Contact::create(&t, "", "claire@example.org").await.unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "claire@example.org");
 
         // incoming mail `From: claire1 <claire@example.org>` - this should update authname and name
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
-            &t.ctx,
+            &t,
             "claire1",
             "claire@example.org",
             Origin::IncomingUnknownFrom,
@@ -1531,14 +1504,14 @@ mod tests {
         .unwrap();
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "claire1");
         assert_eq!(contact.get_name(), "claire1");
         assert_eq!(contact.get_display_name(), "claire1");
 
         // incoming mail `From: claire2 <claire@example.org>` - this should update authname and name
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
-            &t.ctx,
+            &t,
             "claire2",
             "claire@example.org",
             Origin::IncomingUnknownFrom,
@@ -1547,7 +1520,7 @@ mod tests {
         .unwrap();
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "claire2");
         assert_eq!(contact.get_name(), "claire2");
         assert_eq!(contact.get_display_name(), "claire2");
@@ -1558,33 +1531,26 @@ mod tests {
         let t = TestContext::new().await;
 
         // manually create "dave@example.org"
-        let contact_id = Contact::create(&t.ctx, "dave1", "dave@example.org")
+        let contact_id = Contact::create(&t, "dave1", "dave@example.org")
             .await
             .unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "");
         assert_eq!(contact.get_name(), "dave1");
         assert_eq!(contact.get_display_name(), "dave1");
 
         // incoming mail `From: dave2 <dave@example.org>` - this should update authname
-        Contact::add_or_lookup(
-            &t.ctx,
-            "dave2",
-            "dave@example.org",
-            Origin::IncomingUnknownFrom,
-        )
-        .await
-        .unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        Contact::add_or_lookup(&t, "dave2", "dave@example.org", Origin::IncomingUnknownFrom)
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "dave2");
         assert_eq!(contact.get_name(), "dave1");
         assert_eq!(contact.get_display_name(), "dave1");
 
         // manually clear the name
-        Contact::create(&t.ctx, "", "dave@example.org")
-            .await
-            .unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        Contact::create(&t, "", "dave@example.org").await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "dave2");
         assert_eq!(contact.get_name(), "dave2");
         assert_eq!(contact.get_display_name(), "dave2");
@@ -1601,44 +1567,40 @@ mod tests {
     async fn test_name_in_address() {
         let t = TestContext::new().await;
 
-        let contact_id = Contact::create(&t.ctx, "", "<dave@example.org>")
-            .await
-            .unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact_id = Contact::create(&t, "", "<dave@example.org>").await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
-        let contact_id = Contact::create(&t.ctx, "", "Mueller, Dave <dave@example.org>")
+        let contact_id = Contact::create(&t, "", "Mueller, Dave <dave@example.org>")
             .await
             .unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Mueller, Dave");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
-        let contact_id = Contact::create(&t.ctx, "name1", "name2 <dave@example.org>")
+        let contact_id = Contact::create(&t, "name1", "name2 <dave@example.org>")
             .await
             .unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "name1");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
-        assert!(Contact::create(&t.ctx, "", "<dskjfdslk@sadklj.dk")
+        assert!(Contact::create(&t, "", "<dskjfdslk@sadklj.dk")
             .await
             .is_err());
-        assert!(Contact::create(&t.ctx, "", "<dskjf>dslk@sadklj.dk>")
+        assert!(Contact::create(&t, "", "<dskjf>dslk@sadklj.dk>")
             .await
             .is_err());
-        assert!(Contact::create(&t.ctx, "", "dskjfdslksadklj.dk")
+        assert!(Contact::create(&t, "", "dskjfdslksadklj.dk").await.is_err());
+        assert!(Contact::create(&t, "", "dskjfdslk@sadklj.dk>")
             .await
             .is_err());
-        assert!(Contact::create(&t.ctx, "", "dskjfdslk@sadklj.dk>")
+        assert!(Contact::create(&t, "", "dskjf@dslk@sadkljdk")
             .await
             .is_err());
-        assert!(Contact::create(&t.ctx, "", "dskjf@dslk@sadkljdk")
-            .await
-            .is_err());
-        assert!(Contact::create(&t.ctx, "", "dskjf dslk@d.e").await.is_err());
-        assert!(Contact::create(&t.ctx, "", "<dskjf dslk@sadklj.dk")
+        assert!(Contact::create(&t, "", "dskjf dslk@d.e").await.is_err());
+        assert!(Contact::create(&t, "", "<dskjf dslk@sadklj.dk")
             .await
             .is_err());
     }

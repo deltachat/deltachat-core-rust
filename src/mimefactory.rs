@@ -1417,7 +1417,7 @@ mod tests {
         assert_eq!(first_subject_str(t).await, "Message from alice@example.com");
 
         let t = TestContext::new_alice().await;
-        t.ctx
+        t
             .set_config(Config::Displayname, Some("Alice"))
             .await
             .unwrap();
@@ -1453,7 +1453,7 @@ mod tests {
         // 5. Receive an mdn (read receipt) and make sure the mdn's subject is not used
         let t = TestContext::new_alice().await;
         dc_receive_imf(
-            &t.ctx,
+            &t,
             b"From: alice@example.com\n\
             To: Charlie <charlie@example.com>\n\
             Subject: Hello, Charlie\n\
@@ -1491,8 +1491,8 @@ mod tests {
                  Final-Recipient: rfc822;charlie@example.com\n\
                  Original-Message-ID: <2893@example.com>\n\
                  Disposition: manual-action/MDN-sent-automatically; displayed\n\
-                 \n", &t.ctx).await;
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
+                 \n", &t).await;
+        let mf = MimeFactory::from_msg(&t, &new_msg, false)
             .await
             .unwrap();
         // The subject string should not be "Re: message opened"
@@ -1501,23 +1501,23 @@ mod tests {
 
     async fn first_subject_str(t: TestContext) -> String {
         let contact_id =
-            Contact::add_or_lookup(&t.ctx, "Dave", "dave@example.com", Origin::ManuallyCreated)
+            Contact::add_or_lookup(&t, "Dave", "dave@example.com", Origin::ManuallyCreated)
                 .await
                 .unwrap()
                 .0;
 
-        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id)
+        let chat_id = chat::create_by_contact_id(&t, contact_id)
             .await
             .unwrap();
 
         let mut new_msg = Message::new(Viewtype::Text);
         new_msg.set_text(Some("Hi".to_string()));
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg)
+        chat::prepare_msg(&t, chat_id, &mut new_msg)
             .await
             .unwrap();
 
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
+        let mf = MimeFactory::from_msg(&t, &new_msg, false)
             .await
             .unwrap();
 
@@ -1526,8 +1526,8 @@ mod tests {
 
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
         let t = TestContext::new_alice().await;
-        let new_msg = incoming_msg_to_reply_msg(imf_raw, &t.ctx).await;
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
+        let new_msg = incoming_msg_to_reply_msg(imf_raw, &t).await;
+        let mf = MimeFactory::from_msg(&t, &new_msg, false)
             .await
             .unwrap();
         mf.subject_str().await
@@ -1564,7 +1564,7 @@ mod tests {
     // This test could still be extended
     async fn test_render_reply() {
         let t = TestContext::new_alice().await;
-        let context = &t.ctx;
+        let context = &t;
 
         let msg = incoming_msg_to_reply_msg(
             b"From: Charlie <charlie@example.com>\n\
@@ -1579,7 +1579,7 @@ mod tests {
         )
         .await;
 
-        let mimefactory = MimeFactory::from_msg(&t.ctx, &msg, false).await.unwrap();
+        let mimefactory = MimeFactory::from_msg(&t, &msg, false).await.unwrap();
 
         let recipients = mimefactory.recipients();
         assert_eq!(recipients, vec!["charlie@example.com"]);

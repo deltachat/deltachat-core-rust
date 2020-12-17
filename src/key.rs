@@ -558,31 +558,31 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         let alice = alice_keypair();
         let t = TestContext::new().await;
         t.configure_alice().await;
-        let pubkey = SignedPublicKey::load_self(&t.ctx).await.unwrap();
+        let pubkey = SignedPublicKey::load_self(&t).await.unwrap();
         assert_eq!(alice.public, pubkey);
-        let seckey = SignedSecretKey::load_self(&t.ctx).await.unwrap();
+        let seckey = SignedSecretKey::load_self(&t).await.unwrap();
         assert_eq!(alice.secret, seckey);
     }
 
     #[async_std::test]
     async fn test_load_self_generate_public() {
         let t = TestContext::new().await;
-        t.ctx
+        t
             .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
-        let key = SignedPublicKey::load_self(&t.ctx).await;
+        let key = SignedPublicKey::load_self(&t).await;
         assert!(key.is_ok());
     }
 
     #[async_std::test]
     async fn test_load_self_generate_secret() {
         let t = TestContext::new().await;
-        t.ctx
+        t
             .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
-        let key = SignedSecretKey::load_self(&t.ctx).await;
+        let key = SignedSecretKey::load_self(&t).await;
         assert!(key.is_ok());
     }
 
@@ -591,11 +591,11 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         use std::thread;
 
         let t = TestContext::new().await;
-        t.ctx
+        t
             .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
-        let ctx = t.ctx.clone();
+        let ctx = t.clone();
         let ctx0 = ctx.clone();
         let thr0 =
             thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx0)));
@@ -618,7 +618,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         // Saving the same key twice should result in only one row in
         // the keypairs table.
         let t = TestContext::new().await;
-        let ctx = Arc::new(t.ctx);
+        let ctx = Arc::new(t);
 
         let ctx1 = ctx.clone();
         let nrows = || async {

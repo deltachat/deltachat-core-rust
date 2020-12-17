@@ -909,7 +909,7 @@ mod tests {
         let t = TestContext::new().await;
 
         t.configure_alice().await;
-        let msg = render_setup_file(&t.ctx, "hello").await.unwrap();
+        let msg = render_setup_file(&t, "hello").await.unwrap();
         println!("{}", &msg);
         // Check some substrings, indicating things got substituted.
         // In particular note the mixing of `\r\n` and `\n` depending
@@ -926,12 +926,11 @@ mod tests {
     #[async_std::test]
     async fn test_render_setup_file_newline_replace() {
         let t = TestContext::new().await;
-        t.ctx
-            .set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
+        t.set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
             .await
             .unwrap();
         t.configure_alice().await;
-        let msg = render_setup_file(&t.ctx, "pw").await.unwrap();
+        let msg = render_setup_file(&t, "pw").await.unwrap();
         println!("{}", &msg);
         assert!(msg.contains("<p>hello<br>there</p>"));
     }
@@ -939,7 +938,7 @@ mod tests {
     #[async_std::test]
     async fn test_create_setup_code() {
         let t = TestContext::new().await;
-        let setupcode = create_setup_code(&t.ctx);
+        let setupcode = create_setup_code(&t);
         assert_eq!(setupcode.len(), 44);
         assert_eq!(setupcode.chars().nth(4).unwrap(), '-');
         assert_eq!(setupcode.chars().nth(9).unwrap(), '-');

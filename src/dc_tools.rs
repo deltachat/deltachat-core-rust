@@ -898,7 +898,7 @@ mod tests {
     #[async_std::test]
     async fn test_file_handling() {
         let t = TestContext::new().await;
-        let context = &t.ctx;
+        let context = &t;
         macro_rules! dc_file_exist {
             ($ctx:expr, $fname:expr) => {
                 $ctx.get_blobdir()
@@ -978,11 +978,11 @@ mod tests {
     async fn test_create_smeared_timestamp() {
         let t = TestContext::new().await;
         assert_ne!(
-            dc_create_smeared_timestamp(&t.ctx).await,
-            dc_create_smeared_timestamp(&t.ctx).await
+            dc_create_smeared_timestamp(&t).await,
+            dc_create_smeared_timestamp(&t).await
         );
         assert!(
-            dc_create_smeared_timestamp(&t.ctx).await
+            dc_create_smeared_timestamp(&t).await
                 >= SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -994,13 +994,13 @@ mod tests {
     async fn test_create_smeared_timestamps() {
         let t = TestContext::new().await;
         let count = MAX_SECONDS_TO_LEND_FROM_FUTURE - 1;
-        let start = dc_create_smeared_timestamps(&t.ctx, count as usize).await;
-        let next = dc_smeared_time(&t.ctx).await;
+        let start = dc_create_smeared_timestamps(&t, count as usize).await;
+        let next = dc_smeared_time(&t).await;
         assert!((start + count - 1) < next);
 
         let count = MAX_SECONDS_TO_LEND_FROM_FUTURE + 30;
-        let start = dc_create_smeared_timestamps(&t.ctx, count as usize).await;
-        let next = dc_smeared_time(&t.ctx).await;
+        let start = dc_create_smeared_timestamps(&t, count as usize).await;
+        let next = dc_smeared_time(&t).await;
         assert!((start + count - 1) < next);
     }
 
@@ -1074,53 +1074,53 @@ mod tests {
             / 1_000;
 
         // a correct time must not add a device message
-        maybe_warn_on_bad_time(&t.ctx, timestamp_now, get_provider_update_timestamp()).await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        maybe_warn_on_bad_time(&t, timestamp_now, get_provider_update_timestamp()).await;
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
         // we cannot find out if a date in the future is wrong - a device message is not added
-        maybe_warn_on_bad_time(&t.ctx, timestamp_future, get_provider_update_timestamp()).await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        maybe_warn_on_bad_time(&t, timestamp_future, get_provider_update_timestamp()).await;
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
         // a date in the past must add a device message
-        maybe_warn_on_bad_time(&t.ctx, timestamp_past, get_provider_update_timestamp()).await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        maybe_warn_on_bad_time(&t, timestamp_past, get_provider_update_timestamp()).await;
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0);
-        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
 
         // the message should be added only once a day - test that an hour later and nearly a day later
         maybe_warn_on_bad_time(
-            &t.ctx,
+            &t,
             timestamp_past + 60 * 60,
             get_provider_update_timestamp(),
         )
         .await;
-        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
 
         maybe_warn_on_bad_time(
-            &t.ctx,
+            &t,
             timestamp_past + 60 * 60 * 24 - 1,
             get_provider_update_timestamp(),
         )
         .await;
-        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
 
         // next day, there should be another device message
         maybe_warn_on_bad_time(
-            &t.ctx,
+            &t,
             timestamp_past + 60 * 60 * 24,
             get_provider_update_timestamp(),
         )
         .await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert_eq!(device_chat_id, chats.get_chat_id(0));
-        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         assert_eq!(msgs.len(), 2);
     }
 
@@ -1132,60 +1132,60 @@ mod tests {
         // in about 6 months, the app should not be outdated
         // (if this fails, provider-db is not updated since 6 months)
         maybe_warn_on_outdated(
-            &t.ctx,
+            &t,
             timestamp_now + 180 * 24 * 60 * 60,
             get_provider_update_timestamp(),
         )
         .await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
         // in 1 year, the app should be considered as outdated
         maybe_warn_on_outdated(
-            &t.ctx,
+            &t,
             timestamp_now + 365 * 24 * 60 * 60,
             get_provider_update_timestamp(),
         )
         .await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0);
-        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
 
         // do not repeat the warning every day ...
         // (we test that for the 2 subsequent days, this may be the next month, so the result should be 1 or 2 device message)
         maybe_warn_on_outdated(
-            &t.ctx,
+            &t,
             timestamp_now + (365 + 1) * 24 * 60 * 60,
             get_provider_update_timestamp(),
         )
         .await;
         maybe_warn_on_outdated(
-            &t.ctx,
+            &t,
             timestamp_now + (365 + 2) * 24 * 60 * 60,
             get_provider_update_timestamp(),
         )
         .await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0);
-        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         let test_len = msgs.len();
         assert!(test_len == 1 || test_len == 2);
 
         // ... but every month
         // (forward generous 33 days to avoid being in the same month as in the previous check)
         maybe_warn_on_outdated(
-            &t.ctx,
+            &t,
             timestamp_now + (365 + 33) * 24 * 60 * 60,
             get_provider_update_timestamp(),
         )
         .await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0);
-        let msgs = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         assert_eq!(msgs.len(), test_len + 1);
     }
 }

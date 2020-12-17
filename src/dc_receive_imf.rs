@@ -2029,134 +2029,134 @@ mod tests {
     #[async_std::test]
     async fn test_adhoc_group_show_chats_only() {
         let t = TestContext::new_alice().await;
-        assert_eq!(t.ctx.get_config_int(Config::ShowEmails).await, 0);
+        assert_eq!(t.get_config_int(Config::ShowEmails).await, 0);
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
-        dc_receive_imf(&t.ctx, MSGRMSG, "INBOX", 1, false)
+        dc_receive_imf(&t, MSGRMSG, "INBOX", 1, false)
             .await
             .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
-        dc_receive_imf(&t.ctx, ONETOONE_NOREPLY_MAIL, "INBOX", 1, false)
+        dc_receive_imf(&t, ONETOONE_NOREPLY_MAIL, "INBOX", 1, false)
             .await
             .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
-        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 1, false)
+        dc_receive_imf(&t, GRP_MAIL, "INBOX", 1, false)
             .await
             .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
     }
 
     #[async_std::test]
     async fn test_adhoc_group_show_accepted_contact_unknown() {
         let t = TestContext::new_alice().await;
-        t.ctx
+        t
             .set_config(Config::ShowEmails, Some("1"))
             .await
             .unwrap();
-        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 1, false)
+        dc_receive_imf(&t, GRP_MAIL, "INBOX", 1, false)
             .await
             .unwrap();
 
         // adhoc-group with unknown contacts with show_emails=accepted is ignored for unknown contacts
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
     }
 
     #[async_std::test]
     async fn test_adhoc_group_show_accepted_contact_known() {
         let t = TestContext::new_alice().await;
-        t.ctx
+        t
             .set_config(Config::ShowEmails, Some("1"))
             .await
             .unwrap();
-        Contact::create(&t.ctx, "Bob", "bob@example.com")
+        Contact::create(&t, "Bob", "bob@example.com")
             .await
             .unwrap();
-        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 1, false)
+        dc_receive_imf(&t, GRP_MAIL, "INBOX", 1, false)
             .await
             .unwrap();
 
         // adhoc-group with known contacts with show_emails=accepted is still ignored for known contacts
         // (and existent chat is required)
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
     }
 
     #[async_std::test]
     async fn test_adhoc_group_show_accepted_contact_accepted() {
         let t = TestContext::new_alice().await;
-        t.ctx
+        t
             .set_config(Config::ShowEmails, Some("1"))
             .await
             .unwrap();
 
         // accept Bob by accepting a delta-message from Bob
-        dc_receive_imf(&t.ctx, MSGRMSG, "INBOX", 1, false)
+        dc_receive_imf(&t, MSGRMSG, "INBOX", 1, false)
             .await
             .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert!(chats.get_chat_id(0).is_deaddrop());
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap())
             .await
             .unwrap();
         assert!(!chat_id.is_special());
-        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Single);
         assert_eq!(chat.name, "Bob");
-        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await.len(), 1);
-        assert_eq!(chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.len(), 1);
+        assert_eq!(chat::get_chat_contacts(&t, chat_id).await.len(), 1);
+        assert_eq!(chat::get_chat_msgs(&t, chat_id, 0, None).await.len(), 1);
 
         // receive a non-delta-message from Bob, shows up because of the show_emails setting
-        dc_receive_imf(&t.ctx, ONETOONE_NOREPLY_MAIL, "INBOX", 2, false)
+        dc_receive_imf(&t, ONETOONE_NOREPLY_MAIL, "INBOX", 2, false)
             .await
             .unwrap();
-        assert_eq!(chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.len(), 2);
+        assert_eq!(chat::get_chat_msgs(&t, chat_id, 0, None).await.len(), 2);
 
         // let Bob create an adhoc-group by a non-delta-message, shows up because of the show_emails setting
-        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 3, false)
+        dc_receive_imf(&t, GRP_MAIL, "INBOX", 3, false)
             .await
             .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap())
             .await
             .unwrap();
-        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(chat.name, "group with Alice, Bob and Claire");
-        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await.len(), 3);
+        assert_eq!(chat::get_chat_contacts(&t, chat_id).await.len(), 3);
     }
 
     #[async_std::test]
     async fn test_adhoc_group_show_all() {
         let t = TestContext::new_alice().await;
-        t.ctx
+        t
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
-        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 1, false)
+        dc_receive_imf(&t, GRP_MAIL, "INBOX", 1, false)
             .await
             .unwrap();
 
         // adhoc-group with unknown contacts with show_emails=all will show up in the deaddrop
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert!(chats.get_chat_id(0).is_deaddrop());
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap())
             .await
             .unwrap();
-        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(chat.name, "group with Alice, Bob and Claire");
-        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await.len(), 3);
+        assert_eq!(chat::get_chat_contacts(&t, chat_id).await.len(), 3);
     }
 
     #[async_std::test]
@@ -2164,36 +2164,36 @@ mod tests {
         // create alice's account
         let t = TestContext::new_alice().await;
 
-        let bob_id = Contact::create(&t.ctx, "bob", "bob@example.com")
+        let bob_id = Contact::create(&t, "bob", "bob@example.com")
             .await
             .unwrap();
-        let one2one_id = chat::create_by_contact_id(&t.ctx, bob_id).await.unwrap();
+        let one2one_id = chat::create_by_contact_id(&t, bob_id).await.unwrap();
         one2one_id
-            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .set_visibility(&t, ChatVisibility::Archived)
             .await
             .unwrap();
-        let one2one = Chat::load_from_db(&t.ctx, one2one_id).await.unwrap();
+        let one2one = Chat::load_from_db(&t, one2one_id).await.unwrap();
         assert!(one2one.get_visibility() == ChatVisibility::Archived);
 
         // create a group with bob, archive group
-        let group_id = chat::create_group_chat(&t.ctx, ProtectionStatus::Unprotected, "foo")
+        let group_id = chat::create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
-        chat::add_contact_to_chat(&t.ctx, group_id, bob_id).await;
+        chat::add_contact_to_chat(&t, group_id, bob_id).await;
         assert_eq!(
-            chat::get_chat_msgs(&t.ctx, group_id, 0, None).await.len(),
+            chat::get_chat_msgs(&t, group_id, 0, None).await.len(),
             0
         );
         group_id
-            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .set_visibility(&t, ChatVisibility::Archived)
             .await
             .unwrap();
-        let group = Chat::load_from_db(&t.ctx, group_id).await.unwrap();
+        let group = Chat::load_from_db(&t, group_id).await.unwrap();
         assert!(group.get_visibility() == ChatVisibility::Archived);
 
         // everything archived, chatlist should be empty
         assert_eq!(
-            Chatlist::try_load(&t.ctx, DC_GCL_NO_SPECIALS, None, None)
+            Chatlist::try_load(&t, DC_GCL_NO_SPECIALS, None, None)
                 .await
                 .unwrap()
                 .len(),
@@ -2202,7 +2202,7 @@ mod tests {
 
         // send a message to group with bob
         dc_receive_imf(
-            &t.ctx,
+            &t,
             format!(
                 "From: alice@example.com\n\
                  To: bob@example.com\n\
@@ -2224,25 +2224,25 @@ mod tests {
         )
         .await
         .unwrap();
-        let msgs = chat::get_chat_msgs(&t.ctx, group_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, group_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
         let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
             msg_id
         } else {
             panic!("Wrong item type");
         };
-        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
+        let msg = message::Message::load_from_db(&t, *msg_id)
             .await
             .unwrap();
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert_eq!(msg.text.unwrap(), "hello");
         assert_eq!(msg.state, MessageState::OutDelivered);
-        let group = Chat::load_from_db(&t.ctx, group_id).await.unwrap();
+        let group = Chat::load_from_db(&t, group_id).await.unwrap();
         assert!(group.get_visibility() == ChatVisibility::Normal);
 
         // bob sends a read receipt to the group
         dc_receive_imf(
-            &t.ctx,
+            &t,
             format!(
                 "From: bob@example.com\n\
                  To: alice@example.com\n\
@@ -2279,23 +2279,23 @@ mod tests {
         )
         .await.unwrap();
         assert_eq!(
-            chat::get_chat_msgs(&t.ctx, group_id, 0, None).await.len(),
+            chat::get_chat_msgs(&t, group_id, 0, None).await.len(),
             1
         );
-        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
+        let msg = message::Message::load_from_db(&t, *msg_id)
             .await
             .unwrap();
         assert_eq!(msg.state, MessageState::OutMdnRcvd);
 
         // check, the read-receipt has not unarchived the one2one
         assert_eq!(
-            Chatlist::try_load(&t.ctx, DC_GCL_NO_SPECIALS, None, None)
+            Chatlist::try_load(&t, DC_GCL_NO_SPECIALS, None, None)
                 .await
                 .unwrap()
                 .len(),
             1
         );
-        let one2one = Chat::load_from_db(&t.ctx, one2one_id).await.unwrap();
+        let one2one = Chat::load_from_db(&t, one2one_id).await.unwrap();
         assert!(one2one.get_visibility() == ChatVisibility::Archived);
     }
 
@@ -2306,9 +2306,9 @@ mod tests {
         // "deaddrop" chat) to avoid a re-download from the server. See also [**]
 
         let t = TestContext::new_alice().await;
-        let context = &t.ctx;
+        let context = &t;
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert!(chats.get_msg_id(0).is_err());
 
         dc_receive_imf(
@@ -2327,7 +2327,7 @@ mod tests {
         .await
         .unwrap();
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         // Check that the message was added to the database:
         assert!(chats.get_msg_id(0).is_ok());
     }
@@ -2335,14 +2335,14 @@ mod tests {
     #[async_std::test]
     async fn test_escaped_from() {
         let t = TestContext::new_alice().await;
-        let contact_id = Contact::create(&t.ctx, "foobar", "foobar@example.com")
+        let contact_id = Contact::create(&t, "foobar", "foobar@example.com")
             .await
             .unwrap();
-        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id)
+        let chat_id = chat::create_by_contact_id(&t, contact_id)
             .await
             .unwrap();
         dc_receive_imf(
-            &t.ctx,
+            &t,
             b"From: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
                  To: alice@example.com\n\
                  Subject: foo\n\
@@ -2357,20 +2357,20 @@ mod tests {
             false,
         ).await.unwrap();
         assert_eq!(
-            Contact::load_from_db(&t.ctx, contact_id)
+            Contact::load_from_db(&t, contact_id)
                 .await
                 .unwrap()
                 .get_authname(),
             "Имя, Фамилия",
         );
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, chat_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
         let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
             msg_id
         } else {
             panic!("Wrong item type");
         };
-        let msg = message::Message::load_from_db(&t.ctx, *msg_id)
+        let msg = message::Message::load_from_db(&t, *msg_id)
             .await
             .unwrap();
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -2381,18 +2381,18 @@ mod tests {
     #[async_std::test]
     async fn test_escaped_recipients() {
         let t = TestContext::new_alice().await;
-        Contact::create(&t.ctx, "foobar", "foobar@example.com")
+        Contact::create(&t, "foobar", "foobar@example.com")
             .await
             .unwrap();
 
         let carl_contact_id =
-            Contact::add_or_lookup(&t.ctx, "Carl", "carl@host.tld", Origin::IncomingUnknownFrom)
+            Contact::add_or_lookup(&t, "Carl", "carl@host.tld", Origin::IncomingUnknownFrom)
                 .await
                 .unwrap()
                 .0;
 
         dc_receive_imf(
-            &t.ctx,
+            &t,
             b"From: Foobar <foobar@example.com>\n\
                  To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= alice@example.com\n\
                  Cc: =?utf-8?q?=3Ch2=3E?= <carl@host.tld>\n\
@@ -2410,15 +2410,15 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(
-            Contact::load_from_db(&t.ctx, carl_contact_id)
+            Contact::load_from_db(&t, carl_contact_id)
                 .await
                 .unwrap()
                 .get_name(),
             "h2"
         );
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        let msg = Message::load_from_db(&t.ctx, chats.get_msg_id(0).unwrap())
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        let msg = Message::load_from_db(&t, chats.get_msg_id(0).unwrap())
             .await
             .unwrap();
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -2429,12 +2429,12 @@ mod tests {
     #[async_std::test]
     async fn test_cc_to_contact() {
         let t = TestContext::new_alice().await;
-        Contact::create(&t.ctx, "foobar", "foobar@example.com")
+        Contact::create(&t, "foobar", "foobar@example.com")
             .await
             .unwrap();
 
         let carl_contact_id = Contact::add_or_lookup(
-            &t.ctx,
+            &t,
             "garabage",
             "carl@host.tld",
             Origin::IncomingUnknownFrom,
@@ -2444,7 +2444,7 @@ mod tests {
         .0;
 
         dc_receive_imf(
-            &t.ctx,
+            &t,
             b"From: Foobar <foobar@example.com>\n\
                  To: alice@example.com\n\
                  Cc: Carl <carl@host.tld>\n\
@@ -2462,7 +2462,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(
-            Contact::load_from_db(&t.ctx, carl_contact_id)
+            Contact::load_from_db(&t, carl_contact_id)
                 .await
                 .unwrap()
                 .get_name(),
@@ -2554,7 +2554,7 @@ mod tests {
         t.configure_addr(self_addr).await;
 
         dc_receive_imf(
-            &t.ctx,
+            &t,
             format!(
                 "From: {}\n\
                 To: {}\n\
@@ -2574,21 +2574,21 @@ mod tests {
         .await
         .unwrap();
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         let msg_id = chats.get_msg_id(0).unwrap();
 
         // Check that the ndn would be downloaded:
         let headers = mailparse::parse_mail(raw_ndn).unwrap().headers;
         assert!(
-            crate::imap::prefetch_should_download(&t.ctx, &headers, ShowEmails::Off)
+            crate::imap::prefetch_should_download(&t, &headers, ShowEmails::Off)
                 .await
                 .unwrap()
         );
 
-        dc_receive_imf(&t.ctx, raw_ndn, "INBOX", 1, false)
+        dc_receive_imf(&t, raw_ndn, "INBOX", 1, false)
             .await
             .unwrap();
-        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
 
         assert_eq!(msg.state, MessageState::OutFailed);
 
@@ -2601,7 +2601,7 @@ mod tests {
         t.configure_addr("alice@gmail.com").await;
 
         dc_receive_imf(
-            &t.ctx,
+            &t,
             b"From: alice@gmail.com\n\
                  To: bob@example.com, assidhfaaspocwaeofi@gmail.com\n\
                  Subject: foo\n\
@@ -2620,30 +2620,30 @@ mod tests {
         .await
         .unwrap();
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         let msg_id = chats.get_msg_id(0).unwrap();
 
         let raw = include_bytes!("../test-data/message/gmail_ndn_group.eml");
-        dc_receive_imf(&t.ctx, raw, "INBOX", 1, false)
+        dc_receive_imf(&t, raw, "INBOX", 1, false)
             .await
             .unwrap();
 
-        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
 
         assert_eq!(msg.state, MessageState::OutFailed);
 
-        let msgs = chat::get_chat_msgs(&t.ctx, msg.chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await;
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
         } else {
             panic!("Wrong item type");
         };
-        let last_msg = Message::load_from_db(&t.ctx, *msg_id).await.unwrap();
+        let last_msg = Message::load_from_db(&t, *msg_id).await.unwrap();
 
         assert_eq!(
             last_msg.text,
             Some(
-                t.ctx
+                t
                     .stock_string_repl_str(
                         StockMessage::FailedSendingTo,
                         "assidhfaaspocwaeofi@gmail.com",
@@ -2671,7 +2671,7 @@ mod tests {
     async fn test_html_only_mail() {
         let t = TestContext::new_alice().await;
         let msg = load_imf_email(
-            &t.ctx,
+            &t,
             include_bytes!("../test-data/message/wrong-html.eml"),
         )
         .await;
@@ -2682,7 +2682,7 @@ mod tests {
     async fn test_pdf_filename_simple() {
         let t = TestContext::new_alice().await;
         let msg = load_imf_email(
-            &t.ctx,
+            &t,
             include_bytes!("../test-data/message/pdf_filename_simple.eml"),
         )
         .await;
@@ -2696,7 +2696,7 @@ mod tests {
         // test filenames split across multiple header lines, see rfc 2231
         let t = TestContext::new_alice().await;
         let msg = load_imf_email(
-            &t.ctx,
+            &t,
             include_bytes!("../test-data/message/pdf_filename_continuation.eml"),
         )
         .await;
