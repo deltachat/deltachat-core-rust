@@ -2092,7 +2092,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::File);
-        assert_eq!(message.parts[0].msg, "Hello!");
+        assert_eq!(message.parts[0].msg, "Mail with inline attachment – Hello!");
     }
 
     #[async_std::test]
@@ -2187,7 +2187,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
-        assert_eq!(message.parts[0].msg, "Test");
+        assert_eq!(message.parts[0].msg, "example – Test");
     }
 
     #[async_std::test]
@@ -2259,7 +2259,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
-        assert_eq!(message.parts[0].msg, "Test");
+        assert_eq!(message.parts[0].msg, "Test subject – Test");
     }
 
     // Outlook specifies filename in the "name" attribute of Content-Type
@@ -2333,7 +2333,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
-        assert_eq!(message.parts[0].msg, "Test");
+        assert_eq!(message.parts[0].msg, "Delta Chat is great stuff! – Test");
     }
 
     #[test]
