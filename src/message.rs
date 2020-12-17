@@ -2057,17 +2057,17 @@ mod tests {
 
         // test that get_width() and get_height() are returning some dimensions for images;
         // (as the device-chat contains a welcome-images, we check that)
-        t.ctx.update_device_chats().await.ok();
+        t.update_device_chats().await.ok();
         let (device_chat_id, _) =
-            chat::create_or_lookup_by_contact_id(&t.ctx, DC_CONTACT_ID_DEVICE, Blocked::Not)
+            chat::create_or_lookup_by_contact_id(&t, DC_CONTACT_ID_DEVICE, Blocked::Not)
                 .await
                 .unwrap();
 
         let mut has_image = false;
-        let chatitems = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let chatitems = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         for chatitem in chatitems {
             if let ChatItem::Message { msg_id } = chatitem {
-                if let Ok(msg) = Message::load_from_db(&t.ctx, msg_id).await {
+                if let Ok(msg) = Message::load_from_db(&t, msg_id).await {
                     if msg.get_viewtype() == Viewtype::Image {
                         has_image = true;
                         // just check that width/height are inside some reasonable ranges

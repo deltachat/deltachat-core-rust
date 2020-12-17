@@ -1372,18 +1372,18 @@ mod tests {
         // fails to load from the database instead of failing to load
         // all jobs.
         let t = TestContext::new().await;
-        insert_job(&t.ctx, -1).await; // This can not be loaded into Job struct.
+        insert_job(&t, -1).await; // This can not be loaded into Job struct.
         let jobs = load_next(
-            &t.ctx,
+            &t,
             Thread::from(Action::MoveMsg),
             &InterruptInfo::new(false, None),
         )
         .await;
         assert!(jobs.is_none());
 
-        insert_job(&t.ctx, 1).await;
+        insert_job(&t, 1).await;
         let jobs = load_next(
-            &t.ctx,
+            &t,
             Thread::from(Action::MoveMsg),
             &InterruptInfo::new(false, None),
         )
@@ -1395,10 +1395,10 @@ mod tests {
     async fn test_load_next_job_one() {
         let t = TestContext::new().await;
 
-        insert_job(&t.ctx, 1).await;
+        insert_job(&t, 1).await;
 
         let jobs = load_next(
-            &t.ctx,
+            &t,
             Thread::from(Action::MoveMsg),
             &InterruptInfo::new(false, None),
         )

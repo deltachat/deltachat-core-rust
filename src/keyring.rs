@@ -83,10 +83,10 @@ mod tests {
         t.configure_alice().await;
         let alice = alice_keypair();
 
-        let pub_ring: Keyring<SignedPublicKey> = Keyring::new_self(&t.ctx).await.unwrap();
+        let pub_ring: Keyring<SignedPublicKey> = Keyring::new_self(&t).await.unwrap();
         assert_eq!(pub_ring.keys(), [alice.public]);
 
-        let sec_ring: Keyring<SignedSecretKey> = Keyring::new_self(&t.ctx).await.unwrap();
+        let sec_ring: Keyring<SignedSecretKey> = Keyring::new_self(&t).await.unwrap();
         assert_eq!(sec_ring.keys(), [alice.secret]);
     }
 }
