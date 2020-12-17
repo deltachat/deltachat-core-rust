@@ -616,14 +616,10 @@ mod tests {
     #[async_std::test]
     async fn test_no_panic_on_bad_credentials() {
         let t = TestContext::new().await;
-        t
-            .set_config(Config::Addr, Some("probably@unexistant.addr"))
+        t.set_config(Config::Addr, Some("probably@unexistant.addr"))
             .await
             .unwrap();
-        t
-            .set_config(Config::MailPw, Some("123456"))
-            .await
-            .unwrap();
+        t.set_config(Config::MailPw, Some("123456")).await.unwrap();
         assert!(t.configure().await.is_err());
     }
 

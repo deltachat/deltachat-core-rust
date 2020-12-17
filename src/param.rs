@@ -476,36 +476,18 @@ mod tests {
         }
 
         fs::write(fname, b"boo").await.unwrap();
-        let blob = p
-            .get_blob(Param::File, &t, true)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            blob,
-            BlobObject::from_name(&t, "foo".to_string()).unwrap()
-        );
+        let blob = p.get_blob(Param::File, &t, true).await.unwrap().unwrap();
+        assert_eq!(blob, BlobObject::from_name(&t, "foo".to_string()).unwrap());
 
         // Blob in blobdir, expect blob.
         let bar_path = t.get_blobdir().join("bar");
         p.set(Param::File, bar_path.to_str().unwrap());
-        let blob = p
-            .get_blob(Param::File, &t, false)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            blob,
-            BlobObject::from_name(&t, "bar".to_string()).unwrap()
-        );
+        let blob = p.get_blob(Param::File, &t, false).await.unwrap().unwrap();
+        assert_eq!(blob, BlobObject::from_name(&t, "bar".to_string()).unwrap());
 
         p.remove(Param::File);
         assert!(p.get_file(Param::File, &t).unwrap().is_none());
         assert!(p.get_path(Param::File, &t).unwrap().is_none());
-        assert!(p
-            .get_blob(Param::File, &t, false)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(p.get_blob(Param::File, &t, false).await.unwrap().is_none());
     }
 }

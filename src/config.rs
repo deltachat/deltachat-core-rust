@@ -321,8 +321,7 @@ mod tests {
             .unwrap();
         let avatar_blob = t.get_blobdir().join("avatar.jpg");
         assert!(!avatar_blob.exists().await);
-        t
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         assert!(avatar_blob.exists().await);
@@ -353,8 +352,7 @@ mod tests {
         assert_eq!(img.width(), 900);
         assert_eq!(img.height(), 900);
 
-        t
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         let avatar_cfg = t.get_config(Config::Selfavatar).await;
@@ -376,8 +374,7 @@ mod tests {
             .unwrap();
         let avatar_blob = t.get_blobdir().join("avatar.png");
         assert!(!avatar_blob.exists().await);
-        t
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         assert!(avatar_blob.exists().await);
@@ -397,10 +394,7 @@ mod tests {
         let media_quality = constants::MediaQuality::from_i32(media_quality).unwrap_or_default();
         assert_eq!(media_quality, constants::MediaQuality::Balanced);
 
-        t
-            .set_config(Config::MediaQuality, Some("1"))
-            .await
-            .unwrap();
+        t.set_config(Config::MediaQuality, Some("1")).await.unwrap();
 
         let media_quality = t.get_config_int(Config::MediaQuality).await;
         assert_eq!(media_quality, 1);
