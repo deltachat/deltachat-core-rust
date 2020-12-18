@@ -10,6 +10,7 @@ import pathlib
 from imapclient import IMAPClient
 from imapclient.exceptions import IMAPClientError
 import deltachat
+from deltachat import const
 
 
 SEEN = b'\\Seen'
@@ -50,18 +51,31 @@ class DirectImap:
         self.connect()
 
     def connect(self):
-        ssl_context = ssl.create_default_context()
-
-        # don't check if certificate hostname doesn't match target hostname
-        ssl_context.check_hostname = False
-
-        # don't check if the certificate is trusted by a certificate authority
-        ssl_context.verify_mode = ssl.CERT_NONE
-
         host = self.account.get_config("configured_mail_server")
+        port = int(self.account.get_config("configured_mail_port"))
+        security = int(self.account.get_config("configured_mail_security"))
+
         user = self.account.get_config("addr")
         pw = self.account.get_config("mail_pw")
-        self.conn = IMAPClient(host, ssl_context=ssl_context)
+
+        if security == const.DC_SOCKET_PLAIN:
+            ssl_context = None
+        else:
+            ssl_context = ssl.create_default_context()
+
+            # don't check if certificate hostname doesn't match target hostname
+            ssl_context.check_hostname = False
+
+            # don't check if the certificate is trusted by a certificate authority
+            ssl_context.verify_mode = ssl.CERT_NONE
+
+        if security == const.DC_SOCKET_STARTTLS:
+            self.conn = IMAPClient(host, port, ssl=False)
+            self.conn.starttls(ssl_context)
+        elif security == const.DC_SOCKET_PLAIN:
+            self.conn = IMAPClient(host, port, ssl=False)
+        elif security == const.DC_SOCKET_SSL:
+            self.conn = IMAPClient(host, port, ssl_context=ssl_context)
         self.conn.login(user, pw)
 
         self.select_folder("INBOX")
