@@ -278,7 +278,7 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, E
         .sql
         .execute(
             "UPDATE msgs \
-             SET txt = 'DELETED', chat_id = ? \
+             SET chat_id=?, txt='', txt_raw='', from_id=0, to_id=0, param='' \
              WHERE \
              ephemeral_timestamp != 0 \
              AND ephemeral_timestamp < ? \

@@ -465,6 +465,10 @@ pub fn get_rowid2(
 }
 
 pub async fn housekeeping(context: &Context) {
+    if let Err(err) = crate::ephemeral::delete_expired_messages(context).await {
+        warn!(context, "Failed to delete expired messages: {}", err);
+    }
+
     let mut files_in_use = HashSet::new();
     let mut unreferenced_count = 0;
 
@@ -595,7 +599,18 @@ pub async fn housekeeping(context: &Context) {
         );
     }
 
-    info!(context, "Housekeeping done.",);
+    if let Err(e) = context
+        .sql
+        .set_raw_config(
+            context,
+            crate::job::LAST_HOUSEKEEPING,
+            Some(&time().to_string()),
+        )
+        .await
+    {
+        warn!(context, "Can't set config: {}", e);
+    }
+    info!(context, "Housekeeping done.");
 }
 
 #[allow(clippy::indexing_slicing)]
