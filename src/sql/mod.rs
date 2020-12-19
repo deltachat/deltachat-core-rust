@@ -5,6 +5,7 @@ use async_std::sync::RwLock;
 
 use std::collections::HashSet;
 use std::path::Path;
+use std::pin::Pin;
 use std::time::Duration;
 
 use anyhow::format_err;
@@ -162,6 +163,39 @@ impl Sql {
         Ok(count > 0)
     }
 
+    /// Execute the function inside a transaction.
+    ///
+    /// If the function returns an error, the transaction will be rolled back. If it does not return an error, the transaction will be committed.
+    pub async fn transaction<F, R>(&self, callback: F) -> Result<R>
+    where
+        F: for<'c> FnOnce(
+                &'c mut sqlx::Transaction<'_, Sqlite>,
+            ) -> Pin<Box<dyn Future<Output = Result<R>> + 'c + Send>>
+            + 'static
+            + Send
+            + Sync,
+        R: Send,
+    {
+        let lock = self.sql.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+
+        let mut transaction = pool.begin().await?;
+        let ret = callback(&mut transaction).await;
+
+        match ret {
+            Ok(ret) => {
+                transaction.commit().await?;
+
+                Ok(ret)
+            }
+            Err(err) => {
+                transaction.rollback().await?;
+
+                Err(err)
+            }
+        }
+    }
+
     /// Prepares and executes the statement and maps a function over the resulting rows.
     /// Then executes the second function over the returned iterator and returns the
     /// result of that function.
@@ -184,6 +218,17 @@ impl Sql {
         g(res)
     }
 
+    pub async fn with_conn<F, T>(&self, f: F) -> Result<T>
+    where
+        F: Send + 'static + FnOnce(&sqlx::Pool<Sqlite>) -> Result<T>,
+        T: Send + 'static,
+    {
+        let lock = self.sql.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+
+        f(pool)
+    }
+
     pub async fn get_conn(
         &self,
     ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
@@ -192,32 +237,6 @@ impl Sql {
         let conn = pool.get()?;
 
         Ok(conn)
-    }
-
-    pub async fn with_conn<G, H>(&self, g: G) -> Result<H>
-    where
-        H: Send + 'static,
-        G: Send
-            + 'static
-            + FnOnce(r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Result<H>,
-    {
-        let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-        let conn = pool.get()?;
-
-        g(conn)
-    }
-
-    pub async fn with_conn_async<G, H, Fut>(&self, mut g: G) -> Result<H>
-    where
-        G: FnMut(r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Fut,
-        Fut: Future<Output = Result<H>> + Send,
-    {
-        let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-
-        let conn = pool.get()?;
-        g(conn).await
     }
 
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
@@ -654,7 +673,7 @@ async fn open(
         .with_init(|c| {
             c.execute_batch(&format!(
                 "PRAGMA secure_delete=on;
-                 PRGAMA busy_timeout = {};
+                 PRAGMA busy_timeout = {};
                  PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                  ",
                 Duration::from_secs(10).as_millis()

@@ -563,6 +563,11 @@ pub async fn save(
     let mut newest_timestamp = 0;
     let mut newest_location_id = 0;
 
+    let stmt_test = "SELECT COUNT(*) FROM locations WHERE timestamp=? AND from_id=?";
+    let stmt_insert = "INSERT INTO locations\
+             (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
+             VALUES (?,?,?,?,?,?,?);";
+
     for location in locations {
         let &Location {
             timestamp,
@@ -571,50 +576,34 @@ pub async fn save(
             accuracy,
             ..
         } = location;
-        let (loc_id, ts) = context
+        // let (loc_id, ts) =
+        let exists = context
             .sql
-            .with_conn(move |mut conn| {
-                let mut stmt_test = conn
-                    .prepare_cached("SELECT id FROM locations WHERE timestamp=? AND from_id=?")?;
-                let mut stmt_insert = conn.prepare_cached(
-                    "INSERT INTO locations\
-             (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
-             VALUES (?,?,?,?,?,?,?);",
-                )?;
-
-                let exists = stmt_test.exists(paramsv![timestamp, contact_id])?;
-
-                if independent || !exists {
-                    stmt_insert.execute(paramsv![
-                        timestamp,
-                        contact_id,
-                        chat_id,
-                        latitude,
-                        longitude,
-                        accuracy,
-                        independent,
-                    ])?;
-
-                    if timestamp > newest_timestamp {
-                        // okay to drop, as we use cached prepared statements
-                        drop(stmt_test);
-                        drop(stmt_insert);
-                        newest_timestamp = timestamp;
-                        newest_location_id = crate::sql::get_rowid2(
-                            &mut conn,
-                            "locations",
-                            "timestamp",
-                            timestamp,
-                            "from_id",
-                            contact_id,
-                        )?;
-                    }
-                }
-                Ok((newest_location_id, newest_timestamp))
-            })
+            .exists(sqlx::query(stmt_test).bind(timestamp).bind(contact_id))
             .await?;
-        newest_timestamp = ts;
-        newest_location_id = loc_id;
+        if independent || !exists {
+            context
+                .sql
+                .execute(
+                    sqlx::query(stmt_insert)
+                        .bind(timestamp)
+                        .bind(contact_id)
+                        .bind(chat_id)
+                        .bind(latitude)
+                        .bind(longitude)
+                        .bind(accuracy)
+                        .bind(independent),
+                )
+                .await?;
+
+            if timestamp > newest_timestamp {
+                newest_timestamp = timestamp;
+                newest_location_id = context
+                    .sql
+                    .get_rowid2("locations", "timestamp", timestamp, "from_id", contact_id)
+                    .await?;
+            }
+        }
     }
 
     Ok(newest_location_id)
@@ -656,55 +645,47 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
         )
         .await;
 
-    if rows.is_ok() {
-        let msgs = context
-            .sql
-            .with_conn(move |conn| {
-                let rows = rows.unwrap();
+    let stmt = "SELECT COUNT(*) \
+         FROM locations \
+         WHERE from_id=? \
+         AND timestamp>=? \
+         AND timestamp>? \
+         AND independent=0 \
+         ORDER BY timestamp;";
 
-                let mut stmt_locations = conn.prepare_cached(
-                    "SELECT id \
-                 FROM locations \
-                 WHERE from_id=? \
-                 AND timestamp>=? \
-                 AND timestamp>? \
-                 AND independent=0 \
-                 ORDER BY timestamp;",
-                )?;
+    if let Ok(rows) = rows {
+        let mut msgs = Vec::new();
+        for (chat_id, locations_send_begin, locations_last_sent) in &rows {
+            let exists = context
+                .sql
+                .exists(
+                    sqlx::query(stmt)
+                        .bind(DC_CONTACT_ID_SELF)
+                        .bind(*locations_send_begin)
+                        .bind(*locations_last_sent),
+                )
+                .await
+                .unwrap_or_default(); // TODO: better error handling
 
-                let mut msgs = Vec::new();
-                for (chat_id, locations_send_begin, locations_last_sent) in &rows {
-                    if !stmt_locations
-                        .exists(paramsv![
-                            DC_CONTACT_ID_SELF,
-                            *locations_send_begin,
-                            *locations_last_sent,
-                        ])
-                        .unwrap_or_default()
-                    {
-                        // if there is no new location, there's nothing to send.
-                        // however, maybe we want to bypass this test eg. 15 minutes
-                    } else {
-                        // pending locations are attached automatically to every message,
-                        // so also to this empty text message.
-                        // DC_CMD_LOCATION is only needed to create a nicer subject.
-                        //
-                        // for optimisation and to avoid flooding the sending queue,
-                        // we could sending these messages only if we're really online.
-                        // the easiest way to determine this, is to check for an empty message queue.
-                        // (might not be 100%, however, as positions are sent combined later
-                        // and dc_set_location() is typically called periodically, this is ok)
-                        let mut msg = Message::new(Viewtype::Text);
-                        msg.hidden = true;
-                        msg.param.set_cmd(SystemMessage::LocationOnly);
-                        msgs.push((*chat_id, msg));
-                    }
-                }
-
-                Ok(msgs)
-            })
-            .await
-            .unwrap_or_default();
+            if !exists {
+                // if there is no new location, there's nothing to send.
+                // however, maybe we want to bypass this test eg. 15 minutes
+            } else {
+                // pending locations are attached automatically to every message,
+                // so also to this empty text message.
+                // DC_CMD_LOCATION is only needed to create a nicer subject.
+                //
+                // for optimisation and to avoid flooding the sending queue,
+                // we could sending these messages only if we're really online.
+                // the easiest way to determine this, is to check for an empty message queue.
+                // (might not be 100%, however, as positions are sent combined later
+                // and dc_set_location() is typically called periodically, this is ok)
+                let mut msg = Message::new(Viewtype::Text);
+                msg.hidden = true;
+                msg.param.set_cmd(SystemMessage::LocationOnly);
+                msgs.push((*chat_id, msg));
+            }
+        }
 
         for (chat_id, mut msg) in msgs.into_iter() {
             // TODO: better error handling

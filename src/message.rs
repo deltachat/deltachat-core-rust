@@ -1491,40 +1491,39 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
     if msg_ids.is_empty() {
         return false;
     }
-
-    let msgs = context
-        .sql
-        .with_conn(move |conn| {
-            let mut stmt = conn.prepare_cached(concat!(
-                "SELECT",
-                "    m.chat_id AS chat_id,",
-                "    m.state AS state,",
-                "    c.blocked AS blocked",
-                " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-                " WHERE m.id=? AND m.chat_id>9"
-            ))?;
-
-            let mut msgs = Vec::with_capacity(msg_ids.len());
-            for id in msg_ids.into_iter() {
-                let query_res = stmt.query_row(paramsv![id], |row| {
-                    Ok((
-                        row.get::<_, ChatId>("chat_id")?,
-                        row.get::<_, MessageState>("state")?,
-                        row.get::<_, Option<Blocked>>("blocked")?
+    let stmt = concat!(
+        "SELECT",
+        "    m.chat_id AS chat_id,",
+        "    m.state AS state,",
+        "    c.blocked AS blocked",
+        " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
+        " WHERE m.id=? AND m.chat_id>9"
+    );
+    let mut msgs = Vec::with_capacity(msg_ids.len());
+    for id in msg_ids.into_iter() {
+        match context
+            .sql
+            .fetch_optional(sqlx::query(stmt).bind(id))
+            .await
+            .and_then(|row| {
+                if let Some(row) = row {
+                    Ok(Some((
+                        row.try_get::<ChatId, _>("chat_id")?,
+                        row.try_get::<MessageState, _>("state")?,
+                        row.try_get::<Option<Blocked>, _>("blocked")?
                             .unwrap_or_default(),
-                    ))
-                });
-                if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
-                    continue;
+                    )))
+                } else {
+                    Ok(None)
                 }
-                let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
-                msgs.push((id, chat_id, state, blocked));
+            }) {
+            Ok(Some((chat_id, state, blocked))) => msgs.push((id, chat_id, state, blocked)),
+            Ok(None) => {}
+            Err(err) => {
+                warn!(context, "failed to markseen msgs: {:?}", err);
             }
-
-            Ok(msgs)
-        })
-        .await
-        .unwrap_or_default();
+        }
+    }
 
     let mut updated_chat_ids = BTreeMap::new();
 
