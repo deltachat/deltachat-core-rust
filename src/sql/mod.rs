@@ -211,40 +211,6 @@ impl Sql {
         }
     }
 
-    /// Prepares and executes the statement and maps a function over the resulting rows.
-    /// Then executes the second function over the returned iterator and returns the
-    /// result of that function.
-    pub async fn query_map<T, F, G, H>(
-        &self,
-        sql: impl AsRef<str>,
-        params: Vec<&dyn crate::ToSql>,
-        f: F,
-        mut g: G,
-    ) -> Result<H>
-    where
-        F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
-        G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
-    {
-        let sql = sql.as_ref();
-        let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-        let conn = pool.get()?;
-        let mut stmt = conn.prepare(sql)?;
-        let res = stmt.query_map(&params, f)?;
-        g(res)
-    }
-
-    pub async fn with_conn<F, T>(&self, f: F) -> Result<T>
-    where
-        F: Send + 'static + FnOnce(&sqlx::Pool<Sqlite>) -> Result<T>,
-        T: Send + 'static,
-    {
-        let lock = self.sql.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-
-        f(pool)
-    }
-
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
         let q = format!("PRAGMA table_info(\"{}\")", name.as_ref());
 
@@ -467,21 +433,11 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     )
     .await?;
 
-    context
-        .sql
-        .query_map(
-            "SELECT value FROM config;",
-            paramsv![],
-            |row| row.get::<_, String>(0),
-            |rows| {
-                for row in rows {
-                    maybe_add_file(&mut files_in_use, row?);
-                }
-                Ok(())
-            },
-        )
-        .await
-        .context("housekeeping: failed to SELECT value FROM config")?;
+    let mut rows = context.sql.fetch("SELECT value FROM config;").await?;
+    while let Some(row) = rows.next().await {
+        let row: String = row?.try_get(0)?;
+        maybe_add_file(&mut files_in_use, row);
+    }
 
     info!(context, "{} files in use.", files_in_use.len(),);
     /* go through directory and delete unused files */
@@ -600,22 +556,14 @@ async fn maybe_add_from_param(
     query: &str,
     param_id: Param,
 ) -> Result<()> {
-    sql.query_map(
-        query,
-        paramsv![],
-        |row| row.get::<_, String>(0),
-        |rows| {
-            for row in rows {
-                let param: Params = row?.parse().unwrap_or_default();
-                if let Some(file) = param.get(param_id) {
-                    maybe_add_file(files_in_use, file);
-                }
-            }
-            Ok(())
-        },
-    )
-    .await
-    .context(format!("housekeeping: failed to add_from_param {}", query))?;
+    let mut rows = sql.fetch(query).await?;
+    while let Some(row) = rows.next().await {
+        let row: String = row?.try_get(0)?;
+        let param: Params = row.parse().unwrap_or_default();
+        if let Some(file) = param.get(param_id) {
+            maybe_add_file(files_in_use, file);
+        }
+    }
 
     Ok(())
 }
@@ -692,19 +640,10 @@ async fn open(
 
         if recalc_fingerprints {
             info!(context, "[migration] recalc fingerprints");
-            let addrs = sql
-                .query_map(
-                    "select addr from acpeerstates;",
-                    paramsv![],
-                    |row| row.get::<_, String>(0),
-                    |addrs| {
-                        addrs
-                            .collect::<std::result::Result<Vec<_>, _>>()
-                            .map_err(Into::into)
-                    },
-                )
-                .await?;
-            for addr in &addrs {
+            let mut rows = sql.fetch("SELECT addr FROM acpeerstates;").await?;
+            while let Some(row) = rows.next().await {
+                let row = row?;
+                let addr = row.try_get(0)?;
                 if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
                     peerstate.recalc_fingerprint();
                     peerstate.save_to_db(sql, false).await?;
@@ -796,19 +735,11 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
 
         if recalc_fingerprints {
             info!(context, "[migration] recalc fingerprints");
-            let addrs = sql
-                .query_map(
-                    "select addr from acpeerstates;",
-                    paramsv![],
-                    |row| row.get::<_, String>(0),
-                    |addrs| {
-                        addrs
-                            .collect::<std::result::Result<Vec<_>, _>>()
-                            .map_err(Into::into)
-                    },
-                )
-                .await?;
-            for addr in &addrs {
+            let mut rows = sql.fetch("SELECT addr FROM acpeerstates;").await?;
+
+            while let Some(row) = rows.next().await {
+                let row = row?;
+                let addr = row.try_get(0)?;
                 if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
                     peerstate.recalc_fingerprint();
                     peerstate.save_to_db(sql, false).await?;

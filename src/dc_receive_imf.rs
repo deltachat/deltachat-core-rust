@@ -1,4 +1,5 @@
 use anyhow::{bail, ensure, format_err, Result};
+use async_std::prelude::*;
 use itertools::join;
 use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
@@ -1780,28 +1781,24 @@ async fn create_adhoc_grp_id(context: &Context, member_ids: &[i64]) -> Result<St
         .unwrap_or_else(|| "no-self".to_string())
         .to_lowercase();
 
-    let members = context
-        .sql
-        .query_map(
-            format!(
-                "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
-                member_ids_str
-            ),
-            paramsv![],
-            |row| row.get::<_, String>(0),
-            |rows| {
-                let mut addrs = rows.collect::<std::result::Result<Vec<_>, _>>()?;
-                addrs.sort();
-                let mut acc = member_cs.clone();
-                for addr in &addrs {
-                    acc += ",";
-                    acc += &addr.to_lowercase();
-                }
-                Ok(acc)
-            },
-        )
-        .await
-        .unwrap_or(member_cs);
+    let q = format!(
+        "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
+        member_ids_str
+    );
+
+    let mut members = member_cs;
+
+    if let Ok(rows) = context.sql.fetch(sqlx::query(&q)).await {
+        let mut addrs = rows
+            .map(|row| row?.try_get::<String, _>(0))
+            .collect::<sqlx::Result<Vec<_>>>()
+            .await?;
+        addrs.sort();
+        for addr in &addrs {
+            members += ",";
+            members += &addr.to_lowercase();
+        }
+    }
 
     Ok(hex_hash(&members))
 }
@@ -1831,8 +1828,8 @@ async fn search_chat_ids_by_contact_ids(
         if !contact_ids.is_empty() {
             contact_ids.sort_unstable();
             let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
-            context.sql.query_map(
-                format!(
+
+            let q = format!(
                     "SELECT DISTINCT cc.chat_id, cc.contact_id
                        FROM chats_contacts cc
                        LEFT JOIN chats c ON c.id=cc.chat_id
@@ -1841,37 +1838,36 @@ async fn search_chat_ids_by_contact_ids(
                         AND cc.contact_id!=1
                       ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
                     contact_ids_str
-                ),
-                paramsv![],
-                |row| Ok((row.get::<_, ChatId>(0)?, row.get::<_, i64>(1)?)),
-                |rows| {
-                    let mut last_chat_id = ChatId::new(0);
-                    let mut matches = 0;
-                    let mut mismatches = 0;
+                );
 
-                    for row in rows {
-                        let (chat_id, contact_id) = row?;
-                        if chat_id != last_chat_id {
-                            if matches == contact_ids.len() && mismatches == 0 {
-                                chat_ids.push(last_chat_id);
-                            }
-                            last_chat_id = chat_id;
-                            matches = 0;
-                            mismatches = 0;
-                        }
-                        if contact_ids.get(matches) == Some(&contact_id) {
-                            matches += 1;
-                        } else {
-                            mismatches += 1;
-                        }
-                    }
+            let mut rows = context.sql.fetch(sqlx::query(&q)).await?;
+            let mut last_chat_id = ChatId::new(0);
+            let mut matches = 0;
+            let mut mismatches = 0;
 
+            while let Some(row) = rows.next().await {
+                let row = row?;
+                let chat_id: ChatId = row.try_get(0)?;
+                let contact_id: i64 = row.try_get(1)?;
+
+                if chat_id != last_chat_id {
                     if matches == contact_ids.len() && mismatches == 0 {
                         chat_ids.push(last_chat_id);
                     }
-                Ok(())
+                    last_chat_id = chat_id;
+                    matches = 0;
+                    mismatches = 0;
                 }
-            ).await?;
+                if contact_ids.get(matches) == Some(&contact_id) {
+                    matches += 1;
+                } else {
+                    mismatches += 1;
+                }
+            }
+
+            if matches == contact_ids.len() && mismatches == 0 {
+                chat_ids.push(last_chat_id);
+            }
         }
     }
 
@@ -1933,31 +1929,26 @@ async fn check_verified_properties(
     }
     let to_ids_str = join(to_ids.iter().map(|x| x.to_string()), ",");
 
-    let rows = context
-        .sql
-        .query_map(
-            format!(
-                "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
+    let q = format!(
+        "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-                to_ids_str
-            ),
-            paramsv![],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1).unwrap_or(0))),
-            |rows| {
-                rows.collect::<std::result::Result<Vec<_>, _>>()
-                    .map_err(Into::into)
-            },
-        )
-        .await?;
+        to_ids_str
+    );
 
-    for (to_addr, _is_verified) in rows.into_iter() {
+    let mut rows = context.sql.fetch(sqlx::query(&q)).await?;
+
+    while let Some(row) = rows.next().await {
+        let row = row?;
+        let to_addr: String = row.try_get(0)?;
+        let mut is_verified = row.try_get::<i32, _>(1)? != 0;
+
         info!(
             context,
             "check_verified_properties: {:?} self={:?}",
             to_addr,
             context.is_self_addr(&to_addr).await
         );
-        let mut is_verified = _is_verified != 0;
+
         let peerstate = Peerstate::from_addr(context, &to_addr).await?;
 
         // mark gossiped keys (if any) as verified
@@ -2303,7 +2294,7 @@ mod tests {
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Single);
         assert_eq!(chat.name, "Bob");
-        assert_eq!(chat::get_chat_contacts(&t, chat_id).await.len(), 1);
+        assert_eq!(chat::get_chat_contacts(&t, chat_id).await.unwrap().len(), 1);
         assert_eq!(
             chat::get_chat_msgs(&t, chat_id, 0, None)
                 .await
@@ -2337,7 +2328,7 @@ mod tests {
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(chat.name, "group with Alice, Bob and Claire");
-        assert_eq!(chat::get_chat_contacts(&t, chat_id).await.len(), 3);
+        assert_eq!(chat::get_chat_contacts(&t, chat_id).await.unwrap().len(), 3);
     }
 
     #[async_std::test]
@@ -2358,7 +2349,7 @@ mod tests {
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(chat.name, "group with Alice, Bob and Claire");
-        assert_eq!(chat::get_chat_contacts(&t, chat_id).await.len(), 3);
+        assert_eq!(chat::get_chat_contacts(&t, chat_id).await.unwrap().len(), 3);
     }
 
     #[async_std::test]

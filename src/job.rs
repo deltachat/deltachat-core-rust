@@ -7,6 +7,7 @@ use std::{fmt, time::Duration};
 
 use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
 use async_smtp::smtp::response::{Category, Code, Detail};
+use async_std::prelude::*;
 use async_std::task::sleep;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -440,39 +441,32 @@ impl Job {
         &self,
         context: &Context,
         contact_id: i64,
-    ) -> sql::Result<(Vec<u32>, Vec<String>)> {
+    ) -> sql::Result<(Vec<i64>, Vec<String>)> {
         // Extract message IDs from job parameters
-        let res: Vec<(u32, MsgId)> = context
+        let mut rows = context
             .sql
-            .query_map(
-                "SELECT id, param FROM jobs WHERE foreign_id=? AND id!=?",
-                paramsv![contact_id, self.job_id],
-                |row| {
-                    let job_id: u32 = row.get(0)?;
-                    let params_str: String = row.get(1)?;
-                    let params: Params = params_str.parse().unwrap_or_default();
-                    Ok((job_id, params))
-                },
-                |jobs| {
-                    let res = jobs
-                        .filter_map(|row| {
-                            let (job_id, params) = row.ok()?;
-                            let msg_id = params.get_msg_id()?;
-                            Some((job_id, msg_id))
-                        })
-                        .collect();
-                    Ok(res)
-                },
+            .fetch(
+                sqlx::query("SELECT id, param FROM jobs WHERE foreign_id=? AND id!=?")
+                    .bind(contact_id)
+                    .bind(self.job_id),
             )
             .await?;
 
         // Load corresponding RFC724 message IDs
         let mut job_ids = Vec::new();
         let mut rfc724_mids = Vec::new();
-        for (job_id, msg_id) in res {
-            if let Ok(Message { rfc724_mid, .. }) = Message::load_from_db(context, msg_id).await {
-                job_ids.push(job_id);
-                rfc724_mids.push(rfc724_mid);
+
+        while let Some(row) = rows.next().await {
+            let row = row?;
+            let job_id: i64 = row.try_get(0)?;
+            let params_str: String = row.try_get(1)?;
+            let params: Params = params_str.parse().unwrap_or_default();
+            if let Some(msg_id) = params.get_msg_id() {
+                if let Ok(Message { rfc724_mid, .. }) = Message::load_from_db(context, msg_id).await
+                {
+                    job_ids.push(job_id);
+                    rfc724_mids.push(rfc724_mid);
+                }
             }
         }
         Ok((job_ids, rfc724_mids))
@@ -856,14 +850,14 @@ pub async fn kill_action(context: &Context, action: Action) -> bool {
 }
 
 /// Remove jobs with specified IDs.
-async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
+async fn kill_ids(context: &Context, job_ids: &[i64]) -> sql::Result<()> {
     let q = format!(
         "DELETE FROM jobs WHERE id IN({})",
         job_ids.iter().map(|_| "?").join(",")
     );
     let mut query = sqlx::query(&q);
     for id in job_ids {
-        query = query.bind(*id as i64);
+        query = query.bind(*id);
     }
     context.sql.execute(query).await?;
     Ok(())
