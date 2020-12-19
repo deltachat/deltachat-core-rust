@@ -10,6 +10,7 @@ use async_std::{
     prelude::*,
 };
 use rand::{thread_rng, Rng};
+use sqlx::Row;
 
 use crate::chat;
 use crate::chat::delete_and_reset_all_device_msgs;
@@ -594,9 +595,9 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
 
     let total_files_cnt = context
         .sql
-        .query_get_value::<isize>("SELECT COUNT(*) FROM backup_blobs;", paramsv![])
-        .await?
-        .unwrap_or_default() as usize;
+        .count("SELECT COUNT(*) FROM backup_blobs;")
+        .await?;
+
     info!(
         context,
         "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
@@ -620,15 +621,16 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     let mut all_files_extracted = true;
     for (processed_files_cnt, file_id) in file_ids.into_iter().enumerate() {
         // Load a single blob into memory
-        let (file_name, file_blob) = context
+        let row = context
             .sql
-            .query_row(
-                "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
-                paramsv![file_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
+            .fetch_one(
+                sqlx::query("SELECT file_name, file_content FROM backup_blobs WHERE id = ?")
+                    .bind(file_id),
             )
             .await?;
 
+        let file_name: String = row.try_get(0)?;
+        let file_blob: &[u8] = row.try_get(1)?;
         if context.shall_stop_ongoing().await {
             all_files_extracted = false;
             break;

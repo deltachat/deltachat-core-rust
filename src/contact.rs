@@ -6,6 +6,7 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use sqlx::Row;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
@@ -185,43 +186,45 @@ pub enum VerifiedStatus {
 
 impl Contact {
     pub async fn load_from_db(context: &Context, contact_id: i64) -> crate::sql::Result<Self> {
-        let mut res = context
+        let row = context
             .sql
-            .query_row(
-                "SELECT c.name, c.addr, c.origin, c.blocked, c.authname, c.param, c.status
+            .fetch_one(
+                sqlx::query(
+                    "SELECT c.name, c.addr, c.origin, c.blocked, c.authname, c.param, c.status
                FROM contacts c
               WHERE c.id=?;",
-                paramsv![contact_id],
-                |row| {
-                    let contact = Self {
-                        id: contact_id,
-                        name: row.get::<_, String>(0)?,
-                        authname: row.get::<_, String>(4)?,
-                        addr: row.get::<_, String>(1)?,
-                        blocked: row.get::<_, Option<i32>>(3)?.unwrap_or_default() != 0,
-                        origin: row.get(2)?,
-                        param: row.get::<_, String>(5)?.parse().unwrap_or_default(),
-                        status: row.get(6).unwrap_or_default(),
-                    };
-                    Ok(contact)
-                },
+                )
+                .bind(contact_id),
             )
             .await?;
+
+        let mut contact = Contact {
+            id: contact_id,
+            name: row.try_get(0)?,
+            authname: row.try_get(4)?,
+            addr: row.try_get(1)?,
+            blocked: row.try_get::<Option<i32>, _>(3)?.unwrap_or_default() != 0,
+            origin: row.try_get(2)?,
+            param: row.try_get::<String, _>(5)?.parse().unwrap_or_default(),
+            status: row.try_get(6)?.unwrap_or_default(),
+        };
+
         if contact_id == DC_CONTACT_ID_SELF {
-            res.name = stock_str::self_msg(context).await;
-            res.addr = context
+            contact.name = stock_str::self_msg(context).await;
+            contact.addr = context
                 .get_config(Config::ConfiguredAddr)
                 .await?
                 .unwrap_or_default();
-            res.status = context
+            contact.status = context
                 .get_config(Config::Selfstatus)
                 .await?
                 .unwrap_or_default();
         } else if contact_id == DC_CONTACT_ID_DEVICE {
-            res.name = stock_str::device_messages(context).await;
-            res.addr = DC_CONTACT_ID_DEVICE_ADDR.to_string();
+            contact.name = stock_str::device_messages(context).await;
+            contact.addr = DC_CONTACT_ID_DEVICE_ADDR.to_string();
         }
-        Ok(res)
+
+        Ok(contact)
     }
 
     /// Returns `true` if this contact is blocked.
@@ -327,15 +330,13 @@ impl Contact {
             }
         }
         let id = context.sql.query_get_value(
-            "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
-            paramsv![
-                addr_normalized,
-                DC_CONTACT_ID_LAST_SPECIAL as i32,
-                min_origin as i64,
-            ],
-        )
-            .await
-            .context("lookup_id_by_addr: SQL query failed")?;
+            sqlx::query(
+                "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;"
+            )
+                .bind(addr_normalized)
+                .bind(DC_CONTACT_ID_LAST_SPECIAL)
+                .bind(min_origin as i64)
+        ).await?.unwrap_or_default();
 
         Ok(id)
     }
@@ -434,15 +435,14 @@ impl Contact {
         let mut update_addr = false;
         let mut row_id = 0;
 
-        if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context.sql.query_row(
-            "SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;",
-            paramsv![addr.to_string()],
+        if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context.sql.fetch_one(
+                sqlx::query("SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;").bind(addr.to_string())).await.and_then(
             |row| {
-                let row_id = row.get(0)?;
-                let row_name: String = row.get(1)?;
-                let row_addr: String = row.get(2)?;
-                let row_origin: Origin = row.get(3)?;
-                let row_authname: String = row.get(4)?;
+                let row_id = row.try_get(0)?;
+                let row_name: String = row.try_get(1)?;
+                let row_addr: String = row.try_get(2)?;
+                let row_origin: Origin = row.try_get(3)?;
+                let row_authname: String = row.try_get(4)?;
 
                 Ok((row_id, row_name, row_addr, row_origin, row_authname))
             },
@@ -452,7 +452,6 @@ impl Contact {
             let update_authname =
                 !manual && name != row_authname && !name.is_empty() &&
                 (origin >= row_origin || origin == Origin::IncomingUnknownFrom || row_authname.is_empty());
-
             row_id = id;
             if origin as i32 >= row_origin as i32 && addr != row_addr {
                 update_addr = true;
@@ -488,9 +487,10 @@ impl Contact {
                 if update_name {
                     // Update the contact name also if it is used as a group name.
                     // This is one of the few duplicated data, however, getting the chat list is easier this way.
-                    let chat_id = context.sql.query_get_value::<i64>(
-                        "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
-                        paramsv![Chattype::Single, row_id]
+                    let chat_id = context.sql.query_get_value::<_, i64>(
+                        sqlx::query(
+                            "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)"
+                        ).bind(Chattype::Single).bind(row_id)
                     ).await?;
                     if let Some(chat_id) = chat_id {
                         match context.sql.execute(
@@ -736,12 +736,12 @@ impl Contact {
     pub async fn get_blocked_cnt(context: &Context) -> Result<usize> {
         let count = context
             .sql
-            .query_get_value::<isize>(
-                "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
-                paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
+            .count(
+                sqlx::query("SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0")
+                    .bind(DC_CONTACT_ID_LAST_SPECIAL),
             )
             .await?;
-        Ok(count.unwrap_or_default() as usize)
+        Ok(count as usize)
     }
 
     /// Get blocked contacts.
@@ -848,24 +848,23 @@ impl Contact {
             "Can not delete special contact"
         );
 
-        let count_contacts: i32 = context
+        let count_contacts = context
             .sql
-            .query_get_value(
-                "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
-                paramsv![contact_id as i32],
+            .count(
+                sqlx::query("SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;")
+                    .bind(contact_id),
             )
-            .await?
-            .unwrap_or_default();
+            .await?;
 
-        let count_msgs: i32 = if count_contacts > 0 {
+        let count_msgs = if count_contacts > 0 {
             context
                 .sql
-                .query_get_value(
-                    "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
-                    paramsv![contact_id as i32, contact_id as i32],
+                .count(
+                    sqlx::query("SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;")
+                        .bind(contact_id)
+                        .bind(contact_id),
                 )
                 .await?
-                .unwrap_or_default()
         } else {
             0
         };
@@ -1095,12 +1094,12 @@ impl Contact {
 
         let count = context
             .sql
-            .query_get_value::<isize>(
-                "SELECT COUNT(*) FROM contacts WHERE id>?;",
-                paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
+            .count(
+                sqlx::query("SELECT COUNT(*) FROM contacts WHERE id>?;")
+                    .bind(DC_CONTACT_ID_LAST_SPECIAL),
             )
             .await?;
-        Ok(count.unwrap_or_default() as usize)
+        Ok(count)
     }
 
     pub async fn real_exists_by_id(context: &Context, contact_id: i64) -> bool {

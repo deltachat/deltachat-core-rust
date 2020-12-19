@@ -1,3 +1,11 @@
+use std::convert::TryInto;
+
+use anyhow::Context as _;
+use anyhow::{bail, ensure, format_err, Error};
+use chrono::TimeZone;
+use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
+use sqlx::Row;
+
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
@@ -20,11 +28,6 @@ use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
 use crate::stock_str;
-use anyhow::Context as _;
-use anyhow::{bail, ensure, format_err, Error};
-use chrono::TimeZone;
-use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
-use std::convert::TryInto;
 
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
@@ -141,21 +144,20 @@ impl<'a> MimeFactory<'a> {
                 req_mdn = true;
             }
         }
-        let (in_reply_to, references) = context
+        let row = context
             .sql
-            .query_row(
-                "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
-                paramsv![msg.id],
-                |row| {
-                    let in_reply_to: String = row.get(0)?;
-                    let references: String = row.get(1)?;
-
-                    Ok((
-                        render_rfc724_mid_list(&in_reply_to),
-                        render_rfc724_mid_list(&references),
-                    ))
-                },
+            .fetch_one(
+                sqlx::query("SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?")
+                    .bind(msg.id),
             )
+            .await?;
+        let (in_reply_to, references) = (
+            render_rfc724_mid_list(row.try_get(0)?),
+            render_rfc724_mid_list(row.try_get(1)?),
+        );
+
+        let default_str = context
+            .stock_str(StockMessage::StatusLine)
             .await
             .context("Can't get mime_in_reply_to, mime_references")?;
 

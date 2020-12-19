@@ -287,22 +287,16 @@ impl Context {
             .unwrap_or_default();
         let journal_mode = self
             .sql
-            .query_get_value("PRAGMA journal_mode;", paramsv![])
+            .query_get_value("PRAGMA journal_mode;")
             .await?
             .unwrap_or_else(|| "unknown".to_string());
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await?;
         let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await?;
         let bcc_self = self.get_config_int(Config::BccSelf).await?;
 
-        let prv_key_cnt: Option<isize> = self
-            .sql
-            .query_get_value("SELECT COUNT(*) FROM keypairs;", paramsv![])
-            .await?;
+        let prv_key_cnt = self.sql.count("SELECT COUNT(*) FROM keypairs;").await?;
 
-        let pub_key_cnt: Option<isize> = self
-            .sql
-            .query_get_value("SELECT COUNT(*) FROM acpeerstates;", paramsv![])
-            .await?;
+        let pub_key_cnt = self.sql.count("SELECT COUNT(*) FROM acpeerstates;").await?;
         let fingerprint_str = match SignedPublicKey::load_self(self).await {
             Ok(key) => key.fingerprint().hex(),
             Err(err) => format!("<key failure: {}>", err),
@@ -375,14 +369,8 @@ impl Context {
             self.get_config_int(Config::KeyGenType).await?.to_string(),
         );
         res.insert("bcc_self", bcc_self.to_string());
-        res.insert(
-            "private_key_count",
-            prv_key_cnt.unwrap_or_default().to_string(),
-        );
-        res.insert(
-            "public_key_count",
-            pub_key_cnt.unwrap_or_default().to_string(),
-        );
+        res.insert("private_key_count", prv_key_cnt.to_string());
+        res.insert("public_key_count", pub_key_cnt.to_string());
         res.insert("fingerprint", fingerprint_str);
         res.insert(
             "webrtc_instance",

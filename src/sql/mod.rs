@@ -10,7 +10,7 @@ use std::time::Duration;
 use anyhow::format_err;
 use anyhow::Context as _;
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
-use sqlx::{pool::PoolOptions, sqlite::*, Done, Execute, Executor};
+use sqlx::{pool::PoolOptions, sqlite::*, Done, Execute, Executor, Row};
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
 use crate::config::Config;
@@ -125,16 +125,31 @@ impl Sql {
         Ok(row)
     }
 
+    pub async fn fetch_optional<'e, 'q, E>(
+        &self,
+        query: E,
+    ) -> Result<Option<<Sqlite as sqlx::Database>::Row>>
+    where
+        'q: 'e,
+        E: 'q + Execute<'q, Sqlite>,
+    {
+        let lock = self.sql.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+
+        let row = pool.fetch_optional(query).await?;
+        Ok(row)
+    }
+
     pub async fn count<'e, 'q, E>(&self, query: E) -> Result<usize>
     where
         'q: 'e,
         E: 'q + Execute<'q, Sqlite>,
     {
-        use sqlx::Row;
         use std::convert::TryFrom;
 
         let row = self.fetch_one(query).await?;
         let count: i64 = row.try_get(0)?;
+
         Ok(usize::try_from(count).unwrap())
     }
 
@@ -205,25 +220,6 @@ impl Sql {
         g(conn).await
     }
 
-    /// Execute a query which is expected to return one row.
-    pub async fn query_row<T, F>(
-        &self,
-        sql: impl AsRef<str>,
-        params: Vec<&dyn crate::ToSql>,
-        f: F,
-    ) -> Result<T>
-    where
-        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
-    {
-        let sql = sql.as_ref();
-        let res = {
-            let conn = self.get_conn().await?;
-            conn.query_row(sql, params, f)
-        };
-
-        res.map_err(Into::into)
-    }
-
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
         let name = name.as_ref().to_string();
         self.with_conn(move |conn| {
@@ -264,41 +260,20 @@ impl Sql {
         .await
     }
 
-    /// Execute a query which is expected to return zero or one row.
-    pub async fn query_row_optional<T, F>(
-        &self,
-        sql: impl AsRef<str>,
-        params: Vec<&dyn crate::ToSql>,
-        f: F,
-    ) -> Result<Option<T>>
-    where
-        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
-    {
-        match self.query_row(sql, params, f).await {
-            Ok(res) => Ok(Some(res)),
-            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Ok(None),
-            Err(Error::Sql(rusqlite::Error::InvalidColumnType(
-                _,
-                _,
-                rusqlite::types::Type::Null,
-            ))) => Ok(None),
-            Err(err) => Err(err),
-        }
-    }
-
     /// Executes a query which is expected to return one row and one
     /// column. If the query does not return a value or returns SQL
     /// `NULL`, returns `Ok(None)`.
-    pub async fn query_get_value<T>(
-        &self,
-        query: &str,
-        params: Vec<&dyn crate::ToSql>,
-    ) -> Result<Option<T>>
+    pub async fn query_get_value<'e, 'q, E, T>(&self, query: E) -> Result<Option<T>>
     where
-        T: rusqlite::types::FromSql,
+        'q: 'e,
+        E: 'q + Execute<'q, Sqlite>,
+        T: for<'r> sqlx::Decode<'r, Sqlite> + sqlx::Type<Sqlite>,
     {
-        self.query_row_optional(query, params, |row| row.get::<_, T>(0))
-            .await
+        let res = self
+            .fetch_optional(query)
+            .await?
+            .map(|row| row.get::<T, _>(0));
+        Ok(res)
     }
 
     /// Set private configuration options.
@@ -345,8 +320,7 @@ impl Sql {
             return Err(Error::SqlNoConnection);
         }
         self.query_get_value(
-            "SELECT value FROM config WHERE keyname=?;",
-            paramsv![key.as_ref().to_string()],
+            sqlx::query("SELECT value FROM config WHERE keyname=?;").bind(key.as_ref()),
         )
         .await
     }

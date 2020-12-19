@@ -15,6 +15,7 @@ use async_std::{channel, pin::Pin};
 use async_std::{future::Future, task};
 use chat::ChatItem;
 use once_cell::sync::Lazy;
+use sqlx::Row;
 use tempfile::{tempdir, TempDir};
 
 use crate::chat::{self, Chat, ChatId};
@@ -224,22 +225,25 @@ impl TestContext {
             let row = self
                 .ctx
                 .sql
-                .query_row(
-                    r#"
+                .fetch_one(
+                    sqlx::query(
+                        r#"
                     SELECT id, foreign_id, param
                       FROM jobs
                      WHERE action=?
                   ORDER BY desired_timestamp DESC;
                 "#,
-                    paramsv![Action::SendMsgToSmtp],
-                    |row| {
-                        let id: i64 = row.get(0)?;
-                        let foreign_id: i64 = row.get(1)?;
-                        let param: String = row.get(2)?;
-                        Ok((id, foreign_id, param))
-                    },
+                    )
+                    .bind(Action::SendMsgToSmtp),
                 )
-                .await;
+                .await
+                .and_then(|row| {
+                    let id: i64 = row.try_get(0)?;
+                    let foreign_id: i64 = row.try_get(1)?;
+                    let param: String = row.try_get(2)?;
+                    Ok((id, foreign_id, param))
+                });
+
             if let Ok(row) = row {
                 break row;
             }

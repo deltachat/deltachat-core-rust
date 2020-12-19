@@ -1252,8 +1252,7 @@ impl MimeMessage {
             context
                 .sql
                 .query_get_value(
-                    "SELECT timestamp FROM msgs WHERE rfc724_mid=?",
-                    paramsv![field],
+                    sqlx::query("SELECT timestamp FROM msgs WHERE rfc724_mid=?").bind(field),
                 )
                 .await?
         } else {
