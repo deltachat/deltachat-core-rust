@@ -151,7 +151,7 @@ impl sqlx::Type<sqlx::Sqlite> for Timer {
     }
 
     fn compatible(ty: &sqlx::sqlite::SqliteTypeInfo) -> bool {
-        <i64 as sqlx::Type<_>>::compatible()
+        <i64 as sqlx::Type<_>>::compatible(ty)
     }
 }
 
@@ -170,13 +170,15 @@ impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for Timer {
 
 impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for Timer {
     fn decode(value: sqlx::sqlite::SqliteValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
-        let value: i64 = value.decode()?;
+        let value: i64 = sqlx::Decode::decode(value)?;
         if value == 0 {
             Ok(Self::Disabled)
         } else if let Ok(duration) = u32::try_from(value) {
             Ok(Self::Enabled { duration })
         } else {
-            Err(sqlx::Error::Decode("out of range"))
+            Err(Box::new(sqlx::Error::Decode(Box::new(
+                crate::error::OutOfRangeError,
+            ))))
         }
     }
 }

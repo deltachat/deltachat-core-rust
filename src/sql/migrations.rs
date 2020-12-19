@@ -330,7 +330,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
         info!(context, "[migration] v39");
         sql.execute(
                 "CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT '', timestamp INTEGER DEFAULT 0);",
-                
             ).await?;
         sql.execute("ALTER TABLE acpeerstates ADD COLUMN verified_key;")
             .await?;
@@ -398,9 +397,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
         // the messages containing _only_ locations
         // are also added to the database as _hidden_.
         sql.execute(
-                "CREATE TABLE locations ( id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL DEFAULT 0.0, longitude REAL DEFAULT 0.0, accuracy REAL DEFAULT 0.0, timestamp INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0);",
-                
-            ).await?;
+                "CREATE TABLE locations ( id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL DEFAULT 0.0, longitude REAL DEFAULT 0.0, accuracy REAL DEFAULT 0.0, timestamp INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0);",).await?;
         sql.execute("CREATE INDEX locations_index1 ON locations (from_id);")
             .await?;
         sql.execute("CREATE INDEX locations_index2 ON locations (timestamp);")
@@ -435,7 +432,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
         // so, msg_id may or may not exist.
         sql.execute(
                 "CREATE TABLE devmsglabels (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, msg_id INTEGER DEFAULT 0);",
-                
             ).await?;
         sql.execute("CREATE INDEX devmsglabels_index1 ON devmsglabels (label);")
             .await?;

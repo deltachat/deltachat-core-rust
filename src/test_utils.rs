@@ -249,7 +249,7 @@ impl TestContext {
                 panic!("no sent message found in jobs table");
             }
         };
-        let id = MsgId::new(foreign_id as u32);
+        let id = MsgId::new(foreign_id);
         let params = Params::from_str(&raw_params).unwrap();
         let blob_path = params
             .get_blob(Param::File, &self.ctx, false)

@@ -12,7 +12,21 @@ use crate::dc_tools::{dc_create_id, time};
 
 /// Token namespace
 #[derive(
+<<<<<<< HEAD
     Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+=======
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    FromPrimitive,
+    ToPrimitive,
+    ToSql,
+    FromSql,
+    sqlx::Type,
+>>>>>>> 1af38e75 (compile again)
 )]
 #[repr(i32)]
 pub enum Namespace {
@@ -41,7 +55,7 @@ pub async fn save(context: &Context, namespace: Namespace, foreing_id: Option<Ch
                 )
                     .bind(namespace)
                     .bind(foreign_id)
-                    .bind(token)
+                    .bind(&token)
                     .bind(time()),
             )
             .await
@@ -53,7 +67,7 @@ pub async fn save(context: &Context, namespace: Namespace, foreing_id: Option<Ch
                     "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);"
                 )
                     .bind(namespace)
-                    .bind(token)
+                    .bind(&token)
                     .bind(time()),
             )
             .await

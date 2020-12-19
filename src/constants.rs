@@ -165,9 +165,9 @@ impl Default for Chattype {
     }
 }
 
-pub const DC_MSG_ID_MARKER1: u32 = 1;
-pub const DC_MSG_ID_DAYMARKER: u32 = 9;
-pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
+pub const DC_MSG_ID_MARKER1: i64 = 1;
+pub const DC_MSG_ID_DAYMARKER: i64 = 9;
+pub const DC_MSG_ID_LAST_SPECIAL: i64 = 9;
 
 /// string that indicates sth. is left out or truncated
 pub const DC_ELLIPSE: &str = "[...]";
