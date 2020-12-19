@@ -871,7 +871,7 @@ async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
 pub async fn action_exists(context: &Context, action: Action) -> bool {
     context
         .sql
-        .exists("SELECT id FROM jobs WHERE action=?;", paramsv![action])
+        .exists(sqlx::query("SELECT COUNT(*) FROM jobs WHERE action=?;").bind(action))
         .await
         .unwrap_or_default()
 }

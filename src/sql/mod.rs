@@ -1,7 +1,7 @@
 //! # SQLite wrapper
 
 use async_std::prelude::*;
-use async_std::sync::{Mutex, RwLock};
+use async_std::sync::RwLock;
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -42,14 +42,14 @@ macro_rules! paramsv {
 #[derive(Debug)]
 pub struct Sql {
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
-    sql: Mutex<Option<SqlitePool>>,
+    sql: RwLock<Option<SqlitePool>>,
 }
 
 impl Default for Sql {
     fn default() -> Self {
         Self {
             pool: RwLock::new(None),
-            sql: Mutex::new(None),
+            sql: RwLock::new(None),
         }
     }
 }
@@ -60,12 +60,12 @@ impl Sql {
     }
 
     pub async fn is_open(&self) -> bool {
-        self.pool.read().await.is_some()
+        self.pool.read().await.is_some() && self.sql.read().await.is_some()
     }
 
     pub async fn close(&self) {
         let _ = self.pool.write().await.take();
-        if let Some(sql) = self.sql.lock().await.take() {
+        if let Some(sql) = self.sql.write().await.take() {
             sql.close().await;
         }
 
@@ -106,24 +106,45 @@ impl Sql {
         'q: 'e,
         E: 'q + Execute<'q, Sqlite>,
     {
-        let lock = self.sql.lock().await;
+        let lock = self.sql.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let rows = pool.execute(query).await?;
         Ok(rows.rows_affected())
     }
 
-    pub async fn execute_old<S: AsRef<str>>(
-        &self,
-        sql: S,
-        params: Vec<&dyn crate::ToSql>,
-    ) -> Result<usize> {
-        let res = {
-            let conn = self.get_conn().await?;
-            conn.execute(sql.as_ref(), params)
-        };
+    pub async fn fetch_one<'e, 'q, E>(&self, query: E) -> Result<<Sqlite as sqlx::Database>::Row>
+    where
+        'q: 'e,
+        E: 'q + Execute<'q, Sqlite>,
+    {
+        let lock = self.sql.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
-        res.map_err(Into::into)
+        let row = pool.fetch_one(query).await?;
+        Ok(row)
+    }
+
+    pub async fn count<'e, 'q, E>(&self, query: E) -> Result<usize>
+    where
+        'q: 'e,
+        E: 'q + Execute<'q, Sqlite>,
+    {
+        use sqlx::Row;
+        use std::convert::TryFrom;
+
+        let row = self.fetch_one(query).await?;
+        let count: i64 = row.try_get(0)?;
+        Ok(usize::try_from(count).unwrap())
+    }
+
+    pub async fn exists<'e, 'q, E>(&self, query: E) -> Result<bool>
+    where
+        'q: 'e,
+        E: 'q + Execute<'q, Sqlite>,
+    {
+        let count = self.count(query).await?;
+        Ok(count > 0)
     }
 
     /// Prepares and executes the statement and maps a function over the resulting rows.
@@ -182,18 +203,6 @@ impl Sql {
 
         let conn = pool.get()?;
         g(conn).await
-    }
-
-    /// Return `true` if a query in the SQL statement it executes returns one or more
-    /// rows and false if the SQL returns an empty set.
-    pub async fn exists(&self, sql: &str, params: Vec<&dyn crate::ToSql>) -> Result<bool> {
-        let res = {
-            let conn = self.get_conn().await?;
-            let mut stmt = conn.prepare(sql)?;
-            stmt.exists(&params)
-        };
-
-        res.map_err(Into::into)
     }
 
     /// Execute a query which is expected to return one row.
@@ -304,8 +313,9 @@ impl Sql {
         let key = key.as_ref();
         if let Some(ref value) = value {
             let exists = self
-                .exists("SELECT value FROM config WHERE keyname=?;", paramsv![key])
+                .exists(sqlx::query("SELECT COUNT(*) FROM config WHERE keyname=?;").bind(key))
                 .await?;
+
             if exists {
                 self.execute(
                     sqlx::query("UPDATE config SET value=? WHERE keyname=?;")
@@ -697,9 +707,7 @@ async fn open(
         // but even if execute() would handle errors more gracefully, we should continue on errors -
         // systems might not be able to handle WAL, in which case the standard-journal is used.
         // that may be not optimal, but better than not working at all :)
-        sql.execute_old("PRAGMA journal_mode=WAL;", paramsv![])
-            .await
-            .ok();
+        sql.execute("PRAGMA journal_mode=WAL;").await.ok();
 
         // (1) update low-level database structure.
         // this should be done before updates that use high-level objects that
@@ -794,7 +802,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         .connect_with(config)
         .await?;
     {
-        *sql.sql.lock().await = Some(pool);
+        *sql.sql.write().await = Some(pool);
     }
 
     if !readonly {

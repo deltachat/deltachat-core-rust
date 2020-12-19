@@ -1754,8 +1754,9 @@ pub async fn handle_mdn(
             let mdn_already_in_table = context
                 .sql
                 .exists(
-                    "SELECT contact_id FROM msgs_mdns WHERE msg_id=? AND contact_id=?;",
-                    paramsv![msg_id, from_id as i32,],
+                    sqlx::query("SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=? AND contact_id=?;")
+                        .bind(msg_id)
+                        .bind(from_id),
                 )
                 .await
                 .unwrap_or_default();

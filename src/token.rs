@@ -121,8 +121,9 @@ pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> boo
     context
         .sql
         .exists(
-            "SELECT id FROM tokens WHERE namespc=? AND token=?;",
-            paramsv![namespace, token],
+            sqlx::query("SELECT COUNT(*) FROM tokens WHERE namespc=? AND token=?;")
+                .bind(namespace)
+                .bind(token),
         )
         .await
         .unwrap_or_default()

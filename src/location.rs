@@ -259,8 +259,9 @@ pub async fn is_sending_locations_to_chat(context: &Context, chat_id: Option<Cha
         Some(chat_id) => context
             .sql
             .exists(
-                "SELECT id  FROM chats  WHERE id=?  AND locations_send_until>?;",
-                paramsv![chat_id, time()],
+                sqlx::query("SELECT id  FROM chats  WHERE id=?  AND locations_send_until>?;")
+                    .bind(chat_id)
+                    .bind(time),
             )
             .await
             .unwrap_or_default(),
@@ -273,6 +274,21 @@ pub async fn is_sending_locations_to_chat(context: &Context, chat_id: Option<Cha
             .await
             .unwrap_or_default(),
     }
+}
+
+pub async fn is_sending_locations_to_chat(context: &Context, chat_id: ChatId) -> bool {
+    context
+        .sql
+        .exists(
+            sqlx::query(
+                "SELECT COUNT(*) FROM chats  WHERE (? OR id=?)   AND locations_send_until>?;",
+            )
+            .bind(if chat_id.is_unset() { 1 } else { 0 })
+            .bind(chat_id)
+            .bind(time()),
+        )
+        .await
+        .unwrap_or_default()
 }
 
 pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> bool {

@@ -1111,8 +1111,7 @@ impl Contact {
         context
             .sql
             .exists(
-                "SELECT id FROM contacts WHERE id=?;",
-                paramsv![contact_id as i32],
+                sqlx::query("SELECT COUNT(*) FROM contacts WHERE id=?;").bind(contact_id as i32),
             )
             .await
             .unwrap_or_default()
