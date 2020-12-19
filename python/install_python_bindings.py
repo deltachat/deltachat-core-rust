@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
  setup a python binding development in-place install with cargo debug symbols.
