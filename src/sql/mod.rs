@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use anyhow::format_err;
 use anyhow::Context as _;
-use rusqlite::{Connection, Error as SqlError, OpenFlags};
+use rusqlite::OpenFlags;
 use sqlx::{pool::PoolOptions, sqlite::*, Done, Execute, Executor, Row};
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
@@ -385,14 +385,21 @@ impl Sql {
         field: impl AsRef<str>,
         value: impl AsRef<str>,
     ) -> Result<i64> {
-        let res = {
-            let mut conn = self.get_conn().await?;
-            get_rowid(&mut conn, table, field, value)
-        };
+        // alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
+        // the ORDER BY ensures, this function always returns the most recent id,
+        // eg. if a Message-ID is split into different messages.
+        let query = format!(
+            "SELECT id FROM {} WHERE {}=? ORDER BY id DESC",
+            table.as_ref(),
+            field.as_ref(),
+        );
 
-        res.map_err(Into::into)
+        self.query_get_value(sqlx::query(&query).bind(value.as_ref()))
+            .await
+            .map(|id| id.unwrap_or_default())
     }
 
+    /// Fetches the rowid by restricting the rows through two different key, value settings.
     pub async fn get_rowid2(
         &self,
         table: impl AsRef<str>,
@@ -401,53 +408,19 @@ impl Sql {
         field2: impl AsRef<str>,
         value2: i64,
     ) -> Result<i64> {
-        let res = {
-            let mut conn = self.get_conn().await?;
-            get_rowid2(&mut conn, table, field, value, field2, value2)
-        };
-
-        res.map_err(Into::into)
-    }
-}
-
-pub fn get_rowid(
-    conn: &mut Connection,
-    table: impl AsRef<str>,
-    field: impl AsRef<str>,
-    value: impl AsRef<str>,
-) -> std::result::Result<i64, SqlError> {
-    // alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
-    // the ORDER BY ensures, this function always returns the most recent id,
-    // eg. if a Message-ID is split into different messages.
-    let query = format!(
-        "SELECT id FROM {} WHERE {}=? ORDER BY id DESC",
-        table.as_ref(),
-        field.as_ref(),
-    );
-
-    conn.query_row(&query, params![value.as_ref()], |row| row.get::<_, i64>(0))
-}
-
-pub fn get_rowid2(
-    conn: &mut Connection,
-    table: impl AsRef<str>,
-    field: impl AsRef<str>,
-    value: i64,
-    field2: impl AsRef<str>,
-    value2: i64,
-) -> std::result::Result<i64, SqlError> {
-    conn.query_row(
-        &format!(
+        let query = format!(
             "SELECT id FROM {} WHERE {}={} AND {}={} ORDER BY id DESC",
             table.as_ref(),
             field.as_ref(),
             value,
             field2.as_ref(),
             value2,
-        ),
-        params![],
-        |row| row.get::<_, i64>(0),
-    )
+        );
+
+        self.query_get_value(sqlx::query(&query))
+            .await
+            .map(|id| id.unwrap_or_default())
+    }
 }
 
 pub async fn housekeeping(context: &Context) -> Result<()> {
