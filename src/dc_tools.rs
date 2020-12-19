@@ -632,12 +632,11 @@ impl FromStr for EmailAddress {
     }
 }
 
-impl rusqlite::types::ToSql for EmailAddress {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let val = rusqlite::types::Value::Text(self.to_string());
-        let out = rusqlite::types::ToSqlOutput::Owned(val);
-        Ok(out)
-    }
+/// Utility to check if a in the binary represantion of listflags
+/// the bit at position bitindex is 1.
+pub(crate) fn listflags_has(listflags: u32, bitindex: usize) -> bool {
+    let listflags = listflags as usize;
+    (listflags & bitindex) == bitindex
 }
 
 /// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.

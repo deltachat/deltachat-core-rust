@@ -10,7 +10,6 @@ use std::time::Duration;
 
 use anyhow::format_err;
 use anyhow::Context as _;
-use rusqlite::OpenFlags;
 use sqlx::{pool::PoolOptions, sqlite::*, Done, Execute, Executor, Row};
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
@@ -29,27 +28,15 @@ mod migrations;
 
 pub use self::error::*;
 
-#[macro_export]
-macro_rules! paramsv {
-    () => {
-        Vec::new()
-    };
-    ($($param:expr),+ $(,)?) => {
-        vec![$(&$param as &dyn $crate::ToSql),+]
-    };
-}
-
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(Debug)]
 pub struct Sql {
-    pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
     sql: RwLock<Option<SqlitePool>>,
 }
 
 impl Default for Sql {
     fn default() -> Self {
         Self {
-            pool: RwLock::new(None),
             sql: RwLock::new(None),
         }
     }
@@ -61,11 +48,10 @@ impl Sql {
     }
 
     pub async fn is_open(&self) -> bool {
-        self.pool.read().await.is_some() && self.sql.read().await.is_some()
+        self.sql.read().await.is_some()
     }
 
     pub async fn close(&self) {
-        let _ = self.pool.write().await.take();
         if let Some(sql) = self.sql.write().await.take() {
             sql.close().await;
         }
@@ -79,25 +65,82 @@ impl Sql {
         dbfile: T,
         readonly: bool,
     ) -> anyhow::Result<()> {
-        let res = open(context, self, &dbfile, readonly).await;
-        if let Err(err) = &res {
-            match err.downcast_ref::<Error>() {
-                Some(Error::SqlAlreadyOpen) => {}
-                _ => {
-                    self.close().await;
+        if self.is_open().await {
+            error!(
+                context,
+                "Cannot open, database \"{:?}\" already opened.",
+                dbfile.as_ref(),
+            );
+            return Err(Error::SqlAlreadyOpen.into());
+        }
+
+        let config = SqliteConnectOptions::new()
+            .filename(dbfile.as_ref())
+            .read_only(readonly)
+            .create_if_missing(!readonly);
+        let pool = PoolOptions::<Sqlite>::new()
+            .after_connect(|conn| {
+                Box::pin(async move {
+                    let q = format!(
+                        r#"
+PRAGMA secure_delete=on;
+PRAGMA busy_timeout = {};
+PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+"#,
+                        Duration::from_secs(10).as_millis()
+                    );
+                    conn.execute_many(sqlx::query(&q))
+                        .collect::<std::result::Result<Vec<_>, _>>()
+                        .await?;
+                    Ok(())
+                })
+            })
+            .connect_with(config)
+            .await?;
+        {
+            *self.sql.write().await = Some(pool);
+        }
+
+        if !readonly {
+            // journal_mode is persisted, it is sufficient to change it only for one handle.
+            // (nb: execute() always returns errors for this PRAGMA call, just discard it.
+            // but even if execute() would handle errors more gracefully, we should continue on errors -
+            // systems might not be able to handle WAL, in which case the standard-journal is used.
+            // that may be not optimal, but better than not working at all :)
+            self.execute("PRAGMA journal_mode=WAL;").await.ok();
+
+            // (1) update low-level database structure.
+            // this should be done before updates that use high-level objects that
+            // rely themselves on the low-level structure.
+            // --------------------------------------------------------------------
+
+            let (recalc_fingerprints, update_icons) = migrations::run(context, &self).await?;
+
+            // (2) updates that require high-level objects
+            // (the structure is complete now and all objects are usable)
+            // --------------------------------------------------------------------
+
+            if recalc_fingerprints {
+                info!(context, "[migration] recalc fingerprints");
+                let mut rows = self.fetch("SELECT addr FROM acpeerstates;").await?;
+
+                while let Some(row) = rows.next().await {
+                    let row = row?;
+                    let addr = row.try_get(0)?;
+                    if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
+                        peerstate.recalc_fingerprint();
+                        peerstate.save_to_db(&self, false).await?;
+                    }
+>>>>>>> b22a152b (remove rusqlite and fixup examples)
                 }
             }
+            if update_icons {
+                update_saved_messages_icon(context).await?;
+                update_device_icon(context).await?;
+            }
         }
-        res.map_err(|e| {
-            format_err!(
-                // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-                "Could not open db file {}: {:#}",
-                dbfile.as_ref().to_string_lossy(),
-                e
-            )
-        })?;
 
-        open2(context, self, &dbfile, readonly).await?;
+        info!(context, "Opened {:?}.", dbfile.as_ref(),);
 
         Ok(())
     }
@@ -568,208 +611,6 @@ async fn maybe_add_from_param(
     Ok(())
 }
 
-#[allow(clippy::cognitive_complexity)]
-async fn open(
-    context: &Context,
-    sql: &Sql,
-    dbfile: impl AsRef<Path>,
-    readonly: bool,
-) -> anyhow::Result<()> {
-    if sql.is_open().await {
-        error!(
-            context,
-            "Cannot open, database \"{:?}\" already opened.",
-            dbfile.as_ref(),
-        );
-        return Err(Error::SqlAlreadyOpen.into());
-    }
-
-    let mut open_flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    if readonly {
-        open_flags.insert(OpenFlags::SQLITE_OPEN_READ_ONLY);
-    } else {
-        open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
-        open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
-    }
-
-    // this actually creates min_idle database handles just now.
-    // therefore, with_init() must not try to modify the database as otherwise
-    // we easily get busy-errors (eg. table-creation, journal_mode etc. should be done on only one handle)
-    let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile.as_ref())
-        .with_flags(open_flags)
-        .with_init(|c| {
-            c.execute_batch(&format!(
-                "PRAGMA secure_delete=on;
-                 PRAGMA busy_timeout = {};
-                 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
-                 ",
-                Duration::from_secs(10).as_millis()
-            ))?;
-            Ok(())
-        });
-    let pool = r2d2::Pool::builder()
-        .min_idle(Some(2))
-        .max_size(10)
-        .connection_timeout(Duration::from_secs(60))
-        .build(mgr)
-        .map_err(Error::ConnectionPool)?;
-
-    {
-        *sql.pool.write().await = Some(pool);
-    }
-
-    if !readonly {
-        // journal_mode is persisted, it is sufficient to change it only for one handle.
-        // (nb: execute() always returns errors for this PRAGMA call, just discard it.
-        // but even if execute() would handle errors more gracefully, we should continue on errors -
-        // systems might not be able to handle WAL, in which case the standard-journal is used.
-        // that may be not optimal, but better than not working at all :)
-        sql.execute("PRAGMA journal_mode=WAL;").await.ok();
-
-        // (1) update low-level database structure.
-        // this should be done before updates that use high-level objects that
-        // rely themselves on the low-level structure.
-        // --------------------------------------------------------------------
-
-        let (recalc_fingerprints, update_icons, disable_server_delete) =
-            migrations::run(context, sql).await?;
-
-        // (2) updates that require high-level objects
-        // (the structure is complete now and all objects are usable)
-        // --------------------------------------------------------------------
-
-        if recalc_fingerprints {
-            info!(context, "[migration] recalc fingerprints");
-            let mut rows = sql.fetch("SELECT addr FROM acpeerstates;").await?;
-            while let Some(row) = rows.next().await {
-                let row = row?;
-                let addr = row.try_get(0)?;
-                if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
-                    peerstate.recalc_fingerprint();
-                    peerstate.save_to_db(sql, false).await?;
-                }
-            }
-        }
-        if update_icons {
-            update_saved_messages_icon(context).await?;
-            update_device_icon(context).await?;
-        }
-        if disable_server_delete {
-            // We now always watch all folders and delete messages there if delete_server is enabled.
-            // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
-            if context.get_config_delete_server_after().await?.is_some() {
-                let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(stock_str::delete_server_turned_off(context).await);
-                add_device_msg(context, None, Some(&mut msg)).await?;
-                context
-                    .set_config(Config::DeleteServerAfter, Some("0"))
-                    .await?;
-            }
-        }
-    }
-
-    info!(context, "Opened {:?}.", dbfile.as_ref(),);
-
-    Ok(())
-}
-
-async fn open2(
-    context: &Context,
-    sql: &Sql,
-    dbfile: impl AsRef<Path>,
-    readonly: bool,
-) -> anyhow::Result<()> {
-    if sql.is_open().await {
-        error!(
-            context,
-            "Cannot open, database \"{:?}\" already opened.",
-            dbfile.as_ref(),
-        );
-        return Err(Error::SqlAlreadyOpen.into());
-    }
-
-    let config = SqliteConnectOptions::new()
-        .filename(dbfile.as_ref())
-        .read_only(readonly)
-        .create_if_missing(!readonly);
-    let pool = PoolOptions::<Sqlite>::new()
-        .after_connect(|conn| {
-            Box::pin(async move {
-                conn.execute_many(
-                    r#"
-PRAGMA secure_delete=on;
-PRAGMA busy_timeout = {};
-PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
-"#,
-                )
-                .collect::<std::result::Result<Vec<_>, _>>()
-                .await?;
-                Ok(())
-            })
-        })
-        .connect_with(config)
-        .await?;
-    {
-        *sql.sql.write().await = Some(pool);
-    }
-
-    if !readonly {
-        // journal_mode is persisted, it is sufficient to change it only for one handle.
-        // (nb: execute() always returns errors for this PRAGMA call, just discard it.
-        // but even if execute() would handle errors more gracefully, we should continue on errors -
-        // systems might not be able to handle WAL, in which case the standard-journal is used.
-        // that may be not optimal, but better than not working at all :)
-        sql.execute("PRAGMA journal_mode=WAL;").await.ok();
-
-        // (1) update low-level database structure.
-        // this should be done before updates that use high-level objects that
-        // rely themselves on the low-level structure.
-        // --------------------------------------------------------------------
-
-        let (recalc_fingerprints, update_icons, disable_server_delete) =
-            migrations::run(context, sql).await?;
-
-        // (2) updates that require high-level objects
-        // (the structure is complete now and all objects are usable)
-        // --------------------------------------------------------------------
-
-        if recalc_fingerprints {
-            info!(context, "[migration] recalc fingerprints");
-            let mut rows = sql.fetch("SELECT addr FROM acpeerstates;").await?;
-
-            while let Some(row) = rows.next().await {
-                let row = row?;
-                let addr = row.try_get(0)?;
-                if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
-                    peerstate.recalc_fingerprint();
-                    peerstate.save_to_db(sql, false).await?;
-                }
-            }
-        }
-        if update_icons {
-            update_saved_messages_icon(context).await?;
-            update_device_icon(context).await?;
-        }
-
-        if disable_server_delete {
-            // We now always watch all folders and delete messages there if delete_server is enabled.
-            // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
-            if context.get_config_delete_server_after().await?.is_some() {
-                let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(stock_str::delete_server_turned_off(context).await);
-                add_device_msg(context, None, Some(&mut msg)).await?;
-                context
-                    .set_config(Config::DeleteServerAfter, Some("0"))
-                    .await?;
-            }
-        }
-    }
-
-    info!(context, "Opened {:?}.", dbfile.as_ref(),);
-
-    Ok(())
-}
-
 /// Removes from the database locally deleted messages that also don't
 /// have a server UID.
 async fn prune_tombstones(sql: &Sql) -> Result<()> {
@@ -783,6 +624,14 @@ async fn prune_tombstones(sql: &Sql) -> Result<()> {
     )
     .await?;
     Ok(())
+}
+
+/// Returns the SQLite version as a string; e.g., `"3.16.2"` for version 3.16.2.
+pub fn version() -> &'static str {
+    #[allow(unsafe_code)]
+    let cstr = unsafe { std::ffi::CStr::from_ptr(libsqlite3_sys::sqlite3_libversion()) };
+    cstr.to_str()
+        .expect("SQLite version string is not valid UTF8 ?!")
 }
 
 #[cfg(test)]

@@ -122,31 +122,6 @@ impl FromStr for Timer {
     }
 }
 
-impl rusqlite::types::ToSql for Timer {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let val = rusqlite::types::Value::Integer(match self {
-            Self::Disabled => 0,
-            Self::Enabled { duration } => i64::from(*duration),
-        });
-        let out = rusqlite::types::ToSqlOutput::Owned(val);
-        Ok(out)
-    }
-}
-
-impl rusqlite::types::FromSql for Timer {
-    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
-        i64::column_result(value).and_then(|value| {
-            if value == 0 {
-                Ok(Self::Disabled)
-            } else if let Ok(duration) = u32::try_from(value) {
-                Ok(Self::Enabled { duration })
-            } else {
-                Err(rusqlite::types::FromSqlError::OutOfRange(value))
-            }
-        })
-    }
-}
-
 impl sqlx::Type<sqlx::Sqlite> for Timer {
     fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
         <i64 as sqlx::Type<_>>::type_info()
