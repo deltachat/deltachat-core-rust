@@ -2,6 +2,7 @@
 
 use anyhow::{ensure, Error};
 use async_std::path::{Path, PathBuf};
+use async_std::prelude::*;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -1278,21 +1279,25 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String, Er
         return Ok(ret);
     }
 
-    if let Ok(rows) = context
+    if let Ok(mut rows) = context
         .sql
-        .query_map(
-            "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
-            paramsv![msg_id],
-            |row| {
-                let contact_id: i64 = row.get(0)?;
-                let ts: i64 = row.get(1)?;
-                Ok((contact_id, ts))
-            },
-            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        .fetch(
+            sqlx::query("SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;")
+                .bind(msg_id),
         )
         .await
+        .map(|rows| {
+            rows.map(|row| -> sqlx::Result<_> {
+                let row = row?;
+                let contact_id: i64 = row.try_get(0)?;
+                let ts: i64 = row.try_get(1)?;
+                Ok((contact_id, ts))
+            })
+        })
     {
-        for (contact_id, ts) in rows {
+        while let Some(row) = rows.next().await {
+            let (contact_id, ts) = row?;
+
             let fts = dc_timestamp_to_str(ts);
             ret += &format!("Read: {}", fts);
 
@@ -1822,36 +1827,34 @@ pub(crate) async fn handle_ndn(
 
     // The NDN might be for a message-id that had attachments and was sent from a non-Delta Chat client.
     // In this case we need to mark multiple "msgids" as failed that all refer to the same message-id.
-    let msgs: Vec<_> = context
+    let mut rows = context
         .sql
-        .query_map(
-            concat!(
+        .fetch(
+            sqlx::query(concat!(
                 "SELECT",
                 "    m.id AS msg_id,",
                 "    c.id AS chat_id,",
                 "    c.type AS type",
                 " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
                 " WHERE rfc724_mid=? AND from_id=1",
-            ),
-            paramsv![failed.rfc724_mid],
-            |row| {
-                Ok((
-                    row.get::<_, MsgId>("msg_id")?,
-                    row.get::<_, ChatId>("chat_id")?,
-                    row.get::<_, Chattype>("type")?,
-                ))
-            },
-            |rows| Ok(rows.collect::<Vec<_>>()),
+            ))
+            .bind(&failed.rfc724_mid),
         )
         .await?;
 
-    for (i, msg) in msgs.into_iter().enumerate() {
-        let (msg_id, chat_id, chat_type) = msg?;
+    let mut first = true;
+    while let Some(row) = rows.next().await {
+        let row = row?;
+        let msg_id = row.try_get::<MsgId, _>("msg_id")?;
+        let chat_id = row.try_get::<ChatId, _>("chat_id")?;
+        let chat_type = row.try_get::<Chattype, _>("type")?;
+
         set_msg_failed(context, msg_id, error.as_ref()).await;
-        if i == 0 {
+        if first {
             // Add only one info msg for all failed messages
             ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
         }
+        first = false;
     }
 
     Ok(())
