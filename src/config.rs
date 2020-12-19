@@ -72,8 +72,7 @@ pub enum Config {
     /// If set to "1", on the first time `start_io()` is called after configuring,
     /// the newest existing messages are fetched.
     /// Existing recipients are added to the contact database regardless of this setting.
-    #[strum(props(default = "0"))]
-    // disabled for now, we'll set this back to "1" at some point
+    #[strum(props(default = "1"))]
     FetchExistingMsgs,
 
     #[strum(props(default = "0"))]
@@ -312,15 +311,14 @@ mod tests {
             .unwrap()
             .write_all(avatar_bytes)
             .unwrap();
-        let avatar_blob = t.ctx.get_blobdir().join("avatar.jpg");
+        let avatar_blob = t.get_blobdir().join("avatar.jpg");
         assert!(!avatar_blob.exists().await);
-        t.ctx
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         assert!(avatar_blob.exists().await);
         assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
-        let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
+        let avatar_cfg = t.get_config(Config::Selfavatar).await;
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
 
         let img = image::open(avatar_src).unwrap();
@@ -335,7 +333,7 @@ mod tests {
     #[async_std::test]
     async fn test_selfavatar_in_blobdir() {
         let t = TestContext::new().await;
-        let avatar_src = t.ctx.get_blobdir().join("avatar.png");
+        let avatar_src = t.get_blobdir().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar900x900.png");
         File::create(&avatar_src)
             .unwrap()
@@ -346,11 +344,10 @@ mod tests {
         assert_eq!(img.width(), 900);
         assert_eq!(img.height(), 900);
 
-        t.ctx
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
-        let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
+        let avatar_cfg = t.get_config(Config::Selfavatar).await;
         assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
 
         let img = image::open(avatar_src).unwrap();
@@ -367,10 +364,9 @@ mod tests {
             .unwrap()
             .write_all(avatar_bytes)
             .unwrap();
-        let avatar_blob = t.ctx.get_blobdir().join("avatar.png");
+        let avatar_blob = t.get_blobdir().join("avatar.png");
         assert!(!avatar_blob.exists().await);
-        t.ctx
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         assert!(avatar_blob.exists().await);
@@ -378,24 +374,21 @@ mod tests {
             std::fs::metadata(&avatar_blob).unwrap().len(),
             avatar_bytes.len() as u64
         );
-        let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
+        let avatar_cfg = t.get_config(Config::Selfavatar).await;
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
     }
 
     #[async_std::test]
     async fn test_media_quality_config_option() {
         let t = TestContext::new().await;
-        let media_quality = t.ctx.get_config_int(Config::MediaQuality).await;
+        let media_quality = t.get_config_int(Config::MediaQuality).await;
         assert_eq!(media_quality, 0);
         let media_quality = constants::MediaQuality::from_i32(media_quality).unwrap_or_default();
         assert_eq!(media_quality, constants::MediaQuality::Balanced);
 
-        t.ctx
-            .set_config(Config::MediaQuality, Some("1"))
-            .await
-            .unwrap();
+        t.set_config(Config::MediaQuality, Some("1")).await.unwrap();
 
-        let media_quality = t.ctx.get_config_int(Config::MediaQuality).await;
+        let media_quality = t.get_config_int(Config::MediaQuality).await;
         assert_eq!(media_quality, 1);
         assert_eq!(constants::MediaQuality::Worse as i32, 1);
         let media_quality = constants::MediaQuality::from_i32(media_quality).unwrap_or_default();

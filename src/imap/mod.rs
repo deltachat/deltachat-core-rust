@@ -16,7 +16,7 @@ use num_traits::FromPrimitive;
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_receive_imf::{from_field_to_contact_id, is_msgrmsg_rfc724_mid_in_list};
+use crate::dc_receive_imf::{from_field_to_contact_id, get_prefetch_parent_message};
 use crate::error::{bail, format_err, Result};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -1614,25 +1614,6 @@ fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> 
     }
 }
 
-async fn prefetch_is_reply_to_chat_message(
-    context: &Context,
-    headers: &[mailparse::MailHeader<'_>],
-) -> bool {
-    if let Some(value) = headers.get_header_value(HeaderDef::InReplyTo) {
-        if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
-            return true;
-        }
-    }
-
-    if let Some(value) = headers.get_header_value(HeaderDef::References) {
-        if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
-            return true;
-        }
-    }
-
-    false
-}
-
 pub(crate) async fn prefetch_should_download(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
@@ -1651,7 +1632,9 @@ pub(crate) async fn prefetch_should_download(
     }
 
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
-    let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers).await;
+    let is_reply_to_chat_message = get_prefetch_parent_message(context, headers)
+        .await?
+        .is_some();
 
     let maybe_ndn = if let Some(from) = headers.get_header_value(HeaderDef::From_) {
         let from = from.to_ascii_lowercase();

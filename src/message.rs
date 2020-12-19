@@ -11,6 +11,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
 use crate::dc_tools::*;
+use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{ensure, Error};
 use crate::events::EventType;
 use crate::job::{self, Action};
@@ -291,7 +292,7 @@ pub struct Message {
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
     pub(crate) timestamp_rcvd: i64,
-    pub(crate) ephemeral_timer: u32,
+    pub(crate) ephemeral_timer: EphemeralTimer,
     pub(crate) ephemeral_timestamp: i64,
     pub(crate) text: Option<String>,
     pub(crate) rfc724_mid: String,
@@ -559,7 +560,7 @@ impl Message {
         self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
     }
 
-    pub fn get_ephemeral_timer(&self) -> u32 {
+    pub fn get_ephemeral_timer(&self) -> EphemeralTimer {
         self.ephemeral_timer
     }
 
@@ -823,11 +824,8 @@ impl Message {
     pub async fn quoted_message(&self, context: &Context) -> Result<Option<Message>, Error> {
         if self.param.get(Param::Quote).is_some() {
             if let Some(in_reply_to) = &self.in_reply_to {
-                let rfc724_mid = in_reply_to.trim_start_matches('<').trim_end_matches('>');
-                if !rfc724_mid.is_empty() {
-                    if let Some((_, _, msg_id)) = rfc724_mid_exists(context, rfc724_mid).await? {
-                        return Ok(Some(Message::load_from_db(context, msg_id).await?));
-                    }
+                if let Some((_, _, msg_id)) = rfc724_mid_exists(context, in_reply_to).await? {
+                    return Ok(Some(Message::load_from_db(context, msg_id).await?));
                 }
             }
         }
@@ -1104,8 +1102,8 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         ret += "\n";
     }
 
-    if msg.ephemeral_timer != 0 {
-        ret += &format!("Ephemeral timer: {}\n", msg.ephemeral_timer);
+    if let EphemeralTimer::Enabled { duration } = msg.ephemeral_timer {
+        ret += &format!("Ephemeral timer: {}\n", duration);
     }
 
     if msg.ephemeral_timestamp != 0 {
@@ -1854,6 +1852,7 @@ pub(crate) async fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
 ) -> Result<Option<(String, u32, MsgId)>, Error> {
+    let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     if rfc724_mid.is_empty() {
         warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
         return Ok(None);
@@ -2111,20 +2110,15 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let contact = Contact::create(ctx, "", "dest@example.com")
+        ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
             .await
-            .expect("failed to create contact");
+            .unwrap();
 
-        let res = ctx
-            .set_config(Config::ConfiguredAddr, Some("self@example.com"))
-            .await;
-        assert!(res.is_ok());
-
-        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+        let chat = d.chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
 
-        let msg_id = chat::prepare_msg(ctx, chat, &mut msg).await.unwrap();
+        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
 
         let _msg2 = Message::load_from_db(ctx, msg_id).await.unwrap();
         assert_eq!(_msg2.get_filemime(), None);
@@ -2136,15 +2130,11 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let contact = Contact::create(ctx, "", "dest@example.com")
-            .await
-            .expect("failed to create contact");
-
-        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+        let chat = d.chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
 
-        assert!(chat::prepare_msg(ctx, chat, &mut msg).await.is_err());
+        assert!(chat::prepare_msg(ctx, chat.id, &mut msg).await.is_err());
     }
 
     #[async_std::test]
@@ -2294,17 +2284,17 @@ mod tests {
 
         // test that get_width() and get_height() are returning some dimensions for images;
         // (as the device-chat contains a welcome-images, we check that)
-        t.ctx.update_device_chats().await.ok();
+        t.update_device_chats().await.ok();
         let (device_chat_id, _) =
-            chat::create_or_lookup_by_contact_id(&t.ctx, DC_CONTACT_ID_DEVICE, Blocked::Not)
+            chat::create_or_lookup_by_contact_id(&t, DC_CONTACT_ID_DEVICE, Blocked::Not)
                 .await
                 .unwrap();
 
         let mut has_image = false;
-        let chatitems = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let chatitems = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         for chatitem in chatitems {
             if let ChatItem::Message { msg_id } = chatitem {
-                if let Ok(msg) = Message::load_from_db(&t.ctx, msg_id).await {
+                if let Ok(msg) = Message::load_from_db(&t, msg_id).await {
                     if msg.get_viewtype() == Viewtype::Image {
                         has_image = true;
                         // just check that width/height are inside some reasonable ranges
@@ -2326,23 +2316,18 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let contact = Contact::create(ctx, "", "dest@example.com")
+        ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
             .await
-            .expect("failed to create contact");
+            .unwrap();
 
-        let res = ctx
-            .set_config(Config::ConfiguredAddr, Some("self@example.com"))
-            .await;
-        assert!(res.is_ok());
-
-        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+        let chat = d.chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("Quoted message".to_string()));
 
         // Prepare message for sending, so it gets a Message-Id.
         assert!(msg.rfc724_mid.is_empty());
-        let msg_id = chat::prepare_msg(ctx, chat, &mut msg).await.unwrap();
+        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
         let msg = Message::load_from_db(ctx, msg_id).await.unwrap();
         assert!(!msg.rfc724_mid.is_empty());
 

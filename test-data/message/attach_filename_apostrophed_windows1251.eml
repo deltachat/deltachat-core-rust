@@ -1,0 +1,29 @@
+Subject: Test apostrophed filenames
+Message-ID: 12345@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+X-Mailer: Kopano 8.7.16
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/mixed; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+apostrophed filenames as of
+https://tools.ietf.org/html/rfc2231,
+testing non-utf-8 charset
+
+examples:
+%EF%F0%EE%E3%F0%E0%EC%EC%E8%F0%EE%E2%E0%ED%E8%E5 = программирование = programming
+
+--==BREAK==
+Content-Type: text/html
+Content-Disposition: attachment;
+ filename*0*=windows-1251''%EF%F0%EE%E3%F0%E0%EC%EC%E8%F0%EE%E2%E0;
+ filename*1*=%ED%E8%E5.HTM
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--==BREAK==--

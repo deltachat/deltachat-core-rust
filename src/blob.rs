@@ -525,64 +525,52 @@ mod tests {
     #[async_std::test]
     async fn test_create() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo", b"hello").await.unwrap();
-        let fname = t.ctx.get_blobdir().join("foo");
+        let blob = BlobObject::create(&t, "foo", b"hello").await.unwrap();
+        let fname = t.get_blobdir().join("foo");
         let data = fs::read(fname).await.unwrap();
         assert_eq!(data, b"hello");
         assert_eq!(blob.as_name(), "$BLOBDIR/foo");
-        assert_eq!(blob.to_abs_path(), t.ctx.get_blobdir().join("foo"));
+        assert_eq!(blob.to_abs_path(), t.get_blobdir().join("foo"));
     }
 
     #[async_std::test]
     async fn test_lowercase_ext() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo.TXT", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.TXT", b"hello").await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/foo.txt");
     }
 
     #[async_std::test]
     async fn test_as_file_name() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_file_name(), "foo.txt");
     }
 
     #[async_std::test]
     async fn test_as_rel_path() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_rel_path(), Path::new("foo.txt"));
     }
 
     #[async_std::test]
     async fn test_suffix() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.suffix(), Some("txt"));
-        let blob = BlobObject::create(&t.ctx, "bar", b"world").await.unwrap();
+        let blob = BlobObject::create(&t, "bar", b"world").await.unwrap();
         assert_eq!(blob.suffix(), None);
     }
 
     #[async_std::test]
     async fn test_create_dup() {
         let t = TestContext::new().await;
-        BlobObject::create(&t.ctx, "foo.txt", b"hello")
-            .await
-            .unwrap();
-        let foo_path = t.ctx.get_blobdir().join("foo.txt");
+        BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
+        let foo_path = t.get_blobdir().join("foo.txt");
         assert!(foo_path.exists().await);
-        BlobObject::create(&t.ctx, "foo.txt", b"world")
-            .await
-            .unwrap();
-        let mut dir = fs::read_dir(t.ctx.get_blobdir()).await.unwrap();
+        BlobObject::create(&t, "foo.txt", b"world").await.unwrap();
+        let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
         while let Some(dirent) = dir.next().await {
             let fname = dirent.unwrap().file_name();
             if fname == foo_path.file_name().unwrap() {
@@ -598,15 +586,15 @@ mod tests {
     #[async_std::test]
     async fn test_double_ext_preserved() {
         let t = TestContext::new().await;
-        BlobObject::create(&t.ctx, "foo.tar.gz", b"hello")
+        BlobObject::create(&t, "foo.tar.gz", b"hello")
             .await
             .unwrap();
-        let foo_path = t.ctx.get_blobdir().join("foo.tar.gz");
+        let foo_path = t.get_blobdir().join("foo.tar.gz");
         assert!(foo_path.exists().await);
-        BlobObject::create(&t.ctx, "foo.tar.gz", b"world")
+        BlobObject::create(&t, "foo.tar.gz", b"world")
             .await
             .unwrap();
-        let mut dir = fs::read_dir(t.ctx.get_blobdir()).await.unwrap();
+        let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
         while let Some(dirent) = dir.next().await {
             let fname = dirent.unwrap().file_name();
             if fname == foo_path.file_name().unwrap() {
@@ -624,7 +612,7 @@ mod tests {
     async fn test_create_long_names() {
         let t = TestContext::new().await;
         let s = "1".repeat(150);
-        let blob = BlobObject::create(&t.ctx, &s, b"data").await.unwrap();
+        let blob = BlobObject::create(&t, &s, b"data").await.unwrap();
         let blobname = blob.as_name().split('/').last().unwrap();
         assert!(blobname.len() < 128);
     }
@@ -634,14 +622,14 @@ mod tests {
         let t = TestContext::new().await;
         let src = t.dir.path().join("src");
         fs::write(&src, b"boo").await.unwrap();
-        let blob = BlobObject::create_and_copy(&t.ctx, &src).await.unwrap();
+        let blob = BlobObject::create_and_copy(&t, &src).await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/src");
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
 
         let whoops = t.dir.path().join("whoops");
-        assert!(BlobObject::create_and_copy(&t.ctx, &whoops).await.is_err());
-        let whoops = t.ctx.get_blobdir().join("whoops");
+        assert!(BlobObject::create_and_copy(&t, &whoops).await.is_err());
+        let whoops = t.get_blobdir().join("whoops");
         assert!(!whoops.exists().await);
     }
 
@@ -651,14 +639,14 @@ mod tests {
 
         let src_ext = t.dir.path().join("external");
         fs::write(&src_ext, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t.ctx, &src_ext).await.unwrap();
+        let blob = BlobObject::new_from_path(&t, &src_ext).await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/external");
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
 
-        let src_int = t.ctx.get_blobdir().join("internal");
+        let src_int = t.get_blobdir().join("internal");
         fs::write(&src_int, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t.ctx, &src_int).await.unwrap();
+        let blob = BlobObject::new_from_path(&t, &src_int).await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/internal");
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
@@ -668,7 +656,7 @@ mod tests {
         let t = TestContext::new().await;
         let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
         fs::write(&src_ext, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t.ctx, &src_ext).await.unwrap();
+        let blob = BlobObject::new_from_path(&t, &src_ext).await.unwrap();
         assert_eq!(
             blob.as_name(),
             "$BLOBDIR/autocrypt-setup-message-4137848473.html"

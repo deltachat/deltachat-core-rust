@@ -2,8 +2,8 @@
 //!
 //! This module is only compiled for test runs.
 
-use std::str::FromStr;
 use std::time::{Duration, Instant};
+use std::{ops::Deref, str::FromStr};
 
 use ansi_term::Color;
 use async_std::path::PathBuf;
@@ -11,18 +11,21 @@ use async_std::sync::RwLock;
 use tempfile::{tempdir, TempDir};
 
 use crate::config::Config;
+use crate::constants::DC_CONTACT_ID_SELF;
+use crate::contact::Contact;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
 use crate::job::Action;
 use crate::key::{self, DcKey};
-use crate::message::Message;
+use crate::message::{update_msg_state, Message, MessageState, MsgId};
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
 use crate::{chat, chatlist::Chatlist};
+use crate::{chat::ChatItem, EventType};
 use crate::{
-    chat::{ChatId, ChatItem},
-    EventType,
+    chat::{Chat, ChatId},
+    contact::Origin,
 };
 
 /// A Context and temporary directory.
@@ -85,7 +88,7 @@ impl TestContext {
         let t = Self::new().await;
         let keypair = bob_keypair();
         t.configure_addr(&keypair.addr.to_string()).await;
-        key::store_self_keypair(&t.ctx, &keypair, key::KeyPairUse::Default)
+        key::store_self_keypair(&t, &keypair, key::KeyPairUse::Default)
             .await
             .expect("Failed to save Bob's key");
         t
@@ -157,7 +160,7 @@ impl TestContext {
                 panic!("no sent message found in jobs table");
             }
         };
-        let id = ChatId::new(foreign_id as u32);
+        let id = MsgId::new(foreign_id as u32);
         let params = Params::from_str(&raw_params).unwrap();
         let blob_path = params
             .get_blob(Param::File, &self.ctx, false)
@@ -170,11 +173,8 @@ impl TestContext {
             .execute("DELETE FROM jobs WHERE id=?;", paramsv![rowid])
             .await
             .expect("failed to remove job");
-        SentMessage {
-            id,
-            params,
-            blob_path,
-        }
+        update_msg_state(&self.ctx, id, MessageState::OutDelivered).await;
+        SentMessage { params, blob_path }
     }
 
     /// Parse a message.
@@ -219,6 +219,47 @@ impl TestContext {
         let msg_id = chats.get_msg_id(chats.len() - 1).unwrap();
         Message::load_from_db(&self.ctx, msg_id).await.unwrap()
     }
+
+    pub async fn create_chat(&self, other: &TestContext) -> Chat {
+        let (contact_id, _modified) = Contact::add_or_lookup(
+            self,
+            other
+                .ctx
+                .get_config(Config::Displayname)
+                .await
+                .unwrap_or_default(),
+            other.ctx.get_config(Config::ConfiguredAddr).await.unwrap(),
+            Origin::ManuallyCreated,
+        )
+        .await
+        .unwrap();
+
+        let chat_id = chat::create_by_contact_id(self, contact_id).await.unwrap();
+        Chat::load_from_db(self, chat_id).await.unwrap()
+    }
+
+    pub async fn chat_with_contact(&self, name: &str, addr: &str) -> Chat {
+        let contact = Contact::create(self, name, addr)
+            .await
+            .expect("failed to create contact");
+        let chat_id = chat::create_by_contact_id(self, contact).await.unwrap();
+        Chat::load_from_db(self, chat_id).await.unwrap()
+    }
+
+    pub async fn get_self_chat(&self) -> Chat {
+        let chat_id = chat::create_by_contact_id(self, DC_CONTACT_ID_SELF)
+            .await
+            .unwrap();
+        Chat::load_from_db(self, chat_id).await.unwrap()
+    }
+}
+
+impl Deref for TestContext {
+    type Target = Context;
+
+    fn deref(&self) -> &Context {
+        &self.ctx
+    }
 }
 
 /// A raw message as it was scheduled to be sent.
@@ -227,17 +268,11 @@ impl TestContext {
 /// passed through a SMTP-IMAP pipeline.
 #[derive(Debug, Clone)]
 pub struct SentMessage {
-    id: ChatId,
     params: Params,
     blob_path: PathBuf,
 }
 
 impl SentMessage {
-    /// The ChatId the message belonged to.
-    pub fn id(&self) -> ChatId {
-        self.id
-    }
-
     /// A recipient the message was destined for.
     ///
     /// If there are multiple recipients this is just a random one, so is not very useful.

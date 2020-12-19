@@ -346,7 +346,6 @@ mod tests {
 
     use crate::chat;
     use crate::constants::Viewtype;
-    use crate::contact::{Contact, Origin};
     use crate::message::Message;
     use crate::param::Param;
     use crate::test_utils::*;
@@ -358,13 +357,13 @@ mod tests {
         async fn test_prexisting() {
             let t = TestContext::new().await;
             let test_addr = t.configure_alice().await;
-            assert_eq!(ensure_secret_key_exists(&t.ctx).await.unwrap(), test_addr);
+            assert_eq!(ensure_secret_key_exists(&t).await.unwrap(), test_addr);
         }
 
         #[async_std::test]
         async fn test_not_configured() {
             let t = TestContext::new().await;
-            assert!(ensure_secret_key_exists(&t.ctx).await.is_err());
+            assert!(ensure_secret_key_exists(&t).await.is_err());
         }
     }
 
@@ -415,23 +414,8 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        let (contact_alice_id, _modified) = Contact::add_or_lookup(
-            &bob.ctx,
-            "Alice",
-            "alice@example.com",
-            Origin::ManuallyCreated,
-        )
-        .await?;
-        let (contact_bob_id, _modified) = Contact::add_or_lookup(
-            &alice.ctx,
-            "Bob",
-            "bob@example.net",
-            Origin::ManuallyCreated,
-        )
-        .await?;
-
-        let chat_alice = chat::create_by_contact_id(&alice.ctx, contact_bob_id).await?;
-        let chat_bob = chat::create_by_contact_id(&bob.ctx, contact_alice_id).await?;
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let chat_bob = bob.create_chat(&alice).await.id;
 
         // Alice sends unencrypted message to Bob
         let mut msg = Message::new(Viewtype::Text);
@@ -542,28 +526,28 @@ Sent with my Delta Chat Messenger: https://delta.chat";
     #[async_std::test]
     async fn test_should_encrypt() {
         let t = TestContext::new_alice().await;
-        let encrypt_helper = EncryptHelper::new(&t.ctx).await.unwrap();
+        let encrypt_helper = EncryptHelper::new(&t).await.unwrap();
 
         // test with EncryptPreference::NoPreference:
         // if e2ee_eguaranteed is unset, there is no encryption as not more than half of peers want encryption
-        let ps = new_peerstates(&t.ctx, EncryptPreference::NoPreference);
-        assert!(encrypt_helper.should_encrypt(&t.ctx, true, &ps).unwrap());
-        assert!(!encrypt_helper.should_encrypt(&t.ctx, false, &ps).unwrap());
+        let ps = new_peerstates(&t, EncryptPreference::NoPreference);
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with EncryptPreference::Reset
-        let ps = new_peerstates(&t.ctx, EncryptPreference::Reset);
-        assert!(encrypt_helper.should_encrypt(&t.ctx, true, &ps).unwrap());
-        assert!(!encrypt_helper.should_encrypt(&t.ctx, false, &ps).unwrap());
+        let ps = new_peerstates(&t, EncryptPreference::Reset);
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with EncryptPreference::Mutual (self is also Mutual)
-        let ps = new_peerstates(&t.ctx, EncryptPreference::Mutual);
-        assert!(encrypt_helper.should_encrypt(&t.ctx, true, &ps).unwrap());
-        assert!(encrypt_helper.should_encrypt(&t.ctx, false, &ps).unwrap());
+        let ps = new_peerstates(&t, EncryptPreference::Mutual);
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with missing peerstate
         let mut ps = Vec::new();
         ps.push((None, "bob@foo.bar"));
-        assert!(encrypt_helper.should_encrypt(&t.ctx, true, &ps).is_err());
-        assert!(!encrypt_helper.should_encrypt(&t.ctx, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).is_err());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
     }
 }

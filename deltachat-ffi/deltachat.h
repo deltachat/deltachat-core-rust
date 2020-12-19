@@ -55,7 +55,7 @@ typedef struct _dc_accounts_event_emitter dc_accounts_event_emitter_t;
  *     dc_event_emitter_t* emitter = dc_get_event_emitter(context);
  *     dc_event_t* event;
  *     while ((event = dc_get_next_event(emitter)) != NULL) {
- *         // use the event as needed, eg. dc_event_get_id() returns the type.
+ *         // use the event as needed, e.g. dc_event_get_id() returns the type.
  *         // once you're done, unref the event to avoid memory leakage:
  *         dc_event_unref(event);
  *     }
@@ -273,8 +273,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `server_flags` = IMAP-/SMTP-flags as a combination of @ref DC_LP flags, guessed if left out
  * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
- * - `displayname`  = Own name to use when sending messages.  MUAs are allowed to spread this way eg. using CC, defaults to empty
- * - `selfstatus`   = Own status to display eg. in email footers, defaults to a standard text
+ * - `displayname`  = Own name to use when sending messages.  MUAs are allowed to spread this way e.g. using CC, defaults to empty
+ * - `selfstatus`   = Own status to display e.g. in email footers, defaults to a standard text
  * - `selfavatar`   = File containing avatar. Will immediately be copied to the 
  *                    `blobdir`; the original image will not be needed anymore.
  *                    NULL to remove the avatar.
@@ -332,7 +332,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    allow worse images/videos/voice quality to gain smaller sizes,
  *                    suitable for providers or areas known to have a bad connection.
  *                    The library uses the `media_quality` setting to use different defaults
- *                    for recoding images sent with type DC_MSG_IMAGE.
+ *                    for recoding images sent with type #DC_MSG_IMAGE.
  *                    If needed, recoding other file types is up to the UI.
  * - `webrtc_instance` = webrtc instance to use for videochats in the form
  *                    `[basicwebrtc:|jitsi:]https://example.com/subdir#roomname=$ROOM`
@@ -363,9 +363,9 @@ int             dc_set_config                (dc_context_t* context, const char*
  * Beside the options shown at dc_set_config(),
  * this function can be used to query some global system values:
  *
- * - `sys.version`  = get the version string eg. as `1.2.3` or as `1.2.3special4`
+ * - `sys.version`  = get the version string e.g. as `1.2.3` or as `1.2.3special4`
  * - `sys.msgsize_max_recommended` = maximal recommended attachment size in bytes.
- *                    All possible overheads are already subtracted and this value can be used eg. for direct comparison
+ *                    All possible overheads are already subtracted and this value can be used e.g. for direct comparison
  *                    with the size of a file the user wants to attach. If an attachment is larger than this value,
  *                    an error (no warning as it should be shown to the user) is logged but the attachment is sent anyway.
  * - `sys.config_keys` = get a space-separated list of all config-keys available.
@@ -401,7 +401,7 @@ int             dc_set_stock_translation(dc_context_t* context, uint32_t stock_i
  * QR code is DC_QR_ACCOUNT or DC_QR_WEBRTC_INSTANCE.
  *
  * Internally, the function will call dc_set_config() with the appropriate keys,
- * eg. `addr` and `mail_pw` for DC_QR_ACCOUNT
+ * e.g. `addr` and `mail_pw` for DC_QR_ACCOUNT
  * or `webrtc_instance` for DC_QR_WEBRTC_INSTANCE.
  *
  * @memberof dc_context_t
@@ -808,11 +808,11 @@ uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t ch
  * dc_msg_unref(msg);
  * ~~~
  *
- * If you send images with the DC_MSG_IMAGE type,
+ * If you send images with the #DC_MSG_IMAGE type,
  * they will be recoded to a reasonable size before sending, if possible
  * (cmp the dc_set_config()-option `media_quality`).
  * If that fails, is not possible, or the image is already small enough, the image is sent as original.
- * If you want images to be always sent as the original file, use the DC_MSG_FILE type.
+ * If you want images to be always sent as the original file, use the #DC_MSG_FILE type.
  *
  * Videos and other file types are currently not recoded by the library,
  * with dc_prepare_msg(), however, you can do that from the UI.
@@ -2191,7 +2191,7 @@ void dc_str_unref (char* str);
  * all context-databases are persisted and stay available once the
  * account manager is created again for the same directory.
  *
- * All accounts may receive messages at the same time (eg. by #DC_EVENT_INCOMING_MSG),
+ * All accounts may receive messages at the same time (e.g. by #DC_EVENT_INCOMING_MSG),
  * and all accounts may be accessed by their own dc_context_t object.
  *
  * To make this possible, some dc_context_t functions must not be called
@@ -3509,7 +3509,7 @@ int             dc_msg_is_increation          (const dc_msg_t* msg);
  * @memberof dc_msg_t
  * @param msg The message object.
  * @return 1=message is a setup message, 0=no setup message.
- *     For setup messages, dc_msg_get_viewtype() returns DC_MSG_FILE.
+ *     For setup messages, dc_msg_get_viewtype() returns #DC_MSG_FILE.
  */
 int             dc_msg_is_setupmessage        (const dc_msg_t* msg);
 
@@ -4111,6 +4111,9 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * If you want to define the type of a dc_msg_t object for sending,
  * use dc_msg_new().
+ * Depending on the type, you will set more properties using e.g.
+ * dc_msg_set_text() or dc_msg_set_file().
+ * To finally send the message, use dc_send_msg().
  *
  * To get the types of dc_msg_t objects received, use dc_msg_get_viewtype().
  *
@@ -4129,9 +4132,14 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * Image message.
- * If the image is an animated GIF, the type DC_MSG_GIF should be used.
- * File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
- * and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
+ * If the image is an animated GIF, the type #DC_MSG_GIF should be used.
+ * File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
+ * and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
+ *
+ * Before sending, the image is recoded to an reasonable size,
+ * see dc_set_config()-option `media_quality`.
+ * If you do not want images to be recoded,
+ * send them as #DC_MSG_FILE.
  */
 #define DC_MSG_IMAGE     20
 

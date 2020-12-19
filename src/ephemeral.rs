@@ -460,6 +460,7 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> sql::Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat;
     use crate::test_utils::*;
 
     #[async_std::test]
@@ -524,5 +525,67 @@ mod tests {
             .await,
             "Message deletion timer is set to 4 weeks."
         );
+    }
+
+    #[async_std::test]
+    async fn test_ephemeral_timer() -> crate::error::Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let chat_bob = bob.create_chat(&alice).await.id;
+
+        // Alice sends message to Bob
+        let mut msg = Message::new(Viewtype::Text);
+        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        let sent = alice.pop_sent_msg().await;
+        bob.recv_msg(&sent).await;
+
+        // Alice sends second message to Bob, with no timer
+        let mut msg = Message::new(Viewtype::Text);
+        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        let sent = alice.pop_sent_msg().await;
+
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Disabled
+        );
+
+        // Bob sets ephemeral timer and sends a message about timer change
+        chat_bob
+            .set_ephemeral_timer(&bob.ctx, Timer::Enabled { duration: 60 })
+            .await?;
+        let sent_timer_change = bob.pop_sent_msg().await;
+
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Enabled { duration: 60 }
+        );
+
+        // Bob receives message from Alice.
+        // Alice message has no timer. However, Bob should not disable timer,
+        // because Alice replies to old message.
+        bob.recv_msg(&sent).await;
+
+        assert_eq!(
+            chat_alice.get_ephemeral_timer(&alice.ctx).await?,
+            Timer::Disabled
+        );
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Enabled { duration: 60 }
+        );
+
+        // Alice receives message from Bob
+        alice.recv_msg(&sent_timer_change).await;
+
+        assert_eq!(
+            chat_alice.get_ephemeral_timer(&alice.ctx).await?,
+            Timer::Enabled { duration: 60 }
+        );
+
+        Ok(())
     }
 }

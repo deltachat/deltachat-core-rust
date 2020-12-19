@@ -1,0 +1,23 @@
+Subject: Test apostrophed filenames
+Message-ID: 12345@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+X-Mailer: Kopano 8.7.16
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/mixed; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+testing cp1252 aka ANSI aka Windows-1252
+
+--==BREAK==
+Content-Type: text/html
+Content-Disposition: attachment;
+ filename*=Cp1252''Auftragsbest%E4tigung.pdf;
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--==BREAK==--

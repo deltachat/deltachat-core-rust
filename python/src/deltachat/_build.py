@@ -145,6 +145,7 @@ def extract_defines(flags):
                 | DC_STR
                 | DC_CONTACT_ID
                 | DC_GCL
+                | DC_SOCKET
                 | DC_CHAT
                 | DC_PROVIDER
                 | DC_KEY_GEN

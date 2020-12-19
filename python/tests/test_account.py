@@ -2109,7 +2109,7 @@ class TestOnlineAccount:
             assert len(ac1.direct_imap.get_all_messages()) == 0
 
     @pytest.mark.parametrize("mvbox_move", [False, True])
-    def test_add_all_recipients_as_contacts(self, acfactory, lp, mvbox_move):
+    def test_fetch_existing(self, acfactory, lp, mvbox_move):
         """Delta Chat reads the recipients from old emails sent by the user and adds them as contacts.
         This way, we can already offer them some email addresses they can write to.
 
@@ -2145,6 +2145,53 @@ class TestOnlineAccount:
 
         msg = ac1_clone._evtracker.wait_next_messages_changed()
         assert msg.text == "message text"
+
+    def test_fetch_existing_msgs_group_and_single(self, acfactory, lp):
+        """There was a bug concerning fetch-existing-msgs:
+
+        A sent a message to you, adding you to a group. This created a contact request.
+        You wrote a message to A, creating a chat.
+        ...but the group stayed blocked.
+        So, after fetch-existing-msgs you have one contact request and one chat with the same person.
+
+        See https://github.com/deltachat/deltachat-core-rust/issues/2097"""
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+
+        acfactory.wait_configure_and_start_io()
+
+        lp.sec("receive a message")
+        ac2.create_group_chat("group name", contacts=[ac1]).send_text("incoming, unencrypted group message")
+        ac1._evtracker.wait_next_messages_changed()
+
+        lp.sec("send out message with bcc to ourselves")
+        ac1.direct_imap.idle_start()
+        ac1.set_config("bcc_self", "1")
+        ac1.create_chat(ac2).send_text("outgoing, encrypted direct message, creating a chat")
+
+        # now wait until the bcc_self message arrives
+        assert ac1.direct_imap.idle_wait_for_seen()
+
+        lp.sec("Clone online account and let it fetch the existing messages")
+        ac1_clone = acfactory.clone_online_account(ac1)
+        ac1_clone.set_config("fetch_existing_msgs", "1")
+        ac1_clone._configtracker.wait_finish()
+
+        ac1_clone.start_io()
+        ac1_clone._evtracker.wait_all_initial_fetches()
+        chats = ac1_clone.get_chats()
+        assert len(chats) == 4  # two newly created chats + self-chat + device-chat
+        group_chat = [c for c in chats if c.get_name() == "group name"][0]
+        assert group_chat.is_group()
+        private_chat = [c for c in chats if c.get_name() == "ac2"][0]
+        assert not private_chat.is_group()
+
+        group_messages = group_chat.get_messages()
+        assert len(group_messages) == 1
+        assert group_messages[0].text == "incoming, unencrypted group message"
+        private_messages = private_chat.get_messages()
+        # We can't decrypt the message in this chat, so the chat is empty:
+        assert len(private_messages) == 0
 
 
 class TestGroupStressTests:
