@@ -970,6 +970,30 @@ class TestOnlineAccount:
         except queue.Empty:
             pass  # mark_seen_messages() has generated events before it returns
 
+    @pytest.mark.parametrize("mvbox_move", [True, False])
+    def test_markseen_message_and_mdn(self, acfactory, mvbox_move):
+        # Please only change this test if you are very sure that it will still catch the issues it catches now.
+        # We had so many problems with markseen, if in doubt, rather create another test, it can't harm.
+        ac1 = acfactory.get_online_configuring_account(move=mvbox_move, mvbox=mvbox_move)
+        ac2 = acfactory.get_online_configuring_account(move=mvbox_move, mvbox=mvbox_move)
+        acfactory.wait_configure_and_start_io()
+
+        acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
+        msg = ac2._evtracker.wait_next_incoming_message()
+
+        folder = "mvbox" if mvbox_move else "inbox"
+        ac1.direct_imap.select_config_folder(folder)
+        ac2.direct_imap.select_config_folder(folder)
+        ac1.direct_imap.idle_start()
+        ac2.direct_imap.idle_start()
+
+        ac2.mark_seen_messages([msg])
+
+        ac1.direct_imap.idle_wait_for_seen()  # Check that the mdn is marked as seen
+        ac2.direct_imap.idle_wait_for_seen()  # Check that the original message is marked as seen
+        ac1.direct_imap.idle_done()
+        ac2.direct_imap.idle_done()
+
     def test_reply_privately(self, acfactory):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
