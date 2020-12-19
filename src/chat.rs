@@ -7,11 +7,7 @@ use std::time::{Duration, SystemTime};
 use anyhow::Context as _;
 use anyhow::{bail, ensure, format_err, Error};
 use async_std::path::{Path, PathBuf};
-<<<<<<< HEAD
-use deltachat_derive::{FromSql, ToSql};
-=======
 use async_std::prelude::*;
->>>>>>> 6b13bf1c (finish query_map migration)
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -74,8 +70,6 @@ pub enum ChatItem {
     Eq,
     FromPrimitive,
     ToPrimitive,
-    FromSql,
-    ToSql,
     IntoStaticStr,
     Serialize,
     Deserialize,
@@ -723,31 +717,6 @@ impl std::fmt::Display for ChatId {
     }
 }
 
-/// Allow converting [ChatId] to an SQLite type.
-///
-/// This allows you to directly store [ChatId] into the database as
-/// well as query for a [ChatId].
-impl rusqlite::types::ToSql for ChatId {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let val = rusqlite::types::Value::Integer(self.0);
-        let out = rusqlite::types::ToSqlOutput::Owned(val);
-        Ok(out)
-    }
-}
-
-/// Allow converting an SQLite integer directly into [ChatId].
-impl rusqlite::types::FromSql for ChatId {
-    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
-        i64::column_result(value).and_then(|val| {
-            if 0 <= val && val <= std::u32::MAX as i64 {
-                Ok(ChatId::new(val))
-            } else {
-                Err(rusqlite::types::FromSqlError::OutOfRange(val))
-            }
-        })
-    }
-}
-
 /// An object representing a single chat in memory.
 /// Chat objects are created using eg. `Chat::load_from_db`
 /// and are not updated on database changes;
@@ -1237,21 +1206,6 @@ impl ChatVisibility {
             // fallback to to Normal for unknown values, may happen eg. on imports created by a newer version.
             _ => ChatVisibility::Normal,
         }
-    }
-}
-
-impl rusqlite::types::ToSql for ChatVisibility {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let visibility = self.to_i64();
-        let val = rusqlite::types::Value::Integer(visibility);
-        let out = rusqlite::types::ToSqlOutput::Owned(val);
-        Ok(out)
-    }
-}
-
-impl rusqlite::types::FromSql for ChatVisibility {
-    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
-        i64::column_result(value).map(ChatVisibility::from_i64)
     }
 }
 
@@ -1908,7 +1862,6 @@ pub async fn get_chat_msgs(
         }
     }
 
-
     let query = if chat_id.is_deaddrop() {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
             .unwrap_or_default();
@@ -2459,41 +2412,6 @@ pub enum MuteDuration {
     NotMuted,
     Forever,
     Until(SystemTime),
-}
-
-impl rusqlite::types::ToSql for MuteDuration {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let duration: i64 = match &self {
-            MuteDuration::NotMuted => 0,
-            MuteDuration::Forever => -1,
-            MuteDuration::Until(when) => {
-                let duration = when
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?;
-                i64::try_from(duration.as_secs())
-                    .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?
-            }
-        };
-        let val = rusqlite::types::Value::Integer(duration);
-        let out = rusqlite::types::ToSqlOutput::Owned(val);
-        Ok(out)
-    }
-}
-
-impl rusqlite::types::FromSql for MuteDuration {
-    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
-        // Negative values other than -1 should not be in the
-        // database.  If found they'll be NotMuted.
-        match i64::column_result(value)? {
-            0 => Ok(MuteDuration::NotMuted),
-            -1 => Ok(MuteDuration::Forever),
-            n if n > 0 => match SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(n as u64)) {
-                Some(t) => Ok(MuteDuration::Until(t)),
-                None => Err(rusqlite::types::FromSqlError::OutOfRange(n)),
-            },
-            _ => Ok(MuteDuration::NotMuted),
-        }
-    }
 }
 
 impl sqlx::Type<sqlx::Sqlite> for MuteDuration {

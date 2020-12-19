@@ -486,12 +486,6 @@ impl Peerstate {
     }
 }
 
-impl From<crate::key::FingerprintError> for rusqlite::Error {
-    fn from(_source: crate::key::FingerprintError) -> Self {
-        Self::InvalidColumnType(0, "Invalid fingerprint".into(), rusqlite::types::Type::Text)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

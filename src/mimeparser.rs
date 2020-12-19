@@ -4,7 +4,6 @@ use std::pin::Pin;
 
 use anyhow::{bail, Result};
 use charset::Charset;
-use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
@@ -103,9 +102,7 @@ pub(crate) enum MailinglistType {
     None,
 }
 
-#[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
-)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(i32)]
 pub enum SystemMessage {
     Unknown = 0,
