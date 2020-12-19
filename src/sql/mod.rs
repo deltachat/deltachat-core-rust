@@ -114,6 +114,21 @@ impl Sql {
         Ok(rows.rows_affected())
     }
 
+    pub async fn fetch<'e, 'q, E>(
+        &self,
+        query: E,
+    ) -> Result<impl Stream<Item = sqlx::Result<<Sqlite as sqlx::Database>::Row>> + 'e + Send>
+    where
+        'q: 'e,
+        E: 'q + Execute<'q, Sqlite>,
+    {
+        let lock = self.sql.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+
+        let rows = pool.fetch(query);
+        Ok(rows)
+    }
+
     pub async fn fetch_one<'e, 'q, E>(&self, query: E) -> Result<<Sqlite as sqlx::Database>::Row>
     where
         'q: 'e,
@@ -211,8 +226,9 @@ impl Sql {
         G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
         let sql = sql.as_ref();
-
-        let conn = self.get_conn().await?;
+        let lock = self.pool.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+        let conn = pool.get()?;
         let mut stmt = conn.prepare(sql)?;
         let res = stmt.query_map(&params, f)?;
         g(res)
@@ -227,16 +243,6 @@ impl Sql {
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         f(pool)
-    }
-
-    pub async fn get_conn(
-        &self,
-    ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
-        let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-        let conn = pool.get()?;
-
-        Ok(conn)
     }
 
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {

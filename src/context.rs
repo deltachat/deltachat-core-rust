@@ -12,6 +12,8 @@ use async_std::{
     sync::{Arc, Mutex, RwLock},
     task,
 };
+use async_std::prelude::*;
+use sqlx::Row;
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
@@ -413,6 +415,7 @@ impl Context {
         Ok(res)
     }
 
+
     /// Get a list of fresh, unmuted messages in any chat but deaddrop.
     ///
     /// The list starts with the most recent message
@@ -420,10 +423,12 @@ impl Context {
     /// Moreover, the number of returned messages
     /// can be used for a badge counter on the app icon.
     pub async fn get_fresh_msgs(&self) -> Result<Vec<MsgId>> {
-        let ret = self
+        let show_deaddrop: i32 = 0;
+
+        let list = self
             .sql
-            .query_map(
-                concat!(
+            .fetch(
+                sqlx::query(concat!(
                     "SELECT m.id",
                     " FROM msgs m",
                     " LEFT JOIN contacts ct",
@@ -437,16 +442,8 @@ impl Context {
                     "   AND c.blocked=0",
                     "   AND NOT(c.muted_until=-1 OR c.muted_until>?)",
                     " ORDER BY m.timestamp DESC,m.id DESC;"
-                ),
-                paramsv![MessageState::InFresh, time()],
-                |row| row.get::<_, MsgId>(0),
-                |rows| {
-                    let mut ret = Vec::new();
-                    for row in rows {
-                        ret.push(row?);
-                    }
-                    Ok(ret)
-                },
+
+                ).bind(MessageState::InFresh).bind(time())
             )
             .await?;
         Ok(ret)
@@ -456,31 +453,19 @@ impl Context {
     ///
     /// If `chat_id` is provided this searches only for messages in this chat, if `chat_id`
     /// is `None` this searches messages from all chats.
-    pub async fn search_msgs(&self, chat_id: Option<ChatId>, query: impl AsRef<str>) -> Vec<MsgId> {
+    pub async fn search_msgs(&self, chat_id: Option<ChatId>, query: impl AsRef<str>) -> Result<Vec<MsgId>> {
         let real_query = query.as_ref().trim();
         if real_query.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let str_like_in_text = format!("%{}%", real_query);
         let str_like_beg = format!("{}%", real_query);
 
-        let do_query = |query, params| {
-            self.sql.query_map(
-                query,
-                params,
-                |row| row.get::<_, MsgId>("id"),
-                |rows| {
-                    let mut ret = Vec::new();
-                    for id in rows {
-                        ret.push(id?);
-                    }
-                    Ok(ret)
-                },
-            )
-        };
-
-        if let Some(chat_id) = chat_id {
-            do_query(
+        let list = if let Some(chat_id) = chat_id {
+            self
+                .sql
+                .fetch(
+                    sqlx::query(
                 "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
@@ -489,13 +474,21 @@ impl Context {
                    AND m.hidden=0
                    AND ct.blocked=0
                    AND (txt LIKE ? OR ct.name LIKE ?)
-                 ORDER BY m.timestamp,m.id;",
-                paramsv![chat_id, str_like_in_text, str_like_beg],
-            )
-            .await
-            .unwrap_or_default()
+                 ORDER BY m.timestamp,m.id;"
+                    )
+                        .bind(chat_id)
+                        .bind(str_like_in_text)
+                        .bind(str_like_beg),
+                )
+                .await?
+                .map(|row| row?.try_get("id"))
+                .collect::<sqlx::Result<_>>()
+                .await?
         } else {
-            do_query(
+            self
+                .sql
+                .fetch(
+                    sqlx::query(
                 "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
@@ -507,12 +500,15 @@ impl Context {
                    AND c.blocked=0
                    AND ct.blocked=0
                    AND (m.txt LIKE ? OR ct.name LIKE ?)
-                 ORDER BY m.timestamp DESC,m.id DESC;",
-                paramsv![str_like_in_text, str_like_beg],
+                 ORDER BY m.timestamp DESC,m.id DESC;"
+                    )
+                        .bind(str_like_in_text)
+                        .bind(str_like_beg)
             )
-            .await
-            .unwrap_or_default()
-        }
+            .await?
+        };
+
+        Ok(list)
     }
 
     pub async fn is_inbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {

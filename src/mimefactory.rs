@@ -2,6 +2,7 @@ use std::convert::TryInto;
 
 use anyhow::Context as _;
 use anyhow::{bail, ensure, format_err, Error};
+use async_std::prelude::*;
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 use sqlx::Row;
@@ -115,30 +116,26 @@ impl<'a> MimeFactory<'a> {
         if chat.is_self_talk() {
             recipients.push((from_displayname.to_string(), from_addr.to_string()));
         } else {
-            context
+            let mut rows = context
                 .sql
-                .query_map(
-                    "SELECT c.authname, c.addr  \
+                .fetch(
+                    sqlx::query(
+                        "SELECT c.authname, c.addr  \
                  FROM chats_contacts cc  \
                  LEFT JOIN contacts c ON cc.contact_id=c.id  \
                  WHERE cc.chat_id=? AND cc.contact_id>9;",
-                    paramsv![msg.chat_id],
-                    |row| {
-                        let authname: String = row.get(0)?;
-                        let addr: String = row.get(1)?;
-                        Ok((authname, addr))
-                    },
-                    |rows| {
-                        for row in rows {
-                            let (authname, addr) = row?;
-                            if !recipients_contain_addr(&recipients, &addr) {
-                                recipients.push((authname, addr));
-                            }
-                        }
-                        Ok(())
-                    },
+                    )
+                    .bind(msg.chat_id),
                 )
                 .await?;
+            while let Some(row) = rows.next().await {
+                let row = row?;
+                let authname: String = row.try_get(0)?;
+                let addr: String = row.try_get(1)?;
+                if !recipients_contain_addr(&recipients, &addr) {
+                    recipients.push((authname, addr));
+                }
+            }
 
             if !msg.is_system_message() && context.get_config_bool(Config::MdnsEnabled).await? {
                 req_mdn = true;
