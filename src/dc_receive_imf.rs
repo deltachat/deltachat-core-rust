@@ -5,6 +5,8 @@ use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
+use mailparse::SingleInfo;
+use sqlx::Row;
 
 use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
@@ -1145,8 +1147,9 @@ async fn calc_sort_timestamp(
         let last_msg_time: Option<i64> = context
             .sql
             .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
-                paramsv![chat_id, MessageState::InFresh],
+                sqlx::query("SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?")
+                    .bind(chat_id)
+                    .bind(MessageState::InFresh),
             )
             .await?;
 
@@ -1643,7 +1646,56 @@ async fn create_adhoc_group(
             context,
             "not creating ad-hoc group for mailing list message"
         );
+
         return Ok(None);
+    }
+
+    // if we're here, no grpid was found, check if there is an existing
+    // ad-hoc group matching the to-list or if we should and can create one
+    // (we do not want to heuristically look at the likely mangled Subject)
+
+    let mut member_ids: Vec<i64> = to_ids.iter().copied().collect();
+    if !member_ids.contains(&from_id) {
+        member_ids.push(from_id);
+    }
+    if !member_ids.contains(&DC_CONTACT_ID_SELF) {
+        member_ids.push(DC_CONTACT_ID_SELF);
+    }
+
+    if member_ids.len() < 3 {
+        info!(context, "not creating ad-hoc group: too few contacts");
+        return Ok((ChatId::new(0), Blocked::Not));
+    }
+
+    let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids).await?;
+    if !chat_ids.is_empty() {
+        let chat_ids_str = join(chat_ids.iter().map(|x| x.to_string()), ",");
+        let q = format!(
+            "SELECT c.id, c.blocked
+               FROM chats c
+               LEFT JOIN msgs m
+                      ON m.chat_id=c.id
+               WHERE c.id IN({})
+               ORDER BY m.timestamp DESC,
+                        m.id DESC
+               LIMIT 1;",
+            chat_ids_str
+        );
+        let row = context.sql.fetch_one(sqlx::query(&q)).await;
+
+        if let Ok(row) = row {
+            // success, chat found
+            return Ok((
+                row.try_get(0)?,
+                row.try_get::<Option<Blocked>, _>(1)?.unwrap_or_default(),
+            ));
+        }
+    }
+
+    if !allow_creation {
+        info!(context, "creating ad-hoc group prevented from caller");
+        return Ok((ChatId::new(0), Blocked::Not));
+>>>>>>> 77e8b1a1 (migrate query_row and query_row_optional)
     }
 
     if mime_parser.decrypting_failed {

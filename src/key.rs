@@ -9,6 +9,7 @@ use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
+use sqlx::Row;
 use thiserror::Error;
 
 use crate::config::Config;
@@ -120,24 +121,21 @@ impl DcKey for SignedPublicKey {
     async fn load_self(context: &Context) -> Result<Self::KeyType> {
         match context
             .sql
-            .query_row(
+            .fetch_optional(
                 r#"
             SELECT public_key
               FROM keypairs
              WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
                AND is_default=1;
             "#,
-                paramsv![],
-                |row| row.get::<_, Vec<u8>>(0),
             )
-            .await
+            .await?
         {
-            Ok(bytes) => Self::from_slice(&bytes),
-            Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+            Some(row) => Self::from_slice(row.try_get(0).map_err(crate::error::Error::from)?),
+            None => {
                 let keypair = generate_keypair(context).await?;
                 Ok(keypair.public)
             }
-            Err(err) => Err(err.into()),
         }
     }
 
@@ -165,24 +163,21 @@ impl DcKey for SignedSecretKey {
     async fn load_self(context: &Context) -> Result<Self::KeyType> {
         match context
             .sql
-            .query_row(
+            .fetch_optional(
                 r#"
             SELECT private_key
               FROM keypairs
              WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
                AND is_default=1;
             "#,
-                paramsv![],
-                |row| row.get::<_, Vec<u8>>(0),
             )
-            .await
+            .await?
         {
-            Ok(bytes) => Self::from_slice(&bytes),
-            Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+            Some(row) => Self::from_slice(row.try_get(0).map_err(crate::error::Error::from)?),
+            None => {
                 let keypair = generate_keypair(context).await?;
                 Ok(keypair.secret)
             }
-            Err(err) => Err(err.into()),
         }
     }
 
@@ -231,24 +226,29 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     // Check if the key appeared while we were waiting on the lock.
     match context
         .sql
-        .query_row(
-            r#"
+        .fetch_optional(
+            sqlx::query(
+                r#"
         SELECT public_key, private_key
           FROM keypairs
          WHERE addr=?1
            AND is_default=1;
         "#,
-            paramsv![addr],
-            |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, Vec<u8>>(1)?)),
+            )
+            .bind(addr.to_string()),
         )
-        .await
+        .await?
     {
-        Ok((pub_bytes, sec_bytes)) => Ok(KeyPair {
+        Some(row) => Ok(KeyPair {
             addr,
-            public: SignedPublicKey::from_slice(&pub_bytes)?,
-            secret: SignedSecretKey::from_slice(&sec_bytes)?,
+            public: SignedPublicKey::from_slice(
+                row.try_get(0).map_err(crate::error::Error::from)?,
+            )?,
+            secret: SignedSecretKey::from_slice(
+                row.try_get(1).map_err(crate::error::Error::from)?,
+            )?,
         }),
-        Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+        None => {
             let start = std::time::SystemTime::now();
             let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
                 .unwrap_or_default();
@@ -264,7 +264,6 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             );
             Ok(keypair)
         }
-        Err(err) => Err(err.into()),
     }
 }
 
@@ -628,9 +627,8 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 
         let nrows = || async {
             ctx.sql
-                .query_get_value::<u32>("SELECT COUNT(*) FROM keypairs;", paramsv![])
+                .count("SELECT COUNT(*) FROM keypairs;")
                 .await
-                .unwrap()
                 .unwrap()
         };
         assert_eq!(nrows().await, 0);

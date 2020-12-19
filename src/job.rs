@@ -11,6 +11,7 @@ use async_std::task::sleep;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
+use sqlx::Row;
 
 use crate::dc_tools::{dc_delete_file, dc_read_file, time};
 use crate::ephemeral::load_imap_deletion_msgid;
@@ -154,7 +155,7 @@ impl From<Action> for Thread {
 
 #[derive(Debug, Clone)]
 pub struct Job {
-    pub job_id: u32,
+    pub job_id: i64,
     pub action: Action,
     pub foreign_id: i64,
     pub desired_timestamp: i64,
@@ -243,7 +244,7 @@ impl Job {
         context: &Context,
         recipients: Vec<async_smtp::EmailAddress>,
         message: Vec<u8>,
-        job_id: u32,
+        job_id: i64,
         smtp: &mut Smtp,
         success_cb: F,
     ) -> Status
@@ -880,7 +881,7 @@ async fn set_delivered(context: &Context, msg_id: MsgId) -> Result<()> {
     message::update_msg_state(context, msg_id, MessageState::OutDelivered).await;
     let chat_id: ChatId = context
         .sql
-        .query_get_value("SELECT chat_id FROM msgs WHERE id=?", paramsv![msg_id])
+        .query_get_value(sqlx::query("SELECT chat_id FROM msgs WHERE id=?").bind(msg_id))
         .await?
         .unwrap_or_default();
     context.emit_event(EventType::MsgDelivered { chat_id, msg_id });
@@ -1314,62 +1315,76 @@ pub(crate) async fn load_next(
     let query;
     let params;
     let t = time();
-    let m;
     let thread_i = thread as i64;
 
-    if let Some(msg_id) = info.msg_id {
-        query = r#"
+    let get_query = || {
+        if let Some(msg_id) = info.msg_id {
+            sqlx::query(
+                r#"
 SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
 FROM jobs
 WHERE thread=? AND foreign_id=?
 ORDER BY action DESC, added_timestamp
 LIMIT 1;
-"#;
-        m = msg_id;
-        params = paramsv![thread_i, m];
-    } else if !info.probe_network {
-        // processing for first-try and after backoff-timeouts:
-        // process jobs in the order they were added.
-        query = r#"
+"#,
+            )
+            .bind(thread_i)
+            .bind(msg_id)
+        } else if !info.probe_network {
+            // processing for first-try and after backoff-timeouts:
+            // process jobs in the order they were added.
+            sqlx::query(
+                r#"
 SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
 FROM jobs
 WHERE thread=? AND desired_timestamp<=?
 ORDER BY action DESC, added_timestamp
 LIMIT 1;
-"#;
-        params = paramsv![thread_i, t];
-    } else {
-        // processing after call to dc_maybe_network():
-        // process _all_ pending jobs that failed before
-        // in the order of their backoff-times.
-        query = r#"
+"#,
+            )
+            .bind(thread_i)
+            .bind(t)
+        } else {
+            // processing after call to dc_maybe_network():
+            // process _all_ pending jobs that failed before
+            // in the order of their backoff-times.
+            sqlx::query(
+                r#"
 SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
 FROM jobs
 WHERE thread=? AND tries>0
 ORDER BY desired_timestamp, action DESC
 LIMIT 1;
-"#;
-        params = paramsv![thread_i];
+"#,
+            )
+            .bind(thread_i)
+        }
     };
 
     let job = loop {
         let job_res = context
             .sql
-            .query_row_optional(query, params.clone(), |row| {
-                let job = Job {
-                    job_id: row.get("id")?,
-                    action: row.get("action")?,
-                    foreign_id: row.get("foreign_id")?,
-                    desired_timestamp: row.get("desired_timestamp")?,
-                    added_timestamp: row.get("added_timestamp")?,
-                    tries: row.get("tries")?,
-                    param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
-                    pending_error: None,
-                };
-
-                Ok(job)
-            })
-            .await;
+            .fetch_optional(get_query())
+            .await
+            .and_then(|row| {
+                if let Some(row) = row {
+                    Ok(Some(Job {
+                        job_id: row.try_get("id")?,
+                        action: row.try_get("action")?,
+                        foreign_id: row.try_get("foreign_id")?,
+                        desired_timestamp: row.try_get("desired_timestamp")?,
+                        added_timestamp: row.try_get("added_timestamp")?,
+                        tries: row.try_get::<i64, _>("tries")? as u32,
+                        param: row
+                            .try_get::<String, _>("param")?
+                            .parse()
+                            .unwrap_or_default(),
+                        pending_error: None,
+                    }))
+                } else {
+                    Ok(None)
+                }
+            });
 
         match job_res {
             Ok(job) => break job,
@@ -1380,8 +1395,9 @@ LIMIT 1;
                 // TODO: improve by only doing a single query
                 match context
                     .sql
-                    .query_row(query, params.clone(), |row| row.get::<_, i32>(0))
+                    .fetch_one(get_query())
                     .await
+                    .and_then(|row| row.try_get::<i32, _>(0).map_err(Into::into))
                 {
                     Ok(id) => {
                         context

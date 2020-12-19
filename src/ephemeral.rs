@@ -64,6 +64,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::{ensure, Error};
 use async_std::task;
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 
 use crate::chat::{lookup_by_contact_id, send_msg, ChatId};
 use crate::constants::{
@@ -75,6 +76,7 @@ use crate::events::EventType;
 use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::sql;
+use crate::stock::StockMessage;
 use crate::stock_str;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
@@ -189,8 +191,7 @@ impl ChatId {
         let timer = context
             .sql
             .query_get_value(
-                "SELECT ephemeral_timer FROM chats WHERE id=?;",
-                paramsv![self],
+                sqlx::query("SELECT ephemeral_timer FROM chats WHERE id=?;").bind(self),
             )
             .await?;
         Ok(timer.unwrap_or_default())
@@ -306,14 +307,15 @@ impl MsgId {
     pub(crate) async fn ephemeral_timer(self, context: &Context) -> crate::sql::Result<Timer> {
         let res = match context
             .sql
-            .query_get_value(
-                "SELECT ephemeral_timer FROM msgs WHERE id=?",
-                paramsv![self],
+            .query_get_value::<_, i64>(
+                sqlx::query("SELECT ephemeral_timer FROM msgs WHERE id=?").bind(self),
             )
             .await?
         {
             None | Some(0) => Timer::Disabled,
-            Some(duration) => Timer::Enabled { duration },
+            Some(duration) => Timer::Enabled {
+                duration: u32::try_from(duration).unwrap(),
+            },
         };
         Ok(res)
     }
@@ -422,13 +424,15 @@ pub async fn schedule_ephemeral_task(context: &Context) {
     let ephemeral_timestamp: Option<i64> = match context
         .sql
         .query_get_value(
-            "SELECT ephemeral_timestamp \
+            sqlx::query(
+                "SELECT ephemeral_timestamp \
          FROM msgs \
          WHERE ephemeral_timestamp != 0 \
            AND chat_id != ? \
          ORDER BY ephemeral_timestamp ASC \
          LIMIT 1",
-            paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
+            )
+            .bind(DC_CHAT_ID_TRASH), // Trash contains already deleted messages, skip them
         )
         .await
     {
@@ -489,20 +493,29 @@ pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<O
         Some(delete_server_after) => now - delete_server_after,
     };
 
-    context
+    let row = context
         .sql
-        .query_row_optional(
-            "SELECT id FROM msgs \
+        .fetch_optional(
+            sqlx::query(
+                "SELECT id FROM msgs \
          WHERE ( \
          timestamp < ? \
          OR (ephemeral_timestamp != 0 AND ephemeral_timestamp <= ?) \
          ) \
          AND server_uid != 0 \
          LIMIT 1",
-            paramsv![threshold_timestamp, now],
-            |row| row.get::<_, MsgId>(0),
+            )
+            .bind(threshold_timestamp)
+            .bind(now),
         )
-        .await
+        .await?;
+
+    if let Some(row) = row {
+        let msg_id = row.try_get(0)?;
+        Ok(Some(msg_id))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Start ephemeral timers for seen messages if they are not started

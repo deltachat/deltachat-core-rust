@@ -11,6 +11,7 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 
 use crate::aheader::EncryptPreference;
 use crate::blob::{BlobError, BlobObject};
@@ -462,9 +463,10 @@ impl ChatId {
     async fn get_draft_msg_id(self, context: &Context) -> Result<Option<MsgId>, Error> {
         context
             .sql
-            .query_get_value::<MsgId>(
-                "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
-                paramsv![self, MessageState::OutDraft],
+            .query_get_value::<_, MsgId>(
+                sqlx::query("SELECT id FROM msgs WHERE chat_id=? AND state=?;")
+                    .bind(self)
+                    .bind(MessageState::OutDraft),
             )
             .await
             .map_err(Into::into)
@@ -542,9 +544,9 @@ impl ChatId {
     pub async fn get_msg_cnt(self, context: &Context) -> Result<usize, Error> {
         let count = context
             .sql
-            .query_get_value::<i32>("SELECT COUNT(*) FROM msgs WHERE chat_id=?;", paramsv![self])
+            .count(sqlx::query("SELECT COUNT(*) FROM msgs WHERE chat_id=?;").bind(self))
             .await?;
-        Ok(count.unwrap_or_default() as usize)
+        Ok(count as usize)
     }
 
     pub async fn get_fresh_msg_cnt(self, context: &Context) -> Result<usize, Error> {
@@ -560,22 +562,24 @@ impl ChatId {
         // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
         let count = context
             .sql
-            .query_get_value::<i32>(
-                "SELECT COUNT(*)
+            .count(
+                sqlx::query(
+                    "SELECT COUNT(*)
                 FROM msgs
                 WHERE state=10
                 AND hidden=0
                 AND chat_id=?;",
-                paramsv![self],
+                )
+                .bind(self),
             )
             .await?;
-        Ok(count.unwrap_or_default() as usize)
+        Ok(count as usize)
     }
 
     pub(crate) async fn get_param(self, context: &Context) -> Result<Params, Error> {
         let res: Option<String> = context
             .sql
-            .query_get_value("SELECT param FROM chats WHERE id=?", paramsv![self])
+            .query_get_value(sqlx::query("SELECT param FROM chats WHERE id=?").bind(self))
             .await?;
         Ok(res
             .map(|s| s.parse().unwrap_or_default())
@@ -592,65 +596,58 @@ impl ChatId {
         Ok(self.get_param(context).await?.exists(Param::Devicetalk))
     }
 
-    async fn parent_query<T, F>(
+    async fn parent_query(
         self,
         context: &Context,
         fields: &str,
-        f: F,
-    ) -> sql::Result<Option<T>>
-    where
-        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
-    {
-        let sql = &context.sql;
-        let query = format!(
+    ) -> sql::Result<Option<sqlx::sqlite::SqliteRow>> {
+        let q = format!(
             "SELECT {} \
              FROM msgs WHERE chat_id=? AND state NOT IN (?, ?, ?, ?) AND NOT hidden \
              ORDER BY timestamp DESC, id DESC \
              LIMIT 1;",
             fields
         );
-        sql.query_row_optional(
-            query,
-            paramsv![
-                self,
-                MessageState::OutPreparing,
-                MessageState::OutDraft,
-                MessageState::OutPending,
-                MessageState::OutFailed
-            ],
-            f,
-        )
-        .await
+        let query = sqlx::query(&q)
+            .bind(self)
+            .bind(MessageState::OutPreparing)
+            .bind(MessageState::OutDraft)
+            .bind(MessageState::OutPending)
+            .bind(MessageState::OutFailed);
+
+        let row = context.sql.fetch_optional(query).await?;
+        Ok(row)
     }
 
-    async fn get_parent_mime_headers(self, context: &Context) -> Option<(String, String, String)> {
-        let collect =
-            |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?));
-        let (rfc724_mid, mime_in_reply_to, mime_references, error): (
-            String,
-            String,
-            String,
-            String,
-        ) = self
+    async fn get_parent_mime_headers(
+        self,
+        context: &Context,
+    ) -> sql::Result<Option<(String, String, String)>> {
+        if let Some(row) = self
             .parent_query(
                 context,
                 "rfc724_mid, mime_in_reply_to, mime_references, error",
-                collect,
             )
-            .await
-            .ok()
-            .flatten()?;
+            .await?
+        {
+            let rfc724_mid: String = row.try_get(0)?;
+            let mime_in_reply_to: String = row.try_get(1)?;
+            let mime_references: String = row.try_get(2)?;
+            let error: String = row.try_get(3)?;
 
-        if !error.is_empty() {
-            // Do not reply to error messages.
-            //
-            // An error message could be a group chat message that we failed to decrypt and
-            // assigned to 1:1 chat. A reply to it will show up as a reply to group message
-            // on the other side. To avoid such situations, it is better not to reply to
-            // error messages at all.
-            None
+            if !error.is_empty() {
+                // Do not reply to error messages.
+                //
+                // An error message could be a group chat message that we failed to decrypt and
+                // assigned to 1:1 chat. A reply to it will show up as a reply to group message
+                // on the other side. To avoid such situations, it is better not to reply to
+                // error messages at all.
+                Ok(None)
+            } else {
+                Ok(Some((rfc724_mid, mime_in_reply_to, mime_references)))
+            }
         } else {
-            Some((rfc724_mid, mime_in_reply_to, mime_references))
+            Ok(None)
         }
     }
 
@@ -768,70 +765,64 @@ pub struct Chat {
 impl Chat {
     /// Loads chat from the database by its ID.
     pub async fn load_from_db(context: &Context, chat_id: ChatId) -> Result<Self, Error> {
-        let res = context
+        let row = context
             .sql
-            .query_row(
-                "SELECT c.type, c.name, c.grpid, c.param, c.archived,
+            .fetch_one(
+                sqlx::query(
+                    "SELECT c.type, c.name, c.grpid, c.param, c.archived,
                     c.blocked, c.locations_send_until, c.muted_until, c.protected
              FROM chats c
              WHERE c.id=?;",
-                paramsv![chat_id],
-                |row| {
-                    let c = Chat {
-                        id: chat_id,
-                        typ: row.get(0)?,
-                        name: row.get::<_, String>(1)?,
-                        grpid: row.get::<_, String>(2)?,
-                        param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-                        visibility: row.get(4)?,
-                        blocked: row.get::<_, Option<_>>(5)?.unwrap_or_default(),
-                        is_sending_locations: row.get(6)?,
-                        mute_duration: row.get(7)?,
-                        protected: row.get(8)?,
-                    };
-                    Ok(c)
-                },
+                )
+                .bind(chat_id),
             )
-            .await;
+            .await?;
 
-        match res {
-            Err(err @ crate::sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
-                Err(err.into())
-            }
-            Err(err) => {
-                error!(
-                    context,
-                    "chat: failed to load from db {}: {:?}", chat_id, err
-                );
-                Err(err.into())
-            }
-            Ok(mut chat) => {
-                if chat.id.is_deaddrop() {
-                    chat.name = stock_str::dead_drop(context).await;
-                } else if chat.id.is_archived_link() {
-                    let tempname = stock_str::archived_chats(context).await;
-                    let cnt = dc_get_archived_cnt(context).await?;
-                    chat.name = format!("{} ({})", tempname, cnt);
-                } else {
-                    if chat.typ == Chattype::Single {
-                        let contacts = get_chat_contacts(context, chat.id).await;
-                        let mut chat_name = "Err [Name not found]".to_owned();
-                        if let Some(contact_id) = contacts.first() {
-                            if let Ok(contact) = Contact::get_by_id(context, *contact_id).await {
-                                chat_name = contact.get_display_name().to_owned();
-                            }
-                        }
-                        chat.name = chat_name;
-                    }
-                    if chat.param.exists(Param::Selftalk) {
-                        chat.name = stock_str::saved_messages(context).await;
-                    } else if chat.param.exists(Param::Devicetalk) {
-                        chat.name = stock_str::device_messages(context).await;
+        let mut chat = Chat {
+            id: chat_id,
+            typ: row.try_get(0)?,
+            name: row.try_get::<String, _>(1)?,
+            grpid: row.try_get::<String, _>(2)?,
+            param: row.try_get::<String, _>(3)?.parse().unwrap_or_default(),
+            visibility: row.try_get(4)?,
+            blocked: row.try_get::<Option<_>, _>(5)?.unwrap_or_default(),
+            is_sending_locations: row.try_get(6)?,
+            mute_duration: row.try_get(7)?,
+            protected: row.try_get(8)?,
+        };
+
+        if chat.id.is_deaddrop() {
+            chat.name = stock_str::dead_drop(context).await;
+        } else if chat.id.is_archived_link() {
+            let tempname = stock_str::archived_chats(context).await;
+            let cnt = dc_get_archived_cnt(context).await?;
+            chat.name = format!("{} ({})", tempname, cnt);
+        } else {
+            if chat.typ == Chattype::Single {
+                let contacts = get_chat_contacts(context, chat.id).await;
+                let mut chat_name = "Err [Name not found]".to_owned();
+                if let Some(contact_id) = contacts.first() {
+                    if let Ok(contact) = Contact::get_by_id(context, *contact_id).await {
+                        chat_name = contact.get_display_name().to_owned();
                     }
                 }
-                Ok(chat)
+                chat.name = chat_name;
+            }
+            if chat.param.exists(Param::Selftalk) {
+                chat.name = stock_str::saved_messages(context).await;
+            } else if chat.param.exists(Param::Devicetalk) {
+                chat.name = stock_str::device_messages(context).await;
             }
         }
+        chat.name = chat_name;
+
+        if chat.param.exists(Param::Selftalk) {
+            chat.name = context.stock_str(StockMessage::SavedMessages).await.into();
+        } else if chat.param.exists(Param::Devicetalk) {
+            chat.name = context.stock_str(StockMessage::DeviceMessages).await.into();
+        }
+
+        Ok(chat)
     }
 
     pub fn is_self_talk(&self) -> bool {
@@ -1019,8 +1010,8 @@ impl Chat {
             if let Some(id) = context
                 .sql
                 .query_get_value(
-                    "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
-                    paramsv![self.id],
+                    sqlx::query("SELECT contact_id FROM chats_contacts WHERE chat_id=?;")
+                        .bind(self.id),
                 )
                 .await?
             {
@@ -1051,7 +1042,7 @@ impl Chat {
         // we do not set In-Reply-To/References in this case.
         if !self.is_self_talk() {
             if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
-                self.id.get_parent_mime_headers(context).await
+                self.id.get_parent_mime_headers(context).await?
             {
                 // "In-Reply-To:" is not changed if it is set manually.
                 // This does not affect "References:" header, it will contain "default parent" (the
@@ -1566,26 +1557,25 @@ pub(crate) async fn lookup_by_contact_id(
 ) -> Result<(ChatId, Blocked), Error> {
     ensure!(context.sql.is_open().await, "Database not available");
 
-    context
+    let row = context
         .sql
-        .query_row(
-            "SELECT c.id, c.blocked
+        .fetch_one(
+            sqlx::query(
+                "SELECT c.id, c.blocked
                FROM chats c
               INNER JOIN chats_contacts j
                       ON c.id=j.chat_id
               WHERE c.type=100
                 AND c.id>9
                 AND j.contact_id=?;",
-            paramsv![contact_id as i32],
-            |row| {
-                Ok((
-                    row.get::<_, ChatId>(0)?,
-                    row.get::<_, Option<_>>(1)?.unwrap_or_default(),
-                ))
-            },
+            )
+            .bind(contact_id),
         )
-        .await
-        .map_err(Into::into)
+        .await?;
+    Ok((
+        row.try_get::<ChatId, _>(0)?,
+        row.try_get::<Option<_>, _>(1)?.unwrap_or_default(),
+    ))
 }
 
 pub async fn get_by_contact_id(context: &Context, contact_id: i64) -> Result<ChatId, Error> {
@@ -2047,8 +2037,7 @@ pub(crate) async fn marknoticed_chat_if_older_than(
     if let Some(chat_timestamp) = context
         .sql
         .query_get_value(
-            "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
-            paramsv![chat_id],
+            sqlx::query("SELECT MAX(timestamp) FROM msgs WHERE chat_id=?").bind(chat_id),
         )
         .await?
     {
@@ -2439,9 +2428,8 @@ pub(crate) async fn reset_gossiped_timestamp(
 pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<i64, Error> {
     let timestamp = context
         .sql
-        .query_get_value::<i64>(
-            "SELECT gossiped_timestamp FROM chats WHERE id=?;",
-            paramsv![chat_id],
+        .query_get_value(
+            sqlx::query("SELECT gossiped_timestamp FROM chats WHERE id=?;").bind(chat_id),
         )
         .await?;
     Ok(timestamp.unwrap_or_default())
@@ -2950,12 +2938,9 @@ pub(crate) async fn get_chat_contact_cnt(
 ) -> Result<usize, Error> {
     let count = context
         .sql
-        .query_get_value::<isize>(
-            "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
-            paramsv![chat_id],
-        )
+        .count(sqlx::query("SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;").bind(chat_id))
         .await?;
-    Ok(count.unwrap_or_default() as usize)
+    Ok(count as usize)
 }
 
 pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize, Error> {
@@ -2963,12 +2948,9 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize, Error> {
         /* no database, no chats - this is no error (needed eg. for information) */
         let count = context
             .sql
-            .query_get_value::<isize>(
-                "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
-                paramsv![],
-            )
+            .count("SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;")
             .await?;
-        Ok(count.unwrap_or_default() as usize)
+        Ok(count as usize)
     } else {
         Ok(0)
     }
@@ -2979,22 +2961,22 @@ pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,
 ) -> Result<(ChatId, bool, Blocked), sql::Error> {
-    context
+    let row = context
         .sql
-        .query_row(
-            "SELECT id, blocked, protected FROM chats WHERE grpid=?;",
-            paramsv![grpid.as_ref()],
-            |row| {
-                let chat_id = row.get::<_, ChatId>(0)?;
-
-                let b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
-                let p = row
-                    .get::<_, Option<ProtectionStatus>>(2)?
-                    .unwrap_or_default();
-                Ok((chat_id, p == ProtectionStatus::Protected, b))
-            },
+        .fetch_one(
+            sqlx::query("SELECT id, blocked, protected FROM chats WHERE grpid=?;")
+                .bind(grpid.as_ref()),
         )
-        .await
+        .await?;
+
+    let chat_id = row.try_get(0)?;
+
+    let b = row.try_get::<Option<Blocked>, _>(1)?.unwrap_or_default();
+    let p = row
+        .try_get::<Option<ProtectionStatus>, _>(2)?
+        .unwrap_or_default();
+
+    Ok((chat_id, p == ProtectionStatus::Protected, b))
 }
 
 /// Adds a message to device chat.
@@ -3039,8 +3021,7 @@ pub async fn add_device_msg_with_importance(
         if let Some(last_msg_time) = context
             .sql
             .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
-                paramsv![chat_id],
+                sqlx::query("SELECT MAX(timestamp) FROM msgs WHERE chat_id=?").bind(chat_id),
             )
             .await?
         {
@@ -3100,19 +3081,12 @@ pub async fn add_device_msg(
 
 pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool, Error> {
     ensure!(!label.is_empty(), "empty label");
-    if let Ok(()) = context
+    let exists = context
         .sql
-        .query_row(
-            "SELECT label FROM devmsglabels WHERE label=?",
-            paramsv![label],
-            |_| Ok(()),
-        )
-        .await
-    {
-        return Ok(true);
-    }
+        .exists(sqlx::query("SELECT COUNT(label) FROM devmsglabels WHERE label=?").bind(label))
+        .await?;
 
-    Ok(false)
+    Ok(exists)
 }
 
 // needed on device-switches during export/import;

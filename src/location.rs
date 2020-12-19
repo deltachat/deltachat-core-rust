@@ -3,6 +3,7 @@
 use anyhow::{ensure, Error};
 use bitflags::bitflags;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
+use sqlx::Row;
 
 use crate::chat::{self, ChatId};
 use crate::config::Config;
@@ -427,16 +428,20 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, i64)
         .await?
         .unwrap_or_default();
 
-    let (locations_send_begin, locations_send_until, locations_last_sent) = context.sql.query_row(
-        "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;",
-        paramsv![chat_id], |row| {
-            let send_begin: i64 = row.get(0)?;
-            let send_until: i64 = row.get(1)?;
-            let last_sent: i64 = row.get(2)?;
+    let (locations_send_begin, locations_send_until, locations_last_sent) = {
+        let row = context.sql.fetch_one(
+            sqlx::query(
+                "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;"
+            )
+                .bind(chat_id)
+        ).await?;
 
-            Ok((send_begin, send_until, last_sent))
-        })
-        .await?;
+        let send_begin: i64 = row.try_get(0)?;
+        let send_until: i64 = row.try_get(1)?;
+        let last_sent: i64 = row.try_get(2)?;
+
+        (send_begin, send_until, last_sent)
+    };
 
     let now = time();
     let mut location_count = 0;
@@ -725,16 +730,16 @@ pub(crate) async fn job_maybe_send_locations_ended(
 
     let chat_id = ChatId::new(job.foreign_id);
 
-    let (send_begin, send_until) = job_try!(
-        context
-            .sql
-            .query_row(
+    let (send_begin, send_until) = job_try!(context
+        .sql
+        .fetch_one(
+            sqlx::query(
                 "SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?",
-                paramsv![chat_id],
-                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
             )
-            .await
-    );
+            .bind(chat_id)
+        )
+        .await
+        .and_then(|row| { Ok((row.try_get::<i64, _>(0)?, row.try_get::<i64, _>(1)?)) }));
 
     if !(send_begin != 0 && time() <= send_until) {
         // still streaming -

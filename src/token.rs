@@ -12,9 +12,6 @@ use crate::dc_tools::{dc_create_id, time};
 
 /// Token namespace
 #[derive(
-<<<<<<< HEAD
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
-=======
     Debug,
     Display,
     Clone,
@@ -26,7 +23,6 @@ use crate::dc_tools::{dc_create_id, time};
     ToSql,
     FromSql,
     sqlx::Type,
->>>>>>> 1af38e75 (compile again)
 )]
 #[repr(i32)]
 pub enum Namespace {
@@ -82,27 +78,29 @@ pub async fn lookup(
     namespace: Namespace,
     chat: Option<ChatId>,
 ) -> crate::sql::Result<Option<String>> {
-    match chat {
+    let token = match chat {
         Some(chat_id) => {
             context
                 .sql
-                .query_get_value::<String>(
-                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
-                    paramsv![namespace, chat_id],
+                .query_get_value(
+                    sqlx::query("SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;")
+                        .bind(namespace)
+                        .bind(foreign_id),
                 )
-                .await
+                .await?
         }
         // foreign_id is declared as `INTEGER DEFAULT 0` in the schema.
         None => {
             context
                 .sql
-                .query_get_value::<String>(
-                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=0;",
-                    paramsv![namespace],
+                .query_get_value(
+                    sqlx::query("SELECT token FROM tokens WHERE namespc=? AND foreign_id=0;")
+                        .bind(namespace),
                 )
-                .await
+                .await?
         }
-    }
+    };
+    Ok(token)
 }
 
 pub async fn lookup_or_new(
