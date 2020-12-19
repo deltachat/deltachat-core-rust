@@ -521,24 +521,29 @@ impl Imap {
         // Write collected UIDs to SQLite database.
         context
             .sql
-            .with_conn(move |mut conn| {
-                let conn2 = &mut conn;
-                let tx = conn2.transaction()?;
-                tx.execute(
-                    "UPDATE msgs SET server_uid=0 WHERE server_folder=?",
-                    params![folder],
-                )?;
-                for (uid, rfc724_mid) in &msg_ids {
-                    // This may detect previously undetected moved
-                    // messages, so we update server_folder too.
-                    tx.execute(
-                        "UPDATE msgs \
-                         SET server_folder=?,server_uid=? WHERE rfc724_mid=?",
-                        params![folder, uid, rfc724_mid],
-                    )?;
-                }
-                tx.commit()?;
-                Ok(())
+            .transaction(|conn| {
+                Box::pin(async move {
+                    sqlx::query("UPDATE msgs SET server_uid=0 WHERE server_folder=?")
+                        .bind(&folder)
+                        .execute(&mut *conn)
+                        .await?;
+
+                    for (uid, rfc724_mid) in &msg_ids {
+                        // This may detect previously undetected moved
+                        // messages, so we update server_folder too.
+                        sqlx::query(
+                            "UPDATE msgs \
+                             SET server_folder=?,server_uid=? WHERE rfc724_mid=?",
+                        )
+                        .bind(&folder)
+                        .bind(*uid as i64)
+                        .bind(rfc724_mid)
+                        .execute(&mut *conn)
+                        .await?;
+                    }
+
+                    Ok(())
+                })
             })
             .await?;
         Ok(())

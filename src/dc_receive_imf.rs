@@ -5,7 +5,6 @@ use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
-use mailparse::SingleInfo;
 use sqlx::Row;
 
 use crate::chat::{self, Chat, ChatId, ProtectionStatus};
@@ -876,8 +875,7 @@ async fn add_parts(
 
     let subject = mime_parser.get_subject().unwrap_or_default();
 
-    let mut parts = std::mem::replace(&mut mime_parser.parts, Vec::new());
-    let server_folder = server_folder.as_ref().to_string();
+    let server_folder = server_folder.as_ref();
     let is_system_message = mime_parser.is_system_message;
 
     // if indicated by the parser,
@@ -897,130 +895,112 @@ async fn add_parts(
         None
     };
 
-    let sent_timestamp = *sent_timestamp;
-    let is_hidden = *hidden;
-    let chat_id = *chat_id;
+    let mut ids = Vec::with_capacity(mime_parser.parts.len());
+    let stmt = "INSERT INTO msgs \
+                    (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
+                    timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
+                    bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error, ephemeral_timer, ephemeral_timestamp) \
+                    VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?);"
+            ;
 
-    // TODO: can this clone be avoided?
-    let rfc724_mid = rfc724_mid.to_string();
+    for part in &mut mime_parser.parts {
+        let mut txt_raw = "".to_string();
 
-    let (new_parts, ids, is_hidden) = context
-        .sql
-        .with_conn(move |mut conn| {
-            let mut ids = Vec::with_capacity(parts.len());
-            let mut is_hidden = is_hidden;
+        let is_location_kml =
+            location_kml_is && icnt == 1 && (part.msg == "-location-" || part.msg.is_empty());
 
-            for part in &mut parts {
-                let mut txt_raw = "".to_string();
-                let mut stmt = conn.prepare_cached(
-                    "INSERT INTO msgs \
-         (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
-         timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, subject, txt_raw, param, \
-         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, mime_modified, \
-         error, ephemeral_timer, ephemeral_timestamp) \
-         VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?);",
-                )?;
+        if is_mdn || is_location_kml {
+            *hidden = true;
+            if incoming {
+                // Set the state to InSeen so that precheck_imf() adds a markseen job after we moved the message
+                state = MessageState::InSeen;
+            }
+        }
 
-                let is_location_kml = location_kml_is
-                    && icnt == 1
-                    && (part.msg == "-location-" || part.msg.is_empty());
+        let mime_modified = save_mime_modified && !part.msg.is_empty();
+        if mime_modified {
+            // Avoid setting mime_modified for more than one part.
+            save_mime_modified = false;
+        }
 
-                if is_mdn || is_location_kml {
-                    is_hidden = true;
-                    if incoming {
-                        state = MessageState::InSeen; // Set the state to InSeen so that precheck_imf() adds a markseen job after we moved the message
-                    }
-                }
+        if part.typ == Viewtype::Text {
+            let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
+            txt_raw = format!("{}\n\n{}", subject, msg_raw);
+        }
+        if is_system_message != SystemMessage::Unknown {
+            part.param.set_int(Param::Cmd, is_system_message as i32);
+        }
 
-                let mime_modified = save_mime_modified && !part.msg.is_empty();
-                if mime_modified {
-                    // Avoid setting mime_modified for more than one part.
-                    save_mime_modified = false;
-                }
+        let ephemeral_timestamp = if in_fresh {
+            0
+        } else {
+            match ephemeral_timer {
+                EphemeralTimer::Disabled => 0,
+                EphemeralTimer::Enabled { duration } => rcvd_timestamp + i64::from(duration),
+            }
+        };
 
-                if part.typ == Viewtype::Text {
-                    let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
-                    txt_raw = format!("{}\n\n{}", subject, msg_raw);
-                }
-                if is_system_message != SystemMessage::Unknown {
-                    part.param.set_int(Param::Cmd, is_system_message as i32);
-                }
+        // If you change which information is skipped if the message is trashed,
+        // also change `MsgId::trash()` and `delete_expired_messages()`
+        let trash = chat_id.is_trash();
 
-                let ephemeral_timestamp = if in_fresh {
-                    0
-                } else {
-                    match ephemeral_timer {
-                        EphemeralTimer::Disabled => 0,
-                        EphemeralTimer::Enabled { duration } => {
-                            rcvd_timestamp + i64::from(duration)
-                        }
-                    }
-                };
-
-                // If you change which information is skipped if the message is trashed,
-                // also change `MsgId::trash()` and `delete_expired_messages()`
-                let trash = chat_id.is_trash();
-
-                stmt.execute(paramsv![
-                    rfc724_mid,
-                    server_folder,
-                    server_uid as i32,
-                    chat_id,
-                    if trash { 0 } else { from_id as i32 },
-                    if trash { 0 } else { to_id as i32 },
-                    sort_timestamp,
-                    sent_timestamp,
-                    rcvd_timestamp,
-                    part.typ,
-                    state,
-                    is_dc_message,
-                    if trash { "" } else { &part.msg },
-                    if trash { "" } else { &subject },
+        context
+            .sql
+            .execute(
+                sqlx::query(stmt)
+                    .bind(rfc724_mid)
+                    .bind(server_folder)
+                    .bind(server_uid as i32)
+                    .bind(*chat_id)
+                    .bind(from_id as i32)
+                    .bind(to_id as i32)
+                    .bind(sort_timestamp)
+                    .bind(*sent_timestamp)
+                    .bind(rcvd_timestamp)
+                    .bind(part.typ)
+                    .bind(state)
+                    .bind(is_dc_message)
+                    .bind(if trash { "" } else { &part.msg })
+                    .bind(if trash { "" } else { &subject })
                     // txt_raw might contain invalid utf8
-                    if trash { "" } else { &txt_raw },
-                    if trash {
+                    .bind(if trash { "" } else { &txt_raw })
+                    .bind(if trash {
                         "".to_string()
                     } else {
                         part.param.to_string()
-                    },
-                    part.bytes as isize,
-                    is_hidden,
-                    if (save_mime_headers || mime_modified) && !trash {
+                    })
+                    .bind(part.bytes as i64)
+                    .bind(*hidden)
+                    .bind(if (save_mime_headers || mime_modified) && !trash {
                         mime_headers.clone()
                     } else {
                         None
-                    },
-                    mime_in_reply_to,
-                    mime_references,
-                    mime_modified,
-                    part.error.take().unwrap_or_default(),
-                    ephemeral_timer,
-                    ephemeral_timestamp
-                ])?;
+                    })
+                    .bind(&mime_in_reply_to)
+                    .bind(&mime_references)
+                    .bind(part.error.take().unwrap_or_default())
+                    .bind(ephemeral_timer)
+                    .bind(ephemeral_timestamp),
+            )
+            .await?;
 
-                drop(stmt);
-                ids.push(MsgId::new(crate::sql::get_rowid(
-                    &mut conn,
-                    "msgs",
-                    "rfc724_mid",
-                    &rfc724_mid,
-                )?));
-            }
-            Ok((parts, ids, is_hidden))
-        })
-        .await?;
+        ids.push(MsgId::new(
+            context
+                .sql
+                .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
+                .await?,
+        ));
+    }
 
     if let Some(id) = ids.iter().last() {
         *insert_msg_id = *id;
     }
 
-    if !is_hidden {
+    if !*hidden {
         chat_id.unarchive(context).await?;
     }
 
-    *hidden = is_hidden;
-    created_db_entries.extend(ids.iter().map(|id| (chat_id, *id)));
-    mime_parser.parts = new_parts;
+    created_db_entries.extend(ids.iter().map(|id| (*chat_id, *id)));
 
     info!(
         context,
@@ -1029,7 +1009,7 @@ async fn add_parts(
 
     // new outgoing message from another device marks the chat as noticed.
     if !incoming && !*hidden && !chat_id.is_special() {
-        chat::marknoticed_chat_if_older_than(context, chat_id, sort_timestamp).await?;
+        chat::marknoticed_chat_if_older_than(context, *chat_id, sort_timestamp).await?;
     }
 
     // check event to send
@@ -1059,7 +1039,7 @@ async fn add_parts(
         Ok(())
     }
     if !is_mdn {
-        update_last_subject(context, chat_id, mime_parser)
+        update_last_subject(context, *chat_id, mime_parser)
             .await
             .unwrap_or_else(|e| {
                 warn!(
@@ -1695,7 +1675,6 @@ async fn create_adhoc_group(
     if !allow_creation {
         info!(context, "creating ad-hoc group prevented from caller");
         return Ok((ChatId::new(0), Blocked::Not));
->>>>>>> 77e8b1a1 (migrate query_row and query_row_optional)
     }
 
     if mime_parser.decrypting_failed {

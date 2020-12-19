@@ -1,3 +1,5 @@
+use async_std::prelude::*;
+
 use super::{Result, Sql};
 use crate::config::Config;
 use crate::constants::ShowEmails;
@@ -14,10 +16,10 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool)> {
     let mut dbversion_before_update: i32 = DBVERSION;
     if !sql.table_exists("config").await? {
         info!(context, "First time init: creating tables",);
-        sql.with_conn(move |mut conn| {
-            let tx = conn.transaction()?;
-            tx.execute_batch(
-                r#"
+        sql.transaction(|conn| {
+            Box::pin(async move {
+                sqlx::query(
+                    r#"
 CREATE TABLE config (id INTEGER PRIMARY KEY, keyname TEXT, value TEXT);
 CREATE INDEX config_index1 ON config (keyname);
 CREATE TABLE contacts (
@@ -200,9 +202,14 @@ CREATE TABLE devmsglabels (
 );
 CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
 "#,
-            )?;
-            tx.commit()?;
-            Ok(())
+                )
+                .execute_many(conn)
+                .await
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .await?;
+
+                Ok(())
+            })
         })
         .await?;
 
