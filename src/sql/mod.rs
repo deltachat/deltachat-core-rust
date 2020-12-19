@@ -221,18 +221,15 @@ impl Sql {
     }
 
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
-        let name = name.as_ref().to_string();
-        self.with_conn(move |conn| {
-            let mut exists = false;
-            conn.pragma(None, "table_info", &name, |_row| {
-                // will only be executed if the info was found
-                exists = true;
-                Ok(())
-            })?;
+        let q = format!("PRAGMA table_info(\"{}\")", name.as_ref());
 
-            Ok(exists)
-        })
-        .await
+        let lock = self.sql.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+
+        let mut rows = pool.fetch(sqlx::query(&q));
+        let first_row = rows.next().await;
+
+        Ok(first_row.is_some() && first_row.unwrap().is_ok())
     }
 
     /// Check if a column exists in a given table.
