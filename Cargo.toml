@@ -61,7 +61,7 @@ async-std-resolver = "0.19.5"
 async-tar = "0.3.0"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 rust-hsluv = "0.1.4"
-sqlx = { version = "0.4", features = ["runtime-async-std-native-tls", "sqlite"] }
+sqlx = { version = "0.4.2", features = ["runtime-async-std-native-tls", "sqlite"] }
 # keep in sync with sqlx 
 libsqlite3-sys = { version = "0.20.1", default-features = false, features = [ "pkg-config", "vcpkg", "bundled" ] }
 
