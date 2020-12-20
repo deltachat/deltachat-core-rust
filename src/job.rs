@@ -1370,11 +1370,13 @@ LIMIT 1;
                     .and_then(|row| row.try_get::<i32, _>(0).map_err(Into::into))
                 {
                     Ok(id) => {
-                        context
+                        if let Err(err) = context
                             .sql
                             .execute(sqlx::query("DELETE FROM jobs WHERE id=?;").bind(id))
                             .await
-                            .ok();
+                        {
+                            warn!(context, "failed to delete job {}: {:?}", id, err);
+                        }
                     }
                     Err(err) => {
                         error!(context, "failed to retrieve invalid job from DB: {}", err);
@@ -1416,7 +1418,7 @@ mod tests {
 
     use crate::test_utils::TestContext;
 
-    async fn insert_job(context: &Context, foreign_id: i64) {
+    async fn insert_job(context: &Context, foreign_id: i64, valid: bool) {
         let now = time();
         context
             .sql
@@ -1428,7 +1430,7 @@ mod tests {
                 )
                 .bind(now)
                 .bind(Thread::from(Action::MoveMsg))
-                .bind(Action::MoveMsg)
+                .bind(if valid { Action::MoveMsg as i32 } else { -1 })
                 .bind(foreign_id)
                 .bind(Params::new().to_string())
                 .bind(now),
@@ -1443,7 +1445,7 @@ mod tests {
         // fails to load from the database instead of failing to load
         // all jobs.
         let t = TestContext::new().await;
-        insert_job(&t, -1).await; // This can not be loaded into Job struct.
+        insert_job(&t, 1, false).await; // This can not be loaded into Job struct.
         let jobs = load_next(
             &t,
             Thread::from(Action::MoveMsg),
@@ -1453,7 +1455,7 @@ mod tests {
         // The housekeeping job should be loaded as we didn't run housekeeping in the last day:
         assert!(jobs.unwrap().action == Action::Housekeeping);
 
-        insert_job(&t, 1).await;
+        insert_job(&t, 1, true).await;
         let jobs = load_next(
             &t,
             Thread::from(Action::MoveMsg),
@@ -1467,7 +1469,7 @@ mod tests {
     async fn test_load_next_job_one() {
         let t = TestContext::new().await;
 
-        insert_job(&t, 1).await;
+        insert_job(&t, 1, true).await;
 
         let jobs = load_next(
             &t,

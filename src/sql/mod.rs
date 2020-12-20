@@ -387,7 +387,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
     pub async fn get_raw_config_int(&self, key: impl AsRef<str>) -> Result<Option<i32>> {
         self.get_raw_config(key)
             .await
-            .map(|s| dbg!(s).and_then(|s| s.parse().ok()))
+            .map(|s| s.and_then(|s| s.parse().ok()))
     }
 
     pub async fn get_raw_config_bool(&self, key: impl AsRef<str>) -> Result<bool> {

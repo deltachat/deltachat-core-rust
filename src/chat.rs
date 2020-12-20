@@ -2579,7 +2579,7 @@ pub(crate) async fn is_group_explicitly_left(
 ) -> Result<bool, Error> {
     let count = context
         .sql
-        .execute(sqlx::query("SELECT id FROM leftgrps WHERE grpid=?;").bind(grpid.as_ref()))
+        .count(sqlx::query("SELECT COUNT(*) FROM leftgrps WHERE grpid=?;").bind(grpid.as_ref()))
         .await?;
     Ok(count > 0)
 }
@@ -2820,7 +2820,7 @@ pub(crate) async fn get_chat_contact_cnt(
 
 pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize, Error> {
     if context.sql.is_open().await {
-        /* no database, no chats - this is no error (needed eg. for information) */
+        // no database, no chats - this is no error (needed eg. for information)
         let count = context
             .sql
             .count("SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;")
@@ -2836,20 +2836,21 @@ pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,
 ) -> Result<(ChatId, bool, Blocked), sql::Error> {
-    let row = context
+    let (chat_id, b, p) = context
         .sql
         .fetch_one(
             sqlx::query("SELECT id, blocked, protected FROM chats WHERE grpid=?;")
                 .bind(grpid.as_ref()),
         )
-        .await?;
-
-    let chat_id = row.try_get(0)?;
-
-    let b = row.try_get::<Option<Blocked>, _>(1)?.unwrap_or_default();
-    let p = row
-        .try_get::<Option<ProtectionStatus>, _>(2)?
-        .unwrap_or_default();
+        .await
+        .and_then(|row| {
+            Ok((
+                row.try_get(0)?,
+                row.try_get::<Option<Blocked>, _>(1)?.unwrap_or_default(),
+                row.try_get::<Option<ProtectionStatus>, _>(2)?
+                    .unwrap_or_default(),
+            ))
+        })?;
 
     Ok((chat_id, p == ProtectionStatus::Protected, b))
 }

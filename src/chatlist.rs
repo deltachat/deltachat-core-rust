@@ -243,6 +243,7 @@ impl Chatlist {
             } else {
                 ChatId::new(0)
             };
+
             let mut ids: Vec<_> = context.sql.fetch(sqlx::query(
                 "SELECT c.id, m.id
                  FROM chats c
@@ -260,10 +261,13 @@ impl Chatlist {
                  GROUP BY c.id
                  ORDER BY c.id=?4 DESC, c.archived=?5 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;"
             )
-              .bind(MessageState::OutDraft).bind(skip_id)
+              .bind(MessageState::OutDraft)
+              .bind(skip_id)
               .bind(ChatVisibility::Archived)
-              .bind(sort_id_up).bind(ChatVisibility::Pinned)
+              .bind(sort_id_up)
+              .bind(ChatVisibility::Pinned)
             ).await?.map(process_row).collect::<sqlx::Result<_>>().await?;
+
             if !flag_no_specials {
                 if let Some(last_deaddrop_fresh_msg_id) =
                     get_last_deaddrop_fresh_msg(context).await?
@@ -403,12 +407,12 @@ impl Chatlist {
 }
 
 /// Returns the number of archived chats
-pub async fn dc_get_archived_cnt(context: &Context) -> Result<i64> {
+pub async fn dc_get_archived_cnt(context: &Context) -> Result<usize> {
     let count = context
         .sql
-        .query_get_value("SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;")
+        .count("SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;")
         .await?;
-    Ok(count.unwrap_or_default())
+    Ok(count)
 }
 
 async fn get_last_deaddrop_fresh_msg(context: &Context) -> Result<Option<MsgId>> {

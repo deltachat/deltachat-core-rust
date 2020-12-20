@@ -86,6 +86,7 @@ impl TestContext {
 
     async fn new_named(name: Option<String>) -> Self {
         use rand::Rng;
+        pretty_env_logger::try_init().ok();
 
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
@@ -99,6 +100,7 @@ impl TestContext {
             .unwrap();
 
         let events = ctx.get_event_emitter();
+
         let event_sinks: Arc<RwLock<Vec<Box<EventSink>>>> = Arc::new(RwLock::new(Vec::new()));
         let sinks = Arc::clone(&event_sinks);
         let (poison_sender, poison_receiver) = channel::bounded(1);
@@ -115,6 +117,7 @@ impl TestContext {
 
             while let Some(event) = events.recv().await {
                 {
+                    log::debug!("{:?}", event);
                     let sinks = sinks.read().await;
                     for sink in sinks.iter() {
                         sink(event.clone()).await;
