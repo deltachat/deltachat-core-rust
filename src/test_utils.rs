@@ -129,7 +129,7 @@ impl TestContext {
                     SELECT id, foreign_id, param
                       FROM jobs
                      WHERE action=?
-                  ORDER BY desired_timestamp;
+                  ORDER BY desired_timestamp DESC;
                 "#,
                     paramsv![Action::SendMsgToSmtp],
                     |row| {
