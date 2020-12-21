@@ -394,7 +394,7 @@ impl MimeMessage {
 
                 if !subj.is_empty() {
                     for part in self.parts.iter_mut() {
-                        if part.typ == Viewtype::Text {
+                        if !part.msg.is_empty() {
                             part.msg = format!("{} – {}", subj, part.msg);
                             break;
                         }
@@ -1420,7 +1420,14 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-    use crate::test_utils::*;
+    use crate::{
+        chatlist::Chatlist,
+        config::Config,
+        constants::Blocked,
+        dc_receive_imf::dc_receive_imf,
+        message::{Message, MessageState, MessengerMessage},
+        test_utils::*,
+    };
     use mailparse::ParsedMail;
 
     impl AvatarAction {
@@ -2085,7 +2092,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::File);
-        assert_eq!(message.parts[0].msg, "Hello!");
+        assert_eq!(message.parts[0].msg, "Mail with inline attachment – Hello!");
     }
 
     #[async_std::test]
@@ -2180,7 +2187,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
-        assert_eq!(message.parts[0].msg, "Test");
+        assert_eq!(message.parts[0].msg, "example – Test");
     }
 
     #[async_std::test]
@@ -2252,7 +2259,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
-        assert_eq!(message.parts[0].msg, "Test");
+        assert_eq!(message.parts[0].msg, "Test subject – Test");
     }
 
     // Outlook specifies filename in the "name" attribute of Content-Type
@@ -2326,7 +2333,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
-        assert_eq!(message.parts[0].msg, "Test");
+        assert_eq!(message.parts[0].msg, "Delta Chat is great stuff! – Test");
     }
 
     #[test]
@@ -2519,5 +2526,40 @@ On 2020-10-25, Bob wrote:
         let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
         assert_eq!(mimeparser.parts[0].msg, "YIPPEEEEEE\n\nMulti-line");
         assert_eq!(mimeparser.parts[0].param.get(Param::Quote).unwrap(), "Now?");
+    }
+
+    #[async_std::test]
+    async fn test_add_subj_to_multimedia_msg() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+        dc_receive_imf(
+            &t.ctx,
+            include_bytes!("../test-data/message/subj_with_multimedia_msg.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+
+        assert_eq!(
+            msg.text.as_ref().unwrap(),
+            "subj with important info – body text"
+        );
+        assert_eq!(msg.viewtype, Viewtype::Image);
+        assert_eq!(msg.error(), None);
+        assert_eq!(msg.is_dc_message, MessengerMessage::No);
+        assert_eq!(msg.chat_blocked, Blocked::Deaddrop);
+        assert_eq!(msg.state, MessageState::InFresh);
+        assert_eq!(msg.get_filebytes(&t).await, 2115);
+        assert!(msg.get_file(&t).is_some());
+        assert_eq!(msg.get_filename().unwrap(), "avatar64x64.png");
+        assert_eq!(msg.get_width(), 64);
+        assert_eq!(msg.get_height(), 64);
+        assert_eq!(msg.get_filemime().unwrap(), "image/png");
     }
 }
