@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
-use crate::chat::{update_device_icon, update_saved_messages_icon};
 use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::*;
@@ -17,6 +16,10 @@ use crate::ephemeral::start_ephemeral_timers;
 use crate::error::format_err;
 use crate::param::*;
 use crate::peerstate::*;
+use crate::{
+    chat::{update_device_icon, update_saved_messages_icon},
+    config::Config,
+};
 
 #[macro_export]
 macro_rules! paramsv {
@@ -600,12 +603,7 @@ pub async fn housekeeping(context: &Context) {
     }
 
     if let Err(e) = context
-        .sql
-        .set_raw_config(
-            context,
-            crate::job::LAST_HOUSEKEEPING,
-            Some(&time().to_string()),
-        )
+        .set_config(Config::LastHousekeeping, Some(&time().to_string()))
         .await
     {
         warn!(context, "Can't set config: {}", e);

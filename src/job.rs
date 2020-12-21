@@ -37,7 +37,6 @@ use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
 const JOB_RETRIES: u32 = 17;
-pub(crate) const LAST_HOUSEKEEPING: &str = "last_housekeeping";
 
 /// Thread IDs
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
@@ -1217,12 +1216,8 @@ pub async fn add(context: &Context, job: Job) {
 }
 
 async fn load_housekeeping_job(context: &Context) -> Option<Job> {
-    let last_time_str = context
-        .sql
-        .get_raw_config(context, LAST_HOUSEKEEPING)
-        .await?;
+    let last_time = context.get_config_i64(Config::LastHousekeeping).await;
 
-    let last_time: i64 = last_time_str.parse().ok()?;
     let next_time = last_time + (60 * 60 * 24);
     if next_time <= time() {
         kill_action(context, Action::Housekeeping).await;
