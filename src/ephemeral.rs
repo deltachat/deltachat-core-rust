@@ -281,7 +281,7 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, E
              SET chat_id=?, txt='', txt_raw='', from_id=0, to_id=0, param='' \
              WHERE \
              ephemeral_timestamp != 0 \
-             AND ephemeral_timestamp < ? \
+             AND ephemeral_timestamp <= ? \
              AND chat_id != ?",
             paramsv![DC_CHAT_ID_TRASH, time(), DC_CHAT_ID_TRASH],
         )
@@ -417,7 +417,7 @@ pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<O
             "SELECT id FROM msgs \
          WHERE ( \
          timestamp < ? \
-         OR (ephemeral_timestamp != 0 AND ephemeral_timestamp < ?) \
+         OR (ephemeral_timestamp != 0 AND ephemeral_timestamp <= ?) \
          ) \
          AND server_uid != 0 \
          LIMIT 1",

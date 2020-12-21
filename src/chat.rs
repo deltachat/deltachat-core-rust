@@ -1040,7 +1040,7 @@ impl Chat {
         };
         let ephemeral_timestamp = match ephemeral_timer {
             EphemeralTimer::Disabled => 0,
-            EphemeralTimer::Enabled { duration } => timestamp + i64::from(duration),
+            EphemeralTimer::Enabled { duration } => time() + i64::from(duration),
         };
 
         // add message to the database
