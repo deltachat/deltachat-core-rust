@@ -459,9 +459,14 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> sql::Result<()>
 
 #[cfg(test)]
 mod tests {
+    use async_std::task::sleep;
+
     use super::*;
-    use crate::chat;
     use crate::test_utils::*;
+    use crate::{
+        chat::{self, Chat, ChatItem},
+        dc_tools::IsNoneOrEmpty,
+    };
 
     #[async_std::test]
     async fn test_stock_ephemeral_messages() {
@@ -587,5 +592,52 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_ephemeral_delete_msgs() {
+        let t = TestContext::new_alice().await;
+        let chat = t.get_self_chat().await;
+
+        t.send_text(chat.id, "Saved message, which we delete manually")
+            .await;
+        let msg = t.get_last_msg(chat.id).await;
+        msg.id.delete_from_db(&t).await.unwrap();
+        check_msg_was_deleted(&t, &chat, msg.id).await;
+
+        chat.id
+            .set_ephemeral_timer(&t, Timer::Enabled { duration: 1 })
+            .await
+            .unwrap();
+        let msg = t
+            .send_text(chat.id, "Saved message, disappearing after 1s")
+            .await;
+
+        sleep(Duration::from_millis(1100)).await;
+
+        check_msg_was_deleted(&t, &chat, msg.sender_msg_id).await;
+    }
+
+    async fn check_msg_was_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
+        let chat_items = chat::get_chat_msgs(&t, chat.id, 0, None).await;
+        // Check that the chat is empty except for possibly info messages:
+        for item in &chat_items {
+            if let ChatItem::Message { msg_id } = item {
+                let msg = Message::load_from_db(t, *msg_id).await.unwrap();
+                assert!(msg.is_info())
+            }
+        }
+
+        // Check that if there is a message left, the text and metadata are gone
+        if let Ok(msg) = Message::load_from_db(&t, msg_id).await {
+            assert_eq!(msg.from_id, 0);
+            assert_eq!(msg.to_id, 0);
+            assert!(msg.text.is_none_or_empty(), msg.text);
+            let rawtxt: Option<String> = t
+                .sql
+                .query_get_value(&t, "SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
+                .await;
+            assert!(rawtxt.is_none_or_empty(), rawtxt);
+        }
     }
 }
