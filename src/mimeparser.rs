@@ -767,7 +767,7 @@ impl MimeMessage {
 
                         if !simplified_txt.is_empty() || simplified_quote.is_some() {
                             let mut part = Part::default();
-                            part.dehtlm_failed = dehtml_failed;
+                            part.dehtml_failed = dehtml_failed;
                             part.typ = Viewtype::Text;
                             part.mimetype = Some(mime_type);
                             part.msg = simplified_txt;
@@ -1011,12 +1011,12 @@ impl MimeMessage {
     }
 
     async fn maybe_remove_bad_parts(&mut self) {
-        let good_parts = self.parts.iter().filter(|p| !p.dehtlm_failed).count();
+        let good_parts = self.parts.iter().filter(|p| !p.dehtml_failed).count();
         if good_parts == 0 {
             // We have no good part but show at least one bad part in order to show anything at all
             self.parts.truncate(1);
         } else if good_parts < self.parts.len() {
-            self.parts.retain(|p| !p.dehtlm_failed);
+            self.parts.retain(|p| !p.dehtml_failed);
         }
     }
 
@@ -1223,7 +1223,7 @@ pub struct Part {
     pub param: Params,
     org_filename: Option<String>,
     pub error: Option<String>,
-    dehtlm_failed: bool,
+    dehtml_failed: bool,
 }
 
 /// return mimetype and viewtype for a parsed mail
