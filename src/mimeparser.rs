@@ -225,7 +225,7 @@ impl MimeMessage {
             failure_report: None,
         };
         parser.parse_mime_recursive(context, &mail).await?;
-        parser.maybe_remove_bad_parts().await;
+        parser.maybe_remove_bad_parts();
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context)?;
 
@@ -1010,7 +1010,7 @@ impl MimeMessage {
         Ok(None)
     }
 
-    async fn maybe_remove_bad_parts(&mut self) {
+    fn maybe_remove_bad_parts(&mut self) {
         let good_parts = self.parts.iter().filter(|p| !p.dehtml_failed).count();
         if good_parts == 0 {
             // We have no good part but show at least one bad part in order to show anything at all
