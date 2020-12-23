@@ -1618,4 +1618,51 @@ mod tests {
             .await
             .unwrap();
     }
+
+    #[async_std::test]
+    async fn test_no_empty_lines_in_header() {
+        let t = TestContext::new().await;
+        t.configure_addr("dddddd@ttttttttt.de").await;
+        add_all_contacts(
+            &t,
+            "Nnnn <nnn@ttttttttt.de>, 
+            =?utf-8?q?=F0=9F=8C=B4ttttttt?= <ttttttt@rrrrrr.net>, 
+            dididididididi <t@iiiiiii.org>, Ttttttt <oooooooooo@abcd.de>, 
+            Mmmmm <mmmmm@rrrrrr.net>, Zzzzzz <rrrrrrrrrrrrr@ttttttttt.net>, 
+            Xyz <qqqqqqqqqq@rrrrrr.net>, <geug@ttttttttt.de>, qqqqqq <q@iiiiiii.org>, 
+            bbbb <bbbb@iiiiiii.org>, <fsfs@iiiiiii.org>, rqrqrqrqr <rqrqr@iiiiiii.org>,
+            
+            tttttttt <tttttttt@iiiiiii.org>, <tttttt@rrrrrr.net>",
+        )
+        .await;
+
+        let msg =
+            incoming_msg_to_reply_msg(include_bytes!("../test-data/message/to_empty_line.eml"), &t)
+                .await;
+
+        let mimefactory = MimeFactory::from_msg(&t, &msg, false).await.unwrap();
+        let recipients = mimefactory.recipients();
+        assert_eq!(recipients.len(), 14);
+
+        let rendered_msg = mimefactory.render().await.unwrap();
+        let msg = std::str::from_utf8(&rendered_msg.message).unwrap();
+        println!("ALL:{}END ALL", msg);
+        let header_end = msg.find("Hi").unwrap();
+        let headers = msg[0..header_end].trim();
+        println!("HEADERS:{}END HEADERS", headers);
+        assert!(!headers.lines().any(|l| l.trim().is_empty()));
+    }
+
+    async fn add_all_contacts(t: &TestContext, addr_book: &str) {
+        for name_addr in addr_book.split(',') {
+            let (name, addr) = sanitize_name_and_addr("", name_addr);
+            let name = normalize_name(name);
+            Contact::add_or_lookup(&t, &name, &addr, Origin::ManuallyCreated)
+                .await
+                .unwrap();
+            Contact::add_or_lookup(&t, &name, &addr, Origin::IncomingUnknownFrom)
+                .await
+                .unwrap(); // This is necessary to also upate the authname
+        }
+    }
 }
