@@ -1393,7 +1393,8 @@ mod tests {
             &InterruptInfo::new(false, None),
         )
         .await;
-        assert!(jobs.is_none());
+        // The housekeeping job should be loaded as we didn't run housekeeping in the last day:
+        assert!(jobs.unwrap().action == Action::Housekeeping);
 
         insert_job(&t, 1).await;
         let jobs = load_next(
