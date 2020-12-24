@@ -297,16 +297,16 @@ impl Oauth2 {
         )
         .await
         {
-            for provider in OAUTH2_PROVIDERS.iter() {
-                if let Some(pattern) = provider.mx_pattern {
-                    let re = Regex::new(pattern).unwrap();
+            let mut fqdn: String = String::from(domain.as_ref());
+            if !fqdn.ends_with('.') {
+                fqdn.push('.');
+            }
 
-                    let mut fqdn: String = String::from(domain.as_ref());
-                    if !fqdn.ends_with('.') {
-                        fqdn.push('.');
-                    }
+            if let Ok(res) = resolver.mx_lookup(fqdn).await {
+                for provider in OAUTH2_PROVIDERS.iter() {
+                    if let Some(pattern) = provider.mx_pattern {
+                        let re = Regex::new(pattern).unwrap();
 
-                    if let Ok(res) = resolver.mx_lookup(fqdn).await {
                         for rr in res.iter() {
                             if re.is_match(&rr.exchange().to_lowercase().to_utf8()) {
                                 return Some(provider.clone());
