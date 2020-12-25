@@ -250,6 +250,7 @@ impl TestContext {
     }
 
     /// You can use this to debug your test by printing a chat structure
+    // This code is mainly the same as `log_msglist` in `cmdline.rs`, so one day, we could merge them to a public function in the `deltachat` crate.
     #[allow(dead_code)]
     pub async fn print_chat(&self, chat: &Chat) {
         let msglist = chat::get_chat_msgs(&self, chat.get_id(), 0x1, None).await;
