@@ -19,8 +19,7 @@ if __name__ == "__main__":
     cmd = ["cargo", "build", "-p", "deltachat_ffi"]
 
     if target == 'release':
-        extra = " -C lto=on -C embed-bitcode=yes"
-        os.environ["RUSTFLAGS"] = os.environ.get("RUSTFLAGS", "") + extra
+        os.environ["CARGO_PROFILE_RELEASE_LTO"] = "on"
         cmd.append("--release")
 
     print("running:", " ".join(cmd))
