@@ -44,6 +44,8 @@ static P_AOL: Lazy<Provider> = Lazy::new(|| {
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/aol",
     server: vec![
+        Server { protocol: IMAP, socket: SSL, hostname: "imap.aol.com", port: 993, username_pattern: EMAIL },
+        Server { protocol: SMTP, socket: SSL, hostname: "smtp.aol.com", port: 465, username_pattern: EMAIL },
     ],
     config_defaults: None,
     strict_tls: true,
@@ -718,6 +720,8 @@ static P_T_ONLINE: Lazy<Provider> = Lazy::new(|| {
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/t-online",
     server: vec![
+        Server { protocol: IMAP, socket: SSL, hostname: "secureimap.t-online.de", port: 993, username_pattern: EMAIL },
+        Server { protocol: SMTP, socket: SSL, hostname: "securesmtp.t-online.de", port: 465, username_pattern: EMAIL },
     ],
     config_defaults: None,
     strict_tls: true,
