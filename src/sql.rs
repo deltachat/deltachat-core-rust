@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
-use crate::chat::{update_device_icon, update_saved_messages_icon};
 use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::*;
@@ -17,6 +16,10 @@ use crate::ephemeral::start_ephemeral_timers;
 use crate::error::format_err;
 use crate::param::*;
 use crate::peerstate::*;
+use crate::{
+    chat::{update_device_icon, update_saved_messages_icon},
+    config::Config,
+};
 
 #[macro_export]
 macro_rules! paramsv {
@@ -465,6 +468,10 @@ pub fn get_rowid2(
 }
 
 pub async fn housekeeping(context: &Context) {
+    if let Err(err) = crate::ephemeral::delete_expired_messages(context).await {
+        warn!(context, "Failed to delete expired messages: {}", err);
+    }
+
     let mut files_in_use = HashSet::new();
     let mut unreferenced_count = 0;
 
@@ -595,7 +602,13 @@ pub async fn housekeeping(context: &Context) {
         );
     }
 
-    info!(context, "Housekeeping done.",);
+    if let Err(e) = context
+        .set_config(Config::LastHousekeeping, Some(&time().to_string()))
+        .await
+    {
+        warn!(context, "Can't set config: {}", e);
+    }
+    info!(context, "Housekeeping done.");
 }
 
 #[allow(clippy::indexing_slicing)]

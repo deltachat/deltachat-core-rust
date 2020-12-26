@@ -136,6 +136,9 @@ pub enum Config {
 
     /// address to webrtc instance to use for videochats
     WebrtcInstance,
+
+    /// Timestamp of the last time housekeeping was run
+    LastHousekeeping,
 }
 
 impl Context {
@@ -169,6 +172,13 @@ impl Context {
     }
 
     pub async fn get_config_int(&self, key: Config) -> i32 {
+        self.get_config(key)
+            .await
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_default()
+    }
+
+    pub async fn get_config_i64(&self, key: Config) -> i64 {
         self.get_config(key)
             .await
             .and_then(|s| s.parse().ok())
