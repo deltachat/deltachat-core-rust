@@ -101,7 +101,7 @@ def process_data(data, file):
 
     config_defaults = process_config_defaults(data)
 
-    strict_tls = data.get("strict_tls", False)
+    strict_tls = data.get("strict_tls", True)
     strict_tls = "true" if strict_tls else "false"
 
     max_smtp_rcpt_to = data.get("max_smtp_rcpt_to", 0)
