@@ -116,6 +116,7 @@ pub enum Config {
     ConfiguredInboxFolder,
     ConfiguredMvboxFolder,
     ConfiguredSentboxFolder,
+    ConfiguredProvider,
     Configured,
 
     #[strum(serialize = "sys.version")]

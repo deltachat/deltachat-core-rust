@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
+use crate::provider::{get_provider_by_id, Provider};
 use crate::{context::Context, provider::Socket};
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, PartialEq, Eq)]
@@ -48,6 +49,7 @@ pub struct LoginParam {
     pub imap: ServerLoginParam,
     pub smtp: ServerLoginParam,
     pub server_flags: i32,
+    pub provider: Option<&'static Provider>,
 }
 
 impl LoginParam {
@@ -130,6 +132,12 @@ impl LoginParam {
             .await
             .unwrap_or_default();
 
+        let key = format!("{}provider", prefix);
+        let provider = sql
+            .get_raw_config(context, key)
+            .await
+            .and_then(|provider_id| get_provider_by_id(&provider_id));
+
         LoginParam {
             addr,
             imap: ServerLoginParam {
@@ -148,6 +156,7 @@ impl LoginParam {
                 security: send_security,
                 certificate_checks: smtp_certificate_checks,
             },
+            provider,
             server_flags,
         }
     }
@@ -215,6 +224,11 @@ impl LoginParam {
         let key = format!("{}server_flags", prefix);
         sql.set_raw_config_int(context, key, self.server_flags)
             .await?;
+
+        if let Some(provider) = self.provider {
+            let key = format!("{}provider", prefix);
+            sql.set_raw_config(context, key, Some(provider.id)).await?;
+        }
 
         Ok(())
     }

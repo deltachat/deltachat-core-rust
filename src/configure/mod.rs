@@ -85,7 +85,7 @@ impl Context {
         let success = configure(self, &mut param).await;
         self.set_config(Config::NotifyAboutWrongPw, None).await?;
 
-        if let Some(provider) = provider::get_provider_info(&param.addr) {
+        if let Some(provider) = param.provider {
             if let Some(config_defaults) = &provider.config_defaults {
                 for def in config_defaults.iter() {
                     if !self.config_exists(def.key).await {
@@ -205,9 +205,51 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     {
         // no advanced parameters entered by the user: query provider-database or do Autoconfig
 
-        if let Some(servers) = get_offline_autoconfig(ctx, &param.addr) {
-            param_autoconfig = Some(servers);
+        info!(
+            ctx,
+            "checking internal provider-info for offline autoconfig"
+        );
+
+        if let Some(provider) = provider::get_provider_info(&param_domain).await {
+            param.provider = Some(provider);
+            match provider.status {
+                provider::Status::OK | provider::Status::PREPARATION => {
+                    if provider.server.is_empty() {
+                        info!(ctx, "offline autoconfig found, but no servers defined");
+                        param_autoconfig = None;
+                    } else {
+                        info!(ctx, "offline autoconfig found");
+                        let servers = provider
+                            .server
+                            .iter()
+                            .map(|s| ServerParams {
+                                protocol: s.protocol,
+                                socket: s.socket,
+                                hostname: s.hostname.to_string(),
+                                port: s.port,
+                                username: match s.username_pattern {
+                                    UsernamePattern::EMAIL => param.addr.to_string(),
+                                    UsernamePattern::EMAILLOCALPART => {
+                                        if let Some(at) = param.addr.find('@') {
+                                            param.addr.split_at(at).0.to_string()
+                                        } else {
+                                            param.addr.to_string()
+                                        }
+                                    }
+                                },
+                            })
+                            .collect();
+
+                        param_autoconfig = Some(servers)
+                    }
+                }
+                provider::Status::BROKEN => {
+                    info!(ctx, "offline autoconfig found, provider is broken");
+                    param_autoconfig = None;
+                }
+            }
         } else {
+            info!(ctx, "no offline autoconfig found");
             param_autoconfig =
                 get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await;
         }
@@ -257,6 +299,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .filter(|params| params.protocol == Protocol::SMTP)
         .cloned()
         .collect();
+    let provider_strict_tls = param.provider.map_or(false, |provider| provider.strict_tls);
 
     let smtp_config_task = task::spawn(async move {
         let mut smtp_configured = false;
@@ -267,8 +310,15 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             smtp_param.port = smtp_server.port;
             smtp_param.security = smtp_server.socket;
 
-            match try_smtp_one_param(&context_smtp, &smtp_param, &smtp_addr, oauth2, &mut smtp)
-                .await
+            match try_smtp_one_param(
+                &context_smtp,
+                &smtp_param,
+                &smtp_addr,
+                oauth2,
+                provider_strict_tls,
+                &mut smtp,
+            )
+            .await
             {
                 Ok(_) => {
                     smtp_configured = true;
@@ -304,7 +354,16 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         param.imap.port = imap_server.port;
         param.imap.security = imap_server.socket;
 
-        match try_imap_one_param(ctx, &param.imap, &param.addr, oauth2, &mut imap).await {
+        match try_imap_one_param(
+            ctx,
+            &param.imap,
+            &param.addr,
+            oauth2,
+            provider_strict_tls,
+            &mut imap,
+        )
+        .await
+        {
             Ok(_) => {
                 imap_configured = true;
                 break;
@@ -446,59 +505,12 @@ async fn get_autoconfig(
     None
 }
 
-fn get_offline_autoconfig(context: &Context, addr: &str) -> Option<Vec<ServerParams>> {
-    info!(
-        context,
-        "checking internal provider-info for offline autoconfig"
-    );
-
-    if let Some(provider) = provider::get_provider_info(&addr) {
-        match provider.status {
-            provider::Status::OK | provider::Status::PREPARATION => {
-                if provider.server.is_empty() {
-                    info!(context, "offline autoconfig found, but no servers defined");
-                    None
-                } else {
-                    info!(context, "offline autoconfig found");
-                    let servers = provider
-                        .server
-                        .iter()
-                        .map(|s| ServerParams {
-                            protocol: s.protocol,
-                            socket: s.socket,
-                            hostname: s.hostname.to_string(),
-                            port: s.port,
-                            username: match s.username_pattern {
-                                UsernamePattern::EMAIL => addr.to_string(),
-                                UsernamePattern::EMAILLOCALPART => {
-                                    if let Some(at) = addr.find('@') {
-                                        addr.split_at(at).0.to_string()
-                                    } else {
-                                        addr.to_string()
-                                    }
-                                }
-                            },
-                        })
-                        .collect();
-                    Some(servers)
-                }
-            }
-            provider::Status::BROKEN => {
-                info!(context, "offline autoconfig found, provider is broken");
-                None
-            }
-        }
-    } else {
-        info!(context, "no offline autoconfig found");
-        None
-    }
-}
-
 async fn try_imap_one_param(
     context: &Context,
     param: &ServerLoginParam,
     addr: &str,
     oauth2: bool,
+    provider_strict_tls: bool,
     imap: &mut Imap,
 ) -> Result<(), ConfigurationError> {
     let inf = format!(
@@ -507,7 +519,10 @@ async fn try_imap_one_param(
     );
     info!(context, "Trying: {}", inf);
 
-    if let Err(err) = imap.connect(context, param, addr, oauth2).await {
+    if let Err(err) = imap
+        .connect(context, param, addr, oauth2, provider_strict_tls)
+        .await
+    {
         info!(context, "failure: {}", err);
         Err(ConfigurationError {
             config: inf,
@@ -524,6 +539,7 @@ async fn try_smtp_one_param(
     param: &ServerLoginParam,
     addr: &str,
     oauth2: bool,
+    provider_strict_tls: bool,
     smtp: &mut Smtp,
 ) -> Result<(), ConfigurationError> {
     let inf = format!(
@@ -532,7 +548,10 @@ async fn try_smtp_one_param(
     );
     info!(context, "Trying: {}", inf);
 
-    if let Err(err) = smtp.connect(context, param, addr, oauth2).await {
+    if let Err(err) = smtp
+        .connect(context, param, addr, oauth2, provider_strict_tls)
+        .await
+    {
         info!(context, "failure: {}", err);
         Err(ConfigurationError {
             config: inf,
@@ -601,7 +620,6 @@ pub enum Error {
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
-    use super::*;
     use crate::config::*;
     use crate::test_utils::*;
 
@@ -613,21 +631,5 @@ mod tests {
             .unwrap();
         t.set_config(Config::MailPw, Some("123456")).await.unwrap();
         assert!(t.configure().await.is_err());
-    }
-
-    #[async_std::test]
-    async fn test_get_offline_autoconfig() {
-        let context = TestContext::new().await.ctx;
-
-        let addr = "someone123@example.org";
-        assert!(get_offline_autoconfig(&context, addr).is_none());
-
-        let addr = "someone123@nauta.cu";
-        let found_params = get_offline_autoconfig(&context, addr).unwrap();
-        assert_eq!(found_params.len(), 2);
-        assert_eq!(found_params[0].protocol, Protocol::IMAP);
-        assert_eq!(found_params[0].hostname, "imap.nauta.cu".to_string());
-        assert_eq!(found_params[1].protocol, Protocol::SMTP);
-        assert_eq!(found_params[1].hostname, "smtp.nauta.cu".to_string());
     }
 }

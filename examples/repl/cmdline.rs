@@ -1055,7 +1055,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "providerinfo" => {
             ensure!(!arg1.is_empty(), "Argument <addr> missing.");
-            match provider::get_provider_info(arg1) {
+            match provider::get_provider_info(arg1).await {
                 Some(info) => {
                     println!("Information for provider belonging to {}:", arg1);
                     println!("status: {}", info.status as u32);

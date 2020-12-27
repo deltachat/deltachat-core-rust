@@ -16,6 +16,7 @@ use crate::ephemeral::start_ephemeral_timers;
 use crate::error::format_err;
 use crate::param::*;
 use crate::peerstate::*;
+use crate::provider::get_provider_by_domain;
 use crate::{
     chat::{update_device_icon, update_saved_messages_icon},
     config::Config,
@@ -1394,6 +1395,23 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             )
             .await?;
             sql.set_raw_config_int(context, "dbversion", 69).await?;
+        }
+        if dbversion < 70 {
+            info!(context, "[migration] v70");
+            if let Some(addr) = context.get_config(Config::ConfiguredAddr).await {
+                if let Ok(domain) = addr.parse::<EmailAddress>().map(|email| email.domain) {
+                    context
+                        .set_config(
+                            Config::ConfiguredProvider,
+                            get_provider_by_domain(&domain).map(|provider| provider.id),
+                        )
+                        .await?;
+                } else {
+                    warn!(context, "Can't parse configured address: {:?}", addr);
+                }
+            }
+
+            sql.set_raw_config_int(context, "dbversion", 70).await?;
         }
 
         // (2) updates that require high-level objects

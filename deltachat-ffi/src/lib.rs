@@ -3358,7 +3358,7 @@ pub unsafe extern "C" fn dc_provider_new_from_email(
         return ptr::null();
     }
     let addr = to_string_lossy(addr);
-    match provider::get_provider_info(addr.as_str()) {
+    match block_on(provider::get_provider_info(addr.as_str())) {
         Some(provider) => provider,
         None => ptr::null_mut(),
     }
