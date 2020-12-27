@@ -1390,6 +1390,24 @@ pub unsafe extern "C" fn dc_get_msg_info(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_original_mime_html(
+    context: *mut dc_context_t,
+    msg_id: u32,
+) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_original_mime_html()");
+        return "".strdup();
+    }
+    let ctx = &*context;
+
+    block_on(originalhtml::get_original_mime_html(
+        &ctx,
+        MsgId::new(msg_id),
+    ))
+    .strdup()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_mime_headers(
     context: *mut dc_context_t,
     msg_id: u32,
@@ -2859,6 +2877,16 @@ pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg_t) -> libc::c_i
     }
     let ffi_msg = &*msg;
     ffi_msg.message.is_setupmessage().into()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_mime_modified(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_is_mime_modified()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.is_mime_modified().into()
 }
 
 #[no_mangle]
