@@ -43,6 +43,7 @@ pub enum HeaderDef {
     SecureJoinInvitenumber,
     SecureJoinAuth,
     EphemeralTimer,
+    Received,
     _TestHeader,
 }
 

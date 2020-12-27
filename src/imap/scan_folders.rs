@@ -26,7 +26,7 @@ impl Imap {
                     || last_scan.elapsed().as_secs() < 2
                 // For the first day after installation, only debounce to 2s
                 {
-                    info!(context, "Not scanning, less than a minute elapsed");
+                    info!(context, "Not scanning, we recently already scanned");
                     return Ok(());
                 }
             }

@@ -9,6 +9,7 @@ import ssl
 import pathlib
 from imapclient import IMAPClient
 from imapclient.exceptions import IMAPClientError
+import imaplib
 import deltachat
 from deltachat import const
 
@@ -88,6 +89,12 @@ class DirectImap:
             self.conn.logout()
         except (OSError, IMAPClientError):
             print("Could not logout direct_imap conn")
+
+    def create_folder(self, foldername):
+        try:
+            self.conn.create_folder(foldername)
+        except imaplib.IMAP4.error as e:
+            print("Can't create", foldername, "probably it already exists:", str(e))
 
     def select_folder(self, foldername):
         assert not self._idling
@@ -239,3 +246,9 @@ class DirectImap:
             res = self.conn.idle_done()
             self._idling = False
             return res
+
+    def append(self, folder, msg):
+        if msg.startswith("\n"):
+            msg = msg[1:-1]
+        msg = '\n'.join([s.lstrip() for s in msg.splitlines()])
+        self.conn.append(folder, msg)

@@ -579,12 +579,13 @@ class Account(object):
             raise ValueError("account not configured, cannot start io")
         lib.dc_start_io(self._dc_context)
 
-    def configure(self):
+    def configure(self, reconfigure=False):
         """ Start configuration process and return a Configtracker instance
         on which you can block with wait_finish() to get a True/False success
         value for the configuration process.
         """
-        assert not self.is_configured()
+        if not reconfigure:
+            assert not self.is_configured()
         if not self.get_config("addr") or not self.get_config("mail_pw"):
             raise MissingCredentials("addr or mail_pwd not set in config")
         configtracker = ConfigureTracker(self)

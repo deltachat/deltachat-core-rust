@@ -359,11 +359,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
         def wait_configure_and_start_io(self):
             started_accounts = []
             for acc in self._accounts:
-                if hasattr(acc, "_configtracker"):
-                    acc._configtracker.wait_finish()
-                    acc._evtracker.consume_events()
-                    acc.get_device_chat().mark_noticed()
-                    del acc._configtracker
+                self.wait_configure(acc)
                 acc.set_config("bcc_self", "0")
                 if acc.is_configured() and not acc.is_started():
                     acc.start_io()
@@ -372,6 +368,13 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                     acc.get_config("displayname"), acc.get_config("addr")))
             for acc in started_accounts:
                 acc._evtracker.wait_all_initial_fetches()
+
+        def wait_configure(self, acc):
+            if hasattr(acc, "_configtracker"):
+                acc._configtracker.wait_finish()
+                acc._evtracker.consume_events()
+                acc.get_device_chat().mark_noticed()
+                del acc._configtracker
 
         def run_bot_process(self, module, ffi=True):
             fn = module.__file__

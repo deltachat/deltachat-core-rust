@@ -4,7 +4,6 @@ import os
 import sys
 import queue
 import time
-import imaplib
 from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.tracker import ImexTracker
@@ -1113,6 +1112,53 @@ class TestOnlineAccount:
         assert not device_chat.can_send()
         assert device_chat.get_draft() is None
 
+    def test_dont_show_emails_in_draft_folder(self, acfactory):
+        """Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them.
+        So: If there is no Received header AND it's not in the sentbox, then ignore the email."""
+        ac1 = acfactory.get_online_configuring_account()
+        ac1.set_config("show_emails", "2")
+
+        acfactory.wait_configure(ac1)
+        ac1.direct_imap.create_folder("Drafts")
+        ac1.direct_imap.create_folder("Sent")
+
+        acfactory.wait_configure_and_start_io()
+        t = time.time()
+        # Wait until each folder was selected once and we are IDLEing again:
+        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        ac1.stop_io()
+
+        ac1.direct_imap.append("Drafts", """
+            From: Bob <bob@example.org>
+            Subject: subj
+            To: alice@example.com
+            Message-ID: <aepiors@example.org>
+            Content-Type: text/plain; charset=utf-8
+
+            message in Drafts
+        """)
+        ac1.direct_imap.append("Sent", """
+            From: Bob <bob@example.org>
+            Subject: subj
+            To: alice@example.com
+            Message-ID: <hsabaeni@example.org>
+            Content-Type: text/plain; charset=utf-8
+
+            message in Sent
+        """)
+
+        # Scanning is debounced to 2s, so wait 2s to make sure DeltaChat scans after start_io() is called:
+        time.sleep(max(0, 2 - (time.time() - t)))
+        ac1.start_io()
+
+        msg = ac1._evtracker.wait_next_messages_changed()
+
+        # Wait until each folder was scanned, this is necessary for this test to test what it should test:
+        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+
+        assert msg.text == "subj – message in Sent"
+        assert len(msg.chat.get_messages()) == 1
+
     def test_prefer_encrypt(self, acfactory, lp):
         """Test quorum rule for encryption preference in 1:1 and group chat."""
         ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
@@ -2074,14 +2120,12 @@ class TestOnlineAccount:
         lp.sec("Testing variant " + variant)
         ac1 = acfactory.get_online_configuring_account(move=move)
         ac2 = acfactory.get_online_configuring_account()
-        ac1._configtracker.wait_finish()
-        ac1._evtracker.consume_events()
-        del ac1._configtracker
-        try:
-            ac1.direct_imap.conn.create_folder(folder)
-        except imaplib.IMAP4.error:
-            pass  # folder already exists
+
+        acfactory.wait_configure(ac1)
+        ac1.direct_imap.create_folder(folder)
+
         acfactory.wait_configure_and_start_io()
+        t = time.time()
         # Wait until each folder was selected once and we are IDLEing:
         ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
         ac1.stop_io()
@@ -2094,7 +2138,7 @@ class TestOnlineAccount:
         ac1.direct_imap.conn.move(["*"], folder)  # "*" means "biggest UID in mailbox"
 
         # Scanning is debounced to 2s, so wait 2s to make sure DeltaChat scans after start_io() is called:
-        time.sleep(2)
+        time.sleep(max(0, 2 - (time.time() - t)))
         lp.sec("Everything prepared, now see if DeltaChat finds the message (" + variant + ")")
         ac1.start_io()
         msg = ac1._evtracker.wait_next_incoming_message()
