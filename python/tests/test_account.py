@@ -2172,6 +2172,8 @@ class TestOnlineAccount:
             ac1.direct_imap.select_config_folder("mvbox")
         ac1.direct_imap.idle_start()
         ac1.set_config("bcc_self", "1")
+        # let DC forget the sentbox, otherwise the test would fail if there is a "Sent" folder on the server:
+        ac1.set_config("configured_sentbox_folder", None)
         chat.send_text("message text")
 
         # now wait until the bcc_self message arrives
