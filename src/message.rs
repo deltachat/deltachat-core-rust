@@ -2065,7 +2065,8 @@ mod tests {
                 include_bytes!("../test-data/message/AutocryptSetupMessage.eml")
             } else {
                 temp = format!(
-                    "{}\
+                    "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    {}\
                     Subject: foo\n\
                     Message-ID: <aehtri@example.com>\n\
                     {}\

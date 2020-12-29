@@ -1369,7 +1369,8 @@ mod tests {
         // 1.: Receive a mail from an MUA or Delta Chat
         assert_eq!(
             msg_to_subject_str(
-                b"From: Bob <bob@example.com>\n\
+                b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: Bob <bob@example.com>\n\
                 To: alice@example.com\n\
                 Subject: Antw: Chat: hello\n\
                 Message-ID: <2222@example.com>\n\
@@ -1383,7 +1384,8 @@ mod tests {
 
         assert_eq!(
             msg_to_subject_str(
-                b"From: Bob <bob@example.com>\n\
+                b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: Bob <bob@example.com>\n\
                 To: alice@example.com\n\
                 Subject: Infos: 42\n\
                 Message-ID: <2222@example.com>\n\
@@ -1398,7 +1400,8 @@ mod tests {
         // 2. Receive a message from Delta Chat when we did not send any messages before
         assert_eq!(
             msg_to_subject_str(
-                b"From: Charlie <charlie@example.com>\n\
+                b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: Charlie <charlie@example.com>\n\
                 To: alice@example.com\n\
                 Subject: Chat: hello\n\
                 Chat-Version: 1.0\n\
@@ -1424,7 +1427,8 @@ mod tests {
 
         // 4. Receive messages with unicode characters and make sure that we do not panic (we do not care about the result)
         msg_to_subject_str(
-            "From: Charlie <charlie@example.com>\n\
+            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+            From: Charlie <charlie@example.com>\n\
             To: alice@example.com\n\
             Subject: äääää\n\
             Chat-Version: 1.0\n\
@@ -1437,7 +1441,8 @@ mod tests {
         .await;
 
         msg_to_subject_str(
-            "From: Charlie <charlie@example.com>\n\
+            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+            From: Charlie <charlie@example.com>\n\
             To: alice@example.com\n\
             Subject: aäääää\n\
             Chat-Version: 1.0\n\
@@ -1453,7 +1458,8 @@ mod tests {
         let t = TestContext::new_alice().await;
         dc_receive_imf(
             &t,
-            b"From: alice@example.com\n\
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+            From: alice@example.com\n\
             To: Charlie <charlie@example.com>\n\
             Subject: Hello, Charlie\n\
             Chat-Version: 1.0\n\
@@ -1467,7 +1473,9 @@ mod tests {
         )
         .await
         .unwrap();
-        let new_msg = incoming_msg_to_reply_msg(b"From: charlie@example.com\n\
+        let new_msg = incoming_msg_to_reply_msg(
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: charlie@example.com\n\
                  To: alice@example.com\n\
                  Subject: message opened\n\
                  Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
@@ -1556,7 +1564,8 @@ mod tests {
         let context = &t;
 
         let msg = incoming_msg_to_reply_msg(
-            b"From: Charlie <charlie@example.com>\n\
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: Charlie <charlie@example.com>\n\
                 To: alice@example.com\n\
                 Subject: Chat: hello\n\
                 Chat-Version: 1.0\n\

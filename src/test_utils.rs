@@ -204,7 +204,11 @@ impl TestContext {
     pub async fn recv_msg(&self, msg: &SentMessage) {
         let mut idx = self.recv_idx.write().await;
         *idx += 1;
-        dc_receive_imf(&self.ctx, msg.payload().as_bytes(), "INBOX", *idx, false)
+        let received_msg =
+            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n"
+                .to_owned()
+                + &msg.payload();
+        dc_receive_imf(&self.ctx, received_msg.as_bytes(), "INBOX", *idx, false)
             .await
             .unwrap();
     }
