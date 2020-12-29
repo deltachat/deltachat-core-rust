@@ -1579,6 +1579,7 @@ async fn precheck_imf(
         }
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
+            info!(context, "Updating server uid");
             update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
             if let Ok(message_state) = msg_id.get_state(context).await {
                 if message_state == MessageState::InSeen || message_state.is_outgoing() {
@@ -1589,7 +1590,6 @@ async fn precheck_imf(
                     .await;
                 }
             }
-            info!(context, "Updating server_uid and adding markseen job");
         }
         Ok(true)
     } else {

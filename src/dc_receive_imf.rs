@@ -845,8 +845,8 @@ async fn add_parts(
 
                 if is_mdn || is_location_kml {
                     is_hidden = true;
-                    if state == MessageState::InFresh {
-                        state = MessageState::InNoticed;
+                    if incoming {
+                        state = MessageState::InSeen; // Set the state to InSeen so that precheck_imf() adds a markseen job after we moved the message
                     }
                 }
 

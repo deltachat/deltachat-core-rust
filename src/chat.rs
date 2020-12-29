@@ -1040,7 +1040,7 @@ impl Chat {
         };
         let ephemeral_timestamp = match ephemeral_timer {
             EphemeralTimer::Disabled => 0,
-            EphemeralTimer::Enabled { duration } => timestamp + i64::from(duration),
+            EphemeralTimer::Enabled { duration } => time() + i64::from(duration),
         };
 
         // add message to the database
@@ -1255,7 +1255,7 @@ pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<
     let chat_id = match lookup_by_contact_id(context, contact_id).await {
         Ok((chat_id, chat_blocked)) => {
             if chat_blocked != Blocked::Not {
-                // unblock chat (typically move it from the deaddrop to view
+                // unblock chat (typically move it from the deaddrop to view)
                 chat_id.unblock(context).await;
             }
             chat_id
