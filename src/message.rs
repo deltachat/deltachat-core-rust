@@ -264,6 +264,7 @@ pub struct Message {
     pub(crate) server_folder: Option<String>,
     pub(crate) server_uid: u32,
     pub(crate) is_dc_message: MessengerMessage,
+    pub(crate) mime_modified: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
     error: Option<String>,
@@ -305,6 +306,7 @@ impl Message {
                     "    m.state AS state,",
                     "    m.error AS error,",
                     "    m.msgrmsg AS msgrmsg,",
+                    "    m.mime_modified AS mime_modified,",
                     "    m.txt AS txt,",
                     "    m.param AS param,",
                     "    m.hidden AS hidden,",
@@ -335,6 +337,7 @@ impl Message {
                     let error: String = row.get("error")?;
                     msg.error = Some(error).filter(|error| !error.is_empty());
                     msg.is_dc_message = row.get("msgrmsg")?;
+                    msg.mime_modified = row.get("mime_modified")?;
 
                     let text;
                     if let rusqlite::types::ValueRef::Text(buf) = row.get_raw("txt") {
