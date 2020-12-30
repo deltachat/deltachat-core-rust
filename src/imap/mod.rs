@@ -1408,6 +1408,11 @@ impl Imap {
                     .set_config(Config::ConfiguredSentboxFolder, Some(sentbox_folder))
                     .await?;
             }
+            if let Some(ref spam_folder) = spam_folder {
+                context
+                    .set_config(Config::ConfiguredSpamFolder, Some(spam_folder))
+                    .await?;
+            }
             context
                 .sql
                 .set_raw_config_int(context, "folders_configured", DC_FOLDERS_CONFIGURED_VERSION)
