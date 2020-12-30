@@ -1620,6 +1620,61 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_no_empty_directly() {
+        let to_tuples = vec![
+            ("Nnnn", "nnn@ttttttttt.de"),
+            ("😀 ttttttt", "ttttttt@rrrrrr.net"),
+            ("dididididididi", "t@iiiiiii.org"),
+            ("Ttttttt", "oooooooooo@abcd.de"),
+            ("Mmmmm", "mmmmm@rrrrrr.net"),
+            ("Zzzzzz", "rrrrrrrrrrrrr@ttttttttt.net"),
+            ("Xyz", "qqqqqqqqqq@rrrrrr.net"),
+            ("", "geug@ttttttttt.de"),
+            ("qqqqqq", "q@iiiiiii.org"),
+            ("bbbb", "bbbb@iiiiiii.org"),
+            ("", "fsfs@iiiiiii.org"),
+            ("rqrqrqrqr", "rqrqr@iiiiiii.org"),
+            ("tttttttt", "tttttttt@iiiiiii.org"),
+            ("", "tttttt@rrrrrr.net"),
+        ];
+        let mut to = Vec::new();
+        for (name, addr) in to_tuples {
+            if name.is_empty() {
+                to.push(Address::new_mailbox(addr.to_string()));
+            } else {
+                to.push(Address::new_mailbox_with_name(
+                    name.to_string(),
+                    addr.to_string(),
+                ));
+            }
+        }
+
+        let builder = PartBuilder::new()
+            .header((
+                "Content-Type".to_string(),
+                "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
+            ))
+            .body("Hi")
+            .header(Header::new_with_value("To".into(), to).unwrap());
+
+        let built = builder.build();
+        println!("======= HEADERS BEFORE CALL TO AS_STRING: =======");
+        for h in built.headers.iter() {
+            println!("{}", h);
+        }
+        let msg = built.as_string(); // <-- I think that here the empty line is introduced
+
+        //println!("ALL:{}END ALL", msg);
+        let header_end = msg.find("Hi").unwrap();
+        let headers = msg[0..header_end].trim();
+        println!(
+            "======= HEADERS AFTER CALL TO AS_STRING: =======\n{}\n",
+            headers
+        );
+        assert!(!headers.lines().any(|l| l.trim().is_empty())); // <--  panics
+    }
+
+    #[async_std::test]
     async fn test_no_empty_lines_in_header() {
         let t = TestContext::new().await;
         t.configure_addr("dddddd@ttttttttt.de").await;
