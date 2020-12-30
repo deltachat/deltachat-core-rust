@@ -1619,8 +1619,8 @@ mod tests {
             .unwrap();
     }
 
-    #[async_std::test]
-    async fn test_no_empty_directly() {
+    #[test]
+    fn test_no_empty_directly() {
         let to_tuples = vec![
             ("Nnnn", "nnn@ttttttttt.de"),
             ("😀 ttttttt", "ttttttt@rrrrrr.net"),
@@ -1649,22 +1649,25 @@ mod tests {
             }
         }
 
-        let builder = PartBuilder::new()
-            .header((
+        let mut message = email::MimeMessage::new_blank_message();
+        message.headers.insert(
+            (
                 "Content-Type".to_string(),
                 "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
-            ))
-            .body("Hi")
-            .header(Header::new_with_value("To".into(), to).unwrap());
+            )
+                .into(),
+        );
+        message
+            .headers
+            .insert(Header::new_with_value("To".into(), to).unwrap());
+        message.body = "Hi".to_string();
 
-        let built = builder.build();
         println!("======= HEADERS BEFORE CALL TO AS_STRING: =======");
-        for h in built.headers.iter() {
+        for h in message.headers.iter() {
             println!("{}", h);
         }
-        let msg = built.as_string(); // <-- I think that here the empty line is introduced
+        let msg = message.as_string(); // <-- seems like here the empty line is introduced
 
-        //println!("ALL:{}END ALL", msg);
         let header_end = msg.find("Hi").unwrap();
         let headers = msg[0..header_end].trim();
         println!(
