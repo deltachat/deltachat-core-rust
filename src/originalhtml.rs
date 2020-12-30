@@ -7,7 +7,13 @@
 //! get_original_mime_html() will return HTML -
 //! this allows nice quoting, handling linebreaks properly etc.
 
+use std::future::Future;
+use std::pin::Pin;
+
+use lettre_email::mime::{self, Mime};
+
 use crate::context::Context;
+use crate::error::Result;
 use crate::message::{Message, MsgId};
 
 impl Message {
@@ -16,6 +22,135 @@ impl Message {
     }
 }
 
-pub async fn get_original_mime_html(_context: &Context, _msg_id: MsgId) -> String {
-    "<html><body><p>this is <strong>html</strong>.</p></body></html>".to_string()
+// HtmlMsgParser converts a mime-message to HTML.
+#[derive(Debug)]
+pub struct HtmlMsgParser {
+    pub html: String,
+    pub plain: Option<String>,
+}
+
+impl HtmlMsgParser {
+    pub async fn from_bytes(context: &Context, rawmime: &[u8]) -> Result<Self> {
+        let mut parser = HtmlMsgParser {
+            html: "".to_string(),
+            plain: None,
+        };
+
+        let parsedmail = mailparse::parse_mail(rawmime)?;
+
+        parser.parse_mime_recursive(context, &parsedmail).await?;
+
+        if parser.html.is_empty() {
+            if let Some(plain) = parser.plain.clone() {
+                parser.html = plain;
+            }
+        }
+
+        Ok(parser)
+    }
+
+    fn parse_mime_recursive<'a>(
+        &'a mut self,
+        context: &'a Context,
+        mail: &'a mailparse::ParsedMail<'a>,
+    ) -> Pin<Box<dyn Future<Output = Result<bool>> + 'a + Send>> {
+        use futures::future::FutureExt;
+
+        // Boxed future to deal with recursion
+        async move {
+            enum MimeS {
+                Multiple,
+                Single,
+                Message,
+            }
+
+            let mimetype = mail.ctype.mimetype.to_lowercase();
+
+            let m = if mimetype.starts_with("multipart") {
+                if mail.ctype.params.get("boundary").is_some() {
+                    MimeS::Multiple
+                } else {
+                    MimeS::Single
+                }
+            } else if mimetype.starts_with("message") {
+                if mimetype == "message/rfc822" {
+                    MimeS::Message
+                } else {
+                    MimeS::Single
+                }
+            } else {
+                MimeS::Single
+            };
+
+            match m {
+                MimeS::Multiple => self.handle_multiple(context, mail).await,
+                MimeS::Message => {
+                    let raw = mail.get_body_raw()?;
+                    if raw.is_empty() {
+                        return Ok(false);
+                    }
+                    let mail = mailparse::parse_mail(&raw).unwrap();
+
+                    self.parse_mime_recursive(context, &mail).await
+                }
+                MimeS::Single => self.add_single_part_if_known(context, mail).await,
+            }
+        }
+        .boxed()
+    }
+
+    async fn handle_multiple(
+        &mut self,
+        context: &Context,
+        mail: &mailparse::ParsedMail<'_>,
+    ) -> Result<bool> {
+        let mut any_part_added = false;
+        for cur_data in mail.subparts.iter() {
+            if self.parse_mime_recursive(context, cur_data).await? {
+                any_part_added = true;
+            }
+        }
+        Ok(any_part_added)
+    }
+
+    async fn add_single_part_if_known(
+        &mut self,
+        _context: &Context,
+        mail: &mailparse::ParsedMail<'_>,
+    ) -> Result<bool> {
+        let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
+        if mimetype == mime::TEXT_HTML {
+            if let Ok(decoded_data) = mail.get_body() {
+                self.html = decoded_data;
+                return Ok(true);
+            }
+        } else if mimetype == mime::TEXT_PLAIN {
+            if let Ok(decoded_data) = mail.get_body() {
+                self.plain = Some(decoded_data);
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+// Top-level-function to get html from a message-id
+pub async fn get_original_mime_html(context: &Context, msg_id: MsgId) -> String {
+    let rawmime: Option<String> = context
+        .sql
+        .query_get_value(
+            context,
+            "SELECT mime_headers FROM msgs WHERE id=?;",
+            paramsv![msg_id],
+        )
+        .await;
+
+    if let Some(rawmime) = rawmime {
+        match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
+            Err(err) => format!("parser error: {}", err),
+            Ok(parser) => parser.html,
+        }
+    } else {
+        format!("parser error: no mime for {}", msg_id)
+    }
 }
