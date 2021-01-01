@@ -250,9 +250,9 @@ pub enum StockMessage {
     SelfDeletedMsgBody = 91,
 
     #[strum(props(
-        fallback = "⚠️ The 𝗗𝗲𝗹𝗲𝘁𝗲 𝗺𝗲𝘀𝘀𝗮𝗴𝗲𝘀 𝗳𝗿𝗼𝗺 𝘀𝗲𝗿𝘃𝗲𝗿 feature now also deletes messages in folders other than Inbox, DeltaChat and Sent.\n\n\
+        fallback = "⚠️ The \"𝗗𝗲𝗹𝗲𝘁𝗲 𝗺𝗲𝘀𝘀𝗮𝗴𝗲𝘀 𝗳𝗿𝗼𝗺 𝘀𝗲𝗿𝘃𝗲𝗿\" feature now also deletes messages in folders other than Inbox, DeltaChat and Sent.\n\n\
                     ℹ️ To avoid accidentally deleting messages, we turned it off for you. Please 𝘁𝘂𝗿𝗻 𝗶𝘁 𝗼𝗻 𝗮𝗴𝗮𝗶𝗻 at \
-                    𝗦𝗲𝘁𝘁𝗶𝗻𝗴𝘀 -> 𝗖𝗵𝗮𝘁𝘀 𝗮𝗻𝗱 𝗺𝗲𝗱𝗶𝗮 -> 𝗗𝗲𝗹𝗲𝘁𝗲 𝗺𝗲𝘀𝘀𝗮𝗴𝗲𝘀 𝗳𝗿𝗼𝗺 𝘀𝗲𝗿𝘃𝗲𝗿 to continue using it."
+                    𝗦𝗲𝘁𝘁𝗶𝗻𝗴𝘀 ➞ \"𝗖𝗵𝗮𝘁𝘀 𝗮𝗻𝗱 𝗺𝗲𝗱𝗶𝗮\" ➞ \"𝗗𝗲𝗹𝗲𝘁𝗲 𝗺𝗲𝘀𝘀𝗮𝗴𝗲𝘀 𝗳𝗿𝗼𝗺 𝘀𝗲𝗿𝘃𝗲𝗿\" to continue using it."
     ))]
     DeleteServerTurnedOff = 92,
 }

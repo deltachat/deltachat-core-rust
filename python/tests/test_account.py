@@ -10,6 +10,8 @@ from deltachat.tracker import ImexTracker
 from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
 
+scan_folder_debounce_time = 2
+
 
 @pytest.mark.parametrize("msgtext,res", [
     ("Member Me (tmp1@x.org) removed by tmp2@x.org.",
@@ -1171,8 +1173,8 @@ class TestOnlineAccount:
             message in Sent
         """)
 
-        # Scanning is debounced to 2s, so wait 2s to make sure DeltaChat scans after start_io() is called:
-        time.sleep(max(0, 2 - (time.time() - t)))
+        # Scanning is debounced, so wait to make sure DeltaChat scans after start_io() is called:
+        time.sleep(max(0, scan_folder_debounce_time - (time.time() - t)))
         ac1.start_io()
 
         msg = ac1._evtracker.wait_next_messages_changed()
@@ -2140,7 +2142,7 @@ class TestOnlineAccount:
     # the "\Junk" flag (see https://tools.ietf.org/html/rfc6154). So, we can't test spam folder detection by flag.
     def test_scan_folders(self, acfactory, lp, folder, move, expected_destination):
         """Delta Chat periodically scans all folders for new messages to make sure we don't miss any."""
-        variant = folder + str(move) + expected_destination
+        variant = folder + "-" + str(move) + "-" + expected_destination
         lp.sec("Testing variant " + variant)
         ac1 = acfactory.get_online_configuring_account(move=move)
         ac2 = acfactory.get_online_configuring_account()
@@ -2161,8 +2163,8 @@ class TestOnlineAccount:
         ac1.direct_imap.idle_check(terminate=True)
         ac1.direct_imap.conn.move(["*"], folder)  # "*" means "biggest UID in mailbox"
 
-        # Scanning is debounced to 2s, so wait 2s to make sure DeltaChat scans after start_io() is called:
-        time.sleep(max(0, 2 - (time.time() - t)))
+        # Scanning is debounced, so wait to make sure DeltaChat scans after start_io() is called:
+        time.sleep(max(0, scan_folder_debounce_time - (time.time() - t)))
         lp.sec("Everything prepared, now see if DeltaChat finds the message (" + variant + ")")
         ac1.start_io()
         msg = ac1._evtracker.wait_next_incoming_message()

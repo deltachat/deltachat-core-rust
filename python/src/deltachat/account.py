@@ -584,8 +584,7 @@ class Account(object):
         on which you can block with wait_finish() to get a True/False success
         value for the configuration process.
         """
-        if not reconfigure:
-            assert not self.is_configured()
+        assert self.is_configured() == reconfigure
         if not self.get_config("addr") or not self.get_config("mail_pw"):
             raise MissingCredentials("addr or mail_pwd not set in config")
         configtracker = ConfigureTracker(self)

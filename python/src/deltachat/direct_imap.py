@@ -249,6 +249,6 @@ class DirectImap:
 
     def append(self, folder, msg):
         if msg.startswith("\n"):
-            msg = msg[1:-1]
+            msg = msg[1:]
         msg = '\n'.join([s.lstrip() for s in msg.splitlines()])
         self.conn.append(folder, msg)
