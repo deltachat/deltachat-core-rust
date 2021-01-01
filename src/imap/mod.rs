@@ -1724,24 +1724,14 @@ fn get_fallback_folder(delimiter: &str) -> String {
 /// See https://tools.ietf.org/html/rfc3501#section-2.3.1.1
 /// This function is used to update our uid_next after fetching messages.
 pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32) -> Result<()> {
-    // TODO I found lots of opinions on how I should update and if it doesn't exist, then insert
-    // and I rather randomly chose this one:
-    let modified = context
+    context
         .sql
         .execute(
-            "UPDATE imap_sync SET uid_next=? WHERE folder=?;",
-            paramsv![uid_next, folder],
+            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+                ON CONFLICT(folder) DO UPDATE SET uid_next=? WHERE folder=?;",
+            paramsv![folder, 0u32, uid_next, uid_next, folder],
         )
         .await?;
-    if modified == 0 {
-        context
-            .sql
-            .execute(
-                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?);",
-                paramsv![folder, 0u32, uid_next],
-            )
-            .await?;
-    }
     Ok(())
 }
 
@@ -1769,24 +1759,14 @@ pub(crate) async fn set_uidvalidity(
     folder: &str,
     uidvalidity: u32,
 ) -> Result<()> {
-    // TODO I found lots of opinions on how I should update and if it doesn't exist, then insert
-    // and I rather randomly chose this one (because I don't know much SQL and rather wanted to do the logic in Rust)
-    let modified = context
+    context
         .sql
         .execute(
-            "UPDATE imap_sync SET uidvalidity=? WHERE folder=?;",
-            paramsv![uidvalidity, folder],
+            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+                ON CONFLICT(folder) DO UPDATE SET uidvalidity=? WHERE folder=?;",
+            paramsv![folder, uidvalidity, 0u32, uidvalidity, folder],
         )
         .await?;
-    if modified == 0 {
-        context
-            .sql
-            .execute(
-                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?);",
-                paramsv![folder, uidvalidity, 0u32],
-            )
-            .await?;
-    }
     Ok(())
 }
 

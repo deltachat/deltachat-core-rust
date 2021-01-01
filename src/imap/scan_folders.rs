@@ -18,12 +18,9 @@ impl Imap {
         if let Some(last_scan) = *last_scan {
             if last_scan.elapsed().as_secs() < 60 {
                 // For the first day after installation, we only debounce to 2s:
-                let configure_time = context.get_config_i64(Config::ConfiguredTimestamp).await;
 
-                if time() - configure_time > 24 * 60 * 60
-                    || last_scan.elapsed().as_secs() < 2
-                // For the first day after installation, only debounce to 2s
-                {
+                let configure_time = context.get_config_i64(Config::ConfiguredTimestamp).await;
+                if time() - configure_time > 24 * 60 * 60 || last_scan.elapsed().as_secs() < 2 {
                     info!(context, "Not scanning, we recently already scanned");
                     return Ok(());
                 }
