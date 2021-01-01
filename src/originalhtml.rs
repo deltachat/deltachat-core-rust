@@ -42,7 +42,7 @@ impl HtmlMsgParser {
 
         if parser.html.is_empty() {
             if let Some(plain) = parser.plain.clone() {
-                parser.html = plain;
+                parser.html = plain; // TODO: that should be converted to HTML and corresponding tests should be addapted
             }
         }
 
@@ -152,5 +152,82 @@ pub async fn get_original_mime_html(context: &Context, msg_id: MsgId) -> String 
         }
     } else {
         format!("parser error: no mime for {}", msg_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::*;
+
+    #[async_std::test]
+    async fn test_htmlparse_plain() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
+        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        assert_eq!(
+            parser.html,
+            r##"hi
+"##
+        );
+    }
+
+    #[async_std::test]
+    async fn test_htmlparse_alt_plain() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_alt_plain.eml");
+        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        assert_eq!(
+            parser.html,
+            r##"mime-modified should not be set set as there is no html and no special stuff; although not being a delta-message.
+
+"##
+        );
+    }
+
+    #[async_std::test]
+    async fn test_htmlparse_html() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_html.eml");
+        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        assert_eq!(
+            parser.html,
+            r##"
+<html>
+  <p>mime-modified <b>set</b>; simplify is always regarded as lossy.</p>
+</html>"##
+        );
+    }
+
+    #[async_std::test]
+    async fn test_htmlparse_alt_html() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_alt_html.eml");
+        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        assert_eq!(
+            parser.html,
+            r##"<html>
+  <p>mime-modified <b>set</b>; simplify is always regarded as lossy.</p>
+</html>
+
+"##
+        );
+    }
+
+    #[async_std::test]
+    async fn test_htmlparse_alt_plain_html() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
+        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        assert_eq!(
+            parser.html,
+            r##"<html>
+  <p>
+    this is <b>html</b>
+  </p>
+</html>
+
+"##
+        );
     }
 }
