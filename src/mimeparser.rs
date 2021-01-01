@@ -2603,8 +2603,9 @@ On 2020-10-25, Bob wrote:
         assert_eq!(
             mimeparser.parts[0].msg,
             "mime-modified test – \
-        mime-modified should not be set set as there is no html and no special stuff; \
-        although not being a delta-message."
+        mime-modified should not be set set as there is no html and no special stuff;\n\
+        although not being a delta-message.\n\
+        test some special html-characters as < > and & but also \" and ' :)"
         );
     }
 

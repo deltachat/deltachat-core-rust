@@ -15,6 +15,7 @@ use lettre_email::mime::{self, Mime};
 use crate::context::Context;
 use crate::error::Result;
 use crate::message::{Message, MsgId};
+use crate::simplify::split_lines;
 
 impl Message {
     pub fn is_mime_modified(&self) -> bool {
@@ -42,7 +43,7 @@ impl HtmlMsgParser {
 
         if parser.html.is_empty() {
             if let Some(plain) = parser.plain.clone() {
-                parser.html = plain; // TODO: that should be converted to HTML and corresponding tests should be addapted
+                parser.html = plain_to_html(&plain).await;
             }
         }
 
@@ -134,6 +135,19 @@ impl HtmlMsgParser {
     }
 }
 
+// convert plain text to html
+async fn plain_to_html(plain: &str) -> String {
+    let lines = split_lines(&plain);
+
+    let mut ret = "<!DOCTYPE html>\n<html><head></head><body>\n".to_string(); // TODO: define charset
+    for line in lines {
+        ret += &*escaper::encode_minimal(line);
+        ret += "<br/>\n";
+    }
+    ret += "</body></html>\n";
+    ret
+}
+
 // Top-level-function to get html from a message-id
 pub async fn get_original_mime_html(context: &Context, msg_id: MsgId) -> String {
     let rawmime: Option<String> = context
@@ -167,7 +181,11 @@ mod tests {
         let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
         assert_eq!(
             parser.html,
-            r##"hi
+            r##"<!DOCTYPE html>
+<html><head></head><body>
+hi<br/>
+<br/>
+</body></html>
 "##
         );
     }
@@ -179,8 +197,14 @@ mod tests {
         let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
         assert_eq!(
             parser.html,
-            r##"mime-modified should not be set set as there is no html and no special stuff; although not being a delta-message.
-
+            r##"<!DOCTYPE html>
+<html><head></head><body>
+mime-modified should not be set set as there is no html and no special stuff;<br/>
+although not being a delta-message.<br/>
+test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x27; :)<br/>
+<br/>
+<br/>
+</body></html>
 "##
         );
     }

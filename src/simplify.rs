@@ -60,7 +60,7 @@ fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     (lines, false)
 }
 
-fn split_lines(buf: &str) -> Vec<&str> {
+pub(crate) fn split_lines(buf: &str) -> Vec<&str> {
     buf.split('\n').collect()
 }
 
