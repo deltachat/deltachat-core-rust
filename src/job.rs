@@ -2,7 +2,6 @@
 //!
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
-
 use std::fmt;
 use std::future::Future;
 
@@ -248,7 +247,7 @@ impl Job {
             info!(context, "smtp-sending out mime message:");
             println!("{}", String::from_utf8_lossy(&message));
         }
-        match smtp.send(context, recipients, message, job_id).await {
+        let status = match smtp.send(context, recipients, message, job_id).await {
             Err(crate::smtp::send::Error::SendError(err)) => {
                 // Remote error, retry later.
                 warn!(context, "SMTP failed to send: {}", err);
@@ -285,25 +284,23 @@ impl Job {
                             // Yandex error "554 5.7.1 [2] Message rejected under suspicion of SPAM; https://ya.cc/..."
                             // should definitely go here, because user has to open the link to
                             // resume message sending.
-                            let msg_id = MsgId::new(self.foreign_id);
-                            message::set_msg_failed(context, msg_id, Some(err.to_string())).await;
-                            match Message::load_from_db(context, msg_id).await {
-                                Ok(message) => {
-                                    chat::add_info_msg(context, message.chat_id, err.to_string())
-                                        .await
-                                }
-                                Err(e) => error!(
-                                    context,
-                                    "couldn't load chat_id to inform user about SMTP error: {}", e
-                                ),
-                            };
                             Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
                         }
                     }
-                    async_smtp::smtp::error::Error::Transient(_) => {
+                    async_smtp::smtp::error::Error::Transient(ref response) => {
                         // We got a transient 4xx response from SMTP server.
                         // Give some time until the server-side error maybe goes away.
-                        Status::RetryLater
+
+
+                        if response.first_word() == Some("4.1.2") {
+                            // Sometimes we receive the 4.1.2 error, which stays for "Bad destination system address"
+                            // or more simple, the domain doesn't exist or is invalid. This should be a permanent error
+                            // and fail immediatly.
+                            info!(context, "Smtp-job #{} is a transient \"bad destination\" error. Lets let it fail immediatly.", self.job_id);
+                            Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                        } else {
+                            Status::RetryLater
+                        }
                     }
                     _ => {
                         if smtp.has_maybe_stale_connection().await {
@@ -336,7 +333,14 @@ impl Job {
                 job_try!(success_cb().await);
                 Status::Finished(Ok(()))
             }
+        };
+
+        if let Status::Finished(Err(err)) = &status {
+            // We couldn't send the message, so mark it as failed
+            let msg_id = MsgId::new(self.foreign_id);
+            message::set_msg_failed(context, msg_id, Some(err.to_string())).await;
         }
+        status
     }
 
     pub(crate) async fn send_msg_to_smtp(&mut self, context: &Context, smtp: &mut Smtp) -> Status {
