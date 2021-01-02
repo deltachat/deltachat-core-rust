@@ -2576,10 +2576,13 @@ On 2020-10-25, Bob wrote:
     #[async_std::test]
     async fn test_mime_modified_plain() {
         let t = TestContext::new().await;
-        let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
+        let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(!mimeparser.is_mime_modified);
-        assert_eq!(mimeparser.parts[0].msg, "hi");
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "This message does not have Content-Type nor Subject."
+        );
     }
 
     #[async_std::test]
