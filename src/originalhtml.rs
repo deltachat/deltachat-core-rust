@@ -28,6 +28,7 @@ impl Message {
 pub struct HtmlMsgParser {
     pub html: String,
     pub plain: Option<String>,
+    pub plain_charset: Option<String>,
 }
 
 impl HtmlMsgParser {
@@ -35,6 +36,7 @@ impl HtmlMsgParser {
         let mut parser = HtmlMsgParser {
             html: "".to_string(),
             plain: None,
+            plain_charset: None,
         };
 
         let parsedmail = mailparse::parse_mail(rawmime)?;
@@ -43,7 +45,7 @@ impl HtmlMsgParser {
 
         if parser.html.is_empty() {
             if let Some(plain) = parser.plain.clone() {
-                parser.html = plain_to_html(&plain).await;
+                parser.html = plain_to_html(&plain, parser.plain_charset.clone()).await;
             }
         }
 
@@ -128,6 +130,9 @@ impl HtmlMsgParser {
         } else if mimetype == mime::TEXT_PLAIN {
             if let Ok(decoded_data) = mail.get_body() {
                 self.plain = Some(decoded_data);
+                if let Some(charset) = mimetype.get_param(mime::CHARSET) {
+                    self.plain_charset = Some(charset.to_string());
+                }
                 return Ok(true);
             }
         }
@@ -136,10 +141,15 @@ impl HtmlMsgParser {
 }
 
 // convert plain text to html
-async fn plain_to_html(plain: &str) -> String {
+async fn plain_to_html(plain: &str, charset: Option<String>) -> String {
     let lines = split_lines(&plain);
 
-    let mut ret = "<!DOCTYPE html>\n<html><head></head><body>\n".to_string(); // TODO: define charset
+    let charset = charset.unwrap_or_else(|| "utf-8".to_string());
+
+    let mut ret = format!(
+        "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset={}\" /></head><body>\n",
+        charset
+    );
     for line in lines {
         ret += &*escaper::encode_minimal(line);
         ret += "<br/>\n";
@@ -182,7 +192,7 @@ mod tests {
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
-<html><head></head><body>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
 hi<br/>
 <br/>
 </body></html>
@@ -198,7 +208,7 @@ hi<br/>
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
-<html><head></head><body>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
 mime-modified should not be set set as there is no html and no special stuff;<br/>
 although not being a delta-message.<br/>
 test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x27; :)<br/>
