@@ -178,6 +178,21 @@ mod tests {
     use crate::test_utils::*;
 
     #[async_std::test]
+    async fn test_plain_to_html() {
+        let html = plain_to_html(r##"line 1
+line 2"##).await;
+        assert_eq!(
+            html,
+            r##"<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+line 1<br/>
+line 2<br/>
+</body></html>
+"##
+        );
+    }
+
+    #[async_std::test]
     async fn test_htmlparse_plain_unspecified() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
