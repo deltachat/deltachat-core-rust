@@ -148,11 +148,24 @@ async fn plain_to_html(plain_utf8: &str) -> String {
         "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
 
     for line in lines {
-        let line = escaper::encode_minimal(line);
+        // we need to do html-entity-encoding after linkify, as otherwise encapsulated links
+        // as <http://example.org> cannot be handled not handled correctly
+        // (they would become &lt;http://example.org&gt; where the trailing &gt; would become a valid url part).
+        // to avoid double encoding, we escape our html-entities by \r that must not be used in the string elsewhere.
+        let line = line.to_string().replace("\r", "");
+
         let mut line = LINKIFY_URL_RE
-            .replace_all(&*line, r#"<a href="$1">$1</a>"#)
+            .replace_all(&*line, "\rLTa href=\rQUOT$1\rQUOT\rGT$1\rLT/a\rGT")
             .as_ref()
             .to_string();
+
+        // encode html-entities after linkify the raw string
+        line = escaper::encode_minimal(&line);
+
+        // make our escaped html-entities real after encoding all others
+        line = line.replace("\rLT", "<");
+        line = line.replace("\rGT", ">");
+        line = line.replace("\rQUOT", "\"");
         line += "<br/>\n";
         ret += &*line;
     }
