@@ -16,6 +16,7 @@ use crate::context::Context;
 use crate::error::Result;
 use crate::message::{Message, MsgId};
 use crate::simplify::split_lines;
+use once_cell::sync::Lazy;
 
 impl Message {
     pub fn is_mime_modified(&self) -> bool {
@@ -137,15 +138,23 @@ impl HtmlMsgParser {
 
 // convert plain text to html
 async fn plain_to_html(plain_utf8: &str) -> String {
+    static LINKIFY_URL_RE: Lazy<regex::Regex> = Lazy::new(|| {
+        regex::Regex::new(r#"((http|https|ftp|ftps|mailto):[\w.,:;$/@!?&%-~=#+]+)"#).unwrap()
+    });
+
     let lines = split_lines(&plain_utf8);
 
     let mut ret =
         "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
 
     for line in lines {
-        // TODO: make links clickable
-        ret += &*escaper::encode_minimal(line);
-        ret += "<br/>\n";
+        let line = escaper::encode_minimal(line);
+        let mut line = LINKIFY_URL_RE
+            .replace_all(&*line, r#"<a href="$1">$1</a>"#)
+            .as_ref()
+            .to_string();
+        line += "<br/>\n";
+        ret += &*line;
     }
     ret += "</body></html>\n";
     ret
