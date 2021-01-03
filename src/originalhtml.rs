@@ -139,7 +139,7 @@ impl HtmlMsgParser {
 // convert plain text to html
 async fn plain_to_html(plain_utf8: &str) -> String {
     static LINKIFY_URL_RE: Lazy<regex::Regex> = Lazy::new(|| {
-        regex::Regex::new(r#"((http|https|ftp|ftps|mailto):[\w.,:;$/@!?&%-~=#+]+)"#).unwrap()
+        regex::Regex::new(r#"((http|https|ftp|ftps|mailto):[\w.,:;$/@!?&%\-~=#+]+)"#).unwrap()
     });
 
     let lines = split_lines(&plain_utf8);
