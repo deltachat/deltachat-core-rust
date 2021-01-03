@@ -209,6 +209,19 @@ line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a
     }
 
     #[async_std::test]
+    async fn test_plain_to_html_encapsulated() {
+        let html = plain_to_html(r#"line with <http://encapsulated.link/?foo=_bar> here!"#).await;
+        assert_eq!(
+            html,
+            r#"<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+line with &lt;<a href="http://encapsulated.link/?foo=_bar">http://encapsulated.link/?foo=_bar</a>&gt; here!<br/>
+</body></html>
+"#
+        );
+    }
+
+    #[async_std::test]
     async fn test_htmlparse_plain_unspecified() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
