@@ -179,14 +179,21 @@ mod tests {
 
     #[async_std::test]
     async fn test_plain_to_html() {
-        let html = plain_to_html(r##"line 1
-line 2"##).await;
+        let html = plain_to_html(
+            r##"line 1
+line 2
+line with https://link-mid-of-line.org and http://link-end-of-line.com/file?foo=bar%20
+"##,
+        )
+        .await;
         assert_eq!(
             html,
             r##"<!DOCTYPE html>
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
 line 1<br/>
 line 2<br/>
+line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a> and <a href="http://link-end-of-line.com/file?foo=bar%20">http://link-end-of-line.com/file?foo=bar%20</a><br/>
+<br/>
 </body></html>
 "##
         );
