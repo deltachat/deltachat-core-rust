@@ -56,7 +56,10 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 
     let ctx1 = ctx.clone();
     let fut = async move {
-        started.send(()).await.unwrap();
+        started
+            .send(())
+            .await
+            .expect("inbox loop, missing started receiver");
         let ctx = ctx1;
 
         // track number of continously executed jobs
@@ -105,7 +108,10 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
         })
         .race(fut)
         .await;
-    shutdown_sender.send(()).await.unwrap();
+    shutdown_sender
+        .send(())
+        .await
+        .expect("inbox loop, missing shutdown receiver");
 }
 
 async fn fetch(ctx: &Context, connection: &mut Imap) {
@@ -189,7 +195,10 @@ async fn simple_imap_loop(
     let ctx1 = ctx.clone();
 
     let fut = async move {
-        started.send(()).await.unwrap();
+        started
+            .send(())
+            .await
+            .expect("simple imap loop, missing started receive");
         let ctx = ctx1;
 
         loop {
@@ -204,7 +213,10 @@ async fn simple_imap_loop(
         })
         .race(fut)
         .await;
-    shutdown_sender.send(()).await.unwrap();
+    shutdown_sender
+        .send(())
+        .await
+        .expect("simple imap loop, missing shutdown receiver");
 }
 
 async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnectionHandlers) {
@@ -220,7 +232,10 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
 
     let ctx1 = ctx.clone();
     let fut = async move {
-        started.send(()).await.unwrap();
+        started
+            .send(())
+            .await
+            .expect("smtp loop, missing started receiver");
         let ctx = ctx1;
 
         let mut interrupt_info = Default::default();
@@ -248,7 +263,10 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
         })
         .race(fut)
         .await;
-    shutdown_sender.send(()).await.unwrap();
+    shutdown_sender
+        .send(())
+        .await
+        .expect("smtp loop, missing shutdown receiver");
 }
 
 impl Scheduler {
@@ -285,7 +303,10 @@ impl Scheduler {
                 .await
             }));
         } else {
-            mvbox_start_send.send(()).await.unwrap();
+            mvbox_start_send
+                .send(())
+                .await
+                .expect("mvbox start send, missing receiver");
         }
 
         if ctx.get_config_bool(Config::SentboxWatch).await {
@@ -300,7 +321,10 @@ impl Scheduler {
                 .await
             }));
         } else {
-            sentbox_start_send.send(()).await.unwrap();
+            sentbox_start_send
+                .send(())
+                .await
+                .expect("sentbox start send, missing receiver");
         }
 
         let smtp_handle = {
@@ -379,17 +403,27 @@ impl Scheduler {
             }
             Scheduler::Running {
                 inbox,
+                inbox_handle,
                 mvbox,
+                mvbox_handle,
                 sentbox,
+                sentbox_handle,
                 smtp,
+                smtp_handle,
                 ..
             } => {
-                inbox
-                    .stop()
-                    .join(mvbox.stop())
-                    .join(sentbox.stop())
-                    .join(smtp.stop())
-                    .await;
+                if inbox_handle.is_some() {
+                    inbox.stop().await;
+                }
+                if mvbox_handle.is_some() {
+                    mvbox.stop().await;
+                }
+                if sentbox_handle.is_some() {
+                    sentbox.stop().await;
+                }
+                if smtp_handle.is_some() {
+                    smtp.stop().await;
+                }
 
                 StopToken
             }
@@ -448,7 +482,10 @@ impl ConnectionState {
     /// Shutdown this connection completely.
     async fn stop(&self) {
         // Trigger shutdown of the run loop.
-        self.stop_sender.send(()).await.unwrap();
+        self.stop_sender
+            .send(())
+            .await
+            .expect("stop, missing receiver");
         // Wait for a notification that the run loop has been shutdown.
         self.shutdown_receiver.recv().await.ok();
     }
