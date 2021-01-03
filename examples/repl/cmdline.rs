@@ -368,7 +368,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  dellocations\n\
                  getlocations [<contact-id>]\n\
                  send <text>\n\
-                 send-garbage\n\
                  sendimage <file> [<text>]\n\
                  sendfile <file> [<text>]\n\
                  videochat\n\
@@ -400,6 +399,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  getqr [<chat-id>]\n\
                  getbadqr\n\
                  checkqr <qr-content>\n\
+                 setqr <qr-content>\n\
                  providerinfo <addr>\n\
                  event <event-id to test>\n\
                  fileinfo <file>\n\
