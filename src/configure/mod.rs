@@ -369,66 +369,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum AutoconfigProvider {
-    Mozilla,
-    Outlook,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct AutoconfigSource {
-    provider: AutoconfigProvider,
-    url: String,
-}
-
-impl AutoconfigSource {
-    fn all(domain: &str, addr: &str) -> [Self; 5] {
-        [
-            AutoconfigSource {
-                provider: AutoconfigProvider::Mozilla,
-                url: format!(
-                    "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
-                    domain, addr,
-                ),
-            },
-            // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
-            AutoconfigSource {
-                provider: AutoconfigProvider::Mozilla,
-                url: format!(
-                    "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
-                    domain, addr
-                ),
-            },
-            AutoconfigSource {
-                provider: AutoconfigProvider::Outlook,
-                url: format!("https://{}/autodiscover/autodiscover.xml", domain),
-            },
-            // Outlook uses always SSL but different domains (this comment describes the next two steps)
-            AutoconfigSource {
-                provider: AutoconfigProvider::Outlook,
-                url: format!(
-                    "https://autodiscover.{}/autodiscover/autodiscover.xml",
-                    domain
-                ),
-            },
-            // always SSL for Thunderbird's database
-            AutoconfigSource {
-                provider: AutoconfigProvider::Mozilla,
-                url: format!("https://autoconfig.thunderbird.net/v1.1/{}", domain),
-            },
-        ]
-    }
-
-    async fn fetch(&self, ctx: &Context, param: &LoginParam) -> Result<Vec<ServerParams>> {
-        let params = match self.provider {
-            AutoconfigProvider::Mozilla => moz_autoconfigure(ctx, &self.url, &param).await?,
-            AutoconfigProvider::Outlook => outlk_autodiscover(ctx, &self.url).await?,
-        };
-
-        Ok(params)
-    }
-}
-
 /// Retrieve available autoconfigurations.
 ///
 /// A Search configurations from the domain used in the email-address, prefer encrypted
@@ -439,16 +379,68 @@ async fn get_autoconfig(
     param_domain: &str,
     param_addr_urlencoded: &str,
 ) -> Option<Vec<ServerParams>> {
-    let sources = AutoconfigSource::all(param_domain, param_addr_urlencoded);
+    if let Ok(res) = moz_autoconfigure(
+        ctx,
+        format!(
+            "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
+            param_domain, param_addr_urlencoded
+        ),
+        &param,
+    )
+    .await
+    {
+        return Some(res);
+    }
+    progress!(ctx, 300);
 
-    let mut progress = 300;
-    for source in &sources {
-        let res = source.fetch(ctx, param).await;
-        progress!(ctx, progress);
-        progress += 10;
-        if let Ok(res) = res {
-            return Some(res);
-        }
+    if let Ok(res) = moz_autoconfigure(
+        ctx,
+        // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
+        format!(
+            "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
+            &param_domain, &param_addr_urlencoded
+        ),
+        &param,
+    )
+    .await
+    {
+        return Some(res);
+    }
+    progress!(ctx, 310);
+
+    // Outlook uses always SSL but different domains (this comment describes the next two steps)
+    if let Ok(res) = outlk_autodiscover(
+        ctx,
+        format!("https://{}/autodiscover/autodiscover.xml", &param_domain),
+    )
+    .await
+    {
+        return Some(res);
+    }
+    progress!(ctx, 320);
+
+    if let Ok(res) = outlk_autodiscover(
+        ctx,
+        format!(
+            "https://autodiscover.{}/autodiscover/autodiscover.xml",
+            &param_domain
+        ),
+    )
+    .await
+    {
+        return Some(res);
+    }
+    progress!(ctx, 330);
+
+    // always SSL for Thunderbird's database
+    if let Ok(res) = moz_autoconfigure(
+        ctx,
+        format!("https://autoconfig.thunderbird.net/v1.1/{}", &param_domain),
+        &param,
+    )
+    .await
+    {
+        return Some(res);
     }
 
     None
