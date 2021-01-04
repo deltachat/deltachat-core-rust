@@ -138,8 +138,11 @@ impl HtmlMsgParser {
 
 // convert plain text to html
 async fn plain_to_html(plain_utf8: &str) -> String {
+    static LINKIFY_MAIL_RE: Lazy<regex::Regex> =
+        Lazy::new(|| regex::Regex::new(r#"\b([\w.\-+]+@[\w.\-]+)\b"#).unwrap());
+
     static LINKIFY_URL_RE: Lazy<regex::Regex> = Lazy::new(|| {
-        regex::Regex::new(r#"\b((http|https|ftp|ftps|mailto):[\w.,:;$/@!?&%\-~=#+]+)"#).unwrap()
+        regex::Regex::new(r#"\b((http|https|ftp|ftps):[\w.,:;$/@!?&%\-~=#+]+)"#).unwrap()
     });
 
     let lines = split_lines(&plain_utf8);
@@ -154,7 +157,12 @@ async fn plain_to_html(plain_utf8: &str) -> String {
         // to avoid double encoding, we escape our html-entities by \r that must not be used in the string elsewhere.
         let line = line.to_string().replace("\r", "");
 
-        let mut line = LINKIFY_URL_RE
+        let mut line = LINKIFY_MAIL_RE
+            .replace_all(&*line, "\rLTa href=\rQUOTmailto:$1\rQUOT\rGT$1\rLT/a\rGT")
+            .as_ref()
+            .to_string();
+
+        line = LINKIFY_URL_RE
             .replace_all(&*line, "\rLTa href=\rQUOT$1\rQUOT\rGT$1\rLT/a\rGT")
             .as_ref()
             .to_string();
@@ -244,6 +252,19 @@ line with &lt;<a href="http://encapsulated.link/?foo=_bar">http://encapsulated.l
             r#"<!DOCTYPE html>
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
 line with nohttp://no.link here<br/>
+</body></html>
+"#
+        );
+    }
+
+    #[async_std::test]
+    async fn test_plain_to_html_mailto() {
+        let html = plain_to_html(r#"just an address: foo@bar.org another@one.de"#).await;
+        assert_eq!(
+            html,
+            r#"<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+just an address: <a href="mailto:foo@bar.org">foo@bar.org</a> <a href="mailto:another@one.de">another@one.de</a><br/>
 </body></html>
 "#
         );
