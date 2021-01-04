@@ -165,6 +165,8 @@ async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
         "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
 
     for line in lines {
+        let is_quote = line.starts_with('>');
+
         // we need to do html-entity-encoding after linkify, as otherwise encapsulated links
         // as <http://example.org> cannot be handled not handled correctly
         // (they would become &lt;http://example.org&gt; where the trailing &gt; would become a valid url part).
@@ -189,12 +191,21 @@ async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
         line = line.replace("\rGT", ">");
         line = line.replace("\rQUOT", "\"");
 
-        // prepare for next line
         if flowed {
+            // flowed text as of RFC 3676 -
+            // a leading space shall be removed
+            // and is only there to allow > at the beginning of a line that is no quote.
             if line.starts_with(' ') {
                 line = line[1..].to_string();
             }
-            if line.ends_with(' ') {
+            if is_quote {
+                line = "<em>".to_owned() + &line + "</em>";
+            }
+
+            // a trailing space indicates that the line can be merged with the next one;
+            // for sake of simplicity, we skip merging for quotes (quotes may be combined with
+            // delsp, so `> >` is different from `>>` etc. see RFC 3676 for details)
+            if line.ends_with(' ') && !is_quote {
                 if delsp {
                     line.pop();
                 }
@@ -202,6 +213,10 @@ async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
                 line += "<br/>\n";
             }
         } else {
+            // normal, fixed text
+            if is_quote {
+                line = "<em>".to_owned() + &line + "</em>";
+            }
             line += "<br/>\n";
         }
 
@@ -307,6 +322,70 @@ line with nohttp://no.link here<br/>
             r#"<!DOCTYPE html>
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
 just an address: <a href="mailto:foo@bar.org">foo@bar.org</a> <a href="mailto:another@one.de">another@one.de</a><br/>
+</body></html>
+"#
+        );
+    }
+
+    #[async_std::test]
+    async fn test_plain_to_html_flowed() {
+        let html = plain_to_html(
+            "line \nstill line\n>quote \n>still quote\n >no quote",
+            true,
+            false,
+        )
+        .await;
+        assert_eq!(
+            html,
+            r#"<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+line still line<br/>
+<em>&gt;quote </em><br/>
+<em>&gt;still quote</em><br/>
+&gt;no quote<br/>
+</body></html>
+"#
+        );
+    }
+
+    #[async_std::test]
+    async fn test_plain_to_html_flowed_delsp() {
+        let html = plain_to_html(
+            "line \nstill line\n>quote \n>still quote\n >no quote",
+            true,
+            true,
+        )
+        .await;
+        assert_eq!(
+            html,
+            r#"<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+linestill line<br/>
+<em>&gt;quote </em><br/>
+<em>&gt;still quote</em><br/>
+&gt;no quote<br/>
+</body></html>
+"#
+        );
+    }
+
+    #[async_std::test]
+    async fn test_plain_to_html_fixed() {
+        let html = plain_to_html(
+            "line \nstill line\n>quote \n>still quote\n >no quote",
+            false,
+            false,
+        )
+        .await;
+        assert_eq!(
+            html,
+            r#"<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+line <br/>
+still line<br/>
+<em>&gt;quote </em><br/>
+<em>&gt;still quote</em><br/>
+ &gt;no quote<br/>
 </body></html>
 "#
         );
