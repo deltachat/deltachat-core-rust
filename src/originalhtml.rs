@@ -195,9 +195,7 @@ async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
             // flowed text as of RFC 3676 -
             // a leading space shall be removed
             // and is only there to allow > at the beginning of a line that is no quote.
-            if line.starts_with(' ') {
-                line = line[1..].to_string();
-            }
+            line = line.strip_prefix(" ").unwrap_or(&line).to_string();
             if is_quote {
                 line = "<em>".to_owned() + &line + "</em>";
             }
