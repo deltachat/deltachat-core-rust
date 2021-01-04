@@ -1,0 +1,11 @@
+Message-Id: <lkjsdf01u@example.org>
+Date: Sat, 14 Sep 2019 19:00:13 +0200
+From: lmn <x@tux.org>
+To: abc <abc@bcd.com>
+Content-Type: text/plain; charset=utf-8; format=flowed
+
+This line ends with a space 
+and will be merged with the next one due to format=flowed.
+
+This line does not end with a space
+and will be wrapped as usual.
