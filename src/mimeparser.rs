@@ -736,21 +736,26 @@ impl MimeMessage {
 
                         let mut dehtml_failed = false;
 
-                        let (simplified_txt, is_forwarded, top_quote) = if decoded_data.is_empty() {
-                            ("".to_string(), false, None)
-                        } else {
-                            let is_html = mime_type == mime::TEXT_HTML;
-                            let out = if is_html {
-                                self.is_mime_modified = true;
-                                dehtml(&decoded_data).unwrap_or_else(|| {
-                                    dehtml_failed = true;
-                                    decoded_data.clone()
-                                })
+                        let (simplified_txt, is_forwarded, is_cut, top_quote) =
+                            if decoded_data.is_empty() {
+                                ("".to_string(), false, false, None)
                             } else {
-                                decoded_data.clone()
+                                let is_html = mime_type == mime::TEXT_HTML;
+                                let out = if is_html {
+                                    self.is_mime_modified = true;
+                                    dehtml(&decoded_data).unwrap_or_else(|| {
+                                        dehtml_failed = true;
+                                        decoded_data.clone()
+                                    })
+                                } else {
+                                    decoded_data.clone()
+                                };
+                                simplify(out, self.has_chat_version())
                             };
-                            simplify(out, self.has_chat_version())
-                        };
+
+                        self.is_mime_modified = self.is_mime_modified
+                            || ((is_forwarded || is_cut || top_quote.is_some())
+                                && !self.has_chat_version());
 
                         let is_format_flowed = if let Some(format) = mail.ctype.params.get("format")
                         {
