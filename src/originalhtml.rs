@@ -16,11 +16,30 @@ use crate::context::Context;
 use crate::error::Result;
 use crate::message::{Message, MsgId};
 use crate::simplify::split_lines;
+use mailparse::ParsedContentType;
 use once_cell::sync::Lazy;
 
 impl Message {
     pub fn is_mime_modified(&self) -> bool {
         self.mime_modified
+    }
+}
+
+// helper to get rough mime type
+enum MimeS {
+    Multiple,
+    Single,
+    Message,
+}
+
+async fn get_mimes(ctype: &ParsedContentType) -> MimeS {
+    let mimetype = ctype.mimetype.to_lowercase();
+    if mimetype.starts_with("multipart") && ctype.params.get("boundary").is_some() {
+        MimeS::Multiple
+    } else if mimetype == "message/rfc822" {
+        MimeS::Message
+    } else {
+        MimeS::Single
     }
 }
 
@@ -44,7 +63,7 @@ impl HtmlMsgParser {
 
         let parsedmail = mailparse::parse_mail(rawmime)?;
 
-        parser.parse_mime_recursive(context, &parsedmail).await?;
+        parser.collect_texts_recursive(context, &parsedmail).await?;
 
         if parser.html.is_empty() {
             if let Some(plain) = parser.plain.clone() {
@@ -55,7 +74,7 @@ impl HtmlMsgParser {
         Ok(parser)
     }
 
-    fn parse_mime_recursive<'a>(
+    fn collect_texts_recursive<'a>(
         &'a mut self,
         context: &'a Context,
         mail: &'a mailparse::ParsedMail<'a>,
@@ -64,89 +83,53 @@ impl HtmlMsgParser {
 
         // Boxed future to deal with recursion
         async move {
-            enum MimeS {
-                Multiple,
-                Single,
-                Message,
-            }
-
-            let mimetype = mail.ctype.mimetype.to_lowercase();
-
-            let m = if mimetype.starts_with("multipart") {
-                if mail.ctype.params.get("boundary").is_some() {
-                    MimeS::Multiple
-                } else {
-                    MimeS::Single
+            match get_mimes(&mail.ctype).await {
+                MimeS::Multiple => {
+                    let mut any_part_added = false;
+                    for cur_data in mail.subparts.iter() {
+                        if self.collect_texts_recursive(context, cur_data).await? {
+                            any_part_added = true;
+                        }
+                    }
+                    Ok(any_part_added)
                 }
-            } else if mimetype.starts_with("message") {
-                if mimetype == "message/rfc822" {
-                    MimeS::Message
-                } else {
-                    MimeS::Single
-                }
-            } else {
-                MimeS::Single
-            };
-
-            match m {
-                MimeS::Multiple => self.handle_multiple(context, mail).await,
                 MimeS::Message => {
                     let raw = mail.get_body_raw()?;
                     if raw.is_empty() {
                         return Ok(false);
                     }
                     let mail = mailparse::parse_mail(&raw).unwrap();
-
-                    self.parse_mime_recursive(context, &mail).await
+                    self.collect_texts_recursive(context, &mail).await
                 }
-                MimeS::Single => self.add_single_part_if_known(context, mail).await,
+                MimeS::Single => {
+                    let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
+                    if mimetype == mime::TEXT_HTML {
+                        if let Ok(decoded_data) = mail.get_body() {
+                            self.html = decoded_data;
+                            return Ok(true);
+                        }
+                    } else if mimetype == mime::TEXT_PLAIN {
+                        if let Ok(decoded_data) = mail.get_body() {
+                            self.plain = Some(decoded_data);
+                            self.format_flowed =
+                                if let Some(format) = mail.ctype.params.get("format") {
+                                    format.as_str().to_ascii_lowercase() == "flowed"
+                                } else {
+                                    false
+                                };
+                            self.delsp = if let Some(delsp) = mail.ctype.params.get("delsp") {
+                                delsp.as_str().to_ascii_lowercase() == "yes"
+                            } else {
+                                false
+                            };
+                            return Ok(true);
+                        }
+                    }
+                    Ok(false)
+                }
             }
         }
         .boxed()
-    }
-
-    async fn handle_multiple(
-        &mut self,
-        context: &Context,
-        mail: &mailparse::ParsedMail<'_>,
-    ) -> Result<bool> {
-        let mut any_part_added = false;
-        for cur_data in mail.subparts.iter() {
-            if self.parse_mime_recursive(context, cur_data).await? {
-                any_part_added = true;
-            }
-        }
-        Ok(any_part_added)
-    }
-
-    async fn add_single_part_if_known(
-        &mut self,
-        _context: &Context,
-        mail: &mailparse::ParsedMail<'_>,
-    ) -> Result<bool> {
-        let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
-        if mimetype == mime::TEXT_HTML {
-            if let Ok(decoded_data) = mail.get_body() {
-                self.html = decoded_data;
-                return Ok(true);
-            }
-        } else if mimetype == mime::TEXT_PLAIN {
-            if let Ok(decoded_data) = mail.get_body() {
-                self.plain = Some(decoded_data);
-                self.format_flowed = if let Some(format) = mail.ctype.params.get("format") {
-                    format.as_str().to_ascii_lowercase() == "flowed"
-                } else {
-                    false
-                };
-                self.delsp = if let Some(delsp) = mail.ctype.params.get("delsp") {
-                    delsp.as_str().to_ascii_lowercase() == "yes"
-                } else {
-                    false
-                };
-                return Ok(true);
-            }
-        }
-        Ok(false)
     }
 }
 
