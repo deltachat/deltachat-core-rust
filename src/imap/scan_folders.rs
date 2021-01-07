@@ -35,7 +35,6 @@ impl Imap {
         let folders: Vec<_> = session.list(Some(""), Some("*")).await?.collect().await;
 
         for folder in folders {
-            // TODO Maybe exclude folders that are watched anyway
             let folder = folder?;
             let foldername = folder.name();
             info!(context, "Scanning folder: {}", foldername);

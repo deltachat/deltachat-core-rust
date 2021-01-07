@@ -1729,8 +1729,6 @@ async fn get_uid_next(context: &Context, folder: &str) -> u32 {
         .sql
         .query_get_value(
             context,
-            // TODO I found lots of opinions on how I should update and if it doesn't exist, then insert
-            // and I rather randomly chose this one:
             "SELECT uid_next FROM imap_sync WHERE folder=?;",
             paramsv![folder],
         )
