@@ -588,8 +588,6 @@ impl Imap {
 
         // ==============  uid_validity has changed or is being set the first time.  ==============
 
-        // TODO what if UIDvalidity changed and since then new messages arrived?
-        // Currently we will miss these messages
         let new_uid_next = match mailbox.uid_next {
             Some(uid_next) => uid_next,
             None => {
@@ -657,7 +655,7 @@ impl Imap {
         let msgs = if fetch_existing_msgs {
             self.prefetch_existing_msgs().await?
         } else {
-            self.prefetch(context, old_uid_next).await?
+            self.prefetch(old_uid_next).await?
         };
         let read_cnt = msgs.len();
         let folder: &str = folder.as_ref();
@@ -788,11 +786,7 @@ impl Imap {
     }
 
     /// Prefetch all messages greater than or equal to `uid_next`. Return a list of fetch results.
-    async fn prefetch(
-        &mut self,
-        context: &Context,
-        uid_next: u32,
-    ) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
+    async fn prefetch(&mut self, uid_next: u32) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
         let session = self.session.as_mut();
         let session = session.context("fetch_after(): IMAP No Connection established")?;
 
@@ -820,16 +814,6 @@ impl Imap {
         // standard reference. Therefore, sometimes we receive
         // already seen messages and have to filter them out.
         let new_msgs = msgs.split_off(&uid_next);
-
-        // TODO Does this log add any useful information? I've seen it create confusion
-        // as people (including myself) thought that an something important was ignored.
-        // I'd like to remove it (and if not, rewrite the message)
-        for current_uid in msgs.keys() {
-            info!(
-                context,
-                "fetch_new_messages: ignoring uid {}, uid_next was {}", current_uid, uid_next
-            );
-        }
 
         Ok(new_msgs)
     }
