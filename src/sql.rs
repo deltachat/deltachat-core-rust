@@ -1404,8 +1404,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             use Config::*;
             info!(context, "[migration] v70");
             sql.execute(
-                "CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER, uid_next INTEGER);",
-                // TODO do we want an index? Or a default value? Or sth else?
+                "CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);",
                 paramsv![],
             )
             .await?;
