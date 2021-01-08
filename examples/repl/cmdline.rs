@@ -21,6 +21,7 @@ use deltachat::sql;
 use deltachat::EventType;
 use deltachat::{config, provider};
 use deltachat::{location, originalhtml};
+use std::fs;
 
 /// Reset database tables.
 /// Argument is a bitmask, executing single or multiple actions in one call.
@@ -951,8 +952,12 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "orghtml" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let id = MsgId::new(arg1.parse()?);
-            let res = originalhtml::get_original_mime_html(&context, id).await;
-            println!("{}", res);
+            let file = dirs::home_dir()
+                .unwrap_or_default()
+                .join(format!("org-{}.html", id.to_u32()));
+            let html = originalhtml::get_original_mime_html(&context, id).await;
+            fs::write(&file, html)?;
+            println!("Original html written to: {:#?}", file);
         }
         "listfresh" => {
             let msglist = context.get_fresh_msgs().await;
