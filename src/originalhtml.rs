@@ -14,7 +14,9 @@ use lettre_email::mime::{self, Mime};
 
 use crate::context::Context;
 use crate::error::Result;
+use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::message::{Message, MsgId};
+use crate::mimeparser::parse_message_id;
 use crate::simplify::split_lines;
 use mailparse::ParsedContentType;
 use once_cell::sync::Lazy;
@@ -69,6 +71,8 @@ impl HtmlMsgParser {
             if let Some(plain) = parser.plain.clone() {
                 parser.html = plain_to_html(&plain, parser.format_flowed, parser.delsp).await;
             }
+        } else {
+            parser.cid_to_data_recursive(context, &parsedmail).await?;
         }
 
         Ok(parser)
@@ -131,6 +135,75 @@ impl HtmlMsgParser {
         }
         .boxed()
     }
+
+    // replace cid:-protocol by the data:-protocol where appropriate.
+    // this allows the final html-file to be more self-contained.
+    fn cid_to_data_recursive<'a>(
+        &'a mut self,
+        context: &'a Context,
+        mail: &'a mailparse::ParsedMail<'a>,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
+        use futures::future::FutureExt;
+
+        // Boxed future to deal with recursion
+        async move {
+            match get_mimes(&mail.ctype).await {
+                MimeS::Multiple => {
+                    for cur_data in mail.subparts.iter() {
+                        self.cid_to_data_recursive(context, cur_data).await?;
+                    }
+                    Ok(())
+                }
+                MimeS::Message => {
+                    let raw = mail.get_body_raw()?;
+                    if raw.is_empty() {
+                        return Ok(());
+                    }
+                    let mail = mailparse::parse_mail(&raw).unwrap();
+                    self.cid_to_data_recursive(context, &mail).await
+                }
+                MimeS::Single => {
+                    let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
+                    if mimetype.type_() == mime::IMAGE {
+                        if let Some(cid) = mail.headers.get_header_value(HeaderDef::ContentId) {
+                            if let Ok(cid) = parse_message_id(&cid) {
+                                if let Ok(replacement) = mimepart_to_data_url(&mail).await {
+                                    let re_string =
+                                        format!("(<img[^>]*src[^>]*=[^>]*)(cid:{})([^>]*>)", cid);
+                                    match regex::Regex::new(&re_string) {
+                                        Ok(re) => {
+                                            self.html = re
+                                                .replace_all(
+                                                    &*self.html,
+                                                    format!("${{1}}{}${{3}}", replacement).as_str(),
+                                                )
+                                                .as_ref()
+                                                .to_string()
+                                        }
+                                        Err(e) => warn!(
+                                            context,
+                                            "Cannot create regex for cid: {} throws {}",
+                                            re_string,
+                                            e
+                                        ),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
+        }
+        .boxed()
+    }
+}
+
+// convert a mime part to a data: url
+async fn mimepart_to_data_url(mail: &mailparse::ParsedMail<'_>) -> Result<String> {
+    let data = mail.get_body_raw()?;
+    let data = base64::encode(&data);
+    Ok(format!("data:{};base64,{}", mail.ctype.mimetype, data).to_string())
 }
 
 // convert plain text to html
