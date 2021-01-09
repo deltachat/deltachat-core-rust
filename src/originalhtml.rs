@@ -561,4 +561,30 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 "##
         );
     }
+
+    #[async_std::test]
+    async fn test_htmlparse_apple_cid_jpg() {
+        // load raw mime html-data with related image-part (cid:)
+        // and make sure, Content-Id has angle-brackets that are removed correctly.
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/apple_cid_jpg.eml");
+        let test = String::from_utf8_lossy(raw);
+        assert!(test
+            .find("Content-Id: <8AE052EF-BC90-486F-BB78-58D3590308EC@fritz.box>")
+            .is_some());
+        assert!(test
+            .find("cid:8AE052EF-BC90-486F-BB78-58D3590308EC@fritz.box")
+            .is_some());
+        assert!(test.find("data:").is_none());
+
+        // parsing converts cid: to data:
+        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(parser.html.find("<html>").is_some());
+        assert!(parser.html.find("Content-Id:").is_none());
+        assert!(parser
+            .html
+            .find("data:image/jpeg;base64,/9j/4AAQ")
+            .is_some());
+        assert!(parser.html.find("cid:").is_none());
+    }
 }
