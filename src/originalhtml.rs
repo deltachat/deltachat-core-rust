@@ -203,7 +203,7 @@ impl HtmlMsgParser {
 async fn mimepart_to_data_url(mail: &mailparse::ParsedMail<'_>) -> Result<String> {
     let data = mail.get_body_raw()?;
     let data = base64::encode(&data);
-    Ok(format!("data:{};base64,{}", mail.ctype.mimetype, data).to_string())
+    Ok(format!("data:{};base64,{}", mail.ctype.mimetype, data))
 }
 
 // convert plain text to html
