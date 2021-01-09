@@ -1,12 +1,11 @@
-//! Get original mime-message as HTML.
-//!
-//! Use is_mime_modified() to check if the UI shall render a
-//! corresponding button and get_original_mime_html() to get the full message.
-//!
-//! Even whem the original mime-message is not HTML,
-//! get_original_mime_html() will return HTML -
-//! this allows nice quoting, handling linebreaks properly etc.
-
+///! # Get original mime-message as HTML.
+///!
+///! Use is_mime_modified() to check if the UI shall render a
+///! corresponding button and get_original_mime_html() to get the full message.
+///!
+///! Even whem the original mime-message is not HTML,
+///! get_original_mime_html() will return HTML -
+///! this allows nice quoting, handling linebreaks properly etc.
 use std::future::Future;
 use std::pin::Pin;
 
@@ -22,18 +21,26 @@ use mailparse::ParsedContentType;
 use once_cell::sync::Lazy;
 
 impl Message {
+    /// Check if the mime structure of a Message is modified.
+    /// "Modified" here means that some text is cut or the original message
+    /// is in HTML and simplify() may hide some maybe important information.
+    /// The corresponding ffi-function is dc_msg_is_mime_modified().
     pub fn is_mime_modified(&self) -> bool {
         self.mime_modified
     }
 }
 
-// helper to get rough mime type
+/// Type defining a rough mime-type.
+/// This is mainly useful on interating
+/// to decide whether a mime-part has subtypes.
 enum MimeS {
     Multiple,
     Single,
     Message,
 }
 
+/// Function takes a content type from a ParsedMail structure
+/// and checks and returns the rough mime-type.
 async fn get_mimes(ctype: &ParsedContentType) -> MimeS {
     let mimetype = ctype.mimetype.to_lowercase();
     if mimetype.starts_with("multipart") && ctype.params.get("boundary").is_some() {
@@ -55,6 +62,9 @@ pub struct HtmlMsgParser {
 }
 
 impl HtmlMsgParser {
+    /// Function takes a raw mime-message string,
+    /// searches for the main-text part
+    /// and returns that as parser.html
     pub async fn from_bytes(context: &Context, rawmime: &[u8]) -> Result<Self> {
         let mut parser = HtmlMsgParser {
             html: "".to_string(),
@@ -78,6 +88,11 @@ impl HtmlMsgParser {
         Ok(parser)
     }
 
+    /// Function iterates over all mime-parts
+    /// and searches for text/plain and text/html parts and saves the
+    /// last one found
+    /// in the corresponding structure fields.
+    /// Usually, there is at most one plain-text and one HTML-text part.
     fn collect_texts_recursive<'a>(
         &'a mut self,
         context: &'a Context,
@@ -136,8 +151,8 @@ impl HtmlMsgParser {
         .boxed()
     }
 
-    // replace cid:-protocol by the data:-protocol where appropriate.
-    // this allows the final html-file to be more self-contained.
+    /// Replace cid:-protocol by the data:-protocol where appropriate.
+    /// This allows the final html-file to be self-contained.
     fn cid_to_data_recursive<'a>(
         &'a mut self,
         context: &'a Context,
@@ -199,14 +214,15 @@ impl HtmlMsgParser {
     }
 }
 
-// convert a mime part to a data: url
+/// Convert a mime part to a data: url as defined in [RFC 2397](https://tools.ietf.org/html/rfc2397).
 async fn mimepart_to_data_url(mail: &mailparse::ParsedMail<'_>) -> Result<String> {
     let data = mail.get_body_raw()?;
     let data = base64::encode(&data);
     Ok(format!("data:{};base64,{}", mail.ctype.mimetype, data))
 }
 
-// convert plain text to html
+/// Convert plain text to HTML.
+/// The function handles quotes, links, fixed and floating text paragraphs.
 async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
     static LINKIFY_MAIL_RE: Lazy<regex::Regex> =
         Lazy::new(|| regex::Regex::new(r#"\b([\w.\-+]+@[\w.\-]+)\b"#).unwrap());
@@ -280,7 +296,11 @@ async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
     ret
 }
 
-// Top-level-function to get html from a message-id
+/// Get HTML from a message-id.
+/// This requires `mime_headers` field to be set for the message;
+/// usually, this is the case at least when msg.is_mime_modified() is true
+/// (we do not save raw mime unconditionally in the database to save space).
+/// The corresponding ffi-function is dc_get_original_mime_html().
 pub async fn get_original_mime_html(context: &Context, msg_id: MsgId) -> String {
     let rawmime: Option<String> = context
         .sql
