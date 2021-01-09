@@ -1396,8 +1396,8 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             .await?;
             sql.set_raw_config_int(context, "dbversion", 69).await?;
         }
-        if dbversion < 70 {
-            info!(context, "[migration] v70");
+        if dbversion < 71 {
+            info!(context, "[migration] v71");
             if let Some(addr) = context.get_config(Config::ConfiguredAddr).await {
                 if let Ok(domain) = addr.parse::<EmailAddress>().map(|email| email.domain) {
                     context
@@ -1411,7 +1411,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
                 }
             }
 
-            sql.set_raw_config_int(context, "dbversion", 70).await?;
+            sql.set_raw_config_int(context, "dbversion", 71).await?;
         }
 
         // (2) updates that require high-level objects
