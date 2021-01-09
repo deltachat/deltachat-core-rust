@@ -8,7 +8,8 @@ import datetime
 
 out_all = ""
 out_domains = ""
-domains_dict = {}
+out_ids = ""
+domains_set = set()
 
 def camel(name):
     words = name.split("_")
@@ -22,15 +23,19 @@ def cleanstr(s):
     return s
 
 
+def file2id(f):
+    return os.path.basename(f).replace(".md", "")
+
+
 def file2varname(f):
-    f = f[f.rindex("/")+1:].replace(".md", "")
+    f = file2id(f)
     f = f.replace(".", "_")
     f = f.replace("-", "_")
     return "P_" + f.upper()
 
 
 def file2url(f):
-    f = f[f.rindex("/")+1:].replace(".md", "")
+    f = file2id(f)
     f = f.replace(".", "-")
     return "https://providers.delta.chat/" + f
 
@@ -61,14 +66,16 @@ def process_data(data, file):
         if domain == "" or domain.count(".") < 1 or domain.lower() != domain:
             raise TypeError("bad domain: " + domain)
 
-        global domains_dict
-        if domains_dict.get(domain, False):
+        global domains_set
+        if domain in domains_set:
             raise TypeError("domain used twice: " + domain)
-        domains_dict[domain] = True
+        domains_set.add(domain)
 
         domains += "    (\"" + domain + "\", &*" + file2varname(file) + "),\n"
         comment += domain + ", "
 
+    ids = ""
+    ids += "    (\"" + file2id(file) + "\", &*" + file2varname(file) + "),\n"
 
     server = ""
     has_imap = False
@@ -115,6 +122,7 @@ def process_data(data, file):
     after_login_hint = cleanstr(data.get("after_login_hint", ""))
     if (not has_imap and not has_smtp) or (has_imap and has_smtp):
         provider += "static " + file2varname(file) + ": Lazy<Provider> = Lazy::new(|| Provider {\n"
+        provider += "    id: \"" + file2id(file) + "\",\n"
         provider += "    status: Status::" + status + ",\n"
         provider += "    before_login_hint: \"" + before_login_hint + "\",\n"
         provider += "    after_login_hint: \"" + after_login_hint + "\",\n"
@@ -132,13 +140,14 @@ def process_data(data, file):
         raise TypeError("status PREPARATION or BROKEN requires before_login_hint: " + file)
 
     # finally, add the provider
-    global out_all, out_domains
+    global out_all, out_domains, out_ids
     out_all += "// " + file[file.rindex("/")+1:] + ": " + comment.strip(", ") + "\n"
 
     # also add provider with no special things to do -
     # eg. _not_ supporting oauth2 is also an information and we can skip the mx-lookup in this case
     out_all += provider
     out_domains += domains
+    out_ids += ids
 
 
 def process_file(file):
@@ -172,8 +181,12 @@ if __name__ == "__main__":
 
     process_dir(sys.argv[1])
 
-    out_all += "pub static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| [\n"
+    out_all += "pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| [\n"
     out_all += out_domains;
+    out_all += "].iter().copied().collect());\n\n"
+
+    out_all += "pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| [\n"
+    out_all += out_ids;
     out_all += "].iter().copied().collect());\n\n"
 
     now = datetime.datetime.utcnow()

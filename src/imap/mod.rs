@@ -26,7 +26,7 @@ use crate::message::{self, update_server_uid, MessageState};
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
-use crate::provider::{get_provider_info, Socket};
+use crate::provider::Socket;
 use crate::{
     chat, dc_tools::dc_extract_grpid_from_rfc724_mid, scheduler::InterruptInfo, stock::StockMessage,
 };
@@ -343,6 +343,7 @@ impl Imap {
                 &param.imap,
                 &param.addr,
                 param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
+                param.provider.map_or(false, |provider| provider.strict_tls),
             )
             .await
         {
@@ -364,6 +365,7 @@ impl Imap {
         lp: &ServerLoginParam,
         addr: &str,
         oauth2: bool,
+        provider_strict_tls: bool,
     ) -> Result<()> {
         if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
             bail!("Incomplete IMAP connection parameters");
@@ -373,11 +375,8 @@ impl Imap {
             let mut config = &mut self.config;
             config.addr = addr.to_string();
             config.lp = lp.clone();
-            let provider = get_provider_info(&addr);
             config.strict_tls = match lp.certificate_checks {
-                CertificateChecks::Automatic => {
-                    provider.map_or(false, |provider| provider.strict_tls)
-                }
+                CertificateChecks::Automatic => provider_strict_tls,
                 CertificateChecks::Strict => true,
                 CertificateChecks::AcceptInvalidCertificates
                 | CertificateChecks::AcceptInvalidCertificates2 => false,

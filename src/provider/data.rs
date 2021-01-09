@@ -10,6 +10,7 @@ use once_cell::sync::Lazy;
 
 // aktivix.org.md: aktivix.org
 static P_AKTIVIX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "aktivix.org",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -39,6 +40,7 @@ static P_AKTIVIX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
 // aol.md: aol.com
 static P_AOL: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "aol",
     status: Status::PREPARATION,
     before_login_hint: "To log in to AOL with Delta Chat, you need to set up an app password in the AOL web interface.",
     after_login_hint: "",
@@ -56,6 +58,7 @@ static P_AOL: Lazy<Provider> = Lazy::new(|| {
 
 // arcor.de.md: arcor.de
 static P_ARCOR_DE: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "arcor.de",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -84,6 +87,7 @@ static P_ARCOR_DE: Lazy<Provider> = Lazy::new(|| Provider {
 
 // autistici.org.md: autistici.org
 static P_AUTISTICI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "autistici.org",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -112,6 +116,7 @@ static P_AUTISTICI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
 
 // bluewin.ch.md: bluewin.ch
 static P_BLUEWIN_CH: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "bluewin.ch",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -140,6 +145,7 @@ static P_BLUEWIN_CH: Lazy<Provider> = Lazy::new(|| Provider {
 
 // buzon.uy.md: buzon.uy
 static P_BUZON_UY: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "buzon.uy",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -168,6 +174,7 @@ static P_BUZON_UY: Lazy<Provider> = Lazy::new(|| Provider {
 
 // chello.at.md: chello.at
 static P_CHELLO_AT: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "chello.at",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -196,6 +203,7 @@ static P_CHELLO_AT: Lazy<Provider> = Lazy::new(|| Provider {
 
 // comcast.md: xfinity.com, comcast.net
 static P_COMCAST: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "comcast",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -209,6 +217,7 @@ static P_COMCAST: Lazy<Provider> = Lazy::new(|| Provider {
 
 // dismail.de.md: dismail.de
 static P_DISMAIL_DE: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "dismail.de",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -222,6 +231,7 @@ static P_DISMAIL_DE: Lazy<Provider> = Lazy::new(|| Provider {
 
 // disroot.md: disroot.org
 static P_DISROOT: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "disroot",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -235,6 +245,7 @@ static P_DISROOT: Lazy<Provider> = Lazy::new(|| Provider {
 
 // dubby.org.md: dubby.org
 static P_DUBBY_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "dubby.org",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -285,9 +296,24 @@ static P_DUBBY_ORG: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
-// example.com.md: example.com, example.org
+// espiv.net.md: espiv.net
+static P_ESPIV_NET: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "espiv.net",
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/espiv-net",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
+// example.com.md: example.com, example.org, example.net
 static P_EXAMPLE_COM: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "example.com",
     status: Status::BROKEN,
     before_login_hint: "Hush this provider doesn't exist!",
     after_login_hint: "This provider doesn't really exist, so you can't use it :/ If you need an email provider for Delta Chat, take a look at providers.delta.chat!",
@@ -305,6 +331,7 @@ static P_EXAMPLE_COM: Lazy<Provider> = Lazy::new(|| {
 
 // fastmail.md: fastmail.com
 static P_FASTMAIL: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "fastmail",
     status: Status::PREPARATION,
     before_login_hint:
         "You must create an app-specific password for Delta Chat before you can log in.",
@@ -320,6 +347,7 @@ static P_FASTMAIL: Lazy<Provider> = Lazy::new(|| Provider {
 // firemail.de.md: firemail.at, firemail.de
 static P_FIREMAIL_DE: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "firemail.de",
     status: Status::PREPARATION,
     before_login_hint: "Firemail erlaubt nur bei bezahlten Accounts den vollen Zugriff auf das E-Mail-Protokoll. Wenn Sie nicht für Firemail bezahlen, verwenden Sie bitte einen anderen E-Mail-Anbieter.",
     after_login_hint: "Leider schränkt Firemail die maximale Gruppengröße ein. Je nach Bezahlmodell sind nur 5 bis 30 Gruppenmitglieder erlaubt.",
@@ -335,6 +363,7 @@ static P_FIREMAIL_DE: Lazy<Provider> = Lazy::new(|| {
 
 // five.chat.md: five.chat
 static P_FIVE_CHAT: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "five.chat",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -365,6 +394,7 @@ static P_FIVE_CHAT: Lazy<Provider> = Lazy::new(|| Provider {
 
 // freenet.de.md: freenet.de
 static P_FREENET_DE: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "freenet.de",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -391,9 +421,10 @@ static P_FREENET_DE: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
-// gmail.md: gmail.com, googlemail.com
+// gmail.md: gmail.com, googlemail.com, google.com
 static P_GMAIL: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "gmail",
     status: Status::PREPARATION,
     before_login_hint: "For Gmail accounts, you need to create an app-password if you have \"2-Step Verification\" enabled. If this setting is not available, you need to enable \"less secure apps\".",
     after_login_hint: "",
@@ -411,6 +442,7 @@ static P_GMAIL: Lazy<Provider> = Lazy::new(|| {
 
 // gmx.net.md: gmx.net, gmx.de, gmx.at, gmx.ch, gmx.org, gmx.eu, gmx.info, gmx.biz, gmx.com
 static P_GMX_NET: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "gmx.net",
     status: Status::PREPARATION,
     before_login_hint: "You must allow IMAP access to your account before you can login.",
     after_login_hint: "",
@@ -446,6 +478,7 @@ static P_GMX_NET: Lazy<Provider> = Lazy::new(|| Provider {
 
 // hermes.radio.md: hermes.radio
 static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "hermes.radio",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -477,6 +510,7 @@ static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
 // hey.com.md: hey.com
 static P_HEY_COM: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "hey.com",
     status: Status::BROKEN,
     before_login_hint: "hey.com does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to hey.com.",
     after_login_hint: "",
@@ -492,6 +526,7 @@ static P_HEY_COM: Lazy<Provider> = Lazy::new(|| {
 
 // i.ua.md: i.ua
 static P_I_UA: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "i.ua",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -505,6 +540,7 @@ static P_I_UA: Lazy<Provider> = Lazy::new(|| Provider {
 
 // icloud.md: icloud.com, me.com, mac.com
 static P_ICLOUD: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "icloud",
     status: Status::PREPARATION,
     before_login_hint:
         "You must create an app-specific password for Delta Chat before you can login.",
@@ -534,6 +570,7 @@ static P_ICLOUD: Lazy<Provider> = Lazy::new(|| Provider {
 
 // kolst.com.md: kolst.com
 static P_KOLST_COM: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "kolst.com",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -547,6 +584,7 @@ static P_KOLST_COM: Lazy<Provider> = Lazy::new(|| Provider {
 
 // kontent.com.md: kontent.com
 static P_KONTENT_COM: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "kontent.com",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -560,6 +598,7 @@ static P_KONTENT_COM: Lazy<Provider> = Lazy::new(|| Provider {
 
 // mail.ru.md: mail.ru, inbox.ru, bk.ru, list.ru
 static P_MAIL_RU: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "mail.ru",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -573,6 +612,7 @@ static P_MAIL_RU: Lazy<Provider> = Lazy::new(|| Provider {
 
 // mailbox.org.md: mailbox.org, secure.mailbox.org
 static P_MAILBOX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "mailbox.org",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -587,6 +627,7 @@ static P_MAILBOX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
 // nauta.cu.md: nauta.cu
 static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "nauta.cu",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "Atención - con nauta.cu, puede enviar mensajes sólo a un máximo de 20 personas a la vez. En grupos más grandes, no puede enviar mensajes o abandonar el grupo.",
@@ -614,6 +655,7 @@ static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| {
 // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
 static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "outlook.com",
     status: Status::BROKEN,
     before_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
     after_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Unencrypted 1-on-1 chats kind of work, but groups and encryption don't. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
@@ -631,6 +673,7 @@ static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| {
 
 // posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
 static P_POSTEO: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "posteo",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -660,6 +703,7 @@ static P_POSTEO: Lazy<Provider> = Lazy::new(|| Provider {
 // protonmail.md: protonmail.com, protonmail.ch
 static P_PROTONMAIL: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "protonmail",
     status: Status::BROKEN,
     before_login_hint: "Protonmail does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to Protonmail.",
     after_login_hint: "To use Delta Chat with Protonmail, the IMAP bridge must be running in the background. If you have connectivity issues, double check whether it works as expected.",
@@ -675,6 +719,7 @@ static P_PROTONMAIL: Lazy<Provider> = Lazy::new(|| {
 
 // riseup.net.md: riseup.net
 static P_RISEUP_NET: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "riseup.net",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -688,6 +733,7 @@ static P_RISEUP_NET: Lazy<Provider> = Lazy::new(|| Provider {
 
 // rogers.com.md: rogers.com
 static P_ROGERS_COM: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "rogers.com",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -701,6 +747,7 @@ static P_ROGERS_COM: Lazy<Provider> = Lazy::new(|| Provider {
 
 // systemli.org.md: systemli.org
 static P_SYSTEMLI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "systemli.org",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -715,6 +762,7 @@ static P_SYSTEMLI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
 // t-online.md: t-online.de, magenta.de
 static P_T_ONLINE: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "t-online",
     status: Status::PREPARATION,
     before_login_hint: "To use Delta Chat with a T-Online email address, you need to create an app password in the web interface.",
     after_login_hint: "",
@@ -732,6 +780,7 @@ static P_T_ONLINE: Lazy<Provider> = Lazy::new(|| {
 
 // testrun.md: testrun.org
 static P_TESTRUN: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "testrun",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -784,6 +833,7 @@ static P_TESTRUN: Lazy<Provider> = Lazy::new(|| Provider {
 
 // tiscali.it.md: tiscali.it
 static P_TISCALI_IT: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "tiscali.it",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -812,6 +862,7 @@ static P_TISCALI_IT: Lazy<Provider> = Lazy::new(|| Provider {
 
 // ukr.net.md: ukr.net
 static P_UKR_NET: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "ukr.net",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -825,6 +876,7 @@ static P_UKR_NET: Lazy<Provider> = Lazy::new(|| Provider {
 
 // undernet.uy.md: undernet.uy
 static P_UNDERNET_UY: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "undernet.uy",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -853,6 +905,7 @@ static P_UNDERNET_UY: Lazy<Provider> = Lazy::new(|| Provider {
 
 // vfemail.md: vfemail.net
 static P_VFEMAIL: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "vfemail",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -866,6 +919,7 @@ static P_VFEMAIL: Lazy<Provider> = Lazy::new(|| Provider {
 
 // vodafone.de.md: vodafone.de, vodafonemail.de
 static P_VODAFONE_DE: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "vodafone.de",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -895,6 +949,7 @@ static P_VODAFONE_DE: Lazy<Provider> = Lazy::new(|| Provider {
 // web.de.md: web.de, email.de, flirt.ms, hallo.ms, kuss.ms, love.ms, magic.ms, singles.ms, cool.ms, kanzler.ms, okay.ms, party.ms, pop.ms, stars.ms, techno.ms, clever.ms, deutschland.ms, genial.ms, ich.ms, online.ms, smart.ms, wichtig.ms, action.ms, fussball.ms, joker.ms, planet.ms, power.ms
 static P_WEB_DE: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "web.de",
     status: Status::PREPARATION,
     before_login_hint: "You must allow IMAP access to your account before you can login.",
     after_login_hint: "Note: if you have your web.de spam settings too strict, you won't receive contact requests from new people. If you want to receive contact requests, you should disable the \"3-Wege-Spamschutz\" in the web.de settings.  Read how: https://hilfe.web.de/email/spam-und-viren/spamschutz-einstellungen.html",
@@ -914,6 +969,7 @@ static P_WEB_DE: Lazy<Provider> = Lazy::new(|| {
 // yahoo.md: yahoo.com, yahoo.de, yahoo.it, yahoo.fr, yahoo.es, yahoo.se, yahoo.co.uk, yahoo.co.nz, yahoo.com.au, yahoo.com.ar, yahoo.com.br, yahoo.com.mx, ymail.com, rocketmail.com, yahoodns.net
 static P_YAHOO: Lazy<Provider> = Lazy::new(|| {
     Provider {
+    id: "yahoo",
     status: Status::PREPARATION,
     before_login_hint: "To use Delta Chat with your Yahoo email address you have to create an \"App-Password\" in the account security screen.",
     after_login_hint: "",
@@ -931,6 +987,7 @@ static P_YAHOO: Lazy<Provider> = Lazy::new(|| {
 
 // yandex.ru.md: yandex.com, yandex.by, yandex.kz, yandex.ru, yandex.ua, ya.ru, narod.ru
 static P_YANDEX_RU: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "yandex.ru",
     status: Status::PREPARATION,
     before_login_hint: "For Yandex accounts, you have to set IMAP protocol option turned on.",
     after_login_hint: "",
@@ -959,6 +1016,7 @@ static P_YANDEX_RU: Lazy<Provider> = Lazy::new(|| Provider {
 
 // ziggo.nl.md: ziggo.nl
 static P_ZIGGO_NL: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "ziggo.nl",
     status: Status::OK,
     before_login_hint: "",
     after_login_hint: "",
@@ -985,7 +1043,7 @@ static P_ZIGGO_NL: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
-pub static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
+pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
     [
         ("aktivix.org", &*P_AKTIVIX_ORG),
         ("aol.com", &*P_AOL),
@@ -999,8 +1057,10 @@ pub static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy:
         ("dismail.de", &*P_DISMAIL_DE),
         ("disroot.org", &*P_DISROOT),
         ("dubby.org", &*P_DUBBY_ORG),
+        ("espiv.net", &*P_ESPIV_NET),
         ("example.com", &*P_EXAMPLE_COM),
         ("example.org", &*P_EXAMPLE_COM),
+        ("example.net", &*P_EXAMPLE_COM),
         ("fastmail.com", &*P_FASTMAIL),
         ("firemail.at", &*P_FIREMAIL_DE),
         ("firemail.de", &*P_FIREMAIL_DE),
@@ -1008,6 +1068,7 @@ pub static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy:
         ("freenet.de", &*P_FREENET_DE),
         ("gmail.com", &*P_GMAIL),
         ("googlemail.com", &*P_GMAIL),
+        ("google.com", &*P_GMAIL),
         ("gmx.net", &*P_GMX_NET),
         ("gmx.de", &*P_GMX_NET),
         ("gmx.at", &*P_GMX_NET),
@@ -1156,5 +1217,58 @@ pub static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy:
     .collect()
 });
 
+pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
+    [
+        ("aktivix.org", &*P_AKTIVIX_ORG),
+        ("aol", &*P_AOL),
+        ("arcor.de", &*P_ARCOR_DE),
+        ("autistici.org", &*P_AUTISTICI_ORG),
+        ("bluewin.ch", &*P_BLUEWIN_CH),
+        ("buzon.uy", &*P_BUZON_UY),
+        ("chello.at", &*P_CHELLO_AT),
+        ("comcast", &*P_COMCAST),
+        ("dismail.de", &*P_DISMAIL_DE),
+        ("disroot", &*P_DISROOT),
+        ("dubby.org", &*P_DUBBY_ORG),
+        ("espiv.net", &*P_ESPIV_NET),
+        ("example.com", &*P_EXAMPLE_COM),
+        ("fastmail", &*P_FASTMAIL),
+        ("firemail.de", &*P_FIREMAIL_DE),
+        ("five.chat", &*P_FIVE_CHAT),
+        ("freenet.de", &*P_FREENET_DE),
+        ("gmail", &*P_GMAIL),
+        ("gmx.net", &*P_GMX_NET),
+        ("hermes.radio", &*P_HERMES_RADIO),
+        ("hey.com", &*P_HEY_COM),
+        ("i.ua", &*P_I_UA),
+        ("icloud", &*P_ICLOUD),
+        ("kolst.com", &*P_KOLST_COM),
+        ("kontent.com", &*P_KONTENT_COM),
+        ("mail.ru", &*P_MAIL_RU),
+        ("mailbox.org", &*P_MAILBOX_ORG),
+        ("nauta.cu", &*P_NAUTA_CU),
+        ("outlook.com", &*P_OUTLOOK_COM),
+        ("posteo", &*P_POSTEO),
+        ("protonmail", &*P_PROTONMAIL),
+        ("riseup.net", &*P_RISEUP_NET),
+        ("rogers.com", &*P_ROGERS_COM),
+        ("systemli.org", &*P_SYSTEMLI_ORG),
+        ("t-online", &*P_T_ONLINE),
+        ("testrun", &*P_TESTRUN),
+        ("tiscali.it", &*P_TISCALI_IT),
+        ("ukr.net", &*P_UKR_NET),
+        ("undernet.uy", &*P_UNDERNET_UY),
+        ("vfemail", &*P_VFEMAIL),
+        ("vodafone.de", &*P_VODAFONE_DE),
+        ("web.de", &*P_WEB_DE),
+        ("yahoo", &*P_YAHOO),
+        ("yandex.ru", &*P_YANDEX_RU),
+        ("ziggo.nl", &*P_ZIGGO_NL),
+    ]
+    .iter()
+    .copied()
+    .collect()
+});
+
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2020, 12, 26));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 1, 8));

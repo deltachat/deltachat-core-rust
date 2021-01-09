@@ -7,7 +7,7 @@ use crate::config::Config;
 use crate::constants::DEFAULT_MAX_SMTP_RCPT_TO;
 use crate::context::Context;
 use crate::events::EventType;
-use crate::provider::get_provider_info;
+use crate::provider::get_provider_by_id;
 use itertools::Itertools;
 use std::time::Duration;
 
@@ -38,9 +38,9 @@ impl Smtp {
         let message_len_bytes = message.len();
 
         let mut chunk_size = DEFAULT_MAX_SMTP_RCPT_TO;
-        if let Some(provider) = get_provider_info(
+        if let Some(provider) = get_provider_by_id(
             &context
-                .get_config(Config::ConfiguredAddr)
+                .get_config(Config::ConfiguredProvider)
                 .await
                 .unwrap_or_default(),
         ) {

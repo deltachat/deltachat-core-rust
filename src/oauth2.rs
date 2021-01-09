@@ -1,9 +1,7 @@
 //! OAuth 2 module
 
-use regex::Regex;
 use std::collections::HashMap;
 
-use async_std_resolver::{config, resolver};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
@@ -19,7 +17,6 @@ const OAUTH2_GMAIL: Oauth2 = Oauth2 {
     init_token: "https://accounts.google.com/o/oauth2/token?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&code=$CODE&grant_type=authorization_code",
     refresh_token: "https://accounts.google.com/o/oauth2/token?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&refresh_token=$REFRESH_TOKEN&grant_type=refresh_token",
     get_userinfo: Some("https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=$ACCESS_TOKEN"),
-    mx_pattern: Some(r"^aspmx\.l\.google\.com\.$"),
 };
 
 const OAUTH2_YANDEX: Oauth2 = Oauth2 {
@@ -29,10 +26,7 @@ const OAUTH2_YANDEX: Oauth2 = Oauth2 {
     init_token: "https://oauth.yandex.com/token?grant_type=authorization_code&code=$CODE&client_id=$CLIENT_ID&client_secret=58b8c6e94cf44fbe952da8511955dacf",
     refresh_token: "https://oauth.yandex.com/token?grant_type=refresh_token&refresh_token=$REFRESH_TOKEN&client_id=$CLIENT_ID&client_secret=58b8c6e94cf44fbe952da8511955dacf",
     get_userinfo: None,
-    mx_pattern: None,
 };
-
-const OAUTH2_PROVIDERS: [Oauth2; 1] = [OAUTH2_GMAIL];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Oauth2 {
@@ -41,7 +35,6 @@ struct Oauth2 {
     init_token: &'static str,
     refresh_token: &'static str,
     get_userinfo: Option<&'static str>,
-    mx_pattern: Option<&'static str>,
 }
 
 /// OAuth 2 Access Token Response
@@ -276,47 +269,16 @@ impl Oauth2 {
             .find('@')
             .map(|index| addr_normalized.split_at(index + 1).1)
         {
-            if let Some(provider) = provider::get_provider_info(&addr_normalized) {
-                match &provider.oauth2_authorizer {
-                    Some(Oauth2Authorizer::Gmail) => Some(OAUTH2_GMAIL),
-                    Some(Oauth2Authorizer::Yandex) => Some(OAUTH2_YANDEX),
-                    None => None, // provider known to not support oauth2, no mx-lookup required
-                }
-            } else {
-                Oauth2::lookup_mx(domain).await
-            }
-        } else {
-            None
-        }
-    }
-
-    async fn lookup_mx(domain: impl AsRef<str>) -> Option<Self> {
-        if let Ok(resolver) = resolver(
-            config::ResolverConfig::default(),
-            config::ResolverOpts::default(),
-        )
-        .await
-        {
-            let mut fqdn: String = String::from(domain.as_ref());
-            if !fqdn.ends_with('.') {
-                fqdn.push('.');
-            }
-
-            if let Ok(res) = resolver.mx_lookup(fqdn).await {
-                for provider in OAUTH2_PROVIDERS.iter() {
-                    if let Some(pattern) = provider.mx_pattern {
-                        let re = Regex::new(pattern).unwrap();
-
-                        for rr in res.iter() {
-                            if re.is_match(&rr.exchange().to_lowercase().to_utf8()) {
-                                return Some(provider.clone());
-                            }
-                        }
-                    }
-                }
+            if let Some(oauth2_authorizer) = provider::get_provider_info(&domain)
+                .await
+                .and_then(|provider| provider.oauth2_authorizer.as_ref())
+            {
+                return Some(match oauth2_authorizer {
+                    Oauth2Authorizer::Gmail => OAUTH2_GMAIL,
+                    Oauth2Authorizer::Yandex => OAUTH2_YANDEX,
+                });
             }
         }
-
         None
     }
 
