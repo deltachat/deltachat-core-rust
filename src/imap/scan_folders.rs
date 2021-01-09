@@ -16,18 +16,18 @@ impl Imap {
         // First of all, debounce to once per minute:
         let mut last_scan = context.last_full_folder_scan.lock().await;
         if let Some(last_scan) = *last_scan {
-            if last_scan.elapsed().as_secs() < 60 {
+            let elapsed_secs = last_scan.elapsed().as_secs();
+            if elapsed_secs < 60 {
                 // For the first day after installation, we only debounce to 2s:
 
                 let configure_time = context.get_config_i64(Config::ConfiguredTimestamp).await;
-                if time() - configure_time > 24 * 60 * 60 || last_scan.elapsed().as_secs() < 2 {
-                    info!(context, "Not scanning, we recently already scanned");
+                if time() - configure_time > 24 * 60 * 60 || elapsed_secs < 2 {
+                    info!(context, "Not scanning, we scanned {}s ago", elapsed_secs);
                     return Ok(());
                 }
             }
         }
         info!(context, "Starting full folder scan");
-        last_scan.replace(Instant::now());
 
         self.setup_handle(context).await?;
         let session = self.session.as_mut();
@@ -70,6 +70,8 @@ impl Imap {
                 warn!(context, "Can't fetch new msgs in scanned folder: {:#}", e);
             }
         }
+
+        last_scan.replace(Instant::now());
         Ok(())
     }
 }
