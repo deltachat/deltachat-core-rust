@@ -1469,6 +1469,23 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * this removes the need for the UI
  * to deal with different formatting options of PLAIN-parts.
  *
+ * **Note:** As usual for HTML,
+ * the returned HTML-code may contain scripts,
+ * external images that may be misused as hidden read-receipts and so on.
+ * Taking care of these parts
+ * while maintaining compatibility with the then generated HTML-code
+ * is not easily doable, if at all.
+ * Eg. taking care of tags and attributes is not sufficient,
+ * we would have to deal with linked content (eg. script, css),
+ * text (eg. script-blocks) and values (eg. javascript-protocol) as well;
+ * on this level, we have to deal with encodings, browser peculiarities and so on -
+ * and would still risk to oversee something and to break things.
+ *
+ * To avoid starting this cat-and-mouse game,
+ * and to close this issue in a sustainable way,
+ * it is up to the UI to display the HTML-code in an **appropriate sandbox environment** -
+ * that may eg. be an external browser or a WebView with scripting disabled.
+ *
  * @memberof dc_context_t
  * @param context The context object object.
  * @param msg_id The message id for which the uncut text should be loaded
