@@ -213,6 +213,11 @@ class Message(object):
             return email.message_from_string(s)
 
     @property
+    def error(self):
+        """Error message"""
+        return from_dc_charpointer(lib.dc_msg_get_error(self._dc_msg))
+
+    @property
     def chat(self):
         """chat this message was posted in.
 
