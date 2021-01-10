@@ -33,9 +33,9 @@ impl Message {
 }
 
 /// Type defining a rough mime-type.
-/// This is mainly useful on interating
+/// This is mainly useful on iterating
 /// to decide whether a mime-part has subtypes.
-enum MimeS {
+enum MimeMultipartType {
     Multiple,
     Single,
     Message,
@@ -43,14 +43,14 @@ enum MimeS {
 
 /// Function takes a content type from a ParsedMail structure
 /// and checks and returns the rough mime-type.
-async fn get_mimes(ctype: &ParsedContentType) -> MimeS {
+async fn get_mime_multipart_type(ctype: &ParsedContentType) -> MimeMultipartType {
     let mimetype = ctype.mimetype.to_lowercase();
     if mimetype.starts_with("multipart") && ctype.params.get("boundary").is_some() {
-        MimeS::Multiple
+        MimeMultipartType::Multiple
     } else if mimetype == "message/rfc822" {
-        MimeS::Message
+        MimeMultipartType::Message
     } else {
-        MimeS::Single
+        MimeMultipartType::Single
     }
 }
 
@@ -104,8 +104,8 @@ impl HtmlMsgParser {
 
         // Boxed future to deal with recursion
         async move {
-            match get_mimes(&mail.ctype).await {
-                MimeS::Multiple => {
+            match get_mime_multipart_type(&mail.ctype).await {
+                MimeMultipartType::Multiple => {
                     let mut any_part_added = false;
                     for cur_data in mail.subparts.iter() {
                         if self.collect_texts_recursive(context, cur_data).await? {
@@ -114,7 +114,7 @@ impl HtmlMsgParser {
                     }
                     Ok(any_part_added)
                 }
-                MimeS::Message => {
+                MimeMultipartType::Message => {
                     let raw = mail.get_body_raw()?;
                     if raw.is_empty() {
                         return Ok(false);
@@ -122,7 +122,7 @@ impl HtmlMsgParser {
                     let mail = mailparse::parse_mail(&raw).unwrap();
                     self.collect_texts_recursive(context, &mail).await
                 }
-                MimeS::Single => {
+                MimeMultipartType::Single => {
                     let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
                     if mimetype == mime::TEXT_HTML {
                         if let Ok(decoded_data) = mail.get_body() {
@@ -164,14 +164,14 @@ impl HtmlMsgParser {
 
         // Boxed future to deal with recursion
         async move {
-            match get_mimes(&mail.ctype).await {
-                MimeS::Multiple => {
+            match get_mime_multipart_type(&mail.ctype).await {
+                MimeMultipartType::Multiple => {
                     for cur_data in mail.subparts.iter() {
                         self.cid_to_data_recursive(context, cur_data).await?;
                     }
                     Ok(())
                 }
-                MimeS::Message => {
+                MimeMultipartType::Message => {
                     let raw = mail.get_body_raw()?;
                     if raw.is_empty() {
                         return Ok(());
@@ -179,7 +179,7 @@ impl HtmlMsgParser {
                     let mail = mailparse::parse_mail(&raw).unwrap();
                     self.cid_to_data_recursive(context, &mail).await
                 }
-                MimeS::Single => {
+                MimeMultipartType::Single => {
                     let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
                     if mimetype.type_() == mime::IMAGE {
                         if let Some(cid) = mail.headers.get_header_value(HeaderDef::ContentId) {
