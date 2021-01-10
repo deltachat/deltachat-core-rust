@@ -35,7 +35,13 @@ impl Imap {
         let mut spam_folder = None;
 
         for folder in folders {
-            let folder = folder?;
+            let folder = match folder {
+                Ok(f) => f,
+                Err(e) => {
+                    warn!(context, "Can't get folder: {}", e);
+                    continue;
+                }
+            };
             let foldername = folder.name();
             info!(context, "Scanning folder: {}", foldername);
 

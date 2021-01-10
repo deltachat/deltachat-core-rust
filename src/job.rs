@@ -770,6 +770,7 @@ impl Job {
             // retry. If the message was moved, we will create another
             // job to mark the message as seen later. If it was
             // deleted, there is nothing to do.
+            info!(context, "Can't mark message as seen: No UID");
             ImapActionResult::Failed
         } else {
             imap.set_seen(context, folder, msg.server_uid).await
