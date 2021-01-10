@@ -124,7 +124,7 @@ impl Imap {
         }
     }
 }
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug, Copy, Clone, Eq)]
 pub(super) enum NewlySelected {
     /// The folder was newly selected during this call to select_folder().
     Yes,
