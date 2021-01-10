@@ -2177,23 +2177,34 @@ class TestOnlineAccount:
         """Delta Chat reads the recipients from old emails sent by the user and adds them as contacts.
         This way, we can already offer them some email addresses they can write to.
 
-        Also test that existing emails are fetched during onboarding.
+        Also, the newest existing emails from each folder are fetched during onboarding.
 
-        Lastly, tests that bcc_self messages moved to the mvbox are marked as read."""
+        Additionally tests that bcc_self messages moved to the mvbox are marked as read."""
         ac1 = acfactory.get_online_configuring_account(mvbox=mvbox_move, move=mvbox_move)
         ac2 = acfactory.get_online_configuring_account()
 
+        acfactory.wait_configure(ac1)
+
+        ac1.direct_imap.create_folder("Sent")
+        ac1.set_config("sentbox_watch", "1")
+
+        # We need to reconfigure to find the new "Sent" folder.
+        # `scan_folders()`, which runs automatically shortly after `start_io()` is invoked,
+        # would also find the "Sent" folder, but it would be too late:
+        # The sentbox thread, started by `start_io()`, would have seen that there is no
+        # ConfiguredSentboxFolder and do nothing.
+        ac1._configtracker = ac1.configure(reconfigure=True)
         acfactory.wait_configure_and_start_io()
 
-        chat = acfactory.get_accepted_chat(ac1, ac2)
-
-        lp.sec("send out message with bcc to ourselves")
         if mvbox_move:
             ac1.direct_imap.select_config_folder("mvbox")
+        else:
+            ac1.direct_imap.select_config_folder("sentbox")
         ac1.direct_imap.idle_start()
+
+        lp.sec("send out message with bcc to ourselves")
         ac1.set_config("bcc_self", "1")
-        # let DC forget the sentbox, otherwise the test would fail if there is a "Sent" folder on the server:
-        ac1.set_config("configured_sentbox_folder", None)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message text")
 
         # now wait until the bcc_self message arrives
