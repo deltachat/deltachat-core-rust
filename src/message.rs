@@ -2125,7 +2125,7 @@ mod tests {
             .await
             .unwrap();
 
-        let chat = d.chat_with_contact("", "dest@example.com").await;
+        let chat = d.create_chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
 
@@ -2141,7 +2141,7 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let chat = d.chat_with_contact("", "dest@example.com").await;
+        let chat = d.create_chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
 
@@ -2331,7 +2331,7 @@ mod tests {
             .await
             .unwrap();
 
-        let chat = d.chat_with_contact("", "dest@example.com").await;
+        let chat = d.create_chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("Quoted message".to_string()));
