@@ -8,6 +8,8 @@ from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.tracker import ImexTracker
 from deltachat.hookspec import account_hookimpl
+from deltachat.capi import ffi, lib
+from deltachat.cutil import iter_array
 from datetime import datetime, timedelta
 
 
@@ -594,6 +596,28 @@ class TestOfflineChat:
         assert in_list[1][0] == "removed"
         assert in_list[1][1] == chat
         assert in_list[1][2] == contacts[3]
+
+    def test_audit_log_view(self, ac1, lp):
+        lp.sec("ac1: test audit log (show only system messages)")
+        chat = ac1.create_group_chat(name="audit log sample data")
+        # promote chat
+        chat.send_text("hello")
+        assert chat.is_promoted()
+
+        lp.sec("create test data")
+        chat.add_contact(ac1.create_contact("some-1@example.org"))
+        chat.set_name("audit log test group")
+        chat.send_text("a message in between")
+
+        lp.sec("check message count of all messages")
+        assert len(chat.get_messages()) == 4
+
+        lp.sec("check message count of only system messages (without daymarkers)")
+        dc_array = ffi.gc(
+            lib.dc_get_chat_msgs(ac1._dc_context, chat.id, 2, 0),  # todo replace `2` with const.DC_GCM_SYSTEM_ONLY
+            lib.dc_array_unref
+        )
+        assert len(list(iter_array(dc_array, lambda x: x))) == 2
 
 
 def test_basic_imap_api(acfactory, tmpdir):
