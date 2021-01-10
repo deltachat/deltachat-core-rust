@@ -21,11 +21,13 @@ use mailparse::ParsedContentType;
 use once_cell::sync::Lazy;
 
 impl Message {
-    /// Check if the mime structure of a Message is modified.
-    /// "Modified" here means that some text is cut or the original message
+    /// Check if the message can be retrieved as HTML.
+    /// Typically, this is the case, when the mime structure of a Message is modified,
+    /// meaning that some text is cut or the original message
     /// is in HTML and simplify() may hide some maybe important information.
-    /// The corresponding ffi-function is dc_msg_is_mime_modified().
-    pub fn is_mime_modified(&self) -> bool {
+    /// The corresponding ffi-function is dc_msg_has_html().
+    /// To get the HTML-code of the message, use get_msg_html().
+    pub fn has_html(&self) -> bool {
         self.mime_modified
     }
 }

@@ -20,7 +20,7 @@ use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::EventType;
 use deltachat::{config, provider};
-use deltachat::{location, html};
+use deltachat::{html, location};
 use std::fs;
 
 /// Reset database tables.
@@ -194,11 +194,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         &contact_name,
         contact_id,
         msgtext.unwrap_or_default(),
-        if msg.is_mime_modified() {
-            "[MIME-MODIFIED]️"
-        } else {
-            ""
-        },
+        if msg.has_html() { "[HAS-HTML]️" } else { "" },
         if msg.get_from_id() == 1 as libc::c_uint {
             ""
         } else if msg.get_state() == MessageState::InSeen {

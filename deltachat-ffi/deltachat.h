@@ -1462,7 +1462,7 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * - even if there is some plain text part for a HTML-message,
  *   this is often poor and not nicely usable due to long links
  *
- * In these cases, dc_msg_is_mime_modified() returns 1
+ * In these cases, dc_msg_has_html() returns 1
  * and you can ask dc_get_msg_html() for some HTML-code
  * that shows the uncut text (which is close to the original)
  * For simplicity, the function _always_ returns HTML-code,
@@ -3654,7 +3654,7 @@ int dc_msg_get_videochat_type (const dc_msg_t* msg);
 /**
  * Check if important parts of the message may be missing.
  *
- * dc_msg_is_mime_modified() checks
+ * dc_msg_has_html() checks
  * if the original message _may_ contain important parts
  * that are removed by some heuristics
  * or if the message is just too long or too complex
@@ -3673,7 +3673,7 @@ int dc_msg_get_videochat_type (const dc_msg_t* msg);
  *     1=The message may be cut badly
  *     and a button to show the original should be offered
  */
-int dc_msg_is_mime_modified (dc_msg_t* msg);
+int dc_msg_has_html (dc_msg_t* msg);
 
 
 /**
