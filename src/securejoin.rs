@@ -1,8 +1,10 @@
 //! Verified contact protocol implementation as [specified by countermitm project](https://countermitm.readthedocs.io/en/stable/new.html#setup-contact-protocol)
 
+use std::convert::TryFrom;
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Context as _, Error, Result};
+use async_std::sync::{Mutex, MutexGuard};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
@@ -14,7 +16,7 @@ use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
-use crate::key::{DcKey, Fingerprint, SignedPublicKey};
+use crate::key::{self, DcKey, Fingerprint, FingerprintError, SignedPublicKey};
 use crate::lot::{Lot, LotState};
 use crate::message::Message;
 use crate::mimeparser::{MimeMessage, SystemMessage};
@@ -53,39 +55,615 @@ macro_rules! inviter_progress {
     };
 }
 
-macro_rules! get_qr_attr {
-    ($context:tt, $attr:ident) => {
-        $context
-            .bob
-            .read()
-            .await
-            .qr_scan
-            .as_ref()
-            .unwrap()
-            .$attr
-            .as_ref()
-            .unwrap()
-    };
-}
-
-/// State for setup-contact/secure-join protocol joiner's side.
+/// State for setup-contact/secure-join protocol joiner's side, aka Bob's side.
 ///
 /// The setup-contact protocol needs to carry state for both the inviter (Alice) and the
 /// joiner/invitee (Bob).  For Alice this state is minimal and in the `tokens` table in the
 /// database.  For Bob this state is only carried live on the [Context] in this struct.
 #[derive(Debug, Default)]
 pub(crate) struct Bob {
-    /// The next message expected by the protocol.
-    expects: SecureJoinStep,
-    /// The QR-scanned information of the currently running protocol.
-    pub qr_scan: Option<Lot>,
+    inner: Mutex<Option<BobState>>,
 }
 
-/// The next message expected by [Bob] in the setup-contact/secure-join protocol.
+impl Bob {
+    /// Starts the securejoin protocol with the QR `invite`.
+    ///
+    /// This will try to start the securejoin protocol for the given QR `invite`.  If it
+    /// succeeded the protocol state will be tracked in `self`.
+    ///
+    /// This function takes care of starting the "ongoing" mechanism if required and
+    /// handling errors while starting the protocol.
+    async fn start_protocol(&self, context: &Context, invite: QrInvite) -> Result<(), JoinError> {
+        let mut guard = self.inner.lock().await;
+        if guard.is_some() {
+            return Err(JoinError::AlreadyRunning);
+        }
+        let mut did_alloc_ongoing = false;
+        if let QrInvite::Group { .. } = invite {
+            if context.alloc_ongoing().await.is_err() {
+                return Err(JoinError::OngoingRunning);
+            }
+            did_alloc_ongoing = true;
+        }
+        match BobState::start_protocol(context, invite).await {
+            Ok((state, stage)) => {
+                if matches!(stage, BobHandshakeStage::RequestWithAuthSent) {
+                    joiner_progress!(context, state.invite.contact_id(), 400);
+                }
+                *guard = Some(state);
+                Ok(())
+            }
+            Err(err) => {
+                if did_alloc_ongoing {
+                    context.stop_ongoing().await;
+                }
+                Err(err)
+            }
+        }
+    }
+
+    /// Returns a handle to the [`BobState`] of the handshake.
+    ///
+    /// If there currently isn't a handshake running this will return `None`.  Otherwise
+    /// this will return a handle to the current [`BobState`].  This handle allows
+    /// processing an incoming message and allows terminating the handshake.
+    ///
+    /// The handle contains an exclusive lock, which is held until the handle is dropped.
+    /// This guarantees all state and state changes are correct and allows safely
+    /// terminating the handshake without worrying about concurrency.
+    async fn state(&self, context: &Context) -> Option<BobStateHandle<'_>> {
+        let guard = self.inner.lock().await;
+        let ret = BobStateHandle::from_guard(guard);
+        if ret.is_none() {
+            info!(context, "No active BobState found for securejoin handshake");
+        }
+        ret
+    }
+}
+
+/// A handle to work with the [`BobState`] of Bob's securejoin protocol.
+///
+/// This handle can only be created for when an underlying [`BobState`] exists.  It keeps
+/// open a lock which guarantees unique access to the state and this struct must be dropped
+/// to return the lock.
+struct BobStateHandle<'a> {
+    guard: MutexGuard<'a, Option<BobState>>,
+    clear_state_on_drop: bool,
+}
+
+impl<'a> BobStateHandle<'a> {
+    /// Creates a new instance, upholding the guarantee that [`BobState`] must exist.
+    fn from_guard(guard: MutexGuard<'a, Option<BobState>>) -> Option<Self> {
+        match *guard {
+            Some(_) => Some(Self {
+                guard,
+                clear_state_on_drop: false,
+            }),
+            None => None,
+        }
+    }
+
+    /// Returns the [`ChatId`] of the 1:1 chat with the inviter (Alice).
+    pub fn chat_id(&self) -> Result<ChatId> {
+        match *self.guard {
+            Some(ref bobstate) => Ok(bobstate.chat_id),
+            None => Err(Error::msg("Invalid BobStateHandle state")),
+        }
+    }
+
+    /// Returns a reference to the [`QrInvite`] of the joiner process.
+    pub fn invite(&self) -> Result<&QrInvite> {
+        match *self.guard {
+            Some(ref bobstate) => Ok(&bobstate.invite),
+            None => Err(Error::msg("Invalid BobStateHandle state")),
+        }
+    }
+
+    /// Handles the given message for the securejoin handshake for Bob.
+    ///
+    /// This proxies to [`BobState::handle_message`] and makes sure to clear the state when
+    /// the protocol state is terminal.  It returns `Some` if the message successfully
+    /// advanced the state of the protocol state machine, `None` otherwise.
+    pub async fn handle_message(
+        &mut self,
+        context: &Context,
+        mime_message: &MimeMessage,
+    ) -> Option<BobHandshakeStage> {
+        info!(context, "Handling securejoin message for BobStateHandle");
+        match *self.guard {
+            Some(ref mut bobstate) => match bobstate.handle_message(context, mime_message).await {
+                Ok(Some(stage)) => {
+                    if matches!(stage,
+                                BobHandshakeStage::Completed
+                                | BobHandshakeStage::Terminated(_))
+                    {
+                        self.finish_protocol(context).await;
+                    }
+                    Some(stage)
+                }
+                Ok(None) => None,
+                Err(_) => {
+                    self.finish_protocol(context).await;
+                    None
+                }
+            },
+            None => None,
+        }
+    }
+
+    /// Marks the bob handshake as finished.
+    ///
+    /// This will clear the state on [`Context::bob`] once this handle is dropped, allowing
+    /// a new handshake to be started from [`Bob`].
+    ///
+    /// Note that the state is only cleared on Drop since otherwise the invariant that the
+    /// state is always cosistent is violated.  However the "ongoing" prococess is released
+    /// here a little bit earlier as this requires access to the Context, which we do not
+    /// have on Drop (Drop can not run asynchronous code).
+    async fn finish_protocol(&mut self, context: &Context) {
+        info!(context, "Finishing securejoin handshake protocol for Bob");
+        self.clear_state_on_drop = true;
+        if let Some(ref bobstate) = *self.guard {
+            if let QrInvite::Group { .. } = bobstate.invite {
+                context.stop_ongoing().await;
+            }
+        }
+    }
+}
+
+impl<'a> Drop for BobStateHandle<'a> {
+    fn drop(&mut self) {
+        if self.clear_state_on_drop {
+            self.guard.take();
+        }
+    }
+}
+
+/// The securejoin state kept in-memory while Bob is joining.
+///
+/// This is currently stored in [`Bob`] which is stored on the [`Context`], thus Bob can
+/// only run one securejoin joiner protocol at a time.
+///
+/// This purposefully has nothing optional, the state is always fully valid.  See
+/// [`Bob::state`] to get access to this state.
+///
+/// # Conducing the securejoin handshake
+///
+/// The methods on this struct allow you to interact with the state and thus conduct the
+/// securejoin handshake for Bob.  The methods **only concern themselves** with the protocol
+/// state and explicitly avoid doing performing any user interactions required by
+/// securejoin.  This simplifies the concerns and logic required in both the callers and in
+/// the state management.  The return values can be used to understand what user
+/// interactions need to happen.
+#[derive(Debug)]
+struct BobState {
+    /// The QR Invite code.
+    invite: QrInvite,
+    /// The next expected message from Alice.
+    next: SecureJoinStep,
+    /// The [ChatId] of the 1:1 chat with Alice, matching [QrInvite::contact].
+    chat_id: ChatId,
+}
+
+impl BobState {
+    /// Starts the securejoin protocol and creates a new [`BobState`].
+    ///
+    /// # Bob - the joiner's side
+    /// ## Step 2 in the "Setup Contact protocol", section 2.1 of countermitm 0.10.0
+    async fn start_protocol(
+        context: &Context,
+        invite: QrInvite,
+    ) -> Result<(Self, BobHandshakeStage), JoinError> {
+        let chat_id = chat::create_by_contact_id(context, invite.contact_id())
+            .await
+            .map_err(JoinError::UnknownContact)?;
+        if fingerprint_equals_sender(context, invite.fingerprint(), chat_id).await {
+            // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
+            info!(context, "Taking securejoin protocol shortcut");
+            let state = Self {
+                invite,
+                next: SecureJoinStep::ContactConfirm,
+                chat_id,
+            };
+            state
+                .send_handshake_message(context, BobHandshakeMsg::RequestWithAuth)
+                .await?;
+            Ok((state, BobHandshakeStage::RequestWithAuthSent))
+        } else {
+            let state = Self {
+                invite,
+                next: SecureJoinStep::AuthRequired,
+                chat_id,
+            };
+            state
+                .send_handshake_message(context, BobHandshakeMsg::Request)
+                .await?;
+            Ok((state, BobHandshakeStage::RequestSent))
+        }
+    }
+
+    /// Handles the given message for the securejoin handshake for Bob.
+    ///
+    /// If the message was not used for this handshake `None` is returned, otherwise the new
+    /// stage is returned.  Once [`BobHandshakeStage::Completed`] or
+    /// [`BobHandshakeStage::Terminated`] are reached this [`BobState`] should be destroyed,
+    /// further calling it will just result in the messages being unused by this handshake.
+    ///
+    /// # Errors
+    ///
+    /// Under normal operation this should never return an error, regardless of what kind of
+    /// message it is called with.  Any errors therefore should be treated as fatal internal
+    /// errors and this entire [`BobState`] should be thrown away as the state machine can
+    /// no longer be considered consistent.
+    async fn handle_message(
+        &mut self,
+        context: &Context,
+        mime_message: &MimeMessage,
+    ) -> Result<Option<BobHandshakeStage>> {
+        let step = match mime_message.get(HeaderDef::SecureJoin) {
+            Some(step) => step,
+            None => {
+                warn!(
+                    context,
+                    "Message has no Secure-Join header: {}",
+                    mime_message.get_rfc724_mid().unwrap_or_default()
+                );
+                return Ok(None);
+            }
+        };
+        if !self.is_msg_expected(context, step.as_str()) {
+            info!(context, "{} message out of sync for BobState", step);
+            return Ok(None);
+        }
+        match step.as_str() {
+            "vg-auth-required" | "vc-auth-required" => {
+                self.step_auth_required(context, mime_message).await
+            }
+            "vg-member-added" | "vc-contact-confirm" => {
+                self.step_contact_confirm(context, mime_message).await
+            }
+            _ => {
+                warn!(context, "Invalid step for BobState: {}", step);
+                Ok(None)
+            }
+        }
+    }
+
+    /// Returns `true` if the message is expected according to the protocol.
+    fn is_msg_expected(&self, context: &Context, step: &str) -> bool {
+        let variant_matches = match self.invite {
+            QrInvite::Contact { .. } => step.starts_with("vc-"),
+            QrInvite::Group { .. } => step.starts_with("vg-"),
+        };
+        let step_matches = self.next.matches(context, step);
+        variant_matches && step_matches
+    }
+
+    /// Handles a *vc-auth-required* or *vg-auth-required* message.
+    ///
+    /// # Bob - the joiner's side
+    /// ## Step 4 in the "Setup Contact protocol", section 2.1 of countermitm 0.10.0
+    async fn step_auth_required(
+        &mut self,
+        context: &Context,
+        mime_message: &MimeMessage,
+    ) -> Result<Option<BobHandshakeStage>> {
+        info!(
+            context,
+            "Bob Step 4 - handling vc-auth-require/vg-auth-required message"
+        );
+        if !encrypted_and_signed(context, mime_message, Some(self.invite.fingerprint())) {
+            let reason = if mime_message.was_encrypted() {
+                "Valid signature missing"
+            } else {
+                "Required encryption missing"
+            };
+            self.next = SecureJoinStep::Terminated;
+            return Ok(Some(BobHandshakeStage::Terminated(reason)));
+        }
+        if !fingerprint_equals_sender(context, self.invite.fingerprint(), self.chat_id).await {
+            self.next = SecureJoinStep::Terminated;
+            return Ok(Some(BobHandshakeStage::Terminated("Fingerprint mismatch")));
+        }
+        info!(context, "Fingerprint verified.",);
+        self.next = SecureJoinStep::ContactConfirm;
+        self.send_handshake_message(context, BobHandshakeMsg::RequestWithAuth)
+            .await?;
+        Ok(Some(BobHandshakeStage::RequestWithAuthSent))
+    }
+
+    /// Handles a *vc-contact-confirm* or *vg-member-added* message.
+    ///
+    /// # Bob - the joiner's side
+    /// ## Step 7 in the "Setup Contact protocol", section 2.1 of countermitm 0.10.0
+    ///
+    /// This deviates from the protocol by also sending a confirmation message in response
+    /// to the *vc-contact-confirm* message.  This has no specific value to the protocol and
+    /// is only done out of symmerty with *vg-member-added* handling.
+    async fn step_contact_confirm(
+        &mut self,
+        context: &Context,
+        mime_message: &MimeMessage,
+    ) -> Result<Option<BobHandshakeStage>> {
+        info!(
+            context,
+            "Bob Step 7 - handling vc-contact-confirm/vg-member-added message"
+        );
+        let vg_expect_encrypted = match self.invite {
+            QrInvite::Contact { .. } => {
+                // setup-contact is always encrypted
+                true
+            }
+            QrInvite::Group { ref grpid, .. } => {
+                // This is buggy, is_verified_group will always be
+                // false since the group is created by receive_imf for
+                // the very handshake message we're handling now.  But
+                // only after we have returned.  It does not impact
+                // the security invariants of secure-join however.
+                let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, grpid)
+                    .await
+                    .unwrap_or((ChatId::new(0), false, Blocked::Not));
+                // when joining a non-verified group
+                // the vg-member-added message may be unencrypted
+                // when not all group members have keys or prefer encryption.
+                // So only expect encryption if this is a verified group
+                is_verified_group
+            }
+        };
+        if vg_expect_encrypted
+            && !encrypted_and_signed(context, mime_message, Some(self.invite.fingerprint()))
+        {
+            self.next = SecureJoinStep::Terminated;
+            return Ok(Some(BobHandshakeStage::Terminated(
+                "Contact confirm message not encrypted",
+            )));
+        }
+        mark_peer_as_verified(context, self.invite.fingerprint()).await?;
+        Contact::scaleup_origin_by_id(context, self.invite.contact_id(), Origin::SecurejoinJoined)
+            .await;
+        emit_event!(context, EventType::ContactsChanged(None));
+
+        if let QrInvite::Group { .. } = self.invite {
+            let member_added = mime_message
+                .get(HeaderDef::ChatGroupMemberAdded)
+                .map(|s| s.as_str())
+                .ok_or_else(|| Error::msg("Missing Chat-Group-Member-Added header"))?;
+            if !context.is_self_addr(member_added).await? {
+                info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
+                return Ok(None);
+            }
+        }
+
+        self.send_handshake_message(context, BobHandshakeMsg::ContactConfirmReceived)
+            .await
+            .map_err(|_| {
+                warn!(
+                    context,
+                    "Failed to send vc-contact-confirm-received/vg-member-added-received"
+                );
+            })
+            // This is not an error affecting the protocol outcome.
+            .ok();
+
+        self.next = SecureJoinStep::Completed;
+        Ok(Some(BobHandshakeStage::Completed))
+    }
+
+    /// Sends the requested handshake message to Alice.
+    ///
+    /// This takes care of adding the required headers for the step.
+    async fn send_handshake_message(
+        &self,
+        context: &Context,
+        step: BobHandshakeMsg,
+    ) -> Result<(), SendMsgError> {
+        let mut msg = Message::default();
+        msg.viewtype = Viewtype::Text;
+        msg.text = Some(step.body_text(&self.invite));
+        msg.hidden = true;
+        msg.param.set_cmd(SystemMessage::SecurejoinMessage);
+
+        // Sends the step in Secure-Join header.
+        msg.param
+            .set(Param::Arg, step.securejoin_header(&self.invite));
+
+        match step {
+            BobHandshakeMsg::Request => {
+                // Sends the Secure-Join-Invitenumber header in mimefactory.rs.
+                msg.param.set(Param::Arg2, self.invite.invitenumber());
+                msg.param.set_int(Param::ForcePlaintext, 1);
+            }
+            BobHandshakeMsg::RequestWithAuth => {
+                // Sends the Secure-Join-Auth header in mimefactory.rs.
+                msg.param.set(Param::Arg2, self.invite.authcode());
+                msg.param.set_int(Param::GuaranteeE2ee, 1);
+            }
+            BobHandshakeMsg::ContactConfirmReceived => {
+                msg.param.set_int(Param::GuaranteeE2ee, 1);
+            }
+        };
+
+        // Sends our own fingerprint in the Secure-Join-Fingerprint header.
+        let bob_fp = SignedPublicKey::load_self(context).await?.fingerprint();
+        msg.param.set(Param::Arg3, bob_fp.hex());
+
+        // Sends the grpid in the Secure-Join-Group header.
+        if let QrInvite::Group { ref grpid, .. } = self.invite {
+            msg.param.set(Param::Arg4, grpid);
+        }
+
+        chat::send_msg(context, self.chat_id, &mut msg).await?;
+        Ok(())
+    }
+}
+
+/// The stage of the [`BobState`] securejoin handshake protocol state machine.
+///
+/// This does not concern itself with user interactions, only represents what happened to
+/// the protocol state machine from handling this message.
+#[derive(Clone, Copy, Debug, Display)]
+enum BobHandshakeStage {
+    /// Step 2 completed: (vc|vg)-request message sent.
+    ///
+    /// Note that this is only ever returned by [`BobState::start_protocol`] and never by
+    /// [`BobState::handle_message`].
+    RequestSent,
+    /// Step 4 completed: (vc|vg)-request-with-auth message sent.
+    RequestWithAuthSent,
+    /// The protocol completed successfully.
+    Completed,
+    /// The protocol prematurely terminated with given reason.
+    Terminated(&'static str),
+}
+
+/// Identifies the SecureJoin handshake messages Bob can send.
+enum BobHandshakeMsg {
+    /// vc-request or vg-request
+    Request,
+    /// vc-request-with-auth or vg-request-with-auth
+    RequestWithAuth,
+    /// vc-contact-confirm-received or vg-member-added-received
+    ContactConfirmReceived,
+}
+
+impl BobHandshakeMsg {
+    /// Returns the text to send in the body of the handshake message.
+    ///
+    /// This text has no significance to the protocol, but would be visible if users see
+    /// this email message directly, e.g. when accessing their email without using
+    /// DeltaChat.
+    fn body_text(&self, invite: &QrInvite) -> String {
+        format!("Secure-Join: {}", self.securejoin_header(invite))
+    }
+
+    /// Returns the `Secure-Join` header value.
+    ///
+    /// This identifies the step this message is sending information about.  Most protocol
+    /// steps include additional information into other headers, see
+    /// [`BobState::send_handshake_message`] for these.
+    fn securejoin_header(&self, invite: &QrInvite) -> &'static str {
+        match self {
+            Self::Request => match invite {
+                QrInvite::Contact { .. } => "vc-request",
+                QrInvite::Group { .. } => "vg-request",
+            },
+            Self::RequestWithAuth => match invite {
+                QrInvite::Contact { .. } => "vc-request-with-auth",
+                QrInvite::Group { .. } => "vg-request-with-auth",
+            },
+            Self::ContactConfirmReceived => match invite {
+                QrInvite::Contact { .. } => "vc-contact-confirm-received",
+                QrInvite::Group { .. } => "vg-member-added-received",
+            },
+        }
+    }
+}
+
+/// Represents the data from a QR-code scan.
+///
+/// There are methods to conveniently access fields present in both variants.
+#[derive(Debug, Clone)]
+enum QrInvite {
+    Contact {
+        contact_id: u32,
+        fingerprint: Fingerprint,
+        invitenumber: String,
+        authcode: String,
+    },
+    Group {
+        contact_id: u32,
+        fingerprint: Fingerprint,
+        name: String,
+        grpid: String,
+        invitenumber: String,
+        authcode: String,
+    },
+}
+
+impl QrInvite {
+    /// The contact ID of the inviter.
+    ///
+    /// The actual QR-code contains a URL-encoded email address, but upon scanning this is
+    /// currently translated to a contact ID.
+    fn contact_id(&self) -> u32 {
+        match self {
+            Self::Contact { contact_id, .. } | Self::Group { contact_id, .. } => *contact_id,
+        }
+    }
+
+    /// The fingerprint of the inviter.
+    fn fingerprint(&self) -> &Fingerprint {
+        match self {
+            Self::Contact { fingerprint, .. } | Self::Group { fingerprint, .. } => &fingerprint,
+        }
+    }
+
+    /// The `INVITENUMBER` of the setup-contact/secure-join protocol.
+    fn invitenumber(&self) -> &str {
+        match self {
+            Self::Contact { invitenumber, .. } | Self::Group { invitenumber, .. } => &invitenumber,
+        }
+    }
+
+    /// The `AUTH` code of the setup-contact/secure-join protocol.
+    fn authcode(&self) -> &str {
+        match self {
+            Self::Contact { authcode, .. } | Self::Group { authcode, .. } => &authcode,
+        }
+    }
+}
+
+impl TryFrom<Lot> for QrInvite {
+    type Error = QrError;
+
+    fn try_from(lot: Lot) -> Result<Self, Self::Error> {
+        if lot.state != LotState::QrAskVerifyContact && lot.state != LotState::QrAskVerifyGroup {
+            return Err(QrError::UnsupportedProtocol);
+        }
+        let fingerprint = lot.fingerprint.ok_or(QrError::MissingFingerprint)?;
+        let invitenumber = lot.invitenumber.ok_or(QrError::MissingInviteNumber)?;
+        let authcode = lot.auth.ok_or(QrError::MissingAuthCode)?;
+        match lot.state {
+            LotState::QrAskVerifyContact => Ok(QrInvite::Contact {
+                contact_id: lot.id,
+                fingerprint,
+                invitenumber,
+                authcode,
+            }),
+            LotState::QrAskVerifyGroup => Ok(QrInvite::Group {
+                contact_id: lot.id,
+                fingerprint,
+                name: lot.text1.ok_or(QrError::MissingGroupName)?,
+                grpid: lot.text2.ok_or(QrError::MissingGroupId)?,
+                invitenumber,
+                authcode,
+            }),
+            _ => Err(QrError::UnsupportedProtocol),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum QrError {
+    #[error("Unsupported protocol in QR-code")]
+    UnsupportedProtocol,
+    #[error("Failed to read fingerprint")]
+    InvalidFingerprint(#[from] FingerprintError),
+    #[error("Missing fingerprint")]
+    MissingFingerprint,
+    #[error("Missing invitenumber")]
+    MissingInviteNumber,
+    #[error("Missing auth code")]
+    MissingAuthCode,
+    #[error("Missing group name")]
+    MissingGroupName,
+    #[error("Missing group id")]
+    MissingGroupId,
+}
+
+/// The next message expected by [`BobState`] in the setup-contact/secure-join protocol.
 #[derive(Debug, PartialEq)]
 enum SecureJoinStep {
-    /// No setup-contact protocol running.
-    NotActive,
     /// Expecting the auth-required message.
     ///
     /// This corresponds to the `vc-auth-required` or `vg-auth-required` message of step 3d.
@@ -95,11 +673,34 @@ enum SecureJoinStep {
     /// This corresponds to the `vc-contact-confirm` or `vg-member-added` message of step
     /// 6b.
     ContactConfirm,
+    /// The protocol terminated because of an error.
+    ///
+    /// The securejoin protocol terminated, this exists to ensure [`BobState`] can detect
+    /// when it earlier signalled that is should be terminated.  It is an error to call with
+    /// this state.
+    Terminated,
+    /// The protocol completed.
+    ///
+    /// This exists to ensure [`BobState`] can detect when it earlier signalled that it is
+    /// complete.  It is an error to call with this state.
+    Completed,
 }
 
-impl Default for SecureJoinStep {
-    fn default() -> Self {
-        Self::NotActive
+impl SecureJoinStep {
+    /// Compares the legacy string representation of a step to a [`SecureJoinStep`] variant.
+    fn matches(&self, context: &Context, step: &str) -> bool {
+        match self {
+            Self::AuthRequired => step == "vc-auth-required" || step == "vg-auth-required",
+            Self::ContactConfirm => step == "vc-contact-confirm" || step == "vg-member-added",
+            SecureJoinStep::Terminated => {
+                warn!(context, "Terminated state for next securejoin step");
+                false
+            }
+            SecureJoinStep::Completed => {
+                warn!(context, "Complted state for next securejoin step");
+                false
+            }
+        }
     }
 }
 
@@ -188,27 +789,20 @@ async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
     }
 }
 
-async fn cleanup(context: &Context, ongoing_allocated: bool) {
-    let mut bob = context.bob.write().await;
-    bob.expects = SecureJoinStep::NotActive;
-    bob.qr_scan = None;
-    if ongoing_allocated {
-        context.free_ongoing().await;
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum JoinError {
     #[error("Unknown QR-code")]
-    QrCode,
-    #[error("Aborted by user")]
-    Aborted,
+    QrCode(#[from] QrError),
+    #[error("A setup-contact/secure-join protocol is already running")]
+    AlreadyRunning,
+    #[error("An \"ongoing\" process is already running")]
+    OngoingRunning,
     #[error("Failed to send handshake message")]
     SendMessage(#[from] SendMsgError),
     // Note that this can currently only occur if there is a bug in the QR/Lot code as this
     // is supposed to create a contact for us.
     #[error("Unknown contact (this is a bug)")]
-    UnknownContact,
+    UnknownContact(#[source] anyhow::Error),
     // Note that this can only occur if we failed to create the chat correctly.
     #[error("No Chat found for group (this is a bug)")]
     MissingChat(#[source] sql::Error),
@@ -219,16 +813,16 @@ pub enum JoinError {
 /// This is the start of the process for the joiner.  See the module and ffi documentation
 /// for more details.
 ///
-/// When joining a group this will start an "ongoing" process and will block until the
-/// process is completed, the [ChatId] for the new group is not known any sooner.  When
+/// When **joining a group** this will start an "ongoing" process and will block until the
+/// process is completed, the [`ChatId`] for the new group is not known any sooner.  When
 /// verifying a contact this returns immediately.
 pub async fn dc_join_securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
-    if context.alloc_ongoing().await.is_err() {
-        cleanup(&context, false).await;
-        return Err(JoinError::Aborted);
-    }
-
-    securejoin(context, qr).await
+    securejoin(context, qr).await.map_err(|err| {
+        warn!(context, "Fatal joiner error: {:#}", err);
+        // This is a modal operation, the user has context on what failed.
+        error!(context, "QR process failed");
+        err
+    })
 }
 
 async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
@@ -238,134 +832,47 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
     ========================================================*/
 
     info!(context, "Requesting secure-join ...",);
-    ensure_secret_key_exists(context).await.ok();
     let qr_scan = check_qr(context, &qr).await;
-    if qr_scan.state != LotState::QrAskVerifyContact && qr_scan.state != LotState::QrAskVerifyGroup
-    {
-        error!(context, "Unknown QR code.",);
-        cleanup(&context, true).await;
-        return Err(JoinError::QrCode);
-    }
-    let contact_chat_id = match chat::create_by_contact_id(context, qr_scan.id).await {
-        Ok(chat_id) => chat_id,
-        Err(_) => {
-            error!(context, "Unknown contact.");
-            cleanup(&context, true).await;
-            return Err(JoinError::UnknownContact);
-        }
-    };
-    if context.shall_stop_ongoing().await {
-        cleanup(&context, true).await;
-        return Err(JoinError::Aborted);
-    }
-    let join_vg = qr_scan.get_state() == LotState::QrAskVerifyGroup;
-    {
-        let mut bob = context.bob.write().await;
-        bob.qr_scan = Some(qr_scan);
-    }
-    if fingerprint_equals_sender(
-        context,
-        context
-            .bob
-            .read()
-            .await
-            .qr_scan
-            .as_ref()
-            .unwrap()
-            .fingerprint
-            .as_ref()
-            .unwrap(),
-        contact_chat_id,
-    )
-    .await
-    {
-        // the scanned fingerprint matches Alice's key,
-        // we can proceed to step 4b) directly and save two mails
-        info!(context, "Taking protocol shortcut.");
-        context.bob.write().await.expects = SecureJoinStep::ContactConfirm;
-        joiner_progress!(
-            context,
-            chat_id_2_contact_id(context, contact_chat_id).await,
-            400
-        );
-        let own_fingerprint = get_self_fingerprint(context).await;
+    let invite = QrInvite::try_from(qr_scan)?;
 
-        // Bob -> Alice
-        if let Err(err) = send_handshake_msg(
-            context,
-            contact_chat_id,
-            if join_vg {
-                "vg-request-with-auth"
-            } else {
-                "vc-request-with-auth"
-            },
-            get_qr_attr!(context, auth).to_string(),
-            own_fingerprint,
-            if join_vg {
-                get_qr_attr!(context, text2).to_string()
-            } else {
-                "".to_string()
-            },
-        )
-        .await
-        {
-            error!(context, "failed to send handshake message: {}", err);
-            cleanup(&context, true).await;
-            return Err(JoinError::SendMessage(err));
-        }
-    } else {
-        context.bob.write().await.expects = SecureJoinStep::AuthRequired;
+    context.bob.start_protocol(context, invite.clone()).await?;
 
-        // Bob -> Alice
-        if let Err(err) = send_handshake_msg(
-            context,
-            contact_chat_id,
-            if join_vg { "vg-request" } else { "vc-request" },
-            get_qr_attr!(context, invitenumber),
-            None,
-            "",
-        )
-        .await
-        {
-            error!(context, "failed to send handshake message: {}", err);
-            cleanup(&context, true).await;
-            return Err(JoinError::SendMessage(err));
+    match invite {
+        QrInvite::Contact { .. } => {
+            // for a one-to-one-chat, the chat is already known, return the chat-id,
+            // the verification runs in background
+            let chat_id = chat::create_by_contact_id(context, invite.contact_id())
+                .await
+                .map_err(JoinError::UnknownContact)?;
+            Ok(chat_id)
         }
-    }
+        QrInvite::Group { ref grpid, .. } => {
+            // for a group-join, wait until the secure-join is done and the group is created
+            while !context.shall_stop_ongoing().await {
+                async_std::task::sleep(Duration::from_millis(50)).await;
+            }
 
-    if join_vg {
-        // for a group-join, wait until the secure-join is done and the group is created
-        while !context.shall_stop_ongoing().await {
-            async_std::task::sleep(Duration::from_millis(50)).await;
-        }
+            // handle_securejoin_handshake() calls Context::stop_ongoing before the group
+            // chat is created (it is created after handle_securejoin_handshake() returns by
+            // dc_receive_imf()).  As a hack we just wait a bit for it to appear.
 
-        // handle_securejoin_handshake() calls Context::stop_ongoing before the group chat
-        // is created (it is created after handle_securejoin_handshake() returns by
-        // dc_receive_imf()).  As a hack we just wait a bit for it to appear.
-        let start = Instant::now();
-        let chatid = loop {
-            {
-                let bob = context.bob.read().await;
-                let grpid = bob.qr_scan.as_ref().unwrap().text2.as_ref().unwrap();
-                match chat::get_chat_id_by_grpid(context, grpid).await {
-                    Ok((chatid, _is_protected, _blocked)) => break chatid,
-                    Err(err) => {
-                        if start.elapsed() > Duration::from_secs(7) {
-                            return Err(JoinError::MissingChat(err));
+            // If the protocol is aborted by Bob, this timeout will also happen.
+            let start = Instant::now();
+            let chatid = loop {
+                {
+                    match chat::get_chat_id_by_grpid(context, grpid).await {
+                        Ok((chatid, _is_protected, _blocked)) => break chatid,
+                        Err(err) => {
+                            if start.elapsed() > Duration::from_secs(7) {
+                                return Err(JoinError::MissingChat(err));
+                            }
                         }
                     }
                 }
-            }
-            async_std::task::sleep(Duration::from_millis(50)).await;
-        };
-
-        cleanup(&context, true).await;
-        Ok(chatid)
-    } else {
-        // for a one-to-one-chat, the chat is already known, return the chat-id,
-        // the verification runs in background
-        context.free_ongoing().await;
-        Ok(contact_chat_id)
+                async_std::task::sleep(Duration::from_millis(50)).await;
+            };
+            Ok(chatid)
+        }
     }
 }
 
@@ -376,6 +883,12 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
 #[derive(Debug, thiserror::Error)]
 #[error("Failed sending handshake message")]
 pub struct SendMsgError(#[from] anyhow::Error);
+
+impl From<key::Error> for SendMsgError {
+    fn from(source: key::Error) -> Self {
+        Self(anyhow::Error::new(source))
+    }
+}
 
 async fn send_handshake_msg(
     context: &Context,
@@ -455,51 +968,42 @@ async fn fingerprint_equals_sender(
     }
     false
 }
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum HandshakeError {
-    #[error("Can not be called with special contact ID")]
-    SpecialContactId,
-    #[error("Not a Secure-Join message")]
-    NotSecureJoinMsg,
-    #[error("Failed to look up or create chat for contact #{contact_id}")]
-    NoChat {
-        contact_id: u32,
-        #[source]
-        cause: Error,
-    },
-    #[error("Chat for group {group} not found")]
-    ChatNotFound { group: String },
-    #[error("No configured self address found")]
-    NoSelfAddr,
-    #[error("Failed to send message")]
-    MsgSendFailed(#[from] SendMsgError),
-    #[error("Failed to parse fingerprint")]
-    BadFingerprint(#[from] crate::key::FingerprintError),
-}
 
 /// What to do with a Secure-Join handshake message after it was handled.
+///
+/// This status is returned to [`dc_receive_imf`] which will use it to decide what to do
+/// next with this incoming setup-contact/secure-join handshake message.
 pub(crate) enum HandshakeMessage {
     /// The message has been fully handled and should be removed/delete.
+    ///
+    /// This removes the message both locally and on the IMAP server.
     Done,
     /// The message should be ignored/hidden, but not removed/deleted.
+    ///
+    /// This leaves it on the IMAP server.  It means other devices on this account can
+    /// receive and potentially process this message as well.  This is useful for example
+    /// when the other device is running the protocol and has the relevant QR-code
+    /// information while this device does not have the joiner state ([`BobState`]).
     Ignore,
     /// The message should be further processed by incoming message handling.
+    ///
+    /// This may for example result in a group being created if it is a message which added
+    /// us to a group (a `vg-member-added` message).
     Propagate,
 }
 
 /// Handle incoming secure-join handshake.
 ///
 /// This function will update the securejoin state in [`InnerContext::bob`] and also
-/// terminate the ongoing process using [Context::stop_ongoing] as required by the protocol.
+/// terminate the ongoing process using [`Context::stop_ongoing`] as required by the
+/// protocol.
 ///
-/// A message which results in [Err] will be hidden from the user but
-/// not deleted, it may be a valid message for something else we are
-/// not aware off.  E.g. it could be part of a handshake performed by
-/// another DC app on the same account.
+/// A message which results in [`Err`] will be hidden from the user but not deleted, it may
+/// be a valid message for something else we are not aware off.  E.g. it could be part of a
+/// handshake performed by another DC app on the same account.
 ///
-/// When handle_securejoin_handshake() is called,
-/// the message is not yet filed in the database;
-/// this is done by receive_imf() later on as needed.
+/// When `handle_securejoin_handshake()` is called, the message is not yet filed in the
+/// database; this is done by `receive_imf()` later on as needed.
 ///
 /// [`InnerContext::bob`]: crate::context::InnerContext::bob
 #[allow(clippy::indexing_slicing)]
@@ -507,34 +1011,34 @@ pub(crate) async fn handle_securejoin_handshake(
     context: &Context,
     mime_message: &MimeMessage,
     contact_id: u32,
-) -> Result<HandshakeMessage, HandshakeError> {
+) -> Result<HandshakeMessage> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
-        return Err(HandshakeError::SpecialContactId);
+        return Err(Error::msg("Can not be called with special contact ID"));
     }
     let step = mime_message
         .get(HeaderDef::SecureJoin)
-        .ok_or(HandshakeError::NotSecureJoinMsg)?;
+        .context("Not a Secure-Join message")?;
 
     info!(
         context,
         ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
     );
 
-    let contact_chat_id =
-        match chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).await {
-            Ok((chat_id, blocked)) => {
-                if blocked != Blocked::Not {
-                    chat_id.unblock(context).await;
-                }
-                chat_id
-            }
-            Err(err) => {
-                return Err(HandshakeError::NoChat {
-                    contact_id,
-                    cause: err,
-                });
-            }
-        };
+    let contact_chat_id = {
+        let (chat_id, blocked) =
+            chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not)
+                .await
+                .with_context(|| {
+                    format!(
+                        "Failed to look up or create chat for contact {}",
+                        contact_id
+                    )
+                })?;
+        if blocked != Blocked::Not {
+            chat_id.unblock(context).await;
+        }
+        chat_id
+    };
 
     let join_vg = step.starts_with("vg-");
 
@@ -581,71 +1085,21 @@ pub(crate) async fn handle_securejoin_handshake(
             ====             Bob - the joiner's side             =====
             ====   Step 4 in "Setup verified contact" protocol   =====
             ========================================================*/
-
-            // verify that Alice's Autocrypt key and fingerprint matches the QR-code
-            let cond = {
-                let bob = context.bob.read().await;
-                let scan = bob.qr_scan.as_ref();
-                scan.is_none()
-                    || bob.expects != SecureJoinStep::AuthRequired
-                    || join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
-            };
-
-            if cond {
-                warn!(context, "auth-required message out of sync.");
-                // no error, just aborted somehow or a mail from another handshake
-                return Ok(HandshakeMessage::Ignore);
-            }
-            let scanned_fingerprint_of_alice: Fingerprint =
-                get_qr_attr!(context, fingerprint).clone();
-            let auth = get_qr_attr!(context, auth).to_string();
-
-            if !encrypted_and_signed(context, mime_message, Some(&scanned_fingerprint_of_alice)) {
-                could_not_establish_secure_connection(
-                    context,
-                    contact_chat_id,
-                    if mime_message.was_encrypted() {
-                        "No valid signature."
-                    } else {
-                        "Not encrypted."
-                    },
-                )
-                .await;
-                context.stop_ongoing().await;
-                return Ok(HandshakeMessage::Ignore);
-            }
-            if !fingerprint_equals_sender(context, &scanned_fingerprint_of_alice, contact_chat_id)
-                .await
-            {
-                could_not_establish_secure_connection(
-                    context,
-                    contact_chat_id,
-                    "Fingerprint mismatch on joiner-side.",
-                )
-                .await;
-                context.stop_ongoing().await;
-                return Ok(HandshakeMessage::Ignore);
-            }
-            info!(context, "Fingerprint verified.",);
-            let own_fingerprint = get_self_fingerprint(context).await.unwrap();
-            joiner_progress!(context, contact_id, 400);
-            context.bob.write().await.expects = SecureJoinStep::ContactConfirm;
-
-            // Bob -> Alice
-            send_handshake_msg(
-                context,
-                contact_chat_id,
-                &format!("{}-request-with-auth", &step[..2]),
-                auth,
-                Some(own_fingerprint),
-                if join_vg {
-                    get_qr_attr!(context, text2).to_string()
-                } else {
-                    "".to_string()
+            match context.bob.state(context).await {
+                Some(mut bobstate) => match bobstate.handle_message(context, mime_message).await {
+                    Some(BobHandshakeStage::Terminated(why)) => {
+                        could_not_establish_secure_connection(context, bobstate.chat_id()?, why)
+                            .await;
+                        Ok(HandshakeMessage::Done)
+                    }
+                    Some(_stage) => {
+                        joiner_progress!(context, bobstate.invite()?.contact_id(), 400);
+                        Ok(HandshakeMessage::Done)
+                    }
+                    None => Ok(HandshakeMessage::Ignore),
                 },
-            )
-            .await?;
-            Ok(HandshakeMessage::Done)
+                None => Ok(HandshakeMessage::Ignore),
+            }
         }
         "vg-request-with-auth" | "vc-request-with-auth" => {
             /*==========================================================
@@ -741,9 +1195,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     }
                     Err(err) => {
                         error!(context, "Chat {} not found: {}", &field_grpid, err);
-                        return Err(HandshakeError::ChatNotFound {
-                            group: field_grpid.to_string(),
-                        });
+                        return Err(Error::new(err)
+                            .context(format!("Chat for group {} not found", &field_grpid)));
                     }
                 }
             } else {
@@ -767,113 +1220,28 @@ pub(crate) async fn handle_securejoin_handshake(
             ====             Bob - the joiner's side             ====
             ====   Step 7 in "Setup verified contact" protocol   ====
             =======================================================*/
-            let abort_retval = if join_vg {
+            info!(context, "matched vc-contact-confirm step");
+            let retval = if join_vg {
                 HandshakeMessage::Propagate
             } else {
                 HandshakeMessage::Ignore
             };
-
-            if context.bob.read().await.expects != SecureJoinStep::ContactConfirm {
-                info!(context, "Message belongs to a different handshake.",);
-                return Ok(abort_retval);
-            }
-            let cond = {
-                let bob = context.bob.read().await;
-                let scan = bob.qr_scan.as_ref();
-                scan.is_none() || (join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup)
-            };
-            if cond {
-                warn!(
-                    context,
-                    "Message out of sync or belongs to a different handshake.",
-                );
-                return Ok(abort_retval);
-            }
-            let scanned_fingerprint_of_alice: Fingerprint =
-                get_qr_attr!(context, fingerprint).clone();
-
-            let vg_expect_encrypted = if join_vg {
-                let group_id = get_qr_attr!(context, text2).to_string();
-                // This is buggy, is_protected_group will always be
-                // false since the group is created by receive_imf by
-                // the very handshake message we're handling now.  But
-                // only after we have returned.  It does not impact
-                // the security invariants of secure-join however.
-                let (_, is_protected_group, _) = chat::get_chat_id_by_grpid(context, &group_id)
-                    .await
-                    .unwrap_or((ChatId::new(0), false, Blocked::Not));
-                // when joining a non-verified group
-                // the vg-member-added message may be unencrypted
-                // when not all group members have keys or prefer encryption.
-                // So only expect encryption if this is a verified group
-                is_protected_group
-            } else {
-                // setup contact is always encrypted
-                true
-            };
-            if vg_expect_encrypted
-                && !encrypted_and_signed(context, mime_message, Some(&scanned_fingerprint_of_alice))
-            {
-                could_not_establish_secure_connection(
-                    context,
-                    contact_chat_id,
-                    "Contact confirm message not encrypted.",
-                )
-                .await;
-                return Ok(abort_retval);
-            }
-
-            if mark_peer_as_verified(context, &scanned_fingerprint_of_alice)
-                .await
-                .is_err()
-            {
-                could_not_establish_secure_connection(
-                    context,
-                    contact_chat_id,
-                    "Fingerprint mismatch on joiner-side.",
-                )
-                .await;
-                return Ok(abort_retval);
-            }
-            Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined).await;
-            emit_event!(context, EventType::ContactsChanged(None));
-            let cg_member_added = mime_message
-                .get(HeaderDef::ChatGroupMemberAdded)
-                .map(|s| s.as_str())
-                .unwrap_or_else(|| "");
-            if join_vg
-                && !context
-                    .is_self_addr(cg_member_added)
-                    .await
-                    .map_err(|_| HandshakeError::NoSelfAddr)?
-            {
-                info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
-                return Ok(abort_retval);
-            }
-            secure_connection_established(context, contact_chat_id).await;
-            context.bob.write().await.expects = SecureJoinStep::NotActive;
-
-            // Bob -> Alice
-            send_handshake_msg(
-                context,
-                contact_chat_id,
-                if join_vg {
-                    "vg-member-added-received"
-                } else {
-                    "vc-contact-confirm-received" // only for observe_securejoin_on_other_device()
+            match context.bob.state(context).await {
+                Some(mut bobstate) => match bobstate.handle_message(context, mime_message).await {
+                    Some(BobHandshakeStage::Terminated(why)) => {
+                        could_not_establish_secure_connection(context, bobstate.chat_id()?, why)
+                            .await;
+                        Ok(HandshakeMessage::Done)
+                    }
+                    Some(_stage) => {
+                        // Can only be BobHandshakeStage::Completed
+                        secure_connection_established(context, bobstate.chat_id()?).await;
+                        Ok(retval)
+                    }
+                    None => Ok(retval),
                 },
-                "",
-                Some(scanned_fingerprint_of_alice),
-                "",
-            )
-            .await?;
-
-            context.stop_ongoing().await;
-            Ok(if join_vg {
-                HandshakeMessage::Propagate
-            } else {
-                HandshakeMessage::Ignore // "Done" deletes the message and breaks multi-device
-            })
+                None => Ok(retval),
+            }
         }
         "vg-member-added-received" | "vc-contact-confirm-received" => {
             /*==========================================================
@@ -896,9 +1264,8 @@ pub(crate) async fn handle_securejoin_handshake(
                         .unwrap_or_else(|| "");
                     if let Err(err) = chat::get_chat_id_by_grpid(context, &field_grpid).await {
                         warn!(context, "Failed to lookup chat_id from grpid: {}", err);
-                        return Err(HandshakeError::ChatNotFound {
-                            group: field_grpid.to_string(),
-                        });
+                        return Err(Error::new(err)
+                            .context(format!("Chat for group {} not found", &field_grpid)));
                     }
                 }
                 Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device
@@ -935,30 +1302,30 @@ pub(crate) async fn observe_securejoin_on_other_device(
     context: &Context,
     mime_message: &MimeMessage,
     contact_id: u32,
-) -> Result<HandshakeMessage, HandshakeError> {
+) -> Result<HandshakeMessage> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
-        return Err(HandshakeError::SpecialContactId);
+        return Err(Error::msg("Can not be called with special contact ID"));
     }
     let step = mime_message
         .get(HeaderDef::SecureJoin)
-        .ok_or(HandshakeError::NotSecureJoinMsg)?;
+        .context("Not a Secure-Join message")?;
     info!(context, "observing secure-join message \'{}\'", step);
 
-    let contact_chat_id =
-        match chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).await {
-            Ok((chat_id, blocked)) => {
-                if blocked != Blocked::Not {
-                    chat_id.unblock(context).await;
-                }
-                chat_id
-            }
-            Err(err) => {
-                return Err(HandshakeError::NoChat {
-                    contact_id,
-                    cause: err,
-                });
-            }
-        };
+    let contact_chat_id = {
+        let (chat_id, blocked) =
+            chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not)
+                .await
+                .with_context(|| {
+                    format!(
+                        "Failed to look up or create chat for contact {}",
+                        contact_id
+                    )
+                })?;
+        if blocked != Blocked::Not {
+            chat_id.unblock(context).await;
+        }
+        chat_id
+    };
 
     match step.as_str() {
         "vg-member-added"
@@ -1022,8 +1389,9 @@ async fn secure_connection_established(context: &Context, contact_chat_id: ChatI
     let msg = context
         .stock_string_repl_str(StockMessage::ContactVerified, addr)
         .await;
-    chat::add_info_msg(context, contact_chat_id, msg).await;
+    chat::add_info_msg(context, contact_chat_id, &msg).await;
     emit_event!(context, EventType::ChatModified(contact_chat_id));
+    info!(context, "{}", msg);
 }
 
 async fn could_not_establish_secure_connection(
@@ -1110,7 +1478,7 @@ mod tests {
     use crate::chat::ProtectionStatus;
     use crate::events::Event;
     use crate::peerstate::Peerstate;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{LogSink, TestContext};
 
     #[async_std::test]
     async fn test_setup_contact() {
@@ -1299,7 +1667,7 @@ mod tests {
     async fn test_setup_contact_bad_qr() {
         let bob = TestContext::new_bob().await;
         let ret = dc_join_securejoin(&bob.ctx, "not a qr code").await;
-        assert!(matches!(ret, Err(JoinError::QrCode)));
+        assert!(matches!(ret, Err(JoinError::QrCode(_))));
     }
 
     #[async_std::test]

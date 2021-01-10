@@ -440,7 +440,6 @@ async fn add_parts(
                 }
                 Err(err) => {
                     *hidden = true;
-                    context.stop_ongoing().await;
                     warn!(context, "Error in Secure-Join message handling: {}", err);
                     return Ok(());
                 }

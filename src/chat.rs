@@ -3063,7 +3063,7 @@ mod tests {
     #[async_std::test]
     async fn test_chat_info() {
         let t = TestContext::new().await;
-        let chat = t.chat_with_contact("bob", "bob@example.com").await;
+        let chat = t.create_chat_with_contact("bob", "bob@example.com").await;
         let info = chat.get_info(&t).await.unwrap();
 
         // Ensure we can serialize this.
