@@ -76,7 +76,7 @@ pub mod stock;
 mod token;
 #[macro_use]
 mod dehtml;
-pub mod originalhtml;
+pub mod html;
 
 pub mod dc_receive_imf;
 pub mod dc_tools;

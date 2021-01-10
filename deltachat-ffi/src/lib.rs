@@ -1390,17 +1390,17 @@ pub unsafe extern "C" fn dc_get_msg_info(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_original_mime_html(
+pub unsafe extern "C" fn dc_get_msg_html(
     context: *mut dc_context_t,
     msg_id: u32,
 ) -> *mut libc::c_char {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_get_original_mime_html()");
+        eprintln!("ignoring careless call to dc_get_msg_html()");
         return "".strdup();
     }
     let ctx = &*context;
 
-    block_on(originalhtml::get_original_mime_html(
+    block_on(html::get_msg_html(
         &ctx,
         MsgId::new(msg_id),
     ))

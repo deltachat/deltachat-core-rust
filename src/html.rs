@@ -1,10 +1,10 @@
-///! # Get original mime-message as HTML.
+///! # Get message as HTML.
 ///!
 ///! Use is_mime_modified() to check if the UI shall render a
-///! corresponding button and get_original_mime_html() to get the full message.
+///! corresponding button and get_msg_html() to get the full message.
 ///!
 ///! Even when the original mime-message is not HTML,
-///! get_original_mime_html() will return HTML -
+///! get_msg_html() will return HTML -
 ///! this allows nice quoting, handling linebreaks properly etc.
 use std::future::Future;
 use std::pin::Pin;
@@ -300,8 +300,8 @@ async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
 /// This requires `mime_headers` field to be set for the message;
 /// usually, this is the case at least when msg.is_mime_modified() is true
 /// (we do not save raw mime unconditionally in the database to save space).
-/// The corresponding ffi-function is dc_get_original_mime_html().
-pub async fn get_original_mime_html(context: &Context, msg_id: MsgId) -> String {
+/// The corresponding ffi-function is dc_get_msg_html().
+pub async fn get_msg_html(context: &Context, msg_id: MsgId) -> String {
     let rawmime: Option<String> = context
         .sql
         .query_get_value(

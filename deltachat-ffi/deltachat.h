@@ -1463,7 +1463,7 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  *   this is often poor and not nicely usable due to long links
  *
  * In these cases, dc_msg_is_mime_modified() returns 1
- * and you can ask dc_get_original_mime_html() for some HTML-code
+ * and you can ask dc_get_msg_html() for some HTML-code
  * that shows the uncut text (which is close to the original)
  * For simplicity, the function _always_ returns HTML-code,
  * this removes the need for the UI
@@ -1492,7 +1492,7 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  *     If there is no uncut text available, NULL is returned.
  *     The result must be released using dc_str_unref().
  */
-char*           dc_get_original_mime_html    (dc_context_t* context, uint32_t msg_id);
+char*           dc_get_msg_html              (dc_context_t* context, uint32_t msg_id);
 
 
 /**
@@ -3660,7 +3660,7 @@ int dc_msg_get_videochat_type (const dc_msg_t* msg);
  * or if the message is just too long or too complex
  * to get displayed properly by just using plain text.
  * If so, the UI should offer a button as
- * "Show full message" that shows the uncut message using dc_get_original_mime_html().
+ * "Show full message" that shows the uncut message using dc_get_msg_html().
  *
  * Even if a "Show full message" button is recommended,
  * the UI should display the text in the bubble

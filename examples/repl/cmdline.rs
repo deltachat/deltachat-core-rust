@@ -20,7 +20,7 @@ use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::EventType;
 use deltachat::{config, provider};
-use deltachat::{location, originalhtml};
+use deltachat::{location, html};
 use std::fs;
 
 /// Reset database tables.
@@ -390,7 +390,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
                  msginfo <msg-id>\n\
-                 orghtml <msg-id>\n\
+                 html <msg-id>\n\
                  listfresh\n\
                  forward <msg-id> <chat-id>\n\
                  markseen <msg-id>\n\
@@ -949,15 +949,15 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let res = message::get_msg_info(&context, id).await;
             println!("{}", res);
         }
-        "orghtml" => {
+        "html" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let id = MsgId::new(arg1.parse()?);
             let file = dirs::home_dir()
                 .unwrap_or_default()
-                .join(format!("org-{}.html", id.to_u32()));
-            let html = originalhtml::get_original_mime_html(&context, id).await;
+                .join(format!("msg-{}.html", id.to_u32()));
+            let html = html::get_msg_html(&context, id).await;
             fs::write(&file, html)?;
-            println!("Original html written to: {:#?}", file);
+            println!("HTML written to: {:#?}", file);
         }
         "listfresh" => {
             let msglist = context.get_fresh_msgs().await;
