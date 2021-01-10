@@ -597,7 +597,7 @@ class TestOfflineChat:
         assert in_list[1][1] == chat
         assert in_list[1][2] == contacts[3]
 
-    def test_audit_log_view(self, ac1, lp):
+    def test_audit_log_view_without_daymarker(self, ac1, lp):
         lp.sec("ac1: test audit log (show only system messages)")
         chat = ac1.create_group_chat(name="audit log sample data")
         # promote chat
