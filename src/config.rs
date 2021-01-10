@@ -142,6 +142,10 @@ pub enum Config {
 
     /// Timestamp of the last time housekeeping was run
     LastHousekeeping,
+
+    /// To how many seconds to debounce scan_all_folders. Used mainly in tests, to disable debouncing completely.
+    #[strum(props(default = "60"))]
+    ScanAllFoldersDebounceSecs,
 }
 
 impl Context {
@@ -182,6 +186,13 @@ impl Context {
     }
 
     pub async fn get_config_i64(&self, key: Config) -> i64 {
+        self.get_config(key)
+            .await
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_default()
+    }
+
+    pub async fn get_config_u64(&self, key: Config) -> u64 {
         self.get_config(key)
             .await
             .and_then(|s| s.parse().ok())

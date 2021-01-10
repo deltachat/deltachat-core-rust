@@ -10,8 +10,6 @@ from deltachat.tracker import ImexTracker
 from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
 
-scan_folder_debounce_time = 2
-
 
 @pytest.mark.parametrize("msgtext,res", [
     ("Member Me (tmp1@x.org) removed by tmp2@x.org.",
@@ -1149,7 +1147,6 @@ class TestOnlineAccount:
         ac1.direct_imap.create_folder("Sent")
 
         acfactory.wait_configure_and_start_io()
-        t = time.time()
         # Wait until each folder was selected once and we are IDLEing again:
         ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
         ac1.stop_io()
@@ -1173,8 +1170,7 @@ class TestOnlineAccount:
             message in Sent
         """)
 
-        # Scanning is debounced, so wait to make sure DeltaChat scans after start_io() is called:
-        time.sleep(max(0, scan_folder_debounce_time - (time.time() - t)))
+        ac1.set_config("scan_all_folders_debounce_secs", "0")
         ac1.start_io()
 
         msg = ac1._evtracker.wait_next_messages_changed()
@@ -2151,7 +2147,6 @@ class TestOnlineAccount:
         ac1.direct_imap.create_folder(folder)
 
         acfactory.wait_configure_and_start_io()
-        t = time.time()
         # Wait until each folder was selected once and we are IDLEing:
         ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
         ac1.stop_io()
@@ -2163,9 +2158,8 @@ class TestOnlineAccount:
         ac1.direct_imap.idle_check(terminate=True)
         ac1.direct_imap.conn.move(["*"], folder)  # "*" means "biggest UID in mailbox"
 
-        # Scanning is debounced, so wait to make sure DeltaChat scans after start_io() is called:
-        time.sleep(max(0, scan_folder_debounce_time - (time.time() - t)))
         lp.sec("Everything prepared, now see if DeltaChat finds the message (" + variant + ")")
+        ac1.set_config("scan_all_folders_debounce_secs", "0")
         ac1.start_io()
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"

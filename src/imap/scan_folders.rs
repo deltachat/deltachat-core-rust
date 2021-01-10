@@ -1,7 +1,8 @@
 use std::time::Instant;
 
-use crate::{config::Config, context::Context, dc_tools::time};
+use crate::{config::Config, context::Context};
 use anyhow::Context as _;
+use std::convert::TryFrom;
 
 use crate::error::Result;
 use crate::imap::Imap;
@@ -17,14 +18,13 @@ impl Imap {
         let mut last_scan = context.last_full_folder_scan.lock().await;
         if let Some(last_scan) = *last_scan {
             let elapsed_secs = last_scan.elapsed().as_secs();
-            if elapsed_secs < 60 {
-                // For the first day after installation, we only debounce to 2s:
+            let debounce_secs = context
+                .get_config_u64(Config::ScanAllFoldersDebounceSecs)
+                .await;
 
-                let configure_time = context.get_config_i64(Config::ConfiguredTimestamp).await;
-                if time() - configure_time > 24 * 60 * 60 || elapsed_secs < 2 {
-                    info!(context, "Not scanning, we scanned {}s ago", elapsed_secs);
-                    return Ok(());
-                }
+            if elapsed_secs < debounce_secs {
+                info!(context, "Not scanning, we scanned {}s ago", elapsed_secs);
+                return Ok(());
             }
         }
         info!(context, "Starting full folder scan");
