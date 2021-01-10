@@ -10,6 +10,7 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
+use anyhow::Context as _;
 use async_smtp::smtp::response::Category;
 use async_smtp::smtp::response::Code;
 use async_smtp::smtp::response::Detail;
@@ -511,13 +512,12 @@ impl Job {
         }
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-        let server_folder = msg.server_folder.as_ref().unwrap();
+        let server_folder = &job_try!(msg
+            .server_folder
+            .context("Can't move message out of folder if we don't know the current folder"));
 
-        let dest_folder = match msg
-            .id
-            .needs_move(context, msg.server_folder.as_ref().unwrap())
-            .await
-        {
+        let move_res = msg.id.needs_move(context, server_folder).await;
+        let dest_folder = match move_res {
             Err(e) => {
                 warn!(context, "could not load dest folder: {}", e);
                 return Status::RetryLater;
@@ -525,7 +525,7 @@ impl Job {
             Ok(None) => {
                 warn!(
                     context,
-                    "msg {} does not need to be moved from {:?}", msg.id, msg.server_folder
+                    "msg {} does not need to be moved from {}", msg.id, server_folder
                 );
                 return Status::Finished(Ok(()));
             }
