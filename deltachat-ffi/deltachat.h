@@ -1448,7 +1448,7 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
 
 
 /**
- * Get uncut text of message, if available.
+ * Get uncut message, if available.
  *
  * Delta Chat tries to break the message in simple parts as plain text or images
  * that are retrieved using dc_msg_get_type(), dc_msg_get_text(), dc_msg_get_file() and so on.
@@ -1469,8 +1469,7 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * this removes the need for the UI
  * to deal with different formatting options of PLAIN-parts.
  *
- * **Note:** As usual for HTML,
- * the returned HTML-code may contain scripts,
+ * **Note:** The returned HTML-code may contain scripts,
  * external images that may be misused as hidden read-receipts and so on.
  * Taking care of these parts
  * while maintaining compatibility with the then generated HTML-code

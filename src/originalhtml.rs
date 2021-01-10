@@ -3,7 +3,7 @@
 ///! Use is_mime_modified() to check if the UI shall render a
 ///! corresponding button and get_original_mime_html() to get the full message.
 ///!
-///! Even whem the original mime-message is not HTML,
+///! Even when the original mime-message is not HTML,
 ///! get_original_mime_html() will return HTML -
 ///! this allows nice quoting, handling linebreaks properly etc.
 use std::future::Future;

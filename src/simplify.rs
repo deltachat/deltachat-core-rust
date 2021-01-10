@@ -17,6 +17,9 @@ pub fn escape_message_footer_marks(text: &str) -> String {
 }
 
 /// Remove standard (RFC 3676, §4.3) footer if it is found.
+/// Returns `(lines, is_footer_removed)` tuple;
+/// `is_footer_removed` is set to `true` if the footer was actually removed from `lines`
+/// (which is equal to the input array otherwise).
 #[allow(clippy::indexing_slicing)]
 fn remove_message_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     let mut nearly_standard_footer = None;
@@ -42,8 +45,10 @@ fn remove_message_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     (lines, false)
 }
 
-/// Remove nonstandard footer and a boolean indicating whether such
-/// footer was removed.
+/// Remove nonstandard footer and a boolean indicating whether such footer was removed.
+/// Returns `(lines, is_footer_removed)` tuple;
+/// `is_footer_removed` is set to `true` if the footer was actually removed from `lines`
+/// (which is equal to the input array otherwise).
 #[allow(clippy::indexing_slicing)]
 fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     for (ix, &line) in lines.iter().enumerate() {
@@ -66,6 +71,8 @@ pub(crate) fn split_lines(buf: &str) -> Vec<&str> {
 
 /// Simplify message text for chat display.
 /// Remove quotes, signatures, trailing empty lines etc.
+/// Returns `(text, is_forwarded, is_cut, quote)` tuple,
+/// returning the simplified text and some additional information gained from the input.
 pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, bool, Option<String>) {
     let mut is_cut = false;
 
