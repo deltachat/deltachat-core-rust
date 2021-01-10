@@ -1451,7 +1451,7 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * Get uncut message, if available.
  *
  * Delta Chat tries to break the message in simple parts as plain text or images
- * that are retrieved using dc_msg_get_type(), dc_msg_get_text(), dc_msg_get_file() and so on.
+ * that are retrieved using dc_msg_get_viewtype(), dc_msg_get_text(), dc_msg_get_file() and so on.
  * This works totally fine for Delta Chat to Delta Chat communication,
  * however, when the counterpart uses another E-Mail-client, this has limits:
  *

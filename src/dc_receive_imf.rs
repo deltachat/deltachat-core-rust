@@ -807,7 +807,7 @@ async fn add_parts(
     // (ui typically displays a button to load whole message)
     //
     // (currently, we skip that part for encrypted messages
-    // as there is probably no huge intersection between html-messases and encrypted messages,
+    // as there is probably no huge intersection between html-messages and encrypted messages,
     // however, that should be doable we need the decrypted mime-structure in this case, however)
     let mut save_mime_modified = mime_parser.is_mime_modified && !mime_parser.was_encrypted();
 
