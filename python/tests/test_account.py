@@ -614,7 +614,7 @@ class TestOfflineChat:
 
         lp.sec("check message count of only system messages (without daymarkers)")
         dc_array = ffi.gc(
-            lib.dc_get_chat_msgs(ac1._dc_context, chat.id, 2, 0),  # todo replace `2` with const.DC_GCM_SYSTEM_ONLY
+            lib.dc_get_chat_msgs(ac1._dc_context, chat.id, const.DC_GCM_SYSTEM_ONLY, 0),
             lib.dc_array_unref
         )
         assert len(list(iter_array(dc_array, lambda x: x))) == 2
