@@ -6,6 +6,7 @@
 ///! Even when the original mime-message is not HTML,
 ///! `MsgId.get_html()` will return HTML -
 ///! this allows nice quoting, handling linebreaks properly etc.
+use futures::future::FutureExt;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -100,8 +101,6 @@ impl HtmlMsgParser {
         context: &'a Context,
         mail: &'a mailparse::ParsedMail<'a>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
-        use futures::future::FutureExt;
-
         // Boxed future to deal with recursion
         async move {
             match get_mime_multipart_type(&mail.ctype).await {
@@ -157,8 +156,6 @@ impl HtmlMsgParser {
         context: &'a Context,
         mail: &'a mailparse::ParsedMail<'a>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
-        use futures::future::FutureExt;
-
         // Boxed future to deal with recursion
         async move {
             match get_mime_multipart_type(&mail.ctype).await {
