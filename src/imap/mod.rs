@@ -661,7 +661,7 @@ impl Imap {
 
         let mut read_errors = 0;
         let mut uids = Vec::with_capacity(msgs.len());
-        let largest_uid = msgs.keys().last().copied();
+        let mut largest_uid_skipped = None;
 
         for (current_uid, msg) in msgs.into_iter() {
             let (headers, msg_id) = match get_fetch_headers(&msg) {
@@ -686,39 +686,32 @@ impl Imap {
             )
             .await
             {
-                // Trigger download and processing for this message.
                 uids.push(current_uid);
+            } else if read_errors == 0 {
+                // If there were errors (`read_errors != 0`), stop updating largest_uid_skipped so that uid_next will
+                // not be updated and we will retry prefetching next time
+                largest_uid_skipped = Some(current_uid);
             }
         }
 
-        // check passed, go fetch the emails
-        let (_, error_cnt) = self
+        let (largest_uid_processed, error_cnt) = self
             .fetch_many_msgs(context, &folder, uids, fetch_existing_msgs)
             .await;
         read_errors += error_cnt;
 
-        // determine which uid_next to use to update  to
-        let new_uid_next = max(
-            largest_uid.unwrap_or_default() + 1,
-            (self.config.selected_mailbox.as_ref())
-                .and_then(|m| m.uid_next)
-                .unwrap_or(1),
-        );
+        // determine which uid_next to use to update to
+        // dc_receive_imf() returns an `Err` value only on recoverable errors, otherwise it just logs an error.
+        // `largest_uid_processed` is the largest uid where dc_receive_imf() did NOT return an error.
 
-        // TODO:
-        // The error_cnt == 0 condition is here because dc_receive_imf() returns an `Err` value only on recoverable
-        // errors, otherwise it just logs an error. This means that `fectch_many_msgs` will only increase the `read_errors`
-        // variable on recoverable errors and we can check the `error_cnt` to see if there was an error
-        // and if there was, not update uid_next so that the message is fetched again next time.
-        //
-        // Problem: There might be a message
-        // that for whatever reason causes an `Err` value to be returned every time. Before my PR, the solution was:
-        // Update the uid_next to the largest message uid that had NOT failed parsing. Not perfect either but maybe I should just
-        // implement a similar logic again?
-        //
-        // Also, code style is bad currently because to understand this code, one needs to know that dc_receive_imf() returns `Err` only
-        // on recoverable errors.
-        if new_uid_next > old_uid_next && error_cnt == 0 {
+        // So: Update the uid_next to the largest uid that did NOT recoverably fail. Not perfect because if there was
+        // another message afterwards that succeeded, we will not retry. The upside is that we will not retry an infinite amount of times.
+        let largest_uid_without_errors = max(
+            largest_uid_processed.unwrap_or(0),
+            largest_uid_skipped.unwrap_or(0),
+        );
+        let new_uid_next = largest_uid_without_errors + 1;
+
+        if new_uid_next > old_uid_next {
             set_uid_next(context, &folder, new_uid_next).await?;
         }
 
