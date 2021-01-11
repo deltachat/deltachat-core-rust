@@ -604,7 +604,9 @@ impl MimeMessage {
                     }
                 }
                 if any_part_added && mail.subparts.len() > 1 {
-                    // there are other alternative parts, the resulting structure is probably modified
+                    // there are other alternative parts, likely HTML,
+                    // so we might have missed some content on simplifying.
+                    // set mime-modified to force the ui to display a show-message button.
                     self.is_mime_modified = true;
                 }
             }

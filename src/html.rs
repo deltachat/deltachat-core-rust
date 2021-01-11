@@ -1,10 +1,10 @@
 ///! # Get message as HTML.
 ///!
-///! Use is_mime_modified() to check if the UI shall render a
-///! corresponding button and get_msg_html() to get the full message.
+///! Use `Message.has_html()` to check if the UI shall render a
+///! corresponding button and `MsgId.get_html()` to get the full message.
 ///!
 ///! Even when the original mime-message is not HTML,
-///! get_msg_html() will return HTML -
+///! `MsgId.get_html()` will return HTML -
 ///! this allows nice quoting, handling linebreaks properly etc.
 use std::future::Future;
 use std::pin::Pin;
@@ -24,9 +24,9 @@ impl Message {
     /// Check if the message can be retrieved as HTML.
     /// Typically, this is the case, when the mime structure of a Message is modified,
     /// meaning that some text is cut or the original message
-    /// is in HTML and simplify() may hide some maybe important information.
-    /// The corresponding ffi-function is dc_msg_has_html().
-    /// To get the HTML-code of the message, use get_msg_html().
+    /// is in HTML and `simplify()` may hide some maybe important information.
+    /// The corresponding ffi-function is `dc_msg_has_html()`.
+    /// To get the HTML-code of the message, use `MsgId.get_html()`.
     pub fn has_html(&self) -> bool {
         self.mime_modified
     }
@@ -242,7 +242,7 @@ async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
         let is_quote = line.starts_with('>');
 
         // we need to do html-entity-encoding after linkify, as otherwise encapsulated links
-        // as <http://example.org> cannot be handled not handled correctly
+        // as <http://example.org> cannot be handled correctly
         // (they would become &lt;http://example.org&gt; where the trailing &gt; would become a valid url part).
         // to avoid double encoding, we escape our html-entities by \r that must not be used in the string elsewhere.
         let line = line.to_string().replace("\r", "");
@@ -301,9 +301,9 @@ async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
 impl MsgId {
     /// Get HTML from a message-id.
     /// This requires `mime_headers` field to be set for the message;
-    /// usually, this is the case at least when msg.is_mime_modified() is true
+    /// this is the case at least when `Message.has_html()` returns true
     /// (we do not save raw mime unconditionally in the database to save space).
-    /// The corresponding ffi-function is dc_get_msg_html().
+    /// The corresponding ffi-function is `dc_get_msg_html()`.
     pub async fn get_html(self, context: &Context) -> String {
         let rawmime: Option<String> = context
             .sql

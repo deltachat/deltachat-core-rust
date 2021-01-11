@@ -3652,9 +3652,9 @@ int dc_msg_get_videochat_type (const dc_msg_t* msg);
 
 
 /**
- * Check if important parts of the message may be missing.
+ * Checks if the message has a full HTML version.
  *
- * dc_msg_has_html() checks
+ * Messages have a full HTML version
  * if the original message _may_ contain important parts
  * that are removed by some heuristics
  * or if the message is just too long or too complex
@@ -3670,8 +3670,9 @@ int dc_msg_get_videochat_type (const dc_msg_t* msg);
  * @memberof dc_msg_t
  * @param msg The message object.
  * @return 0=Message as displayed using dc_msg_get_text() is just fine;
- *     1=The message may be cut badly
- *     and a button to show the original should be offered
+ *     1=The message has a full HTML version,
+ *     should be displayed using dc_msg_get_text()
+ *     and a button to show the full version should be offered
  */
 int dc_msg_has_html (dc_msg_t* msg);
 
