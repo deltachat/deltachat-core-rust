@@ -13,6 +13,7 @@ use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
 use deltachat::error::Error;
 use deltachat::imex::*;
+use deltachat::location;
 use deltachat::lot::LotState;
 use deltachat::message::{self, Message, MessageState, MsgId};
 use deltachat::peerstate::*;
@@ -20,7 +21,6 @@ use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::EventType;
 use deltachat::{config, provider};
-use deltachat::{html, location};
 use std::fs;
 
 /// Reset database tables.
@@ -951,7 +951,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let file = dirs::home_dir()
                 .unwrap_or_default()
                 .join(format!("msg-{}.html", id.to_u32()));
-            let html = html::get_msg_html(&context, id).await;
+            let html = id.get_html(&context).await;
             fs::write(&file, html)?;
             println!("HTML written to: {:#?}", file);
         }

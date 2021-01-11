@@ -1400,7 +1400,7 @@ pub unsafe extern "C" fn dc_get_msg_html(
     }
     let ctx = &*context;
 
-    block_on(html::get_msg_html(&ctx, MsgId::new(msg_id))).strdup()
+    block_on(MsgId::new(msg_id).get_html(&ctx)).strdup()
 }
 
 #[no_mangle]

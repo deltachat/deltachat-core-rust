@@ -298,28 +298,30 @@ async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
     ret
 }
 
-/// Get HTML from a message-id.
-/// This requires `mime_headers` field to be set for the message;
-/// usually, this is the case at least when msg.is_mime_modified() is true
-/// (we do not save raw mime unconditionally in the database to save space).
-/// The corresponding ffi-function is dc_get_msg_html().
-pub async fn get_msg_html(context: &Context, msg_id: MsgId) -> String {
-    let rawmime: Option<String> = context
-        .sql
-        .query_get_value(
-            context,
-            "SELECT mime_headers FROM msgs WHERE id=?;",
-            paramsv![msg_id],
-        )
-        .await;
+impl MsgId {
+    /// Get HTML from a message-id.
+    /// This requires `mime_headers` field to be set for the message;
+    /// usually, this is the case at least when msg.is_mime_modified() is true
+    /// (we do not save raw mime unconditionally in the database to save space).
+    /// The corresponding ffi-function is dc_get_msg_html().
+    pub async fn get_html(self, context: &Context) -> String {
+        let rawmime: Option<String> = context
+            .sql
+            .query_get_value(
+                context,
+                "SELECT mime_headers FROM msgs WHERE id=?;",
+                paramsv![self],
+            )
+            .await;
 
-    if let Some(rawmime) = rawmime {
-        match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
-            Err(err) => format!("parser error: {}", err),
-            Ok(parser) => parser.html,
+        if let Some(rawmime) = rawmime {
+            match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
+                Err(err) => format!("parser error: {}", err),
+                Ok(parser) => parser.html,
+            }
+        } else {
+            format!("parser error: no mime for {}", self)
         }
-    } else {
-        format!("parser error: no mime for {}", msg_id)
     }
 }
 
