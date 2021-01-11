@@ -1396,7 +1396,7 @@ pub unsafe extern "C" fn dc_get_msg_html(
 ) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_msg_html()");
-        return "".strdup();
+        return ptr::null_mut();
     }
     let ctx = &*context;
 

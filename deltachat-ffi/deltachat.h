@@ -1489,7 +1489,7 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * @param context The context object object.
  * @param msg_id The message id for which the uncut text should be loaded
  * @return Uncut text as HTML.
- *     If there is no uncut text available, NULL is returned.
+ *     In case of errors, NULL is returned.
  *     The result must be released using dc_str_unref().
  */
 char*           dc_get_msg_html              (dc_context_t* context, uint32_t msg_id);
