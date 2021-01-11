@@ -55,13 +55,96 @@ async fn get_mime_multipart_type(ctype: &ParsedContentType) -> MimeMultipartType
     }
 }
 
-// HtmlMsgParser converts a mime-message to HTML.
+/// Handle plain text together with some attributes.
 #[derive(Debug)]
-pub struct HtmlMsgParser {
-    pub html: String,
-    pub plain: Option<String>,
-    pub format_flowed: bool,
+struct PlainText {
+    pub text: String,
+    pub flowed: bool,
     pub delsp: bool,
+}
+
+impl PlainText {
+    /// Convert plain text to HTML.
+    /// The function handles quotes, links, fixed and floating text paragraphs.
+    async fn to_html(&self) -> String {
+        static LINKIFY_MAIL_RE: Lazy<regex::Regex> =
+            Lazy::new(|| regex::Regex::new(r#"\b([\w.\-+]+@[\w.\-]+)\b"#).unwrap());
+
+        static LINKIFY_URL_RE: Lazy<regex::Regex> = Lazy::new(|| {
+            regex::Regex::new(r#"\b((http|https|ftp|ftps):[\w.,:;$/@!?&%\-~=#+]+)"#).unwrap()
+        });
+
+        let lines = split_lines(&self.text);
+
+        let mut ret =
+            "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
+
+        for line in lines {
+            let is_quote = line.starts_with('>');
+
+            // we need to do html-entity-encoding after linkify, as otherwise encapsulated links
+            // as <http://example.org> cannot be handled correctly
+            // (they would become &lt;http://example.org&gt; where the trailing &gt; would become a valid url part).
+            // to avoid double encoding, we escape our html-entities by \r that must not be used in the string elsewhere.
+            let line = line.to_string().replace("\r", "");
+
+            let mut line = LINKIFY_MAIL_RE
+                .replace_all(&*line, "\rLTa href=\rQUOTmailto:$1\rQUOT\rGT$1\rLT/a\rGT")
+                .as_ref()
+                .to_string();
+
+            line = LINKIFY_URL_RE
+                .replace_all(&*line, "\rLTa href=\rQUOT$1\rQUOT\rGT$1\rLT/a\rGT")
+                .as_ref()
+                .to_string();
+
+            // encode html-entities after linkify the raw string
+            line = escaper::encode_minimal(&line);
+
+            // make our escaped html-entities real after encoding all others
+            line = line.replace("\rLT", "<");
+            line = line.replace("\rGT", ">");
+            line = line.replace("\rQUOT", "\"");
+
+            if self.flowed {
+                // flowed text as of RFC 3676 -
+                // a leading space shall be removed
+                // and is only there to allow > at the beginning of a line that is no quote.
+                line = line.strip_prefix(" ").unwrap_or(&line).to_string();
+                if is_quote {
+                    line = "<em>".to_owned() + &line + "</em>";
+                }
+
+                // a trailing space indicates that the line can be merged with the next one;
+                // for sake of simplicity, we skip merging for quotes (quotes may be combined with
+                // delsp, so `> >` is different from `>>` etc. see RFC 3676 for details)
+                if line.ends_with(' ') && !is_quote {
+                    if self.delsp {
+                        line.pop();
+                    }
+                } else {
+                    line += "<br/>\n";
+                }
+            } else {
+                // normal, fixed text
+                if is_quote {
+                    line = "<em>".to_owned() + &line + "</em>";
+                }
+                line += "<br/>\n";
+            }
+
+            ret += &*line;
+        }
+        ret += "</body></html>\n";
+        ret
+    }
+}
+
+/// HtmlMsgParser converts a mime-message to HTML.
+#[derive(Debug)]
+struct HtmlMsgParser {
+    pub html: String,
+    pub plain: Option<PlainText>,
 }
 
 impl HtmlMsgParser {
@@ -72,8 +155,6 @@ impl HtmlMsgParser {
         let mut parser = HtmlMsgParser {
             html: "".to_string(),
             plain: None,
-            format_flowed: false,
-            delsp: false,
         };
 
         let parsedmail = mailparse::parse_mail(rawmime)?;
@@ -81,8 +162,8 @@ impl HtmlMsgParser {
         parser.collect_texts_recursive(context, &parsedmail).await?;
 
         if parser.html.is_empty() {
-            if let Some(plain) = parser.plain.clone() {
-                parser.html = plain_to_html(&plain, parser.format_flowed, parser.delsp).await;
+            if let Some(plain) = &parser.plain {
+                parser.html = plain.to_html().await;
             }
         } else {
             parser.cid_to_data_recursive(context, &parsedmail).await?;
@@ -127,18 +208,19 @@ impl HtmlMsgParser {
                         }
                     } else if mimetype == mime::TEXT_PLAIN {
                         if let Ok(decoded_data) = mail.get_body() {
-                            self.plain = Some(decoded_data);
-                            self.format_flowed =
-                                if let Some(format) = mail.ctype.params.get("format") {
+                            self.plain = Some(PlainText {
+                                text: decoded_data,
+                                flowed: if let Some(format) = mail.ctype.params.get("format") {
                                     format.as_str().to_ascii_lowercase() == "flowed"
                                 } else {
                                     false
-                                };
-                            self.delsp = if let Some(delsp) = mail.ctype.params.get("delsp") {
-                                delsp.as_str().to_ascii_lowercase() == "yes"
-                            } else {
-                                false
-                            };
+                                },
+                                delsp: if let Some(delsp) = mail.ctype.params.get("delsp") {
+                                    delsp.as_str().to_ascii_lowercase() == "yes"
+                                } else {
+                                    false
+                                },
+                            });
                             return Ok(());
                         }
                     }
@@ -217,81 +299,6 @@ async fn mimepart_to_data_url(mail: &mailparse::ParsedMail<'_>) -> Result<String
     Ok(format!("data:{};base64,{}", mail.ctype.mimetype, data))
 }
 
-/// Convert plain text to HTML.
-/// The function handles quotes, links, fixed and floating text paragraphs.
-async fn plain_to_html(plain_utf8: &str, flowed: bool, delsp: bool) -> String {
-    static LINKIFY_MAIL_RE: Lazy<regex::Regex> =
-        Lazy::new(|| regex::Regex::new(r#"\b([\w.\-+]+@[\w.\-]+)\b"#).unwrap());
-
-    static LINKIFY_URL_RE: Lazy<regex::Regex> = Lazy::new(|| {
-        regex::Regex::new(r#"\b((http|https|ftp|ftps):[\w.,:;$/@!?&%\-~=#+]+)"#).unwrap()
-    });
-
-    let lines = split_lines(&plain_utf8);
-
-    let mut ret =
-        "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
-
-    for line in lines {
-        let is_quote = line.starts_with('>');
-
-        // we need to do html-entity-encoding after linkify, as otherwise encapsulated links
-        // as <http://example.org> cannot be handled correctly
-        // (they would become &lt;http://example.org&gt; where the trailing &gt; would become a valid url part).
-        // to avoid double encoding, we escape our html-entities by \r that must not be used in the string elsewhere.
-        let line = line.to_string().replace("\r", "");
-
-        let mut line = LINKIFY_MAIL_RE
-            .replace_all(&*line, "\rLTa href=\rQUOTmailto:$1\rQUOT\rGT$1\rLT/a\rGT")
-            .as_ref()
-            .to_string();
-
-        line = LINKIFY_URL_RE
-            .replace_all(&*line, "\rLTa href=\rQUOT$1\rQUOT\rGT$1\rLT/a\rGT")
-            .as_ref()
-            .to_string();
-
-        // encode html-entities after linkify the raw string
-        line = escaper::encode_minimal(&line);
-
-        // make our escaped html-entities real after encoding all others
-        line = line.replace("\rLT", "<");
-        line = line.replace("\rGT", ">");
-        line = line.replace("\rQUOT", "\"");
-
-        if flowed {
-            // flowed text as of RFC 3676 -
-            // a leading space shall be removed
-            // and is only there to allow > at the beginning of a line that is no quote.
-            line = line.strip_prefix(" ").unwrap_or(&line).to_string();
-            if is_quote {
-                line = "<em>".to_owned() + &line + "</em>";
-            }
-
-            // a trailing space indicates that the line can be merged with the next one;
-            // for sake of simplicity, we skip merging for quotes (quotes may be combined with
-            // delsp, so `> >` is different from `>>` etc. see RFC 3676 for details)
-            if line.ends_with(' ') && !is_quote {
-                if delsp {
-                    line.pop();
-                }
-            } else {
-                line += "<br/>\n";
-            }
-        } else {
-            // normal, fixed text
-            if is_quote {
-                line = "<em>".to_owned() + &line + "</em>";
-            }
-            line += "<br/>\n";
-        }
-
-        ret += &*line;
-    }
-    ret += "</body></html>\n";
-    ret
-}
-
 impl MsgId {
     /// Get HTML from a message-id.
     /// This requires `mime_headers` field to be set for the message;
@@ -326,15 +333,17 @@ mod tests {
 
     #[async_std::test]
     async fn test_plain_to_html() {
-        let html = plain_to_html(
-            r##"line 1
+        let html = PlainText {
+            text: r##"line 1
 line 2
 line with https://link-mid-of-line.org and http://link-end-of-line.com/file?foo=bar%20
 http://link-at-start-of-line.org
-"##,
-            false,
-            false,
-        )
+"##
+            .to_string(),
+            flowed: false,
+            delsp: false,
+        }
+        .to_html()
         .await;
         assert_eq!(
             html,
@@ -352,11 +361,12 @@ line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a
 
     #[async_std::test]
     async fn test_plain_to_html_encapsulated() {
-        let html = plain_to_html(
-            r#"line with <http://encapsulated.link/?foo=_bar> here!"#,
-            false,
-            false,
-        )
+        let html = PlainText {
+            text: r#"line with <http://encapsulated.link/?foo=_bar> here!"#.to_string(),
+            flowed: false,
+            delsp: false,
+        }
+        .to_html()
         .await;
         assert_eq!(
             html,
@@ -370,7 +380,13 @@ line with &lt;<a href="http://encapsulated.link/?foo=_bar">http://encapsulated.l
 
     #[async_std::test]
     async fn test_plain_to_html_nolink() {
-        let html = plain_to_html(r#"line with nohttp://no.link here"#, false, false).await;
+        let html = PlainText {
+            text: r#"line with nohttp://no.link here"#.to_string(),
+            flowed: false,
+            delsp: false,
+        }
+        .to_html()
+        .await;
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
@@ -383,11 +399,12 @@ line with nohttp://no.link here<br/>
 
     #[async_std::test]
     async fn test_plain_to_html_mailto() {
-        let html = plain_to_html(
-            r#"just an address: foo@bar.org another@one.de"#,
-            false,
-            false,
-        )
+        let html = PlainText {
+            text: r#"just an address: foo@bar.org another@one.de"#.to_string(),
+            flowed: false,
+            delsp: false,
+        }
+        .to_html()
         .await;
         assert_eq!(
             html,
@@ -401,11 +418,12 @@ just an address: <a href="mailto:foo@bar.org">foo@bar.org</a> <a href="mailto:an
 
     #[async_std::test]
     async fn test_plain_to_html_flowed() {
-        let html = plain_to_html(
-            "line \nstill line\n>quote \n>still quote\n >no quote",
-            true,
-            false,
-        )
+        let html = PlainText {
+            text: "line \nstill line\n>quote \n>still quote\n >no quote".to_string(),
+            flowed: true,
+            delsp: false,
+        }
+        .to_html()
         .await;
         assert_eq!(
             html,
@@ -422,11 +440,12 @@ line still line<br/>
 
     #[async_std::test]
     async fn test_plain_to_html_flowed_delsp() {
-        let html = plain_to_html(
-            "line \nstill line\n>quote \n>still quote\n >no quote",
-            true,
-            true,
-        )
+        let html = PlainText {
+            text: "line \nstill line\n>quote \n>still quote\n >no quote".to_string(),
+            flowed: true,
+            delsp: true,
+        }
+        .to_html()
         .await;
         assert_eq!(
             html,
@@ -443,11 +462,12 @@ linestill line<br/>
 
     #[async_std::test]
     async fn test_plain_to_html_fixed() {
-        let html = plain_to_html(
-            "line \nstill line\n>quote \n>still quote\n >no quote",
-            false,
-            false,
-        )
+        let html = PlainText {
+            text: "line \nstill line\n>quote \n>still quote\n >no quote".to_string(),
+            flowed: false,
+            delsp: false,
+        }
+        .to_html()
         .await;
         assert_eq!(
             html,
@@ -500,7 +520,7 @@ message with a non-UTF-8 encoding: äöüßÄÖÜ<br/>
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_flowed.eml");
         let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
-        assert!(parser.format_flowed);
+        assert!(parser.plain.unwrap().flowed);
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
