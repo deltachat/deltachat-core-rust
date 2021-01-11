@@ -855,9 +855,9 @@ async fn add_parts(
                     }
                 }
 
-                let mut mime_modified = false;
-                if save_mime_modified && !part.msg.is_empty() {
-                    mime_modified = true;
+                let mime_modified = save_mime_modified && !part.msg.is_empty();
+                if mime_modified {
+                    // Avoid setting mime_modified for more than one part.
                     save_mime_modified = false;
                 }
 
