@@ -1418,9 +1418,9 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
 
             sql.set_raw_config_int(context, "dbversion", 71).await?;
         }
-        if dbversion < 71 {
+        if dbversion < 72 {
             use Config::*;
-            info!(context, "[migration] v71");
+            info!(context, "[migration] v72");
             sql.execute(
                 "CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);",
                 paramsv![],
@@ -1443,7 +1443,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             if exists_before_update {
                 disable_server_delete = true;
             }
-            sql.set_raw_config_int(context, "dbversion", 71).await?;
+            sql.set_raw_config_int(context, "dbversion", 72).await?;
         }
 
         // (2) updates that require high-level objects
