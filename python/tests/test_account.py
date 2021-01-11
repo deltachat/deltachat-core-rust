@@ -1866,6 +1866,7 @@ class TestOnlineAccount:
         # Error message should be assigned to the chat with ac1.
         lp.sec("ac4: checking that message is assigned to the sender chat")
         error_msg = ac4._evtracker.wait_next_incoming_message()
+        assert error_msg.error  # There is an error decrypting the message
         assert error_msg.chat == chat41
 
         lp.sec("ac2: sending a reply to the chat")
@@ -1876,6 +1877,7 @@ class TestOnlineAccount:
 
         lp.sec("ac4: checking that reply is assigned to ac2 chat")
         error_reply = ac4._evtracker.wait_next_incoming_message()
+        assert error_reply.error  # There is an error decrypting the message
         assert error_reply.chat == chat42
 
         # Test that ac4 replies to error messages don't appear in the
@@ -1887,11 +1889,13 @@ class TestOnlineAccount:
         chat42.send_text("I can't decrypt your message, ac2!")
 
         msg = ac1._evtracker.wait_next_incoming_message()
+        assert msg.error is None
         assert msg.text == "I can't decrypt your message, ac1!"
         assert msg.is_encrypted(), "Message is not encrypted"
         assert msg.chat == ac1.create_chat(ac3)
 
         msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.error is None
         assert msg.text == "I can't decrypt your message, ac2!"
         assert msg.is_encrypted(), "Message is not encrypted"
         assert msg.chat == ac2.create_chat(ac4)

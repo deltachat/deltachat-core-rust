@@ -390,9 +390,10 @@ mod tests {
         let input = include_str!("../test-data/message/gmx-quote-body.eml");
         let dehtml = dehtml(input).unwrap();
         println!("{}", dehtml);
-        let (msg, forwawded, top_quote) = simplify(dehtml, false);
+        let (msg, forwarded, cut, top_quote) = simplify(dehtml, false);
         assert_eq!(msg, "Test");
-        assert_eq!(forwawded, false);
+        assert_eq!(forwarded, false);
+        assert_eq!(cut, false);
         assert_eq!(top_quote.as_deref(), Some("test"));
     }
 }

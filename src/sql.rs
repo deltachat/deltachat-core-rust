@@ -228,6 +228,31 @@ impl Sql {
         .await
     }
 
+    /// Check if a column exists in a given table.
+    pub async fn col_exists(
+        &self,
+        table_name: impl AsRef<str>,
+        col_name: impl AsRef<str>,
+    ) -> Result<bool> {
+        let table_name = table_name.as_ref().to_string();
+        let col_name = col_name.as_ref().to_string();
+        self.with_conn(move |conn| {
+            let mut exists = false;
+            // `PRAGMA table_info` returns one row per column,
+            // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
+            conn.pragma(None, "table_info", &table_name, |row| {
+                let curr_name: String = row.get(1)?;
+                if col_name == curr_name {
+                    exists = true;
+                }
+                Ok(())
+            })?;
+
+            Ok(exists)
+        })
+        .await
+    }
+
     /// Execute a query which is expected to return zero or one row.
     pub async fn query_row_optional<T, F>(
         &self,
@@ -1419,8 +1444,19 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             sql.set_raw_config_int(context, "dbversion", 71).await?;
         }
         if dbversion < 72 {
-            use Config::*;
             info!(context, "[migration] v72");
+            if !sql.col_exists("msgs", "mime_modified").await? {
+                sql.execute(
+                    "ALTER TABLE msgs ADD COLUMN mime_modified INTEGER DEFAULT 0;",
+                    paramsv![],
+                )
+                .await?;
+            }
+            sql.set_raw_config_int(context, "dbversion", 72).await?;
+        }
+                if dbversion < 73 {
+            use Config::*;
+            info!(context, "[migration] v73");
             sql.execute(
                 "CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);",
                 paramsv![],
@@ -1443,7 +1479,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             if exists_before_update {
                 disable_server_delete = true;
             }
-            sql.set_raw_config_int(context, "dbversion", 72).await?;
+            sql.set_raw_config_int(context, "dbversion", 73).await?;
         }
 
         // (2) updates that require high-level objects
@@ -1515,6 +1551,7 @@ async fn prune_tombstones(context: &Context) -> Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_maybe_add_file() {
@@ -1540,5 +1577,20 @@ mod test {
         assert!(is_file_in_use(&files, None, "hello"));
         assert!(!is_file_in_use(&files, Some(".txt"), "hello"));
         assert!(is_file_in_use(&files, Some("-suffix"), "world.txt-suffix"));
+    }
+
+    #[async_std::test]
+    async fn test_table_exists() {
+        let t = TestContext::new().await;
+        assert!(t.ctx.sql.table_exists("msgs").await.unwrap());
+        assert!(!t.ctx.sql.table_exists("foobar").await.unwrap());
+    }
+
+    #[async_std::test]
+    async fn test_col_exists() {
+        let t = TestContext::new().await;
+        assert!(t.ctx.sql.col_exists("msgs", "mime_modified").await.unwrap());
+        assert!(!t.ctx.sql.col_exists("msgs", "foobar").await.unwrap());
+        assert!(!t.ctx.sql.col_exists("foobar", "foobar").await.unwrap());
     }
 }

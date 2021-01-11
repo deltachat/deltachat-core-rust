@@ -1,0 +1,53 @@
+From: =?utf-8?Q?Bj=C3=B6rn_Petersen?= <somewhere-apple@me.com>
+Content-Type: multipart/alternative;
+	boundary="Apple-Mail=_19251BCB-E12B-423A-9553-5A68560C2AFD"
+Mime-Version: 1.0 (Mac OS X Mail 13.4 \(3608.120.23.2.4\))
+Subject: a jpeg
+Message-Id: <BC47DA72-6C78-443A-8EBF-2CD199ABAD09@me.com>
+Date: Sat, 9 Jan 2021 00:36:11 +0100
+To: somewhere-nonapple@testrun.org
+X-Mailer: Apple Mail (2.3608.120.23.2.4)
+
+
+--Apple-Mail=_19251BCB-E12B-423A-9553-5A68560C2AFD
+Content-Transfer-Encoding: 7bit
+Content-Type: text/plain;
+	charset=us-ascii
+
+
+a jpeg
+--Apple-Mail=_19251BCB-E12B-423A-9553-5A68560C2AFD
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="Apple-Mail=_4C3710FD-D75D-47FB-8D41-983220390856"
+
+
+--Apple-Mail=_4C3710FD-D75D-47FB-8D41-983220390856
+Content-Transfer-Encoding: 7bit
+Content-Type: text/html;
+	charset=us-ascii
+
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=us-ascii"><base></head><body style="word-wrap: break-word; -webkit-nbsp-mode: space; line-break: after-white-space;" class=""><base class=""><div class="Apple-Mail-URLShareUserContentTopClass"><br class=""></div><div class="Apple-Mail-URLShareWrapperClass"><blockquote type="cite" style="border-left-style: none; color: inherit; padding: inherit; margin: inherit;" class="">a jpeg
+	<img apple-inline="yes" id="118F6150-5EF5-4DE8-917F-1851EC94FB7C" src="cid:8AE052EF-BC90-486F-BB78-58D3590308EC@fritz.box" class=""></blockquote></div></body></html>
+--Apple-Mail=_4C3710FD-D75D-47FB-8D41-983220390856
+Content-Transfer-Encoding: base64
+Content-Disposition: inline;
+	filename=small.jpg
+Content-Type: image/jpeg;
+	x-unix-mode=0666;
+	name="small.jpg"
+Content-Id: <8AE052EF-BC90-486F-BB78-58D3590308EC@fritz.box>
+
+/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDABELDA8MChEPDg8TEhEUGSobGRcXGTMkJh4qPDU/Pjs1
+OjlDS2BRQ0daSDk6U3FUWmNma2xrQFB2fnRofWBpa2f/2wBDARITExkWGTEbGzFnRTpFZ2dnZ2dn
+Z2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2f/wgARCAAIAAgDAREA
+AhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAABP/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/9oADAMB
+AAIQAxAAAAF8s//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAQUCf//EABQRAQAAAAAAAAAA
+AAAAAAAAAAD/2gAIAQMBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Bf//EABQQ
+AQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEABj8Cf//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEA
+AT8hf//aAAwDAQACAAMAAAAQ3//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQMBAT8Qf//EABQR
+AQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Qf//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEA
+AT8Qf//Z
+--Apple-Mail=_4C3710FD-D75D-47FB-8D41-983220390856--
+
+--Apple-Mail=_19251BCB-E12B-423A-9553-5A68560C2AFD--
