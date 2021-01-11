@@ -802,11 +802,24 @@ async fn add_parts(
     let mut parts = std::mem::replace(&mut mime_parser.parts, Vec::new());
     let server_folder = server_folder.as_ref().to_string();
     let is_system_message = mime_parser.is_system_message;
-    let mime_headers = if save_mime_headers {
+
+    // if indicated by the parser,
+    // we save the full mime-message and add a flag
+    // that the ui should show button to display the full message.
+    //
+    // (currently, we skip saving mime-messages for encrypted messages
+    // as there is probably no huge intersection between html-messages and encrypted messages,
+    // however, that should be doable, we need the decrypted mime-structure in this case)
+
+    // a flag used to avoid adding "show full message" button to multiple parts of the message.
+    let mut save_mime_modified = mime_parser.is_mime_modified && !mime_parser.was_encrypted();
+
+    let mime_headers = if save_mime_headers || save_mime_modified {
         Some(String::from_utf8_lossy(imf_raw).to_string())
     } else {
         None
     };
+
     let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
     let chat_id = *chat_id;
@@ -826,8 +839,9 @@ async fn add_parts(
                     "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
          timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error, ephemeral_timer, ephemeral_timestamp) \
-         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?);",
+         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, mime_modified, \
+         error, ephemeral_timer, ephemeral_timestamp) \
+         VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?);",
                 )?;
 
                 let is_location_kml = location_kml_is
@@ -839,6 +853,12 @@ async fn add_parts(
                     if incoming {
                         state = MessageState::InSeen; // Set the state to InSeen so that precheck_imf() adds a markseen job after we moved the message
                     }
+                }
+
+                let mime_modified = save_mime_modified && !part.msg.is_empty();
+                if mime_modified {
+                    // Avoid setting mime_modified for more than one part.
+                    save_mime_modified = false;
                 }
 
                 if part.typ == Viewtype::Text {
@@ -854,7 +874,9 @@ async fn add_parts(
                 } else {
                     match ephemeral_timer {
                         EphemeralTimer::Disabled => 0,
-                        EphemeralTimer::Enabled { duration } => rcvd_timestamp + i64::from(duration)
+                        EphemeralTimer::Enabled { duration } => {
+                            rcvd_timestamp + i64::from(duration)
+                        }
                     }
                 };
 
@@ -877,9 +899,14 @@ async fn add_parts(
                     part.param.to_string(),
                     part.bytes as isize,
                     is_hidden,
-                    mime_headers,
+                    if save_mime_headers || mime_modified {
+                        mime_headers.clone()
+                    } else {
+                        None
+                    },
                     mime_in_reply_to,
                     mime_references,
+                    mime_modified,
                     part.error.take().unwrap_or_default(),
                     ephemeral_timer,
                     ephemeral_timestamp

@@ -21,6 +21,7 @@ use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::EventType;
 use deltachat::{config, provider};
+use std::fs;
 
 /// Reset database tables.
 /// Argument is a bitmask, executing single or multiple actions in one call.
@@ -185,7 +186,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let temp2 = dc_timestamp_to_str(msg.get_timestamp());
     let msgtext = msg.get_text();
     println!(
-        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
+        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}{} [{}]",
         prefix.as_ref(),
         msg.get_id(),
         if msg.get_showpadlock() { "🔒" } else { "" },
@@ -193,6 +194,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         &contact_name,
         contact_id,
         msgtext.unwrap_or_default(),
+        if msg.has_html() { "[HAS-HTML]️" } else { "" },
         if msg.get_from_id() == 1 as libc::c_uint {
             ""
         } else if msg.get_state() == MessageState::InSeen {
@@ -384,6 +386,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
                  msginfo <msg-id>\n\
+                 html <msg-id>\n\
                  listfresh\n\
                  forward <msg-id> <chat-id>\n\
                  markseen <msg-id>\n\
@@ -941,6 +944,16 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let id = MsgId::new(arg1.parse()?);
             let res = message::get_msg_info(&context, id).await;
             println!("{}", res);
+        }
+        "html" => {
+            ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
+            let id = MsgId::new(arg1.parse()?);
+            let file = dirs::home_dir()
+                .unwrap_or_default()
+                .join(format!("msg-{}.html", id.to_u32()));
+            let html = id.get_html(&context).await;
+            fs::write(&file, html)?;
+            println!("HTML written to: {:#?}", file);
         }
         "listfresh" => {
             let msglist = context.get_fresh_msgs().await;
