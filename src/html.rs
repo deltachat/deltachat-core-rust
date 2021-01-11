@@ -99,25 +99,22 @@ impl HtmlMsgParser {
         &'a mut self,
         context: &'a Context,
         mail: &'a mailparse::ParsedMail<'a>,
-    ) -> Pin<Box<dyn Future<Output = Result<bool>> + 'a + Send>> {
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
         use futures::future::FutureExt;
 
         // Boxed future to deal with recursion
         async move {
             match get_mime_multipart_type(&mail.ctype).await {
                 MimeMultipartType::Multiple => {
-                    let mut any_part_added = false;
                     for cur_data in mail.subparts.iter() {
-                        if self.collect_texts_recursive(context, cur_data).await? {
-                            any_part_added = true;
-                        }
+                        self.collect_texts_recursive(context, cur_data).await?
                     }
-                    Ok(any_part_added)
+                    Ok(())
                 }
                 MimeMultipartType::Message => {
                     let raw = mail.get_body_raw()?;
                     if raw.is_empty() {
-                        return Ok(false);
+                        return Ok(());
                     }
                     let mail = mailparse::parse_mail(&raw).unwrap();
                     self.collect_texts_recursive(context, &mail).await
@@ -127,7 +124,7 @@ impl HtmlMsgParser {
                     if mimetype == mime::TEXT_HTML {
                         if let Ok(decoded_data) = mail.get_body() {
                             self.html = decoded_data;
-                            return Ok(true);
+                            return Ok(());
                         }
                     } else if mimetype == mime::TEXT_PLAIN {
                         if let Ok(decoded_data) = mail.get_body() {
@@ -143,10 +140,10 @@ impl HtmlMsgParser {
                             } else {
                                 false
                             };
-                            return Ok(true);
+                            return Ok(());
                         }
                     }
-                    Ok(false)
+                    Ok(())
                 }
             }
         }
