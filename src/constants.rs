@@ -1,5 +1,5 @@
 //! # Constants
-use deltachat_derive::*;
+use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 

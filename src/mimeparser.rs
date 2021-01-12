@@ -10,9 +10,9 @@ use once_cell::sync::Lazy;
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
 use crate::constants::Viewtype;
-use crate::contact::*;
+use crate::contact::addr_normalize;
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::dc_get_filemeta;
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::error::{bail, Result};
@@ -22,9 +22,9 @@ use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::Fingerprint;
 use crate::location;
 use crate::message;
-use crate::param::*;
+use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
-use crate::simplify::*;
+use crate::simplify::simplify;
 use crate::stock::StockMessage;
 use charset::Charset;
 use percent_encoding::percent_decode_str;
@@ -1443,7 +1443,7 @@ mod tests {
         constants::Blocked,
         dc_receive_imf::dc_receive_imf,
         message::{Message, MessageState, MessengerMessage},
-        test_utils::*,
+        test_utils::TestContext,
     };
     use mailparse::ParsedMail;
 

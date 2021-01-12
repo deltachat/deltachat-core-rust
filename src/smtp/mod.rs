@@ -4,14 +4,14 @@ pub mod send;
 
 use std::time::{Duration, SystemTime};
 
-use async_smtp::smtp::client::net::*;
-use async_smtp::*;
+use async_smtp::smtp::client::net::ClientTlsParameters;
+use async_smtp::{error, smtp, EmailAddress};
 
-use crate::constants::*;
+use crate::constants::DC_LP_AUTH_OAUTH2;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam};
-use crate::oauth2::*;
+use crate::oauth2::dc_get_oauth2_access_token;
 use crate::provider::Socket;
 use crate::stock::StockMessage;
 

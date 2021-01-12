@@ -12,7 +12,7 @@ use pgp::types::{KeyTrait, SecretKeyTrait};
 use thiserror::Error;
 
 use crate::config::Config;
-use crate::constants::*;
+use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::dc_tools::{time, EmailAddress, InvalidEmailError};
 use crate::sql;
@@ -426,7 +426,7 @@ pub enum FingerprintError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
+    use crate::test_utils::{alice_keypair, TestContext};
 
     use std::error::Error;
 

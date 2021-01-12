@@ -11,11 +11,11 @@ use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
 use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::{dc_delete_file, time, EmailAddress};
 use crate::ephemeral::start_ephemeral_timers;
 use crate::error::format_err;
-use crate::param::*;
-use crate::peerstate::*;
+use crate::param::{Param, Params};
+use crate::peerstate::Peerstate;
 use crate::provider::get_provider_by_domain;
 use crate::{
     chat::{update_device_icon, update_saved_messages_icon},

@@ -13,16 +13,19 @@ use job::Action;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
-use crate::dc_tools::*;
+use crate::dc_tools::EmailAddress;
 use crate::imap::Imap;
 use crate::login_param::{LoginParam, ServerLoginParam};
 use crate::message::Message;
-use crate::oauth2::*;
+use crate::oauth2::dc_get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
 use crate::stock::StockMessage;
 use crate::{chat, e2ee, provider};
-use crate::{constants::*, job};
+use crate::{
+    constants::{Viewtype, DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2},
+    job,
+};
 use crate::{context::Context, param::Params};
 
 use auto_mozilla::moz_autoconfigure;
@@ -620,8 +623,8 @@ pub enum Error {
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
-    use crate::config::*;
-    use crate::test_utils::*;
+    use crate::config::Config;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_no_panic_on_bad_credentials() {

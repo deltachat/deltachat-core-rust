@@ -708,8 +708,8 @@ mod tests {
     use super::*;
     use std::convert::TryInto;
 
-    use crate::constants::*;
-    use crate::test_utils::*;
+    use crate::constants::{DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_rust_ftoa() {

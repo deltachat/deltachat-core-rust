@@ -6,19 +6,24 @@ use mailparse::SingleInfo;
 
 use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
-use crate::constants::*;
-use crate::contact::*;
+use crate::constants::{
+    Blocked, Chattype, ShowEmails, Viewtype, DC_CHAT_ID_TRASH, DC_CONTACT_ID_LAST_SPECIAL,
+    DC_CONTACT_ID_SELF,
+};
+use crate::contact::{addr_cmp, normalize_name, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::{
+    dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time, time,
+};
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
 use crate::message::{self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId};
-use crate::mimeparser::*;
-use crate::param::*;
-use crate::peerstate::*;
+use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
+use crate::param::{Param, Params};
+use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::stock::StockMessage;
 use crate::{contact, location};
@@ -1963,8 +1968,9 @@ mod tests {
     use super::*;
     use crate::chat::{ChatItem, ChatVisibility};
     use crate::chatlist::Chatlist;
+    use crate::constants::{DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
     use crate::message::Message;
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_hex_hash() {

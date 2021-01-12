@@ -4,18 +4,20 @@ use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
-use crate::constants::*;
-use crate::contact::*;
+use crate::constants::{Chattype, Viewtype, DC_FROM_HANDSHAKE};
+use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
-use crate::dc_tools::*;
-use crate::e2ee::*;
+use crate::dc_tools::{
+    dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp, dc_get_filebytes, time,
+};
+use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{bail, ensure, format_err, Error};
 use crate::format_flowed::{format_flowed, format_flowed_quote};
 use crate::location;
 use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;
-use crate::param::*;
+use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
 use crate::stock::StockMessage;
@@ -1278,8 +1280,9 @@ pub fn needs_encoding(to_check: impl AsRef<str>) -> bool {
 mod tests {
     use super::*;
     use crate::chatlist::Chatlist;
+    use crate::contact::Origin;
     use crate::dc_receive_imf::dc_receive_imf;
-    use crate::mimeparser::*;
+    use crate::mimeparser::MimeMessage;
     use crate::test_utils::TestContext;
 
     #[test]
