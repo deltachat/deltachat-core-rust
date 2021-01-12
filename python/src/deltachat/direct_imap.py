@@ -19,6 +19,7 @@ DELETED = b'\\Deleted'
 FLAGS = b'FLAGS'
 FETCH = b'FETCH'
 ALL = "1:*"
+MANUALLY_CREATED_FOLDER_NAMES = ["Sent", "Drafts", "xyz", "Spam"]
 
 
 @deltachat.global_hookimpl
@@ -31,6 +32,16 @@ def dc_account_extra_configure(account):
         for folder in imap.list_folders():
             assert imap.select_folder(folder)
             imap.delete(ALL, expunge=True)
+
+        for f in MANUALLY_CREATED_FOLDER_NAMES:
+            try:
+                imap.conn.delete_folder(f)
+                if account.get_config("configured_sentbox_folder") == f:
+                    # We just deleted the folder, so we have to make DC forget about it, too
+                    account.set_config("configured_sentbox_folder", None)
+            except imaplib.IMAP4.error as e:
+                print("Can't delete folder, probably it just doesn't exist:", e)
+
         setattr(account, "direct_imap", imap)
 
 
@@ -91,6 +102,7 @@ class DirectImap:
             print("Could not logout direct_imap conn")
 
     def create_folder(self, foldername):
+        assert foldername in MANUALLY_CREATED_FOLDER_NAMES, "Please add your folder to MANUALLY_CREATED_FOLDER_NAMES"
         try:
             self.conn.create_folder(foldername)
         except imaplib.IMAP4.error as e:
