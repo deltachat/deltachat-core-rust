@@ -1620,10 +1620,6 @@ pub async fn send_msg_sync(
     chat_id: ChatId,
     msg: &mut Message,
 ) -> Result<MsgId, Error> {
-    if context.is_io_running().await {
-        return send_msg(context, chat_id, msg).await;
-    }
-
     if let Some(mut job) = prepare_send_msg(context, chat_id, msg).await? {
         let mut smtp = crate::smtp::Smtp::new();
 

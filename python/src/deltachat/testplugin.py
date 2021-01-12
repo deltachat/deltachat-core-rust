@@ -365,7 +365,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                     acc.get_device_chat().mark_noticed()
                     del acc._configtracker
                 acc.set_config("bcc_self", "0")
-                if acc.is_configured() and not acc.is_started():
+                if acc.is_configured() and acc not in started_accounts:
                     acc.start_io()
                     started_accounts.append(acc)
                 print("{}: {} account was successfully setup".format(

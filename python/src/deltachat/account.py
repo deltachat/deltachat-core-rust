@@ -459,8 +459,6 @@ class Account(object):
         If sending out was unsuccessful, a RuntimeError is raised.
         """
         self.check_is_configured()
-        if not self.is_started():
-            raise RuntimeError("IO not running, can not send out")
         res = lib.dc_initiate_key_transfer(self._dc_context)
         if res == ffi.NULL:
             raise RuntimeError("could not send out autocrypt setup message")
@@ -592,9 +590,6 @@ class Account(object):
         lib.dc_configure(self._dc_context)
         return configtracker
 
-    def is_started(self):
-        return self._event_thread.is_alive() and bool(lib.dc_is_io_running(self._dc_context))
-
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
         self._shutdown_event.wait()
@@ -604,11 +599,8 @@ class Account(object):
         self.log("stop_ongoing")
         self.stop_ongoing()
 
-        if bool(lib.dc_is_io_running(self._dc_context)):
-            self.log("dc_stop_io (stop core IO scheduler)")
-            lib.dc_stop_io(self._dc_context)
-        else:
-            self.log("stop_scheduler called on non-running context")
+        self.log("dc_stop_io (stop core IO scheduler)")
+        lib.dc_stop_io(self._dc_context)
 
     def shutdown(self):
         """ shutdown and destroy account (stop callback thread, close and remove
