@@ -424,10 +424,7 @@ impl<'a> BlobObject<'a> {
         let orientation = self.get_exif_orientation(context);
 
         let do_scale = img.width() > img_wh || img.height() > img_wh;
-        let do_rotate = match orientation {
-            Ok(90) | Ok(180) | Ok(270) => true,
-            _ => false,
-        };
+        let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
         if do_scale || do_rotate {
             if do_scale {
