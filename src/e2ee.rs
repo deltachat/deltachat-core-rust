@@ -5,15 +5,15 @@ use std::collections::HashSet;
 use mailparse::ParsedMail;
 use num_traits::FromPrimitive;
 
-use crate::aheader::*;
+use crate::aheader::{Aheader, EncryptPreference};
 use crate::config::Config;
 use crate::context::Context;
-use crate::error::*;
+use crate::error::{bail, ensure, format_err, Result};
 use crate::headerdef::HeaderDef;
 use crate::headerdef::HeaderDefMap;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
-use crate::keyring::*;
-use crate::peerstate::*;
+use crate::keyring::Keyring;
+use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::pgp;
 
 #[derive(Debug)]
@@ -348,7 +348,8 @@ mod tests {
     use crate::constants::Viewtype;
     use crate::message::Message;
     use crate::param::Param;
-    use crate::test_utils::*;
+    use crate::peerstate::ToSave;
+    use crate::test_utils::{bob_keypair, TestContext};
 
     mod ensure_secret_key_exists {
         use super::*;

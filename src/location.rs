@@ -5,15 +5,15 @@ use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::chat::{self, ChatId};
 use crate::config::Config;
-use crate::constants::*;
-use crate::context::*;
-use crate::dc_tools::*;
+use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
+use crate::context::Context;
+use crate::dc_tools::time;
 use crate::error::{ensure, Error};
 use crate::events::EventType;
 use crate::job::{self, Job};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
-use crate::param::*;
+use crate::param::Params;
 use crate::stock::StockMessage;
 
 /// Location record

@@ -15,16 +15,19 @@ use crate::blob::BlobObject;
 use crate::chat;
 use crate::chat::delete_and_reset_all_device_msgs;
 use crate::config::Config;
-use crate::constants::*;
+use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::{
+    dc_copy_file, dc_create_folder, dc_delete_file, dc_delete_files_in_dir, dc_get_filesuffix_lc,
+    dc_open_file_std, dc_read_file, dc_write_file, get_next_backup_path, time, EmailAddress,
+};
 use crate::e2ee;
-use crate::error::*;
+use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
-use crate::param::*;
+use crate::param::Param;
 use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
@@ -901,7 +904,7 @@ where
 mod tests {
     use super::*;
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
-    use crate::test_utils::*;
+    use crate::test_utils::{alice_keypair, TestContext};
     use ::pgp::armor::BlockType;
 
     #[async_std::test]

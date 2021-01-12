@@ -1,7 +1,7 @@
 //! Contacts module
 
 use async_std::path::PathBuf;
-use deltachat_derive::*;
+use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -9,17 +9,22 @@ use regex::Regex;
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
 use crate::config::Config;
-use crate::constants::*;
+use crate::constants::{
+    Chattype, DC_CHAT_ID_DEADDROP, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_DEVICE_ADDR,
+    DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY,
+};
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::{
+    dc_get_abs_path, dc_str_to_color, improve_single_line_input, listflags_has, EmailAddress,
+};
 use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
-use crate::param::*;
-use crate::peerstate::*;
+use crate::param::{Param, Params};
+use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::provider::Socket;
 use crate::stock::StockMessage;
 
@@ -1238,7 +1243,7 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_may_be_valid_addr() {

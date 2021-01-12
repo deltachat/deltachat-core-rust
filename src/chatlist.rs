@@ -1,10 +1,14 @@
 //! # Chat list module
 
 use crate::chat;
-use crate::chat::*;
-use crate::constants::*;
-use crate::contact::*;
-use crate::context::*;
+use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
+use crate::constants::{
+    Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_DEADDROP,
+    DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF, DC_CONTACT_ID_UNDEFINED, DC_GCL_ADD_ALLDONE_HINT,
+    DC_GCL_ARCHIVED_ONLY, DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS,
+};
+use crate::contact::Contact;
+use crate::context::Context;
 use crate::ephemeral::delete_expired_messages;
 use crate::error::{bail, ensure, Result};
 use crate::lot::Lot;
@@ -433,7 +437,9 @@ async fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::chat::{create_group_chat, ProtectionStatus};
+    use crate::constants::Viewtype;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_try_load() {

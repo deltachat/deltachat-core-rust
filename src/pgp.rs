@@ -380,7 +380,7 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
+    use crate::test_utils::{alice_keypair, bob_keypair};
     use once_cell::sync::Lazy;
 
     #[test]

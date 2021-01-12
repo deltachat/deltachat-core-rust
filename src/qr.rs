@@ -5,16 +5,16 @@ use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 
 use crate::chat;
-use crate::config::*;
+use crate::config::Config;
 use crate::constants::Blocked;
-use crate::contact::*;
+use crate::contact::{addr_normalize, may_be_valid_addr, Contact, Origin};
 use crate::context::Context;
 use crate::error::{bail, ensure, format_err, Error};
 use crate::key::Fingerprint;
 use crate::lot::{Lot, LotState};
 use crate::message::Message;
-use crate::param::*;
-use crate::peerstate::*;
+use crate::param::{Param, Params};
+use crate::peerstate::Peerstate;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";

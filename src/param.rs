@@ -379,7 +379,7 @@ mod tests {
     use async_std::fs;
     use async_std::path::Path;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_dc_param() {

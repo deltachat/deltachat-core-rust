@@ -245,7 +245,7 @@ impl MsgId {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_htmlparse_plain_unspecified() {

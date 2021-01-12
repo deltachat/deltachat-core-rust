@@ -3,7 +3,8 @@
     clippy::correctness,
     missing_debug_implementations,
     clippy::all,
-    clippy::indexing_slicing
+    clippy::indexing_slicing,
+    clippy::wildcard_imports
 )]
 #![allow(clippy::match_bool, clippy::eval_order_dependence)]
 

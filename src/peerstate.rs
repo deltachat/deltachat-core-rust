@@ -4,7 +4,7 @@ use std::fmt;
 
 use num_traits::FromPrimitive;
 
-use crate::aheader::*;
+use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat;
 use crate::constants::Blocked;
 use crate::context::Context;
@@ -487,7 +487,7 @@ impl From<crate::key::FingerprintError> for rusqlite::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
+    use crate::test_utils::alice_keypair;
     use pretty_assertions::assert_eq;
 
     #[async_std::test]

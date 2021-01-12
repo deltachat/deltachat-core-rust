@@ -12,7 +12,10 @@ use num_traits::FromPrimitive;
 use thiserror::Error;
 
 use crate::config::Config;
-use crate::constants::*;
+use crate::constants::{
+    MediaQuality, Viewtype, BALANCED_AVATAR_SIZE, BALANCED_IMAGE_SIZE, WORSE_AVATAR_SIZE,
+    WORSE_IMAGE_SIZE,
+};
 use crate::context::Context;
 use crate::error::Error;
 use crate::events::EventType;
@@ -517,7 +520,7 @@ pub enum BlobError {
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_create() {

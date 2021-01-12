@@ -3,7 +3,7 @@
 use crate::provider::Protocol::*;
 use crate::provider::Socket::*;
 use crate::provider::UsernamePattern::*;
-use crate::provider::*;
+use crate::provider::{Config, ConfigDefault, Oauth2Authorizer, Provider, Server, Status};
 use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
