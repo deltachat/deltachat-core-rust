@@ -532,7 +532,6 @@ int             dc_is_configured   (const dc_context_t* context);
 /**
  * Start job and IMAP/SMTP tasks.
  * If IO is already running, nothing happens.
- * To check the current IO state, use dc_is_io_running().
  *
  * If the context was created by the dc_accounts_t account manager,
  * use dc_accounts_start_io() instead of this function.
@@ -543,19 +542,9 @@ int             dc_is_configured   (const dc_context_t* context);
 void            dc_start_io     (dc_context_t* context);
 
 /**
- * Check if IO (SMTP/IMAP/Jobs) has been started.
- *
- * @memberof dc_context_t
- * @param context The context object.
- * @return 1=IO is running; 
- *   0=IO is not running.
- */
-int             dc_is_io_running(const dc_context_t* context);
-
-/**
  * Stop job, IMAP, SMTP and other tasks and return when they
  * are finished.
- * To check the current IO state, use dc_is_io_running().
+ *
  * Even if IO is not running, there may be pending tasks,
  * so this function should always be called before releasing
  * context to ensure clean termination of event loop.

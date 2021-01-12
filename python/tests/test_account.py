@@ -488,10 +488,6 @@ class TestOfflineChat:
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
 
-    def test_ac_setup_message_fails(self, ac1):
-        with pytest.raises(RuntimeError):
-            ac1.initiate_key_transfer()
-
     def test_set_get_draft(self, chat1):
         msg = Message.new_empty(chat1.account, "text")
         msg1 = chat1.prepare_message(msg)
