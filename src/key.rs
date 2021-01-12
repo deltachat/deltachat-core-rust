@@ -592,13 +592,14 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         t.set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
-        let ctx = t.clone();
-        let ctx0 = ctx.clone();
-        let thr0 =
-            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx0)));
-        let ctx1 = ctx;
-        let thr1 =
-            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx1)));
+        let thr0 = {
+            let ctx = t.clone();
+            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx)))
+        };
+        let thr1 = {
+            let ctx = t.clone();
+            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx)))
+        };
         let res0 = thr0.join().unwrap();
         let res1 = thr1.join().unwrap();
         assert_eq!(res0.unwrap(), res1.unwrap());
@@ -617,10 +618,9 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         let t = TestContext::new().await;
         let ctx = Arc::new(t);
 
-        let ctx1 = ctx.clone();
         let nrows = || async {
-            ctx1.sql
-                .query_get_value::<u32>(&ctx1, "SELECT COUNT(*) FROM keypairs;", paramsv![])
+            ctx.sql
+                .query_get_value::<u32>(&ctx, "SELECT COUNT(*) FROM keypairs;", paramsv![])
                 .await
                 .unwrap()
         };
