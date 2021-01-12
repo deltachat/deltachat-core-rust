@@ -1835,7 +1835,7 @@ impl std::fmt::Display for UidRange {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
     #[test]
     fn test_get_folder_meaning_by_name() {
         assert_eq!(

@@ -1914,7 +1914,7 @@ mod tests {
     use crate::chat::ChatItem;
     use crate::constants::DC_CONTACT_ID_DEVICE;
     use crate::test_utils as test;
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_guess_msgtype_from_suffix() {
