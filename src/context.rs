@@ -11,12 +11,12 @@ use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
 use async_std::task;
 
-use crate::chat::*;
+use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
-use crate::constants::*;
-use crate::contact::*;
+use crate::constants::DC_VERSION_STR;
+use crate::contact::Contact;
 use crate::dc_tools::duration_to_str;
-use crate::error::*;
+use crate::error::{bail, ensure, Result};
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -525,7 +525,7 @@ pub fn get_version_str() -> &'static str {
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_wrong_db() {

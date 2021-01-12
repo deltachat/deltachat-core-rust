@@ -62,7 +62,7 @@ where
 mod tests {
     use super::*;
     use crate::key::{SignedPublicKey, SignedSecretKey};
-    use crate::test_utils::*;
+    use crate::test_utils::{alice_keypair, TestContext};
 
     #[test]
     fn test_keyring_add_keys() {

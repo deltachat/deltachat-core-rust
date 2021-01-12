@@ -16,16 +16,16 @@ use async_smtp::smtp::response::Code;
 use async_smtp::smtp::response::Detail;
 
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::{dc_delete_file, dc_read_file, time};
 use crate::ephemeral::load_imap_deletion_msgid;
 use crate::error::{bail, ensure, format_err, Error, Result};
 use crate::events::EventType;
-use crate::imap::*;
+use crate::imap::{Imap, ImapActionResult};
 use crate::location;
 use crate::message::MsgId;
 use crate::message::{self, Message, MessageState};
 use crate::mimefactory::MimeFactory;
-use crate::param::*;
+use crate::param::{Param, Params};
 use crate::smtp::Smtp;
 use crate::{blob::BlobObject, contact::normalize_name, contact::Modifier, contact::Origin};
 use crate::{
@@ -1376,7 +1376,7 @@ LIMIT 1;
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     async fn insert_job(context: &Context, foreign_id: i64) {
         let now = time();

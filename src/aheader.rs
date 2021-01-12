@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::{fmt, str};
 
-use crate::contact::*;
+use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, SignedPublicKey};

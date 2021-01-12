@@ -12,7 +12,10 @@ use num_traits::FromPrimitive;
 use thiserror::Error;
 
 use crate::config::Config;
-use crate::constants::*;
+use crate::constants::{
+    MediaQuality, Viewtype, BALANCED_AVATAR_SIZE, BALANCED_IMAGE_SIZE, WORSE_AVATAR_SIZE,
+    WORSE_IMAGE_SIZE,
+};
 use crate::context::Context;
 use crate::error::Error;
 use crate::events::EventType;
@@ -424,10 +427,7 @@ impl<'a> BlobObject<'a> {
         let orientation = self.get_exif_orientation(context);
 
         let do_scale = img.width() > img_wh || img.height() > img_wh;
-        let do_rotate = match orientation {
-            Ok(90) | Ok(180) | Ok(270) => true,
-            _ => false,
-        };
+        let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
         if do_scale || do_rotate {
             if do_scale {
@@ -520,7 +520,7 @@ pub enum BlobError {
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_create() {

@@ -7,18 +7,25 @@ use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
-use crate::constants::*;
-use crate::contact::*;
-use crate::context::*;
-use crate::dc_tools::*;
+use crate::constants::{
+    Blocked, Chattype, VideochatType, Viewtype, DC_CHAT_ID_DEADDROP, DC_CHAT_ID_TRASH,
+    DC_CONTACT_ID_INFO, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_MAX_GET_INFO_LEN,
+    DC_MAX_GET_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
+};
+use crate::contact::{Contact, Origin};
+use crate::context::Context;
+use crate::dc_tools::{
+    dc_get_filebytes, dc_get_filemeta, dc_gm2local_offset, dc_read_file, dc_timestamp_to_str,
+    dc_truncate, time,
+};
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{ensure, Error};
 use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::lot::{Lot, LotState, Meaning};
 use crate::mimeparser::{FailureReport, SystemMessage};
-use crate::param::*;
-use crate::pgp::*;
+use crate::param::{Param, Params};
+use crate::pgp::split_armored_data;
 use crate::stock::StockMessage;
 use std::collections::BTreeMap;
 
@@ -1905,6 +1912,7 @@ pub async fn update_server_uid(
 mod tests {
     use super::*;
     use crate::chat::ChatItem;
+    use crate::constants::DC_CONTACT_ID_DEVICE;
     use crate::test_utils as test;
     use crate::test_utils::*;
 

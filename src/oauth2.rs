@@ -6,7 +6,7 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::time;
 use crate::provider;
 use crate::provider::Oauth2Authorizer;
 
@@ -348,7 +348,7 @@ fn normalize_addr(addr: &str) -> &str {
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_normalize_addr() {

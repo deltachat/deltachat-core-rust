@@ -1,7 +1,7 @@
 //! # SMTP message sending
 
 use super::Smtp;
-use async_smtp::*;
+use async_smtp::{EmailAddress, Envelope, SendableEmail, Transport};
 
 use crate::config::Config;
 use crate::constants::DEFAULT_MAX_SMTP_RCPT_TO;

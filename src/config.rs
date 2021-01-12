@@ -7,7 +7,7 @@ use crate::blob::BlobObject;
 use crate::chat::ChatId;
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::{dc_get_abs_path, improve_single_line_input};
 use crate::events::EventType;
 use crate::job;
 use crate::message::MsgId;
@@ -301,7 +301,7 @@ mod tests {
 
     use crate::constants;
     use crate::constants::BALANCED_AVATAR_SIZE;
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
     use image::GenericImageView;
     use num_traits::FromPrimitive;
     use std::fs::File;

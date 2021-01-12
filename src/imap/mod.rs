@@ -14,7 +14,10 @@ use async_std::prelude::*;
 use async_std::sync::Receiver;
 use num_traits::FromPrimitive;
 
-use crate::constants::*;
+use crate::constants::{
+    ShowEmails, Viewtype, DC_CONTACT_ID_SELF, DC_FETCH_EXISTING_MSGS_COUNT,
+    DC_FOLDERS_CONFIGURED_VERSION, DC_LP_AUTH_OAUTH2,
+};
 use crate::context::Context;
 use crate::dc_receive_imf::{from_field_to_contact_id, get_prefetch_parent_message};
 use crate::error::{bail, format_err, Result};
@@ -30,7 +33,7 @@ use crate::provider::Socket;
 use crate::{
     chat, dc_tools::dc_extract_grpid_from_rfc724_mid, scheduler::InterruptInfo, stock::StockMessage,
 };
-use crate::{config::*, dc_receive_imf::dc_receive_imf_inner};
+use crate::{config::Config, dc_receive_imf::dc_receive_imf_inner};
 
 mod client;
 mod idle;

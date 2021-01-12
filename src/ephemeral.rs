@@ -462,7 +462,7 @@ mod tests {
     use async_std::task::sleep;
 
     use super::*;
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
     use crate::{
         chat::{self, Chat, ChatItem},
         dc_tools::IsNoneOrEmpty,

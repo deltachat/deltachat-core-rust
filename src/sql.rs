@@ -9,22 +9,23 @@ use std::time::Duration;
 
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
+use crate::chat::add_device_msg;
 use crate::config::Config::DeleteServerAfter;
+use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
+use crate::context::Context;
+use crate::dc_tools::{dc_delete_file, time, EmailAddress};
+use crate::ephemeral::start_ephemeral_timers;
 use crate::error::format_err;
-use crate::param::*;
-use crate::peerstate::*;
+use crate::imap;
+use crate::param::{Param, Params};
+use crate::peerstate::Peerstate;
 use crate::provider::get_provider_by_domain;
-use crate::{chat::add_device_msg, context::Context};
+use crate::stock::StockMessage;
 use crate::{
     chat::{update_device_icon, update_saved_messages_icon},
     config::Config,
 };
-use crate::{constants::Viewtype, dc_tools::*, message::Message};
-use crate::{
-    constants::{ShowEmails, DC_CHAT_ID_TRASH},
-    imap,
-};
-use crate::{ephemeral::start_ephemeral_timers, stock::StockMessage};
+use crate::{constants::Viewtype, message::Message};
 
 #[macro_export]
 macro_rules! paramsv {
@@ -1454,7 +1455,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             }
             sql.set_raw_config_int(context, "dbversion", 72).await?;
         }
-                if dbversion < 73 {
+        if dbversion < 73 {
             use Config::*;
             info!(context, "[migration] v73");
             sql.execute(

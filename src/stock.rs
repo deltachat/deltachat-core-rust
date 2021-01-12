@@ -8,7 +8,7 @@ use strum_macros::EnumProperty;
 use crate::chat;
 use crate::chat::ProtectionStatus;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
-use crate::contact::*;
+use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::error::{bail, Error};
 use crate::message::Message;
@@ -470,7 +470,7 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     use crate::constants::DC_CONTACT_ID_SELF;
 
