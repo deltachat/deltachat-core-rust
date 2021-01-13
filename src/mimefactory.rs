@@ -753,11 +753,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     }
                 }
                 SystemMessage::GroupNameChanged => {
-                    let value_to_add = self.msg.param.get(Param::Arg).unwrap_or_default();
-
+                    let old_name = self.msg.param.get(Param::Arg).unwrap_or_default();
                     protected_headers.push(Header::new(
                         "Chat-Group-Name-Changed".into(),
-                        value_to_add.into(),
+                        maybe_encode_words(old_name.into()),
                     ));
                 }
                 SystemMessage::GroupImageChanged => {
