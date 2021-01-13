@@ -1177,13 +1177,12 @@ async fn create_or_lookup_group(
                 .await;
             X_MrAddToGrp = Some(optional_field);
         } else {
-            let field = mime_parser.get(HeaderDef::ChatGroupNameChanged);
-            if let Some(field) = field {
+            if let Some(old_name) = mime_parser.get(HeaderDef::ChatGroupNameChanged) {
                 X_MrGrpNameChanged = true;
                 better_msg = context
                     .stock_system_msg(
                         StockMessage::MsgGrpName,
-                        field,
+                        old_name,
                         if let Some(ref name) = grpname {
                             name
                         } else {
