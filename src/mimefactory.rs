@@ -1180,14 +1180,10 @@ async fn build_body_file(
     // at least on tested Thunderbird and Gma'l in 2017.
     // But I've heard about problems with inline and outl'k, so we just use the attachment-type until we
     // run into other problems ...
-    let cd_value = if needs_encoding(&filename_to_send) {
-        format!(
-            "attachment; filename=\"{}\"",
-            encode_words(&filename_to_send)
-        )
-    } else {
-        format!("attachment; filename=\"{}\"", &filename_to_send)
-    };
+    let cd_value = format!(
+        "attachment; filename=\"{}\"",
+        maybe_encode_words(&filename_to_send)
+    );
 
     let body = std::fs::read(blob.to_abs_path())?;
     let encoded_body = wrapped_base64_encode(&body);
@@ -1270,10 +1266,18 @@ fn encode_words(word: &str) -> String {
     encoded_words::encode(word, None, encoded_words::EncodingFlag::Shortest, None)
 }
 
-pub fn needs_encoding(to_check: impl AsRef<str>) -> bool {
+fn needs_encoding(to_check: impl AsRef<str>) -> bool {
     !to_check.as_ref().chars().all(|c| {
         c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '~' || c == '%'
     })
+}
+
+fn maybe_encode_words(words: &str) -> String {
+    if needs_encoding(words) {
+        encode_words(words)
+    } else {
+        words.to_string()
+    }
 }
 
 #[cfg(test)]
@@ -1365,6 +1369,13 @@ mod tests {
         assert!(!needs_encoding("foobar"));
         assert!(needs_encoding(" "));
         assert!(needs_encoding("foo bar"));
+    }
+
+    #[test]
+    fn test_maybe_encode_words() {
+        assert_eq!(maybe_encode_words("foobar"), "foobar");
+        assert_eq!(maybe_encode_words("-_.~%"), "-_.~%");
+        assert_eq!(maybe_encode_words("äöü"), "=?utf-8?b?w6TDtsO8?=");
     }
 
     #[async_std::test]
