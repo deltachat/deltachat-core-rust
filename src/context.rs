@@ -1,8 +1,11 @@
 //! Context module
 
-use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
+use std::{
+    collections::{BTreeMap, HashMap},
+    time::Instant,
+};
 
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
@@ -58,6 +61,8 @@ pub struct InnerContext {
 
     pub(crate) scheduler: RwLock<Scheduler>,
     pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
+
+    pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
     /// Id for this context on the current device.
     pub(crate) id: u32,
@@ -131,6 +136,7 @@ impl Context {
             scheduler: RwLock::new(Scheduler::Stopped),
             ephemeral_task: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
+            last_full_folder_scan: Mutex::new(None),
         };
 
         let ctx = Context {
@@ -462,6 +468,11 @@ impl Context {
 
     pub async fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
         self.get_config(Config::ConfiguredMvboxFolder).await
+            == Some(folder_name.as_ref().to_string())
+    }
+
+    pub async fn is_spam_folder(&self, folder_name: impl AsRef<str>) -> bool {
+        self.get_config(Config::ConfiguredSpamFolder).await
             == Some(folder_name.as_ref().to_string())
     }
 

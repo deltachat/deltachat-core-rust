@@ -1136,6 +1136,51 @@ class TestOnlineAccount:
         assert not device_chat.can_send()
         assert device_chat.get_draft() is None
 
+    def test_dont_show_emails_in_draft_folder(self, acfactory):
+        """Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them.
+        So: If there is no Received header AND it's not in the sentbox, then ignore the email."""
+        ac1 = acfactory.get_online_configuring_account()
+        ac1.set_config("show_emails", "2")
+
+        acfactory.wait_configure(ac1)
+        ac1.direct_imap.create_folder("Drafts")
+        ac1.direct_imap.create_folder("Sent")
+
+        acfactory.wait_configure_and_start_io()
+        # Wait until each folder was selected once and we are IDLEing again:
+        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        ac1.stop_io()
+
+        ac1.direct_imap.append("Drafts", """
+            From: Bob <bob@example.org>
+            Subject: subj
+            To: alice@example.com
+            Message-ID: <aepiors@example.org>
+            Content-Type: text/plain; charset=utf-8
+
+            message in Drafts
+        """)
+        ac1.direct_imap.append("Sent", """
+            From: Bob <bob@example.org>
+            Subject: subj
+            To: alice@example.com
+            Message-ID: <hsabaeni@example.org>
+            Content-Type: text/plain; charset=utf-8
+
+            message in Sent
+        """)
+
+        ac1.set_config("scan_all_folders_debounce_secs", "0")
+        ac1.start_io()
+
+        msg = ac1._evtracker.wait_next_messages_changed()
+
+        # Wait until each folder was scanned, this is necessary for this test to test what it should test:
+        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+
+        assert msg.text == "subj – message in Sent"
+        assert len(msg.chat.get_messages()) == 1
+
     def test_prefer_encrypt(self, acfactory, lp):
         """Test quorum rule for encryption preference in 1:1 and group chat."""
         ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
@@ -2088,26 +2133,82 @@ class TestOnlineAccount:
         assert received_reply.quoted_text == "hello"
         assert received_reply.quote.id == out_msg.id
 
+    @pytest.mark.parametrize("folder,move,expected_destination,", [
+        ("xyz", False, "xyz"),  # Test that emails are recognized in a random folder but not moved
+        ("xyz", True, "DeltaChat"),  # ...emails are found in a random folder and moved to DeltaChat
+        ("Spam", False, "INBOX")  # ...emails are moved from the spam folder to the Inbox
+    ])
+    # Testrun.org does not support the CREATE-SPECIAL-USE capability, which means that we can't create a folder with
+    # the "\Junk" flag (see https://tools.ietf.org/html/rfc6154). So, we can't test spam folder detection by flag.
+    def test_scan_folders(self, acfactory, lp, folder, move, expected_destination):
+        """Delta Chat periodically scans all folders for new messages to make sure we don't miss any."""
+        variant = folder + "-" + str(move) + "-" + expected_destination
+        lp.sec("Testing variant " + variant)
+        ac1 = acfactory.get_online_configuring_account(move=move)
+        ac2 = acfactory.get_online_configuring_account()
+
+        acfactory.wait_configure(ac1)
+        ac1.direct_imap.create_folder(folder)
+
+        acfactory.wait_configure_and_start_io()
+        # Wait until each folder was selected once and we are IDLEing:
+        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        ac1.stop_io()
+
+        # Send a message to ac1 and move it to the mvbox:
+        ac1.direct_imap.select_config_folder("inbox")
+        ac1.direct_imap.idle_start()
+        acfactory.get_accepted_chat(ac2, ac1).send_text("hello")
+        ac1.direct_imap.idle_check(terminate=True)
+        ac1.direct_imap.conn.move(["*"], folder)  # "*" means "biggest UID in mailbox"
+
+        lp.sec("Everything prepared, now see if DeltaChat finds the message (" + variant + ")")
+        ac1.set_config("scan_all_folders_debounce_secs", "0")
+        ac1.start_io()
+        msg = ac1._evtracker.wait_next_incoming_message()
+        assert msg.text == "hello"
+
+        # Wait until the message was moved (if at all) and we are IDLEing again:
+        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        ac1.direct_imap.select_folder(expected_destination)
+        assert len(ac1.direct_imap.get_all_messages()) == 1
+        if folder != expected_destination:
+            ac1.direct_imap.select_folder(folder)
+            assert len(ac1.direct_imap.get_all_messages()) == 0
+
     @pytest.mark.parametrize("mvbox_move", [False, True])
     def test_fetch_existing(self, acfactory, lp, mvbox_move):
         """Delta Chat reads the recipients from old emails sent by the user and adds them as contacts.
         This way, we can already offer them some email addresses they can write to.
 
-        Also test that existing emails are fetched during onboarding.
+        Also, the newest existing emails from each folder are fetched during onboarding.
 
-        Lastly, tests that bcc_self messages moved to the mvbox are marked as read."""
+        Additionally tests that bcc_self messages moved to the mvbox are marked as read."""
         ac1 = acfactory.get_online_configuring_account(mvbox=mvbox_move, move=mvbox_move)
         ac2 = acfactory.get_online_configuring_account()
 
+        acfactory.wait_configure(ac1)
+
+        ac1.direct_imap.create_folder("Sent")
+        ac1.set_config("sentbox_watch", "1")
+
+        # We need to reconfigure to find the new "Sent" folder.
+        # `scan_folders()`, which runs automatically shortly after `start_io()` is invoked,
+        # would also find the "Sent" folder, but it would be too late:
+        # The sentbox thread, started by `start_io()`, would have seen that there is no
+        # ConfiguredSentboxFolder and do nothing.
+        ac1._configtracker = ac1.configure(reconfigure=True)
         acfactory.wait_configure_and_start_io()
 
-        chat = acfactory.get_accepted_chat(ac1, ac2)
-
-        lp.sec("send out message with bcc to ourselves")
         if mvbox_move:
             ac1.direct_imap.select_config_folder("mvbox")
+        else:
+            ac1.direct_imap.select_config_folder("sentbox")
         ac1.direct_imap.idle_start()
+
+        lp.sec("send out message with bcc to ourselves")
         ac1.set_config("bcc_self", "1")
+        chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message text")
 
         # now wait until the bcc_self message arrives

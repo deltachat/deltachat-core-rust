@@ -5,24 +5,32 @@
 use std::time::{Duration, Instant};
 use std::{ops::Deref, str::FromStr};
 
+use ansi_term::Color;
 use async_std::path::PathBuf;
 use async_std::sync::RwLock;
 use tempfile::{tempdir, TempDir};
 
+use crate::config::Config;
+use crate::constants::DC_CONTACT_ID_SELF;
+use crate::contact::Contact;
+use crate::context::Context;
+use crate::dc_receive_imf::dc_receive_imf;
+use crate::dc_tools::EmailAddress;
 use crate::job::Action;
 use crate::key::{self, DcKey};
 use crate::message::{update_msg_state, Message, MessageState, MsgId};
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
-use crate::{chat, contact::Contact};
+use crate::{chat, chatlist::Chatlist};
+use crate::{chat::ChatItem, EventType};
 use crate::{
-    chat::{Chat, ChatId, ChatItem},
+    chat::{Chat, ChatId},
     contact::Origin,
 };
-use crate::{config::Config, constants::DC_CONTACT_ID_SELF};
-use crate::{constants::Viewtype, context::Context};
-use crate::{constants::DC_MSG_ID_DAYMARKER, dc_tools::EmailAddress};
-use crate::{constants::DC_MSG_ID_MARKER1, dc_receive_imf::dc_receive_imf};
+
+use crate::constants::Viewtype;
+use crate::constants::DC_MSG_ID_DAYMARKER;
+use crate::constants::DC_MSG_ID_MARKER1;
 
 /// A Context and temporary directory.
 ///
@@ -53,6 +61,13 @@ impl TestContext {
         let ctx = Context::new("FakeOS".into(), dbfile.into(), id)
             .await
             .unwrap();
+
+        let events = ctx.get_event_emitter();
+        async_std::task::spawn(async move {
+            while let Some(event) = events.recv().await {
+                receive_event(event.typ);
+            }
+        });
         Self {
             ctx,
             dir,
@@ -189,7 +204,11 @@ impl TestContext {
     pub async fn recv_msg(&self, msg: &SentMessage) {
         let mut idx = self.recv_idx.write().await;
         *idx += 1;
-        dc_receive_imf(&self.ctx, msg.payload().as_bytes(), "INBOX", *idx, false)
+        let received_msg =
+            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n"
+                .to_owned()
+                + &msg.payload();
+        dc_receive_imf(&self.ctx, received_msg.as_bytes(), "INBOX", *idx, false)
             .await
             .unwrap();
     }
@@ -197,7 +216,7 @@ impl TestContext {
     /// Get the most recent message of a chat.
     ///
     /// Panics on errors or if the most recent message is a marker.
-    pub async fn get_last_msg(&self, chat_id: ChatId) -> Message {
+    pub async fn get_last_msg_in(&self, chat_id: ChatId) -> Message {
         let msgs = chat::get_chat_msgs(&self.ctx, chat_id, 0, None).await;
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
@@ -205,6 +224,13 @@ impl TestContext {
             panic!("Wrong item type");
         };
         Message::load_from_db(&self.ctx, *msg_id).await.unwrap()
+    }
+
+    /// Get the most recent message over all chats.
+    pub async fn get_last_msg(&self) -> Message {
+        let chats = Chatlist::try_load(&self.ctx, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(chats.len() - 1).unwrap();
+        Message::load_from_db(&self.ctx, msg_id).await.unwrap()
     }
 
     pub async fn create_chat(&self, other: &TestContext) -> Chat {
@@ -361,6 +387,95 @@ pub(crate) fn bob_keypair() -> key::KeyPair {
         addr,
         public,
         secret,
+    }
+}
+
+fn receive_event(event: EventType) {
+    let green = Color::Green.normal();
+    let yellow = Color::Yellow.normal();
+    let red = Color::Red.normal();
+
+    match event {
+        EventType::Info(msg) => {
+            /* do not show the event as this would fill the screen */
+            println!("{}", msg);
+        }
+        EventType::SmtpConnected(msg) => {
+            println!("[SMTP_CONNECTED] {}", msg);
+        }
+        EventType::ImapConnected(msg) => {
+            println!("[IMAP_CONNECTED] {}", msg);
+        }
+        EventType::SmtpMessageSent(msg) => {
+            println!("[SMTP_MESSAGE_SENT] {}", msg);
+        }
+        EventType::Warning(msg) => {
+            println!("{}", yellow.paint(msg));
+        }
+        EventType::Error(msg) => {
+            println!("{}", red.paint(msg));
+        }
+        EventType::ErrorNetwork(msg) => {
+            println!("{}", red.paint(format!("[NETWORK] msg={}", msg)));
+        }
+        EventType::ErrorSelfNotInGroup(msg) => {
+            println!("{}", red.paint(format!("[SELF_NOT_IN_GROUP] {}", msg)));
+        }
+        EventType::MsgsChanged { chat_id, msg_id } => {
+            println!(
+                "{}",
+                green.paint(format!(
+                    "Received MSGS_CHANGED(chat_id={}, msg_id={})",
+                    chat_id, msg_id,
+                ))
+            );
+        }
+        EventType::ContactsChanged(_) => {
+            println!("{}", green.paint("Received CONTACTS_CHANGED()"));
+        }
+        EventType::LocationChanged(contact) => {
+            println!(
+                "{}",
+                green.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
+            );
+        }
+        EventType::ConfigureProgress { progress, comment } => {
+            if let Some(comment) = comment {
+                println!(
+                    "{}",
+                    green.paint(format!(
+                        "Received CONFIGURE_PROGRESS({} ‰, {})",
+                        progress, comment
+                    ))
+                );
+            } else {
+                println!(
+                    "{}",
+                    green.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
+                );
+            }
+        }
+        EventType::ImexProgress(progress) => {
+            println!(
+                "{}",
+                green.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
+            );
+        }
+        EventType::ImexFileWritten(file) => {
+            println!(
+                "{}",
+                green.paint(format!("Received IMEX_FILE_WRITTEN({})", file.display()))
+            );
+        }
+        EventType::ChatModified(chat) => {
+            println!(
+                "{}",
+                green.paint(format!("Received CHAT_MODIFIED({})", chat))
+            );
+        }
+        _ => {
+            println!("Received {:?}", event);
+        }
     }
 }
 

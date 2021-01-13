@@ -118,7 +118,7 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
                 connection.trigger_reconnect();
-                warn!(ctx, "{}", err);
+                warn!(ctx, "{:#}", err);
             }
         }
         None => {
@@ -140,6 +140,12 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
                 connection.trigger_reconnect();
+                warn!(ctx, "{:#}", err);
+            }
+
+            if let Err(err) = connection.scan_folders(&ctx).await {
+                // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
+                // but maybe just one folder can't be selected or something
                 warn!(ctx, "{}", err);
             }
             info!(ctx, "verbose (issue 2065): step 1 done fetching");

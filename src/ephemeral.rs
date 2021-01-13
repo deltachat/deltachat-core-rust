@@ -601,7 +601,7 @@ mod tests {
 
         t.send_text(chat.id, "Saved message, which we delete manually")
             .await;
-        let msg = t.get_last_msg(chat.id).await;
+        let msg = t.get_last_msg_in(chat.id).await;
         msg.id.delete_from_db(&t).await.unwrap();
         check_msg_was_deleted(&t, &chat, msg.id).await;
 

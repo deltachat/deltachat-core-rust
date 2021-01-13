@@ -3,7 +3,7 @@
 //! uses [async-email/async-imap](https://github.com/async-email/async-imap)
 //! to implement connect, fetch, delete functionality with standard IMAP servers.
 
-use std::{cmp, collections::BTreeMap};
+use std::{cmp, cmp::max, collections::BTreeMap};
 
 use anyhow::Context as _;
 use async_imap::{
@@ -37,6 +37,7 @@ use crate::{config::Config, dc_receive_imf::dc_receive_imf_inner};
 
 mod client;
 mod idle;
+pub mod scan_folders;
 pub mod select_folder;
 mod session;
 
@@ -45,6 +46,8 @@ use client::Client;
 use mailparse::SingleInfo;
 use message::Message;
 use session::Session;
+
+use self::select_folder::NewlySelected;
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
 pub enum ImapActionResult {
@@ -103,6 +106,7 @@ impl async_imap::Authenticator for OAuth2 {
 #[derive(Debug, PartialEq)]
 enum FolderMeaning {
     Unknown,
+    Spam,
     SentObjects,
     Other,
 }
@@ -534,98 +538,100 @@ impl Imap {
         Ok(())
     }
 
-    /// return Result with (uid_validity, last_seen_uid) tuple.
+    /// Select a folder and take care of uidvalidity changes.
+    /// Also, when selecting a folder for the first time, sets the uid_next to the current
+    /// mailbox.uid_next so that no old emails are fetched.
+    /// Returns Result<new_emails> (i.e. whether new emails arrived),
+    /// if in doubt, returns new_emails=true so emails are fetched.
     pub(crate) async fn select_with_uidvalidity(
         &mut self,
         context: &Context,
         folder: &str,
-    ) -> Result<(u32, u32)> {
-        self.select_folder(context, Some(folder)).await?;
+    ) -> Result<bool> {
+        let newly_selected = self.select_folder(context, Some(folder)).await?;
 
-        // compare last seen UIDVALIDITY against the current one
-        let (uid_validity, last_seen_uid) = get_config_last_seen_uid(context, &folder).await;
+        let mailbox = &mut self.config.selected_mailbox.as_ref();
+        let mailbox =
+            mailbox.with_context(|| format!("No mailbox selected, folder: {}", folder))?;
 
-        let config = &mut self.config;
-        let mailbox = config
-            .selected_mailbox
-            .as_ref()
-            .ok_or_else(|| format_err!("No mailbox selected, folder: {}", folder))?;
+        let new_uid_validity = mailbox
+            .uid_validity
+            .with_context(|| format!("No UIDVALIDITY for folder {}", folder))?;
 
-        let new_uid_validity = match mailbox.uid_validity {
-            Some(v) => v,
-            None => {
-                bail!("No UIDVALIDITY for folder {:?}", folder);
-            }
-        };
+        let old_uid_validity = get_uidvalidity(context, folder).await;
+        let old_uid_next = get_uid_next(context, folder).await;
 
-        if new_uid_validity == uid_validity {
-            return Ok((uid_validity, last_seen_uid));
+        if new_uid_validity == old_uid_validity {
+            let new_emails = if newly_selected == NewlySelected::No {
+                // The folder was not newly selected i.e. no SELECT command was run. This means that mailbox.uid_next
+                // was not updated and may contain an incorrect value. So, just return true so that
+                // the caller tries to fetch new messages (we could of course run a SELECT command now, but trying to fetch
+                // new messages is only one command, just as a SELECT command)
+                true
+            } else if let Some(uid_next) = mailbox.uid_next {
+                uid_next != old_uid_next // If uid_next changed, there are new emails
+            } else {
+                true // We have no uid_next and if in doubt, return true
+            };
+            return Ok(new_emails);
         }
 
         if mailbox.exists == 0 {
             info!(context, "Folder \"{}\" is empty.", folder);
 
-            // set lastseenuid=0 for empty folders.
-            // id we do not do this here, we'll miss the first message
-            // as we will get in here again and fetch from lastseenuid+1 then
-
-            set_config_last_seen_uid(context, &folder, new_uid_validity, 0).await;
-            return Ok((new_uid_validity, 0));
+            // set uid_next=1 for empty folders.
+            // If we do not do this here, we'll miss the first message
+            // as we will get in here again and fetch from uid_next then.
+            // Also, the "fall back to fetching" below would need a non-zero mailbox.exists to work.
+            set_uid_next(context, folder, 1).await?;
+            set_uidvalidity(context, folder, new_uid_validity).await?;
+            return Ok(false);
         }
 
-        // uid_validity has changed or is being set the first time.
-        // find the last seen uid within the new uid_validity scope.
-        let new_last_seen_uid = match mailbox.uid_next {
-            Some(uid_next) => {
-                uid_next - 1 // XXX could uid_next be 0?
-            }
+        // ==============  uid_validity has changed or is being set the first time.  ==============
+
+        let new_uid_next = match mailbox.uid_next {
+            Some(uid_next) => uid_next,
             None => {
                 warn!(
                     context,
                     "IMAP folder has no uid_next, fall back to fetching"
                 );
-                if let Some(ref mut session) = &mut self.session {
-                    // note that we use fetch by sequence number
-                    // and thus we only need to get exactly the
-                    // last-index message.
-                    let set = format!("{}", mailbox.exists);
-                    match session.fetch(set, JUST_UID).await {
-                        Ok(mut list) => {
-                            let mut new_last_seen_uid = None;
-                            while let Some(fetch) = list.next().await.transpose()? {
-                                if fetch.message == mailbox.exists && fetch.uid.is_some() {
-                                    new_last_seen_uid = fetch.uid;
-                                }
-                            }
-                            if let Some(new_last_seen_uid) = new_last_seen_uid {
-                                new_last_seen_uid
-                            } else {
-                                bail!("failed to fetch");
-                            }
-                        }
-                        Err(err) => {
-                            bail!("IMAP Could not fetch: {}", err);
-                        }
+                let session = self.session.as_mut().context("Get uid_next: Nosession")?;
+                // note that we use fetch by sequence number
+                // and thus we only need to get exactly the
+                // last-index message.
+                let set = format!("{}", mailbox.exists);
+                let mut list = session
+                    .fetch(set, JUST_UID)
+                    .await
+                    .context("Error fetching UID")?;
+
+                let mut new_last_seen_uid = None;
+                while let Some(fetch) = list.next().await.transpose()? {
+                    if fetch.message == mailbox.exists && fetch.uid.is_some() {
+                        new_last_seen_uid = fetch.uid;
                     }
-                } else {
-                    bail!("IMAP No Connection established");
                 }
+                new_last_seen_uid.context("select: failed to fetch")? + 1
             }
         };
 
-        set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid).await;
-        if uid_validity != 0 || last_seen_uid != 0 {
+        set_uid_next(context, folder, new_uid_next).await?;
+        set_uidvalidity(context, folder, new_uid_validity).await?;
+        if old_uid_validity != 0 || old_uid_next != 0 {
             job::schedule_resync(context).await;
         }
         info!(
             context,
-            "uid/validity change: new {}/{} current {}/{}",
-            new_last_seen_uid,
+            "uid/validity change folder {}: new {}/{} previous {}/{}",
+            folder,
+            new_uid_next,
             new_uid_validity,
-            uid_validity,
-            last_seen_uid
+            old_uid_next,
+            old_uid_validity,
         );
-        Ok((new_uid_validity, new_last_seen_uid))
+        Ok(false)
     }
 
     pub(crate) async fn fetch_new_messages<S: AsRef<str>>(
@@ -637,21 +643,28 @@ impl Imap {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await)
             .unwrap_or_default();
 
-        let (uid_validity, last_seen_uid) = self
+        let new_emails = self
             .select_with_uidvalidity(context, folder.as_ref())
             .await?;
 
+        if !new_emails && !fetch_existing_msgs {
+            info!(context, "No new emails in folder {}", folder.as_ref());
+            return Ok(false);
+        }
+
+        let old_uid_next = get_uid_next(context, folder.as_ref()).await;
+
         let msgs = if fetch_existing_msgs {
-            self.fetch_existing_msgs_prefetch().await?
+            self.prefetch_existing_msgs().await?
         } else {
-            self.fetch_after(context, last_seen_uid).await?
+            self.prefetch(old_uid_next).await?
         };
         let read_cnt = msgs.len();
         let folder: &str = folder.as_ref();
 
         let mut read_errors = 0;
         let mut uids = Vec::with_capacity(msgs.len());
-        let mut new_last_seen_uid = None;
+        let mut largest_uid_skipped = None;
 
         for (current_uid, msg) in msgs.into_iter() {
             let (headers, msg_id) = match get_fetch_headers(&msg) {
@@ -676,27 +689,33 @@ impl Imap {
             )
             .await
             {
-                // Trigger download and processing for this message.
                 uids.push(current_uid);
             } else if read_errors == 0 {
-                // No errors so far, but this was skipped, so mark as last_seen_uid
-                new_last_seen_uid = Some(current_uid);
+                // If there were errors (`read_errors != 0`), stop updating largest_uid_skipped so that uid_next will
+                // not be updated and we will retry prefetching next time
+                largest_uid_skipped = Some(current_uid);
             }
         }
 
-        // check passed, go fetch the emails
-        let (new_last_seen_uid_processed, error_cnt) = self
+        let (largest_uid_processed, error_cnt) = self
             .fetch_many_msgs(context, &folder, uids, fetch_existing_msgs)
             .await;
         read_errors += error_cnt;
 
-        // determine which last_seen_uid to use to update  to
-        let new_last_seen_uid_processed = new_last_seen_uid_processed.unwrap_or_default();
-        let new_last_seen_uid = new_last_seen_uid.unwrap_or_default();
-        let last_one = new_last_seen_uid.max(new_last_seen_uid_processed);
+        // determine which uid_next to use to update to
+        // dc_receive_imf() returns an `Err` value only on recoverable errors, otherwise it just logs an error.
+        // `largest_uid_processed` is the largest uid where dc_receive_imf() did NOT return an error.
 
-        if last_one > last_seen_uid {
-            set_config_last_seen_uid(context, &folder, uid_validity, last_one).await;
+        // So: Update the uid_next to the largest uid that did NOT recoverably fail. Not perfect because if there was
+        // another message afterwards that succeeded, we will not retry. The upside is that we will not retry an infinite amount of times.
+        let largest_uid_without_errors = max(
+            largest_uid_processed.unwrap_or(0),
+            largest_uid_skipped.unwrap_or(0),
+        );
+        let new_uid_next = largest_uid_without_errors + 1;
+
+        if new_uid_next > old_uid_next {
+            set_uid_next(context, &folder, new_uid_next).await?;
         }
 
         if read_errors == 0 {
@@ -761,18 +780,13 @@ impl Imap {
         Ok(result)
     }
 
-    /// Fetch all uids larger than the passed in. Returns a sorted list of fetch results.
-    async fn fetch_after(
-        &mut self,
-        context: &Context,
-        uid: u32,
-    ) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
+    /// Prefetch all messages greater than or equal to `uid_next`. Return a list of fetch results.
+    async fn prefetch(&mut self, uid_next: u32) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
         let session = self.session.as_mut();
         let session = session.context("fetch_after(): IMAP No Connection established")?;
 
         // fetch messages with larger UID than the last one seen
-        // `(UID FETCH lastseenuid+1:*)`, see RFC 4549
-        let set = format!("{}:*", uid + 1);
+        let set = format!("{}:*", uid_next);
         let mut list = session
             .uid_fetch(set, PREFETCH_FLAGS)
             .await
@@ -790,26 +804,17 @@ impl Imap {
         // If the mailbox is not empty, results always include
         // at least one UID, even if last_seen_uid+1 is past
         // the last UID in the mailbox.  It happens because
-        // uid+1:* is interpreted the same way as *:uid+1.
+        // uid:* is interpreted the same way as *:uid.
         // See https://tools.ietf.org/html/rfc3501#page-61 for
         // standard reference. Therefore, sometimes we receive
         // already seen messages and have to filter them out.
-        let new_msgs = msgs.split_off(&(uid + 1));
-
-        for current_uid in msgs.keys() {
-            info!(
-                context,
-                "fetch_new_messages: ignoring uid {}, last seen was {}", current_uid, uid
-            );
-        }
+        let new_msgs = msgs.split_off(&uid_next);
 
         Ok(new_msgs)
     }
 
     /// Like fetch_after(), but not for new messages but existing ones (the DC_FETCH_EXISTING_MSGS_COUNT newest messages)
-    async fn fetch_existing_msgs_prefetch(
-        &mut self,
-    ) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
+    async fn prefetch_existing_msgs(&mut self) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
         let exists: i64 = {
             let mailbox = self.config.selected_mailbox.as_ref();
             let mailbox = mailbox.context("fetch_existing_msgs_prefetch(): no mailbox selected")?;
@@ -841,7 +846,6 @@ impl Imap {
     }
 
     /// Fetches a list of messages by server UID.
-    /// The passed in list of uids must be sorted.
     ///
     /// Returns the last uid fetch successfully and an error count.
     async fn fetch_many_msgs<S: AsRef<str>>(
@@ -1116,7 +1120,7 @@ impl Imap {
             }
         }
         match self.select_folder(context, Some(&folder)).await {
-            Ok(()) => None,
+            Ok(_) => None,
             Err(select_folder::Error::ConnectionLost) => {
                 warn!(context, "Lost imap connection");
                 Some(ImapActionResult::RetryLater)
@@ -1286,6 +1290,7 @@ impl Imap {
             let mut delimiter = ".".to_string();
             let mut delimiter_is_default = true;
             let mut sentbox_folder = None;
+            let mut spam_folder = None;
             let mut mvbox_folder = None;
             let mut fallback_folder = get_fallback_folder(&delimiter);
 
@@ -1302,6 +1307,8 @@ impl Imap {
                     }
                 }
 
+                let folder_meaning = get_folder_meaning(&folder);
+                let folder_name_meaning = get_folder_meaning_by_name(&folder.name());
                 if folder.name() == "DeltaChat" {
                     // Always takes precendent
                     mvbox_folder = Some(folder.name().to_string());
@@ -1310,16 +1317,18 @@ impl Imap {
                     if mvbox_folder.is_none() {
                         mvbox_folder = Some(folder.name().to_string());
                     }
-                } else if let FolderMeaning::SentObjects = get_folder_meaning(&folder) {
+                } else if folder_meaning == FolderMeaning::SentObjects {
                     // Always takes precedent
                     sentbox_folder = Some(folder.name().to_string());
-                } else if let FolderMeaning::SentObjects =
-                    get_folder_meaning_by_name(&folder.name())
-                {
+                } else if folder_meaning == FolderMeaning::Spam {
+                    spam_folder = Some(folder.name().to_string());
+                } else if folder_name_meaning == FolderMeaning::SentObjects {
                     // only set iff none has been already set
                     if sentbox_folder.is_none() {
                         sentbox_folder = Some(folder.name().to_string());
                     }
+                } else if folder_name_meaning == FolderMeaning::Spam && spam_folder.is_none() {
+                    spam_folder = Some(folder.name().to_string());
                 }
             }
             drop(folders);
@@ -1378,6 +1387,11 @@ impl Imap {
                     .set_config(Config::ConfiguredSentboxFolder, Some(sentbox_folder))
                     .await?;
             }
+            if let Some(ref spam_folder) = spam_folder {
+                context
+                    .set_config(Config::ConfiguredSpamFolder, Some(spam_folder))
+                    .await?;
+            }
             context
                 .sql
                 .set_raw_config_int(context, "folders_configured", DC_FOLDERS_CONFIGURED_VERSION)
@@ -1396,7 +1410,7 @@ impl Imap {
 // but sth. different in others - a hard job.
 fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
     // source: https://stackoverflow.com/questions/2185391/localized-gmail-imap-folders
-    let sent_names = vec![
+    const SENT_NAMES: &[&str] = &[
         "sent",
         "sentmail",
         "sent objects",
@@ -1428,17 +1442,40 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
         "送信済み",
         "보낸편지함",
     ];
+    const SPAM_NAMES: &[&str] = &[
+        "spam",
+        "junk",
+        "Correio electrónico não solicitado",
+        "Correo basura",
+        "Lixo",
+        "Nettsøppel",
+        "Nevyžádaná pošta",
+        "No solicitado",
+        "Ongewenst",
+        "Posta indesiderata",
+        "Skräp",
+        "Wiadomości-śmieci",
+        "Önemsiz",
+        "Ανεπιθύμητα",
+        "Спам",
+        "垃圾邮件",
+        "垃圾郵件",
+        "迷惑メール",
+        "스팸",
+    ];
     let lower = folder_name.to_lowercase();
 
-    if sent_names.into_iter().any(|s| s.to_lowercase() == lower) {
+    if SENT_NAMES.iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::SentObjects
+    } else if SPAM_NAMES.iter().any(|s| s.to_lowercase() == lower) {
+        FolderMeaning::Spam
     } else {
         FolderMeaning::Unknown
     }
 }
 
 fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
-    let special_names = vec!["\\Spam", "\\Trash", "\\Drafts", "\\Junk"];
+    let special_names = vec!["\\Trash", "\\Drafts"];
 
     for attr in folder_name.attributes() {
         if let NameAttribute::Custom(ref label) = attr {
@@ -1446,6 +1483,8 @@ fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
                 return FolderMeaning::Other;
             } else if label == "\\Sent" {
                 return FolderMeaning::SentObjects;
+            } else if label == "\\Spam" || label == "\\Junk" {
+                return FolderMeaning::Spam;
             }
         }
     }
@@ -1474,6 +1513,7 @@ async fn precheck_imf(
                     .needs_move(context, server_folder)
                     .await
                     .unwrap_or_default()
+                    .is_some()
                 {
                     // If the bcc-self message is not moved, directly
                     // add MarkSeen job, otherwise MarkSeen job is
@@ -1659,23 +1699,68 @@ fn get_fallback_folder(delimiter: &str) -> String {
     format!("INBOX{}DeltaChat", delimiter)
 }
 
-pub async fn set_config_last_seen_uid<S: AsRef<str>>(
-    context: &Context,
-    folder: S,
-    uidvalidity: u32,
-    lastseenuid: u32,
-) {
-    let key = format!("imap.mailbox.{}", folder.as_ref());
-    let val = format!("{}:{}", uidvalidity, lastseenuid);
-
+/// uid_next is the next unique identifier value from the last time we fetched a folder
+/// See https://tools.ietf.org/html/rfc3501#section-2.3.1.1
+/// This function is used to update our uid_next after fetching messages.
+pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32) -> Result<()> {
     context
         .sql
-        .set_raw_config(context, &key, Some(&val))
-        .await
-        .ok();
+        .execute(
+            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+                ON CONFLICT(folder) DO UPDATE SET uid_next=? WHERE folder=?;",
+            paramsv![folder, 0u32, uid_next, uid_next, folder],
+        )
+        .await?;
+    Ok(())
 }
 
-async fn get_config_last_seen_uid<S: AsRef<str>>(context: &Context, folder: S) -> (u32, u32) {
+/// uid_next is the next unique identifier value from the last time we fetched a folder
+/// See https://tools.ietf.org/html/rfc3501#section-2.3.1.1
+/// This method returns the uid_next from the last time we fetched messages.
+/// We can compare this to the current uid_next to find out whether there are new messages
+/// and fetch from this value on to get all new messages.
+async fn get_uid_next(context: &Context, folder: &str) -> u32 {
+    context
+        .sql
+        .query_get_value(
+            context,
+            "SELECT uid_next FROM imap_sync WHERE folder=?;",
+            paramsv![folder],
+        )
+        .await
+        .unwrap_or(0)
+}
+
+pub(crate) async fn set_uidvalidity(
+    context: &Context,
+    folder: &str,
+    uidvalidity: u32,
+) -> Result<()> {
+    context
+        .sql
+        .execute(
+            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+                ON CONFLICT(folder) DO UPDATE SET uidvalidity=? WHERE folder=?;",
+            paramsv![folder, uidvalidity, 0u32, uidvalidity, folder],
+        )
+        .await?;
+    Ok(())
+}
+
+async fn get_uidvalidity(context: &Context, folder: &str) -> u32 {
+    context
+        .sql
+        .query_get_value(
+            context,
+            "SELECT uidvalidity FROM imap_sync WHERE folder=?;",
+            paramsv![folder],
+        )
+        .await
+        .unwrap_or(0)
+}
+
+/// Deprecated, use get_uid_next() and get_uidvalidity()
+pub async fn get_config_last_seen_uid<S: AsRef<str>>(context: &Context, folder: S) -> (u32, u32) {
     let key = format!("imap.mailbox.{}", folder.as_ref());
     if let Some(entry) = context.sql.get_raw_config(context, &key).await {
         // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
@@ -1750,6 +1835,7 @@ impl std::fmt::Display for UidRange {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::TestContext;
     #[test]
     fn test_get_folder_meaning_by_name() {
         assert_eq!(
@@ -1773,6 +1859,23 @@ mod tests {
             FolderMeaning::SentObjects
         );
         assert_eq!(get_folder_meaning_by_name("xxx"), FolderMeaning::Unknown);
+        assert_eq!(get_folder_meaning_by_name("SPAM"), FolderMeaning::Spam);
+    }
+
+    #[async_std::test]
+    async fn test_set_uid_next_validity() {
+        let t = TestContext::new_alice().await;
+        assert_eq!(get_uid_next(&t.ctx, "Inbox").await, 0);
+        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await, 0);
+
+        set_uidvalidity(&t.ctx, "Inbox", 7).await.unwrap();
+        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await, 7);
+        assert_eq!(get_uid_next(&t.ctx, "Inbox").await, 0);
+
+        set_uid_next(&t.ctx, "Inbox", 5).await.unwrap();
+        set_uidvalidity(&t.ctx, "Inbox", 6).await.unwrap();
+        assert_eq!(get_uid_next(&t.ctx, "Inbox").await, 5);
+        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await, 6);
     }
 
     #[test]

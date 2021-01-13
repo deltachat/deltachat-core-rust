@@ -248,6 +248,13 @@ pub enum StockMessage {
     #[strum(props(fallback = "You deleted the \"Saved messages\" chat.\n\n\
                     To use the \"Saved messages\" feature again, create a new chat with yourself."))]
     SelfDeletedMsgBody = 91,
+
+    #[strum(props(
+        fallback = "⚠️ The \"Delete messages from server\" feature now also deletes messages in folders other than Inbox, DeltaChat and Sent.\n\n\
+                    ℹ️ To avoid accidentally deleting messages, we turned it off for you. Please turn it on again at \
+                    Settings → \"Chats and Media\" → \"Delete messages from server\" to continue using it."
+    ))]
+    DeleteServerTurnedOff = 92,
 }
 
 /*

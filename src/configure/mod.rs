@@ -12,7 +12,6 @@ use itertools::Itertools;
 use job::Action;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
-use crate::config::Config;
 use crate::dc_tools::EmailAddress;
 use crate::imap::Imap;
 use crate::login_param::{LoginParam, ServerLoginParam};
@@ -22,6 +21,7 @@ use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
 use crate::stock::StockMessage;
 use crate::{chat, e2ee, provider};
+use crate::{config::Config, dc_tools::time};
 use crate::{
     constants::{Viewtype, DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2},
     job,
@@ -413,6 +413,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     // the trailing underscore is correct
     param.save_to_database(ctx, "configured_").await?;
     ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
+    ctx.set_config(Config::ConfiguredTimestamp, Some(&time().to_string()))
+        .await?;
 
     progress!(ctx, 920);
 

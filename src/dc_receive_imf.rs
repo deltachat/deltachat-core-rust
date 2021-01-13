@@ -251,6 +251,7 @@ pub(crate) async fn dc_receive_imf_inner(
             .needs_move(context, server_folder.as_ref())
             .await
             .unwrap_or_default()
+            .is_some()
         {
             // Move message if we don't delete it immediately.
             job::add(
@@ -404,6 +405,14 @@ async fn add_parts(
             ShowEmails::AcceptedContacts => allow_creation = false,
             ShowEmails::All => {}
         }
+    }
+
+    if !context.is_sentbox(&server_folder).await && mime_parser.get(HeaderDef::Received).is_none() {
+        // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
+        // So: If there is no Received header AND it's not in the sentbox, then ignore the email.
+        info!(context, "Email is probably just a draft (TRASH)");
+        *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+        allow_creation = false;
     }
 
     // check if the message introduces a new chat:
@@ -1983,7 +1992,8 @@ mod tests {
     #[async_std::test]
     async fn test_grpid_simple() {
         let context = TestContext::new().await;
-        let raw = b"From: hello\n\
+        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: hello\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <lqkjwelq123@123123>\n\
                     References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
@@ -2000,7 +2010,8 @@ mod tests {
     #[async_std::test]
     async fn test_grpid_from_multiple() {
         let context = TestContext::new().await;
-        let raw = b"From: hello\n\
+        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: hello\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
                     References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
@@ -2034,7 +2045,9 @@ mod tests {
         );
     }
 
-    static MSGRMSG: &[u8] = b"From: Bob <bob@example.com>\n\
+    static MSGRMSG: &[u8] =
+        b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: Bob <bob@example.com>\n\
                     To: alice@example.com\n\
                     Chat-Version: 1.0\n\
                     Subject: Chat: hello\n\
@@ -2043,7 +2056,9 @@ mod tests {
                     \n\
                     hello\n";
 
-    static ONETOONE_NOREPLY_MAIL: &[u8] = b"From: Bob <bob@example.com>\n\
+    static ONETOONE_NOREPLY_MAIL: &[u8] =
+        b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: Bob <bob@example.com>\n\
                     To: alice@example.com\n\
                     Subject: Chat: hello\n\
                     Message-ID: <2222@example.com>\n\
@@ -2051,7 +2066,9 @@ mod tests {
                     \n\
                     hello\n";
 
-    static GRP_MAIL: &[u8] = b"From: bob@example.com\n\
+    static GRP_MAIL: &[u8] =
+        b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: bob@example.com\n\
                     To: alice@example.com, claire@example.com\n\
                     Subject: group with Alice, Bob and Claire\n\
                     Message-ID: <3333@example.com>\n\
@@ -2218,7 +2235,8 @@ mod tests {
         dc_receive_imf(
             &t,
             format!(
-                "From: alice@example.com\n\
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.com\n\
                  To: bob@example.com\n\
                  Subject: foo\n\
                  Message-ID: <Gr.{}.12345678901@example.com>\n\
@@ -2256,7 +2274,8 @@ mod tests {
         dc_receive_imf(
             &t,
             format!(
-                "From: bob@example.com\n\
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: bob@example.com\n\
                  To: alice@example.com\n\
                  Subject: message opened\n\
                  Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
@@ -2320,7 +2339,8 @@ mod tests {
 
         dc_receive_imf(
             context,
-            b"To: bob@example.com\n\
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 To: bob@example.com\n\
                  Subject: foo\n\
                  Message-ID: <3924@example.com>\n\
                  Chat-Version: 1.0\n\
@@ -2348,7 +2368,8 @@ mod tests {
         let chat_id = chat::create_by_contact_id(&t, contact_id).await.unwrap();
         dc_receive_imf(
             &t,
-            b"From: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
                  To: alice@example.com\n\
                  Subject: foo\n\
                  Message-ID: <asdklfjjaweofi@example.com>\n\
@@ -2396,7 +2417,8 @@ mod tests {
 
         dc_receive_imf(
             &t,
-            b"From: Foobar <foobar@example.com>\n\
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: Foobar <foobar@example.com>\n\
                  To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= alice@example.com\n\
                  Cc: =?utf-8?q?=3Ch2=3E?= <carl@host.tld>\n\
                  Subject: foo\n\
@@ -2444,7 +2466,8 @@ mod tests {
 
         dc_receive_imf(
             &t,
-            b"From: Foobar <foobar@example.com>\n\
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: Foobar <foobar@example.com>\n\
                  To: alice@example.com\n\
                  Cc: Carl <carl@host.tld>\n\
                  Subject: foo\n\
@@ -2555,7 +2578,8 @@ mod tests {
         dc_receive_imf(
             &t,
             format!(
-                "From: {}\n\
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: {}\n\
                 To: {}\n\
                 Subject: foo\n\
                 Message-ID: <{}>\n\
@@ -2601,7 +2625,8 @@ mod tests {
 
         dc_receive_imf(
             &t,
-            b"From: alice@gmail.com\n\
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@gmail.com\n\
                  To: bob@example.com, assidhfaaspocwaeofi@gmail.com\n\
                  Subject: foo\n\
                  Message-ID: <CADWx9Cs32Wa7Gy-gM0bvbq54P_FEHe7UcsAV=yW7sVVW=fiMYQ@mail.gmail.com>\n\

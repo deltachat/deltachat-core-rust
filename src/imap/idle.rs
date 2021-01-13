@@ -58,6 +58,12 @@ impl Imap {
                 return Ok(info);
             }
 
+            if let Ok(info) = self.idle_interrupt.try_recv() {
+                info!(context, "skip idle, got interrupt {:?}", info);
+                self.session = Some(session);
+                return Ok(info);
+            }
+
             let mut handle = session.idle();
             if let Err(err) = handle.init().await {
                 bail!("IMAP IDLE protocol failed to init/complete: {}", err);
@@ -71,14 +77,18 @@ impl Imap {
                 Interrupt(InterruptInfo),
             }
 
-            info!(context, "Idle entering wait-on-remote state");
+            info!(
+                context,
+                "{}: Idle entering wait-on-remote state",
+                watch_folder.as_deref().unwrap_or("None")
+            );
             let fut = idle_wait.map(|ev| ev.map(Event::IdleResponse)).race(async {
-                let probe_network = self.idle_interrupt.recv().await;
+                let info = self.idle_interrupt.recv().await;
 
                 // cancel imap idle connection properly
                 drop(interrupt);
 
-                Ok(Event::Interrupt(probe_network.unwrap_or_default()))
+                Ok(Event::Interrupt(info.unwrap_or_default()))
             });
 
             match fut.await {
@@ -178,7 +188,7 @@ impl Imap {
                                 }
                             }
                             Err(err) => {
-                                error!(context, "could not fetch from folder: {}", err);
+                                error!(context, "could not fetch from folder: {:#}", err);
                                 self.trigger_reconnect()
                             }
                         }

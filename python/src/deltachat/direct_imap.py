@@ -9,6 +9,7 @@ import ssl
 import pathlib
 from imapclient import IMAPClient
 from imapclient.exceptions import IMAPClientError
+import imaplib
 import deltachat
 from deltachat import const
 
@@ -25,13 +26,29 @@ def dc_account_extra_configure(account):
     """ Reset the account (we reuse accounts across tests)
     and make 'account.direct_imap' available for direct IMAP ops.
     """
-    if not hasattr(account, "direct_imap"):
-        imap = DirectImap(account)
-        if imap.select_config_folder("mvbox"):
-            imap.delete(ALL, expunge=True)
-        assert imap.select_config_folder("inbox")
-        imap.delete(ALL, expunge=True)
-        setattr(account, "direct_imap", imap)
+    try:
+
+        if not hasattr(account, "direct_imap"):
+            imap = DirectImap(account)
+
+            for folder in imap.list_folders():
+                if folder.lower() == "inbox" or folder.lower() == "deltachat":
+                    assert imap.select_folder(folder)
+                    imap.delete(ALL, expunge=True)
+                else:
+                    imap.conn.delete_folder(folder)
+                    # We just deleted the folder, so we have to make DC forget about it, too
+                    if account.get_config("configured_sentbox_folder") == folder:
+                        account.set_config("configured_sentbox_folder", None)
+                    if account.get_config("configured_spam_folder") == folder:
+                        account.set_config("configured_spam_folder", None)
+
+            setattr(account, "direct_imap", imap)
+
+    except Exception as e:
+        # Uncaught exceptions here would lead to a timeout without any note written to the log
+        account.log("=============================== CAN'T RESET ACCOUNT: ===============================")
+        account.log("===================", e, "===================")
 
 
 @deltachat.global_hookimpl
@@ -89,6 +106,12 @@ class DirectImap:
             self.conn.logout()
         except (OSError, IMAPClientError):
             print("Could not logout direct_imap conn")
+
+    def create_folder(self, foldername):
+        try:
+            self.conn.create_folder(foldername)
+        except imaplib.IMAP4.error as e:
+            print("Can't create", foldername, "probably it already exists:", str(e))
 
     def select_folder(self, foldername):
         assert not self._idling
@@ -240,3 +263,9 @@ class DirectImap:
             res = self.conn.idle_done()
             self._idling = False
             return res
+
+    def append(self, folder, msg):
+        if msg.startswith("\n"):
+            msg = msg[1:]
+        msg = '\n'.join([s.lstrip() for s in msg.splitlines()])
+        self.conn.append(folder, msg)
