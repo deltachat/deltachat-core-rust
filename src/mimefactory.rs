@@ -756,7 +756,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     let old_name = self.msg.param.get(Param::Arg).unwrap_or_default();
                     protected_headers.push(Header::new(
                         "Chat-Group-Name-Changed".into(),
-                        maybe_encode_words(old_name.into()),
+                        maybe_encode_words(old_name),
                     ));
                 }
                 SystemMessage::GroupImageChanged => {
