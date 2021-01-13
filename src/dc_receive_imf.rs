@@ -1176,41 +1176,38 @@ async fn create_or_lookup_group(
                 )
                 .await;
             X_MrAddToGrp = Some(optional_field);
-        } else {
-            if let Some(old_name) = mime_parser.get(HeaderDef::ChatGroupNameChanged) {
-                X_MrGrpNameChanged = true;
-                better_msg = context
-                    .stock_system_msg(
-                        StockMessage::MsgGrpName,
-                        old_name,
-                        if let Some(ref name) = grpname {
-                            name
-                        } else {
-                            ""
-                        },
-                        from_id as u32,
-                    )
-                    .await;
-
-                mime_parser.is_system_message = SystemMessage::GroupNameChanged;
-            } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent) {
-                if value == "group-avatar-changed" {
-                    if let Some(avatar_action) = &mime_parser.group_avatar {
-                        // this is just an explicit message containing the group-avatar,
-                        // apart from that, the group-avatar is send along with various other messages
-                        mime_parser.is_system_message = SystemMessage::GroupImageChanged;
-                        better_msg = context
-                            .stock_system_msg(
-                                match avatar_action {
-                                    AvatarAction::Delete => StockMessage::MsgGrpImgDeleted,
-                                    AvatarAction::Change(_) => StockMessage::MsgGrpImgChanged,
-                                },
-                                "",
-                                "",
-                                from_id as u32,
-                            )
-                            .await
-                    }
+        } else if let Some(old_name) = mime_parser.get(HeaderDef::ChatGroupNameChanged) {
+            X_MrGrpNameChanged = true;
+            better_msg = context
+                .stock_system_msg(
+                    StockMessage::MsgGrpName,
+                    old_name,
+                    if let Some(ref name) = grpname {
+                        name
+                    } else {
+                        ""
+                    },
+                    from_id as u32,
+                )
+                .await;
+            mime_parser.is_system_message = SystemMessage::GroupNameChanged;
+        } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent) {
+            if value == "group-avatar-changed" {
+                if let Some(avatar_action) = &mime_parser.group_avatar {
+                    // this is just an explicit message containing the group-avatar,
+                    // apart from that, the group-avatar is send along with various other messages
+                    mime_parser.is_system_message = SystemMessage::GroupImageChanged;
+                    better_msg = context
+                        .stock_system_msg(
+                            match avatar_action {
+                                AvatarAction::Delete => StockMessage::MsgGrpImgDeleted,
+                                AvatarAction::Change(_) => StockMessage::MsgGrpImgChanged,
+                            },
+                            "",
+                            "",
+                            from_id as u32,
+                        )
+                        .await
                 }
             }
         }
