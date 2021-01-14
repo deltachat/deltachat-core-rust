@@ -1765,7 +1765,7 @@ pub async fn get_chat_msgs(
         }
     }
 
-    let process_row = if (flags & DC_GCM_SYSTEM_ONLY) != 0 {
+    let process_row = if (flags & DC_GCM_INFO_ONLY) != 0 {
         |row: &rusqlite::Row| {
             // is_info logic taken from Message.is_info()
             let params = row.get::<_, String>("param")?;
@@ -1846,21 +1846,22 @@ pub async fn get_chat_msgs(
                 process_rows,
             )
             .await
-    } else if (flags & DC_GCM_SYSTEM_ONLY) != 0 {
+    } else if (flags & DC_GCM_INFO_ONLY) != 0 {
         context
             .sql
             .query_map(
+                // GLOB is used here instead of LIKE becase it is case-sensitive
                 "SELECT m.id AS id, m.timestamp AS timestamp, m.param AS param, m.from_id AS from_id, m.to_id AS to_id
                FROM msgs m
               WHERE m.chat_id=?
                 AND m.hidden=0
                 AND (
                     m.param GLOB \"*S=*\"
-                    OR m.from_id == 2
-                    OR m.to_id == 2
+                    OR m.from_id == ?
+                    OR m.to_id == ?
                 )
               ORDER BY m.timestamp, m.id;",
-                paramsv![chat_id],
+                paramsv![chat_id, DC_CONTACT_ID_INFO, DC_CONTACT_ID_INFO],
                 process_row,
                 process_rows,
             )

@@ -1000,7 +1000,7 @@ dc_msg_t*       dc_get_draft                 (dc_context_t* context, uint32_t ch
 
 
 #define         DC_GCM_ADDDAYMARKER          0x01
-#define         DC_GCM_SYSTEM_ONLY           0x02
+#define         DC_GCM_INFO_ONLY           0x02
 
 
 /**
@@ -1019,7 +1019,7 @@ dc_msg_t*       dc_get_draft                 (dc_context_t* context, uint32_t ch
  * @param flags If set to DC_GCM_ADDDAYMARKER, the marker DC_MSG_ID_DAYMARKER will
  *     be added before each day (regarding the local timezone).  Set this to 0 if you do not want this behaviour.
  *     To get the concrete time of the marker, use dc_array_get_timestamp().
- *     If set to DC_GCM_SYSTEM_ONLY, only system messages will be returned, can be combined with DC_GCM_ADDDAYMARKER.
+ *     If set to DC_GCM_INFO_ONLY, only system messages will be returned, can be combined with DC_GCM_ADDDAYMARKER.
  * @param marker1before An optional message ID.  If set, the id DC_MSG_ID_MARKER1 will be added just
  *   before the given ID in the returned array.  Set this to 0 if you do not want this behaviour.
  * @return Array of message IDs, must be dc_array_unref()'d when no longer used.
