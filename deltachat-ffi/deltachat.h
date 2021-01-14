@@ -1000,7 +1000,7 @@ dc_msg_t*       dc_get_draft                 (dc_context_t* context, uint32_t ch
 
 
 #define         DC_GCM_ADDDAYMARKER          0x01
-#define         DC_GCM_INFO_ONLY           0x02
+#define         DC_GCM_INFO_ONLY             0x02
 
 
 /**
