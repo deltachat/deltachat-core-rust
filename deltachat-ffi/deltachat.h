@@ -1474,16 +1474,16 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * Taking care of these parts
  * while maintaining compatibility with the then generated HTML-code
  * is not easily doable, if at all.
- * Eg. taking care of tags and attributes is not sufficient,
- * we would have to deal with linked content (eg. script, css),
- * text (eg. script-blocks) and values (eg. javascript-protocol) as well;
+ * E.g. taking care of tags and attributes is not sufficient,
+ * we would have to deal with linked content (e.g. script, css),
+ * text (e.g. script-blocks) and values (e.g. javascript-protocol) as well;
  * on this level, we have to deal with encodings, browser peculiarities and so on -
  * and would still risk to oversee something and to break things.
  *
  * To avoid starting this cat-and-mouse game,
  * and to close this issue in a sustainable way,
  * it is up to the UI to display the HTML-code in an **appropriate sandbox environment** -
- * that may eg. be an external browser or a WebView with scripting disabled.
+ * that may e.g. be an external browser or a WebView with scripting disabled.
  *
  * @memberof dc_context_t
  * @param context The context object object.
@@ -4952,7 +4952,7 @@ void dc_event_unref(dc_event_t* event);
  * @defgroup DC_CHAT_VISIBILITY DC_CHAT_VISIBILITY
  *
  * These constants describe the visibility of a chat.
- * The chat visibiliry can be get using dc_chat_get_visibility()
+ * The chat visibility can be get using dc_chat_get_visibility()
  * and set using dc_set_chat_visibility().
  *
  * @addtogroup DC_CHAT_VISIBILITY
