@@ -148,7 +148,6 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 // but maybe just one folder can't be selected or something
                 warn!(ctx, "{}", err);
             }
-            info!(ctx, "verbose (issue 2065): step 1 done fetching");
 
             // idle
             if connection.can_idle() {
