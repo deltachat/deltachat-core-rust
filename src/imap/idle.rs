@@ -21,16 +21,13 @@ impl Imap {
         watch_folder: Option<String>,
     ) -> Result<InterruptInfo> {
         use futures::future::FutureExt;
-        info!(context, "verbose (issue 2065): step 2 starting idle");
 
         if !self.can_idle() {
             bail!("IMAP server does not have IDLE capability");
         }
         self.setup_handle(context).await?;
-        info!(context, "verbose (issue 2065): step 3 setup handle");
 
         self.select_folder(context, watch_folder.clone()).await?;
-        info!(context, "verbose (issue 2065): step 4 selected folder");
 
         let timeout = Duration::from_secs(23 * 60);
         let mut info = Default::default();
@@ -47,14 +44,9 @@ impl Imap {
                     _ => info!(context, "ignoring unsolicited response {:?}", response),
                 }
             }
-            info!(context, "verbose (issue 2065): step 5 checked responsed");
 
             if unsolicited_exists {
                 self.session = Some(session);
-                info!(
-                    context,
-                    "verbose (issue 2065): exiting because unsolicited_exists"
-                );
                 return Ok(info);
             }
 
@@ -68,7 +60,6 @@ impl Imap {
             if let Err(err) = handle.init().await {
                 bail!("IMAP IDLE protocol failed to init/complete: {}", err);
             }
-            info!(context, "verbose (issue 2065): step 6 inited handle");
 
             let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
 
