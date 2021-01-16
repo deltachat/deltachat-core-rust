@@ -245,6 +245,11 @@ impl MsgId {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::forward_msgs;
+    use crate::config::Config;
+    use crate::constants::DC_CONTACT_ID_SELF;
+    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::message::MessengerMessage;
     use crate::test_utils::TestContext;
 
     #[async_std::test]
@@ -392,5 +397,88 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
             .find("data:image/jpeg;base64,/9j/4AAQ")
             .is_some());
         assert!(parser.html.find("cid:").is_none());
+    }
+
+    #[async_std::test]
+    async fn test_html_forwarding() {
+        // alice receives a non-delta html-message
+        let alice = TestContext::new_alice().await;
+        alice.set_config(Config::ShowEmails, Some("2")).await.ok();
+        let chat = alice.chat_with_contact("", "sender@testrun.org").await;
+        let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
+        dc_receive_imf(&alice, raw, "INBOX", 1, false)
+            .await
+            .unwrap();
+        let msg = alice.get_last_msg_in(chat.get_id()).await;
+        assert_ne!(msg.get_from_id(), DC_CONTACT_ID_SELF);
+        assert_eq!(msg.is_dc_message, MessengerMessage::No);
+        assert!(!msg.is_forwarded());
+        assert!(msg.get_text().unwrap().find("this is plain").is_some());
+        assert!(msg.has_html());
+        let html = msg.get_id().get_html(&alice).await;
+        assert!(html.find("this is <b>html</b>").is_some());
+
+        // alice: create chat with bob and forward received html-message there
+        let chat = alice.chat_with_contact("", "bob@example.net").await;
+        forward_msgs(&alice, &[msg.get_id()], chat.get_id())
+            .await
+            .unwrap();
+        let msg = alice.get_last_msg_in(chat.get_id()).await;
+        assert_eq!(msg.get_from_id(), DC_CONTACT_ID_SELF);
+        assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
+        assert!(msg.is_forwarded());
+        assert!(msg.get_text().unwrap().find("this is plain").is_some());
+        assert!(msg.has_html());
+        let html = msg.get_id().get_html(&alice).await;
+        assert!(html.find("this is <b>html</b>").is_some());
+
+        // bob: check that bob also got the html-part of the forwarded message
+        let bob = TestContext::new_bob().await;
+        let chat = bob.chat_with_contact("", "alice@example.com").await;
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+        let msg = bob.get_last_msg_in(chat.get_id()).await;
+        assert_ne!(msg.get_from_id(), DC_CONTACT_ID_SELF);
+        assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
+        assert!(msg.is_forwarded());
+        assert!(msg.get_text().unwrap().find("this is plain").is_some());
+        assert!(msg.has_html());
+        let html = msg.get_id().get_html(&bob).await;
+        assert!(html.find("this is <b>html</b>").is_some());
+    }
+
+    #[async_std::test]
+    async fn test_html_forwarding_encrypted() {
+        // alice receives a non-delta html-message
+        let alice = TestContext::new_alice().await;
+        alice.set_config(Config::ShowEmails, Some("1")).await.ok();
+        let chat = alice.chat_with_contact("", "sender@testrun.org").await;
+        let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
+        dc_receive_imf(&alice, raw, "INBOX", 1, false)
+            .await
+            .unwrap();
+        let msg = alice.get_last_msg_in(chat.get_id()).await;
+
+        // forward the message to saved-messages,
+        // this will encrypt the message as new_alice() has set up keys
+        let chat = alice.get_self_chat().await;
+        forward_msgs(&alice, &[msg.get_id()], chat.get_id())
+            .await
+            .unwrap();
+        let msg = alice.pop_sent_msg().await;
+
+        // receive the message on another device
+        let alice = TestContext::new_alice().await;
+        assert_eq!(alice.get_config_int(Config::ShowEmails).await, 0); // set to "1" above, make sure it is another db
+        alice.recv_msg(&msg).await;
+        let chat = alice.get_self_chat().await;
+        let msg = alice.get_last_msg_in(chat.get_id()).await;
+        assert_eq!(msg.get_from_id(), DC_CONTACT_ID_SELF);
+        assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
+        assert!(msg.get_showpadlock());
+        assert!(msg.is_forwarded());
+        assert!(msg.get_text().unwrap().find("this is plain").is_some());
+        assert!(msg.has_html());
+        let html = msg.get_id().get_html(&alice).await.unwrap();
+        assert!(html.find("this is <b>html</b>").is_some());
     }
 }
