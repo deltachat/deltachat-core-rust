@@ -2814,7 +2814,9 @@ mod tests {
         assert_eq!(msg.text.unwrap(), "   Guten Abend,   \n\n   Lots of text   \n\n   text with Umlaut ä...   \n\n   MfG    [...]");
     }
 
-    static GH_MAILINGLIST: &[u8] = b"From: Max Mustermann <notifications@github.com>\n\
+    static GH_MAILINGLIST: &[u8] =
+        b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+    From: Max Mustermann <notifications@github.com>\n\
     To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
     Subject: Let's put some [braces here that] have nothing to do with the topic\n\
     Message-ID: <3333@example.org>\n\
@@ -2824,7 +2826,9 @@ mod tests {
     \n\
     hello\n";
 
-    static GH_MAILINGLIST2: &[u8] = b"From: Github <notifications@github.com>\n\
+    static GH_MAILINGLIST2: &[u8] =
+        b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+    From: Github <notifications@github.com>\n\
     To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
     Subject: [deltachat/deltachat-core-rust] PR run failed\n\
     Message-ID: <3334@example.org>\n\
@@ -2902,7 +2906,8 @@ mod tests {
         assert_eq!(msg2.get_sender_name(&t.ctx).await, "Github");
     }
 
-    static DC_MAILINGLIST: &[u8] = b"From: Bob <bob@posteo.org>\n\
+    static DC_MAILINGLIST: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+    From: Bob <bob@posteo.org>\n\
     To: delta-dev@codespeak.net\n\
     Subject: Re: [delta-dev] What's up?\n\
     Message-ID: <38942@posteo.org>\n\
@@ -2912,7 +2917,8 @@ mod tests {
     \n\
     body\n";
 
-    static DC_MAILINGLIST2: &[u8] = b"From: Charlie <charlie@posteo.org>\n\
+    static DC_MAILINGLIST2: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+    From: Charlie <charlie@posteo.org>\n\
     To: delta-dev@codespeak.net\n\
     Subject: Re: [delta-dev] DC is nice!\n\
     Message-ID: <38943@posteo.org>\n\
