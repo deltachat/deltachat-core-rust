@@ -3072,6 +3072,21 @@ pub unsafe extern "C" fn dc_msg_get_quoted_msg(msg: *const dc_msg_t) -> *mut dc_
     }
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_mailing_list(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_is_mailing_list()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    let context = &*ffi_msg.context;
+    block_on(async move {
+        let res = ffi_msg.message.is_mailing_list(context).await;
+        res.log_err(context, "is_mailing_list failed")
+            .unwrap_or_default()
+    }) as libc::c_int
+}
+
 // dc_contact_t
 
 /// FFI struct for [dc_contact_t]

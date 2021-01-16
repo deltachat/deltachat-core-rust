@@ -731,7 +731,7 @@ impl Message {
     /// the group names may be really weird when taken from the subject of implicit (= ad-hoc)
     /// groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
     ///
-    /// If chat.dc_chat_is_mailing_list() returns true, you can also ask
+    /// If dc_msg_is_mailing_list() returns true, you can also ask
     /// "Would you like to read MAILING LIST NAME in Delta Chat?"
     ///
     /// @param msg The message object.
@@ -788,6 +788,12 @@ impl Message {
             msg_id: MsgId::new(0),
         });
         0
+    }
+
+    pub async fn is_mailing_list(&self, context: &Context) -> anyhow::Result<bool> {
+        Ok(Chat::load_from_db(context, self.chat_id)
+            .await?
+            .is_mailing_list())
     }
 
     pub fn set_text(&mut self, text: Option<String>) {

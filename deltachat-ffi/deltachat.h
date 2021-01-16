@@ -2828,7 +2828,7 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
 
 /**
  * @memberof dc_chat_t
- * @return 1 if this group chat shows a mailing list, 0 otherwise
+ * @return 1 if this group chat shows a mailing list, 0 otherwise. Also see dc_msg_is_mailing_list.
  */
 int             dc_chat_is_mailing_list              (const dc_chat_t* chat);
 
@@ -3585,7 +3585,7 @@ char*           dc_msg_get_error               (const dc_msg_t* msg);
  * the group names may be really weird when taken from the subject of implicit (= ad-hoc)
  * groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
  *
- * If chat.dc_chat_is_mailing_list() returns true, you can also ask
+ * If dc_msg_is_mailing_list() returns true, you can also ask
  * "Would you like to read MAILING LIST NAME in Delta Chat?"
  *
  * @memberof dc_msg_t
@@ -3780,6 +3780,15 @@ char*           dc_msg_get_quoted_text        (const dc_msg_t* msg);
  *     Must be freed using dc_msg_unref() after usage.
  */
 dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
+
+
+/**
+ * Whether this message belongs to a mailing list. Only use this method messages in the deaddrop.
+ * For normal chats it is more performant to use dc_chat_is_mailing_list.
+ * @memberof dc_msg_t
+ * @return 1 if this message belongs to a mailing list, 0 otherwise.
+ */
+int             dc_msg_is_mailing_list              (const dc_chat_t* chat);
 
 
 /**
