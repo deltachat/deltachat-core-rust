@@ -179,10 +179,15 @@ pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Re
                         info!(context, "backup_time of {} is {}", name, curr_backup_time);
                         sql.close().await;
                     }
-                    Err(e) => warn!(
-                        context,
-                        "Found backup file {} which could not be opened: {}", name, e
-                    ),
+                    Err(e) => {
+                        warn!(
+                            context,
+                            "Found backup file {} which could not be opened: {}", name, e
+                        );
+                        if newest_backup_path.is_none() {
+                            newest_backup_path = Some(path); // If there is no other backup file, just try this one
+                        }
+                    }
                 }
             }
         }

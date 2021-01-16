@@ -514,6 +514,7 @@ pub(crate) async fn get_next_backup_path(
 ) -> Result<(PathBuf, PathBuf), Error> {
     let folder = PathBuf::from(folder.as_ref());
     let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
+        // Don't change this file name format, in has_backup() we use string comparison to determine which backup is newer:
         .format("delta-chat-backup-%Y-%m-%d")
         .to_string();
 
