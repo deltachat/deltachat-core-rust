@@ -221,7 +221,7 @@ impl MsgId {
     /// this is the case at least when `Message.has_html()` returns true
     /// (we do not save raw mime unconditionally in the database to save space).
     /// The corresponding ffi-function is `dc_get_msg_html()`.
-    pub async fn get_html(self, context: &Context) -> String {
+    pub async fn get_html(self, context: &Context) -> Option<String> {
         let rawmime: Option<String> = context
             .sql
             .query_get_value(
@@ -232,12 +232,21 @@ impl MsgId {
             .await;
 
         if let Some(rawmime) = rawmime {
-            match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
-                Err(err) => format!("parser error: {}", err),
-                Ok(parser) => parser.html,
+            if !rawmime.is_empty() {
+                match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
+                    Err(err) => {
+                        warn!(context, "get_html: parser error: {}", err);
+                        None
+                    }
+                    Ok(parser) => Some(parser.html),
+                }
+            } else {
+                warn!(context, "get_html: empty mime for {}", self);
+                None
             }
         } else {
-            format!("parser error: no mime for {}", self)
+            warn!(context, "get_html: no mime for {}", self);
+            None
         }
     }
 }
@@ -400,6 +409,13 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     }
 
     #[async_std::test]
+    async fn test_get_html_empty() {
+        let t = TestContext::new().await;
+        let msg_id = MsgId::new_unset();
+        assert!(msg_id.get_html(&t).await.is_none())
+    }
+
+    #[async_std::test]
     async fn test_html_forwarding() {
         // alice receives a non-delta html-message
         let alice = TestContext::new_alice().await;
@@ -415,7 +431,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(!msg.is_forwarded());
         assert!(msg.get_text().unwrap().find("this is plain").is_some());
         assert!(msg.has_html());
-        let html = msg.get_id().get_html(&alice).await;
+        let html = msg.get_id().get_html(&alice).await.unwrap();
         assert!(html.find("this is <b>html</b>").is_some());
 
         // alice: create chat with bob and forward received html-message there
@@ -429,7 +445,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(msg.is_forwarded());
         assert!(msg.get_text().unwrap().find("this is plain").is_some());
         assert!(msg.has_html());
-        let html = msg.get_id().get_html(&alice).await;
+        let html = msg.get_id().get_html(&alice).await.unwrap();
         assert!(html.find("this is <b>html</b>").is_some());
 
         // bob: check that bob also got the html-part of the forwarded message
@@ -442,7 +458,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(msg.is_forwarded());
         assert!(msg.get_text().unwrap().find("this is plain").is_some());
         assert!(msg.has_html());
-        let html = msg.get_id().get_html(&bob).await;
+        let html = msg.get_id().get_html(&bob).await.unwrap();
         assert!(html.find("this is <b>html</b>").is_some());
     }
 

@@ -951,7 +951,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let file = dirs::home_dir()
                 .unwrap_or_default()
                 .join(format!("msg-{}.html", id.to_u32()));
-            let html = id.get_html(&context).await;
+            let html = id.get_html(&context).await.unwrap_or_default();
             fs::write(&file, html)?;
             println!("HTML written to: {:#?}", file);
         }
