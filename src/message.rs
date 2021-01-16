@@ -776,7 +776,7 @@ impl Message {
     /// If the message belongs to a mailing list, makes sure that all messages from this mailing list are
     /// blocked or marked as noticed.
     ///
-    /// The user should be asked whether he wants to chat with the _contact_ belonging to the message;
+    /// The user should be asked whether they want to chat with the _contact_ belonging to the message;
     /// the group names may be really weird when taken from the subject of implicit (= ad-hoc)
     /// groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
     ///

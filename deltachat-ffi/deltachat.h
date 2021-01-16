@@ -1540,7 +1540,7 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  *
  * @deprecated Use dc_decide_on_contact_request() if the user just hit "Not now" on a button in the deaddrop,
  *      dc_marknoticed_chat() if the user has entered a chat
- *      and dc_markseen_msgs() if the user actually _saw_ a message.
+ *      and dc_markseen_msgs() if the user actually _saw_ a message. // TODO really? What should the code do when a message is seen in deaddrop?
  * @memberof dc_context_t
  * @param context The context object.
  * @param contact_id The contact ID of which all messages should be marked as noticed.
@@ -3640,12 +3640,12 @@ char*           dc_msg_get_error               (const dc_msg_t* msg);
  * If the message belongs to a mailing list, makes sure that all messages from this mailing list are
  * blocked or marked as noticed.
  *
- * The user should be asked whether he wants to chat with the _contact_ belonging to the message;
+ * The user should be asked whether they want to chat with the _contact_ belonging to the message;
  * the group names may be really weird when taken from the subject of implicit (= ad-hoc)
  * groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
  *
  * If dc_msg_is_mailing_list() returns true, you can also ask
- * "Would you like to read MAILING LIST NAME in Delta Chat?"
+ * "Would you like to read 'MAILING LIST NAME' in Delta Chat?"
  *
  * @memberof dc_msg_t
  * @param msg The message object.
@@ -3868,8 +3868,8 @@ dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
 
 
 /**
- * Whether this message belongs to a mailing list. Only use this method messages in the deaddrop.
- * For normal chats it is more performant to use dc_chat_is_mailing_list.
+ * Whether this message belongs to a mailing list. Use this method for messages in the deaddrop,
+ * for normal chats it is more performant to use dc_chat_is_mailing_list.
  * @memberof dc_msg_t
  * @return 1 if this message belongs to a mailing list, 0 otherwise.
  */
@@ -4767,14 +4767,8 @@ void dc_event_unref(dc_event_t* event);
  * Messages were marked noticed or seen.
  * The UI may update badge counters or stop showing a chatlist-item with a bold font.
  *
-<<<<<<< HEAD
- * This event is emitted eg. when calling dc_markseen_msgs() or dc_marknoticed_chat().
-||||||| cb5bcebf
- * This event is emitted eg. when calling dc_markseen_msgs(), dc_marknoticed_chat() or dc_marknoticed_contact().
-=======
- * This event is emitted e.g. when calling dc_markseen_msgs(), dc_marknoticed_chat() or dc_marknoticed_contact()
+ * This event is emitted eg. when calling dc_markseen_msgs() or dc_marknoticed_chat()
  * or when a chat is answered on another device.
->>>>>>> origin/master
  * Do not try to derive the state of an item from just the fact you received the event;
  * use e.g. dc_msg_get_state() or dc_get_fresh_msg_cnt() for this purpose.
  *
@@ -5115,19 +5109,12 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_BAD_TIME_MSG_BODY          85
 #define DC_STR_UPDATE_REMINDER_MSG_BODY   86
 #define DC_STR_ERROR_NO_NETWORK           87
-<<<<<<< HEAD
-#define DC_STR_UNNAMED_NEWSLETTER         88
-
-#define DC_STR_COUNT                      88
-||||||| cb5bcebf
-
-#define DC_STR_COUNT                      87
-=======
 #define DC_STR_PROTECTION_ENABLED         88
 #define DC_STR_PROTECTION_DISABLED        89
 #define DC_STR_REPLY_NOUN                 90 /* e.g. "Reply", used in summaries, a noun, not a verb (not: "to reply") */
 #define DC_STR_SELF_DELETED_MSG_BODY      91
->>>>>>> origin/master
+#define DC_STR_DELETE_SERVER_TURNED_OFF   92
+#define DC_STR_UNNAMED_NEWSLETTER         93
 
 /*
  * @}

@@ -398,8 +398,8 @@ impl MimeMessage {
             }
 
             if prepend_subject && !subject.is_empty() {
-                let text_part = self.parts.iter_mut().find(|part| !part.msg.is_empty());
-                if let Some(mut part) = text_part {
+                let part_with_text = self.parts.iter_mut().find(|part| !part.msg.is_empty());
+                if let Some(mut part) = part_with_text {
                     part.msg = format!("{} – {}", subject, part.msg);
                 }
             }

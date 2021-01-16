@@ -299,6 +299,8 @@ pub(crate) async fn dc_receive_imf_inner(
 /// Converts "From" field to contact id.
 ///
 /// Also returns whether it is blocked or not and its origin.
+///
+/// * `prevent_rename`: passed through to [dc_add_or_lookup_contacts_by_address_list]
 pub async fn from_field_to_contact_id(
     context: &Context,
     from_address_list: &[SingleInfo],
@@ -1449,7 +1451,6 @@ async fn create_or_lookup_mailinglist(
     subject: &str,
 ) -> (ChatId, Blocked) {
     static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.*.)<(.*.)>$").unwrap());
-    static SUBJECT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^.{0,5}\[(.*.)\]").unwrap());
     let (mut name, listid) = match LIST_ID.captures(list_id_header) {
         Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
         None => (
@@ -1466,6 +1467,7 @@ async fn create_or_lookup_mailinglist(
         return (chat_id, blocked);
     }
 
+    static SUBJECT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^.{0,5}\[(.*.)\]").unwrap());
     if let Some(cap) = SUBJECT.captures(subject) {
         name = cap[1].to_string();
     }
@@ -2040,6 +2042,10 @@ pub(crate) async fn get_prefetch_parent_message(
     Ok(None)
 }
 
+/// * param `prevent_rename`: if true, the display_name of this contact will not be changed. Useful for
+/// mailing lists: In mailing lists, many users write from the same address but with different
+/// display names. We don't want the display name to change everytime the user gets a new email from
+/// a mailing list.
 async fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     address_list: &[SingleInfo],
@@ -2048,18 +2054,13 @@ async fn dc_add_or_lookup_contacts_by_address_list(
 ) -> Result<ContactIds> {
     let mut contact_ids = ContactIds::new();
     for info in address_list.iter() {
+        let display_name = if prevent_rename {
+            Some("")
+        } else {
+            info.display_name.as_deref()
+        };
         contact_ids.insert(
-            add_or_lookup_contact_by_addr(
-                context,
-                if prevent_rename {
-                    Some("")
-                } else {
-                    info.display_name.as_deref()
-                },
-                &info.addr,
-                origin,
-            )
-            .await?,
+            add_or_lookup_contact_by_addr(context, display_name, &info.addr, origin).await?,
         );
     }
 
@@ -2818,7 +2819,7 @@ mod tests {
         b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
     From: Max Mustermann <notifications@github.com>\n\
     To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
-    Subject: Let's put some [braces here that] have nothing to do with the topic\n\
+    Subject: Let's put some [brackets here that] have nothing to do with the topic\n\
     Message-ID: <3333@example.org>\n\
     List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
     Precedence: list\n\
@@ -2968,8 +2969,7 @@ mod tests {
         assert_eq!(chats.get_chat_id(0), deaddrop); // Test that the message is shown in the deaddrop
 
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-        // Answer "no" on the contact request
-        // ==================================
+        // ===================================== Answer "no" on the contact request =====================================
         msg.decide_on_contact_request(&t.ctx, No).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
@@ -3002,8 +3002,7 @@ mod tests {
             .unwrap();
 
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-        // Answer "not now" on the contact request
-        // ==================================
+        // ===================================== Answer "not now" on the contact request =====================================
         msg.decide_on_contact_request(&t.ctx, NotNow).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
@@ -3035,8 +3034,7 @@ mod tests {
             .unwrap();
 
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-        // Answer "yes" on the contact request
-        // ==================================
+        // ===================================== Answer "yes" on the contact request =====================================
         msg.decide_on_contact_request(&t.ctx, Yes).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();

@@ -22,8 +22,8 @@ use crate::key::{self, DcKey};
 use crate::message::{update_msg_state, Message, MessageState, MsgId};
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
+use crate::EventType;
 use crate::{chat, chatlist::Chatlist};
-use crate::{EventType};
 use crate::{
     chat::{Chat, ChatId},
     contact::Origin,
