@@ -380,8 +380,8 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
-    use lazy_static::lazy_static;
+    use crate::test_utils::{alice_keypair, bob_keypair};
+    use once_cell::sync::Lazy;
 
     #[test]
     fn test_split_armored_data_1() {
@@ -449,26 +449,29 @@ mod tests {
     /// The original text of [CTEXT_SIGNED]
     static CLEARTEXT: &[u8] = b"This is a test";
 
-    lazy_static! {
-        /// Initialised [TestKeys] for tests.
-        static ref KEYS: TestKeys = TestKeys::new();
+    /// Initialised [TestKeys] for tests.
+    static KEYS: Lazy<TestKeys> = Lazy::new(TestKeys::new);
 
-        /// A cyphertext encrypted to Alice & Bob, signed by Alice.
-        static ref CTEXT_SIGNED: String = {
-            let mut keyring = Keyring::new();
-            keyring.add(KEYS.alice_public.clone());
-            keyring.add(KEYS.bob_public.clone());
-            futures_lite::future::block_on(pk_encrypt(CLEARTEXT, keyring, Some(KEYS.alice_secret.clone()))).unwrap()
-        };
+    /// A cyphertext encrypted to Alice & Bob, signed by Alice.
+    static CTEXT_SIGNED: Lazy<String> = Lazy::new(|| {
+        let mut keyring = Keyring::new();
+        keyring.add(KEYS.alice_public.clone());
+        keyring.add(KEYS.bob_public.clone());
+        futures_lite::future::block_on(pk_encrypt(
+            CLEARTEXT,
+            keyring,
+            Some(KEYS.alice_secret.clone()),
+        ))
+        .unwrap()
+    });
 
-        /// A cyphertext encrypted to Alice & Bob, not signed.
-        static ref CTEXT_UNSIGNED: String = {
-            let mut keyring = Keyring::new();
-            keyring.add(KEYS.alice_public.clone());
-            keyring.add(KEYS.bob_public.clone());
-            futures_lite::future::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
-        };
-    }
+    /// A cyphertext encrypted to Alice & Bob, not signed.
+    static CTEXT_UNSIGNED: Lazy<String> = Lazy::new(|| {
+        let mut keyring = Keyring::new();
+        keyring.add(KEYS.alice_public.clone());
+        keyring.add(KEYS.bob_public.clone());
+        futures_lite::future::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
+    });
 
     #[test]
     fn test_encrypt_signed() {

@@ -32,7 +32,7 @@ Messages SHOULD be encrypted by the
 `prefer-encrypt=mutual` MAY be set by default.
 
 Meta data (at least the subject and all chat-headers) SHOULD be encrypted
-by the [Protected Headers](https://www.ietf.org/id/draft-autocrypt-lamps-protected-headers-02.html) standard.
+by the [Protected Headers](https://tools.ietf.org/id/draft-autocrypt-lamps-protected-headers-02.html) standard.
 
 
 # Outgoing messages

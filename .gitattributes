@@ -12,3 +12,6 @@ test-data/* text=false
 *.gif  binary
 *.ico  binary
 
+*.py diff=python
+*.rs diff=rust
+*.md diff=markdown

@@ -4,15 +4,15 @@ pub mod send;
 
 use std::time::{Duration, SystemTime};
 
-use async_smtp::smtp::client::net::*;
-use async_smtp::*;
+use async_smtp::smtp::client::net::ClientTlsParameters;
+use async_smtp::{error, smtp, EmailAddress};
 
-use crate::constants::*;
+use crate::constants::DC_LP_AUTH_OAUTH2;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam};
-use crate::oauth2::*;
-use crate::provider::{get_provider_info, Socket};
+use crate::oauth2::dc_get_oauth2_access_token;
+use crate::provider::Socket;
 use crate::stock::StockMessage;
 
 /// SMTP write and read timeout in seconds.
@@ -107,6 +107,7 @@ impl Smtp {
                 &lp.smtp,
                 &lp.addr,
                 lp.server_flags & DC_LP_AUTH_OAUTH2 != 0,
+                lp.provider.map_or(false, |provider| provider.strict_tls),
             )
             .await;
         if let Err(ref err) = res {
@@ -130,6 +131,7 @@ impl Smtp {
         lp: &ServerLoginParam,
         addr: &str,
         oauth2: bool,
+        provider_strict_tls: bool,
     ) -> Result<()> {
         if self.is_connected().await {
             warn!(context, "SMTP already connected.");
@@ -151,9 +153,8 @@ impl Smtp {
         let domain = &lp.server;
         let port = lp.port;
 
-        let provider = get_provider_info(addr);
         let strict_tls = match lp.certificate_checks {
-            CertificateChecks::Automatic => provider.map_or(false, |provider| provider.strict_tls),
+            CertificateChecks::Automatic => provider_strict_tls,
             CertificateChecks::Strict => true,
             CertificateChecks::AcceptInvalidCertificates
             | CertificateChecks::AcceptInvalidCertificates2 => false,
@@ -192,7 +193,8 @@ impl Smtp {
         };
 
         let security = match lp.security {
-            Socket::STARTTLS | Socket::Plain => smtp::ClientSecurity::Opportunistic(tls_parameters),
+            Socket::Plain => smtp::ClientSecurity::None,
+            Socket::STARTTLS => smtp::ClientSecurity::Required(tls_parameters),
             _ => smtp::ClientSecurity::Wrapper(tls_parameters),
         };
 

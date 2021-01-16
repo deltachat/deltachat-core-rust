@@ -57,10 +57,7 @@ class Chat(object):
 
         :returns: True if chat is a group-chat, false if it's a contact 1:1 chat.
         """
-        return lib.dc_chat_get_type(self._dc_chat) in (
-            const.DC_CHAT_TYPE_GROUP,
-            const.DC_CHAT_TYPE_VERIFIED_GROUP
-        )
+        return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_GROUP
 
     def is_deaddrop(self):
         """ return true if this chat is a deaddrop chat.
@@ -85,12 +82,20 @@ class Chat(object):
         """
         return not lib.dc_chat_is_unpromoted(self._dc_chat)
 
-    def is_verified(self):
-        """ return True if this chat is a verified group.
+    def can_send(self):
+        """Check if messages can be sent to a give chat.
+        This is not true eg. for the deaddrop or for the device-talk
 
-        :returns: True if chat is verified, False otherwise.
+        :returns: True if the chat is writable, False otherwise
         """
-        return lib.dc_chat_is_verified(self._dc_chat)
+        return lib.dc_chat_can_send(self._dc_chat)
+
+    def is_protected(self):
+        """ return True if this chat is a protected chat.
+
+        :returns: True if chat is protected, False otherwise.
+        """
+        return lib.dc_chat_is_protected(self._dc_chat)
 
     def get_name(self):
         """ return name of this chat.
@@ -366,7 +371,7 @@ class Chat(object):
         :raises ValueError: if contact could not be removed
         :returns: None
         """
-        contact = self.account.create_contact(obj)
+        contact = self.account.get_contact(obj)
         ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not remove contact {!r} from chat".format(contact))

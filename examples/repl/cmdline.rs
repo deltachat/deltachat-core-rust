@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use anyhow::{bail, ensure};
 use async_std::path::Path;
-use deltachat::chat::{self, Chat, ChatId, ChatItem, ChatVisibility};
+use deltachat::chat::{self, Chat, ChatId, ChatItem, ChatVisibility, ProtectionStatus};
 use deltachat::chatlist::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
@@ -21,6 +21,7 @@ use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::EventType;
 use deltachat::{config, provider};
+use std::fs;
 
 /// Reset database tables.
 /// Argument is a bitmask, executing single or multiple actions in one call.
@@ -185,7 +186,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let temp2 = dc_timestamp_to_str(msg.get_timestamp());
     let msgtext = msg.get_text();
     println!(
-        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
+        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}{} [{}]",
         prefix.as_ref(),
         msg.get_id(),
         if msg.get_showpadlock() { "🔒" } else { "" },
@@ -193,6 +194,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         &contact_name,
         contact_id,
         msgtext.unwrap_or_default(),
+        if msg.has_html() { "[HAS-HTML]️" } else { "" },
         if msg.get_from_id() == 1 as libc::c_uint {
             ""
         } else if msg.get_state() == MessageState::InSeen {
@@ -357,7 +359,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  createchat <contact-id>\n\
                  createchatbymsg <msg-id>\n\
                  creategroup <name>\n\
-                 createverified <name>\n\
+                 createprotected <name>\n\
                  addmember <contact-id>\n\
                  removemember <contact-id>\n\
                  groupname <name>\n\
@@ -368,7 +370,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  dellocations\n\
                  getlocations [<contact-id>]\n\
                  send <text>\n\
-                 send-garbage\n\
                  sendimage <file> [<text>]\n\
                  sendfile <file> [<text>]\n\
                  videochat\n\
@@ -379,10 +380,13 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  unarchive <chat-id>\n\
                  pin <chat-id>\n\
                  unpin <chat-id>\n\
+                 protect <chat-id>\n\
+                 unprotect <chat-id>\n\
                  delchat <chat-id>\n\
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
                  msginfo <msg-id>\n\
+                 html <msg-id>\n\
                  listfresh\n\
                  forward <msg-id> <chat-id>\n\
                  markseen <msg-id>\n\
@@ -398,6 +402,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  getqr [<chat-id>]\n\
                  getbadqr\n\
                  checkqr <qr-content>\n\
+                 setqr <qr-content>\n\
                  providerinfo <addr>\n\
                  event <event-id to test>\n\
                  fileinfo <file>\n\
@@ -441,20 +446,20 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "export-backup" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportBackup, Some(&dir)).await?;
+            imex(&context, ImexMode::ExportBackup, &dir).await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            imex(&context, ImexMode::ImportBackup, Some(arg1)).await?;
+            imex(&context, ImexMode::ImportBackup, arg1).await?;
         }
         "export-keys" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportSelfKeys, Some(&dir)).await?;
+            imex(&context, ImexMode::ExportSelfKeys, &dir).await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-keys" => {
-            imex(&context, ImexMode::ImportSelfKeys, Some(arg1)).await?;
+            imex(&context, ImexMode::ImportSelfKeys, arg1).await?;
         }
         "export-setup" => {
             let setup_code = create_setup_code(&context);
@@ -523,7 +528,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 for i in (0..cnt).rev() {
                     let chat = Chat::load_from_db(&context, chatlist.get_chat_id(i)).await?;
                     println!(
-                        "{}#{}: {} [{} fresh] {}",
+                        "{}#{}: {} [{} fresh] {}{}",
                         chat_prefix(&chat),
                         chat.get_id(),
                         chat.get_name(),
@@ -533,6 +538,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                             ChatVisibility::Archived => "📦",
                             ChatVisibility::Pinned => "📌",
                         },
+                        if chat.is_protected() { "🛡️" } else { "" },
                     );
                     let lot = chatlist.get_summary(&context, i, Some(&chat)).await;
                     let statestr = if chat.visibility == ChatVisibility::Archived {
@@ -607,7 +613,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 format!("{} member(s)", members.len())
             };
             println!(
-                "{}#{}: {} [{}]{}{}",
+                "{}#{}: {} [{}]{}{} {}",
                 chat_prefix(sel_chat),
                 sel_chat.get_id(),
                 sel_chat.get_name(),
@@ -623,6 +629,11 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                         _ => " Icon: Err".to_string(),
                     },
                     _ => "".to_string(),
+                },
+                if sel_chat.is_protected() {
+                    "🛡️"
+                } else {
+                    ""
                 },
             );
             log_msglist(&context, &msglist).await?;
@@ -654,15 +665,16 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "creategroup" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
             let chat_id =
-                chat::create_group_chat(&context, VerifiedStatus::Unverified, arg1).await?;
+                chat::create_group_chat(&context, ProtectionStatus::Unprotected, arg1).await?;
 
             println!("Group#{} created successfully.", chat_id);
         }
-        "createverified" => {
+        "createprotected" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            let chat_id = chat::create_group_chat(&context, VerifiedStatus::Verified, arg1).await?;
+            let chat_id =
+                chat::create_group_chat(&context, ProtectionStatus::Protected, arg1).await?;
 
-            println!("VerifiedGroup#{} created successfully.", chat_id);
+            println!("Group#{} created and protected successfully.", chat_id);
         }
         "addmember" => {
             ensure!(sel_chat.is_some(), "No chat selected");
@@ -872,9 +884,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             msg.set_text(Some(arg1.to_string()));
             chat::add_device_msg(&context, None, Some(&mut msg)).await?;
         }
-        "updatedevicechats" => {
-            context.update_device_chats().await?;
-        }
         "listmedia" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
 
@@ -906,7 +915,21 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                         "archive" => ChatVisibility::Archived,
                         "unarchive" | "unpin" => ChatVisibility::Normal,
                         "pin" => ChatVisibility::Pinned,
-                        _ => panic!("Unexpected command (This should never happen)"),
+                        _ => unreachable!("arg0={:?}", arg0),
+                    },
+                )
+                .await?;
+        }
+        "protect" | "unprotect" => {
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = ChatId::new(arg1.parse()?);
+            chat_id
+                .set_protection(
+                    &context,
+                    match arg0 {
+                        "protect" => ProtectionStatus::Protected,
+                        "unprotect" => ProtectionStatus::Unprotected,
+                        _ => unreachable!("arg0={:?}", arg0),
                     },
                 )
                 .await?;
@@ -921,6 +944,16 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let id = MsgId::new(arg1.parse()?);
             let res = message::get_msg_info(&context, id).await;
             println!("{}", res);
+        }
+        "html" => {
+            ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
+            let id = MsgId::new(arg1.parse()?);
+            let file = dirs::home_dir()
+                .unwrap_or_default()
+                .join(format!("msg-{}.html", id.to_u32()));
+            let html = id.get_html(&context).await;
+            fs::write(&file, html)?;
+            println!("HTML written to: {:#?}", file);
         }
         "listfresh" => {
             let msglist = context.get_fresh_msgs().await;
@@ -1035,7 +1068,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "providerinfo" => {
             ensure!(!arg1.is_empty(), "Argument <addr> missing.");
-            match provider::get_provider_info(arg1) {
+            match provider::get_provider_info(arg1).await {
                 Some(info) => {
                     println!("Information for provider belonging to {}:", arg1);
                     println!("status: {}", info.status as u32);

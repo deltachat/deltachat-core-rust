@@ -1,0 +1,24 @@
+Subject: Test apostrophed filenames
+Message-ID: 12345@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+X-Mailer: Kopano 8.7.16
+To: recp@testrun.org
+From: sender@testrun.org
+Content-Type: multipart/mixed; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+apostrophed filenames as of
+https://tools.ietf.org/html/rfc2231
+
+--==BREAK==
+Content-Type: text/html
+Content-Disposition: attachment;
+ filename*=utf-8''Ma%C3%9Fnahmen%20Okt.%202021.html
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--==BREAK==--

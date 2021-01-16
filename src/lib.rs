@@ -3,7 +3,8 @@
     clippy::correctness,
     missing_debug_implementations,
     clippy::all,
-    clippy::indexing_slicing
+    clippy::indexing_slicing,
+    clippy::wildcard_imports
 )]
 #![allow(clippy::match_bool, clippy::eval_order_dependence)]
 
@@ -76,6 +77,8 @@ pub mod stock;
 mod token;
 #[macro_use]
 mod dehtml;
+pub mod html;
+pub mod plaintext;
 
 pub mod dc_receive_imf;
 pub mod dc_tools;

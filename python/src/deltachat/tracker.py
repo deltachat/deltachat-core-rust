@@ -20,6 +20,16 @@ class ImexTracker:
         elif ffi_event.name == "DC_EVENT_IMEX_FILE_WRITTEN":
             self._imex_events.put(ffi_event.data2)
 
+    def wait_progress(self, target_progress, progress_upper_limit=1000, progress_timeout=60):
+        while True:
+            ev = self._imex_events.get(timeout=progress_timeout)
+            if isinstance(ev, int) and ev >= target_progress:
+                assert ev <= progress_upper_limit, \
+                    str(ev) + " exceeded upper progress limit " + str(progress_upper_limit)
+                return ev
+            if ev == 0:
+                return None
+
     def wait_finish(self, progress_timeout=60):
         """ Return list of written files, raise ValueError if ExportFailed. """
         files_written = []

@@ -4,18 +4,20 @@ use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
-use crate::constants::*;
-use crate::contact::*;
+use crate::constants::{Chattype, Viewtype, DC_FROM_HANDSHAKE};
+use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
-use crate::dc_tools::*;
-use crate::e2ee::*;
+use crate::dc_tools::{
+    dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp, dc_get_filebytes, time,
+};
+use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{bail, ensure, format_err, Error};
 use crate::format_flowed::{format_flowed, format_flowed_quote};
 use crate::location;
 use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;
-use crate::param::*;
+use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
 use crate::stock::StockMessage;
@@ -233,7 +235,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     fn is_e2ee_guaranteed(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
-                if chat.typ == Chattype::VerifiedGroup {
+                if chat.is_protected() {
                     return true;
                 }
 
@@ -255,7 +257,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     fn min_verified(&self) -> PeerstateVerifiedStatus {
         match &self.loaded {
             Loaded::Message { chat } => {
-                if chat.typ == Chattype::VerifiedGroup {
+                if chat.is_protected() {
                     PeerstateVerifiedStatus::BidirectVerified
                 } else {
                     PeerstateVerifiedStatus::Unverified
@@ -268,7 +270,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     fn should_force_plaintext(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
-                if chat.typ == Chattype::VerifiedGroup {
+                if chat.is_protected() {
                     false
                 } else {
                     self.msg
@@ -345,7 +347,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         .stock_str(StockMessage::AcSetupMsgSubject)
                         .await
                         .into_owned()
-                } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+                } else if chat.typ == Chattype::Group {
                     let re = if self.in_reply_to.is_empty() {
                         ""
                     } else {
@@ -708,11 +710,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut placeholdertext = None;
         let mut meta_part = None;
 
-        if chat.typ == Chattype::VerifiedGroup {
+        if chat.is_protected() {
             protected_headers.push(Header::new("Chat-Verified".to_string(), "1".to_string()));
         }
 
-        if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+        if chat.typ == Chattype::Group {
             protected_headers.push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
 
             let encoded = encode_words(&chat.name);
@@ -751,11 +753,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     }
                 }
                 SystemMessage::GroupNameChanged => {
-                    let value_to_add = self.msg.param.get(Param::Arg).unwrap_or_default();
-
+                    let old_name = self.msg.param.get(Param::Arg).unwrap_or_default();
                     protected_headers.push(Header::new(
                         "Chat-Group-Name-Changed".into(),
-                        value_to_add.into(),
+                        maybe_encode_words(old_name),
                     ));
                 }
                 SystemMessage::GroupImageChanged => {
@@ -845,6 +846,18 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         protected_headers.push(Header::new("Secure-Join-Group".into(), id.into()));
                     };
                 }
+            }
+            SystemMessage::ChatProtectionEnabled => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".to_string(),
+                    "protection-enabled".to_string(),
+                ));
+            }
+            SystemMessage::ChatProtectionDisabled => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".to_string(),
+                    "protection-disabled".to_string(),
+                ));
             }
             _ => {}
         }
@@ -1129,13 +1142,23 @@ async fn build_body_file(
         Viewtype::Image | Viewtype::Gif => format!(
             "{}.{}",
             if base_name.is_empty() {
-                "image"
+                chrono::Utc
+                    .timestamp(msg.timestamp_sort as i64, 0)
+                    .format("image_%Y-%m-%d_%H-%M-%S")
+                    .to_string()
             } else {
-                base_name
+                base_name.to_string()
             },
             &suffix,
         ),
-        Viewtype::Video => format!("video.{}", &suffix),
+        Viewtype::Video => format!(
+            "video_{}.{}",
+            chrono::Utc
+                .timestamp(msg.timestamp_sort as i64, 0)
+                .format("%Y-%m-%d_%H-%M-%S")
+                .to_string(),
+            &suffix
+        ),
         _ => blob.as_file_name().to_string(),
     };
 
@@ -1156,14 +1179,10 @@ async fn build_body_file(
     // at least on tested Thunderbird and Gma'l in 2017.
     // But I've heard about problems with inline and outl'k, so we just use the attachment-type until we
     // run into other problems ...
-    let cd_value = if needs_encoding(&filename_to_send) {
-        format!(
-            "attachment; filename*=\"{}\"",
-            encode_words(&filename_to_send)
-        )
-    } else {
-        format!("attachment; filename=\"{}\"", &filename_to_send)
-    };
+    let cd_value = format!(
+        "attachment; filename=\"{}\"",
+        maybe_encode_words(&filename_to_send)
+    );
 
     let body = std::fs::read(blob.to_abs_path())?;
     let encoded_body = wrapped_base64_encode(&body);
@@ -1246,18 +1265,27 @@ fn encode_words(word: &str) -> String {
     encoded_words::encode(word, None, encoded_words::EncodingFlag::Shortest, None)
 }
 
-pub fn needs_encoding(to_check: impl AsRef<str>) -> bool {
+fn needs_encoding(to_check: impl AsRef<str>) -> bool {
     !to_check.as_ref().chars().all(|c| {
         c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '~' || c == '%'
     })
+}
+
+fn maybe_encode_words(words: &str) -> String {
+    if needs_encoding(words) {
+        encode_words(words)
+    } else {
+        words.to_string()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::chatlist::Chatlist;
+    use crate::contact::Origin;
     use crate::dc_receive_imf::dc_receive_imf;
-    use crate::mimeparser::*;
+    use crate::mimeparser::MimeMessage;
     use crate::test_utils::TestContext;
 
     #[test]
@@ -1342,12 +1370,20 @@ mod tests {
         assert!(needs_encoding("foo bar"));
     }
 
+    #[test]
+    fn test_maybe_encode_words() {
+        assert_eq!(maybe_encode_words("foobar"), "foobar");
+        assert_eq!(maybe_encode_words("-_.~%"), "-_.~%");
+        assert_eq!(maybe_encode_words("äöü"), "=?utf-8?b?w6TDtsO8?=");
+    }
+
     #[async_std::test]
     async fn test_subject() {
         // 1.: Receive a mail from an MUA or Delta Chat
         assert_eq!(
             msg_to_subject_str(
-                b"From: Bob <bob@example.com>\n\
+                b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: Bob <bob@example.com>\n\
                 To: alice@example.com\n\
                 Subject: Antw: Chat: hello\n\
                 Message-ID: <2222@example.com>\n\
@@ -1361,7 +1397,8 @@ mod tests {
 
         assert_eq!(
             msg_to_subject_str(
-                b"From: Bob <bob@example.com>\n\
+                b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: Bob <bob@example.com>\n\
                 To: alice@example.com\n\
                 Subject: Infos: 42\n\
                 Message-ID: <2222@example.com>\n\
@@ -1376,7 +1413,8 @@ mod tests {
         // 2. Receive a message from Delta Chat when we did not send any messages before
         assert_eq!(
             msg_to_subject_str(
-                b"From: Charlie <charlie@example.com>\n\
+                b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: Charlie <charlie@example.com>\n\
                 To: alice@example.com\n\
                 Subject: Chat: hello\n\
                 Chat-Version: 1.0\n\
@@ -1395,15 +1433,15 @@ mod tests {
         assert_eq!(first_subject_str(t).await, "Message from alice@example.com");
 
         let t = TestContext::new_alice().await;
-        t.ctx
-            .set_config(Config::Displayname, Some("Alice"))
+        t.set_config(Config::Displayname, Some("Alice"))
             .await
             .unwrap();
         assert_eq!(first_subject_str(t).await, "Message from Alice");
 
         // 4. Receive messages with unicode characters and make sure that we do not panic (we do not care about the result)
         msg_to_subject_str(
-            "From: Charlie <charlie@example.com>\n\
+            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+            From: Charlie <charlie@example.com>\n\
             To: alice@example.com\n\
             Subject: äääää\n\
             Chat-Version: 1.0\n\
@@ -1416,7 +1454,8 @@ mod tests {
         .await;
 
         msg_to_subject_str(
-            "From: Charlie <charlie@example.com>\n\
+            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+            From: Charlie <charlie@example.com>\n\
             To: alice@example.com\n\
             Subject: aäääää\n\
             Chat-Version: 1.0\n\
@@ -1431,8 +1470,9 @@ mod tests {
         // 5. Receive an mdn (read receipt) and make sure the mdn's subject is not used
         let t = TestContext::new_alice().await;
         dc_receive_imf(
-            &t.ctx,
-            b"From: alice@example.com\n\
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+            From: alice@example.com\n\
             To: Charlie <charlie@example.com>\n\
             Subject: Hello, Charlie\n\
             Chat-Version: 1.0\n\
@@ -1446,7 +1486,9 @@ mod tests {
         )
         .await
         .unwrap();
-        let new_msg = incoming_msg_to_reply_msg(b"From: charlie@example.com\n\
+        let new_msg = incoming_msg_to_reply_msg(
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: charlie@example.com\n\
                  To: alice@example.com\n\
                  Subject: message opened\n\
                  Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
@@ -1469,45 +1511,35 @@ mod tests {
                  Final-Recipient: rfc822;charlie@example.com\n\
                  Original-Message-ID: <2893@example.com>\n\
                  Disposition: manual-action/MDN-sent-automatically; displayed\n\
-                 \n", &t.ctx).await;
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
-            .await
-            .unwrap();
+                 \n", &t).await;
+        let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
         // The subject string should not be "Re: message opened"
         assert_eq!("Re: Hello, Charlie", mf.subject_str().await);
     }
 
     async fn first_subject_str(t: TestContext) -> String {
         let contact_id =
-            Contact::add_or_lookup(&t.ctx, "Dave", "dave@example.com", Origin::ManuallyCreated)
+            Contact::add_or_lookup(&t, "Dave", "dave@example.com", Origin::ManuallyCreated)
                 .await
                 .unwrap()
                 .0;
 
-        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id)
-            .await
-            .unwrap();
+        let chat_id = chat::create_by_contact_id(&t, contact_id).await.unwrap();
 
         let mut new_msg = Message::new(Viewtype::Text);
         new_msg.set_text(Some("Hi".to_string()));
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg)
-            .await
-            .unwrap();
+        chat::prepare_msg(&t, chat_id, &mut new_msg).await.unwrap();
 
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
-            .await
-            .unwrap();
+        let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
 
         mf.subject_str().await
     }
 
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
         let t = TestContext::new_alice().await;
-        let new_msg = incoming_msg_to_reply_msg(imf_raw, &t.ctx).await;
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
-            .await
-            .unwrap();
+        let new_msg = incoming_msg_to_reply_msg(imf_raw, &t).await;
+        let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
         mf.subject_str().await
     }
 
@@ -1542,10 +1574,11 @@ mod tests {
     // This test could still be extended
     async fn test_render_reply() {
         let t = TestContext::new_alice().await;
-        let context = &t.ctx;
+        let context = &t;
 
         let msg = incoming_msg_to_reply_msg(
-            b"From: Charlie <charlie@example.com>\n\
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: Charlie <charlie@example.com>\n\
                 To: alice@example.com\n\
                 Subject: Chat: hello\n\
                 Chat-Version: 1.0\n\
@@ -1557,7 +1590,7 @@ mod tests {
         )
         .await;
 
-        let mimefactory = MimeFactory::from_msg(&t.ctx, &msg, false).await.unwrap();
+        let mimefactory = MimeFactory::from_msg(&t, &msg, false).await.unwrap();
 
         let recipients = mimefactory.recipients();
         assert_eq!(recipients, vec!["charlie@example.com"]);

@@ -12,7 +12,10 @@ use num_traits::FromPrimitive;
 use thiserror::Error;
 
 use crate::config::Config;
-use crate::constants::*;
+use crate::constants::{
+    MediaQuality, Viewtype, BALANCED_AVATAR_SIZE, BALANCED_IMAGE_SIZE, WORSE_AVATAR_SIZE,
+    WORSE_IMAGE_SIZE,
+};
 use crate::context::Context;
 use crate::error::Error;
 use crate::events::EventType;
@@ -63,6 +66,12 @@ impl<'a> BlobObject<'a> {
                 blobname: name.clone(),
                 cause: err.into(),
             })?;
+
+        // workaround a bug in async-std
+        // (the executor does not handle blocking operation in Drop correctly,
+        // see https://github.com/async-rs/async-std/issues/900 )
+        let _ = file.flush().await;
+
         let blob = BlobObject {
             blobdir,
             name: format!("$BLOBDIR/{}", name),
@@ -151,6 +160,10 @@ impl<'a> BlobObject<'a> {
                 cause: err,
             });
         }
+
+        // workaround, see create() for details
+        let _ = dst_file.flush().await;
+
         let blob = BlobObject {
             blobdir: context.get_blobdir(),
             name: format!("$BLOBDIR/{}", name),
@@ -367,27 +380,18 @@ impl<'a> BlobObject<'a> {
         true
     }
 
-    pub fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
+    pub async fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
         let blob_abs = self.to_abs_path();
-        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err,
-        })?;
 
-        if img.width() <= AVATAR_SIZE && img.height() <= AVATAR_SIZE {
-            return Ok(());
-        }
+        let img_wh =
+            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+                .unwrap_or_default()
+            {
+                MediaQuality::Balanced => BALANCED_AVATAR_SIZE,
+                MediaQuality::Worse => WORSE_AVATAR_SIZE,
+            };
 
-        let img = img.thumbnail(AVATAR_SIZE, AVATAR_SIZE);
-
-        img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err.into(),
-        })?;
-
-        Ok(())
+        self.recode_to_size(context, blob_abs, img_wh).await
     }
 
     pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
@@ -398,38 +402,53 @@ impl<'a> BlobObject<'a> {
             return Ok(());
         }
 
-        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
+        let img_wh =
+            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+                .unwrap_or_default()
+            {
+                MediaQuality::Balanced => BALANCED_IMAGE_SIZE,
+                MediaQuality::Worse => WORSE_IMAGE_SIZE,
+            };
+
+        self.recode_to_size(context, blob_abs, img_wh).await
+    }
+
+    async fn recode_to_size(
+        &self,
+        context: &Context,
+        blob_abs: PathBuf,
+        img_wh: u32,
+    ) -> Result<(), BlobError> {
+        let mut img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
             cause: err,
         })?;
+        let orientation = self.get_exif_orientation(context);
 
-        let img_wh = if MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
-            .unwrap_or_default()
-            == MediaQuality::Balanced
-        {
-            BALANCED_IMAGE_SIZE
-        } else {
-            WORSE_IMAGE_SIZE
-        };
+        let do_scale = img.width() > img_wh || img.height() > img_wh;
+        let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
-        if img.width() <= img_wh && img.height() <= img_wh {
-            return Ok(());
+        if do_scale || do_rotate {
+            if do_scale {
+                img = img.thumbnail(img_wh, img_wh);
+            }
+
+            if do_rotate {
+                img = match orientation {
+                    Ok(90) => img.rotate90(),
+                    Ok(180) => img.rotate180(),
+                    Ok(270) => img.rotate270(),
+                    _ => img,
+                }
+            }
+
+            img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
+                blobdir: context.get_blobdir().to_path_buf(),
+                blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+                cause: err.into(),
+            })?;
         }
-
-        let mut img = img.thumbnail(img_wh, img_wh);
-        match self.get_exif_orientation(context) {
-            Ok(90) => img = img.rotate90(),
-            Ok(180) => img = img.rotate180(),
-            Ok(270) => img = img.rotate270(),
-            _ => {}
-        }
-
-        img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err.into(),
-        })?;
 
         Ok(())
     }
@@ -501,69 +520,57 @@ pub enum BlobError {
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_create() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo", b"hello").await.unwrap();
-        let fname = t.ctx.get_blobdir().join("foo");
+        let blob = BlobObject::create(&t, "foo", b"hello").await.unwrap();
+        let fname = t.get_blobdir().join("foo");
         let data = fs::read(fname).await.unwrap();
         assert_eq!(data, b"hello");
         assert_eq!(blob.as_name(), "$BLOBDIR/foo");
-        assert_eq!(blob.to_abs_path(), t.ctx.get_blobdir().join("foo"));
+        assert_eq!(blob.to_abs_path(), t.get_blobdir().join("foo"));
     }
 
     #[async_std::test]
     async fn test_lowercase_ext() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo.TXT", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.TXT", b"hello").await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/foo.txt");
     }
 
     #[async_std::test]
     async fn test_as_file_name() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_file_name(), "foo.txt");
     }
 
     #[async_std::test]
     async fn test_as_rel_path() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_rel_path(), Path::new("foo.txt"));
     }
 
     #[async_std::test]
     async fn test_suffix() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello")
-            .await
-            .unwrap();
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.suffix(), Some("txt"));
-        let blob = BlobObject::create(&t.ctx, "bar", b"world").await.unwrap();
+        let blob = BlobObject::create(&t, "bar", b"world").await.unwrap();
         assert_eq!(blob.suffix(), None);
     }
 
     #[async_std::test]
     async fn test_create_dup() {
         let t = TestContext::new().await;
-        BlobObject::create(&t.ctx, "foo.txt", b"hello")
-            .await
-            .unwrap();
-        let foo_path = t.ctx.get_blobdir().join("foo.txt");
+        BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
+        let foo_path = t.get_blobdir().join("foo.txt");
         assert!(foo_path.exists().await);
-        BlobObject::create(&t.ctx, "foo.txt", b"world")
-            .await
-            .unwrap();
-        let mut dir = fs::read_dir(t.ctx.get_blobdir()).await.unwrap();
+        BlobObject::create(&t, "foo.txt", b"world").await.unwrap();
+        let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
         while let Some(dirent) = dir.next().await {
             let fname = dirent.unwrap().file_name();
             if fname == foo_path.file_name().unwrap() {
@@ -579,15 +586,15 @@ mod tests {
     #[async_std::test]
     async fn test_double_ext_preserved() {
         let t = TestContext::new().await;
-        BlobObject::create(&t.ctx, "foo.tar.gz", b"hello")
+        BlobObject::create(&t, "foo.tar.gz", b"hello")
             .await
             .unwrap();
-        let foo_path = t.ctx.get_blobdir().join("foo.tar.gz");
+        let foo_path = t.get_blobdir().join("foo.tar.gz");
         assert!(foo_path.exists().await);
-        BlobObject::create(&t.ctx, "foo.tar.gz", b"world")
+        BlobObject::create(&t, "foo.tar.gz", b"world")
             .await
             .unwrap();
-        let mut dir = fs::read_dir(t.ctx.get_blobdir()).await.unwrap();
+        let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
         while let Some(dirent) = dir.next().await {
             let fname = dirent.unwrap().file_name();
             if fname == foo_path.file_name().unwrap() {
@@ -605,7 +612,7 @@ mod tests {
     async fn test_create_long_names() {
         let t = TestContext::new().await;
         let s = "1".repeat(150);
-        let blob = BlobObject::create(&t.ctx, &s, b"data").await.unwrap();
+        let blob = BlobObject::create(&t, &s, b"data").await.unwrap();
         let blobname = blob.as_name().split('/').last().unwrap();
         assert!(blobname.len() < 128);
     }
@@ -615,14 +622,14 @@ mod tests {
         let t = TestContext::new().await;
         let src = t.dir.path().join("src");
         fs::write(&src, b"boo").await.unwrap();
-        let blob = BlobObject::create_and_copy(&t.ctx, &src).await.unwrap();
+        let blob = BlobObject::create_and_copy(&t, &src).await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/src");
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
 
         let whoops = t.dir.path().join("whoops");
-        assert!(BlobObject::create_and_copy(&t.ctx, &whoops).await.is_err());
-        let whoops = t.ctx.get_blobdir().join("whoops");
+        assert!(BlobObject::create_and_copy(&t, &whoops).await.is_err());
+        let whoops = t.get_blobdir().join("whoops");
         assert!(!whoops.exists().await);
     }
 
@@ -632,14 +639,14 @@ mod tests {
 
         let src_ext = t.dir.path().join("external");
         fs::write(&src_ext, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t.ctx, &src_ext).await.unwrap();
+        let blob = BlobObject::new_from_path(&t, &src_ext).await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/external");
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
 
-        let src_int = t.ctx.get_blobdir().join("internal");
+        let src_int = t.get_blobdir().join("internal");
         fs::write(&src_int, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t.ctx, &src_int).await.unwrap();
+        let blob = BlobObject::new_from_path(&t, &src_int).await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/internal");
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
@@ -649,7 +656,7 @@ mod tests {
         let t = TestContext::new().await;
         let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
         fs::write(&src_ext, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t.ctx, &src_ext).await.unwrap();
+        let blob = BlobObject::new_from_path(&t, &src_ext).await.unwrap();
         assert_eq!(
             blob.as_name(),
             "$BLOBDIR/autocrypt-setup-message-4137848473.html"

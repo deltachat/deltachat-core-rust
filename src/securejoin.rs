@@ -7,19 +7,19 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId};
-use crate::config::*;
-use crate::constants::*;
-use crate::contact::*;
+use crate::config::Config;
+use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_LAST_SPECIAL};
+use crate::contact::{Contact, Origin, VerifiedStatus};
 use crate::context::Context;
-use crate::e2ee::*;
+use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::lot::{Lot, LotState};
 use crate::message::Message;
-use crate::mimeparser::*;
-use crate::param::*;
-use crate::peerstate::*;
+use crate::mimeparser::{MimeMessage, SystemMessage};
+use crate::param::Param;
+use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus, ToSave};
 use crate::qr::check_qr;
 use crate::sql;
 use crate::stock::StockMessage;
@@ -348,7 +348,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
                 let bob = context.bob.read().await;
                 let grpid = bob.qr_scan.as_ref().unwrap().text2.as_ref().unwrap();
                 match chat::get_chat_id_by_grpid(context, grpid).await {
-                    Ok((chatid, _is_verified, _blocked)) => break chatid,
+                    Ok((chatid, _is_protected, _blocked)) => break chatid,
                     Err(err) => {
                         if start.elapsed() > Duration::from_secs(7) {
                             return Err(JoinError::MissingChat(err));
@@ -791,19 +791,19 @@ pub(crate) async fn handle_securejoin_handshake(
 
             let vg_expect_encrypted = if join_vg {
                 let group_id = get_qr_attr!(context, text2).to_string();
-                // This is buggy, is_verified_group will always be
+                // This is buggy, is_protected_group will always be
                 // false since the group is created by receive_imf by
                 // the very handshake message we're handling now.  But
                 // only after we have returned.  It does not impact
                 // the security invariants of secure-join however.
-                let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, &group_id)
+                let (_, is_protected_group, _) = chat::get_chat_id_by_grpid(context, &group_id)
                     .await
                     .unwrap_or((ChatId::new(0), false, Blocked::Not));
                 // when joining a non-verified group
                 // the vg-member-added message may be unencrypted
                 // when not all group members have keys or prefer encryption.
                 // So only expect encryption if this is a verified group
-                is_verified_group
+                is_protected_group
             } else {
                 // setup contact is always encrypted
                 true
@@ -1102,6 +1102,7 @@ mod tests {
     use super::*;
 
     use crate::chat;
+    use crate::chat::ProtectionStatus;
     use crate::peerstate::Peerstate;
     use crate::test_utils::TestContext;
 
@@ -1116,10 +1117,9 @@ mod tests {
             .unwrap();
 
         // Bob scans QR-code, sends vc-request
-        let bob_chatid = dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
+        dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
 
         let sent = bob.pop_sent_msg().await;
-        assert_eq!(sent.id(), bob_chatid);
         assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
@@ -1328,7 +1328,7 @@ mod tests {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        let chatid = chat::create_group_chat(&alice.ctx, VerifiedStatus::Verified, "the chat")
+        let chatid = chat::create_group_chat(&alice.ctx, ProtectionStatus::Protected, "the chat")
             .await
             .unwrap();
 
@@ -1427,6 +1427,6 @@ mod tests {
 
         let bob_chatid = joiner.await;
         let bob_chat = Chat::load_from_db(&bob.ctx, bob_chatid).await.unwrap();
-        assert!(bob_chat.is_verified());
+        assert!(bob_chat.is_protected());
     }
 }

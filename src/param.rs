@@ -390,7 +390,7 @@ mod tests {
     use async_std::fs;
     use async_std::path::Path;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_dc_param() {
@@ -447,7 +447,7 @@ mod tests {
     #[async_std::test]
     async fn test_params_file_fs_path() {
         let t = TestContext::new().await;
-        if let ParamsFile::FsPath(p) = ParamsFile::from_param(&t.ctx, "/foo/bar/baz").unwrap() {
+        if let ParamsFile::FsPath(p) = ParamsFile::from_param(&t, "/foo/bar/baz").unwrap() {
             assert_eq!(p, Path::new("/foo/bar/baz"));
         } else {
             panic!("Wrong enum variant");
@@ -457,7 +457,7 @@ mod tests {
     #[async_std::test]
     async fn test_params_file_blob() {
         let t = TestContext::new().await;
-        if let ParamsFile::Blob(b) = ParamsFile::from_param(&t.ctx, "$BLOBDIR/foo").unwrap() {
+        if let ParamsFile::Blob(b) = ParamsFile::from_param(&t, "$BLOBDIR/foo").unwrap() {
             assert_eq!(b.as_name(), "$BLOBDIR/foo");
         } else {
             panic!("Wrong enum variant");
@@ -472,51 +472,33 @@ mod tests {
         let mut p = Params::new();
         p.set(Param::File, fname.to_str().unwrap());
 
-        let file = p.get_file(Param::File, &t.ctx).unwrap().unwrap();
+        let file = p.get_file(Param::File, &t).unwrap().unwrap();
         assert_eq!(file, ParamsFile::FsPath(fname.clone().into()));
 
-        let path: PathBuf = p.get_path(Param::File, &t.ctx).unwrap().unwrap();
+        let path: PathBuf = p.get_path(Param::File, &t).unwrap().unwrap();
         let fname: PathBuf = fname.into();
         assert_eq!(path, fname);
 
         // Blob does not exist yet, expect BlobError.
-        let err = p.get_blob(Param::File, &t.ctx, false).await.unwrap_err();
+        let err = p.get_blob(Param::File, &t, false).await.unwrap_err();
         match err {
             BlobError::WrongBlobdir { .. } => (),
             _ => panic!("wrong error type/variant: {:?}", err),
         }
 
         fs::write(fname, b"boo").await.unwrap();
-        let blob = p
-            .get_blob(Param::File, &t.ctx, true)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            blob,
-            BlobObject::from_name(&t.ctx, "foo".to_string()).unwrap()
-        );
+        let blob = p.get_blob(Param::File, &t, true).await.unwrap().unwrap();
+        assert_eq!(blob, BlobObject::from_name(&t, "foo".to_string()).unwrap());
 
         // Blob in blobdir, expect blob.
-        let bar_path = t.ctx.get_blobdir().join("bar");
+        let bar_path = t.get_blobdir().join("bar");
         p.set(Param::File, bar_path.to_str().unwrap());
-        let blob = p
-            .get_blob(Param::File, &t.ctx, false)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            blob,
-            BlobObject::from_name(&t.ctx, "bar".to_string()).unwrap()
-        );
+        let blob = p.get_blob(Param::File, &t, false).await.unwrap().unwrap();
+        assert_eq!(blob, BlobObject::from_name(&t, "bar".to_string()).unwrap());
 
         p.remove(Param::File);
-        assert!(p.get_file(Param::File, &t.ctx).unwrap().is_none());
-        assert!(p.get_path(Param::File, &t.ctx).unwrap().is_none());
-        assert!(p
-            .get_blob(Param::File, &t.ctx, false)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(p.get_file(Param::File, &t).unwrap().is_none());
+        assert!(p.get_path(Param::File, &t).unwrap().is_none());
+        assert!(p.get_blob(Param::File, &t, false).await.unwrap().is_none());
     }
 }

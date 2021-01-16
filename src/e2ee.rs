@@ -5,15 +5,15 @@ use std::collections::HashSet;
 use mailparse::ParsedMail;
 use num_traits::FromPrimitive;
 
-use crate::aheader::*;
+use crate::aheader::{Aheader, EncryptPreference};
 use crate::config::Config;
 use crate::context::Context;
-use crate::error::*;
+use crate::error::{bail, ensure, format_err, Result};
 use crate::headerdef::HeaderDef;
 use crate::headerdef::HeaderDefMap;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
-use crate::keyring::*;
-use crate::peerstate::*;
+use crate::keyring::Keyring;
+use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::pgp;
 
 #[derive(Debug)]
@@ -57,12 +57,9 @@ impl EncryptHelper {
     /// preferences, even if message copy is not sent to self.
     ///
     /// `e2ee_guaranteed` should be set to true for replies to encrypted messages (as required by
-    /// Autocrypt Level 1, version 1.1) and for messages sent in verified groups.
+    /// Autocrypt Level 1, version 1.1) and for messages sent in protected groups.
     ///
     /// Returns an error if `e2ee_guaranteed` is true, but one or more keys are missing.
-    ///
-    /// Always returns `false` if one of the peerstates does not support Autocrypt (is in "reset"
-    /// state) or does not have a known key.
     pub fn should_encrypt(
         &self,
         context: &Context,
@@ -84,7 +81,11 @@ impl EncryptHelper {
                     match peerstate.prefer_encrypt {
                         EncryptPreference::NoPreference => {}
                         EncryptPreference::Mutual => prefer_encrypt_count += 1,
-                        EncryptPreference::Reset => return Ok(false),
+                        EncryptPreference::Reset => {
+                            if !e2ee_guaranteed {
+                                return Ok(false);
+                            }
+                        }
                     };
                 }
                 None => {
@@ -234,9 +235,9 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Result<&'a ParsedMail
     }
 }
 
-async fn decrypt_if_autocrypt_message<'a>(
+async fn decrypt_if_autocrypt_message(
     context: &Context,
-    mail: &ParsedMail<'a>,
+    mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
     ret_valid_signatures: &mut HashSet<Fingerprint>,
@@ -345,10 +346,10 @@ mod tests {
 
     use crate::chat;
     use crate::constants::Viewtype;
-    use crate::contact::{Contact, Origin};
     use crate::message::Message;
     use crate::param::Param;
-    use crate::test_utils::*;
+    use crate::peerstate::ToSave;
+    use crate::test_utils::{bob_keypair, TestContext};
 
     mod ensure_secret_key_exists {
         use super::*;
@@ -357,13 +358,13 @@ mod tests {
         async fn test_prexisting() {
             let t = TestContext::new().await;
             let test_addr = t.configure_alice().await;
-            assert_eq!(ensure_secret_key_exists(&t.ctx).await.unwrap(), test_addr);
+            assert_eq!(ensure_secret_key_exists(&t).await.unwrap(), test_addr);
         }
 
         #[async_std::test]
         async fn test_not_configured() {
             let t = TestContext::new().await;
-            assert!(ensure_secret_key_exists(&t.ctx).await.is_err());
+            assert!(ensure_secret_key_exists(&t).await.is_err());
         }
     }
 
@@ -414,23 +415,8 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        let (contact_alice_id, _modified) = Contact::add_or_lookup(
-            &bob.ctx,
-            "Alice",
-            "alice@example.com",
-            Origin::ManuallyCreated,
-        )
-        .await?;
-        let (contact_bob_id, _modified) = Contact::add_or_lookup(
-            &alice.ctx,
-            "Bob",
-            "bob@example.net",
-            Origin::ManuallyCreated,
-        )
-        .await?;
-
-        let chat_alice = chat::create_by_contact_id(&alice.ctx, contact_bob_id).await?;
-        let chat_bob = chat::create_by_contact_id(&bob.ctx, contact_alice_id).await?;
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let chat_bob = bob.create_chat(&alice).await.id;
 
         // Alice sends unencrypted message to Bob
         let mut msg = Message::new(Viewtype::Text);
@@ -509,5 +495,60 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Reset);
 
         Ok(())
+    }
+
+    fn new_peerstates(
+        ctx: &Context,
+        prefer_encrypt: EncryptPreference,
+    ) -> Vec<(Option<Peerstate<'_>>, &str)> {
+        let addr = "bob@foo.bar";
+        let pub_key = bob_keypair().public;
+        let peerstate = Peerstate {
+            context: &ctx,
+            addr: addr.into(),
+            last_seen: 13,
+            last_seen_autocrypt: 14,
+            prefer_encrypt,
+            public_key: Some(pub_key.clone()),
+            public_key_fingerprint: Some(pub_key.fingerprint()),
+            gossip_key: Some(pub_key.clone()),
+            gossip_timestamp: 15,
+            gossip_key_fingerprint: Some(pub_key.fingerprint()),
+            verified_key: Some(pub_key.clone()),
+            verified_key_fingerprint: Some(pub_key.fingerprint()),
+            to_save: Some(ToSave::All),
+            fingerprint_changed: false,
+        };
+        let mut peerstates = Vec::new();
+        peerstates.push((Some(peerstate), addr));
+        peerstates
+    }
+
+    #[async_std::test]
+    async fn test_should_encrypt() {
+        let t = TestContext::new_alice().await;
+        let encrypt_helper = EncryptHelper::new(&t).await.unwrap();
+
+        // test with EncryptPreference::NoPreference:
+        // if e2ee_eguaranteed is unset, there is no encryption as not more than half of peers want encryption
+        let ps = new_peerstates(&t, EncryptPreference::NoPreference);
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+
+        // test with EncryptPreference::Reset
+        let ps = new_peerstates(&t, EncryptPreference::Reset);
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+
+        // test with EncryptPreference::Mutual (self is also Mutual)
+        let ps = new_peerstates(&t, EncryptPreference::Mutual);
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+
+        // test with missing peerstate
+        let mut ps = Vec::new();
+        ps.push((None, "bob@foo.bar"));
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).is_err());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
     }
 }

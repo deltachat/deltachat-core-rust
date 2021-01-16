@@ -8,7 +8,8 @@ import datetime
 
 out_all = ""
 out_domains = ""
-domains_dict = {}
+out_ids = ""
+domains_set = set()
 
 def camel(name):
     words = name.split("_")
@@ -22,15 +23,19 @@ def cleanstr(s):
     return s
 
 
+def file2id(f):
+    return os.path.basename(f).replace(".md", "")
+
+
 def file2varname(f):
-    f = f[f.rindex("/")+1:].replace(".md", "")
+    f = file2id(f)
     f = f.replace(".", "_")
     f = f.replace("-", "_")
     return "P_" + f.upper()
 
 
 def file2url(f):
-    f = f[f.rindex("/")+1:].replace(".md", "")
+    f = file2id(f)
     f = f.replace(".", "-")
     return "https://providers.delta.chat/" + f
 
@@ -42,8 +47,8 @@ def process_config_defaults(data):
     config_defaults = data.get("config_defaults", "")
     for key in config_defaults:
         value = str(config_defaults[key])
-        defaults += "            ConfigDefault { key: Config::" + camel(key) + ", value: \"" + value + "\" },\n"
-    defaults += "        ])"
+        defaults += "        ConfigDefault { key: Config::" + camel(key) + ", value: \"" + value + "\" },\n"
+    defaults += "    ])"
     return defaults
 
 
@@ -61,14 +66,16 @@ def process_data(data, file):
         if domain == "" or domain.count(".") < 1 or domain.lower() != domain:
             raise TypeError("bad domain: " + domain)
 
-        global domains_dict
-        if domains_dict.get(domain, False):
+        global domains_set
+        if domain in domains_set:
             raise TypeError("domain used twice: " + domain)
-        domains_dict[domain] = True
+        domains_set.add(domain)
 
-        domains += "        (\"" + domain + "\", &*" + file2varname(file) + "),\n"
+        domains += "    (\"" + domain + "\", &*" + file2varname(file) + "),\n"
         comment += domain + ", "
 
+    ids = ""
+    ids += "    (\"" + file2id(file) + "\", &*" + file2varname(file) + "),\n"
 
     server = ""
     has_imap = False
@@ -96,13 +103,16 @@ def process_data(data, file):
             if username_pattern != "EMAIL" and username_pattern != "EMAILLOCALPART":
                 raise TypeError("bad username pattern")
 
-            server += ("            Server { protocol: " + protocol + ", socket: " + socket + ", hostname: \""
+            server += ("        Server { protocol: " + protocol + ", socket: " + socket + ", hostname: \""
             + hostname + "\", port: " + str(port) + ", username_pattern: " + username_pattern + " },\n")
 
     config_defaults = process_config_defaults(data)
 
-    strict_tls = data.get("strict_tls", False)
+    strict_tls = data.get("strict_tls", True)
     strict_tls = "true" if strict_tls else "false"
+
+    max_smtp_rcpt_to = data.get("max_smtp_rcpt_to", 0)
+    max_smtp_rcpt_to = "Some(" + str(max_smtp_rcpt_to) + ")" if max_smtp_rcpt_to != 0 else "None"
 
     oauth2 = data.get("oauth2", "")
     oauth2 = "Some(Oauth2Authorizer::" + camel(oauth2) + ")" if oauth2 != "" else "None"
@@ -111,16 +121,18 @@ def process_data(data, file):
     before_login_hint = cleanstr(data.get("before_login_hint", ""))
     after_login_hint = cleanstr(data.get("after_login_hint", ""))
     if (not has_imap and not has_smtp) or (has_imap and has_smtp):
-        provider += "    static ref " + file2varname(file) + ": Provider = Provider {\n"
-        provider += "        status: Status::" + status + ",\n"
-        provider += "        before_login_hint: \"" + before_login_hint + "\",\n"
-        provider += "        after_login_hint: \"" + after_login_hint + "\",\n"
-        provider += "        overview_page: \"" + file2url(file) + "\",\n"
-        provider += "        server: vec![\n" + server + "        ],\n"
-        provider += "        config_defaults: " + config_defaults + ",\n"
-        provider += "        strict_tls: " + strict_tls + ",\n"
-        provider += "        oauth2_authorizer: " + oauth2 + ",\n"
-        provider += "    };\n\n"
+        provider += "static " + file2varname(file) + ": Lazy<Provider> = Lazy::new(|| Provider {\n"
+        provider += "    id: \"" + file2id(file) + "\",\n"
+        provider += "    status: Status::" + status + ",\n"
+        provider += "    before_login_hint: \"" + before_login_hint + "\",\n"
+        provider += "    after_login_hint: \"" + after_login_hint + "\",\n"
+        provider += "    overview_page: \"" + file2url(file) + "\",\n"
+        provider += "    server: vec![\n" + server + "    ],\n"
+        provider += "    config_defaults: " + config_defaults + ",\n"
+        provider += "    strict_tls: " + strict_tls + ",\n"
+        provider += "    max_smtp_rcpt_to: " + max_smtp_rcpt_to + ",\n"
+        provider += "    oauth2_authorizer: " + oauth2 + ",\n"
+        provider += "});\n\n"
     else:
         raise TypeError("SMTP and IMAP must be specified together or left out both")
 
@@ -128,13 +140,14 @@ def process_data(data, file):
         raise TypeError("status PREPARATION or BROKEN requires before_login_hint: " + file)
 
     # finally, add the provider
-    global out_all, out_domains
-    out_all += "    // " + file[file.rindex("/")+1:] + ": " + comment.strip(", ") + "\n"
+    global out_all, out_domains, out_ids
+    out_all += "// " + file[file.rindex("/")+1:] + ": " + comment.strip(", ") + "\n"
 
     # also add provider with no special things to do -
     # eg. _not_ supporting oauth2 is also an information and we can skip the mx-lookup in this case
     out_all += provider
     out_domains += domains
+    out_ids += ids
 
 
 def process_file(file):
@@ -164,18 +177,20 @@ if __name__ == "__main__":
     "use crate::provider::UsernamePattern::*;\n"
     "use crate::provider::*;\n"
     "use std::collections::HashMap;\n\n"
-    "lazy_static::lazy_static! {\n\n")
+    "use once_cell::sync::Lazy;\n\n")
 
     process_dir(sys.argv[1])
 
-    out_all += "    pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [\n"
+    out_all += "pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| [\n"
     out_all += out_domains;
-    out_all += "    ].iter().copied().collect();\n\n"
+    out_all += "].iter().copied().collect());\n\n"
+
+    out_all += "pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| [\n"
+    out_all += out_ids;
+    out_all += "].iter().copied().collect());\n\n"
 
     now = datetime.datetime.utcnow()
-    out_all += "    pub static ref PROVIDER_UPDATED: chrono::NaiveDate = "\
-                        "chrono::NaiveDate::from_ymd("+str(now.year)+", "+str(now.month)+", "+str(now.day)+");\n"
-
-    out_all += "}"
+    out_all += "pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> = "\
+               "Lazy::new(|| chrono::NaiveDate::from_ymd("+str(now.year)+", "+str(now.month)+", "+str(now.day)+"));\n"
 
     print(out_all)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -63,13 +63,14 @@ def main():
     ffi_toml = read_toml_version("deltachat-ffi/Cargo.toml")
     assert core_toml == ffi_toml, (core_toml, ffi_toml)
 
-    for line in open("CHANGELOG.md"):
-        ## 1.25.0
-        if line.startswith("## "):
-            if line[2:].strip().startswith(newversion):
-                break
-    else:
-        raise SystemExit("CHANGELOG.md contains no entry for version: {}".format(newversion))
+    if "alpha" not in newversion:
+        for line in open("CHANGELOG.md"):
+            ## 1.25.0
+            if line.startswith("## "):
+                if line[2:].strip().startswith(newversion):
+                    break
+        else:
+            raise SystemExit("CHANGELOG.md contains no entry for version: {}".format(newversion))
 
     replace_toml_version("Cargo.toml", newversion)
     replace_toml_version("deltachat-ffi/Cargo.toml", newversion)

@@ -10,26 +10,30 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
+use anyhow::Context as _;
 use async_smtp::smtp::response::Category;
 use async_smtp::smtp::response::Code;
 use async_smtp::smtp::response::Detail;
 
-use crate::chat::{self, ChatId};
-use crate::config::Config;
-use crate::contact::Contact;
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::{dc_delete_file, dc_read_file, time};
 use crate::ephemeral::load_imap_deletion_msgid;
 use crate::error::{bail, ensure, format_err, Error, Result};
 use crate::events::EventType;
-use crate::imap::*;
+use crate::imap::{Imap, ImapActionResult};
 use crate::location;
 use crate::message::MsgId;
 use crate::message::{self, Message, MessageState};
 use crate::mimefactory::MimeFactory;
-use crate::param::*;
+use crate::param::{Param, Params};
 use crate::smtp::Smtp;
 use crate::{blob::BlobObject, contact::normalize_name, contact::Modifier, contact::Origin};
+use crate::{
+    chat::{self, Chat, ChatId, ChatItem},
+    constants::DC_CHAT_ID_DEADDROP,
+};
+use crate::{config::Config, constants::Blocked};
+use crate::{constants::Chattype, contact::Contact};
 use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
@@ -508,11 +512,27 @@ impl Job {
         }
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-        let dest_folder = context.get_config(Config::ConfiguredMvboxFolder).await;
+        let server_folder = &job_try!(msg
+            .server_folder
+            .context("Can't move message out of folder if we don't know the current folder"));
+
+        let move_res = msg.id.needs_move(context, server_folder).await;
+        let dest_folder = match move_res {
+            Err(e) => {
+                warn!(context, "could not load dest folder: {}", e);
+                return Status::RetryLater;
+            }
+            Ok(None) => {
+                warn!(
+                    context,
+                    "msg {} does not need to be moved from {}", msg.id, server_folder
+                );
+                return Status::Finished(Ok(()));
+            }
+            Ok(Some(config)) => context.get_config(config).await,
+        };
 
         if let Some(dest_folder) = dest_folder {
-            let server_folder = msg.server_folder.as_ref().unwrap();
-
             match imap
                 .mv(context, server_folder, msg.server_uid, &dest_folder)
                 .await
@@ -627,6 +647,9 @@ impl Job {
     /// Then, Fetch the last messages DC_FETCH_EXISTING_MSGS_COUNT emails from the server
     /// and show them in the chat list.
     async fn fetch_existing_msgs(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if context.get_config_bool(Config::Bot).await {
+            return Status::Finished(Ok(())); // Bots don't want those messages
+        }
         if let Err(err) = imap.connect_configured(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
@@ -636,19 +659,57 @@ impl Job {
         add_all_recipients_as_contacts(context, imap, Config::ConfiguredMvboxFolder).await;
         add_all_recipients_as_contacts(context, imap, Config::ConfiguredInboxFolder).await;
 
-        for config in &[
-            Config::ConfiguredMvboxFolder,
-            Config::ConfiguredInboxFolder,
-            Config::ConfiguredSentboxFolder,
-        ] {
-            if let Some(folder) = context.get_config(*config).await {
-                if let Err(e) = imap.fetch_new_messages(context, folder, true).await {
-                    // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-                    warn!(context, "Could not fetch messages, retrying: {:#}", e);
-                    return Status::RetryLater;
-                };
+        if context.get_config_bool(Config::FetchExistingMsgs).await {
+            for config in &[
+                Config::ConfiguredMvboxFolder,
+                Config::ConfiguredInboxFolder,
+                Config::ConfiguredSentboxFolder,
+            ] {
+                if let Some(folder) = context.get_config(*config).await {
+                    if let Err(e) = imap.fetch_new_messages(context, folder, true).await {
+                        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+                        warn!(context, "Could not fetch messages, retrying: {:#}", e);
+                        return Status::RetryLater;
+                    };
+                }
             }
         }
+
+        // Make sure that if there now is a chat with a contact (created by an outgoing message), then group contact requests
+        // from this contact should also be unblocked.
+        // See https://github.com/deltachat/deltachat-core-rust/issues/2097.
+        for item in chat::get_chat_msgs(context, ChatId::new(DC_CHAT_ID_DEADDROP), 0, None).await {
+            if let ChatItem::Message { msg_id } = item {
+                let msg = match Message::load_from_db(context, msg_id).await {
+                    Err(e) => {
+                        warn!(context, "can't get msg: {:#}", e);
+                        return Status::RetryLater;
+                    }
+                    Ok(m) => m,
+                };
+                let chat = match Chat::load_from_db(context, msg.chat_id).await {
+                    Err(e) => {
+                        warn!(context, "can't get chat: {:#}", e);
+                        return Status::RetryLater;
+                    }
+                    Ok(c) => c,
+                };
+                if chat.typ == Chattype::Group {
+                    // The next lines are actually what we do in
+                    let (test_normal_chat_id, test_normal_chat_id_blocked) =
+                        chat::lookup_by_contact_id(context, msg.from_id)
+                            .await
+                            .unwrap_or_default();
+
+                    if !test_normal_chat_id.is_unset()
+                        && test_normal_chat_id_blocked == Blocked::Not
+                    {
+                        chat.id.unblock(context).await;
+                    }
+                }
+            }
+        }
+
         info!(context, "Done fetching existing messages.");
         Status::Finished(Ok(()))
     }
@@ -709,6 +770,7 @@ impl Job {
             // retry. If the message was moved, we will create another
             // job to mark the message as seen later. If it was
             // deleted, there is nothing to do.
+            info!(context, "Can't mark message as seen: No UID");
             ImapActionResult::Failed
         } else {
             imap.set_seen(context, folder, msg.server_uid).await
@@ -800,7 +862,8 @@ async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, fold
         return;
     };
     if let Err(e) = imap.select_with_uidvalidity(context, &mailbox).await {
-        warn!(context, "Could not select {}: {}", mailbox, e);
+        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+        warn!(context, "Could not select {}: {:#}", mailbox, e);
         return;
     }
     match imap.get_all_recipients(context).await {
@@ -1171,6 +1234,18 @@ pub async fn add(context: &Context, job: Job) {
     }
 }
 
+async fn load_housekeeping_job(context: &Context) -> Option<Job> {
+    let last_time = context.get_config_i64(Config::LastHousekeeping).await;
+
+    let next_time = last_time + (60 * 60 * 24);
+    if next_time <= time() {
+        kill_action(context, Action::Housekeeping).await;
+        Some(Job::new(Action::Housekeeping, 0, Params::new(), 0))
+    } else {
+        None
+    }
+}
+
 /// Load jobs from the database.
 ///
 /// Load jobs for this "[Thread]", i.e. either load SMTP jobs or load
@@ -1287,8 +1362,10 @@ LIMIT 1;
                 } else {
                     Some(job)
                 }
+            } else if let Some(job) = load_imap_deletion_job(context).await.unwrap_or_default() {
+                Some(job)
             } else {
-                load_imap_deletion_job(context).await.unwrap_or_default()
+                load_housekeeping_job(context).await
             }
         }
         Thread::Smtp => job,
@@ -1299,7 +1376,7 @@ LIMIT 1;
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     async fn insert_job(context: &Context, foreign_id: i64) {
         let now = time();
@@ -1328,18 +1405,19 @@ mod tests {
         // fails to load from the database instead of failing to load
         // all jobs.
         let t = TestContext::new().await;
-        insert_job(&t.ctx, -1).await; // This can not be loaded into Job struct.
+        insert_job(&t, -1).await; // This can not be loaded into Job struct.
         let jobs = load_next(
-            &t.ctx,
+            &t,
             Thread::from(Action::MoveMsg),
             &InterruptInfo::new(false, None),
         )
         .await;
-        assert!(jobs.is_none());
+        // The housekeeping job should be loaded as we didn't run housekeeping in the last day:
+        assert!(jobs.unwrap().action == Action::Housekeeping);
 
-        insert_job(&t.ctx, 1).await;
+        insert_job(&t, 1).await;
         let jobs = load_next(
-            &t.ctx,
+            &t,
             Thread::from(Action::MoveMsg),
             &InterruptInfo::new(false, None),
         )
@@ -1351,10 +1429,10 @@ mod tests {
     async fn test_load_next_job_one() {
         let t = TestContext::new().await;
 
-        insert_job(&t.ctx, 1).await;
+        insert_job(&t, 1).await;
 
         let jobs = load_next(
-            &t.ctx,
+            &t,
             Thread::from(Action::MoveMsg),
             &InterruptInfo::new(false, None),
         )

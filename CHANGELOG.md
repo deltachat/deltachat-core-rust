@@ -1,5 +1,135 @@
 # Changelog 
 
+## 1.50.0
+
+- do not fetch emails in between inbox_watch disabled and enabled again #2087
+
+- fix: do not fetch from INBOX if inbox_watch is disabled #2085
+
+- fix: do not use STARTTLS when PLAIN connection is requested
+  and do not allow downgrade if STARTTLS is not available #2071
+
+
+## 1.49.0
+
+- add timestamps to image and video filenames #2068
+
+- forbid quoting messages from another context #2069
+
+- fix: preserve quotes in messages with attachments #2070
+
+
+## 1.48.0
+
+- `fetch_existing` renamed to `fetch_existing_msgs` and disabled by default
+  #2035 #2042
+
+- skip fetch existing messages/contacts if config-option `bot` set #2017
+
+- always log why a message is sorted to trash #2045
+
+- display a quote if top posting is detected #2047
+
+- add ephemeral task cancellation to `dc_stop_io()`;
+  before, there was no way to quickly terminate pending ephemeral tasks #2051
+
+- when saved-messages chat is deleted,
+  a device-message about recreation is added #2050
+
+- use `max_smtp_rcpt_to` from provider-db,
+  sending messages to many recipients in configurable chunks #2056
+
+- fix handling of empty autoconfigure files #2027
+
+- fix adding saved messages to wrong chats on multi-device #2034 #2039
+
+- fix hang on android4.4 and other systems
+  by adding a workaround to executer-blocking-handling bug #2040
+
+- fix secret key export/import roundtrip #2048
+
+- fix mistakenly unarchived chats #2057
+
+- fix outdated-reminder test that fails only 7 days a year,
+  including halloween :) #2059
+
+- improve python bindings #2021 #2036 #2038
+
+- update provider-database #2037
+
+
+## 1.47.0
+
+- breaking change: `dc_update_device_chats()` removed;
+  this is now done automatically during configure
+  unless the new config-option `bot` is set #1957
+
+- breaking change: split `DC_EVENT_MSGS_NOTICED` off `DC_EVENT_MSGS_CHANGED`
+  and remove `dc_marknoticed_all_chats()` #1942 #1981
+
+- breaking change: remove unused starring options #1965
+
+- breaking change: `DC_CHAT_TYPE_VERIFIED_GROUP` replaced by
+  `dc_chat_is_protected()`; also single-chats may be protected now, this may
+  happen over the wire even if the UI do not offer an option for that #1968
+
+- breaking change: split quotes off message text,
+  UIs should use at least `dc_msg_get_quoted_text()` to show quotes now #1975
+
+- new api for quote handling: `dc_msg_set_quote()`, `dc_msg_get_quoted_text()`,
+  `dc_msg_get_quoted_msg()` #1975 #1984 #1985 #1987 #1989 #2004
+
+- require quorum to enable encryption #1946
+
+- speed up and clean up account creation #1912 #1927 #1960 #1961
+
+- configure now collects recent contacts and fetches last messages
+  unless disabled by `fetch_existing` config-option #1913 #2003
+  EDIT: `fetch_existing` renamed to `fetch_existing_msgs` in 1.48.0 #2042
+
+- emit `DC_EVENT_CHAT_MODIFIED` on contact rename
+  and set contact-id on `DC_EVENT_CONTACTS_CHANGED` #1935 #1936 #1937
+
+- add `dc_set_chat_protection()`; the `protect` parameter in
+  `dc_create_group_chat()` will be removed in an upcoming release;
+  up to then, UIs using the "verified group" paradigm
+  should not use `dc_set_chat_protection()` #1968 #2014 #2001 #2012 #2007
+
+- remove unneeded `DC_STR_COUNT` #1991
+
+- mark all failed messages as failed when receiving an NDN #1993
+
+- check some easy cases for bad system clock and outdated app #1901
+
+- fix import temporary directory usage #1929
+
+- fix forcing encryption for reset peers #1998
+
+- fix: do not allow to save drafts in non-writeable chats #1997
+
+- fix: do not show HTML if there is no content and there is an attachment #1988
+
+- fix recovering offline/lost connections, fixes background receive bug #1983
+
+- fix ordering of accounts returned by `dc_accounts_get_all()` #1909
+
+- fix whitespace for summaries #1938
+
+- fix: improve sentbox name guessing #1941
+
+- fix: avoid manual poll impl for accounts events #1944
+
+- fix encoding newlines in param as a preparation for storing quotes #1945
+
+- fix: internal and ffi error handling #1967 #1966 #1959 #1911 #1916 #1917 #1915
+
+- fix ci #1928 #1931 #1932 #1933 #1934 #1943
+
+- update provider-database #1940 #2005 #2006
+
+- update dependencies #1919 #1908 #1950 #1963 #1996 #2010 #2013
+
+
 ## 1.46.0
 
 - breaking change: `dc_configure()` report errors in
@@ -745,4 +875,3 @@
 For a full list of changes, please see our closed Pull Requests: 
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
-

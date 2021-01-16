@@ -52,43 +52,46 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
         shutdown_sender,
     } = inbox_handlers;
 
-    let ctx1 = ctx.clone();
-    let fut = async move {
-        started.send(()).await;
-        let ctx = ctx1;
+    let fut = {
+        let ctx = ctx.clone();
+        async move {
+            started.send(()).await;
 
-        // track number of continously executed jobs
-        let mut jobs_loaded = 0;
-        let mut info = InterruptInfo::default();
-        loop {
-            match job::load_next(&ctx, Thread::Imap, &info).await {
-                Some(job) if jobs_loaded <= 20 => {
-                    jobs_loaded += 1;
-                    job::perform_job(&ctx, job::Connection::Inbox(&mut connection), job).await;
-                    info = Default::default();
-                }
-                Some(job) => {
-                    // Let the fetch run, but return back to the job afterwards.
-                    info!(ctx, "postponing imap-job {} to run fetch...", job);
-                    jobs_loaded = 0;
-                    fetch(&ctx, &mut connection).await;
-                }
-                None => {
-                    jobs_loaded = 0;
-
-                    // Expunge folder if needed, e.g. if some jobs have
-                    // deleted messages on the server.
-                    if let Err(err) = connection.maybe_close_folder(&ctx).await {
-                        warn!(ctx, "failed to close folder: {:?}", err);
+            // track number of continously executed jobs
+            let mut jobs_loaded = 0;
+            let mut info = InterruptInfo::default();
+            loop {
+                match job::load_next(&ctx, Thread::Imap, &info).await {
+                    Some(job) if jobs_loaded <= 20 => {
+                        jobs_loaded += 1;
+                        job::perform_job(&ctx, job::Connection::Inbox(&mut connection), job).await;
+                        info = Default::default();
                     }
+                    Some(job) => {
+                        // Let the fetch run, but return back to the job afterwards.
+                        jobs_loaded = 0;
+                        if ctx.get_config_bool(Config::InboxWatch).await {
+                            info!(ctx, "postponing imap-job {} to run fetch...", job);
+                            fetch(&ctx, &mut connection).await;
+                        }
+                    }
+                    None => {
+                        jobs_loaded = 0;
 
-                    maybe_add_time_based_warnings(&ctx).await;
+                        // Expunge folder if needed, e.g. if some jobs have
+                        // deleted messages on the server.
+                        if let Err(err) = connection.maybe_close_folder(&ctx).await {
+                            warn!(ctx, "failed to close folder: {:?}", err);
+                        }
 
-                    info = if ctx.get_config_bool(Config::InboxWatch).await {
-                        fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await
-                    } else {
-                        connection.fake_idle(&ctx, None).await
-                    };
+                        maybe_add_time_based_warnings(&ctx).await;
+
+                        info = if ctx.get_config_bool(Config::InboxWatch).await {
+                            fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await
+                        } else {
+                            connection.fake_idle(&ctx, None).await
+                        };
+                    }
                 }
             }
         }
@@ -115,7 +118,7 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
                 connection.trigger_reconnect();
-                warn!(ctx, "{}", err);
+                warn!(ctx, "{:#}", err);
             }
         }
         None => {
@@ -137,6 +140,12 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
                 connection.trigger_reconnect();
+                warn!(ctx, "{:#}", err);
+            }
+
+            if let Err(err) = connection.scan_folders(&ctx).await {
+                // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
+                // but maybe just one folder can't be selected or something
                 warn!(ctx, "{}", err);
             }
 
@@ -176,14 +185,14 @@ async fn simple_imap_loop(
         shutdown_sender,
     } = inbox_handlers;
 
-    let ctx1 = ctx.clone();
+    let fut = {
+        let ctx = ctx.clone();
+        async move {
+            started.send(()).await;
 
-    let fut = async move {
-        started.send(()).await;
-        let ctx = ctx1;
-
-        loop {
-            fetch_idle(&ctx, &mut connection, folder).await;
+            loop {
+                fetch_idle(&ctx, &mut connection, folder).await;
+            }
         }
     };
 
@@ -208,24 +217,25 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
         idle_interrupt_receiver,
     } = smtp_handlers;
 
-    let ctx1 = ctx.clone();
-    let fut = async move {
-        started.send(()).await;
-        let ctx = ctx1;
+    let fut = {
+        let ctx = ctx.clone();
+        async move {
+            started.send(()).await;
 
-        let mut interrupt_info = Default::default();
-        loop {
-            match job::load_next(&ctx, Thread::Smtp, &interrupt_info).await {
-                Some(job) => {
-                    info!(ctx, "executing smtp job");
-                    job::perform_job(&ctx, job::Connection::Smtp(&mut connection), job).await;
-                    interrupt_info = Default::default();
-                }
-                None => {
-                    // Fake Idle
-                    info!(ctx, "smtp fake idle - started");
-                    interrupt_info = idle_interrupt_receiver.recv().await.unwrap_or_default();
-                    info!(ctx, "smtp fake idle - interrupted")
+            let mut interrupt_info = Default::default();
+            loop {
+                match job::load_next(&ctx, Thread::Smtp, &interrupt_info).await {
+                    Some(job) => {
+                        info!(ctx, "executing smtp job");
+                        job::perform_job(&ctx, job::Connection::Smtp(&mut connection), job).await;
+                        interrupt_info = Default::default();
+                    }
+                    None => {
+                        // Fake Idle
+                        info!(ctx, "smtp fake idle - started");
+                        interrupt_info = idle_interrupt_receiver.recv().await.unwrap_or_default();
+                        info!(ctx, "smtp fake idle - interrupted")
+                    }
                 }
             }
         }
@@ -256,16 +266,18 @@ impl Scheduler {
         let mut sentbox_handle = None;
         let (smtp_start_send, smtp_start_recv) = channel(1);
 
-        let ctx1 = ctx.clone();
-        let inbox_handle = Some(task::spawn(async move {
-            inbox_loop(ctx1, inbox_start_send, inbox_handlers).await
-        }));
+        let inbox_handle = {
+            let ctx = ctx.clone();
+            Some(task::spawn(async move {
+                inbox_loop(ctx, inbox_start_send, inbox_handlers).await
+            }))
+        };
 
         if ctx.get_config_bool(Config::MvboxWatch).await {
-            let ctx1 = ctx.clone();
+            let ctx = ctx.clone();
             mvbox_handle = Some(task::spawn(async move {
                 simple_imap_loop(
-                    ctx1,
+                    ctx,
                     mvbox_start_send,
                     mvbox_handlers,
                     Config::ConfiguredMvboxFolder,
@@ -277,10 +289,10 @@ impl Scheduler {
         }
 
         if ctx.get_config_bool(Config::SentboxWatch).await {
-            let ctx1 = ctx.clone();
+            let ctx = ctx.clone();
             sentbox_handle = Some(task::spawn(async move {
                 simple_imap_loop(
-                    ctx1,
+                    ctx,
                     sentbox_start_send,
                     sentbox_handlers,
                     Config::ConfiguredSentboxFolder,
@@ -291,10 +303,12 @@ impl Scheduler {
             sentbox_start_send.send(()).await;
         }
 
-        let ctx1 = ctx.clone();
-        let smtp_handle = Some(task::spawn(async move {
-            smtp_loop(ctx1, smtp_start_send, smtp_handlers).await
-        }));
+        let smtp_handle = {
+            let ctx = ctx.clone();
+            Some(task::spawn(async move {
+                smtp_loop(ctx, smtp_start_send, smtp_handlers).await
+            }))
+        };
 
         *self = Scheduler::Running {
             inbox,

@@ -21,6 +21,7 @@ pub enum HeaderDef {
     InReplyTo,
     Precedence,
     ContentType,
+    ContentId,
     ChatVersion,
     ChatGroupId,
     ChatGroupName,
@@ -43,6 +44,7 @@ pub enum HeaderDef {
     SecureJoinInvitenumber,
     SecureJoinAuth,
     EphemeralTimer,
+    Received,
     _TestHeader,
 }
 

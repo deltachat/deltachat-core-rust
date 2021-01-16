@@ -3,16 +3,16 @@ use std::future::Future;
 use std::pin::Pin;
 
 use deltachat_derive::{FromSql, ToSql};
-use lazy_static::lazy_static;
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
+use once_cell::sync::Lazy;
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
 use crate::constants::Viewtype;
-use crate::contact::*;
+use crate::contact::addr_normalize;
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::dc_get_filemeta;
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::error::{bail, Result};
@@ -22,10 +22,12 @@ use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::Fingerprint;
 use crate::location;
 use crate::message;
-use crate::param::*;
+use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
-use crate::simplify::*;
+use crate::simplify::simplify;
 use crate::stock::StockMessage;
+use charset::Charset;
+use percent_encoding::percent_decode_str;
 
 /// A parsed MIME message.
 ///
@@ -63,6 +65,10 @@ pub struct MimeMessage {
     pub(crate) group_avatar: Option<AvatarAction>,
     pub(crate) mdn_reports: Vec<Report>,
     pub(crate) failure_report: Option<FailureReport>,
+
+    // if this flag is set, the parts/text/etc. are just close to the original mime-message;
+    // clients should offer a way to view the original message in this case
+    pub is_mime_modified: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -86,6 +92,10 @@ pub enum SystemMessage {
 
     /// Chat ephemeral message timer is changed.
     EphemeralTimerChanged = 10,
+
+    // Chat protection state changed
+    ChatProtectionEnabled = 11,
+    ChatProtectionDisabled = 12,
 }
 
 impl Default for SystemMessage {
@@ -123,6 +133,7 @@ impl MimeMessage {
 
         // remove headers that are allowed _only_ in the encrypted part
         headers.remove("secure-join-fingerprint");
+        headers.remove("chat-verified");
 
         // Memory location for a possible decrypted message.
         let mail_raw;
@@ -216,8 +227,10 @@ impl MimeMessage {
             user_avatar: None,
             group_avatar: None,
             failure_report: None,
+            is_mime_modified: false,
         };
         parser.parse_mime_recursive(context, &mail).await?;
+        parser.maybe_remove_bad_parts();
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context)?;
 
@@ -253,6 +266,10 @@ impl MimeMessage {
                 self.is_system_message = SystemMessage::LocationStreamingEnabled;
             } else if value == "ephemeral-timer-changed" {
                 self.is_system_message = SystemMessage::EphemeralTimerChanged;
+            } else if value == "protection-enabled" {
+                self.is_system_message = SystemMessage::ChatProtectionEnabled;
+            } else if value == "protection-disabled" {
+                self.is_system_message = SystemMessage::ChatProtectionDisabled;
             }
         }
         Ok(())
@@ -285,7 +302,8 @@ impl MimeMessage {
     /// Squashes mutlipart chat messages with attachment into single-part messages.
     ///
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
-    /// containing an explanation. If such a message is detected, first part can be safely dropped.
+    /// containing a description. If such a message is detected, text from the first part can be
+    /// moved to the second part, and the first part dropped.
     #[allow(clippy::indexing_slicing)]
     fn squash_attachment_parts(&mut self) {
         if let [textpart, filepart] = &self.parts[..] {
@@ -305,6 +323,9 @@ impl MimeMessage {
 
                 // insert new one
                 filepart.msg = self.parts[0].msg.clone();
+                if let Some(quote) = self.parts[0].param.get(Param::Quote) {
+                    filepart.param.set(Param::Quote, quote);
+                }
 
                 // forget the one we use now
                 self.parts[0].msg = "".to_string();
@@ -377,11 +398,8 @@ impl MimeMessage {
             }
 
             if prepend_subject && !subject.is_empty() {
-                if let Some(mut part) = self
-                    .parts
-                    .iter_mut()
-                    .find(|part| part.typ == Viewtype::Text)
-                {
+                let text_part = self.parts.iter_mut().find(|part| !part.msg.is_empty());
+                if let Some(mut part) = text_part {
                     part.msg = format!("{} – {}", subject, part.msg);
                 }
             }
@@ -399,10 +417,15 @@ impl MimeMessage {
         if !self.decrypting_failed && !self.parts.is_empty() {
             if let Some(ref dn_to) = self.chat_disposition_notification_to {
                 if let Some(ref from) = self.from.get(0) {
-                    if from.addr == dn_to.addr {
+                    if from.addr.to_lowercase() == dn_to.addr.to_lowercase() {
                         if let Some(part) = self.parts.last_mut() {
                             part.param.set_int(Param::WantsMdn, 1);
                         }
+                    } else {
+                        warn!(
+                            context,
+                            "{} requested a read receipt to {}, ignoring", from.addr, dn_to.addr
+                        );
                     }
                 }
             }
@@ -578,6 +601,12 @@ impl MimeMessage {
                         }
                     }
                 }
+                if any_part_added && mail.subparts.len() > 1 {
+                    // there are other alternative parts, likely HTML,
+                    // so we might have missed some content on simplifying.
+                    // set mime-modified to force the ui to display a show-message button.
+                    self.is_mime_modified = true;
+                }
             }
             (mime::MULTIPART, "encrypted") => {
                 // we currently do not try to decrypt non-autocrypt messages
@@ -635,7 +664,7 @@ impl MimeMessage {
                                 self.failure_report = Some(report);
                             }
 
-                            // Add all parts (we need another part, preferrably text/plain, to show as an error message)
+                            // Add all parts (we need another part, preferably text/plain, to show as an error message)
                             for cur_data in mail.subparts.iter() {
                                 if self.parse_mime_recursive(context, cur_data).await? {
                                     any_part_added = true;
@@ -673,7 +702,7 @@ impl MimeMessage {
         let (mime_type, msg_type) = get_mime_type(mail)?;
         let raw_mime = mail.ctype.mimetype.to_lowercase();
 
-        let filename = get_attachment_filename(mail)?;
+        let filename = get_attachment_filename(context, mail)?;
 
         let old_part_count = self.parts.len();
 
@@ -705,17 +734,28 @@ impl MimeMessage {
                             }
                         };
 
-                        let (simplified_txt, is_forwarded, top_quote) = if decoded_data.is_empty() {
-                            ("".to_string(), false, None)
-                        } else {
-                            let is_html = mime_type == mime::TEXT_HTML;
-                            let out = if is_html {
-                                dehtml(&decoded_data)
+                        let mut dehtml_failed = false;
+
+                        let (simplified_txt, is_forwarded, is_cut, top_quote) =
+                            if decoded_data.is_empty() {
+                                ("".to_string(), false, false, None)
                             } else {
-                                decoded_data.clone()
+                                let is_html = mime_type == mime::TEXT_HTML;
+                                let out = if is_html {
+                                    self.is_mime_modified = true;
+                                    dehtml(&decoded_data).unwrap_or_else(|| {
+                                        dehtml_failed = true;
+                                        decoded_data.clone()
+                                    })
+                                } else {
+                                    decoded_data.clone()
+                                };
+                                simplify(out, self.has_chat_version())
                             };
-                            simplify(out, self.has_chat_version())
-                        };
+
+                        self.is_mime_modified = self.is_mime_modified
+                            || ((is_forwarded || is_cut || top_quote.is_some())
+                                && !self.has_chat_version());
 
                         let is_format_flowed = if let Some(format) = mail.ctype.params.get("format")
                         {
@@ -740,8 +780,9 @@ impl MimeMessage {
                             (simplified_txt, top_quote)
                         };
 
-                        if !simplified_txt.is_empty() {
+                        if !simplified_txt.is_empty() || simplified_quote.is_some() {
                             let mut part = Part::default();
+                            part.dehtml_failed = dehtml_failed;
                             part.typ = Viewtype::Text;
                             part.mimetype = Some(mime_type);
                             part.msg = simplified_txt;
@@ -849,6 +890,7 @@ impl MimeMessage {
     }
 
     pub fn repl_msg_by_error(&mut self, error_msg: impl AsRef<str>) {
+        self.is_system_message = SystemMessage::Unknown;
         if let Some(part) = self.parts.first_mut() {
             part.typ = Viewtype::Text;
             part.msg = format!("[{}]", error_msg.as_ref());
@@ -983,11 +1025,21 @@ impl MimeMessage {
         Ok(None)
     }
 
+    fn maybe_remove_bad_parts(&mut self) {
+        let good_parts = self.parts.iter().filter(|p| !p.dehtml_failed).count();
+        if good_parts == 0 {
+            // We have no good part but show at least one bad part in order to show anything at all
+            self.parts.truncate(1);
+        } else if good_parts < self.parts.len() {
+            self.parts.retain(|p| !p.dehtml_failed);
+        }
+    }
+
     /// Some providers like GMX and Yahoo do not send standard NDNs (Non Delivery notifications).
     /// If you improve heuristics here you might also have to change prefetch_should_download() in imap/mod.rs.
     /// Also you should add a test in dc_receive_imf.rs (there already are lots of test_parse_ndn_* tests).
     #[allow(clippy::indexing_slicing)]
-    async fn heuristically_parse_ndn(&mut self, context: &Context) -> Option<()> {
+    async fn heuristically_parse_ndn(&mut self, context: &Context) {
         let maybe_ndn = if let Some(from) = self.get(HeaderDef::From_) {
             let from = from.to_ascii_lowercase();
             from.contains("mailer-daemon") || from.contains("mail-daemon")
@@ -995,9 +1047,8 @@ impl MimeMessage {
             false
         };
         if maybe_ndn && self.failure_report.is_none() {
-            lazy_static! {
-                static ref RE: regex::Regex = regex::Regex::new(r"Message-ID:(.*)").unwrap();
-            }
+            static RE: Lazy<regex::Regex> =
+                Lazy::new(|| regex::Regex::new(r"Message-ID:(.*)").unwrap());
             for captures in self
                 .parts
                 .iter()
@@ -1017,7 +1068,6 @@ impl MimeMessage {
                 }
             }
         }
-        None // Always return None, we just return anything so that we can use the '?' operator.
     }
 
     /// Handle reports
@@ -1047,7 +1097,9 @@ impl MimeMessage {
                 .iter()
                 .find(|p| p.typ == Viewtype::Text)
                 .map(|p| p.msg.clone());
-            message::handle_ndn(context, failure_report, error).await
+            if let Err(e) = message::handle_ndn(context, failure_report, error).await {
+                warn!(context, "Could not handle ndn: {}", e);
+            }
         }
     }
 
@@ -1186,6 +1238,7 @@ pub struct Part {
     pub param: Params,
     org_filename: Option<String>,
     pub error: Option<String>,
+    dehtml_failed: bool,
 }
 
 /// return mimetype and viewtype for a parsed mail
@@ -1239,51 +1292,96 @@ fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
 
 /// Tries to get attachment filename.
 ///
-/// If filename is explitictly specified in Content-Disposition, it is
+/// If filename is explicitly specified in Content-Disposition, it is
 /// returned. If Content-Disposition is "attachment" but filename is
 /// not specified, filename is guessed. If Content-Disposition cannot
 /// be parsed, returns an error.
-fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String>> {
-    // try to get file name from
-    //    `Content-Disposition: ... filename*=...`
-    // or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
-    // or `Content-Disposition: ... filename=...`
-
+fn get_attachment_filename(
+    context: &Context,
+    mail: &mailparse::ParsedMail,
+) -> Result<Option<String>> {
     let ct = mail.get_content_disposition();
 
-    let desired_filename: Option<String> = ct
-        .params
-        .iter()
-        .filter(|(key, _value)| key.starts_with("filename"))
-        .fold(None, |acc, (_key, value)| {
-            if let Some(acc) = acc {
-                Some(acc + value)
-            } else {
-                Some(value.to_string())
-            }
-        });
+    // try to get file name as "encoded-words" from
+    // `Content-Disposition: ... filename=...`
+    let mut desired_filename = ct.params.get("filename").map(|s| s.to_string());
 
-    let desired_filename =
-        desired_filename.or_else(|| ct.params.get("name").map(|s| s.to_string()));
+    // try to get file name from
+    // `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
+    // encoded as CHARSET'LANG'test%2E%70%64%66 (key ends with `*`)
+    // or as "encoded-words" (key does not end with `*`)
+    if desired_filename.is_none() {
+        let mut apostrophe_encoded = false;
+        desired_filename = ct
+            .params
+            .iter()
+            .filter(|(key, _value)| key.starts_with("filename*"))
+            .fold(None, |acc, (key, value)| {
+                if key.ends_with('*') {
+                    apostrophe_encoded = true;
+                }
+                if let Some(acc) = acc {
+                    Some(acc + value)
+                } else {
+                    Some(value.to_string())
+                }
+            });
+        if apostrophe_encoded {
+            if let Some(name) = desired_filename {
+                let mut parts = name.splitn(3, '\'');
+                desired_filename =
+                    if let (Some(charset), Some(value)) = (parts.next(), parts.last()) {
+                        let decoded_bytes = percent_decode_str(&value);
+                        if charset.to_lowercase() == "utf-8" {
+                            Some(decoded_bytes.decode_utf8_lossy().to_string())
+                        } else {
+                            // encoded_words crate say, latin-1 is not reported; moreover, latin1 is a good default
+                            if let Some(charset) = Charset::for_label(charset.as_bytes())
+                                .or_else(|| Charset::for_label(b"latin1"))
+                            {
+                                let decoded_bytes = decoded_bytes.collect::<Vec<u8>>();
+                                let (utf8_str, _, _) = charset.decode(&*decoded_bytes);
+                                Some(utf8_str.into())
+                            } else {
+                                warn!(context, "latin1 encoding does not exist");
+                                None
+                            }
+                        }
+                    } else {
+                        warn!(context, "apostrophed encoding invalid: {}", name);
+                        // be graceful and just use the original name.
+                        // some MUA, including Delta Chat up to core1.50,
+                        // use `filename*` mistakenly for simple encoded-words without following rfc2231
+                        Some(name)
+                    }
+            }
+        }
+    }
+
+    // if no filename is set, try `Content-Disposition: ... name=...`
+    if desired_filename.is_none() {
+        desired_filename = ct.params.get("name").map(|s| s.to_string());
+    }
 
     // MS Outlook is known to specify filename in the "name" attribute of
     // Content-Type and omit Content-Disposition.
-    let desired_filename =
-        desired_filename.or_else(|| mail.ctype.params.get("name").map(|s| s.to_string()));
+    if desired_filename.is_none() {
+        desired_filename = mail.ctype.params.get("name").map(|s| s.to_string());
+    }
 
     // If there is no filename, but part is an attachment, guess filename
-    if ct.disposition == DispositionType::Attachment && desired_filename.is_none() {
+    if desired_filename.is_none() && ct.disposition == DispositionType::Attachment {
         if let Some(subtype) = mail.ctype.mimetype.split('/').nth(1) {
-            Ok(Some(format!("file.{}", subtype,)))
+            desired_filename = Some(format!("file.{}", subtype,));
         } else {
             bail!(
                 "could not determine attachment filename: {:?}",
                 ct.disposition
             );
-        }
-    } else {
-        Ok(desired_filename)
+        };
     }
+
+    Ok(desired_filename)
 }
 
 /// Returned addresses are normalized and lowercased.
@@ -1337,7 +1435,15 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-    use crate::test_utils::*;
+    use crate::{
+        chatlist::Chatlist,
+        config::Config,
+        constants::Blocked,
+        dc_receive_imf::dc_receive_imf,
+        message::{Message, MessageState, MessengerMessage},
+        test_utils::TestContext,
+    };
+    use mailparse::ParsedMail;
 
     impl AvatarAction {
         pub fn is_change(&self) -> bool {
@@ -1407,16 +1513,155 @@ mod tests {
         assert!(is_attachment_disposition(&mail.subparts[1]));
     }
 
-    #[test]
-    fn test_get_attachment_filename() {
-        let raw = include_bytes!("../test-data/message/html_attach.eml");
+    fn load_mail_with_attachment<'a>(t: &'a TestContext, raw: &'a [u8]) -> ParsedMail<'a> {
         let mail = mailparse::parse_mail(raw).unwrap();
-        assert!(get_attachment_filename(&mail).unwrap().is_none());
-        assert!(get_attachment_filename(&mail.subparts[0])
+        assert!(get_attachment_filename(&t, &mail).unwrap().is_none());
+        assert!(get_attachment_filename(&t, &mail.subparts[0])
             .unwrap()
             .is_none());
-        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        mail
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_simple.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("test.html".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words_binary() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words_binary.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some(" § 165 Abs".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words_windows1251() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words_windows1251.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("file Что нового 2020.pdf".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words_cont() {
+        // test continued encoded-words and also test apostropes work that way
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words_cont.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßn'ah'men Okt. 2020.html".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_encoded_words_bad_delimiter() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_encoded_words_bad_delimiter.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        // not decoded as a space is missing after encoded-words part
+        assert_eq!(filename, Some("=?utf-8?q?foo?=.bar".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen Okt. 2021.html".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed_cont() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed_cont.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen März 2022.html".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed_windows1251() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed_windows1251.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("программирование.HTM".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed_cp1252() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed_cp1252.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Auftragsbestätigung.pdf".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_apostrophed_invalid() {
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_apostrophed_invalid.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("somedäüta.html.zip".to_string()))
+    }
+
+    #[async_std::test]
+    async fn test_get_attachment_filename_combined() {
+        // test that if `filename` and `filename*0` are given, the filename is not doubled
+        let t = TestContext::new().await;
+        let mail = load_mail_with_attachment(
+            &t,
+            include_bytes!("../test-data/message/attach_filename_combined.eml"),
+        );
+        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
+    }
+
+    #[test]
+    fn test_charset_latin1() {
+        // make sure, latin1 exists under this name
+        // as we're using it as default in get_attachment_filename() for non-utf-8
+        assert!(Charset::for_label(b"latin1").is_some());
     }
 
     #[test]
@@ -1541,26 +1786,26 @@ mod tests {
         let t = TestContext::new().await;
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
         assert_eq!(mimeparser.user_avatar, None);
         assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert!(mimeparser.user_avatar.unwrap().is_change());
         assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar_deleted.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert_eq!(mimeparser.user_avatar, Some(AvatarAction::Delete));
         assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert!(mimeparser.user_avatar.unwrap().is_change());
@@ -1570,9 +1815,7 @@ mod tests {
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
         let raw = String::from_utf8_lossy(raw).to_string();
         let raw = raw.replace("Chat-User-Avatar:", "Xhat-Xser-Xvatar:");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw.as_bytes())
-            .await
-            .unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, raw.as_bytes()).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Image);
         assert_eq!(mimeparser.user_avatar, None);
@@ -1584,7 +1827,7 @@ mod tests {
         let t = TestContext::new().await;
 
         let raw = include_bytes!("../test-data/message/videochat_invitation.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::VideochatInvitation);
         assert_eq!(
@@ -1864,7 +2107,56 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::File);
-        assert_eq!(message.parts[0].msg, "Hello!");
+        assert_eq!(message.parts[0].msg, "Mail with inline attachment – Hello!");
+    }
+
+    #[async_std::test]
+    async fn test_hide_html_without_content() {
+        let t = TestContext::new().await;
+        let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
+From: sender@example.com
+To: receiver@example.com
+Subject: Mail with inline attachment
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+	boundary="----=_Part_25_46172632.1581201680436"
+
+------=_Part_25_46172632.1581201680436
+Content-Type: text/html; charset=utf-8
+
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=Windows-1252">
+<meta name="GENERATOR" content="MSHTML 11.00.10570.1001"></head>
+<body><img align="baseline" alt="" src="cid:1712254131-1" border="0" hspace="0">
+</body>
+
+------=_Part_25_46172632.1581201680436
+Content-Type: application/pdf; name="some_pdf.pdf"
+Content-Transfer-Encoding: base64
+Content-Disposition: inline; filename="some_pdf.pdf"
+
+JVBERi0xLjUKJcOkw7zDtsOfCjIgMCBvYmoKPDwvTGVuZ3RoIDMgMCBSL0ZpbHRlci9GbGF0ZURl
+Y29kZT4+CnN0cmVhbQp4nGVOuwoCMRDs8xVbC8aZvC4Hx4Hno7ATAhZi56MTtPH33YtXiLKQ3ZnM
+MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
+------=_Part_25_46172632.1581201680436--
+"#;
+
+        let message = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::File);
+        assert_eq!(message.parts[0].msg, "");
+
+        // Make sure the file is there even though the html is wrong:
+        let param = &message.parts[0].param;
+        let blob: BlobObject = param
+            .get_blob(Param::File, &t, false)
+            .await
+            .unwrap()
+            .unwrap();
+        let f = async_std::fs::File::open(blob.to_abs_path()).await.unwrap();
+        let size = f.metadata().await.unwrap().len();
+        assert_eq!(size, 154);
     }
 
     #[async_std::test]
@@ -1910,7 +2202,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
-        assert_eq!(message.parts[0].msg, "Test");
+        assert_eq!(message.parts[0].msg, "example – Test");
     }
 
     #[async_std::test]
@@ -1982,7 +2274,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
-        assert_eq!(message.parts[0].msg, "Test");
+        assert_eq!(message.parts[0].msg, "Test subject – Test");
     }
 
     // Outlook specifies filename in the "name" attribute of Content-Type
@@ -2056,7 +2348,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
-        assert_eq!(message.parts[0].msg, "Test");
+        assert_eq!(message.parts[0].msg, "Delta Chat is great stuff! – Test");
     }
 
     #[test]
@@ -2159,5 +2451,193 @@ Reply
             "Long quote."
         );
         assert_eq!(message.parts[0].msg, "Reply");
+    }
+
+    #[async_std::test]
+    async fn parse_quote_without_reply() {
+        let context = TestContext::new().await;
+        let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Subject: Re: swipe-to-reply
+MIME-Version: 1.0
+In-Reply-To: <bar@example.org>
+Date: Tue, 06 Oct 2020 00:00:00 +0000
+Message-ID: <foo@example.org>
+To: bob <bob@example.org>
+From: alice <alice@example.org>
+
+> Just a quote.
+"##;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(
+            message.get_subject(),
+            Some("Re: swipe-to-reply".to_string())
+        );
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Text);
+        assert_eq!(
+            message.parts[0].param.get(Param::Quote).unwrap(),
+            "Just a quote."
+        );
+        assert_eq!(message.parts[0].msg, "");
+    }
+
+    #[async_std::test]
+    async fn parse_quote_top_posting() {
+        let context = TestContext::new().await;
+        let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Subject: Re: top posting
+MIME-Version: 1.0
+In-Reply-To: <bar@example.org>
+Message-ID: <foo@example.org>
+To: bob <bob@example.org>
+From: alice <alice@example.org>
+
+A reply.
+
+On 2020-10-25, Bob wrote:
+> A quote.
+"##;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(message.get_subject(), Some("Re: top posting".to_string()));
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Text);
+        assert_eq!(
+            message.parts[0].param.get(Param::Quote).unwrap(),
+            "A quote."
+        );
+        assert_eq!(message.parts[0].msg, "A reply.");
+    }
+
+    #[async_std::test]
+    async fn test_attachment_quote() {
+        let context = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/quote_attach.eml");
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+
+        assert_eq!(mimeparser.get_subject().unwrap(), "Message from Alice");
+        assert_eq!(mimeparser.parts.len(), 1);
+        assert_eq!(mimeparser.parts[0].msg, "Reply");
+        assert_eq!(
+            mimeparser.parts[0].param.get(Param::Quote).unwrap(),
+            "Quote"
+        );
+        assert_eq!(mimeparser.parts[0].typ, Viewtype::File);
+    }
+
+    #[async_std::test]
+    async fn test_quote_div() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/gmx-quote.eml");
+        let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
+        assert_eq!(mimeparser.parts[0].msg, "YIPPEEEEEE\n\nMulti-line");
+        assert_eq!(mimeparser.parts[0].param.get(Param::Quote).unwrap(), "Now?");
+    }
+
+    #[async_std::test]
+    async fn test_add_subj_to_multimedia_msg() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+        dc_receive_imf(
+            &t.ctx,
+            include_bytes!("../test-data/message/subj_with_multimedia_msg.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+
+        assert_eq!(
+            msg.text.as_ref().unwrap(),
+            "subj with important info – body text"
+        );
+        assert_eq!(msg.viewtype, Viewtype::Image);
+        assert_eq!(msg.error(), None);
+        assert_eq!(msg.is_dc_message, MessengerMessage::No);
+        assert_eq!(msg.chat_blocked, Blocked::Deaddrop);
+        assert_eq!(msg.state, MessageState::InFresh);
+        assert_eq!(msg.get_filebytes(&t).await, 2115);
+        assert!(msg.get_file(&t).is_some());
+        assert_eq!(msg.get_filename().unwrap(), "avatar64x64.png");
+        assert_eq!(msg.get_width(), 64);
+        assert_eq!(msg.get_height(), 64);
+        assert_eq!(msg.get_filemime().unwrap(), "image/png");
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_plain() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(!mimeparser.is_mime_modified);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "This message does not have Content-Type nor Subject."
+        );
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_alt_plain_html() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(mimeparser.is_mime_modified);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "mime-modified test – this is plain"
+        );
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_alt_plain() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_alt_plain.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(!mimeparser.is_mime_modified);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "mime-modified test – \
+        mime-modified should not be set set as there is no html and no special stuff;\n\
+        although not being a delta-message.\n\
+        test some special html-characters as < > and & but also \" and ' :)"
+        );
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_alt_html() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_alt_html.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(mimeparser.is_mime_modified);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "mime-modified test – mime-modified *set*; simplify is always regarded as lossy."
+        );
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_html() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/text_html.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        assert!(mimeparser.is_mime_modified);
+        assert_eq!(
+            mimeparser.parts[0].msg,
+            "mime-modified test – mime-modified *set*; simplify is always regarded as lossy."
+        );
     }
 }

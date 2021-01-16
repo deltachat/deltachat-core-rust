@@ -1,5 +1,6 @@
 //! # Chat module
 
+use deltachat_derive::{FromSql, ToSql};
 use std::convert::TryFrom;
 use std::time::{Duration, SystemTime};
 
@@ -10,19 +11,28 @@ use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::blob::{BlobError, BlobObject};
-use crate::chatlist::*;
-use crate::config::*;
-use crate::constants::*;
-use crate::contact::*;
+use crate::chatlist::dc_get_archived_cnt;
+use crate::config::Config;
+use crate::constants::{
+    Blocked, Chattype, ShowEmails, Viewtype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
+    DC_CHAT_ID_DEADDROP, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE,
+    DC_CONTACT_ID_INFO, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCM_ADDDAYMARKER,
+    DC_RESEND_USER_AVATAR_DAYS,
+};
+use crate::contact::{addr_cmp, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::{
+    dc_create_id, dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp,
+    dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, dc_str_to_color,
+    improve_single_line_input, time, IsNoneOrEmpty,
+};
 use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
 use crate::error::{bail, ensure, format_err, Error};
 use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
-use crate::param::*;
+use crate::param::{Param, Params};
 use crate::sql;
 use crate::stock::StockMessage;
 
@@ -43,6 +53,33 @@ pub enum ChatItem {
         /// Marker timestamp, for day markers
         timestamp: i64,
     },
+}
+
+#[derive(
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+    IntoStaticStr,
+    Serialize,
+    Deserialize,
+)]
+#[repr(u32)]
+pub enum ProtectionStatus {
+    Unprotected = 0,
+    Protected = 1,
+}
+
+impl Default for ProtectionStatus {
+    fn default() -> Self {
+        ProtectionStatus::Unprotected
+    }
 }
 
 /// Chat ID, including reserved IDs.
@@ -146,6 +183,109 @@ impl ChatId {
         self.set_blocked(context, Blocked::Not).await;
     }
 
+    /// Sets protection without sending a message.
+    ///
+    /// Used when a message arrives indicating that someone else has
+    /// changed the protection value for a chat.
+    pub(crate) async fn inner_set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+    ) -> Result<(), Error> {
+        ensure!(!self.is_special(), "Invalid chat-id.");
+
+        let chat = Chat::load_from_db(context, self).await?;
+
+        if protect == chat.protected {
+            info!(context, "Protection status unchanged for {}.", self);
+            return Ok(());
+        }
+
+        match protect {
+            ProtectionStatus::Protected => match chat.typ {
+                Chattype::Single | Chattype::Group => {
+                    let contact_ids = get_chat_contacts(context, self).await;
+                    for contact_id in contact_ids.into_iter() {
+                        let contact = Contact::get_by_id(context, contact_id).await?;
+                        if contact.is_verified(context).await != VerifiedStatus::BidirectVerified {
+                            bail!("{} is not verified.", contact.get_display_name());
+                        }
+                    }
+                }
+                Chattype::Undefined => bail!("Undefined group type"),
+            },
+            ProtectionStatus::Unprotected => {}
+        };
+
+        context
+            .sql
+            .execute(
+                "UPDATE chats SET protected=? WHERE id=?;",
+                paramsv![protect, self],
+            )
+            .await?;
+
+        context.emit_event(EventType::ChatModified(self));
+
+        // make sure, the receivers will get all keys
+        reset_gossiped_timestamp(context, self).await?;
+
+        Ok(())
+    }
+
+    /// Send protected status message to the chat.
+    ///
+    /// This sends the message with the protected status change to the chat,
+    /// notifying the user on this device as well as the other users in the chat.
+    ///
+    /// If `promote` is false this means, the message must not be sent out
+    /// and only a local info message should be added to the chat.
+    /// This is used when protection is enabled implicitly or when a chat is not yet promoted.
+    pub(crate) async fn add_protection_msg(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+        promote: bool,
+        from_id: u32,
+    ) -> Result<(), Error> {
+        let msg_text = context.stock_protection_msg(protect, from_id).await;
+        let cmd = match protect {
+            ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
+            ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
+        };
+
+        if promote {
+            let mut msg = Message::default();
+            msg.viewtype = Viewtype::Text;
+            msg.text = Some(msg_text);
+            msg.param.set_cmd(cmd);
+            send_msg(context, self, &mut msg).await?;
+        } else {
+            add_info_msg_with_cmd(context, self, msg_text, cmd).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Sets protection and sends or adds a message.
+    pub async fn set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+    ) -> Result<(), Error> {
+        ensure!(!self.is_special(), "set protection: invalid chat-id.");
+
+        let chat = Chat::load_from_db(context, self).await?;
+
+        if let Err(e) = self.inner_set_protection(context, protect).await {
+            error!(context, "Cannot set protection: {}", e); // make error user-visible
+            return Err(e);
+        }
+
+        self.add_protection_msg(context, protect, chat.is_promoted(), DC_CONTACT_ID_SELF)
+            .await
+    }
+
     /// Archives or unarchives a chat.
     pub async fn set_visibility(
         self,
@@ -206,7 +346,7 @@ impl ChatId {
         );
         /* Up to 2017-11-02 deleting a group also implied leaving it, see above why we have changed this. */
 
-        let _chat = Chat::load_from_db(context, self).await?;
+        let chat = Chat::load_from_db(context, self).await?;
         context
             .sql
             .execute(
@@ -241,6 +381,17 @@ impl ChatId {
         job::kill_action(context, Action::Housekeeping).await;
         let j = job::Job::new(Action::Housekeeping, 0, Params::new(), 10);
         job::add(context, j).await;
+
+        if chat.is_self_talk() {
+            let mut msg = Message::new(Viewtype::Text);
+            msg.text = Some(
+                context
+                    .stock_str(StockMessage::SelfDeletedMsgBody)
+                    .await
+                    .into(),
+            );
+            add_device_msg(&context, None, Some(&mut msg)).await?;
+        }
 
         Ok(())
     }
@@ -329,6 +480,12 @@ impl ChatId {
                 msg.param.set(Param::File, blob.as_name());
             }
         }
+
+        let chat = Chat::load_from_db(context, self).await?;
+        if !chat.can_send() {
+            bail!("Can't set a draft: Can't send");
+        }
+
         context
             .sql
             .execute(
@@ -538,6 +695,7 @@ pub struct Chat {
     pub param: Params,
     is_sending_locations: bool,
     pub mute_duration: MuteDuration,
+    protected: ProtectionStatus,
 }
 
 impl Chat {
@@ -547,7 +705,7 @@ impl Chat {
             .sql
             .query_row(
                 "SELECT c.type, c.name, c.grpid, c.param, c.archived,
-                    c.blocked, c.locations_send_until, c.muted_until
+                    c.blocked, c.locations_send_until, c.muted_until, c.protected
              FROM chats c
              WHERE c.id=?;",
                 paramsv![chat_id],
@@ -562,6 +720,7 @@ impl Chat {
                         blocked: row.get::<_, Option<_>>(5)?.unwrap_or_default(),
                         is_sending_locations: row.get(6)?,
                         mute_duration: row.get(7)?,
+                        protected: row.get(8)?,
                     };
                     Ok(c)
                 },
@@ -731,9 +890,9 @@ impl Chat {
         !self.is_unpromoted()
     }
 
-    /// Returns true if chat is a verified group chat.
-    pub fn is_verified(&self) -> bool {
-        self.typ == Chattype::VerifiedGroup
+    /// Returns true if chat protection is enabled.
+    pub fn is_protected(&self) -> bool {
+        self.protected == ProtectionStatus::Protected
     }
 
     /// Returns true if location streaming is enabled in the chat.
@@ -760,15 +919,12 @@ impl Chat {
         let mut to_id = 0;
         let mut location_id = 0;
 
-        if !(self.typ == Chattype::Single
-            || self.typ == Chattype::Group
-            || self.typ == Chattype::VerifiedGroup)
-        {
+        if !(self.typ == Chattype::Single || self.typ == Chattype::Group) {
             error!(context, "Cannot send to chat type #{}.", self.typ,);
             bail!("Cannot set to chat type #{}", self.typ);
         }
 
-        if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+        if self.typ == Chattype::Group
             && !is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await
         {
             emit_event!(
@@ -785,7 +941,7 @@ impl Chat {
 
         let new_rfc724_mid = {
             let grpid = match self.typ {
-                Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
+                Chattype::Group => Some(self.grpid.as_str()),
                 _ => None,
             };
             dc_create_outgoing_rfc724_mid(grpid, &from)
@@ -809,7 +965,7 @@ impl Chat {
                 );
                 bail!("Cannot set message, contact for {} not found.", self.id);
             }
-        } else if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+        } else if self.typ == Chattype::Group
             && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
         {
             msg.param.set_int(Param::AttachGroupImage, 1);
@@ -897,7 +1053,7 @@ impl Chat {
         };
         let ephemeral_timestamp = match ephemeral_timer {
             EphemeralTimer::Disabled => 0,
-            EphemeralTimer::Enabled { duration } => timestamp + i64::from(duration),
+            EphemeralTimer::Enabled { duration } => time() + i64::from(duration),
         };
 
         // add message to the database
@@ -1004,7 +1160,7 @@ pub struct ChatInfo {
     ///
     /// On the C API this number is one of the
     /// `DC_CHAT_TYPE_UNDEFINED`, `DC_CHAT_TYPE_SINGLE`,
-    /// `DC_CHAT_TYPE_GROUP` or `DC_CHAT_TYPE_VERIFIED_GROUP`
+    /// or `DC_CHAT_TYPE_GROUP`
     /// constants.
     #[serde(rename = "type")]
     pub type_: u32,
@@ -1116,7 +1272,7 @@ pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<
     let chat_id = match lookup_by_contact_id(context, contact_id).await {
         Ok((chat_id, chat_blocked)) => {
             if chat_blocked != Blocked::Not {
-                // unblock chat (typically move it from the deaddrop to view
+                // unblock chat (typically move it from the deaddrop to view)
                 chat_id.unblock(context).await;
             }
             chat_id
@@ -1477,10 +1633,6 @@ pub async fn send_msg_sync(
     chat_id: ChatId,
     msg: &mut Message,
 ) -> Result<MsgId, Error> {
-    if context.is_io_running().await {
-        return send_msg(context, chat_id, msg).await;
-    }
-
     if let Some(mut job) = prepare_send_msg(context, chat_id, msg).await? {
         let mut smtp = crate::smtp::Smtp::new();
 
@@ -1700,12 +1852,34 @@ pub async fn get_chat_msgs(
     }
 }
 
+pub(crate) async fn marknoticed_chat_if_older_than(
+    context: &Context,
+    chat_id: ChatId,
+    timestamp: i64,
+) -> Result<(), Error> {
+    if let Some(chat_timestamp) = context
+        .sql
+        .query_get_value(
+            context,
+            "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+            paramsv![chat_id],
+        )
+        .await
+    {
+        if timestamp > chat_timestamp {
+            marknoticed_chat(context, chat_id).await?;
+        }
+    }
+    Ok(())
+}
+
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), Error> {
+    // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
     if !context
         .sql
         .exists(
-            "SELECT id FROM msgs  WHERE chat_id=? AND state=?;",
-            paramsv![chat_id, MessageState::InFresh],
+            "SELECT id FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
+            paramsv![MessageState::InFresh, chat_id],
         )
         .await?
     {
@@ -1716,10 +1890,11 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), 
         .sql
         .execute(
             "UPDATE msgs
-            SET state=13
-          WHERE chat_id=?
-            AND state=10;",
-            paramsv![chat_id],
+            SET state=?
+          WHERE state=?
+            AND hidden=0
+            AND chat_id=?;",
+            paramsv![MessageState::InNoticed, MessageState::InFresh, chat_id],
         )
         .await?;
 
@@ -1855,7 +2030,7 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Vec<u32> {
 
 pub async fn create_group_chat(
     context: &Context,
-    verified: VerifiedStatus,
+    protect: ProtectionStatus,
     chat_name: impl AsRef<str>,
 ) -> Result<ChatId, Error> {
     let chat_name = improve_single_line_input(chat_name);
@@ -1869,11 +2044,7 @@ pub async fn create_group_chat(
     context.sql.execute(
         "INSERT INTO chats (type, name, grpid, param, created_timestamp) VALUES(?, ?, ?, \'U=1\', ?);",
         paramsv![
-            if verified != VerifiedStatus::Unverified {
-                Chattype::VerifiedGroup
-            } else {
-                Chattype::Group
-            },
+            Chattype::Group,
             chat_name,
             grpid,
             time(),
@@ -1896,6 +2067,12 @@ pub async fn create_group_chat(
         msg_id: MsgId::new(0),
         chat_id: ChatId::new(0),
     });
+
+    if protect == ProtectionStatus::Protected {
+        // this part is to stay compatible to verified groups,
+        // in some future, we will drop the "protect"-flag from create_group_chat()
+        chat_id.inner_set_protection(context, protect).await?;
+    }
 
     Ok(chat_id)
 }
@@ -2022,12 +2199,12 @@ pub(crate) async fn add_contact_to_chat_ex(
         }
     } else {
         // else continue and send status mail
-        if chat.typ == Chattype::VerifiedGroup
+        if chat.is_protected()
             && contact.is_verified(context).await != VerifiedStatus::BidirectVerified
         {
             error!(
                 context,
-                "Only bidirectional verified contacts can be added to verified groups."
+                "Only bidirectional verified contacts can be added to protected chats."
             );
             return Ok(false);
         }
@@ -2065,7 +2242,7 @@ async fn real_group_exists(context: &Context, chat_id: ChatId) -> bool {
     context
         .sql
         .exists(
-            "SELECT id FROM chats WHERE id=? AND (type=120 OR type=130);",
+            "SELECT id FROM chats WHERE id=? AND type=120;",
             paramsv![chat_id],
         )
         .await
@@ -2451,7 +2628,7 @@ pub async fn set_chat_profile_image(
                 _ => Err(err),
             },
         }?;
-        image_blob.recode_to_avatar_size(context)?;
+        image_blob.recode_to_avatar_size(context).await?;
         chat.param.set(Param::ProfileImage, image_blob.as_name());
         msg.param.set(Param::Arg, image_blob.as_name());
         msg.text = Some(
@@ -2592,7 +2769,7 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> usize {
     }
 }
 
-/// Returns a tuple of `(chatid, is_verified, blocked)`.
+/// Returns a tuple of `(chatid, is_protected, blocked)`.
 pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,
@@ -2600,14 +2777,16 @@ pub(crate) async fn get_chat_id_by_grpid(
     context
         .sql
         .query_row(
-            "SELECT id, blocked, type FROM chats WHERE grpid=?;",
+            "SELECT id, blocked, protected FROM chats WHERE grpid=?;",
             paramsv![grpid.as_ref()],
             |row| {
                 let chat_id = row.get::<_, ChatId>(0)?;
 
                 let b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
-                let v = row.get::<_, Option<Chattype>>(2)?.unwrap_or_default();
-                Ok((chat_id, v == Chattype::VerifiedGroup, b))
+                let p = row
+                    .get::<_, Option<ProtectionStatus>>(2)?
+                    .unwrap_or_default();
+                Ok((chat_id, p == ProtectionStatus::Protected, b))
             },
         )
         .await
@@ -2760,18 +2939,22 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 /// Adds an informational message to chat.
 ///
 /// For example, it can be a message showing that a member was added to a group.
-pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
+pub(crate) async fn add_info_msg_with_cmd(
+    context: &Context,
+    chat_id: ChatId,
+    text: impl AsRef<str>,
+    cmd: SystemMessage,
+) -> Result<MsgId, Error> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
-    let ephemeral_timer = match chat_id.get_ephemeral_timer(context).await {
-        Err(e) => {
-            warn!(context, "Could not get timer for info msg: {}", e);
-            return;
-        }
-        Ok(ephemeral_timer) => ephemeral_timer,
-    };
+    let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
 
-    if let Err(e) = context.sql.execute(
-        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid,ephemeral_timer) VALUES (?,?,?, ?,?,?, ?,?,?);",
+    let mut param = Params::new();
+    if cmd != SystemMessage::Unknown {
+        param.set_cmd(cmd)
+    }
+
+    context.sql.execute(
+        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid,ephemeral_timer, param) VALUES (?,?,?, ?,?,?, ?,?,?, ?);",
         paramsv![
             chat_id,
             DC_CONTACT_ID_INFO,
@@ -2781,40 +2964,41 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
             MessageState::InNoticed,
             text.as_ref().to_string(),
             rfc724_mid,
-            ephemeral_timer
+            ephemeral_timer,
+            param.to_string(),
         ]
-    ).await {
-        warn!(context, "Could not add info msg: {}", e);
-        return;
-    }
+    ).await?;
 
     let row_id = context
         .sql
         .get_rowid(context, "msgs", "rfc724_mid", &rfc724_mid)
         .await
         .unwrap_or_default();
-    context.emit_event(EventType::MsgsChanged {
-        chat_id,
-        msg_id: MsgId::new(row_id),
-    });
+    let msg_id = MsgId::new(row_id);
+    context.emit_event(EventType::MsgsChanged { chat_id, msg_id });
+    Ok(msg_id)
+}
+
+pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
+    if let Err(e) = add_info_msg_with_cmd(context, chat_id, text, SystemMessage::Unknown).await {
+        warn!(context, "Could not add info msg: {}", e);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use crate::chatlist::Chatlist;
+    use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
     use crate::contact::Contact;
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_chat_info() {
         let t = TestContext::new().await;
-        let bob = Contact::create(&t.ctx, "bob", "bob@example.com")
-            .await
-            .unwrap();
-        let chat_id = create_by_contact_id(&t.ctx, bob).await.unwrap();
-        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
-        let info = chat.get_info(&t.ctx).await.unwrap();
+        let chat = t.chat_with_contact("bob", "bob@example.com").await;
+        let info = chat.get_info(&t).await.unwrap();
 
         // Ensure we can serialize this.
         println!("{}", serde_json::to_string_pretty(&info).unwrap());
@@ -2844,10 +3028,8 @@ mod tests {
     #[async_std::test]
     async fn test_get_draft_no_draft() {
         let t = TestContext::new().await;
-        let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
-        let draft = chat_id.get_draft(&t.ctx).await.unwrap();
+        let chat = t.get_self_chat().await;
+        let draft = chat.id.get_draft(&t).await.unwrap();
         assert!(draft.is_none());
     }
 
@@ -2855,7 +3037,7 @@ mod tests {
     async fn test_get_draft_special_chat_id() {
         let t = TestContext::new().await;
         let draft = ChatId::new(DC_CHAT_ID_LAST_SPECIAL)
-            .get_draft(&t.ctx)
+            .get_draft(&t)
             .await
             .unwrap();
         assert!(draft.is_none());
@@ -2866,20 +3048,18 @@ mod tests {
         // This is a weird case, maybe this should be an error but we
         // do not get this info from the database currently.
         let t = TestContext::new().await;
-        let draft = ChatId::new(42).get_draft(&t.ctx).await.unwrap();
+        let draft = ChatId::new(42).get_draft(&t).await.unwrap();
         assert!(draft.is_none());
     }
 
     #[async_std::test]
     async fn test_get_draft() {
         let t = TestContext::new().await;
-        let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
+        let chat_id = &t.get_self_chat().await.id;
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
-        chat_id.set_draft(&t.ctx, Some(&mut msg)).await;
-        let draft = chat_id.get_draft(&t.ctx).await.unwrap().unwrap();
+        chat_id.set_draft(&t, Some(&mut msg)).await;
+        let draft = chat_id.get_draft(&t).await.unwrap().unwrap();
         let msg_text = msg.get_text();
         let draft_text = draft.get_text();
         assert_eq!(msg_text, draft_text);
@@ -2889,10 +3069,10 @@ mod tests {
     async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
-        let added = add_contact_to_chat_ex(&t.ctx, chat_id, DC_CONTACT_ID_SELF, false)
+        let added = add_contact_to_chat_ex(&t, chat_id, DC_CONTACT_ID_SELF, false)
             .await
             .unwrap();
         assert_eq!(added, false);
@@ -2901,28 +3081,21 @@ mod tests {
     #[async_std::test]
     async fn test_self_talk() {
         let t = TestContext::new().await;
-        let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
+        let chat = &t.get_self_chat().await;
         assert_eq!(DC_CONTACT_ID_SELF, 1);
-        assert!(!chat_id.is_special());
-        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
-        assert_eq!(chat.id, chat_id);
+        assert!(!chat.id.is_special());
         assert!(chat.is_self_talk());
         assert!(chat.visibility == ChatVisibility::Normal);
         assert!(!chat.is_device_talk());
         assert!(chat.can_send());
-        assert_eq!(
-            chat.name,
-            t.ctx.stock_str(StockMessage::SavedMessages).await
-        );
-        assert!(chat.get_profile_image(&t.ctx).await.is_some());
+        assert_eq!(chat.name, t.stock_str(StockMessage::SavedMessages).await);
+        assert!(chat.get_profile_image(&t).await.is_some());
     }
 
     #[async_std::test]
     async fn test_deaddrop_chat() {
         let t = TestContext::new().await;
-        let chat = Chat::load_from_db(&t.ctx, ChatId::new(DC_CHAT_ID_DEADDROP))
+        let chat = Chat::load_from_db(&t, ChatId::new(DC_CHAT_ID_DEADDROP))
             .await
             .unwrap();
         assert_eq!(DC_CHAT_ID_DEADDROP, 1);
@@ -2931,7 +3104,7 @@ mod tests {
         assert!(chat.visibility == ChatVisibility::Normal);
         assert!(!chat.is_device_talk());
         assert!(!chat.can_send());
-        assert_eq!(chat.name, t.ctx.stock_str(StockMessage::DeadDrop).await);
+        assert_eq!(chat.name, t.stock_str(StockMessage::DeadDrop).await);
     }
 
     #[async_std::test]
@@ -2941,17 +3114,17 @@ mod tests {
         // add two device-messages
         let mut msg1 = Message::new(Viewtype::Text);
         msg1.text = Some("first message".to_string());
-        let msg1_id = add_device_msg(&t.ctx, None, Some(&mut msg1)).await;
+        let msg1_id = add_device_msg(&t, None, Some(&mut msg1)).await;
         assert!(msg1_id.is_ok());
 
         let mut msg2 = Message::new(Viewtype::Text);
         msg2.text = Some("second message".to_string());
-        let msg2_id = add_device_msg(&t.ctx, None, Some(&mut msg2)).await;
+        let msg2_id = add_device_msg(&t, None, Some(&mut msg2)).await;
         assert!(msg2_id.is_ok());
         assert_ne!(msg1_id.as_ref().unwrap(), msg2_id.as_ref().unwrap());
 
         // check added messages
-        let msg1 = message::Message::load_from_db(&t.ctx, msg1_id.unwrap()).await;
+        let msg1 = message::Message::load_from_db(&t, msg1_id.unwrap()).await;
         assert!(msg1.is_ok());
         let msg1 = msg1.unwrap();
         assert_eq!(msg1.text.as_ref().unwrap(), "first message");
@@ -2960,13 +3133,13 @@ mod tests {
         assert!(!msg1.is_info());
         assert!(!msg1.is_setupmessage());
 
-        let msg2 = message::Message::load_from_db(&t.ctx, msg2_id.unwrap()).await;
+        let msg2 = message::Message::load_from_db(&t, msg2_id.unwrap()).await;
         assert!(msg2.is_ok());
         let msg2 = msg2.unwrap();
         assert_eq!(msg2.text.as_ref().unwrap(), "second message");
 
         // check device chat
-        assert_eq!(msg2.chat_id.get_msg_cnt(&t.ctx).await, 2);
+        assert_eq!(msg2.chat_id.get_msg_cnt(&t).await, 2);
     }
 
     #[async_std::test]
@@ -2976,18 +3149,18 @@ mod tests {
         // add two device-messages with the same label (second attempt is not added)
         let mut msg1 = Message::new(Viewtype::Text);
         msg1.text = Some("first message".to_string());
-        let msg1_id = add_device_msg(&t.ctx, Some("any-label"), Some(&mut msg1)).await;
+        let msg1_id = add_device_msg(&t, Some("any-label"), Some(&mut msg1)).await;
         assert!(msg1_id.is_ok());
         assert!(!msg1_id.as_ref().unwrap().is_unset());
 
         let mut msg2 = Message::new(Viewtype::Text);
         msg2.text = Some("second message".to_string());
-        let msg2_id = add_device_msg(&t.ctx, Some("any-label"), Some(&mut msg2)).await;
+        let msg2_id = add_device_msg(&t, Some("any-label"), Some(&mut msg2)).await;
         assert!(msg2_id.is_ok());
         assert!(msg2_id.as_ref().unwrap().is_unset());
 
         // check added message
-        let msg1 = message::Message::load_from_db(&t.ctx, *msg1_id.as_ref().unwrap()).await;
+        let msg1 = message::Message::load_from_db(&t, *msg1_id.as_ref().unwrap()).await;
         assert!(msg1.is_ok());
         let msg1 = msg1.unwrap();
         assert_eq!(msg1_id.as_ref().unwrap(), &msg1.id);
@@ -2999,26 +3172,23 @@ mod tests {
 
         // check device chat
         let chat_id = msg1.chat_id;
-        assert_eq!(chat_id.get_msg_cnt(&t.ctx).await, 1);
+        assert_eq!(chat_id.get_msg_cnt(&t).await, 1);
         assert!(!chat_id.is_special());
-        let chat = Chat::load_from_db(&t.ctx, chat_id).await;
+        let chat = Chat::load_from_db(&t, chat_id).await;
         assert!(chat.is_ok());
         let chat = chat.unwrap();
         assert_eq!(chat.get_type(), Chattype::Single);
         assert!(chat.is_device_talk());
         assert!(!chat.is_self_talk());
         assert!(!chat.can_send());
-        assert_eq!(
-            chat.name,
-            t.ctx.stock_str(StockMessage::DeviceMessages).await
-        );
-        assert!(chat.get_profile_image(&t.ctx).await.is_some());
+        assert_eq!(chat.name, t.stock_str(StockMessage::DeviceMessages).await);
+        assert!(chat.get_profile_image(&t).await.is_some());
 
         // delete device message, make sure it is not added again
-        message::delete_msgs(&t.ctx, &[*msg1_id.as_ref().unwrap()]).await;
-        let msg1 = message::Message::load_from_db(&t.ctx, *msg1_id.as_ref().unwrap()).await;
+        message::delete_msgs(&t, &[*msg1_id.as_ref().unwrap()]).await;
+        let msg1 = message::Message::load_from_db(&t, *msg1_id.as_ref().unwrap()).await;
         assert!(msg1.is_err() || msg1.unwrap().chat_id.is_trash());
-        let msg3_id = add_device_msg(&t.ctx, Some("any-label"), Some(&mut msg2)).await;
+        let msg3_id = add_device_msg(&t, Some("any-label"), Some(&mut msg2)).await;
         assert!(msg3_id.is_ok());
         assert!(msg2_id.as_ref().unwrap().is_unset());
     }
@@ -3026,19 +3196,19 @@ mod tests {
     #[async_std::test]
     async fn test_add_device_msg_label_only() {
         let t = TestContext::new().await;
-        let res = add_device_msg(&t.ctx, Some(""), None).await;
+        let res = add_device_msg(&t, Some(""), None).await;
         assert!(res.is_err());
-        let res = add_device_msg(&t.ctx, Some("some-label"), None).await;
+        let res = add_device_msg(&t, Some("some-label"), None).await;
         assert!(res.is_ok());
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
 
-        let msg_id = add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg)).await;
+        let msg_id = add_device_msg(&t, Some("some-label"), Some(&mut msg)).await;
         assert!(msg_id.is_ok());
         assert!(msg_id.as_ref().unwrap().is_unset());
 
-        let msg_id = add_device_msg(&t.ctx, Some("unused-label"), Some(&mut msg)).await;
+        let msg_id = add_device_msg(&t, Some("unused-label"), Some(&mut msg)).await;
         assert!(msg_id.is_ok());
         assert!(!msg_id.as_ref().unwrap().is_unset());
     }
@@ -3046,25 +3216,21 @@ mod tests {
     #[async_std::test]
     async fn test_was_device_msg_ever_added() {
         let t = TestContext::new().await;
-        add_device_msg(&t.ctx, Some("some-label"), None).await.ok();
-        assert!(was_device_msg_ever_added(&t.ctx, "some-label")
-            .await
-            .unwrap());
+        add_device_msg(&t, Some("some-label"), None).await.ok();
+        assert!(was_device_msg_ever_added(&t, "some-label").await.unwrap());
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
-        add_device_msg(&t.ctx, Some("another-label"), Some(&mut msg))
+        add_device_msg(&t, Some("another-label"), Some(&mut msg))
             .await
             .ok();
-        assert!(was_device_msg_ever_added(&t.ctx, "another-label")
+        assert!(was_device_msg_ever_added(&t, "another-label")
             .await
             .unwrap());
 
-        assert!(!was_device_msg_ever_added(&t.ctx, "unused-label")
-            .await
-            .unwrap());
+        assert!(!was_device_msg_ever_added(&t, "unused-label").await.unwrap());
 
-        assert!(was_device_msg_ever_added(&t.ctx, "").await.is_err());
+        assert!(was_device_msg_ever_added(&t, "").await.is_err());
     }
 
     #[async_std::test]
@@ -3073,38 +3239,36 @@ mod tests {
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
-        add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg))
+        add_device_msg(&t, Some("some-label"), Some(&mut msg))
             .await
             .ok();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
         // after the device-chat and all messages are deleted, a re-adding should do nothing
-        chats.get_chat_id(0).delete(&t.ctx).await.ok();
-        add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg))
+        chats.get_chat_id(0).delete(&t).await.ok();
+        add_device_msg(&t, Some("some-label"), Some(&mut msg))
             .await
             .ok();
-        assert_eq!(chatlist_len(&t.ctx, 0).await, 0)
+        assert_eq!(chatlist_len(&t, 0).await, 0)
     }
 
     #[async_std::test]
     async fn test_device_chat_cannot_sent() {
         let t = TestContext::new().await;
-        t.ctx.update_device_chats().await.unwrap();
+        t.update_device_chats().await.unwrap();
         let (device_chat_id, _) =
-            create_or_lookup_by_contact_id(&t.ctx, DC_CONTACT_ID_DEVICE, Blocked::Not)
+            create_or_lookup_by_contact_id(&t, DC_CONTACT_ID_DEVICE, Blocked::Not)
                 .await
                 .unwrap();
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
-        assert!(send_msg(&t.ctx, device_chat_id, &mut msg).await.is_err());
-        assert!(prepare_msg(&t.ctx, device_chat_id, &mut msg).await.is_err());
+        assert!(send_msg(&t, device_chat_id, &mut msg).await.is_err());
+        assert!(prepare_msg(&t, device_chat_id, &mut msg).await.is_err());
 
-        let msg_id = add_device_msg(&t.ctx, None, Some(&mut msg)).await.unwrap();
-        assert!(forward_msgs(&t.ctx, &[msg_id], device_chat_id)
-            .await
-            .is_err());
+        let msg_id = add_device_msg(&t, None, Some(&mut msg)).await.unwrap();
+        assert!(forward_msgs(&t, &[msg_id], device_chat_id).await.is_err());
     }
 
     #[async_std::test]
@@ -3112,25 +3276,21 @@ mod tests {
         let t = TestContext::new().await;
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
-        let msg_id1 = add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg))
+        let msg_id1 = add_device_msg(&t, Some("some-label"), Some(&mut msg))
             .await
             .unwrap();
 
         // adding a device message with the same label won't be executed again ...
-        assert!(was_device_msg_ever_added(&t.ctx, "some-label")
-            .await
-            .unwrap());
-        let msg_id2 = add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg))
+        assert!(was_device_msg_ever_added(&t, "some-label").await.unwrap());
+        let msg_id2 = add_device_msg(&t, Some("some-label"), Some(&mut msg))
             .await
             .unwrap();
         assert!(msg_id2.is_unset());
 
         // ... unless everything is deleted and resetted - as needed eg. on device switch
-        delete_and_reset_all_device_msgs(&t.ctx).await.unwrap();
-        assert!(!was_device_msg_ever_added(&t.ctx, "some-label")
-            .await
-            .unwrap());
-        let msg_id3 = add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg))
+        delete_and_reset_all_device_msgs(&t).await.unwrap();
+        assert!(!was_device_msg_ever_added(&t, "some-label").await.unwrap());
+        let msg_id3 = add_device_msg(&t, Some("some-label"), Some(&mut msg))
             .await
             .unwrap();
         assert_ne!(msg_id1, msg_id3);
@@ -3149,102 +3309,100 @@ mod tests {
         let t = TestContext::new().await;
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("foo".to_string());
-        let msg_id = add_device_msg(&t.ctx, None, Some(&mut msg)).await.unwrap();
-        let chat_id1 = message::Message::load_from_db(&t.ctx, msg_id)
+        let msg_id = add_device_msg(&t, None, Some(&mut msg)).await.unwrap();
+        let chat_id1 = message::Message::load_from_db(&t, msg_id)
             .await
             .unwrap()
             .chat_id;
-        let chat_id2 = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
+        let chat_id2 = t.get_self_chat().await.id;
         assert!(!chat_id1.is_special());
         assert!(!chat_id2.is_special());
-        assert_eq!(get_chat_cnt(&t.ctx).await, 2);
-        assert_eq!(chatlist_len(&t.ctx, 0).await, 2);
-        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS).await, 2);
-        assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY).await, 0);
+        assert_eq!(get_chat_cnt(&t).await, 2);
+        assert_eq!(chatlist_len(&t, 0).await, 2);
+        assert_eq!(chatlist_len(&t, DC_GCL_NO_SPECIALS).await, 2);
+        assert_eq!(chatlist_len(&t, DC_GCL_ARCHIVED_ONLY).await, 0);
         assert_eq!(DC_GCL_ARCHIVED_ONLY, 0x01);
         assert_eq!(DC_GCL_NO_SPECIALS, 0x02);
 
         // archive first chat
         assert!(chat_id1
-            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .set_visibility(&t, ChatVisibility::Archived)
             .await
             .is_ok());
         assert!(
-            Chat::load_from_db(&t.ctx, chat_id1)
+            Chat::load_from_db(&t, chat_id1)
                 .await
                 .unwrap()
                 .get_visibility()
                 == ChatVisibility::Archived
         );
         assert!(
-            Chat::load_from_db(&t.ctx, chat_id2)
+            Chat::load_from_db(&t, chat_id2)
                 .await
                 .unwrap()
                 .get_visibility()
                 == ChatVisibility::Normal
         );
-        assert_eq!(get_chat_cnt(&t.ctx).await, 2);
-        assert_eq!(chatlist_len(&t.ctx, 0).await, 2); // including DC_CHAT_ID_ARCHIVED_LINK now
-        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS).await, 1);
-        assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY).await, 1);
+        assert_eq!(get_chat_cnt(&t).await, 2);
+        assert_eq!(chatlist_len(&t, 0).await, 2); // including DC_CHAT_ID_ARCHIVED_LINK now
+        assert_eq!(chatlist_len(&t, DC_GCL_NO_SPECIALS).await, 1);
+        assert_eq!(chatlist_len(&t, DC_GCL_ARCHIVED_ONLY).await, 1);
 
         // archive second chat
         assert!(chat_id2
-            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .set_visibility(&t, ChatVisibility::Archived)
             .await
             .is_ok());
         assert!(
-            Chat::load_from_db(&t.ctx, chat_id1)
+            Chat::load_from_db(&t, chat_id1)
                 .await
                 .unwrap()
                 .get_visibility()
                 == ChatVisibility::Archived
         );
         assert!(
-            Chat::load_from_db(&t.ctx, chat_id2)
+            Chat::load_from_db(&t, chat_id2)
                 .await
                 .unwrap()
                 .get_visibility()
                 == ChatVisibility::Archived
         );
-        assert_eq!(get_chat_cnt(&t.ctx).await, 2);
-        assert_eq!(chatlist_len(&t.ctx, 0).await, 1); // only DC_CHAT_ID_ARCHIVED_LINK now
-        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS).await, 0);
-        assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY).await, 2);
+        assert_eq!(get_chat_cnt(&t).await, 2);
+        assert_eq!(chatlist_len(&t, 0).await, 1); // only DC_CHAT_ID_ARCHIVED_LINK now
+        assert_eq!(chatlist_len(&t, DC_GCL_NO_SPECIALS).await, 0);
+        assert_eq!(chatlist_len(&t, DC_GCL_ARCHIVED_ONLY).await, 2);
 
         // archive already archived first chat, unarchive second chat two times
         assert!(chat_id1
-            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .set_visibility(&t, ChatVisibility::Archived)
             .await
             .is_ok());
         assert!(chat_id2
-            .set_visibility(&t.ctx, ChatVisibility::Normal)
+            .set_visibility(&t, ChatVisibility::Normal)
             .await
             .is_ok());
         assert!(chat_id2
-            .set_visibility(&t.ctx, ChatVisibility::Normal)
+            .set_visibility(&t, ChatVisibility::Normal)
             .await
             .is_ok());
         assert!(
-            Chat::load_from_db(&t.ctx, chat_id1)
+            Chat::load_from_db(&t, chat_id1)
                 .await
                 .unwrap()
                 .get_visibility()
                 == ChatVisibility::Archived
         );
         assert!(
-            Chat::load_from_db(&t.ctx, chat_id2)
+            Chat::load_from_db(&t, chat_id2)
                 .await
                 .unwrap()
                 .get_visibility()
                 == ChatVisibility::Normal
         );
-        assert_eq!(get_chat_cnt(&t.ctx).await, 2);
-        assert_eq!(chatlist_len(&t.ctx, 0).await, 2);
-        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS).await, 1);
-        assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY).await, 1);
+        assert_eq!(get_chat_cnt(&t).await, 2);
+        assert_eq!(chatlist_len(&t, 0).await, 2);
+        assert_eq!(chatlist_len(&t, DC_GCL_NO_SPECIALS).await, 1);
+        assert_eq!(chatlist_len(&t, DC_GCL_ARCHIVED_ONLY).await, 1);
     }
 
     async fn get_chats_from_chat_list(ctx: &Context, listflags: usize) -> Vec<ChatId> {
@@ -3265,30 +3423,28 @@ mod tests {
         // create 3 chats, wait 1 second in between to get a reliable order (we order by time)
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("foo".to_string());
-        let msg_id = add_device_msg(&t.ctx, None, Some(&mut msg)).await.unwrap();
-        let chat_id1 = message::Message::load_from_db(&t.ctx, msg_id)
+        let msg_id = add_device_msg(&t, None, Some(&mut msg)).await.unwrap();
+        let chat_id1 = message::Message::load_from_db(&t, msg_id)
             .await
             .unwrap()
             .chat_id;
         async_std::task::sleep(std::time::Duration::from_millis(1000)).await;
-        let chat_id2 = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap();
+        let chat_id2 = t.get_self_chat().await.id;
         async_std::task::sleep(std::time::Duration::from_millis(1000)).await;
-        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id3 = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
 
-        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS).await;
+        let chatlist = get_chats_from_chat_list(&t, DC_GCL_NO_SPECIALS).await;
         assert_eq!(chatlist, vec![chat_id3, chat_id2, chat_id1]);
 
         // pin
         assert!(chat_id1
-            .set_visibility(&t.ctx, ChatVisibility::Pinned)
+            .set_visibility(&t, ChatVisibility::Pinned)
             .await
             .is_ok());
         assert_eq!(
-            Chat::load_from_db(&t.ctx, chat_id1)
+            Chat::load_from_db(&t, chat_id1)
                 .await
                 .unwrap()
                 .get_visibility(),
@@ -3296,16 +3452,16 @@ mod tests {
         );
 
         // check if chat order changed
-        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS).await;
+        let chatlist = get_chats_from_chat_list(&t, DC_GCL_NO_SPECIALS).await;
         assert_eq!(chatlist, vec![chat_id1, chat_id3, chat_id2]);
 
         // unpin
         assert!(chat_id1
-            .set_visibility(&t.ctx, ChatVisibility::Normal)
+            .set_visibility(&t, ChatVisibility::Normal)
             .await
             .is_ok());
         assert_eq!(
-            Chat::load_from_db(&t.ctx, chat_id1)
+            Chat::load_from_db(&t, chat_id1)
                 .await
                 .unwrap()
                 .get_visibility(),
@@ -3313,30 +3469,24 @@ mod tests {
         );
 
         // check if chat order changed back
-        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS).await;
+        let chatlist = get_chats_from_chat_list(&t, DC_GCL_NO_SPECIALS).await;
         assert_eq!(chatlist, vec![chat_id3, chat_id2, chat_id1]);
     }
 
     #[async_std::test]
     async fn test_set_chat_name() {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         assert_eq!(
-            Chat::load_from_db(&t.ctx, chat_id)
-                .await
-                .unwrap()
-                .get_name(),
+            Chat::load_from_db(&t, chat_id).await.unwrap().get_name(),
             "foo"
         );
 
-        set_chat_name(&t.ctx, chat_id, "bar").await.unwrap();
+        set_chat_name(&t, chat_id, "bar").await.unwrap();
         assert_eq!(
-            Chat::load_from_db(&t.ctx, chat_id)
-                .await
-                .unwrap()
-                .get_name(),
+            Chat::load_from_db(&t, chat_id).await.unwrap().get_name(),
             "bar"
         );
     }
@@ -3363,92 +3513,182 @@ mod tests {
     #[async_std::test]
     async fn test_shall_attach_selfavatar() {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
-        assert!(!shall_attach_selfavatar(&t.ctx, chat_id).await.unwrap());
+        assert!(!shall_attach_selfavatar(&t, chat_id).await.unwrap());
 
         let (contact_id, _) =
-            Contact::add_or_lookup(&t.ctx, "", "foo@bar.org", Origin::IncomingUnknownTo)
+            Contact::add_or_lookup(&t, "", "foo@bar.org", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
-        add_contact_to_chat(&t.ctx, chat_id, contact_id).await;
-        assert!(!shall_attach_selfavatar(&t.ctx, chat_id).await.unwrap());
-        t.ctx.set_config(Config::Selfavatar, None).await.unwrap(); // setting to None also forces re-sending
-        assert!(shall_attach_selfavatar(&t.ctx, chat_id).await.unwrap());
+        add_contact_to_chat(&t, chat_id, contact_id).await;
+        assert!(!shall_attach_selfavatar(&t, chat_id).await.unwrap());
+        t.set_config(Config::Selfavatar, None).await.unwrap(); // setting to None also forces re-sending
+        assert!(shall_attach_selfavatar(&t, chat_id).await.unwrap());
 
-        assert!(chat_id
-            .set_selfavatar_timestamp(&t.ctx, time())
-            .await
-            .is_ok());
-        assert!(!shall_attach_selfavatar(&t.ctx, chat_id).await.unwrap());
+        assert!(chat_id.set_selfavatar_timestamp(&t, time()).await.is_ok());
+        assert!(!shall_attach_selfavatar(&t, chat_id).await.unwrap());
     }
 
     #[async_std::test]
     async fn test_set_mute_duration() {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
         // Initial
         assert_eq!(
-            Chat::load_from_db(&t.ctx, chat_id)
-                .await
-                .unwrap()
-                .is_muted(),
+            Chat::load_from_db(&t, chat_id).await.unwrap().is_muted(),
             false
         );
         // Forever
-        set_muted(&t.ctx, chat_id, MuteDuration::Forever)
-            .await
-            .unwrap();
+        set_muted(&t, chat_id, MuteDuration::Forever).await.unwrap();
         assert_eq!(
-            Chat::load_from_db(&t.ctx, chat_id)
-                .await
-                .unwrap()
-                .is_muted(),
+            Chat::load_from_db(&t, chat_id).await.unwrap().is_muted(),
             true
         );
         // unMute
-        set_muted(&t.ctx, chat_id, MuteDuration::NotMuted)
+        set_muted(&t, chat_id, MuteDuration::NotMuted)
             .await
             .unwrap();
         assert_eq!(
-            Chat::load_from_db(&t.ctx, chat_id)
-                .await
-                .unwrap()
-                .is_muted(),
+            Chat::load_from_db(&t, chat_id).await.unwrap().is_muted(),
             false
         );
         // Timed in the future
         set_muted(
-            &t.ctx,
+            &t,
             chat_id,
             MuteDuration::Until(SystemTime::now() + Duration::from_secs(3600)),
         )
         .await
         .unwrap();
         assert_eq!(
-            Chat::load_from_db(&t.ctx, chat_id)
-                .await
-                .unwrap()
-                .is_muted(),
+            Chat::load_from_db(&t, chat_id).await.unwrap().is_muted(),
             true
         );
         // Time in the past
         set_muted(
-            &t.ctx,
+            &t,
             chat_id,
             MuteDuration::Until(SystemTime::now() - Duration::from_secs(3600)),
         )
         .await
         .unwrap();
         assert_eq!(
-            Chat::load_from_db(&t.ctx, chat_id)
-                .await
-                .unwrap()
-                .is_muted(),
+            Chat::load_from_db(&t, chat_id).await.unwrap().is_muted(),
             false
         );
+    }
+
+    #[async_std::test]
+    async fn test_add_info_msg() {
+        let t = TestContext::new().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
+            .await
+            .unwrap();
+        add_info_msg(&t, chat_id, "foo info").await;
+
+        let msg = t.get_last_msg_in(chat_id).await;
+        assert_eq!(msg.get_chat_id(), chat_id);
+        assert_eq!(msg.get_viewtype(), Viewtype::Text);
+        assert_eq!(msg.get_text().unwrap(), "foo info");
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::Unknown);
+    }
+
+    #[async_std::test]
+    async fn test_add_info_msg_with_cmd() {
+        let t = TestContext::new().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
+            .await
+            .unwrap();
+        let msg_id = add_info_msg_with_cmd(
+            &t,
+            chat_id,
+            "foo bar info",
+            SystemMessage::EphemeralTimerChanged,
+        )
+        .await
+        .unwrap();
+
+        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
+        assert_eq!(msg.get_chat_id(), chat_id);
+        assert_eq!(msg.get_viewtype(), Viewtype::Text);
+        assert_eq!(msg.get_text().unwrap(), "foo bar info");
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::EphemeralTimerChanged);
+
+        let msg2 = t.get_last_msg_in(chat_id).await;
+        assert_eq!(msg.get_id(), msg2.get_id());
+    }
+
+    #[async_std::test]
+    async fn test_set_protection() {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
+            .await
+            .unwrap();
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(!chat.is_protected());
+        assert!(chat.is_unpromoted());
+
+        // enable protection on unpromoted chat, the info-message is added via add_info_msg()
+        chat_id
+            .set_protection(&t, ProtectionStatus::Protected)
+            .await
+            .unwrap();
+
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(chat.is_protected());
+        assert!(chat.is_unpromoted());
+
+        let msgs = get_chat_msgs(&t, chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 1);
+
+        let msg = t.get_last_msg_in(chat_id).await;
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
+        assert_eq!(msg.get_state(), MessageState::InNoticed);
+
+        // disable protection again, still unpromoted
+        chat_id
+            .set_protection(&t, ProtectionStatus::Unprotected)
+            .await
+            .unwrap();
+
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(!chat.is_protected());
+        assert!(chat.is_unpromoted());
+
+        let msg = t.get_last_msg_in(chat_id).await;
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionDisabled);
+        assert_eq!(msg.get_state(), MessageState::InNoticed);
+
+        // send a message, this switches to promoted state
+        send_text_msg(&t, chat_id, "hi!".to_string()).await.unwrap();
+
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(!chat.is_protected());
+        assert!(!chat.is_unpromoted());
+
+        let msgs = get_chat_msgs(&t, chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 3);
+
+        // enable protection on promoted chat, the info-message is sent via send_msg() this time
+        chat_id
+            .set_protection(&t, ProtectionStatus::Protected)
+            .await
+            .unwrap();
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(chat.is_protected());
+        assert!(!chat.is_unpromoted());
+
+        let msg = t.get_last_msg_in(chat_id).await;
+        assert!(msg.is_info());
+        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
+        assert_eq!(msg.get_state(), MessageState::OutDelivered); // as bcc-self is disabled and there is nobody else in the chat
     }
 }

@@ -52,8 +52,16 @@ class Contact(object):
         return lib.dc_contact_is_blocked(self._dc_contact)
 
     def set_blocked(self, block=True):
-        """ Block or unblock a contact. """
+        """ [Deprecated, use block/unblock methods] Block or unblock a contact. """
         return lib.dc_block_contact(self.account._dc_context, self.id, block)
+
+    def block(self):
+        """ Block this contact. Message will not be seen/retrieved from this contact. """
+        return lib.dc_block_contact(self.account._dc_context, self.id, True)
+
+    def unblock(self):
+        """ Unblock this contact. Messages from this contact will be retrieved (again)."""
+        return lib.dc_block_contact(self.account._dc_context, self.id, False)
 
     def is_verified(self):
         """ Return True if the contact is verified. """

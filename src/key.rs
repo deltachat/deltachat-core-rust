@@ -12,7 +12,7 @@ use pgp::types::{KeyTrait, SecretKeyTrait};
 use thiserror::Error;
 
 use crate::config::Config;
-use crate::constants::*;
+use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::dc_tools::{time, EmailAddress, InvalidEmailError};
 use crate::sql;
@@ -426,16 +426,14 @@ pub enum FingerprintError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
+    use crate::test_utils::{alice_keypair, TestContext};
 
     use std::error::Error;
 
     use async_std::sync::Arc;
-    use lazy_static::lazy_static;
+    use once_cell::sync::Lazy;
 
-    lazy_static! {
-        static ref KEYPAIR: KeyPair = alice_keypair();
-    }
+    static KEYPAIR: Lazy<KeyPair> = Lazy::new(alice_keypair);
 
     #[test]
     fn test_from_armored_string() {
@@ -560,31 +558,29 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         let alice = alice_keypair();
         let t = TestContext::new().await;
         t.configure_alice().await;
-        let pubkey = SignedPublicKey::load_self(&t.ctx).await.unwrap();
+        let pubkey = SignedPublicKey::load_self(&t).await.unwrap();
         assert_eq!(alice.public, pubkey);
-        let seckey = SignedSecretKey::load_self(&t.ctx).await.unwrap();
+        let seckey = SignedSecretKey::load_self(&t).await.unwrap();
         assert_eq!(alice.secret, seckey);
     }
 
     #[async_std::test]
     async fn test_load_self_generate_public() {
         let t = TestContext::new().await;
-        t.ctx
-            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+        t.set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
-        let key = SignedPublicKey::load_self(&t.ctx).await;
+        let key = SignedPublicKey::load_self(&t).await;
         assert!(key.is_ok());
     }
 
     #[async_std::test]
     async fn test_load_self_generate_secret() {
         let t = TestContext::new().await;
-        t.ctx
-            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+        t.set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
-        let key = SignedSecretKey::load_self(&t.ctx).await;
+        let key = SignedSecretKey::load_self(&t).await;
         assert!(key.is_ok());
     }
 
@@ -593,17 +589,17 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         use std::thread;
 
         let t = TestContext::new().await;
-        t.ctx
-            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+        t.set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
             .unwrap();
-        let ctx = t.ctx.clone();
-        let ctx0 = ctx.clone();
-        let thr0 =
-            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx0)));
-        let ctx1 = ctx;
-        let thr1 =
-            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx1)));
+        let thr0 = {
+            let ctx = t.clone();
+            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx)))
+        };
+        let thr1 = {
+            let ctx = t.clone();
+            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx)))
+        };
         let res0 = thr0.join().unwrap();
         let res1 = thr1.join().unwrap();
         assert_eq!(res0.unwrap(), res1.unwrap());
@@ -620,12 +616,11 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         // Saving the same key twice should result in only one row in
         // the keypairs table.
         let t = TestContext::new().await;
-        let ctx = Arc::new(t.ctx);
+        let ctx = Arc::new(t);
 
-        let ctx1 = ctx.clone();
         let nrows = || async {
-            ctx1.sql
-                .query_get_value::<u32>(&ctx1, "SELECT COUNT(*) FROM keypairs;", paramsv![])
+            ctx.sql
+                .query_get_value::<u32>(&ctx, "SELECT COUNT(*) FROM keypairs;", paramsv![])
                 .await
                 .unwrap()
         };

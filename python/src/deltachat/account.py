@@ -214,6 +214,19 @@ class Account(object):
         :param name: (optional) display name for this contact
         :returns: :class:`deltachat.contact.Contact` instance.
         """
+        (name, addr) = self.get_contact_addr_and_name(obj, name)
+        name = as_dc_charpointer(name)
+        addr = as_dc_charpointer(addr)
+        contact_id = lib.dc_create_contact(self._dc_context, name, addr)
+        return Contact(self, contact_id)
+
+    def get_contact(self, obj):
+        if isinstance(obj, Contact):
+            return obj
+        (_, addr) = self.get_contact_addr_and_name(obj)
+        return self.get_contact_by_addr(addr)
+
+    def get_contact_addr_and_name(self, obj, name=None):
         if isinstance(obj, Account):
             if not obj.is_configured():
                 raise ValueError("can only add addresses from configured accounts")
@@ -229,13 +242,7 @@ class Account(object):
 
         if name is None and displayname:
             name = displayname
-        return self._create_contact(addr, name)
-
-    def _create_contact(self, addr, name):
-        addr = as_dc_charpointer(addr)
-        name = as_dc_charpointer(name)
-        contact_id = lib.dc_create_contact(self._dc_context, name, addr)
-        return Contact(self, contact_id)
+        return (name, addr)
 
     def delete_contact(self, contact):
         """ delete a Contact.
@@ -262,6 +269,17 @@ class Account(object):
         :returns: None or :class:`deltachat.contact.Contact` instance.
         """
         return Contact(self, contact_id)
+
+    def get_blocked_contacts(self):
+        """ return a list of all blocked contacts.
+
+        :returns: list of :class:`deltachat.contact.Contact` objects.
+        """
+        dc_array = ffi.gc(
+            lib.dc_get_blocked_contacts(self._dc_context),
+            lib.dc_array_unref
+        )
+        return list(iter_array(dc_array, lambda x: Contact(self, x)))
 
     def get_contacts(self, query=None, with_self=False, only_verified=False):
         """ get a (filtered) list of contacts.
@@ -335,6 +353,9 @@ class Account(object):
 
     def get_deaddrop_chat(self):
         return Chat(self, const.DC_CHAT_ID_DEADDROP)
+
+    def get_device_chat(self):
+        return Contact(self, const.DC_CONTACT_ID_DEVICE).create_chat()
 
     def get_message_by_id(self, msg_id):
         """ return Message instance.
@@ -438,8 +459,6 @@ class Account(object):
         If sending out was unsuccessful, a RuntimeError is raised.
         """
         self.check_is_configured()
-        if not self.is_started():
-            raise RuntimeError("IO not running, can not send out")
         res = lib.dc_initiate_key_transfer(self._dc_context)
         if res == ffi.NULL:
             raise RuntimeError("could not send out autocrypt setup message")
@@ -558,21 +577,18 @@ class Account(object):
             raise ValueError("account not configured, cannot start io")
         lib.dc_start_io(self._dc_context)
 
-    def configure(self):
+    def configure(self, reconfigure=False):
         """ Start configuration process and return a Configtracker instance
         on which you can block with wait_finish() to get a True/False success
         value for the configuration process.
         """
-        assert not self.is_configured()
+        assert self.is_configured() == reconfigure
         if not self.get_config("addr") or not self.get_config("mail_pw"):
             raise MissingCredentials("addr or mail_pwd not set in config")
         configtracker = ConfigureTracker(self)
         self.add_account_plugin(configtracker)
         lib.dc_configure(self._dc_context)
         return configtracker
-
-    def is_started(self):
-        return self._event_thread.is_alive() and bool(lib.dc_is_io_running(self._dc_context))
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
@@ -583,11 +599,8 @@ class Account(object):
         self.log("stop_ongoing")
         self.stop_ongoing()
 
-        if bool(lib.dc_is_io_running(self._dc_context)):
-            self.log("dc_stop_io (stop core IO scheduler)")
-            lib.dc_stop_io(self._dc_context)
-        else:
-            self.log("stop_scheduler called on non-running context")
+        self.log("dc_stop_io (stop core IO scheduler)")
+        lib.dc_stop_io(self._dc_context)
 
     def shutdown(self):
         """ shutdown and destroy account (stop callback thread, close and remove

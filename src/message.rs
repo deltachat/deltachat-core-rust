@@ -7,17 +7,25 @@ use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
-use crate::constants::*;
-use crate::contact::*;
-use crate::context::*;
-use crate::dc_tools::*;
+use crate::constants::{
+    Blocked, Chattype, VideochatType, Viewtype, DC_CHAT_ID_DEADDROP, DC_CHAT_ID_TRASH,
+    DC_CONTACT_ID_INFO, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_MAX_GET_INFO_LEN,
+    DC_MAX_GET_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
+};
+use crate::contact::{Contact, Origin};
+use crate::context::Context;
+use crate::dc_tools::{
+    dc_get_filebytes, dc_get_filemeta, dc_gm2local_offset, dc_read_file, dc_timestamp_to_str,
+    dc_truncate, time,
+};
+use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{ensure, Error};
 use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::lot::{Lot, LotState, Meaning};
 use crate::mimeparser::{FailureReport, SystemMessage};
-use crate::param::*;
-use crate::pgp::*;
+use crate::param::{Param, Params};
+use crate::pgp::split_armored_data;
 use crate::stock::StockMessage;
 use std::collections::BTreeMap;
 
@@ -76,17 +84,53 @@ impl MsgId {
         Ok(result)
     }
 
-    /// Returns true if the message needs to be moved from `folder`.
-    pub async fn needs_move(self, context: &Context, folder: &str) -> Result<bool, Error> {
-        if !context.get_config_bool(Config::MvboxMove).await {
-            return Ok(false);
-        }
-
+    /// Returns Some if the message needs to be moved from `folder`.
+    /// If yes, returns `ConfiguredInboxFolder`, `ConfiguredMvboxFolder` or `ConfiguredSentboxFolder`,
+    /// depending on where the message should be moved
+    pub async fn needs_move(
+        self,
+        context: &Context,
+        folder: &str,
+    ) -> Result<Option<Config>, Error> {
+        use Config::*;
         if context.is_mvbox(folder).await {
-            return Ok(false);
+            return Ok(None);
         }
 
         let msg = Message::load_from_db(context, self).await?;
+
+        if context.is_spam_folder(folder).await {
+            return if msg.chat_blocked == Blocked::Not {
+                if self.needs_move_to_mvbox(context, &msg).await? {
+                    Ok(Some(ConfiguredMvboxFolder))
+                } else {
+                    Ok(Some(ConfiguredInboxFolder))
+                }
+            } else {
+                // Blocked/deaddrop message in the spam folder, leave it there
+                Ok(None)
+            };
+        }
+
+        if self.needs_move_to_mvbox(context, &msg).await? {
+            Ok(Some(ConfiguredMvboxFolder))
+        } else if msg.state.is_outgoing()
+                && msg.is_dc_message == MessengerMessage::Yes
+                && !msg.is_setupmessage()
+                && msg.to_id != DC_CONTACT_ID_SELF // Leave self-chat-messages in the inbox, not sure about this
+                && context.is_inbox(folder).await
+                && context.get_config(ConfiguredSentboxFolder).await.is_some()
+        {
+            Ok(Some(ConfiguredSentboxFolder))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn needs_move_to_mvbox(self, context: &Context, msg: &Message) -> Result<bool, Error> {
+        if !context.get_config_bool(Config::MvboxMove).await {
+            return Ok(false);
+        }
 
         if msg.is_setupmessage() {
             // do not move setup messages;
@@ -109,7 +153,7 @@ impl MsgId {
         context
             .sql
             .execute(
-                "UPDATE msgs SET chat_id=?, txt='', txt_raw='' WHERE id=?",
+                "UPDATE msgs SET chat_id=?, txt='', txt_raw='', mime_headers='', from_id=0, to_id=0, param='' WHERE id=?",
                 paramsv![chat_id, self],
             )
             .await?;
@@ -255,7 +299,7 @@ pub struct Message {
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
     pub(crate) timestamp_rcvd: i64,
-    pub(crate) ephemeral_timer: u32,
+    pub(crate) ephemeral_timer: EphemeralTimer,
     pub(crate) ephemeral_timestamp: i64,
     pub(crate) text: Option<String>,
     pub(crate) rfc724_mid: String,
@@ -263,6 +307,7 @@ pub struct Message {
     pub(crate) server_folder: Option<String>,
     pub(crate) server_uid: u32,
     pub(crate) is_dc_message: MessengerMessage,
+    pub(crate) mime_modified: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
     error: Option<String>,
@@ -304,6 +349,7 @@ impl Message {
                     "    m.state AS state,",
                     "    m.error AS error,",
                     "    m.msgrmsg AS msgrmsg,",
+                    "    m.mime_modified AS mime_modified,",
                     "    m.txt AS txt,",
                     "    m.param AS param,",
                     "    m.hidden AS hidden,",
@@ -334,6 +380,7 @@ impl Message {
                     let error: String = row.get("error")?;
                     msg.error = Some(error).filter(|error| !error.is_empty());
                     msg.is_dc_message = row.get("msgrmsg")?;
+                    msg.mime_modified = row.get("mime_modified")?;
 
                     let text;
                     if let rusqlite::types::ValueRef::Text(buf) = row.get_raw("txt") {
@@ -523,7 +570,7 @@ impl Message {
         self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
     }
 
-    pub fn get_ephemeral_timer(&self) -> u32 {
+    pub fn get_ephemeral_timer(&self) -> EphemeralTimer {
         self.ephemeral_timer
     }
 
@@ -544,9 +591,7 @@ impl Message {
             return ret;
         };
 
-        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32
-            && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
-        {
+        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32 && chat.typ == Chattype::Group {
             Contact::get_by_id(context, self.from_id).await.ok()
         } else {
             None
@@ -603,6 +648,10 @@ impl Message {
         self.from_id == DC_CONTACT_ID_INFO as u32
             || self.to_id == DC_CONTACT_ID_INFO as u32
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
+    }
+
+    pub fn get_info_type(&self) -> SystemMessage {
+        self.param.get_cmd()
     }
 
     pub fn is_system_message(&self) -> bool {
@@ -877,11 +926,8 @@ impl Message {
     pub async fn quoted_message(&self, context: &Context) -> Result<Option<Message>, Error> {
         if self.param.get(Param::Quote).is_some() {
             if let Some(in_reply_to) = &self.in_reply_to {
-                let rfc724_mid = in_reply_to.trim_start_matches('<').trim_end_matches('>');
-                if !rfc724_mid.is_empty() {
-                    if let Some((_, _, msg_id)) = rfc724_mid_exists(context, rfc724_mid).await? {
-                        return Ok(Some(Message::load_from_db(context, msg_id).await?));
-                    }
+                if let Some((_, _, msg_id)) = rfc724_mid_exists(context, in_reply_to).await? {
+                    return Ok(Some(Message::load_from_db(context, msg_id).await?));
                 }
             }
         }
@@ -1075,7 +1121,7 @@ impl Lot {
                 );
                 self.text1_meaning = Meaning::Text1Self;
             }
-        } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+        } else if chat.typ == Chattype::Group {
             if msg.is_info() || contact.is_none() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
@@ -1095,16 +1141,23 @@ impl Lot {
             }
         }
 
-        self.text2 = Some(
-            get_summarytext_by_raw(
-                msg.viewtype,
-                msg.text.as_ref(),
-                &msg.param,
-                SUMMARY_CHARACTERS,
-                context,
-            )
-            .await,
-        );
+        let mut text2 = get_summarytext_by_raw(
+            msg.viewtype,
+            msg.text.as_ref(),
+            &msg.param,
+            SUMMARY_CHARACTERS,
+            context,
+        )
+        .await;
+
+        if text2.is_empty() && msg.quoted_text().is_some() {
+            text2 = context
+                .stock_str(StockMessage::ReplyNoun)
+                .await
+                .into_owned()
+        }
+
+        self.text2 = Some(text2);
 
         self.timestamp = msg.get_timestamp();
         self.state = msg.state.into();
@@ -1158,8 +1211,8 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         ret += "\n";
     }
 
-    if msg.ephemeral_timer != 0 {
-        ret += &format!("Ephemeral timer: {}\n", msg.ephemeral_timer);
+    if let EphemeralTimer::Enabled { duration } = msg.ephemeral_timer {
+        ret += &format!("Ephemeral timer: {}\n", duration);
     }
 
     if msg.ephemeral_timestamp != 0 {
@@ -1286,6 +1339,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "jpg" => (Viewtype::Image, "image/jpeg"),
         "json" => (Viewtype::File, "application/json"),
         "mov" => (Viewtype::Video, "video/quicktime"),
+        "m4a" => (Viewtype::Audio, "audio/m4a"),
         "mp3" => (Viewtype::Audio, "audio/mpeg"),
         "mp4" => (Viewtype::Video, "video/mp4"),
         "odp" => (
@@ -1727,14 +1781,16 @@ pub(crate) async fn handle_ndn(
     context: &Context,
     failed: &FailureReport,
     error: Option<impl AsRef<str>>,
-) {
+) -> anyhow::Result<()> {
     if failed.rfc724_mid.is_empty() {
-        return;
+        return Ok(());
     }
 
-    let res = context
+    // The NDN might be for a message-id that had attachments and was sent from a non-Delta Chat client.
+    // In this case we need to mark multiple "msgids" as failed that all refer to the same message-id.
+    let msgs: Vec<_> = context
         .sql
-        .query_row(
+        .query_map(
             concat!(
                 "SELECT",
                 "    m.id AS msg_id,",
@@ -1751,37 +1807,42 @@ pub(crate) async fn handle_ndn(
                     row.get::<_, Chattype>("type")?,
                 ))
             },
+            |rows| Ok(rows.collect::<Vec<_>>()),
         )
-        .await;
-    if let Err(ref err) = res {
-        info!(context, "Failed to select NDN {:?}", err);
-    }
+        .await?;
 
-    if let Ok((msg_id, chat_id, chat_type)) = res {
-        set_msg_failed(context, msg_id, error).await;
-
-        if chat_type == Chattype::Group || chat_type == Chattype::VerifiedGroup {
-            if let Some(failed_recipient) = &failed.failed_recipient {
-                let contact_id =
-                    Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;
-                if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-                    // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
-                    chat::add_info_msg(
-                        context,
-                        chat_id,
-                        context
-                            .stock_string_repl_str(
-                                StockMessage::FailedSendingTo,
-                                contact.get_display_name(),
-                            )
-                            .await,
-                    )
-                    .await;
-                    context.emit_event(EventType::ChatModified(chat_id));
-                }
-            }
+    for (i, msg) in msgs.into_iter().enumerate() {
+        let (msg_id, chat_id, chat_type) = msg?;
+        set_msg_failed(context, msg_id, error.as_ref()).await;
+        if i == 0 {
+            // Add only one info msg for all failed messages
+            ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
         }
     }
+
+    Ok(())
+}
+
+async fn ndn_maybe_add_info_msg(
+    context: &Context,
+    failed: &FailureReport,
+    chat_id: ChatId,
+    chat_type: Chattype,
+) -> anyhow::Result<()> {
+    if chat_type == Chattype::Group {
+        if let Some(failed_recipient) = &failed.failed_recipient {
+            let contact_id =
+                Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;
+            let contact = Contact::load_from_db(context, contact_id).await?;
+            // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
+            let text = context
+                .stock_string_repl_str(StockMessage::FailedSendingTo, contact.get_display_name())
+                .await;
+            chat::add_info_msg(context, chat_id, text).await;
+            context.emit_event(EventType::ChatModified(chat_id));
+        }
+    }
+    Ok(())
 }
 
 /// The number of messages assigned to real chat (!=deaddrop, !=trash)
@@ -1900,6 +1961,7 @@ pub(crate) async fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
 ) -> Result<Option<(String, u32, MsgId)>, Error> {
+    let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     if rfc724_mid.is_empty() {
         warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
         return Ok(None);
@@ -1949,7 +2011,9 @@ pub async fn update_server_uid(
 mod tests {
     use super::*;
     use crate::chat::ChatItem;
+    use crate::constants::DC_CONTACT_ID_DEVICE;
     use crate::test_utils as test;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_guess_msgtype_from_suffix() {
@@ -1959,6 +2023,197 @@ mod tests {
         );
     }
 
+    // chat_msg means that the message was sent by Delta Chat
+    // The tuples are (folder, mvbox_move, chat_msg, expected_destination)
+    const COMBINATIONS_ACCEPTED_CHAT: &[(&str, bool, bool, &str)] = &[
+        ("INBOX", false, false, "INBOX"),
+        ("INBOX", false, true, "INBOX"),
+        ("INBOX", true, false, "INBOX"),
+        ("INBOX", true, true, "DeltaChat"),
+        ("Sent", false, false, "Sent"),
+        ("Sent", false, true, "Sent"),
+        ("Sent", true, false, "Sent"),
+        ("Sent", true, true, "DeltaChat"),
+        ("Spam", false, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
+        ("Spam", false, true, "INBOX"),
+        ("Spam", true, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
+        ("Spam", true, true, "DeltaChat"),
+    ];
+
+    // These are the same as above, but all messages in Spam stay in Spam
+    const COMBINATIONS_DEADDROP: &[(&str, bool, bool, &str)] = &[
+        ("INBOX", false, false, "INBOX"),
+        ("INBOX", false, true, "INBOX"),
+        ("INBOX", true, false, "INBOX"),
+        ("INBOX", true, true, "DeltaChat"),
+        ("Sent", false, false, "Sent"),
+        ("Sent", false, true, "Sent"),
+        ("Sent", true, false, "Sent"),
+        ("Sent", true, true, "DeltaChat"),
+        ("Spam", false, false, "Spam"),
+        ("Spam", false, true, "Spam"),
+        ("Spam", true, false, "Spam"),
+        ("Spam", true, true, "Spam"),
+    ];
+
+    #[async_std::test]
+    async fn test_needs_move_incoming_accepted() {
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            check_needs_move_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                expected_destination,
+                true,
+                false,
+                false,
+            )
+            .await;
+        }
+    }
+
+    #[async_std::test]
+    async fn test_needs_move_incoming_deaddrop() {
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_DEADDROP {
+            check_needs_move_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                expected_destination,
+                false,
+                false,
+                false,
+            )
+            .await;
+        }
+    }
+
+    #[async_std::test]
+    async fn test_needs_move_outgoing() {
+        // Test outgoing emails
+        for (folder, mvbox_move, chat_msg, mut expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            if *folder == "INBOX" && !mvbox_move && *chat_msg {
+                expected_destination = "Sent"
+            }
+            check_needs_move_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                expected_destination,
+                true,
+                true,
+                false,
+            )
+            .await;
+        }
+    }
+
+    #[async_std::test]
+    async fn test_needs_move_setupmsg() {
+        // Test setupmessages
+        for (folder, mvbox_move, chat_msg, _expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            check_needs_move_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                if folder == &"Spam" { "INBOX" } else { folder }, // Never move setup messages, except if they are in "Spam"
+                true,
+                true,
+                true,
+            )
+            .await;
+        }
+    }
+
+    async fn check_needs_move_combination(
+        folder: &str,
+        mvbox_move: bool,
+        chat_msg: bool,
+        expected_destination: &str,
+        accepted_chat: bool,
+        outgoing: bool,
+        setupmessage: bool,
+    ) {
+        use crate::dc_receive_imf::dc_receive_imf;
+        println!("Testing: For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}",
+                               folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage);
+
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ConfiguredSpamFolder, Some("Spam"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::ConfiguredMvboxFolder, Some("DeltaChat"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::ConfiguredSentboxFolder, Some("Sent"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::MvboxMove, Some(if mvbox_move { "1" } else { "0" }))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        if accepted_chat {
+            let contact_id = Contact::create(&t.ctx, "", "bob@example.net")
+                .await
+                .unwrap();
+            chat::create_by_contact_id(&t.ctx, contact_id)
+                .await
+                .unwrap();
+        }
+        let temp;
+        dc_receive_imf(
+            &t.ctx,
+            if setupmessage {
+                include_bytes!("../test-data/message/AutocryptSetupMessage.eml")
+            } else {
+                temp = format!(
+                    "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    {}\
+                    Subject: foo\n\
+                    Message-ID: <aehtri@example.com>\n\
+                    {}\
+                    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                    \n\
+                    hello\n",
+                    if outgoing {
+                        "From: alice@example.com\nTo: bob@example.net\n"
+                    } else {
+                        "From: bob@example.net\nTo: alice@example.com\n"
+                    },
+                    if chat_msg { "Chat-Version: 1.0\n" } else { "" },
+                );
+                temp.as_bytes()
+            },
+            folder,
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let msg = t.get_last_msg().await;
+        let actual = if let Some(config) = msg.id.needs_move(&t.ctx, folder).await.unwrap() {
+            Some(t.ctx.get_config(config).await.unwrap())
+        } else {
+            None
+        };
+        let expected = if expected_destination == folder {
+            None
+        } else {
+            Some(expected_destination)
+        };
+        assert_eq!(expected, actual.as_deref(), "For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}: expected {:?} , got {:?}",
+                                                     folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage, expected, actual);
+    }
+
     #[async_std::test]
     async fn test_prepare_message_and_send() {
         use crate::config::Config;
@@ -1966,20 +2221,15 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let contact = Contact::create(ctx, "", "dest@example.com")
+        ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
             .await
-            .expect("failed to create contact");
+            .unwrap();
 
-        let res = ctx
-            .set_config(Config::ConfiguredAddr, Some("self@example.com"))
-            .await;
-        assert!(res.is_ok());
-
-        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+        let chat = d.chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
 
-        let msg_id = chat::prepare_msg(ctx, chat, &mut msg).await.unwrap();
+        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
 
         let _msg2 = Message::load_from_db(ctx, msg_id).await.unwrap();
         assert_eq!(_msg2.get_filemime(), None);
@@ -1991,15 +2241,11 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let contact = Contact::create(ctx, "", "dest@example.com")
-            .await
-            .expect("failed to create contact");
-
-        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+        let chat = d.chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
 
-        assert!(chat::prepare_msg(ctx, chat, &mut msg).await.is_err());
+        assert!(chat::prepare_msg(ctx, chat.id, &mut msg).await.is_err());
     }
 
     #[async_std::test]
@@ -2149,17 +2395,17 @@ mod tests {
 
         // test that get_width() and get_height() are returning some dimensions for images;
         // (as the device-chat contains a welcome-images, we check that)
-        t.ctx.update_device_chats().await.ok();
+        t.update_device_chats().await.ok();
         let (device_chat_id, _) =
-            chat::create_or_lookup_by_contact_id(&t.ctx, DC_CONTACT_ID_DEVICE, Blocked::Not)
+            chat::create_or_lookup_by_contact_id(&t, DC_CONTACT_ID_DEVICE, Blocked::Not)
                 .await
                 .unwrap();
 
         let mut has_image = false;
-        let chatitems = chat::get_chat_msgs(&t.ctx, device_chat_id, 0, None).await;
+        let chatitems = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
         for chatitem in chatitems {
             if let ChatItem::Message { msg_id } = chatitem {
-                if let Ok(msg) = Message::load_from_db(&t.ctx, msg_id).await {
+                if let Ok(msg) = Message::load_from_db(&t, msg_id).await {
                     if msg.get_viewtype() == Viewtype::Image {
                         has_image = true;
                         // just check that width/height are inside some reasonable ranges
@@ -2181,23 +2427,18 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let contact = Contact::create(ctx, "", "dest@example.com")
+        ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
             .await
-            .expect("failed to create contact");
+            .unwrap();
 
-        let res = ctx
-            .set_config(Config::ConfiguredAddr, Some("self@example.com"))
-            .await;
-        assert!(res.is_ok());
-
-        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
+        let chat = d.chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("Quoted message".to_string()));
 
         // Prepare message for sending, so it gets a Message-Id.
         assert!(msg.rfc724_mid.is_empty());
-        let msg_id = chat::prepare_msg(ctx, chat, &mut msg).await.unwrap();
+        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
         let msg = Message::load_from_db(ctx, msg_id).await.unwrap();
         assert!(!msg.rfc724_mid.is_empty());
 

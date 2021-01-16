@@ -1,10 +1,14 @@
 //! # Chat list module
 
 use crate::chat;
-use crate::chat::*;
-use crate::constants::*;
-use crate::contact::*;
-use crate::context::*;
+use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
+use crate::constants::{
+    Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_DEADDROP,
+    DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF, DC_CONTACT_ID_UNDEFINED, DC_GCL_ADD_ALLDONE_HINT,
+    DC_GCL_ARCHIVED_ONLY, DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS,
+};
+use crate::contact::Contact;
+use crate::context::Context;
 use crate::ephemeral::delete_expired_messages;
 use crate::error::{bail, ensure, Result};
 use crate::lot::Lot;
@@ -362,9 +366,7 @@ impl Chatlist {
         let mut lastcontact = None;
 
         let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id).await {
-            if lastmsg.from_id != DC_CONTACT_ID_SELF
-                && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
-            {
+            if lastmsg.from_id != DC_CONTACT_ID_SELF && chat.typ == Chattype::Group {
                 lastcontact = Contact::load_from_db(context, lastmsg.from_id).await.ok();
             }
 
@@ -435,23 +437,25 @@ async fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::chat::{create_group_chat, ProtectionStatus};
+    use crate::constants::Viewtype;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_try_load() {
         let t = TestContext::new().await;
-        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
+        let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")
             .await
             .unwrap();
-        let chat_id2 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "b chat")
+        let chat_id2 = create_group_chat(&t, ProtectionStatus::Unprotected, "b chat")
             .await
             .unwrap();
-        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "c chat")
+        let chat_id3 = create_group_chat(&t, ProtectionStatus::Unprotected, "c chat")
             .await
             .unwrap();
 
         // check that the chatlist starts with the most recent message
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 3);
         assert_eq!(chats.get_chat_id(0), chat_id3);
         assert_eq!(chats.get_chat_id(1), chat_id2);
@@ -460,26 +464,24 @@ mod tests {
         // drafts are sorted to the top
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
-        chat_id2.set_draft(&t.ctx, Some(&mut msg)).await;
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        chat_id2.set_draft(&t, Some(&mut msg)).await;
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.get_chat_id(0), chat_id2);
 
         // check chatlist query and archive functionality
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("b"), None)
-            .await
-            .unwrap();
+        let chats = Chatlist::try_load(&t, 0, Some("b"), None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
-        let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None)
+        let chats = Chatlist::try_load(&t, DC_GCL_ARCHIVED_ONLY, None, None)
             .await
             .unwrap();
         assert_eq!(chats.len(), 0);
 
         chat_id1
-            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .set_visibility(&t, ChatVisibility::Archived)
             .await
             .ok();
-        let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None)
+        let chats = Chatlist::try_load(&t, DC_GCL_ARCHIVED_ONLY, None, None)
             .await
             .unwrap();
         assert_eq!(chats.len(), 1);
@@ -488,23 +490,23 @@ mod tests {
     #[async_std::test]
     async fn test_sort_self_talk_up_on_forward() {
         let t = TestContext::new().await;
-        t.ctx.update_device_chats().await.unwrap();
-        create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
+        t.update_device_chats().await.unwrap();
+        create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")
             .await
             .unwrap();
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert!(chats.len() == 3);
-        assert!(!Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
+        assert!(!Chat::load_from_db(&t, chats.get_chat_id(0))
             .await
             .unwrap()
             .is_self_talk());
 
-        let chats = Chatlist::try_load(&t.ctx, DC_GCL_FOR_FORWARDING, None, None)
+        let chats = Chatlist::try_load(&t, DC_GCL_FOR_FORWARDING, None, None)
             .await
             .unwrap();
         assert!(chats.len() == 2); // device chat cannot be written and is skipped on forwarding
-        assert!(Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
+        assert!(Chat::load_from_db(&t, chats.get_chat_id(0))
             .await
             .unwrap()
             .is_self_talk());
@@ -513,31 +515,29 @@ mod tests {
     #[async_std::test]
     async fn test_search_special_chat_names() {
         let t = TestContext::new().await;
-        t.ctx.update_device_chats().await.unwrap();
+        t.update_device_chats().await.unwrap();
 
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-1234-s"), None)
+        let chats = Chatlist::try_load(&t, 0, Some("t-1234-s"), None)
             .await
             .unwrap();
         assert_eq!(chats.len(), 0);
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None)
+        let chats = Chatlist::try_load(&t, 0, Some("t-5678-b"), None)
             .await
             .unwrap();
         assert_eq!(chats.len(), 0);
 
-        t.ctx
-            .set_stock_translation(StockMessage::SavedMessages, "test-1234-save".to_string())
+        t.set_stock_translation(StockMessage::SavedMessages, "test-1234-save".to_string())
             .await
             .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-1234-s"), None)
+        let chats = Chatlist::try_load(&t, 0, Some("t-1234-s"), None)
             .await
             .unwrap();
         assert_eq!(chats.len(), 1);
 
-        t.ctx
-            .set_stock_translation(StockMessage::DeviceMessages, "test-5678-babbel".to_string())
+        t.set_stock_translation(StockMessage::DeviceMessages, "test-5678-babbel".to_string())
             .await
             .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None)
+        let chats = Chatlist::try_load(&t, 0, Some("t-5678-b"), None)
             .await
             .unwrap();
         assert_eq!(chats.len(), 1);
@@ -546,16 +546,16 @@ mod tests {
     #[async_std::test]
     async fn test_get_summary_unwrap() {
         let t = TestContext::new().await;
-        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
+        let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")
             .await
             .unwrap();
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("foo:\nbar \r\n test".to_string()));
-        chat_id1.set_draft(&t.ctx, Some(&mut msg)).await;
+        chat_id1.set_draft(&t, Some(&mut msg)).await;
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        let summary = chats.get_summary(&t.ctx, 0, None).await;
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        let summary = chats.get_summary(&t, 0, None).await;
         assert_eq!(summary.get_text2().unwrap(), "foo: bar test"); // the linebreak should be removed from summary
     }
 }

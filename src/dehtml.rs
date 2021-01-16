@@ -2,20 +2,51 @@
 //!
 //! A module to remove HTML tags from the email text
 
-use lazy_static::lazy_static;
-use quick_xml::events::{BytesEnd, BytesStart, BytesText};
+use std::io::BufRead;
 
-lazy_static! {
-    static ref LINE_RE: regex::Regex = regex::Regex::new(r"(\r?\n)+").unwrap();
-}
+use once_cell::sync::Lazy;
+use quick_xml::{
+    events::{BytesEnd, BytesStart, BytesText},
+    Reader,
+};
+
+static LINE_RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"(\r?\n)+").unwrap());
 
 struct Dehtml {
     strbuilder: String,
     add_text: AddText,
     last_href: Option<String>,
+    /// GMX wraps a quote in `<div name="quote">`. After a `<div name="quote">`, this count is
+    /// increased at each `<div>` and decreased at each `</div>`. This way we know when the quote ends.
+    /// If this is > `0`, then we are inside a `<div name="quote">`
+    divs_since_quote_div: u32,
+    /// Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
+    /// If this is > `0`, then we are inside a `<div name="quoted-content">`.
+    divs_since_quoted_content_div: u32,
 }
 
-#[derive(Debug, PartialEq)]
+impl Dehtml {
+    fn line_prefix(&self) -> &str {
+        if self.divs_since_quoted_content_div > 0 {
+            "> "
+        } else {
+            ""
+        }
+    }
+    fn append_prefix(&self, line_end: impl AsRef<str>) -> String {
+        // line_end is e.g. "\n\n". We add "> " if necessary.
+        line_end.as_ref().to_owned() + self.line_prefix()
+    }
+    fn get_add_text(&self) -> AddText {
+        if self.divs_since_quote_div > 0 && self.divs_since_quoted_content_div == 0 {
+            AddText::No // Everything between <div name="quoted"> and <div name="quoted_content"> is metadata which we don't want
+        } else {
+            self.add_text
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum AddText {
     No,
     YesRemoveLineEnds,
@@ -24,16 +55,16 @@ enum AddText {
 
 // dehtml() returns way too many newlines; however, an optimisation on this issue is not needed as
 // the newlines are typically removed in further processing by the caller
-pub fn dehtml(buf: &str) -> String {
+pub fn dehtml(buf: &str) -> Option<String> {
     let s = dehtml_quick_xml(buf);
     if !s.trim().is_empty() {
-        return s;
+        return Some(s);
     }
     let s = dehtml_manually(buf);
     if !s.trim().is_empty() {
-        return s;
+        return Some(s);
     }
-    buf.to_string()
+    None
 }
 
 pub fn dehtml_quick_xml(buf: &str) -> String {
@@ -43,6 +74,8 @@ pub fn dehtml_quick_xml(buf: &str) -> String {
         strbuilder: String::with_capacity(buf.len()),
         add_text: AddText::YesRemoveLineEnds,
         last_href: None,
+        divs_since_quote_div: 0,
+        divs_since_quoted_content_div: 0,
     };
 
     let mut reader = quick_xml::Reader::from_str(buf);
@@ -81,13 +114,16 @@ pub fn dehtml_quick_xml(buf: &str) -> String {
 }
 
 fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
-    if dehtml.add_text == AddText::YesPreserveLineEnds
-        || dehtml.add_text == AddText::YesRemoveLineEnds
+    if dehtml.get_add_text() == AddText::YesPreserveLineEnds
+        || dehtml.get_add_text() == AddText::YesRemoveLineEnds
     {
         let last_added = escaper::decode_html_buf_sloppy(event.escaped()).unwrap_or_default();
 
-        if dehtml.add_text == AddText::YesRemoveLineEnds {
+        if dehtml.get_add_text() == AddText::YesRemoveLineEnds {
             dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
+        } else if !dehtml.line_prefix().is_empty() {
+            let l = dehtml.append_prefix("\n");
+            dehtml.strbuilder += LINE_RE.replace_all(&last_added, l.as_str()).as_ref();
         } else {
             dehtml.strbuilder += &last_added;
         }
@@ -95,13 +131,16 @@ fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
 }
 
 fn dehtml_cdata_cb(event: &BytesText, dehtml: &mut Dehtml) {
-    if dehtml.add_text == AddText::YesPreserveLineEnds
-        || dehtml.add_text == AddText::YesRemoveLineEnds
+    if dehtml.get_add_text() == AddText::YesPreserveLineEnds
+        || dehtml.get_add_text() == AddText::YesRemoveLineEnds
     {
         let last_added = escaper::decode_html_buf_sloppy(event.escaped()).unwrap_or_default();
 
-        if dehtml.add_text == AddText::YesRemoveLineEnds {
+        if dehtml.get_add_text() == AddText::YesRemoveLineEnds {
             dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
+        } else if !dehtml.line_prefix().is_empty() {
+            let l = dehtml.append_prefix("\n");
+            dehtml.strbuilder += LINE_RE.replace_all(&last_added, l.as_str()).as_ref();
         } else {
             dehtml.strbuilder += &last_added;
         }
@@ -112,8 +151,15 @@ fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
     let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
 
     match tag.as_str() {
-        "p" | "div" | "table" | "td" | "style" | "script" | "title" | "pre" => {
-            dehtml.strbuilder += "\n\n";
+        "p" | "table" | "td" | "style" | "script" | "title" | "pre" => {
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
+            dehtml.add_text = AddText::YesRemoveLineEnds;
+        }
+        "div" => {
+            pop_tag(&mut dehtml.divs_since_quote_div);
+            pop_tag(&mut dehtml.divs_since_quoted_content_div);
+
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "a" => {
@@ -124,10 +170,14 @@ fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
             }
         }
         "b" | "strong" => {
-            dehtml.strbuilder += "*";
+            if dehtml.get_add_text() != AddText::No {
+                dehtml.strbuilder += "*";
+            }
         }
         "i" | "em" => {
-            dehtml.strbuilder += "_";
+            if dehtml.get_add_text() != AddText::No {
+                dehtml.strbuilder += "_";
+            }
         }
         _ => {}
     }
@@ -141,19 +191,27 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
     let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
 
     match tag.as_str() {
-        "p" | "div" | "table" | "td" => {
-            dehtml.strbuilder += "\n\n";
+        "p" | "table" | "td" => {
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
+            dehtml.add_text = AddText::YesRemoveLineEnds;
+        }
+        #[rustfmt::skip]
+        "div" => {
+            maybe_push_tag(event, reader, "quote", &mut dehtml.divs_since_quote_div);
+            maybe_push_tag(event, reader, "quoted-content", &mut dehtml.divs_since_quoted_content_div);
+
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "br" => {
-            dehtml.strbuilder += "\n";
+            dehtml.strbuilder += &dehtml.append_prefix("\n");
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "style" | "script" | "title" => {
             dehtml.add_text = AddText::No;
         }
         "pre" => {
-            dehtml.strbuilder += "\n\n";
+            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
             dehtml.add_text = AddText::YesPreserveLineEnds;
         }
         "a" => {
@@ -174,13 +232,49 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
             }
         }
         "b" | "strong" => {
-            dehtml.strbuilder += "*";
+            if dehtml.get_add_text() != AddText::No {
+                dehtml.strbuilder += "*";
+            }
         }
         "i" | "em" => {
-            dehtml.strbuilder += "_";
+            if dehtml.get_add_text() != AddText::No {
+                dehtml.strbuilder += "_";
+            }
         }
         _ => {}
     }
+}
+
+/// In order to know when a specific tag is closed, we need to count the opening and closing tags.
+/// The `counts`s are stored in the `Dehtml` struct.
+fn pop_tag(count: &mut u32) {
+    if *count > 0 {
+        *count -= 1;
+    }
+}
+
+/// In order to know when a specific tag is closed, we need to count the opening and closing tags.
+/// The `counts`s are stored in the `Dehtml` struct.
+fn maybe_push_tag(
+    event: &BytesStart,
+    reader: &Reader<impl BufRead>,
+    tag_name: &str,
+    count: &mut u32,
+) {
+    if *count > 0 || tag_contains_attr(event, reader, tag_name) {
+        *count += 1;
+    }
+}
+
+fn tag_contains_attr(event: &BytesStart, reader: &Reader<impl BufRead>, name: &str) -> bool {
+    event.attributes().any(|r| {
+        r.map(|a| {
+            a.unescape_and_decode_value(reader)
+                .map(|v| v == name)
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
+    })
 }
 
 pub fn dehtml_manually(buf: &str) -> String {
@@ -222,21 +316,23 @@ mod tests {
                 "<a href='https://get.delta.chat/'/>",
                 "[](https://get.delta.chat/)",
             ),
-            ("", ""),
             ("<!doctype html>\n<b>fat text</b>", "*fat text*"),
             // Invalid html (at least DC should show the text if the html is invalid):
             ("<!some invalid html code>\n<b>some text</b>", "some text"),
-            ("<This text is in brackets>", "<This text is in brackets>"),
         ];
         for (input, output) in cases {
-            assert_eq!(simplify(dehtml(input), true).0, output);
+            assert_eq!(simplify(dehtml(input).unwrap(), true).0, output);
+        }
+        let none_cases = vec!["<html> </html>", ""];
+        for input in none_cases {
+            assert_eq!(dehtml(input), None);
         }
     }
 
     #[test]
     fn test_dehtml_parse_br() {
         let html = "\r\r\nline1<br>\r\n\r\n\r\rline2<br/>line3\n\r";
-        let plain = dehtml(html);
+        let plain = dehtml(html).unwrap();
 
         assert_eq!(plain, "line1\n\r\r\rline2\nline3");
     }
@@ -244,7 +340,7 @@ mod tests {
     #[test]
     fn test_dehtml_parse_href() {
         let html = "<a href=url>text</a";
-        let plain = dehtml(html);
+        let plain = dehtml(html).unwrap();
 
         assert_eq!(plain, "[text](url)");
     }
@@ -252,7 +348,7 @@ mod tests {
     #[test]
     fn test_dehtml_bold_text() {
         let html = "<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>";
-        let plain = dehtml(html);
+        let plain = dehtml(html).unwrap();
 
         assert_eq!(plain, "text *bold*<>");
     }
@@ -262,7 +358,7 @@ mod tests {
         let html =
                 "&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;";
 
-        let plain = dehtml(html);
+        let plain = dehtml(html).unwrap();
 
         assert_eq!(
             plain,
@@ -285,7 +381,19 @@ mod tests {
         </body>
         </html>
         "##;
-        let txt = dehtml(input);
+        let txt = dehtml(input).unwrap();
         assert_eq!(txt.trim(), "lots of text");
+    }
+
+    #[async_std::test]
+    async fn test_quote_div() {
+        let input = include_str!("../test-data/message/gmx-quote-body.eml");
+        let dehtml = dehtml(input).unwrap();
+        println!("{}", dehtml);
+        let (msg, forwarded, cut, top_quote) = simplify(dehtml, false);
+        assert_eq!(msg, "Test");
+        assert_eq!(forwarded, false);
+        assert_eq!(cut, false);
+        assert_eq!(top_quote.as_deref(), Some("test"));
     }
 }

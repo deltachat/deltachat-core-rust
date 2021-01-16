@@ -278,10 +278,10 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, E
         .sql
         .execute(
             "UPDATE msgs \
-             SET txt = 'DELETED', chat_id = ? \
+             SET chat_id=?, txt='', txt_raw='', from_id=0, to_id=0, param='' \
              WHERE \
              ephemeral_timestamp != 0 \
-             AND ephemeral_timestamp < ? \
+             AND ephemeral_timestamp <= ? \
              AND chat_id != ?",
             paramsv![DC_CHAT_ID_TRASH, time(), DC_CHAT_ID_TRASH],
         )
@@ -417,7 +417,7 @@ pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<O
             "SELECT id FROM msgs \
          WHERE ( \
          timestamp < ? \
-         OR (ephemeral_timestamp != 0 AND ephemeral_timestamp < ?) \
+         OR (ephemeral_timestamp != 0 AND ephemeral_timestamp <= ?) \
          ) \
          AND server_uid != 0 \
          LIMIT 1",
@@ -459,8 +459,14 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> sql::Result<()>
 
 #[cfg(test)]
 mod tests {
+    use async_std::task::sleep;
+
     use super::*;
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
+    use crate::{
+        chat::{self, Chat, ChatItem},
+        dc_tools::IsNoneOrEmpty,
+    };
 
     #[async_std::test]
     async fn test_stock_ephemeral_messages() {
@@ -524,5 +530,114 @@ mod tests {
             .await,
             "Message deletion timer is set to 4 weeks."
         );
+    }
+
+    #[async_std::test]
+    async fn test_ephemeral_timer() -> crate::error::Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let chat_bob = bob.create_chat(&alice).await.id;
+
+        // Alice sends message to Bob
+        let mut msg = Message::new(Viewtype::Text);
+        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        let sent = alice.pop_sent_msg().await;
+        bob.recv_msg(&sent).await;
+
+        // Alice sends second message to Bob, with no timer
+        let mut msg = Message::new(Viewtype::Text);
+        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        let sent = alice.pop_sent_msg().await;
+
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Disabled
+        );
+
+        // Bob sets ephemeral timer and sends a message about timer change
+        chat_bob
+            .set_ephemeral_timer(&bob.ctx, Timer::Enabled { duration: 60 })
+            .await?;
+        let sent_timer_change = bob.pop_sent_msg().await;
+
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Enabled { duration: 60 }
+        );
+
+        // Bob receives message from Alice.
+        // Alice message has no timer. However, Bob should not disable timer,
+        // because Alice replies to old message.
+        bob.recv_msg(&sent).await;
+
+        assert_eq!(
+            chat_alice.get_ephemeral_timer(&alice.ctx).await?,
+            Timer::Disabled
+        );
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Enabled { duration: 60 }
+        );
+
+        // Alice receives message from Bob
+        alice.recv_msg(&sent_timer_change).await;
+
+        assert_eq!(
+            chat_alice.get_ephemeral_timer(&alice.ctx).await?,
+            Timer::Enabled { duration: 60 }
+        );
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_ephemeral_delete_msgs() {
+        let t = TestContext::new_alice().await;
+        let chat = t.get_self_chat().await;
+
+        t.send_text(chat.id, "Saved message, which we delete manually")
+            .await;
+        let msg = t.get_last_msg_in(chat.id).await;
+        msg.id.delete_from_db(&t).await.unwrap();
+        check_msg_was_deleted(&t, &chat, msg.id).await;
+
+        chat.id
+            .set_ephemeral_timer(&t, Timer::Enabled { duration: 1 })
+            .await
+            .unwrap();
+        let msg = t
+            .send_text(chat.id, "Saved message, disappearing after 1s")
+            .await;
+
+        sleep(Duration::from_millis(1100)).await;
+
+        check_msg_was_deleted(&t, &chat, msg.sender_msg_id).await;
+    }
+
+    async fn check_msg_was_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
+        let chat_items = chat::get_chat_msgs(&t, chat.id, 0, None).await;
+        // Check that the chat is empty except for possibly info messages:
+        for item in &chat_items {
+            if let ChatItem::Message { msg_id } = item {
+                let msg = Message::load_from_db(t, *msg_id).await.unwrap();
+                assert!(msg.is_info())
+            }
+        }
+
+        // Check that if there is a message left, the text and metadata are gone
+        if let Ok(msg) = Message::load_from_db(&t, msg_id).await {
+            assert_eq!(msg.from_id, 0);
+            assert_eq!(msg.to_id, 0);
+            assert!(msg.text.is_none_or_empty(), msg.text);
+            let rawtxt: Option<String> = t
+                .sql
+                .query_get_value(&t, "SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
+                .await;
+            assert!(rawtxt.is_none_or_empty(), rawtxt);
+        }
     }
 }

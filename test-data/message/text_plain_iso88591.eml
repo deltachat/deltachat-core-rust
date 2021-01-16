@@ -1,0 +1,7 @@
+Message-Id: <lkjsdf01u@example.org>
+Date: Sat, 14 Sep 2019 19:00:13 +0200
+From: lmn <x@tux.org>
+To: abc <abc@bcd.com>
+Content-Type: text/plain; charset=iso-8859-1
+
+message with a non-UTF-8 encoding: äöüßÄÖÜ

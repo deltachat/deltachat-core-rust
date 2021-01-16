@@ -224,13 +224,13 @@ dependencies = [
 
 [[package]]
 name = "async-imap"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caadebe62f5ad78d6418a47a86b5b84439a52bdd5c893e55a5c81974da111455"
+checksum = "0bdc2bb91844456110d27da8f712f4cbc693f3538521a43cb79c6b2e6f717f3e"
 dependencies = [
  "async-native-tls",
  "async-std",
- "base64 0.12.3",
+ "base64 0.13.0",
  "byte-pool",
  "chrono",
  "futures",
@@ -445,6 +445,12 @@ name = "base64"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3441f0f7b02788e948e47f457ca01f1d7e6d92c693bc132c22b087d3141c03ff"
+
+[[package]]
+name = "base64"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
 name = "bit-set"
@@ -997,7 +1003,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.46.0"
+version = "1.50.0"
 dependencies = [
  "ansi_term 0.12.1",
  "anyhow",
@@ -1027,7 +1033,6 @@ dependencies = [
  "indexmap",
  "itertools",
  "kamadak-exif",
- "lazy_static",
  "lettre_email",
  "libc",
  "log",
@@ -1035,6 +1040,7 @@ dependencies = [
  "native-tls",
  "num-derive",
  "num-traits",
+ "once_cell",
  "percent-encoding",
  "pgp",
  "pretty_assertions",
@@ -1073,7 +1079,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.46.0"
+version = "1.50.0"
 dependencies = [
  "anyhow",
  "async-std",
@@ -1783,9 +1789,9 @@ dependencies = [
 
 [[package]]
 name = "imap-proto"
-version = "0.10.2"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16a6def1d5ac8975d70b3fd101d57953fe3278ef2ee5d7816cba54b1d1dfc22f"
+checksum = "3091b99ee5b80f9b010eb6f962af9495ad06561bf662126b077e8ca30e463182"
 dependencies = [
  "nom 5.1.2",
 ]
@@ -2288,9 +2294,9 @@ checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
 
 [[package]]
 name = "openssl-src"
-version = "111.11.0+1.1.1h"
+version = "111.13.0+1.1.1i"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "380fe324132bea01f45239fadfec9343adb044615f29930d039bec1ae7b9fa5b"
+checksum = "045e4dc48af57aad93d665885789b43222ae26f4886494da12d1ed58d309dcb6"
 dependencies = [
  "cc",
 ]
@@ -2926,9 +2932,9 @@ dependencies = [
 
 [[package]]
 name = "sanitize-filename"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23fd0fec94ec480abfd86bb8f4f6c57e0efb36dac5c852add176ea7b04c74801"
+checksum = "bf18934a12018228c5b55a6dae9df5d0641e3566b3630cb46cc55564068e7c2f"
 dependencies = [
  "lazy_static",
  "regex",

@@ -62,7 +62,7 @@ where
 mod tests {
     use super::*;
     use crate::key::{SignedPublicKey, SignedSecretKey};
-    use crate::test_utils::*;
+    use crate::test_utils::{alice_keypair, TestContext};
 
     #[test]
     fn test_keyring_add_keys() {
@@ -83,10 +83,10 @@ mod tests {
         t.configure_alice().await;
         let alice = alice_keypair();
 
-        let pub_ring: Keyring<SignedPublicKey> = Keyring::new_self(&t.ctx).await.unwrap();
+        let pub_ring: Keyring<SignedPublicKey> = Keyring::new_self(&t).await.unwrap();
         assert_eq!(pub_ring.keys(), [alice.public]);
 
-        let sec_ring: Keyring<SignedSecretKey> = Keyring::new_self(&t.ctx).await.unwrap();
+        let sec_ring: Keyring<SignedSecretKey> = Keyring::new_self(&t).await.unwrap();
         assert_eq!(sec_ring.keys(), [alice.secret]);
     }
 }

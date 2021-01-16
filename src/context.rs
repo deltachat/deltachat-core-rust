@@ -4,19 +4,19 @@ use std::ffi::OsString;
 use std::ops::Deref;
 use std::{
     collections::{BTreeMap, HashMap},
-    panic,
+    time::Instant,
 };
 
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
 use async_std::task;
 
-use crate::chat::*;
+use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
-use crate::constants::*;
-use crate::contact::*;
+use crate::constants::DC_VERSION_STR;
+use crate::contact::Contact;
 use crate::dc_tools::duration_to_str;
-use crate::error::*;
+use crate::error::{bail, ensure, Result};
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -61,6 +61,8 @@ pub struct InnerContext {
 
     pub(crate) scheduler: RwLock<Scheduler>,
     pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
+
+    pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
     /// Id for this context on the current device.
     pub(crate) id: u32,
@@ -134,6 +136,7 @@ impl Context {
             scheduler: RwLock::new(Scheduler::Stopped),
             ephemeral_task: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
+            last_full_folder_scan: Mutex::new(None),
         };
 
         let ctx = Context {
@@ -147,7 +150,7 @@ impl Context {
     /// Starts the IO scheduler.
     pub async fn start_io(&self) {
         info!(self, "starting IO");
-        if self.is_io_running().await {
+        if self.inner.is_io_running().await {
             info!(self, "IO is already running");
             return;
         }
@@ -158,18 +161,9 @@ impl Context {
         }
     }
 
-    /// Returns if the IO scheduler is running.
-    pub async fn is_io_running(&self) -> bool {
-        self.inner.is_io_running().await
-    }
-
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
         info!(self, "stopping IO");
-        if !self.is_io_running().await {
-            info!(self, "IO is not running");
-            return;
-        }
 
         self.inner.stop_io().await;
     }
@@ -472,6 +466,11 @@ impl Context {
             == Some(folder_name.as_ref().to_string())
     }
 
+    pub async fn is_spam_folder(&self, folder_name: impl AsRef<str>) -> bool {
+        self.get_config(Config::ConfiguredSpamFolder).await
+            == Some(folder_name.as_ref().to_string())
+    }
+
     pub fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
@@ -486,14 +485,19 @@ impl InnerContext {
     }
 
     async fn stop_io(&self) {
-        assert!(self.is_io_running().await, "context is already stopped");
-        let token = {
-            let lock = &*self.scheduler.read().await;
-            lock.pre_stop().await
-        };
-        {
-            let lock = &mut *self.scheduler.write().await;
-            lock.stop(token).await;
+        if self.is_io_running().await {
+            let token = {
+                let lock = &*self.scheduler.read().await;
+                lock.pre_stop().await
+            };
+            {
+                let lock = &mut *self.scheduler.write().await;
+                lock.stop(token).await;
+            }
+        }
+
+        if let Some(ephemeral_task) = self.ephemeral_task.write().await.take() {
+            ephemeral_task.cancel().await;
         }
     }
 }
@@ -516,7 +520,7 @@ pub fn get_version_str() -> &'static str {
 mod tests {
     use super::*;
 
-    use crate::test_utils::*;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_wrong_db() {
@@ -530,7 +534,7 @@ mod tests {
     #[async_std::test]
     async fn test_get_fresh_msgs() {
         let t = TestContext::new().await;
-        let fresh = t.ctx.get_fresh_msgs().await;
+        let fresh = t.get_fresh_msgs().await;
         assert!(fresh.is_empty())
     }
 
@@ -589,14 +593,14 @@ mod tests {
     #[async_std::test]
     async fn no_crashes_on_context_deref() {
         let t = TestContext::new().await;
-        std::mem::drop(t.ctx);
+        std::mem::drop(t);
     }
 
     #[async_std::test]
     async fn test_get_info() {
         let t = TestContext::new().await;
 
-        let info = t.ctx.get_info().await;
+        let info = t.get_info().await;
         assert!(info.get("database_dir").is_some());
     }
 

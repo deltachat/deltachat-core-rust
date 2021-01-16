@@ -1,11 +1,9 @@
 //! # Constants
-use deltachat_derive::*;
-use lazy_static::lazy_static;
+use deltachat_derive::{FromSql, ToSql};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-lazy_static! {
-    pub static ref DC_VERSION_STR: String = env!("CARGO_PKG_VERSION").to_string();
-}
+pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION").to_string());
 
 #[derive(
     Debug,
@@ -145,7 +143,6 @@ pub enum Chattype {
     Undefined = 0,
     Single = 100,
     Group = 120,
-    VerifiedGroup = 130,
 }
 
 impl Default for Chattype {
@@ -199,7 +196,8 @@ pub const DC_LP_AUTH_FLAGS: i32 = DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL;
 pub const DC_FETCH_EXISTING_MSGS_COUNT: i64 = 100;
 
 // max. width/height of an avatar
-pub const AVATAR_SIZE: u32 = 192;
+pub const BALANCED_AVATAR_SIZE: u32 = 256;
+pub const WORSE_AVATAR_SIZE: u32 = 128;
 
 // max. width/height of images
 pub const BALANCED_IMAGE_SIZE: u32 = 1280;
@@ -207,6 +205,11 @@ pub const WORSE_IMAGE_SIZE: u32 = 640;
 
 // this value can be increased if the folder configuration is changed and must be redone on next program start
 pub const DC_FOLDERS_CONFIGURED_VERSION: i32 = 3;
+
+// if more recipients are needed in SMTP's `RCPT TO:` header, recipient-list is splitted to chunks.
+// this does not affect MIME'e `To:` header.
+// can be overwritten by the setting `max_smtp_rcpt_to` in provider-db.
+pub const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
 
 #[derive(
     Debug,

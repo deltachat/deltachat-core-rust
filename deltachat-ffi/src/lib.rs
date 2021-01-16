@@ -25,7 +25,7 @@ use async_std::task::{block_on, spawn};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::accounts::Accounts;
-use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};
+use deltachat::chat::{ChatId, ChatVisibility, MuteDuration, ProtectionStatus};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::{Contact, Origin};
 use deltachat::context::Context;
@@ -294,16 +294,6 @@ pub unsafe extern "C" fn dc_start_io(context: *mut dc_context_t) {
     let ctx = &*context;
 
     block_on(ctx.start_io())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_is_io_running(context: *mut dc_context_t) -> libc::c_int {
-    if context.is_null() {
-        return 0;
-    }
-    let ctx = &*context;
-
-    block_on(ctx.is_io_running()) as libc::c_int
 }
 
 #[no_mangle]
@@ -808,21 +798,6 @@ pub unsafe extern "C" fn dc_add_device_msg(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_update_device_chats(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_update_device_chats()");
-        return;
-    }
-    let ctx = &mut *context;
-
-    block_on(async move {
-        ctx.update_device_chats()
-            .await
-            .unwrap_or_log_default(&ctx, "Failed to add device message")
-    })
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_was_device_msg_ever_added(
     context: *mut dc_context_t,
     label: *const libc::c_char,
@@ -1058,6 +1033,32 @@ pub unsafe extern "C" fn dc_get_next_media(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_set_chat_protection(
+    context: *mut dc_context_t,
+    chat_id: u32,
+    protect: libc::c_int,
+) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_set_chat_protection()");
+        return 0;
+    }
+    let ctx = &*context;
+    let protect = if let Some(s) = ProtectionStatus::from_i32(protect) {
+        s
+    } else {
+        warn!(ctx, "bad protect-value for dc_set_chat_protection()");
+        return 0;
+    };
+
+    block_on(async move {
+        match ChatId::new(chat_id).set_protection(&ctx, protect).await {
+            Ok(()) => 1,
+            Err(_) => 0,
+        }
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_set_chat_visibility(
     context: *mut dc_context_t,
     chat_id: u32,
@@ -1170,7 +1171,7 @@ pub unsafe extern "C" fn dc_get_chat(context: *mut dc_context_t, chat_id: u32) -
 #[no_mangle]
 pub unsafe extern "C" fn dc_create_group_chat(
     context: *mut dc_context_t,
-    verified: libc::c_int,
+    protect: libc::c_int,
     name: *const libc::c_char,
 ) -> u32 {
     if context.is_null() || name.is_null() {
@@ -1178,14 +1179,15 @@ pub unsafe extern "C" fn dc_create_group_chat(
         return 0;
     }
     let ctx = &*context;
-    let verified = if let Some(s) = contact::VerifiedStatus::from_i32(verified) {
+    let protect = if let Some(s) = ProtectionStatus::from_i32(protect) {
         s
     } else {
+        warn!(ctx, "bad protect-value for dc_create_group_chat()");
         return 0;
     };
 
     block_on(async move {
-        chat::create_group_chat(&ctx, verified, to_string_lossy(name))
+        chat::create_group_chat(&ctx, protect, to_string_lossy(name))
             .await
             .log_err(ctx, "Failed to create group chat")
             .map(|id| id.to_u32())
@@ -1375,6 +1377,20 @@ pub unsafe extern "C" fn dc_get_msg_info(
     let ctx = &*context;
 
     block_on(message::get_msg_info(&ctx, MsgId::new(msg_id))).strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_msg_html(
+    context: *mut dc_context_t,
+    msg_id: u32,
+) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_msg_html()");
+        return ptr::null_mut();
+    }
+    let ctx = &*context;
+
+    block_on(MsgId::new(msg_id).get_html(&ctx)).strdup()
 }
 
 #[no_mangle]
@@ -1715,13 +1731,15 @@ pub unsafe extern "C" fn dc_imex(
 
     let ctx = &*context;
 
-    let param1 = to_opt_string_lossy(param1);
-
-    spawn(async move {
-        imex::imex(&ctx, what, param1)
-            .await
-            .log_err(ctx, "IMEX failed")
-    });
+    if let Some(param1) = to_opt_string_lossy(param1) {
+        spawn(async move {
+            imex::imex(&ctx, what, &param1)
+                .await
+                .log_err(ctx, "IMEX failed")
+        });
+    } else {
+        eprintln!("dc_imex called without a valid directory");
+    }
 }
 
 #[no_mangle]
@@ -2399,13 +2417,13 @@ pub unsafe extern "C" fn dc_chat_can_send(chat: *mut dc_chat_t) -> libc::c_int {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_is_protected(chat: *mut dc_chat_t) -> libc::c_int {
     if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_is_verified()");
+        eprintln!("ignoring careless call to dc_chat_is_protected()");
         return 0;
     }
     let ffi_chat = &*chat;
-    ffi_chat.chat.is_verified() as libc::c_int
+    ffi_chat.chat.is_protected() as libc::c_int
 }
 
 #[no_mangle]
@@ -2720,7 +2738,7 @@ pub unsafe extern "C" fn dc_msg_get_ephemeral_timer(msg: *mut dc_msg_t) -> u32 {
         return 0;
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_ephemeral_timer()
+    ffi_msg.message.get_ephemeral_timer().to_u32()
 }
 
 #[no_mangle]
@@ -2840,6 +2858,16 @@ pub unsafe extern "C" fn dc_msg_is_info(msg: *mut dc_msg_t) -> libc::c_int {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_info_type(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_info_type()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_info_type() as libc::c_int
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg_t) -> libc::c_int {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_is_increation()");
@@ -2857,6 +2885,16 @@ pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg_t) -> libc::c_i
     }
     let ffi_msg = &*msg;
     ffi_msg.message.is_setupmessage().into()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_has_html(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_has_html()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.has_html().into()
 }
 
 #[no_mangle]
@@ -3025,6 +3063,11 @@ pub unsafe extern "C" fn dc_msg_set_quote(msg: *mut dc_msg_t, quote: *const dc_m
     }
     let ffi_msg = &mut *msg;
     let ffi_quote = &*quote;
+
+    if ffi_msg.context != ffi_quote.context {
+        eprintln!("ignoring attempt to quote message from a different context");
+        return;
+    }
 
     block_on(async move {
         ffi_msg
@@ -3386,7 +3429,7 @@ pub unsafe extern "C" fn dc_provider_new_from_email(
         return ptr::null();
     }
     let addr = to_string_lossy(addr);
-    match provider::get_provider_info(addr.as_str()) {
+    match block_on(provider::get_provider_info(addr.as_str())) {
         Some(provider) => provider,
         None => ptr::null_mut(),
     }

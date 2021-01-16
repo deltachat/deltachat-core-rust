@@ -7,7 +7,7 @@ use crate::blob::BlobObject;
 use crate::chat::ChatId;
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
-use crate::dc_tools::*;
+use crate::dc_tools::{dc_get_abs_path, improve_single_line_input};
 use crate::events::EventType;
 use crate::job;
 use crate::message::MsgId;
@@ -69,6 +69,12 @@ pub enum Config {
     #[strum(props(default = "0"))] // also change MediaQuality.default() on changes
     MediaQuality,
 
+    /// If set to "1", on the first time `start_io()` is called after configuring,
+    /// the newest existing messages are fetched.
+    /// Existing recipients are added to the contact database regardless of this setting.
+    #[strum(props(default = "1"))]
+    FetchExistingMsgs,
+
     #[strum(props(default = "0"))]
     KeyGenType,
 
@@ -110,6 +116,9 @@ pub enum Config {
     ConfiguredInboxFolder,
     ConfiguredMvboxFolder,
     ConfiguredSentboxFolder,
+    ConfiguredSpamFolder,
+    ConfiguredTimestamp,
+    ConfiguredProvider,
     Configured,
 
     #[strum(serialize = "sys.version")]
@@ -121,6 +130,8 @@ pub enum Config {
     #[strum(serialize = "sys.config_keys")]
     SysConfigKeys,
 
+    Bot,
+
     /// Whether we send a warning if the password is wrong (set to false when we send a warning
     /// because we do not want to send a second warning)
     #[strum(props(default = "0"))]
@@ -128,6 +139,13 @@ pub enum Config {
 
     /// address to webrtc instance to use for videochats
     WebrtcInstance,
+
+    /// Timestamp of the last time housekeeping was run
+    LastHousekeeping,
+
+    /// To how many seconds to debounce scan_all_folders. Used mainly in tests, to disable debouncing completely.
+    #[strum(props(default = "60"))]
+    ScanAllFoldersDebounceSecs,
 }
 
 impl Context {
@@ -161,6 +179,20 @@ impl Context {
     }
 
     pub async fn get_config_int(&self, key: Config) -> i32 {
+        self.get_config(key)
+            .await
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_default()
+    }
+
+    pub async fn get_config_i64(&self, key: Config) -> i64 {
+        self.get_config(key)
+            .await
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_default()
+    }
+
+    pub async fn get_config_u64(&self, key: Config) -> u64 {
         self.get_config(key)
             .await
             .and_then(|s| s.parse().ok())
@@ -208,7 +240,7 @@ impl Context {
                 match value {
                     Some(value) => {
                         let blob = BlobObject::new_from_path(&self, value).await?;
-                        blob.recode_to_avatar_size(self)?;
+                        blob.recode_to_avatar_size(self).await?;
                         self.sql
                             .set_raw_config(self, key, Some(blob.as_name()))
                             .await
@@ -268,8 +300,8 @@ mod tests {
     use std::string::ToString;
 
     use crate::constants;
-    use crate::constants::AVATAR_SIZE;
-    use crate::test_utils::*;
+    use crate::constants::BALANCED_AVATAR_SIZE;
+    use crate::test_utils::TestContext;
     use image::GenericImageView;
     use num_traits::FromPrimitive;
     use std::fs::File;
@@ -301,15 +333,14 @@ mod tests {
             .unwrap()
             .write_all(avatar_bytes)
             .unwrap();
-        let avatar_blob = t.ctx.get_blobdir().join("avatar.jpg");
+        let avatar_blob = t.get_blobdir().join("avatar.jpg");
         assert!(!avatar_blob.exists().await);
-        t.ctx
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         assert!(avatar_blob.exists().await);
         assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
-        let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
+        let avatar_cfg = t.get_config(Config::Selfavatar).await;
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
 
         let img = image::open(avatar_src).unwrap();
@@ -317,14 +348,14 @@ mod tests {
         assert_eq!(img.height(), 1000);
 
         let img = image::open(avatar_blob).unwrap();
-        assert_eq!(img.width(), AVATAR_SIZE);
-        assert_eq!(img.height(), AVATAR_SIZE);
+        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
+        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
     }
 
     #[async_std::test]
     async fn test_selfavatar_in_blobdir() {
         let t = TestContext::new().await;
-        let avatar_src = t.ctx.get_blobdir().join("avatar.png");
+        let avatar_src = t.get_blobdir().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar900x900.png");
         File::create(&avatar_src)
             .unwrap()
@@ -335,16 +366,15 @@ mod tests {
         assert_eq!(img.width(), 900);
         assert_eq!(img.height(), 900);
 
-        t.ctx
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
-        let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
+        let avatar_cfg = t.get_config(Config::Selfavatar).await;
         assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
 
         let img = image::open(avatar_src).unwrap();
-        assert_eq!(img.width(), AVATAR_SIZE);
-        assert_eq!(img.height(), AVATAR_SIZE);
+        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
+        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
     }
 
     #[async_std::test]
@@ -356,10 +386,9 @@ mod tests {
             .unwrap()
             .write_all(avatar_bytes)
             .unwrap();
-        let avatar_blob = t.ctx.get_blobdir().join("avatar.png");
+        let avatar_blob = t.get_blobdir().join("avatar.png");
         assert!(!avatar_blob.exists().await);
-        t.ctx
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         assert!(avatar_blob.exists().await);
@@ -367,24 +396,21 @@ mod tests {
             std::fs::metadata(&avatar_blob).unwrap().len(),
             avatar_bytes.len() as u64
         );
-        let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
+        let avatar_cfg = t.get_config(Config::Selfavatar).await;
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
     }
 
     #[async_std::test]
     async fn test_media_quality_config_option() {
         let t = TestContext::new().await;
-        let media_quality = t.ctx.get_config_int(Config::MediaQuality).await;
+        let media_quality = t.get_config_int(Config::MediaQuality).await;
         assert_eq!(media_quality, 0);
         let media_quality = constants::MediaQuality::from_i32(media_quality).unwrap_or_default();
         assert_eq!(media_quality, constants::MediaQuality::Balanced);
 
-        t.ctx
-            .set_config(Config::MediaQuality, Some("1"))
-            .await
-            .unwrap();
+        t.set_config(Config::MediaQuality, Some("1")).await.unwrap();
 
-        let media_quality = t.ctx.get_config_int(Config::MediaQuality).await;
+        let media_quality = t.get_config_int(Config::MediaQuality).await;
         assert_eq!(media_quality, 1);
         assert_eq!(constants::MediaQuality::Worse as i32, 1);
         let media_quality = constants::MediaQuality::from_i32(media_quality).unwrap_or_default();

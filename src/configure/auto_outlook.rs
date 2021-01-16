@@ -187,9 +187,8 @@ fn protocols_to_serverparams(protocols: Vec<ProtocolTag>) -> Vec<ServerParams> {
 
 pub(crate) async fn outlk_autodiscover(
     context: &Context,
-    url: &str,
+    mut url: String,
 ) -> Result<Vec<ServerParams>, Error> {
-    let mut url = url.to_string();
     /* Follow up to 10 xml-redirects (http-redirects are followed in read_url() */
     for _i in 0..10 {
         let xml_raw = read_url(context, &url).await?;

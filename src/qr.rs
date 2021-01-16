@@ -1,20 +1,20 @@
 //! # QR code module
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 
 use crate::chat;
-use crate::config::*;
+use crate::config::Config;
 use crate::constants::Blocked;
-use crate::contact::*;
+use crate::contact::{addr_normalize, may_be_valid_addr, Contact, Origin};
 use crate::context::Context;
 use crate::error::{bail, ensure, format_err, Error};
 use crate::key::Fingerprint;
 use crate::lot::{Lot, LotState};
 use crate::message::Message;
-use crate::param::*;
-use crate::peerstate::*;
+use crate::param::{Param, Params};
+use crate::peerstate::Peerstate;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
@@ -358,12 +358,10 @@ async fn decode_matmsg(context: &Context, qr: &str) -> Lot {
     Lot::from_address(context, name, addr).await
 }
 
-lazy_static! {
-    static ref VCARD_NAME_RE: regex::Regex =
-        regex::Regex::new(r"(?m)^N:([^;]*);([^;\n]*)").unwrap();
-    static ref VCARD_EMAIL_RE: regex::Regex =
-        regex::Regex::new(r"(?m)^EMAIL([^:\n]*):([^;\n]*)").unwrap();
-}
+static VCARD_NAME_RE: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"(?m)^N:([^;]*);([^;\n]*)").unwrap());
+static VCARD_EMAIL_RE: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"(?m)^EMAIL([^:\n]*):([^;\n]*)").unwrap());
 
 /// Extract address for the matmsg scheme.
 ///

@@ -61,11 +61,12 @@ impl Imap {
 
     /// select a folder, possibly update uid_validity and, if needed,
     /// expunge the folder to remove delete-marked messages.
+    /// Returns whether a new folder was selected.
     pub(super) async fn select_folder<S: AsRef<str>>(
         &mut self,
         context: &Context,
         folder: Option<S>,
-    ) -> Result<()> {
+    ) -> Result<NewlySelected> {
         if self.session.is_none() {
             self.config.selected_folder = None;
             self.config.selected_folder_needs_expunge = false;
@@ -78,7 +79,7 @@ impl Imap {
         if let Some(ref folder) = folder {
             if let Some(ref selected_folder) = self.config.selected_folder {
                 if folder.as_ref() == selected_folder {
-                    return Ok(());
+                    return Ok(NewlySelected::No);
                 }
             }
         }
@@ -99,7 +100,7 @@ impl Imap {
                     Ok(mailbox) => {
                         self.config.selected_folder = Some(folder.as_ref().to_string());
                         self.config.selected_mailbox = Some(mailbox);
-                        Ok(())
+                        Ok(NewlySelected::Yes)
                     }
                     Err(async_imap::error::Error::ConnectionLost) => {
                         self.trigger_reconnect();
@@ -119,7 +120,15 @@ impl Imap {
                 Err(Error::NoSession)
             }
         } else {
-            Ok(())
+            Ok(NewlySelected::No)
         }
     }
+}
+#[derive(PartialEq, Debug, Copy, Clone, Eq)]
+pub(super) enum NewlySelected {
+    /// The folder was newly selected during this call to select_folder().
+    Yes,
+    /// No SELECT command was run because the folder already was selected
+    /// and self.config.selected_mailbox was not updated (so, e.g. it may contain an outdated uid_next)
+    No,
 }

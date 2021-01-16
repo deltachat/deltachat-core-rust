@@ -330,6 +330,13 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             return accounts
 
         def clone_online_account(self, account, pre_generated_key=True):
+            """ Clones addr, mail_pw, mvbox_watch, mvbox_move, sentbox_watch and the
+            direct_imap object of an online account. This simulates the user setting
+            up a new device without importing a backup.
+
+            `pre_generated_key` only means that a key from python/tests/data/key is
+            used in order to speed things up.
+            """
             self.live_count += 1
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
@@ -352,17 +359,22 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
         def wait_configure_and_start_io(self):
             started_accounts = []
             for acc in self._accounts:
-                if hasattr(acc, "_configtracker"):
-                    acc._configtracker.wait_finish()
-                    del acc._configtracker
+                self.wait_configure(acc)
                 acc.set_config("bcc_self", "0")
-                if acc.is_configured() and not acc.is_started():
+                if acc.is_configured() and acc not in started_accounts:
                     acc.start_io()
                     started_accounts.append(acc)
                 print("{}: {} account was successfully setup".format(
                     acc.get_config("displayname"), acc.get_config("addr")))
             for acc in started_accounts:
                 acc._evtracker.wait_all_initial_fetches()
+
+        def wait_configure(self, acc):
+            if hasattr(acc, "_configtracker"):
+                acc._configtracker.wait_finish()
+                acc._evtracker.consume_events()
+                acc.get_device_chat().mark_noticed()
+                del acc._configtracker
 
         def run_bot_process(self, module, ffi=True):
             fn = module.__file__
@@ -500,6 +512,9 @@ def lp():
 
         def step(self, msg):
             print("-" * 5, "step " + msg, "-" * 5)
+
+        def indent(self, msg):
+            print("  " + msg)
 
     return Printer()
 
