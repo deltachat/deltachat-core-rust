@@ -16,8 +16,7 @@ use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
-use crate::key::{self, DcKey, Fingerprint, FingerprintError, SignedPublicKey};
-use crate::lot::{Lot, LotState};
+use crate::key::{self, DcKey, Fingerprint, SignedPublicKey};
 use crate::message::Message;
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
@@ -26,6 +25,10 @@ use crate::qr::check_qr;
 use crate::sql;
 use crate::stock::StockMessage;
 use crate::token;
+
+mod qrinvite;
+
+use qrinvite::{QrError, QrInvite};
 
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
@@ -557,108 +560,6 @@ impl BobHandshakeMsg {
             },
         }
     }
-}
-
-/// Represents the data from a QR-code scan.
-///
-/// There are methods to conveniently access fields present in both variants.
-#[derive(Debug, Clone)]
-enum QrInvite {
-    Contact {
-        contact_id: u32,
-        fingerprint: Fingerprint,
-        invitenumber: String,
-        authcode: String,
-    },
-    Group {
-        contact_id: u32,
-        fingerprint: Fingerprint,
-        name: String,
-        grpid: String,
-        invitenumber: String,
-        authcode: String,
-    },
-}
-
-impl QrInvite {
-    /// The contact ID of the inviter.
-    ///
-    /// The actual QR-code contains a URL-encoded email address, but upon scanning this is
-    /// currently translated to a contact ID.
-    fn contact_id(&self) -> u32 {
-        match self {
-            Self::Contact { contact_id, .. } | Self::Group { contact_id, .. } => *contact_id,
-        }
-    }
-
-    /// The fingerprint of the inviter.
-    fn fingerprint(&self) -> &Fingerprint {
-        match self {
-            Self::Contact { fingerprint, .. } | Self::Group { fingerprint, .. } => &fingerprint,
-        }
-    }
-
-    /// The `INVITENUMBER` of the setup-contact/secure-join protocol.
-    fn invitenumber(&self) -> &str {
-        match self {
-            Self::Contact { invitenumber, .. } | Self::Group { invitenumber, .. } => &invitenumber,
-        }
-    }
-
-    /// The `AUTH` code of the setup-contact/secure-join protocol.
-    fn authcode(&self) -> &str {
-        match self {
-            Self::Contact { authcode, .. } | Self::Group { authcode, .. } => &authcode,
-        }
-    }
-}
-
-impl TryFrom<Lot> for QrInvite {
-    type Error = QrError;
-
-    fn try_from(lot: Lot) -> Result<Self, Self::Error> {
-        if lot.state != LotState::QrAskVerifyContact && lot.state != LotState::QrAskVerifyGroup {
-            return Err(QrError::UnsupportedProtocol);
-        }
-        let fingerprint = lot.fingerprint.ok_or(QrError::MissingFingerprint)?;
-        let invitenumber = lot.invitenumber.ok_or(QrError::MissingInviteNumber)?;
-        let authcode = lot.auth.ok_or(QrError::MissingAuthCode)?;
-        match lot.state {
-            LotState::QrAskVerifyContact => Ok(QrInvite::Contact {
-                contact_id: lot.id,
-                fingerprint,
-                invitenumber,
-                authcode,
-            }),
-            LotState::QrAskVerifyGroup => Ok(QrInvite::Group {
-                contact_id: lot.id,
-                fingerprint,
-                name: lot.text1.ok_or(QrError::MissingGroupName)?,
-                grpid: lot.text2.ok_or(QrError::MissingGroupId)?,
-                invitenumber,
-                authcode,
-            }),
-            _ => Err(QrError::UnsupportedProtocol),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum QrError {
-    #[error("Unsupported protocol in QR-code")]
-    UnsupportedProtocol,
-    #[error("Failed to read fingerprint")]
-    InvalidFingerprint(#[from] FingerprintError),
-    #[error("Missing fingerprint")]
-    MissingFingerprint,
-    #[error("Missing invitenumber")]
-    MissingInviteNumber,
-    #[error("Missing auth code")]
-    MissingAuthCode,
-    #[error("Missing group name")]
-    MissingGroupName,
-    #[error("Missing group id")]
-    MissingGroupId,
 }
 
 /// The next message expected by [`BobState`] in the setup-contact/secure-join protocol.
