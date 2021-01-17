@@ -2803,10 +2803,27 @@ pub unsafe extern "C" fn dc_msg_get_override_sender_name(msg: *mut dc_msg_t) -> 
     }
     let ffi_msg = &mut *msg;
 
-    match block_on(ffi_msg.message.get_override_sender_name()) {
-        Some(name) => name.strdup(),
-        None => ptr::null_mut(),
+    ffi_msg.message.get_override_sender_name().strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_sender_first_name(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_override_sender_name()");
+        return "".strdup();
     }
+    let ffi_msg = &mut *msg;
+    let ctx = &*ffi_msg.context;
+    let res = block_on(Contact::load_from_db(ctx, ffi_msg.message.get_from_id()));
+    let contact = match res {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(ctx, "Can't load contact: {}", e);
+            return ptr::null_mut();
+        }
+    };
+
+    ffi_msg.message.get_sender_first_name(&contact).strdup()
 }
 
 #[no_mangle]

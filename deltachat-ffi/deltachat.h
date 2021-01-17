@@ -3438,7 +3438,16 @@ char*           dc_msg_get_summarytext        (const dc_msg_t* msg, int approx_c
  *     The returned string must be released using dc_str_unref().
  *     Returns an empty string on errors, never returns NULL.
  */
-char*           dc_msg_get_override_sender_name       (const dc_msg_t* msg);
+char*           dc_msg_get_override_sender_name(const dc_msg_t* msg);
+
+
+/**
+ * Like dc_contact_get_first_name() but handles mailing lists correctly.
+ * This function involves reading from the database; if performance matters (e.g. in a list
+ * where the user might scroll very fast), consider using dc_msg_get_override_sender_name()
+ * and dc_contact_get_display_name() instead.
+ */
+char*           dc_msg_get_sender_first_name   (const dc_msg_t* msg);
 
 
 /**
@@ -3991,6 +4000,9 @@ char*           dc_contact_get_name_n_addr   (const dc_contact_t* contact);
  * Get the part of the name before the first space. In most languages, this seems to be
  * the prename. If there is no space, the full display name is returned.
  * If the display name is not set, the e-mail address is returned.
+ *
+ * Don't use this for a special message (e.g. in notifications). Use
+ * dc_msg_get_sender_first_name() instead.
  *
  * @memberof dc_contact_t
  * @param contact The contact object.

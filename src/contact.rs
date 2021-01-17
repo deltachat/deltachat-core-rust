@@ -1058,7 +1058,7 @@ impl Contact {
 }
 
 /// Extracts first name from full name.
-fn get_first_name(full_name: &str) -> &str {
+pub(crate) fn get_first_name(full_name: &str) -> &str {
     full_name.splitn(2, ' ').next().unwrap_or_default()
 }
 

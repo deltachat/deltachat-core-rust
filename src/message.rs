@@ -5,7 +5,6 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, VideochatType, Viewtype, DC_CHAT_ID_DEADDROP, DC_CHAT_ID_TRASH,
@@ -27,6 +26,10 @@ use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
 use crate::stock::StockMessage;
+use crate::{
+    chat::{self, Chat, ChatId},
+    contact,
+};
 use std::collections::BTreeMap;
 
 // In practice, the user additionally cuts the string themselves
@@ -619,6 +622,8 @@ impl Message {
     //   call everytime (and this fn is called a lot while the user is scrolling through a group), so performance would be bad
     // - We could pass both a Contact struct and a Message struct in the FFI, but at least on Android we would need to handle raw
     //   C-data in the Java code (i.e. a `long` storing a C pointer)
+    // - We can't make a param `SenderDisplayname` for messages as sometimes the display name of a contact changes, and we want to show
+    //   the same display name over all messages from the same sender.
     pub fn get_override_sender_name(&self) -> Option<String> {
         if let Some(name) = self.param.get(Param::OverrideSenderDisplayname) {
             Some(name.to_string())
@@ -629,9 +634,16 @@ impl Message {
 
     // Exposing this function over the ffi instead of get_override_sender_name() would mean that at least Android Java code has
     // to handle raw C-data (as it is done for dc_msg_get_summary())
-    pub async fn get_sender_name(&self, contact: Contact) -> String {
+    pub fn get_sender_name(&self, contact: &Contact) -> String {
         self.get_override_sender_name()
             .unwrap_or_else(|| contact.get_display_name().to_string())
+    }
+
+    pub fn get_sender_first_name(&self, contact: &Contact) -> String {
+        match self.get_override_sender_name() {
+            Some(name) => contact::get_first_name(&name).to_string(),
+            None => contact.get_first_name().to_string(),
+        }
     }
 
     pub fn has_deviating_timestamp(&self) -> bool {
@@ -1140,7 +1152,7 @@ impl Lot {
                         self.text1 = None;
                     }
                 } else if let Some(contact) = contact {
-                    self.text1 = Some(contact.get_first_name().into());
+                    self.text1 = Some(msg.get_sender_first_name(contact));
                 } else {
                     self.text1 = None;
                 }
