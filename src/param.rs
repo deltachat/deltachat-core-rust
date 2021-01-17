@@ -24,7 +24,7 @@ pub enum Param {
 
     /// For messages: This name should be shown instead of contact.get_display_name()
     /// (used if this is a mailinglist)
-    OverrideDisplayname = b'O',
+    OverrideSenderDisplayname = b'O',
 
     /// For Messages
     Width = b'w',

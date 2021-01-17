@@ -2796,15 +2796,17 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_sender_name(msg: *mut dc_msg_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_msg_get_override_sender_name(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_get_sender_name()");
+        eprintln!("ignoring careless call to dc_msg_get_override_sender_name()");
         return "".strdup();
     }
     let ffi_msg = &mut *msg;
-    let ctx = &*ffi_msg.context;
 
-    block_on(ffi_msg.message.get_sender_name(&ctx)).strdup()
+    match block_on(ffi_msg.message.get_override_sender_name()) {
+        Some(name) => name.strdup(),
+        None => ptr::null_mut(),
+    }
 }
 
 #[no_mangle]

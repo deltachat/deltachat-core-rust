@@ -613,18 +613,25 @@ impl Message {
         .await
     }
 
-    pub async fn get_sender_name(&self, context: &Context) -> String {
-        if let Some(name) = self.param.get(Param::OverrideDisplayname) {
-            name.to_string()
+    // It's a little unfortunate that the UI has to first call dc_msg_get_override_sender_name() and then if it was NULL, call
+    // dc_contact_get_display_name() but this was the best solution:
+    // - We could load a Contact struct from the db here to call get_display_name() instead of returning None, but then we had a db
+    //   call everytime (and this fn is called a lot while the user is scrolling through a group), so performance would be bad
+    // - We could pass both a Contact struct and a Message struct in the FFI, but at least on Android we would need to handle raw
+    //   C-data in the Java code (i.e. a `long` storing a C pointer)
+    pub fn get_override_sender_name(&self) -> Option<String> {
+        if let Some(name) = self.param.get(Param::OverrideSenderDisplayname) {
+            Some(name.to_string())
         } else {
-            match Contact::load_from_db(context, self.from_id).await {
-                Err(e) => {
-                    warn!(context, "can't load contact: {}", e);
-                    "".to_string()
-                }
-                Ok(c) => c.get_display_name().to_string(),
-            }
+            None
         }
+    }
+
+    // Exposing this function over the ffi instead of get_override_sender_name() would mean that at least Android Java code has
+    // to handle raw C-data (as it is done for dc_msg_get_summary())
+    pub async fn get_sender_name(&self, contact: Contact) -> String {
+        self.get_override_sender_name()
+            .unwrap_or_else(|| contact.get_display_name().to_string())
     }
 
     pub fn has_deviating_timestamp(&self) -> bool {
@@ -1128,7 +1135,7 @@ impl Lot {
             } else {
                 if chat.id.is_deaddrop() {
                     if let Some(contact) = contact {
-                        self.text1 = Some(contact.get_display_name().into());
+                        self.text1 = Some(msg.get_sender_name(contact));
                     } else {
                         self.text1 = None;
                     }

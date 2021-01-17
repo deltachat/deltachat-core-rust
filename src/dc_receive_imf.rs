@@ -533,7 +533,7 @@ async fn add_parts(
                 if let Some(from) = mime_parser.from.first() {
                     if let Some(from_name) = &from.display_name {
                         for part in mime_parser.parts.iter_mut() {
-                            part.param.set(Param::OverrideDisplayname, from_name);
+                            part.param.set(Param::OverrideSenderDisplayname, from_name);
                         }
                     }
                 }
@@ -2903,8 +2903,11 @@ mod tests {
                 .unwrap(),
             &chat_id.to_u32().to_string()
         );
-        assert_eq!(msg1.get_sender_name(&t.ctx).await, "Max Mustermann");
-        assert_eq!(msg2.get_sender_name(&t.ctx).await, "Github");
+        assert_eq!(
+            msg1.get_override_sender_name().await.unwrap(),
+            "Max Mustermann"
+        );
+        assert_eq!(msg2.get_override_sender_name().await.unwrap(), "Github");
     }
 
     static DC_MAILINGLIST: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\

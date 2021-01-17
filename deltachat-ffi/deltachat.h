@@ -3425,17 +3425,20 @@ char*           dc_msg_get_summarytext        (const dc_msg_t* msg, int approx_c
 
 
 /**
- * Get the name that should be shown over the message (in a group chat)
- * Usually the displayname of the contact the message is from,
- * but if this is a mailing list, this may be different.
+ * Get the name that should be shown over the message (in a group chat) instead of the contact
+ * display name.
+ *
+ * In mailing lists, sender display name and sender address do not always belong together.
+ * In this case, this function gives you the name that should actually be shown over the message.
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return the name to show over this message
+ * @return the name to show over this message or NULL.
+ *     If this returns NULL, call `dc_contact_get_display_name()`.
  *     The returned string must be released using dc_str_unref().
  *     Returns an empty string on errors, never returns NULL.
  */
-char*           dc_msg_get_sender_name       (const dc_msg_t* msg);
+char*           dc_msg_get_override_sender_name       (const dc_msg_t* msg);
 
 
 /**
@@ -3873,7 +3876,7 @@ dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
  * @memberof dc_msg_t
  * @return 1 if this message belongs to a mailing list, 0 otherwise.
  */
-int             dc_msg_is_mailing_list              (const dc_chat_t* chat);
+int             dc_msg_is_mailing_list        (const dc_chat_t* msg);
 
 
 /**
@@ -3955,6 +3958,9 @@ char*           dc_contact_get_name          (const dc_contact_t* contact);
  *
  * This name is typically used in lists.
  * To get the name editable in a formular, use dc_contact_get_name().
+ *
+ * In a group, you should show the sender's name over a message. To get it, call dc_msg_get_override_sender_name()
+ * first and if it returns NULL, call dc_contact_get_display_name().
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
