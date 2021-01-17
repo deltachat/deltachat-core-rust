@@ -2903,11 +2903,8 @@ mod tests {
                 .unwrap(),
             &chat_id.to_u32().to_string()
         );
-        assert_eq!(
-            msg1.get_override_sender_name().await.unwrap(),
-            "Max Mustermann"
-        );
-        assert_eq!(msg2.get_override_sender_name().await.unwrap(), "Github");
+        assert_eq!(msg1.get_override_sender_name().unwrap(), "Max Mustermann");
+        assert_eq!(msg2.get_override_sender_name().unwrap(), "Github");
     }
 
     static DC_MAILINGLIST: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\

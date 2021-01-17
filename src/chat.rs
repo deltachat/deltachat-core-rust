@@ -2164,6 +2164,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         "invalid contact_id {} for adding to group",
         contact_id
     );
+    ensure!(!chat.is_mailing_list(), "Mailing lists can't be changed");
 
     if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF as u32).await {
         /* we should respect this - whatever we send to the group, it gets discarded anyway! */
@@ -2546,7 +2547,7 @@ pub async fn set_chat_name(
                 .await
                 .is_ok()
             {
-                if chat.is_promoted() {
+                if chat.is_promoted() && !chat.is_mailing_list() {
                     msg.viewtype = Viewtype::Text;
                     msg.text = Some(
                         context
@@ -2638,7 +2639,7 @@ pub async fn set_chat_profile_image(
         );
     }
     chat.update_param(context).await?;
-    if chat.is_promoted() {
+    if chat.is_promoted() && !chat.is_mailing_list() {
         msg.id = send_msg(context, chat_id, &mut msg).await?;
         emit_event!(
             context,

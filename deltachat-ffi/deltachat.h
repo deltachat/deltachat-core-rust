@@ -3885,7 +3885,7 @@ dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
  * @memberof dc_msg_t
  * @return 1 if this message belongs to a mailing list, 0 otherwise.
  */
-int             dc_msg_is_mailing_list        (const dc_chat_t* msg);
+int             dc_msg_is_mailing_list        (const dc_msg_t* msg);
 
 
 /**
