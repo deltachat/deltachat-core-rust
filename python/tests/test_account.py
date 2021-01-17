@@ -1134,9 +1134,10 @@ class TestOnlineAccount:
 
     def test_dont_show_emails_in_draft_folder(self, acfactory):
         """Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them.
-        So: If there is no Received header AND it's not in the sentbox, then ignore the email."""
+        So: If it's outgoing AND there is no Received header AND it's not in the sentbox, then ignore the email."""
         ac1 = acfactory.get_online_configuring_account()
         ac1.set_config("show_emails", "2")
+        ac1.create_contact("alice@example.com").create_chat()
 
         acfactory.wait_configure(ac1)
         ac1.direct_imap.create_folder("Drafts")
@@ -1148,23 +1149,23 @@ class TestOnlineAccount:
         ac1.stop_io()
 
         ac1.direct_imap.append("Drafts", """
-            From: Bob <bob@example.org>
+            From: ac1 <{}>
             Subject: subj
             To: alice@example.com
             Message-ID: <aepiors@example.org>
             Content-Type: text/plain; charset=utf-8
 
             message in Drafts
-        """)
+        """.format(ac1.get_config("configured_addr")))
         ac1.direct_imap.append("Sent", """
-            From: Bob <bob@example.org>
+            From: ac1 <{}>
             Subject: subj
             To: alice@example.com
             Message-ID: <hsabaeni@example.org>
             Content-Type: text/plain; charset=utf-8
 
             message in Sent
-        """)
+        """.format(ac1.get_config("configured_addr")))
 
         ac1.set_config("scan_all_folders_debounce_secs", "0")
         ac1.start_io()
