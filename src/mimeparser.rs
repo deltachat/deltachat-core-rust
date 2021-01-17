@@ -69,6 +69,10 @@ pub struct MimeMessage {
     // if this flag is set, the parts/text/etc. are just close to the original mime-message;
     // clients should offer a way to view the original message in this case
     pub is_mime_modified: bool,
+
+    // this is non-empty only if the message was actually encrypted.
+    // used to save the decrypted, raw mime structure as needed eg. for late-parsing HTML.
+    pub decoded_data: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -136,7 +140,7 @@ impl MimeMessage {
         headers.remove("chat-verified");
 
         // Memory location for a possible decrypted message.
-        let mail_raw;
+        let mut mail_raw = Vec::new();
         let mut gossipped_addr = Default::default();
 
         let (mail, signatures, warn_empty_signature) =
@@ -228,6 +232,7 @@ impl MimeMessage {
             group_avatar: None,
             failure_report: None,
             is_mime_modified: false,
+            decoded_data: mail_raw.clone(),
         };
         parser.parse_mime_recursive(context, &mail).await?;
         parser.maybe_remove_bad_parts();

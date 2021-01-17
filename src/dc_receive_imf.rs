@@ -822,16 +822,16 @@ async fn add_parts(
     // if indicated by the parser,
     // we save the full mime-message and add a flag
     // that the ui should show button to display the full message.
-    //
-    // (currently, we skip saving mime-messages for encrypted messages
-    // as there is probably no huge intersection between html-messages and encrypted messages,
-    // however, that should be doable, we need the decrypted mime-structure in this case)
 
     // a flag used to avoid adding "show full message" button to multiple parts of the message.
-    let mut save_mime_modified = mime_parser.is_mime_modified && !mime_parser.was_encrypted();
+    let mut save_mime_modified = mime_parser.is_mime_modified;
 
     let mime_headers = if save_mime_headers || save_mime_modified {
-        Some(String::from_utf8_lossy(imf_raw).to_string())
+        if mime_parser.was_encrypted() {
+            Some(String::from_utf8_lossy(&mime_parser.decoded_data).to_string())
+        } else {
+            Some(String::from_utf8_lossy(imf_raw).to_string())
+        }
     } else {
         None
     };
