@@ -232,7 +232,7 @@ impl MimeMessage {
             group_avatar: None,
             failure_report: None,
             is_mime_modified: false,
-            decoded_data: mail_raw.clone(),
+            decoded_data: Vec::new(),
         };
         parser.parse_mime_recursive(context, &mail).await?;
         parser.maybe_remove_bad_parts();
@@ -243,6 +243,10 @@ impl MimeMessage {
             for part in parser.parts.iter_mut() {
                 part.error = Some("No valid signature".to_string());
             }
+        }
+
+        if parser.is_mime_modified {
+            parser.decoded_data = mail_raw;
         }
 
         Ok(parser)
