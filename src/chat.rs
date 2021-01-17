@@ -1060,6 +1060,12 @@ impl Chat {
             EphemeralTimer::Enabled { duration } => time() + i64::from(duration),
         };
 
+        let new_mime_headers = if msg.param.exists(Param::Forwarded) && msg.mime_modified {
+            msg.get_id().get_html_as_rawmime(context).await
+        } else {
+            None
+        };
+
         // add message to the database
 
         if context
@@ -1078,10 +1084,12 @@ impl Chat {
                         hidden,
                         mime_in_reply_to,
                         mime_references,
+                        mime_modified,
+                        mime_headers,
                         location_id,
                         ephemeral_timer,
                         ephemeral_timestamp)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
                 paramsv![
                     new_rfc724_mid,
                     self.id,
@@ -1095,6 +1103,8 @@ impl Chat {
                     msg.hidden,
                     msg.in_reply_to.as_deref().unwrap_or_default(),
                     new_references,
+                    new_mime_headers.is_some(),
+                    new_mime_headers,
                     location_id as i32,
                     ephemeral_timer,
                     ephemeral_timestamp
