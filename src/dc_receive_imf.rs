@@ -3051,6 +3051,54 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_dont_show_tokens_in_contacts_list() {
+        check_dont_show_in_contacts_list(
+            "reply+OGHVYCLVBEGATYBICAXBIRQATABUOTUCERABERAHNO@reply.github.com",
+        )
+        .await;
+    }
+
+    #[async_std::test]
+    async fn test_dont_show_noreply_in_contacts_list() {
+        check_dont_show_in_contacts_list("noreply@github.com").await;
+    }
+
+    async fn check_dont_show_in_contacts_list(addr: &str) {
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+        dc_receive_imf(
+            &t,
+            format!(
+                "Subject: Re: [deltachat/deltachat-core-rust] DC is the best repo on GitHub!
+To: {}
+References: <deltachat/deltachat-core-rust/pull/1625@github.com>
+ <deltachat/deltachat-core-rust/pull/1625/c644661857@github.com>
+From: alice@example.com
+Message-ID: <d2717387-0ba7-7b60-9b09-fd89a76ea8a0@gmx.de>
+Date: Tue, 16 Jun 2020 12:04:20 +0200
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+YEAAAAAA!.
+",
+                addr
+            )
+            .as_bytes(),
+            "Sent",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let contacts = Contact::get_all(&t, 0, None as Option<&str>).await.unwrap();
+        assert!(contacts.is_empty()); // The contact should not have been added to the db
+    }
+
+    #[async_std::test]
     async fn test_pdf_filename_simple() {
         let t = TestContext::new_alice().await;
         let msg = load_imf_email(

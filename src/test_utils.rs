@@ -391,7 +391,6 @@ pub(crate) fn bob_keypair() -> key::KeyPair {
     }
 }
 
-// TODO duplicate of get_last_msg_in()?
 #[allow(clippy::indexing_slicing)]
 pub(crate) async fn get_chat_msg(
     t: &TestContext,

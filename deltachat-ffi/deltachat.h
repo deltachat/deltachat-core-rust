@@ -1540,7 +1540,7 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  *
  * @deprecated Use dc_decide_on_contact_request() if the user just hit "Not now" on a button in the deaddrop,
  *      dc_marknoticed_chat() if the user has entered a chat
- *      and dc_markseen_msgs() if the user actually _saw_ a message. // TODO really? What should the code do when a message is seen in deaddrop?
+ *      and dc_markseen_msgs() if the user actually _saw_ a message.
  * @memberof dc_context_t
  * @param context The context object.
  * @param contact_id The contact ID of which all messages should be marked as noticed.

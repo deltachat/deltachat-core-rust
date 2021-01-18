@@ -82,6 +82,9 @@ pub struct Contact {
 pub enum Origin {
     Unknown = 0,
 
+    /// Hidden on purpose, e.g. addresses with the word "noreply" in it
+    Hidden = 0x8,
+
     /// From: of incoming messages of unknown sender
     IncomingUnknownFrom = 0x10,
 
@@ -345,7 +348,7 @@ impl Contact {
         context: &Context,
         name: impl AsRef<str>,
         addr: impl AsRef<str>,
-        origin: Origin,
+        mut origin: Origin,
     ) -> Result<(u32, Modifier)> {
         let mut sth_modified = Modifier::None;
 
@@ -379,6 +382,23 @@ impl Contact {
             bail!("Bad address supplied: {:?}", addr);
         }
 
+        let mut name = name.as_ref();
+        if origin <= Origin::OutgoingTo {
+            if addr.contains("noreply")
+                || addr.starts_with("notifications@")
+                || (addr.len() > 50 && addr.contains('+'))
+            // Filter out email addresses where the user accidentally wrote to
+            // and use-once addresses (like reply+AEJ...@reply.github.com)
+            {
+                info!(context, "hiding contact {}", addr);
+                origin = Origin::Hidden;
+                // For these kind of email addresses, sender and address often don't belong together
+                // (like hocuri <notifications@github.com>). In this example, hocuri shouldn't
+                // be saved as the displayname for notifications@github.com.
+                name = "";
+            }
+        }
+
         let mut update_addr = false;
         let mut update_name = false;
         let mut update_authname = false;
@@ -394,17 +414,17 @@ impl Contact {
                 let row_origin: Origin = row.get(3)?;
                 let row_authname: String = row.get(4)?;
 
-                if !name.as_ref().is_empty() {
+                if !name.is_empty() {
                     if !row_name.is_empty() {
                         if (origin >= row_origin || row_name == row_authname)
-                            && name.as_ref() != row_name
+                            && name != row_name
                         {
                             update_name = true;
                         }
                     } else {
                         update_name = true;
                     }
-                    if origin == Origin::IncomingUnknownFrom && name.as_ref() != row_authname {
+                    if origin == Origin::IncomingUnknownFrom && name != row_authname {
                         update_authname = true;
                     }
                 } else if origin == Origin::ManuallyCreated && !row_authname.is_empty() {
@@ -422,8 +442,8 @@ impl Contact {
             }
             if update_name || update_authname || update_addr || origin > row_origin {
                 let new_name = if update_name {
-                    if !name.as_ref().is_empty() {
-                        name.as_ref().to_string()
+                    if !name.is_empty() {
+                        name.to_string()
                     } else {
                         row_authname.clone()
                     }
@@ -444,7 +464,7 @@ impl Contact {
                                 row_origin
                             },
                             if update_authname {
-                                name.as_ref().to_string()
+                                name.to_string()
                             } else {
                                 row_authname
                             },
@@ -484,10 +504,10 @@ impl Contact {
                 .execute(
                     "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);",
                     paramsv![
-                        name.as_ref().to_string(),
+                        name.to_string(),
                         addr,
                         origin,
-                        if update_authname { name.as_ref().to_string() } else { "".to_string() }
+                        if update_authname { name.to_string() } else { "".to_string() }
                     ],
                 )
                 .await
