@@ -64,7 +64,10 @@ pub struct InnerContext {
 
     pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
-    /// Id for this context on the current device.
+    /// ID for this `Context` in the current process.
+    ///
+    /// This allows for multiple `Context`s open in a single process where each context can
+    /// be identified by this ID.
     pub(crate) id: u32,
 
     creation_time: SystemTime,
