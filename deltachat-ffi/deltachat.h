@@ -274,7 +274,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `displayname`  = Own name to use when sending messages.  MUAs are allowed to spread this way e.g. using CC, defaults to empty
- * - `selfstatus`   = Own status to display e.g. in email footers, defaults to a standard text
+ * - `selfstatus`   = Own status to display e.g. in email footers, defaults to a standard text defined by #DC_STR_STATUSLINE
  * - `selfavatar`   = File containing avatar. Will immediately be copied to the 
  *                    `blobdir`; the original image will not be needed anymore.
  *                    NULL to remove the avatar.
@@ -388,7 +388,7 @@ char*           dc_get_config                (dc_context_t* context, const char*
  *
  * @memberof dc_context_t
  * @param context The context object
- * @param stock_id   the integer id of the stock message (DC_STR_*)
+ * @param stock_id   the integer id of the stock message, one of the @ref DC_STR constants
  * @param stock_msg  the message to be used
  * @return int (==0 on error, 1 on success)
  */
@@ -1463,16 +1463,16 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * Taking care of these parts
  * while maintaining compatibility with the then generated HTML-code
  * is not easily doable, if at all.
- * Eg. taking care of tags and attributes is not sufficient,
- * we would have to deal with linked content (eg. script, css),
- * text (eg. script-blocks) and values (eg. javascript-protocol) as well;
+ * E.g. taking care of tags and attributes is not sufficient,
+ * we would have to deal with linked content (e.g. script, css),
+ * text (e.g. script-blocks) and values (e.g. javascript-protocol) as well;
  * on this level, we have to deal with encodings, browser peculiarities and so on -
  * and would still risk to oversee something and to break things.
  *
  * To avoid starting this cat-and-mouse game,
  * and to close this issue in a sustainable way,
  * it is up to the UI to display the HTML-code in an **appropriate sandbox environment** -
- * that may eg. be an external browser or a WebView with scripting disabled.
+ * that may e.g. be an external browser or a WebView with scripting disabled.
  *
  * @memberof dc_context_t
  * @param context The context object object.
@@ -4941,7 +4941,7 @@ void dc_event_unref(dc_event_t* event);
  * @defgroup DC_CHAT_VISIBILITY DC_CHAT_VISIBILITY
  *
  * These constants describe the visibility of a chat.
- * The chat visibiliry can be get using dc_chat_get_visibility()
+ * The chat visibility can be get using dc_chat_get_visibility()
  * and set using dc_set_chat_visibility().
  *
  * @addtogroup DC_CHAT_VISIBILITY
@@ -4979,85 +4979,381 @@ void dc_event_unref(dc_event_t* event);
  */
 
 
-/*
- * TODO: Strings need some documentation about used placeholders.
- *
+/**
  * @defgroup DC_STR DC_STR
  *
- * These constants are used to request strings using #DC_EVENT_GET_STRING.
+ * These constants are used to define strings using dc_set_stock_translation().
+ * This allows localisation of the texts used by the core,
+ * you have to call dc_set_stock_translation()
+ * for every @ref DC_STR string you want to translate.
+ *
+ * Some strings contain some placeholders as `%1$s` or `%2$s` -
+ * these will be replaced by some content defined in the @ref DC_STR description below.
+ * As a synonym for `%1$s` you can also use `%1$d` or `%1$@`; same for `%2$s`.
+ *
+ * If you do not call dc_set_stock_translation() for a concrete @ref DC_STR constant,
+ * a default string will be used.
  *
  * @addtogroup DC_STR
  * @{
  */
+
+/// "No messages."
+///
+/// Used in summaries.
 #define DC_STR_NOMESSAGES                 1
+
+/// "Me"
+///
+/// Used as the sender name for oneself.
 #define DC_STR_SELF                       2
+
+/// "Draft"
+///
+/// Used in summaries.
 #define DC_STR_DRAFT                      3
+
+/// "Voice message"
+///
+/// Used in summaries.
 #define DC_STR_VOICEMESSAGE               7
+
+/// "Contact requests"
+///
+/// Used as the name for the corresponding chat.
 #define DC_STR_DEADDROP                   8
+
+/// "Image"
+///
+/// Used in summaries.
 #define DC_STR_IMAGE                      9
+
+/// "Video"
+///
+/// Used in summaries.
 #define DC_STR_VIDEO                      10
+
+/// "Audio"
+///
+/// Used in summaries.
 #define DC_STR_AUDIO                      11
+
+/// "File"
+///
+/// Used in summaries.
 #define DC_STR_FILE                       12
+
+/// "Sent with my Delta Chat Messenger: https://delta.chat"
+///
+/// Used as the default footer
+/// if nothing else is set by the dc_set_config()-option `selfstatus`.
 #define DC_STR_STATUSLINE                 13
+
+/// "Hi, i've created the group %1$s for us."
+///
+/// Used as a draft text after group creation.
+/// - %1$s will be replaced by the group name
 #define DC_STR_NEWGROUPDRAFT              14
+
+/// "Group name changed from %1$s to %2$s."
+///
+/// Used in status messages for group name changes.
+/// - %1$s will be replaced by the old group name
+/// - %2$s will be replaced by the new group name
 #define DC_STR_MSGGRPNAME                 15
+
+/// "Group image changed."
+///
+/// Used in status messages for group images changes.
 #define DC_STR_MSGGRPIMGCHANGED           16
+
+/// "Member %1$s added."
+///
+/// Used in status messages for added members.
+/// - %1$s will be replaced by the name of the added member
 #define DC_STR_MSGADDMEMBER               17
+
+/// "Member %1$s removed."
+///
+/// Used in status messages for removed members.
+/// - %1$s will be replaced by the name of the removed member
 #define DC_STR_MSGDELMEMBER               18
+
+/// "Group left."
+///
+/// Used in status messages.
 #define DC_STR_MSGGROUPLEFT               19
+
+/// "GIF"
+///
+/// Used in summaries.
 #define DC_STR_GIF                        23
+
+/// "Encrypted message"
+///
+/// Used in subjects of outgoing messages.
 #define DC_STR_ENCRYPTEDMSG               24
+
+/// "End-to-end encryption available."
+///
+/// Used to build the string returned by dc_get_contact_encrinfo().
 #define DC_STR_E2E_AVAILABLE              25
+
+/// "Transport-encryption."
+///
+/// Used to build the string returned by dc_get_contact_encrinfo().
 #define DC_STR_ENCR_TRANSP                27
+
+/// "No encryption."
+///
+/// Used to build the string returned by dc_get_contact_encrinfo().
 #define DC_STR_ENCR_NONE                  28
+
+/// "This message was encrypted for another setup."
+///
+/// Used as message text if decryption fails.
 #define DC_STR_CANTDECRYPT_MSG_BODY       29
+
+/// "Fingerprints"
+///
+/// Used to build the string returned by dc_get_contact_encrinfo().
 #define DC_STR_FINGERPRINTS               30
+
+/// "Message opened"
+///
+/// Used in subjects of outgoing read receipts.
 #define DC_STR_READRCPT                   31
+
+/// "The message '%1$s' you sent was displayed on the screen of the recipient."
+///
+/// Used as message text of outgoing read receipts.
+/// - %1$s will be replaced by the subject of the displayed message
 #define DC_STR_READRCPT_MAILBODY          32
+
+/// "Group image deleted."
+///
+/// Used in status messages for deleted group images.
 #define DC_STR_MSGGRPIMGDELETED           33
+
+/// "End-to-end encryption preferred."
+///
+/// Used to build the string returned by dc_get_contact_encrinfo().
 #define DC_STR_E2E_PREFERRED              34
+
+/// "%1$s verified"
+///
+/// Used in status messages.
+/// - %1$s will be replaced by the name of the verified contact
 #define DC_STR_CONTACT_VERIFIED           35
+
+/// "Cannot verify %1$s."
+///
+/// Used in status messages.
+/// - %1$s will be replaced by the name of the contact that cannot be verified
 #define DC_STR_CONTACT_NOT_VERIFIED       36
+
+/// "Changed setup for %1$s."
+///
+/// Used in status messages.
+/// - %1$s will be replaced by the name of the contact with the changed setup
 #define DC_STR_CONTACT_SETUP_CHANGED      37
+
+/// "Archived chats"
+///
+/// Used as the name for the corresponding chatlist entry.
 #define DC_STR_ARCHIVEDCHATS              40
+
+/// "Autocrypt Setup Message"
+///
+/// Used in subjects of outgoing Autocrypt Setup Messages.
 #define DC_STR_AC_SETUP_MSG_SUBJECT       42
+
+/// "This is the Autocrypt Setup Message, open it in a compatible client to use your setup"
+///
+/// Used as message text of outgoing Autocrypt Setup Messages.
 #define DC_STR_AC_SETUP_MSG_BODY          43
+
+/// "Cannot login as %1$s."
+///
+/// Used in error strings.
+/// - %1$s will be replaced by the failing login name
 #define DC_STR_CANNOT_LOGIN               60
+
+/// "Could not connect to %1$s: %2$s"
+///
+/// Used in error strings.
+/// - %1$s will be replaced by the failing server
+/// - %2$s by a the error message as returned from the server
 #define DC_STR_SERVER_RESPONSE            61
+
+/// "%1$s by %2$s"
+///
+/// Used to concretize actions,
+/// - %1$s will be replaced by an action
+///   as #DC_STR_MSGADDMEMBER or #DC_STR_MSGGRPIMGCHANGED (full-stop removed, if any)
+/// - %2$s will be replaced by the name of the user taking that action
 #define DC_STR_MSGACTIONBYUSER            62
+
+/// "%1$s by me"
+///
+/// Used to concretize actions.
+/// - %1$s will be replaced by an action
+///   as #DC_STR_MSGADDMEMBER or #DC_STR_MSGGRPIMGCHANGED (full-stop removed, if any)
 #define DC_STR_MSGACTIONBYME              63
+
+/// "Location streaming enabled."
+///
+/// Used in status messages.
 #define DC_STR_MSGLOCATIONENABLED         64
+
+/// "Location streaming disabled."
+///
+/// Used in status messages.
 #define DC_STR_MSGLOCATIONDISABLED        65
+
+/// "Location"
+///
+/// Used in summaries.
 #define DC_STR_LOCATION                   66
+
+/// "Sticker"
+///
+/// Used in summaries.
 #define DC_STR_STICKER                    67
+
+/// "Device messages"
+///
+/// Used as the name for the corresponding chat.
 #define DC_STR_DEVICE_MESSAGES            68
+
+/// "Saved messages"
+///
+/// Used as the name for the corresponding chat.
 #define DC_STR_SAVED_MESSAGES             69
+
+/// "Messages in this chat are generated locally by your Delta Chat app."
+///
+/// Used as message text for the message added to a newly created device chat.
 #define DC_STR_DEVICE_MESSAGES_HINT       70
+
+/// "Welcome to Delta Chat! Delta Chat looks and feels like other popular messenger apps ..."
+///
+/// Used as message text for the message added to the device chat after successful login.
 #define DC_STR_WELCOME_MESSAGE            71
+
+/// "Unknown sender for this chat. See 'info' for more details."
+///
+/// Use as message text if assigning the message to a chat is not totally correct.
 #define DC_STR_UNKNOWN_SENDER_FOR_CHAT    72
+
+/// "Message from %1$s"
+///
+/// Used in subjects of outgoing messages in one-to-one chats.
+/// - %1$s will be replaced by the name of the sender,
+///   this is the dc_set_config()-option `displayname` or `addr`
 #define DC_STR_SUBJECT_FOR_NEW_CONTACT    73
+
+/// "Failed to send message to %1$s."
+///
+/// Used in status messages.
+/// - %1$s will be replaced by the name of the contact the message cannot be sent to
 #define DC_STR_FAILED_SENDING_TO          74
+
+/// "Message deletion timer is disabled."
+///
+/// Used in status messages.
 #define DC_STR_EPHEMERAL_DISABLED         75
+
+/// "Message deletion timer is set to %1$s s."
+///
+/// Used in status messages when the other constants
+/// (#DC_STR_EPHEMERAL_MINUTE, #DC_STR_EPHEMERAL_HOUR and so on) do not match the timer.
+/// - %1$s will be replaced by the number of seconds the timer is set to
 #define DC_STR_EPHEMERAL_SECONDS          76
+
+/// "Message deletion timer is set to 1 minute."
+///
+/// Used in status messages.
 #define DC_STR_EPHEMERAL_MINUTE           77
+
+/// "Message deletion timer is set to 1 hour."
+///
+/// Used in status messages.
 #define DC_STR_EPHEMERAL_HOUR             78
+
+/// "Message deletion timer is set to 1 day."
+///
+/// Used in status messages.
 #define DC_STR_EPHEMERAL_DAY              79
+
+/// "Message deletion timer is set to 1 week."
+///
+/// Used in status messages.
 #define DC_STR_EPHEMERAL_WEEK             80
+
+/// "Message deletion timer is set to 4 weeks."
+///
+/// Used in status messages.
 #define DC_STR_EPHEMERAL_FOUR_WEEKS       81
+
+/// "Video chat invitation"
+///
+/// Used in summaries.
 #define DC_STR_VIDEOCHAT_INVITATION       82
+
+/// "You are invited to a video chat, click %1$s to join."
+///
+/// Used as message text of outgoing video chat invitations.
+/// - %1$s will be replaced by the URL of the video chat
 #define DC_STR_VIDEOCHAT_INVITE_MSG_BODY  83
+
+/// "Error: %1$s"
+///
+/// Used in error strings.
+/// - %1$s will be replaced by the concrete error
 #define DC_STR_CONFIGURATION_FAILED       84
+
+/// "Date or time of your device seem to be inaccurate (%1$s). Adjust your clock to ensure your messages are received correctly"
+///
+/// Used as device message if a wrong date or time was detected.
+/// - %1$s will be replaced by a date/time string as YY-mm-dd HH:MM:SS
 #define DC_STR_BAD_TIME_MSG_BODY          85
+
+/// "Your Delta Chat version might be outdated, check https://get.delta.chat for updates."
+///
+/// Used as device message if the used version is probably outdated.
 #define DC_STR_UPDATE_REMINDER_MSG_BODY   86
+
+/// "No network."
+///
+/// Used in error strings.
 #define DC_STR_ERROR_NO_NETWORK           87
+
+/// "Chat protection enabled."
+///
+/// Used in status messages.
 #define DC_STR_PROTECTION_ENABLED         88
+
+/// "Chat protection disabled."
+///
+/// Used in status messages.
 #define DC_STR_PROTECTION_DISABLED        89
-#define DC_STR_REPLY_NOUN                 90 /* e.g. "Reply", used in summaries, a noun, not a verb (not: "to reply") */
+
+/// "Reply"
+///
+/// Used in summaries.
+/// Note: the string has to be a noun, not a verb (not: "to reply").
+#define DC_STR_REPLY_NOUN                 90
+
+/// "'Delete messages from server' turned off as now all folders are affected."
+///
+/// Used as device message text.
 #define DC_STR_SELF_DELETED_MSG_BODY      91
 
-/*
+/**
  * @}
  */
+
 
 #ifdef PY_CFFI_INC
 /* Helper utility to locate the header file when building python bindings. */
