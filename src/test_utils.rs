@@ -2,50 +2,61 @@
 //!
 //! This module is only compiled for test runs.
 
+use std::collections::BTreeMap;
+use std::ops::Deref;
+use std::str::FromStr;
 use std::time::{Duration, Instant};
-use std::{ops::Deref, str::FromStr};
 
 use ansi_term::Color;
+use async_std::future::Future;
 use async_std::path::PathBuf;
-use async_std::sync::RwLock;
+use async_std::pin::Pin;
+use async_std::sync::{Arc, RwLock};
+use once_cell::sync::Lazy;
 use tempfile::{tempdir, TempDir};
 
+use crate::chat::{self, Chat, ChatId, ChatItem};
+use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::DC_CONTACT_ID_SELF;
-use crate::contact::Contact;
+use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
+use crate::events::{Event, EventType};
 use crate::job::Action;
 use crate::key::{self, DcKey};
 use crate::message::{update_msg_state, Message, MessageState, MsgId};
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
-use crate::{chat, chatlist::Chatlist};
-use crate::{chat::ChatItem, EventType};
-use crate::{
-    chat::{Chat, ChatId},
-    contact::Origin,
-};
 
 use crate::constants::Viewtype;
 use crate::constants::DC_MSG_ID_DAYMARKER;
 use crate::constants::DC_MSG_ID_MARKER1;
 
+type EventSink =
+    dyn Fn(Event) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync + 'static;
+
+/// Map of [`Context::id`] to names for [`TestContext`]s.
+static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
+    Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
+
 /// A Context and temporary directory.
 ///
 /// The temporary directory can be used to store the SQLite database,
 /// see e.g. [test_context] which does this.
-#[derive(Debug)]
+// #[derive(Debug)]
 pub(crate) struct TestContext {
     pub ctx: Context,
     pub dir: TempDir,
     /// Counter for fake IMAP UIDs in [recv_msg], for private use in that function only.
     recv_idx: RwLock<u32>,
+    /// Functions to call for events received.
+    event_sinks: Arc<RwLock<Vec<Box<EventSink>>>>,
 }
 
 impl TestContext {
-    /// Create a new [TestContext].
+    /// Creates a new [TestContext].
     ///
     /// The [Context] will be created and have an SQLite database named "db.sqlite" in the
     /// [TestContext.dir] directory.  This directory is cleaned up when the [TestContext] is
@@ -53,25 +64,48 @@ impl TestContext {
     ///
     /// [Context]: crate::context::Context
     pub async fn new() -> Self {
+        Self::new_named(None).await
+    }
+
+    /// Creates a new [`TestContext`] with a set name used in event logging.
+    pub async fn with_name(name: impl Into<String>) -> Self {
+        Self::new_named(Some(name.into())).await
+    }
+
+    async fn new_named(name: Option<String>) -> Self {
         use rand::Rng;
 
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
         let id = rand::thread_rng().gen();
+        if let Some(name) = name {
+            let mut context_names = CONTEXT_NAMES.write().unwrap();
+            context_names.insert(id, name);
+        }
         let ctx = Context::new("FakeOS".into(), dbfile.into(), id)
             .await
             .unwrap();
 
         let events = ctx.get_event_emitter();
+        let event_sinks: Arc<RwLock<Vec<Box<EventSink>>>> = Arc::new(RwLock::new(Vec::new()));
+        let sinks = Arc::clone(&event_sinks);
         async_std::task::spawn(async move {
             while let Some(event) = events.recv().await {
-                receive_event(event.typ);
+                {
+                    let sinks = sinks.read().await;
+                    for sink in sinks.iter() {
+                        sink(event.clone()).await;
+                    }
+                }
+                receive_event(event);
             }
         });
+
         Self {
             ctx,
             dir,
             recv_idx: RwLock::new(0),
+            event_sinks,
         }
     }
 
@@ -80,7 +114,7 @@ impl TestContext {
     /// This is a shortcut which automatically calls [TestContext::configure_alice] after
     /// creating the context.
     pub async fn new_alice() -> Self {
-        let t = Self::new().await;
+        let t = Self::with_name("alice").await;
         t.configure_alice().await;
         t
     }
@@ -89,13 +123,38 @@ impl TestContext {
     ///
     /// This is a shortcut which configures bob@example.net with a fixed key.
     pub async fn new_bob() -> Self {
-        let t = Self::new().await;
+        let t = Self::with_name("bob").await;
         let keypair = bob_keypair();
         t.configure_addr(&keypair.addr.to_string()).await;
         key::store_self_keypair(&t, &keypair, key::KeyPairUse::Default)
             .await
             .expect("Failed to save Bob's key");
         t
+    }
+
+    /// Sets a name for this [`TestContext`] if one isn't yet set.
+    ///
+    /// This will show up in events logged in the test output.
+    pub fn set_name(&self, name: impl Into<String>) {
+        let mut context_names = CONTEXT_NAMES.write().unwrap();
+        context_names
+            .entry(self.ctx.get_id())
+            .or_insert_with(|| name.into());
+    }
+
+    /// Add a new callback which will receive events.
+    ///
+    /// The test context runs an async task receiving all events from the [`Context`], which
+    /// are logged to stdout.  This allows you to register additional callbacks which will
+    /// receive all events in case your tests need to watch for a specific event.
+    pub async fn add_event_sink<F, R>(&self, sink: F)
+    where
+        // Aka `F: EventSink` but type aliases are not allowed.
+        F: Fn(Event) -> R + Send + Sync + 'static,
+        R: Future<Output = ()> + Send + 'static,
+    {
+        let mut sinks = self.event_sinks.write().await;
+        sinks.push(Box::new(move |evt| Box::pin(sink(evt))));
     }
 
     /// Configure with alice@example.com.
@@ -125,6 +184,9 @@ impl TestContext {
             .set_config(Config::Configured, Some("1"))
             .await
             .unwrap();
+        if let Some(name) = addr.split('@').next() {
+            self.set_name(name);
+        }
     }
 
     /// Retrieve a sent message from the jobs table.
@@ -390,95 +452,105 @@ pub(crate) fn bob_keypair() -> key::KeyPair {
     }
 }
 
-fn receive_event(event: EventType) {
+/// Pretty-print an event to stdout
+///
+/// Done during tests this is captured by `cargo test` and associated with the test itself.
+fn receive_event(event: Event) {
     let green = Color::Green.normal();
     let yellow = Color::Yellow.normal();
     let red = Color::Red.normal();
 
-    match event {
+    let msg = match event.typ {
         EventType::Info(msg) => {
-            /* do not show the event as this would fill the screen */
-            println!("{}", msg);
+            format!("INFO: {}", msg)
         }
         EventType::SmtpConnected(msg) => {
-            println!("[SMTP_CONNECTED] {}", msg);
+            format!("[SMTP_CONNECTED] {}", msg)
         }
         EventType::ImapConnected(msg) => {
-            println!("[IMAP_CONNECTED] {}", msg);
+            format!("[IMAP_CONNECTED] {}", msg)
         }
         EventType::SmtpMessageSent(msg) => {
-            println!("[SMTP_MESSAGE_SENT] {}", msg);
+            format!("[SMTP_MESSAGE_SENT] {}", msg)
         }
         EventType::Warning(msg) => {
-            println!("{}", yellow.paint(msg));
+            format!("WARN: {}", yellow.paint(msg))
         }
         EventType::Error(msg) => {
-            println!("{}", red.paint(msg));
+            format!("ERROR: {}", red.paint(msg))
         }
         EventType::ErrorNetwork(msg) => {
-            println!("{}", red.paint(format!("[NETWORK] msg={}", msg)));
+            format!("{}", red.paint(format!("[NETWORK] msg={}", msg)))
         }
         EventType::ErrorSelfNotInGroup(msg) => {
-            println!("{}", red.paint(format!("[SELF_NOT_IN_GROUP] {}", msg)));
+            format!("{}", red.paint(format!("[SELF_NOT_IN_GROUP] {}", msg)))
         }
         EventType::MsgsChanged { chat_id, msg_id } => {
-            println!(
+            format!(
                 "{}",
                 green.paint(format!(
                     "Received MSGS_CHANGED(chat_id={}, msg_id={})",
                     chat_id, msg_id,
                 ))
-            );
+            )
         }
         EventType::ContactsChanged(_) => {
-            println!("{}", green.paint("Received CONTACTS_CHANGED()"));
+            format!("{}", green.paint("Received CONTACTS_CHANGED()"))
         }
         EventType::LocationChanged(contact) => {
-            println!(
+            format!(
                 "{}",
                 green.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
-            );
+            )
         }
         EventType::ConfigureProgress { progress, comment } => {
             if let Some(comment) = comment {
-                println!(
+                format!(
                     "{}",
                     green.paint(format!(
                         "Received CONFIGURE_PROGRESS({} ‰, {})",
                         progress, comment
                     ))
-                );
+                )
             } else {
-                println!(
+                format!(
                     "{}",
                     green.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
-                );
+                )
             }
         }
         EventType::ImexProgress(progress) => {
-            println!(
+            format!(
                 "{}",
                 green.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
-            );
+            )
         }
         EventType::ImexFileWritten(file) => {
-            println!(
+            format!(
                 "{}",
                 green.paint(format!("Received IMEX_FILE_WRITTEN({})", file.display()))
-            );
+            )
         }
         EventType::ChatModified(chat) => {
-            println!(
+            format!(
                 "{}",
                 green.paint(format!("Received CHAT_MODIFIED({})", chat))
-            );
+            )
         }
         _ => {
-            println!("Received {:?}", event);
+            format!("Received {:?}", event)
         }
+    };
+    let context_names = CONTEXT_NAMES.read().unwrap();
+    match context_names.get(&event.id) {
+        Some(ref name) => println!("{} {}", name, msg),
+        None => println!("{} {}", event.id, msg),
     }
 }
 
+/// Logs and individual message to stdout.
+///
+/// This includes a bunch of the message meta-data as well.
 async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let contact = Contact::get_by_id(context, msg.get_from_id())
         .await

@@ -1103,8 +1103,11 @@ fn encrypted_and_signed(
 mod tests {
     use super::*;
 
+    use async_std::prelude::*;
+
     use crate::chat;
     use crate::chat::ProtectionStatus;
+    use crate::events::Event;
     use crate::peerstate::Peerstate;
     use crate::test_utils::TestContext;
 
@@ -1113,12 +1116,24 @@ mod tests {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        // Generate QR-code, ChatId(0) indicates setup-contact
+        // Setup JoinerProgress sinks.
+        let (joiner_progress_tx, joiner_progress_rx) = async_std::sync::channel(100);
+        bob.add_event_sink(move |event: Event| {
+            let joiner_progress_tx = joiner_progress_tx.clone();
+            async move {
+                if let EventType::SecurejoinJoinerProgress { .. } = event.typ {
+                    joiner_progress_tx.try_send(event).unwrap();
+                }
+            }
+        })
+        .await;
+
+        // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
         let qr = dc_get_securejoin_qr(&alice.ctx, ChatId::new(0))
             .await
             .unwrap();
 
-        // Bob scans QR-code, sends vc-request
+        // Step 2: Bob scans QR-code, sends vc-request
         dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
 
         let sent = bob.pop_sent_msg().await;
@@ -1128,7 +1143,7 @@ mod tests {
         assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vc-request");
         assert!(msg.get(HeaderDef::SecureJoinInvitenumber).is_some());
 
-        // Alice receives vc-request, sends vc-auth-required
+        // Step 3: Alice receives vc-request, sends vc-auth-required
         alice.recv_msg(&sent).await;
 
         let sent = alice.pop_sent_msg().await;
@@ -1136,9 +1151,33 @@ mod tests {
         assert!(msg.was_encrypted());
         assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vc-auth-required");
 
-        // Bob receives vc-auth-required, sends vc-request-with-auth
+        // Step 4: Bob receives vc-auth-required, sends vc-request-with-auth
         bob.recv_msg(&sent).await;
 
+        // Check Bob emitted the JoinerProgress event.
+        {
+            let evt = joiner_progress_rx
+                .recv()
+                .timeout(Duration::from_secs(10))
+                .await
+                .expect("timeout waiting for JoinerProgress event")
+                .expect("missing JoinerProgress event");
+            match evt.typ {
+                EventType::SecurejoinJoinerProgress {
+                    contact_id,
+                    progress,
+                } => {
+                    let alice_contact_id =
+                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+                            .await;
+                    assert_eq!(contact_id, alice_contact_id);
+                    assert_eq!(progress, 400);
+                }
+                _ => panic!("Wrong event type"),
+            }
+        }
+
+        // Check Bob sent the right message.
         let sent = bob.pop_sent_msg().await;
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
@@ -1167,13 +1206,32 @@ mod tests {
             VerifiedStatus::Unverified
         );
 
-        // Alice receives vc-request-with-auth, sends vc-contact-confirm
+        // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
         alice.recv_msg(&sent).await;
         assert_eq!(
             contact_bob.is_verified(&alice.ctx).await,
             VerifiedStatus::BidirectVerified
         );
 
+        // Check Alice got the verified message in her 1:1 chat.
+        {
+            let chat = alice.create_chat(&bob).await;
+            let msg_id = chat::get_chat_msgs(&alice.ctx, chat.get_id(), 0x1, None)
+                .await
+                .into_iter()
+                .filter_map(|item| match item {
+                    chat::ChatItem::Message { msg_id } => Some(msg_id),
+                    _ => None,
+                })
+                .max()
+                .expect("No messages in Alice's 1:1 chat");
+            let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
+            assert!(msg.is_info());
+            let text = msg.get_text().unwrap();
+            assert!(text.contains("bob@example.net verified"));
+        }
+
+        // Check Alice sent the right message to Bob.
         let sent = alice.pop_sent_msg().await;
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
@@ -1193,13 +1251,32 @@ mod tests {
             VerifiedStatus::Unverified
         );
 
-        // Bob receives vc-contact-confirm, sends vc-contact-confirm-received
+        // Step 7: Bob receives vc-contact-confirm, sends vc-contact-confirm-received
         bob.recv_msg(&sent).await;
         assert_eq!(
             contact_alice.is_verified(&bob.ctx).await,
             VerifiedStatus::BidirectVerified
         );
 
+        // Check Bob got the verified message in his 1:1 chat.
+        {
+            let chat = bob.create_chat(&alice).await;
+            let msg_id = chat::get_chat_msgs(&bob.ctx, chat.get_id(), 0x1, None)
+                .await
+                .into_iter()
+                .filter_map(|item| match item {
+                    chat::ChatItem::Message { msg_id } => Some(msg_id),
+                    _ => None,
+                })
+                .max()
+                .expect("No messages in Bob's 1:1 chat");
+            let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
+            assert!(msg.is_info());
+            let text = msg.get_text().unwrap();
+            assert!(text.contains("alice@example.com verified"));
+        }
+
+        // Check Bob sent the final message
         let sent = bob.pop_sent_msg().await;
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
@@ -1221,6 +1298,18 @@ mod tests {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
+        // Setup JoinerProgress sinks.
+        let (joiner_progress_tx, joiner_progress_rx) = async_std::sync::channel(100);
+        bob.add_event_sink(move |event: Event| {
+            let joiner_progress_tx = joiner_progress_tx.clone();
+            async move {
+                if let EventType::SecurejoinJoinerProgress { .. } = event.typ {
+                    joiner_progress_tx.try_send(event).unwrap();
+                }
+            }
+        })
+        .await;
+
         // Ensure Bob knows Alice_FP
         let alice_pubkey = SignedPublicKey::load_self(&alice.ctx).await.unwrap();
         let peerstate = Peerstate {
@@ -1241,14 +1330,38 @@ mod tests {
         };
         peerstate.save_to_db(&bob.ctx.sql, true).await.unwrap();
 
-        // Generate QR-code, ChatId(0) indicates setup-contact
+        // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
         let qr = dc_get_securejoin_qr(&alice.ctx, ChatId::new(0))
             .await
             .unwrap();
 
-        // Bob scans QR-code, sends vc-request-with-auth, skipping vc-request
+        // Step 2+4: Bob scans QR-code, sends vc-request-with-auth, skipping vc-request
         dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
 
+        // Check Bob emitted the JoinerProgress event.
+        {
+            let evt = joiner_progress_rx
+                .recv()
+                .timeout(Duration::from_secs(10))
+                .await
+                .expect("timeout waiting for JoinerProgress event")
+                .expect("missing JoinerProgress event");
+            match evt.typ {
+                EventType::SecurejoinJoinerProgress {
+                    contact_id,
+                    progress,
+                } => {
+                    let alice_contact_id =
+                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+                            .await;
+                    assert_eq!(contact_id, alice_contact_id);
+                    assert_eq!(progress, 400);
+                }
+                _ => panic!("Wrong event type"),
+            }
+        }
+
+        // Check Bob sent the right handshake message.
         let sent = bob.pop_sent_msg().await;
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
@@ -1283,7 +1396,7 @@ mod tests {
             VerifiedStatus::Unverified
         );
 
-        // Alice receives vc-request-with-auth, sends vc-contact-confirm
+        // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
         alice.recv_msg(&sent).await;
         assert_eq!(
             contact_bob.is_verified(&alice.ctx).await,
@@ -1309,7 +1422,7 @@ mod tests {
             VerifiedStatus::Unverified
         );
 
-        // Bob receives vc-contact-confirm, sends vc-contact-confirm-received
+        // Step 7: Bob receives vc-contact-confirm, sends vc-contact-confirm-received
         bob.recv_msg(&sent).await;
         assert_eq!(
             contact_alice.is_verified(&bob.ctx).await,
@@ -1330,14 +1443,26 @@ mod tests {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
+        // Setup JoinerProgress sinks.
+        let (joiner_progress_tx, joiner_progress_rx) = async_std::sync::channel(100);
+        bob.add_event_sink(move |event: Event| {
+            let joiner_progress_tx = joiner_progress_tx.clone();
+            async move {
+                if let EventType::SecurejoinJoinerProgress { .. } = event.typ {
+                    joiner_progress_tx.try_send(event).unwrap();
+                }
+            }
+        })
+        .await;
+
         let chatid = chat::create_group_chat(&alice.ctx, ProtectionStatus::Protected, "the chat")
             .await
             .unwrap();
 
-        // Generate QR-code, secure-join implied by chatid
+        // Step 1: Generate QR-code, secure-join implied by chatid
         let qr = dc_get_securejoin_qr(&alice.ctx, chatid).await.unwrap();
 
-        // Bob scans QR-code, sends vg-request; blocks on ongoing process
+        // Step 2: Bob scans QR-code, sends vg-request; blocks on ongoing process
         let joiner = {
             let qr = qr.clone();
             let ctx = bob.ctx.clone();
@@ -1351,7 +1476,7 @@ mod tests {
         assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vg-request");
         assert!(msg.get(HeaderDef::SecureJoinInvitenumber).is_some());
 
-        // Alice receives vg-request, sends vg-auth-required
+        // Step 3: Alice receives vg-request, sends vg-auth-required
         alice.recv_msg(&sent).await;
 
         let sent = alice.pop_sent_msg().await;
@@ -1359,9 +1484,34 @@ mod tests {
         assert!(msg.was_encrypted());
         assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vg-auth-required");
 
-        // Bob receives vg-auth-required, sends vg-request-with-auth
+        // Step 4: Bob receives vg-auth-required, sends vg-request-with-auth
         bob.recv_msg(&sent).await;
         let sent = bob.pop_sent_msg().await;
+
+        // Check Bob emitted the JoinerProgress event.
+        {
+            let evt = joiner_progress_rx
+                .recv()
+                .timeout(Duration::from_secs(10))
+                .await
+                .expect("timeout waiting for JoinerProgress event")
+                .expect("missing JoinerProgress event");
+            match evt.typ {
+                EventType::SecurejoinJoinerProgress {
+                    contact_id,
+                    progress,
+                } => {
+                    let alice_contact_id =
+                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+                            .await;
+                    assert_eq!(contact_id, alice_contact_id);
+                    assert_eq!(progress, 400);
+                }
+                _ => panic!("Wrong event type"),
+            }
+        }
+
+        // Check Bob sent the right handshake message.
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
@@ -1389,7 +1539,7 @@ mod tests {
             VerifiedStatus::Unverified
         );
 
-        // Alice receives vg-request-with-auth, sends vg-member-added
+        // Step 5+6: Alice receives vg-request-with-auth, sends vg-member-added
         alice.recv_msg(&sent).await;
         assert_eq!(
             contact_bob.is_verified(&alice.ctx).await,
@@ -1412,7 +1562,7 @@ mod tests {
             VerifiedStatus::Unverified
         );
 
-        // Bob receives vg-member-added, sends vg-member-added-received
+        // Step 7: Bob receives vg-member-added, sends vg-member-added-received
         bob.recv_msg(&sent).await;
         assert_eq!(
             contact_alice.is_verified(&bob.ctx).await,
