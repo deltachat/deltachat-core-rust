@@ -31,7 +31,9 @@ fn remove_message_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
             // use that only when no other footer is found
             // and if the line before is empty and the line after is not empty
             "--" => {
-                if (ix == 0 || lines[ix - 1] == "") && ix != lines.len() - 1 && lines[ix + 1] != ""
+                if (ix == 0 || lines[ix - 1].is_empty())
+                    && ix != lines.len() - 1
+                    && !lines[ix + 1].is_empty()
                 {
                     nearly_standard_footer = Some(ix);
                 }
