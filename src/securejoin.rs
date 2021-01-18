@@ -385,10 +385,12 @@ async fn send_handshake_msg(
     fingerprint: Option<Fingerprint>,
     grpid: impl AsRef<str>,
 ) -> Result<(), SendMsgError> {
-    let mut msg = Message::default();
-    msg.viewtype = Viewtype::Text;
-    msg.text = Some(format!("Secure-Join: {}", step));
-    msg.hidden = true;
+    let mut msg = Message {
+        viewtype: Viewtype::Text,
+        text: Some(format!("Secure-Join: {}", step)),
+        hidden: true,
+        ..Default::default()
+    };
     msg.param.set_cmd(SystemMessage::SecurejoinMessage);
     if step.is_empty() {
         msg.param.remove(Param::Arg);

@@ -864,8 +864,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         if let Some(grpimage) = grpimage {
             info!(self.context, "setting group image '{}'", grpimage);
-            let mut meta = Message::default();
-            meta.viewtype = Viewtype::Image;
+            let mut meta = Message {
+                viewtype: Viewtype::Image,
+                ..Default::default()
+            };
             meta.param.set(Param::File, grpimage);
 
             let (mail, filename_as_sent) = build_body_file(context, &meta, "group-image").await?;

@@ -1555,10 +1555,9 @@ pub unsafe extern "C" fn dc_create_contact(
     let name = to_string_lossy(name);
 
     block_on(async move {
-        match Contact::create(&ctx, name, to_string_lossy(addr)).await {
-            Ok(id) => id,
-            Err(_) => 0,
-        }
+        Contact::create(&ctx, name, to_string_lossy(addr))
+            .await
+            .unwrap_or(0)
     })
 }
 

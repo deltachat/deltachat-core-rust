@@ -504,7 +504,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         &contact_name,
         contact_id,
         msgtext.unwrap_or_default(),
-        if msg.get_from_id() == 1 as libc::c_uint {
+        if msg.get_from_id() == 1u32 {
             ""
         } else if msg.get_state() == MessageState::InSeen {
             "[SEEN]"

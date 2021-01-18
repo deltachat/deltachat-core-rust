@@ -256,9 +256,11 @@ impl ChatId {
         };
 
         if promote {
-            let mut msg = Message::default();
-            msg.viewtype = Viewtype::Text;
-            msg.text = Some(msg_text);
+            let mut msg = Message {
+                viewtype: Viewtype::Text,
+                text: Some(msg_text),
+                ..Default::default()
+            };
             msg.param.set_cmd(cmd);
             send_msg(context, self, &mut msg).await?;
         } else {
