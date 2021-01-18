@@ -158,6 +158,7 @@ pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Re
     let dir_name = dir_name.as_ref();
     let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
     let mut newest_backup_time = 0;
+    let mut newest_backup_name = "".to_string();
     let mut newest_backup_path: Option<PathBuf> = None;
     while let Some(dirent) = dir_iter.next().await {
         if let Ok(dirent) = dirent {
@@ -184,8 +185,15 @@ pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Re
                             context,
                             "Found backup file {} which could not be opened: {}", name, e
                         );
-                        if newest_backup_path.is_none() {
-                            newest_backup_path = Some(path); // If there is no other backup file, just try this one
+                        // On some Android devices we can't open sql files that are not in our private directory
+                        // (see https://github.com/deltachat/deltachat-android/issues/1768). So, compare names
+                        // to still find the newest backup.
+                        let name: String = name.into();
+                        if newest_backup_time == 0
+                            && (newest_backup_name.is_empty() || name > newest_backup_name)
+                        {
+                            newest_backup_path = Some(path);
+                            newest_backup_name = name;
                         }
                     }
                 }
