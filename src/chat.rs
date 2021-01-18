@@ -18,7 +18,7 @@ use crate::constants::{
     Blocked, Chattype, ShowEmails, Viewtype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
     DC_CHAT_ID_DEADDROP, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE,
     DC_CONTACT_ID_INFO, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCM_ADDDAYMARKER,
-    DC_RESEND_USER_AVATAR_DAYS,
+    DC_GCM_INFO_ONLY, DC_RESEND_USER_AVATAR_DAYS,
 };
 use crate::contact::{addr_cmp, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
