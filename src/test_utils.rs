@@ -461,48 +461,28 @@ fn receive_event(event: Event) {
     let red = Color::Red.normal();
 
     let msg = match event.typ {
-        EventType::Info(msg) => {
-            format!("INFO: {}", msg)
-        }
-        EventType::SmtpConnected(msg) => {
-            format!("[SMTP_CONNECTED] {}", msg)
-        }
-        EventType::ImapConnected(msg) => {
-            format!("[IMAP_CONNECTED] {}", msg)
-        }
-        EventType::SmtpMessageSent(msg) => {
-            format!("[SMTP_MESSAGE_SENT] {}", msg)
-        }
-        EventType::Warning(msg) => {
-            format!("WARN: {}", yellow.paint(msg))
-        }
-        EventType::Error(msg) => {
-            format!("ERROR: {}", red.paint(msg))
-        }
-        EventType::ErrorNetwork(msg) => {
-            format!("{}", red.paint(format!("[NETWORK] msg={}", msg)))
-        }
+        EventType::Info(msg) => format!("INFO: {}", msg),
+        EventType::SmtpConnected(msg) => format!("[SMTP_CONNECTED] {}", msg),
+        EventType::ImapConnected(msg) => format!("[IMAP_CONNECTED] {}", msg),
+        EventType::SmtpMessageSent(msg) => format!("[SMTP_MESSAGE_SENT] {}", msg),
+        EventType::Warning(msg) => format!("WARN: {}", yellow.paint(msg)),
+        EventType::Error(msg) => format!("ERROR: {}", red.paint(msg)),
+        EventType::ErrorNetwork(msg) => format!("{}", red.paint(format!("[NETWORK] msg={}", msg))),
         EventType::ErrorSelfNotInGroup(msg) => {
             format!("{}", red.paint(format!("[SELF_NOT_IN_GROUP] {}", msg)))
         }
-        EventType::MsgsChanged { chat_id, msg_id } => {
-            format!(
-                "{}",
-                green.paint(format!(
-                    "Received MSGS_CHANGED(chat_id={}, msg_id={})",
-                    chat_id, msg_id,
-                ))
-            )
-        }
-        EventType::ContactsChanged(_) => {
-            format!("{}", green.paint("Received CONTACTS_CHANGED()"))
-        }
-        EventType::LocationChanged(contact) => {
-            format!(
-                "{}",
-                green.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
-            )
-        }
+        EventType::MsgsChanged { chat_id, msg_id } => format!(
+            "{}",
+            green.paint(format!(
+                "Received MSGS_CHANGED(chat_id={}, msg_id={})",
+                chat_id, msg_id,
+            ))
+        ),
+        EventType::ContactsChanged(_) => format!("{}", green.paint("Received CONTACTS_CHANGED()")),
+        EventType::LocationChanged(contact) => format!(
+            "{}",
+            green.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
+        ),
         EventType::ConfigureProgress { progress, comment } => {
             if let Some(comment) = comment {
                 format!(
@@ -519,27 +499,19 @@ fn receive_event(event: Event) {
                 )
             }
         }
-        EventType::ImexProgress(progress) => {
-            format!(
-                "{}",
-                green.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
-            )
-        }
-        EventType::ImexFileWritten(file) => {
-            format!(
-                "{}",
-                green.paint(format!("Received IMEX_FILE_WRITTEN({})", file.display()))
-            )
-        }
-        EventType::ChatModified(chat) => {
-            format!(
-                "{}",
-                green.paint(format!("Received CHAT_MODIFIED({})", chat))
-            )
-        }
-        _ => {
-            format!("Received {:?}", event)
-        }
+        EventType::ImexProgress(progress) => format!(
+            "{}",
+            green.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
+        ),
+        EventType::ImexFileWritten(file) => format!(
+            "{}",
+            green.paint(format!("Received IMEX_FILE_WRITTEN({})", file.display()))
+        ),
+        EventType::ChatModified(chat) => format!(
+            "{}",
+            green.paint(format!("Received CHAT_MODIFIED({})", chat))
+        ),
+        _ => format!("Received {:?}", event),
     };
     let context_names = CONTEXT_NAMES.read().unwrap();
     match context_names.get(&event.id) {
