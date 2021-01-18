@@ -145,7 +145,7 @@ def extract_defines(flags):
                 | DC_STR
                 | DC_CONTACT_ID
                 | DC_GCL
-                | DC_GCM 
+                | DC_GCM
                 | DC_SOCKET
                 | DC_CHAT
                 | DC_PROVIDER
