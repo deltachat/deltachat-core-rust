@@ -320,6 +320,9 @@ impl Context {
             .unwrap_or_else(|| "<unset>".to_string());
 
         let mut res = get_info();
+
+        // insert values
+        res.insert("bot", self.get_config_int(Config::Bot).await.to_string());
         res.insert("number_of_chats", chats.to_string());
         res.insert("number_of_chat_messages", real_msgs.to_string());
         res.insert("messages_in_contact_requests", deaddrop_msgs.to_string());
@@ -338,6 +341,16 @@ impl Context {
         res.insert("is_configured", is_configured.to_string());
         res.insert("entered_account_settings", l.to_string());
         res.insert("used_account_settings", l2.to_string());
+        res.insert(
+            "fetch_existing_msgs",
+            self.get_config_int(Config::FetchExistingMsgs)
+                .await
+                .to_string(),
+        );
+        res.insert(
+            "show_emails",
+            self.get_config_int(Config::ShowEmails).await.to_string(),
+        );
         res.insert("inbox_watch", inbox_watch.to_string());
         res.insert("sentbox_watch", sentbox_watch.to_string());
         res.insert("mvbox_watch", mvbox_watch.to_string());
@@ -347,6 +360,10 @@ impl Context {
         res.insert("configured_mvbox_folder", configured_mvbox_folder);
         res.insert("mdns_enabled", mdns_enabled.to_string());
         res.insert("e2ee_enabled", e2ee_enabled.to_string());
+        res.insert(
+            "key_gen_type",
+            self.get_config_int(Config::KeyGenType).await.to_string(),
+        );
         res.insert("bcc_self", bcc_self.to_string());
         res.insert(
             "private_key_count",
@@ -357,6 +374,40 @@ impl Context {
             pub_key_cnt.unwrap_or_default().to_string(),
         );
         res.insert("fingerprint", fingerprint_str);
+        res.insert(
+            "webrtc_instance",
+            self.get_config(Config::WebrtcInstance)
+                .await
+                .unwrap_or_else(|| "<unset>".to_string()),
+        );
+        res.insert(
+            "media_quality",
+            self.get_config_int(Config::MediaQuality).await.to_string(),
+        );
+        res.insert(
+            "delete_device_after",
+            self.get_config_int(Config::DeleteDeviceAfter)
+                .await
+                .to_string(),
+        );
+        res.insert(
+            "delete_server_after",
+            self.get_config_int(Config::DeleteServerAfter)
+                .await
+                .to_string(),
+        );
+        res.insert(
+            "last_housekeeping",
+            self.get_config_int(Config::LastHousekeeping)
+                .await
+                .to_string(),
+        );
+        res.insert(
+            "scan_all_folders_debounce_secs",
+            self.get_config_int(Config::ScanAllFoldersDebounceSecs)
+                .await
+                .to_string(),
+        );
 
         let elapsed = self.creation_time.elapsed();
         res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));
