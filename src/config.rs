@@ -35,9 +35,6 @@ pub enum Config {
     SmtpCertificateChecks,
     ServerFlags,
 
-    #[strum(props(default = "INBOX"))]
-    ImapFolder,
-
     Displayname,
     Selfstatus,
     Selfavatar,
@@ -317,11 +314,6 @@ mod tests {
             Config::from_str("sys.config_keys"),
             Ok(Config::SysConfigKeys)
         );
-    }
-
-    #[test]
-    fn test_default_prop() {
-        assert_eq!(Config::ImapFolder.get_str("default"), Some("INBOX"));
     }
 
     #[async_std::test]

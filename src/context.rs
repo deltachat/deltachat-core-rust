@@ -675,7 +675,6 @@ mod tests {
             "addr",
             "displayname",
             "imap_certificate_checks",
-            "imap_folder", // unused?
             "mail_server",
             "mail_user",
             "mail_pw",
