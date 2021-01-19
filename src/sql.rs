@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
-use crate::chat::add_device_msg;
 use crate::config::Config::DeleteServerAfter;
 use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
@@ -21,6 +20,7 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::provider::get_provider_by_domain;
 use crate::stock::StockMessage;
+use crate::{chat::add_device_msg, provider::get_provider_by_id};
 use crate::{
     chat::{update_device_icon, update_saved_messages_icon},
     config::Config,
@@ -1479,6 +1479,24 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             }
             if exists_before_update {
                 disable_server_delete = true;
+
+                // Don't disable server delete if it was on by default (Nauta):
+                if let Some(provider) = get_provider_by_id(
+                    &context
+                        .get_config(Config::ConfiguredProvider)
+                        .await
+                        .unwrap_or_default(),
+                ) {
+                    if let Some(defaults) = &provider.config_defaults {
+                        if let Some(config) =
+                            defaults.iter().find(|d| d.key == Config::DeleteServerAfter)
+                        {
+                            if config.value == "1" {
+                                disable_server_delete = false;
+                            }
+                        }
+                    }
+                }
             }
             sql.set_raw_config_int(context, "dbversion", 73).await?;
         }
