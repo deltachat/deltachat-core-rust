@@ -521,6 +521,7 @@ mod tests {
     use super::*;
 
     use crate::test_utils::TestContext;
+    use strum::IntoEnumIterator;
 
     #[async_std::test]
     async fn test_wrong_db() {
@@ -610,5 +611,49 @@ mod tests {
         assert!(info.get("deltachat_core_version").is_some());
         assert!(info.get("database_dir").is_none());
         assert_eq!(info.get("level").unwrap(), "awesome");
+    }
+
+    #[async_std::test]
+    async fn test_get_info_completeness() {
+        // For easier debugging,
+        // get_info() shall return all important information configurable by the Config-values.
+        //
+        // There are exceptions for Config-values considered to be unimportant,
+        // too sensitive or summarized in another item.
+        let skip_from_get_info = vec![
+            "addr",
+            "displayname",
+            "imap_certificate_checks",
+            "imap_folder", // unused?
+            "mail_server",
+            "mail_user",
+            "mail_pw",
+            "mail_port",
+            "mail_security",
+            "notify_about_wrong_pw",
+            "save_mime_headers",
+            "selfstatus",
+            "send_server",
+            "send_user",
+            "send_pw",
+            "send_port",
+            "send_security",
+            "server_flags",
+            "smtp_certificate_checks",
+        ];
+        let t = TestContext::new().await;
+        let info = t.get_info().await;
+        for key in Config::iter() {
+            let key: String = key.to_string();
+            if !skip_from_get_info.contains(&&*key)
+                && !key.starts_with("configured")
+                && !key.starts_with("sys.")
+            {
+                assert!(
+                    info.contains_key(&*key),
+                    format!("'{}' missing in get_info() output", key)
+                );
+            }
+        }
     }
 }
