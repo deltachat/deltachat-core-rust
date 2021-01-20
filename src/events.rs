@@ -73,9 +73,25 @@ impl async_std::stream::Stream for EventEmitter {
     }
 }
 
+/// The event emitted by a [`Context`] from an [`EventEmitter`].
+///
+/// Events are documented on the C/FFI API in `deltachat.h` as `DC_EVENT_*` contants.  The
+/// context emits them in relation to various operations happening, a lot of these are again
+/// documented in `deltachat.h`.
+///
+/// This struct [`Deref`]s to the [`EventType`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
+    /// The ID of the [`Context`] which emitted this event.
+    ///
+    /// This allows using multiple [`Context`]s in a single process as they are identified
+    /// by this ID.
+    ///
+    /// [`Context`]: crate::context::Context
     pub id: u32,
+    /// The event payload.
+    ///
+    /// These are documented in `deltachat.h` as the `DC_EVENT_*` constants.
     pub typ: EventType,
 }
 
@@ -88,7 +104,9 @@ impl Deref for Event {
 }
 
 impl EventType {
-    /// Returns the corresponding Event id.
+    /// Returns the corresponding Event ID.
+    ///
+    /// These are the IDs used in the `DC_EVENT_*` constants in `deltachat.h`.
     pub fn as_id(&self) -> i32 {
         self.get_str("id")
             .expect("missing id")

@@ -2,6 +2,7 @@
 
 use deltachat_derive::{FromSql, ToSql};
 use std::convert::TryFrom;
+use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
@@ -17,7 +18,7 @@ use crate::constants::{
     Blocked, Chattype, ShowEmails, Viewtype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
     DC_CHAT_ID_DEADDROP, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE,
     DC_CONTACT_ID_INFO, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCM_ADDDAYMARKER,
-    DC_RESEND_USER_AVATAR_DAYS,
+    DC_GCM_INFO_ONLY, DC_RESEND_USER_AVATAR_DAYS,
 };
 use crate::contact::{addr_cmp, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
@@ -255,9 +256,11 @@ impl ChatId {
         };
 
         if promote {
-            let mut msg = Message::default();
-            msg.viewtype = Viewtype::Text;
-            msg.text = Some(msg_text);
+            let mut msg = Message {
+                viewtype: Viewtype::Text,
+                text: Some(msg_text),
+                ..Default::default()
+            };
             msg.param.set_cmd(cmd);
             send_msg(context, self, &mut msg).await?;
         } else {
@@ -1777,14 +1780,42 @@ pub async fn get_chat_msgs(
         }
     }
 
-    let process_row =
-        |row: &rusqlite::Row| Ok((row.get::<_, MsgId>("id")?, row.get::<_, i64>("timestamp")?));
+    let process_row = if (flags & DC_GCM_INFO_ONLY) != 0 {
+        |row: &rusqlite::Row| {
+            // is_info logic taken from Message.is_info()
+            let params = row.get::<_, String>("param")?;
+            let (from_id, to_id) = (row.get::<_, u32>("from_id")?, row.get::<_, u32>("to_id")?);
+            let is_info_msg: bool = from_id == DC_CONTACT_ID_INFO as u32
+                || to_id == DC_CONTACT_ID_INFO as u32
+                || match Params::from_str(&params) {
+                    Ok(p) => {
+                        let cmd = p.get_cmd();
+                        cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
+                    }
+                    _ => false,
+                };
+
+            Ok((
+                row.get::<_, MsgId>("id")?,
+                row.get::<_, i64>("timestamp")?,
+                !is_info_msg,
+            ))
+        }
+    } else {
+        |row: &rusqlite::Row| {
+            Ok((
+                row.get::<_, MsgId>("id")?,
+                row.get::<_, i64>("timestamp")?,
+                false,
+            ))
+        }
+    };
     let process_rows = |rows: rusqlite::MappedRows<_>| {
         let mut ret = Vec::new();
         let mut last_day = 0;
         let cnv_to_local = dc_gm2local_offset();
         for row in rows {
-            let (curr_id, ts) = row?;
+            let (curr_id, ts, exclude_message): (MsgId, i64, bool) = row?;
             if let Some(marker_id) = marker1before {
                 if curr_id == marker_id {
                     ret.push(ChatItem::Marker1);
@@ -1800,7 +1831,9 @@ pub async fn get_chat_msgs(
                     last_day = curr_day;
                 }
             }
-            ret.push(ChatItem::Message { msg_id: curr_id });
+            if !exclude_message {
+                ret.push(ChatItem::Message { msg_id: curr_id });
+            }
         }
         Ok(ret)
     };
@@ -1824,6 +1857,26 @@ pub async fn get_chat_msgs(
                 AND m.msgrmsg>=?
               ORDER BY m.timestamp,m.id;",
                 paramsv![if show_emails == ShowEmails::All { 0 } else { 1 }],
+                process_row,
+                process_rows,
+            )
+            .await
+    } else if (flags & DC_GCM_INFO_ONLY) != 0 {
+        context
+            .sql
+            .query_map(
+                // GLOB is used here instead of LIKE becase it is case-sensitive
+                "SELECT m.id AS id, m.timestamp AS timestamp, m.param AS param, m.from_id AS from_id, m.to_id AS to_id
+               FROM msgs m
+              WHERE m.chat_id=?
+                AND m.hidden=0
+                AND (
+                    m.param GLOB \"*S=*\"
+                    OR m.from_id == ?
+                    OR m.to_id == ?
+                )
+              ORDER BY m.timestamp, m.id;",
+                paramsv![chat_id, DC_CONTACT_ID_INFO, DC_CONTACT_ID_INFO],
                 process_row,
                 process_rows,
             )

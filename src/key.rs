@@ -407,7 +407,7 @@ impl std::str::FromStr for Fingerprint {
         let hex_repr: String = input
             .to_uppercase()
             .chars()
-            .filter(|&c| c >= '0' && c <= '9' || c >= 'A' && c <= 'F')
+            .filter(|&c| ('0'..='9').contains(&c) || ('A'..='F').contains(&c))
             .collect();
         let v: Vec<u8> = hex::decode(hex_repr)?;
         let fp = Fingerprint::new(v)?;

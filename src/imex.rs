@@ -428,7 +428,7 @@ async fn decrypt_setup_file<T: std::io::Read + std::io::Seek>(
 pub fn normalize_setup_code(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {
-        if c >= '0' && c <= '9' {
+        if ('0'..='9').contains(&c) {
             out.push(c);
             if let 4 | 9 | 14 | 19 | 24 | 29 | 34 | 39 = out.len() {
                 out += "-"

@@ -419,14 +419,6 @@ async fn add_parts(
         }
     }
 
-    if !context.is_sentbox(&server_folder).await && mime_parser.get(HeaderDef::Received).is_none() {
-        // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
-        // So: If there is no Received header AND it's not in the sentbox, then ignore the email.
-        info!(context, "Email is probably just a draft (TRASH)");
-        *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
-        allow_creation = false;
-    }
-
     // check if the message introduces a new chat:
     // - outgoing messages introduce a chat with the first to: address if they are sent by a messenger
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
@@ -625,6 +617,16 @@ async fn add_parts(
                     return Ok(());
                 }
             }
+        }
+
+        if !context.is_sentbox(&server_folder).await
+            && mime_parser.get(HeaderDef::Received).is_none()
+        {
+            // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
+            // So: If it's outgoing AND there is no Received header AND it's not in the sentbox, then ignore the email.
+            info!(context, "Email is probably just a draft (TRASH)");
+            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+            allow_creation = false;
         }
 
         if !to_ids.is_empty() {
@@ -2495,8 +2497,7 @@ mod tests {
         let chat_id = chat::create_by_contact_id(&t, contact_id).await.unwrap();
         dc_receive_imf(
             &t,
-            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                 From: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
+            b"From: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
                  To: alice@example.com\n\
                  Subject: foo\n\
                  Message-ID: <asdklfjjaweofi@example.com>\n\
@@ -2537,8 +2538,7 @@ mod tests {
 
         dc_receive_imf(
             &t,
-            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                 From: Foobar <foobar@example.com>\n\
+            b"From: Foobar <foobar@example.com>\n\
                  To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= alice@example.com\n\
                  Cc: =?utf-8?q?=3Ch2=3E?= <carl@host.tld>\n\
                  Subject: foo\n\

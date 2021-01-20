@@ -313,16 +313,16 @@ pub struct Message {
     pub(crate) mime_modified: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
-    error: Option<String>,
+    pub(crate) error: Option<String>,
     pub(crate) param: Params,
 }
 
 impl Message {
     pub fn new(viewtype: Viewtype) -> Self {
-        let mut msg = Message::default();
-        msg.viewtype = viewtype;
-
-        msg
+        Message {
+            viewtype,
+            ..Default::default()
+        }
     }
 
     pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message, Error> {
@@ -363,55 +363,53 @@ impl Message {
                 ),
                 paramsv![id],
                 |row| {
-                    let mut msg = Message::default();
-                    // msg.id = row.get::<_, AnyMsgId>("id")?;
-                    msg.id = row.get("id")?;
-                    msg.rfc724_mid = row.get::<_, String>("rfc724mid")?;
-                    msg.in_reply_to = row.get::<_, Option<String>>("mime_in_reply_to")?;
-                    msg.server_folder = row.get::<_, Option<String>>("server_folder")?;
-                    msg.server_uid = row.get("server_uid")?;
-                    msg.chat_id = row.get("chat_id")?;
-                    msg.from_id = row.get("from_id")?;
-                    msg.to_id = row.get("to_id")?;
-                    msg.timestamp_sort = row.get("timestamp")?;
-                    msg.timestamp_sent = row.get("timestamp_sent")?;
-                    msg.timestamp_rcvd = row.get("timestamp_rcvd")?;
-                    msg.ephemeral_timer = row.get("ephemeral_timer")?;
-                    msg.ephemeral_timestamp = row.get("ephemeral_timestamp")?;
-                    msg.viewtype = row.get("type")?;
-                    msg.state = row.get("state")?;
-                    let error: String = row.get("error")?;
-                    msg.error = Some(error).filter(|error| !error.is_empty());
-                    msg.is_dc_message = row.get("msgrmsg")?;
-                    msg.mime_modified = row.get("mime_modified")?;
-
-                    let text;
-                    if let rusqlite::types::ValueRef::Text(buf) = row.get_raw("txt") {
-                        if let Ok(t) = String::from_utf8(buf.to_vec()) {
-                            text = t;
-                        } else {
-                            warn!(
-                                context,
-                                concat!(
-                                    "dc_msg_load_from_db: could not get ",
-                                    "text column as non-lossy utf8 id {}"
-                                ),
-                                id
-                            );
-                            text = String::from_utf8_lossy(buf).into_owned();
+                    let text = match row.get_raw("txt") {
+                        rusqlite::types::ValueRef::Text(buf) => {
+                            match String::from_utf8(buf.to_vec()) {
+                                Ok(t) => t,
+                                Err(_) => {
+                                    warn!(
+                                        context,
+                                        concat!(
+                                            "dc_msg_load_from_db: could not get ",
+                                            "text column as non-lossy utf8 id {}"
+                                        ),
+                                        id
+                                    );
+                                    String::from_utf8_lossy(buf).into_owned()
+                                }
+                            }
                         }
-                    } else {
-                        text = "".to_string();
-                    }
-                    msg.text = Some(text);
-
-                    msg.param = row.get::<_, String>("param")?.parse().unwrap_or_default();
-                    msg.hidden = row.get("hidden")?;
-                    msg.location_id = row.get("location")?;
-                    msg.chat_blocked = row
-                        .get::<_, Option<Blocked>>("blocked")?
-                        .unwrap_or_default();
-
+                        _ => String::new(),
+                    };
+                    let msg = Message {
+                        id: row.get("id")?,
+                        rfc724_mid: row.get::<_, String>("rfc724mid")?,
+                        in_reply_to: row.get::<_, Option<String>>("mime_in_reply_to")?,
+                        server_folder: row.get::<_, Option<String>>("server_folder")?,
+                        server_uid: row.get("server_uid")?,
+                        chat_id: row.get("chat_id")?,
+                        from_id: row.get("from_id")?,
+                        to_id: row.get("to_id")?,
+                        timestamp_sort: row.get("timestamp")?,
+                        timestamp_sent: row.get("timestamp_sent")?,
+                        timestamp_rcvd: row.get("timestamp_rcvd")?,
+                        ephemeral_timer: row.get("ephemeral_timer")?,
+                        ephemeral_timestamp: row.get("ephemeral_timestamp")?,
+                        viewtype: row.get("type")?,
+                        state: row.get("state")?,
+                        error: Some(row.get::<_, String>("error")?)
+                            .filter(|error| !error.is_empty()),
+                        is_dc_message: row.get("msgrmsg")?,
+                        mime_modified: row.get("mime_modified")?,
+                        text: Some(text),
+                        param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
+                        hidden: row.get("hidden")?,
+                        location_id: row.get("location")?,
+                        chat_blocked: row
+                            .get::<_, Option<Blocked>>("blocked")?
+                            .unwrap_or_default(),
+                    };
                     Ok(msg)
                 },
             )
@@ -1323,7 +1321,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
     }
     if let Some(ref server_folder) = msg.server_folder {
-        if server_folder != "" {
+        if !server_folder.is_empty() {
             ret += &format!("\nLast seen as: {}/{}", server_folder, msg.server_uid);
         }
     }

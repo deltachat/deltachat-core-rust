@@ -436,8 +436,10 @@ impl MimeMessage {
         // Besides, we want to show something in case our incoming-processing
         // failed to properly handle an incoming message.
         if self.parts.is_empty() && self.mdn_reports.is_empty() {
-            let mut part = Part::default();
-            part.typ = Viewtype::Text;
+            let mut part = Part {
+                typ: Viewtype::Text,
+                ..Default::default()
+            };
 
             if let Some(ref subject) = self.get_subject() {
                 if !self.has_chat_version() {
@@ -615,12 +617,13 @@ impl MimeMessage {
                 let msg_body = context.stock_str(StockMessage::CantDecryptMsgBody).await;
                 let txt = format!("[{}]", msg_body);
 
-                let mut part = Part::default();
-                part.typ = Viewtype::Text;
-                part.msg_raw = Some(txt.clone());
-                part.msg = txt;
-                part.error = Some("Decryption failed".to_string());
-
+                let part = Part {
+                    typ: Viewtype::Text,
+                    msg_raw: Some(txt.clone()),
+                    msg: txt,
+                    error: Some("Decryption failed".to_string()),
+                    ..Default::default()
+                };
                 self.parts.push(part);
 
                 any_part_added = true;
@@ -652,8 +655,10 @@ impl MimeMessage {
                             // downloading the message again and
                             // delete if automatic message deletion is
                             // enabled.
-                            let mut part = Part::default();
-                            part.typ = Viewtype::Unknown;
+                            let part = Part {
+                                typ: Viewtype::Unknown,
+                                ..Default::default()
+                            };
                             self.parts.push(part);
 
                             any_part_added = true;
@@ -781,11 +786,13 @@ impl MimeMessage {
                         };
 
                         if !simplified_txt.is_empty() || simplified_quote.is_some() {
-                            let mut part = Part::default();
-                            part.dehtml_failed = dehtml_failed;
-                            part.typ = Viewtype::Text;
-                            part.mimetype = Some(mime_type);
-                            part.msg = simplified_txt;
+                            let mut part = Part {
+                                dehtml_failed,
+                                typ: Viewtype::Text,
+                                mimetype: Some(mime_type),
+                                msg: simplified_txt,
+                                ..Default::default()
+                            };
                             if let Some(quote) = simplified_quote {
                                 part.param.set(Param::Quote, quote);
                             }

@@ -8,6 +8,8 @@ from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.tracker import ImexTracker
 from deltachat.hookspec import account_hookimpl
+from deltachat.capi import ffi, lib
+from deltachat.cutil import iter_array
 from datetime import datetime, timedelta
 
 
@@ -595,6 +597,28 @@ class TestOfflineChat:
         assert in_list[1][1] == chat
         assert in_list[1][2] == contacts[3]
 
+    def test_audit_log_view_without_daymarker(self, ac1, lp):
+        lp.sec("ac1: test audit log (show only system messages)")
+        chat = ac1.create_group_chat(name="audit log sample data")
+        # promote chat
+        chat.send_text("hello")
+        assert chat.is_promoted()
+
+        lp.sec("create test data")
+        chat.add_contact(ac1.create_contact("some-1@example.org"))
+        chat.set_name("audit log test group")
+        chat.send_text("a message in between")
+
+        lp.sec("check message count of all messages")
+        assert len(chat.get_messages()) == 4
+
+        lp.sec("check message count of only system messages (without daymarkers)")
+        dc_array = ffi.gc(
+            lib.dc_get_chat_msgs(ac1._dc_context, chat.id, const.DC_GCM_INFO_ONLY, 0),
+            lib.dc_array_unref
+        )
+        assert len(list(iter_array(dc_array, lambda x: x))) == 2
+
 
 def test_basic_imap_api(acfactory, tmpdir):
     ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1134,9 +1158,10 @@ class TestOnlineAccount:
 
     def test_dont_show_emails_in_draft_folder(self, acfactory):
         """Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them.
-        So: If there is no Received header AND it's not in the sentbox, then ignore the email."""
+        So: If it's outgoing AND there is no Received header AND it's not in the sentbox, then ignore the email."""
         ac1 = acfactory.get_online_configuring_account()
         ac1.set_config("show_emails", "2")
+        ac1.create_contact("alice@example.com").create_chat()
 
         acfactory.wait_configure(ac1)
         ac1.direct_imap.create_folder("Drafts")
@@ -1148,23 +1173,23 @@ class TestOnlineAccount:
         ac1.stop_io()
 
         ac1.direct_imap.append("Drafts", """
-            From: Bob <bob@example.org>
+            From: ac1 <{}>
             Subject: subj
             To: alice@example.com
             Message-ID: <aepiors@example.org>
             Content-Type: text/plain; charset=utf-8
 
             message in Drafts
-        """)
+        """.format(ac1.get_config("configured_addr")))
         ac1.direct_imap.append("Sent", """
-            From: Bob <bob@example.org>
+            From: ac1 <{}>
             Subject: subj
             To: alice@example.com
             Message-ID: <hsabaeni@example.org>
             Content-Type: text/plain; charset=utf-8
 
             message in Sent
-        """)
+        """.format(ac1.get_config("configured_addr")))
 
         ac1.set_config("scan_all_folders_debounce_secs", "0")
         ac1.start_io()
