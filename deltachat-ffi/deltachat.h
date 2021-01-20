@@ -2860,6 +2860,9 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
 int             dc_chat_get_type             (const dc_chat_t* chat);
 
 /**
+ * Get whether group chat shows a mailing list. If yes, you should probably remove controls that
+ * can't be used in mailing lists (like leaving, adding members, removing members)
+ *
  * @memberof dc_chat_t
  * @return 1 if this group chat shows a mailing list, 0 otherwise. Also see dc_msg_is_mailing_list.
  */
@@ -3884,6 +3887,10 @@ dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
 /**
  * Whether this message belongs to a mailing list. Use this method for messages in the deaddrop,
  * for normal chats it is more performant to use dc_chat_is_mailing_list.
+ *
+ * If this returns true, ask the user whether they want to show the mailing list in Delta Chat
+ * (like, "Show mailing list with %1$s in Delta Chat?")
+ *
  * @memberof dc_msg_t
  * @return 1 if this message belongs to a mailing list, 0 otherwise.
  */

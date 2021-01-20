@@ -383,6 +383,7 @@ impl Contact {
         }
 
         let mut name = name.as_ref();
+        #[allow(clippy::collapsible_if)]
         if origin <= Origin::OutgoingTo {
             if addr.contains("noreply")
                 || addr.starts_with("notifications@")
