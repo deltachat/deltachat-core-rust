@@ -133,8 +133,10 @@ impl ChatId {
 
     /// Chat ID signifying there are **any** number of archived chats.
     ///
-    /// This chat ID can be returned in a [Chatlist] and signals to
+    /// This chat ID can be returned in a [`Chatlist`] and signals to
     /// the UI to include a link to the archived chats.
+    ///
+    /// [`Chatlist`]: crate::chatlist::Chatlist
     pub fn is_archived_link(self) -> bool {
         self.0 == DC_CHAT_ID_ARCHIVED_LINK
     }
@@ -142,8 +144,11 @@ impl ChatId {
     /// Virtual chat ID signalling there are **only** archived chats.
     ///
     /// This can be included in the chatlist if the
-    /// [DC_GCL_ADD_ALLDONE_HINT] flag is used to build the
-    /// [Chatlist].
+    /// [`DC_GCL_ADD_ALLDONE_HINT`] flag is used to build the
+    /// [`Chatlist`].
+    ///
+    /// [`DC_GCL_ADD_ALLDONE_HINT`]: crate::constants::DC_GCL_ADD_ALLDONE_HINT
+    /// [`Chatlist`]: crate::chatlist::Chatlist
     pub fn is_alldone_hint(self) -> bool {
         self.0 == DC_CHAT_ID_ALLDONE_HINT
     }
@@ -1172,7 +1177,7 @@ pub struct ChatInfo {
 
     /// The "params" of the chat.
     ///
-    /// This is the string-serialised version of [Params] currently.
+    /// This is the string-serialised version of `Params` currently.
     pub param: String,
 
     /// Last time this client sent autocrypt gossip headers to this chat.
@@ -1257,8 +1262,9 @@ pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId
     Ok(chat.id)
 }
 
-/// Create a normal chat with a single user.  To create group chats,
-/// see [Chat::create_group_chat].
+/// Create a normal chat with a single user.
+///
+/// To create group chats, see [`create_group_chat`].
 ///
 /// If a chat already exists, this ID is returned, otherwise a new chat is created;
 /// this new chat may already contain messages, eg. from the deaddrop, to get the
