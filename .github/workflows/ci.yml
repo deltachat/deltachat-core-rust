@@ -61,7 +61,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --workspace --document-private-items --no-deps
+          args: --document-private-items --no-deps
 
   build_and_test:
     name: Build and test
