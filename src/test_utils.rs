@@ -464,16 +464,19 @@ pub(crate) fn bob_keypair() -> key::KeyPair {
     }
 }
 
+/// Gets a specific message from a chat and asserts that the chat has a specific length.
+///
+/// Panics if the length of the chat is not `asserted_msgs_count` or if the chat item at `index` is not a Message.
 #[allow(clippy::indexing_slicing)]
 pub(crate) async fn get_chat_msg(
     t: &TestContext,
     chat_id: ChatId,
-    get_index: usize,
+    index: usize,
     asserted_msgs_count: usize,
 ) -> Message {
     let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
     assert_eq!(msgs.len(), asserted_msgs_count);
-    let msg_id = if let ChatItem::Message { msg_id } = msgs[get_index] {
+    let msg_id = if let ChatItem::Message { msg_id } = msgs[index] {
         msg_id
     } else {
         panic!("Wrong item type");

@@ -3147,7 +3147,7 @@ int             dc_msg_get_viewtype           (const dc_msg_t* msg);
  *
  * Incoming message states:
  * - DC_STATE_IN_FRESH (10) - Incoming _fresh_ message. Fresh messages are neither noticed nor seen and are typically shown in notifications. Use dc_get_fresh_msgs() to get all fresh messages.
- * - DC_STATE_IN_NOTICED (13) - Incoming _noticed_ message. E.g. chat opened but message not yet read - noticed messages are not counted as unread but did not marked as read nor resulted in MDNs. Use dc_marknoticed_chat() to mark messages as being noticed.
+ * - DC_STATE_IN_NOTICED (13) - Incoming _noticed_ message. E.g. chat opened but message not yet read - noticed messages are not counted as unread but were not marked as read nor resulted in MDNs. Use dc_marknoticed_chat() to mark messages as being noticed.
  * - DC_STATE_IN_SEEN (16) - Incoming message, really _seen_ by the user. Marked as read on IMAP and MDN may be sent. Use dc_markseen_msgs() to mark messages as being seen.
  *
  * Outgoing message states:
@@ -4794,7 +4794,7 @@ void dc_event_unref(dc_event_t* event);
  * Messages were marked noticed or seen.
  * The UI may update badge counters or stop showing a chatlist-item with a bold font.
  *
- * This event is emitted eg. when calling dc_markseen_msgs() or dc_marknoticed_chat()
+ * This event is emitted e.g. when calling dc_markseen_msgs() or dc_marknoticed_chat()
  * or when a chat is answered on another device.
  * Do not try to derive the state of an item from just the fact you received the event;
  * use e.g. dc_msg_get_state() or dc_get_fresh_msg_cnt() for this purpose.

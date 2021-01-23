@@ -1452,7 +1452,7 @@ async fn create_or_lookup_mailinglist(
     list_id_header: &str,
     subject: &str,
 ) -> (ChatId, Blocked) {
-    static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.*.)<(.*.)>$").unwrap());
+    static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
     let (mut name, listid) = match LIST_ID.captures(list_id_header) {
         Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
         None => (
@@ -1558,8 +1558,6 @@ async fn create_or_lookup_adhoc_group(
     to_ids: &ContactIds,
 ) -> Result<(ChatId, Blocked)> {
     if mime_parser.is_mailinglist_message() {
-        // XXX we could parse List-* headers and actually create and
-        // manage a mailing list group, eventually
         info!(
             context,
             "not creating ad-hoc group for mailing list message"
@@ -2045,7 +2043,7 @@ pub(crate) async fn get_prefetch_parent_message(
 }
 
 /// * param `prevent_rename`: if true, the display_name of this contact will not be changed. Useful for
-/// mailing lists: In mailing lists, many users write from the same address but with different
+/// mailing lists: In some mailing lists, many users write from the same address but with different
 /// display names. We don't want the display name to change everytime the user gets a new email from
 /// a mailing list.
 async fn dc_add_or_lookup_contacts_by_address_list(
@@ -2969,8 +2967,8 @@ mod tests {
         assert_eq!(chats.get_chat_id(0), deaddrop); // Test that the message is shown in the deaddrop
 
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-        // ===================================== Answer "no" on the contact request =====================================
-        msg.decide_on_contact_request(&t.ctx, No).await;
+        // ===================================== Answer "never" on the contact request =====================================
+        msg.decide_on_contact_request(&t.ctx, Never).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared

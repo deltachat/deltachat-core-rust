@@ -129,7 +129,7 @@ pub enum Param {
     /// For Chats
     Devicetalk = b'D',
 
-    /// For Chats
+    /// For Chats: "1" if this chat is a mailing list, all other values are invalid.
     MailingList = b'L',
 
     /// For QR

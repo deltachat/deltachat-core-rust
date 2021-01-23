@@ -385,11 +385,12 @@ impl Contact {
         let mut name = name.as_ref();
         #[allow(clippy::collapsible_if)]
         if origin <= Origin::OutgoingTo {
+            // The user may accidentally have written to a "noreply" address with another MUA:
             if addr.contains("noreply")
+                || addr.contains("no-reply")
                 || addr.starts_with("notifications@")
+                // Filter out use-once addresses (like reply+AEJDGPOECLAP...@reply.github.com):
                 || (addr.len() > 50 && addr.contains('+'))
-            // Filter out email addresses where the user accidentally wrote to
-            // and use-once addresses (like reply+AEJ...@reply.github.com)
             {
                 info!(context, "hiding contact {}", addr);
                 origin = Origin::Hidden;
@@ -1055,7 +1056,7 @@ impl Contact {
             .is_ok()
     }
 
-    /// Looks up or creates a pseudo conact of the form {List-Id}@mailing.list
+    /// Looks up or creates a pseudo contact of the form {List-Id}@mailing.list
     pub(crate) async fn grpid_to_mailinglist_contact(
         context: &Context,
         name: &str,

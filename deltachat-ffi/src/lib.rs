@@ -2808,7 +2808,7 @@ pub unsafe extern "C" fn dc_msg_get_override_sender_name(msg: *mut dc_msg_t) -> 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_sender_first_name(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_get_override_sender_name()");
+        eprintln!("ignoring careless call to dc_msg_get_sender_first_name()");
         return "".strdup();
     }
     let ffi_msg = &mut *msg;
