@@ -1102,7 +1102,10 @@ async fn calc_sort_timestamp(
 /// If the message contains groups commands (name, profile image, changed members),
 /// they are executed as well.
 ///
-/// If no group-id could be extracted and there are more than two members,
+/// If no group-id could be extracted, message is assigned to the same chat as the
+/// parent message.
+///
+/// If there is no parent message in the database, and there are more than two members,
 /// a new ad-hoc group is created.
 ///
 /// On success the function returns the found/created (chat_id, chat_blocked) tuple.
@@ -1138,6 +1141,29 @@ async fn create_or_lookup_group(
         }
         if !member_ids.contains(&DC_CONTACT_ID_SELF) {
             member_ids.push(DC_CONTACT_ID_SELF);
+        }
+
+        // Only search for parent message if there are more than two
+        // members to make sure private replies to group
+        // messages are assigned to a 1:1 chat.
+        //
+        // If group contains only 2 members, there is no way to
+        // distinguish between "Reply All" and "Reply", so replies
+        // to such groups from classic MUAs will be always assigned to
+        // 1:1 chat.
+        if member_ids.len() > 2 {
+            if let Some(parent) = get_parent_message(context, mime_parser).await? {
+                let chat = Chat::load_from_db(context, parent.chat_id).await?;
+
+                // Check that destination chat is a group chat.
+                // Otherwise, it could be a reply to an undecipherable
+                // group message that we previously assigned to a 1:1 chat.
+                if chat.typ == Chattype::Group {
+                    // Return immediately without attempting to execute group commands,
+                    // as this message does not contain an explicit group-id header.
+                    return Ok((chat.id, chat.blocked));
+                }
+            }
         }
 
         if !allow_creation {
@@ -2604,5 +2630,76 @@ mod tests {
             msg.param.get(Param::File).unwrap(),
             "$BLOBDIR/test pdf äöüß.pdf"
         );
+    }
+
+    /// Test that classical MUA messages are assigned to group chats based on the `In-Reply-To`
+    /// header.
+    #[async_std::test]
+    async fn test_in_reply_to() {
+        let t = TestContext::new().await;
+        t.configure_addr("bob@example.com").await;
+
+        // Receive message from Alice about group "foo".
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com, charlie@example.net\n\
+                 Subject: foo\n\
+                 Message-ID: <message@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: foo\n\
+                 Chat-Group-Name: foo\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello foo\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Receive reply from Charlie without group ID but with In-Reply-To header.
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: charlie@example.net\n\
+                 To: alice@example.org, bob@example.com\n\
+                 Subject: Re: foo\n\
+                 Message-ID: <message@example.net>\n\
+                 In-Reply-To: <message@example.org>\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 reply foo\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
+        assert_eq!(msg.get_text().unwrap(), "reply foo");
+
+        // Load the first message from the same chat.
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await;
+        let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
+            msg_id
+        } else {
+            panic!("Wrong item type");
+        };
+
+        let reply_msg = Message::load_from_db(&t, *msg_id).await.unwrap();
+        assert_eq!(reply_msg.get_text().unwrap(), "hello foo");
+
+        // Check that reply got into the same chat as the original message.
+        assert_eq!(msg.chat_id, reply_msg.chat_id);
+
+        // Make sure we looked at real chat ID and do not just
+        // test that both messages got into deaddrop.
+        assert!(!msg.chat_id.is_special());
     }
 }

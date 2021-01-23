@@ -699,7 +699,7 @@ pub struct Chat {
     pub name: String,
     pub visibility: ChatVisibility,
     pub grpid: String,
-    blocked: Blocked,
+    pub(crate) blocked: Blocked,
     pub param: Params,
     is_sending_locations: bool,
     pub mute_duration: MuteDuration,
