@@ -263,7 +263,7 @@ impl MsgId {
         })
     }
 
-    // As get_html_as_mimepart() but wraps get_html() into text/html mime raw string.
+    // As [`MsgId::get_html_as_mimepart`] but wraps [`MsgId::get_html`] into text/html mime raw string.
     pub async fn get_html_as_rawmime(self, context: &Context) -> Option<String> {
         self.get_html_as_mimepart(context)
             .await
