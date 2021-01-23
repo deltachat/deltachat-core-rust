@@ -80,6 +80,8 @@ impl async_std::stream::Stream for EventEmitter {
 /// documented in `deltachat.h`.
 ///
 /// This struct [`Deref`]s to the [`EventType`].
+///
+/// [`Context`]: crate::context::Context
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
     /// The ID of the [`Context`] which emitted this event.

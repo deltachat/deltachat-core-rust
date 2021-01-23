@@ -3,6 +3,7 @@
 //! This module is only compiled for test runs.
 
 use std::collections::BTreeMap;
+use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
@@ -46,7 +47,6 @@ static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
 ///
 /// The temporary directory can be used to store the SQLite database,
 /// see e.g. [test_context] which does this.
-// #[derive(Debug)]
 pub(crate) struct TestContext {
     pub ctx: Context,
     pub dir: TempDir,
@@ -54,6 +54,17 @@ pub(crate) struct TestContext {
     recv_idx: RwLock<u32>,
     /// Functions to call for events received.
     event_sinks: Arc<RwLock<Vec<Box<EventSink>>>>,
+}
+
+impl fmt::Debug for TestContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TestContext")
+            .field("ctx", &self.ctx)
+            .field("dir", &self.dir)
+            .field("recv_idx", &self.recv_idx)
+            .field("event_sinks", &String::from("Vec<EventSink>"))
+            .finish()
+    }
 }
 
 impl TestContext {

@@ -369,7 +369,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
     }
 }
 
-/// Error for [send_handshake_msg].
+/// Error when failing to send a protocol handshake message.
 ///
 /// Wrapping the [anyhow::Error] means we can "impl From" more easily on errors from this
 /// function.
@@ -489,9 +489,8 @@ pub(crate) enum HandshakeMessage {
 
 /// Handle incoming secure-join handshake.
 ///
-/// This function will update the securejoin state in [Context::bob]
-/// and also terminate the ongoing process using
-/// [Context::stop_ongoing] as required by the protocol.
+/// This function will update the securejoin state in [`InnerContext::bob`] and also
+/// terminate the ongoing process using [Context::stop_ongoing] as required by the protocol.
 ///
 /// A message which results in [Err] will be hidden from the user but
 /// not deleted, it may be a valid message for something else we are
@@ -501,6 +500,8 @@ pub(crate) enum HandshakeMessage {
 /// When handle_securejoin_handshake() is called,
 /// the message is not yet filed in the database;
 /// this is done by receive_imf() later on as needed.
+///
+/// [`InnerContext::bob`]: crate::context::InnerContext::bob
 #[allow(clippy::indexing_slicing)]
 pub(crate) async fn handle_securejoin_handshake(
     context: &Context,
