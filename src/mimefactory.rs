@@ -21,6 +21,7 @@ use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
 use crate::stock::StockMessage;
+use std::convert::TryInto;
 
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
@@ -966,7 +967,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         // for simplificity and to avoid conversion errors, we're generating the HTML-part from the original message.
         if self.msg.has_html() {
             if let Some(orig_msg_id) = self.msg.param.get_int(Param::Forwarded) {
-                let orig_msg_id = MsgId::new(orig_msg_id as u32);
+                let orig_msg_id = MsgId::new(orig_msg_id.try_into()?);
                 if let Some(html_part) = orig_msg_id.get_html_as_mimepart(context).await {
                     main_part = PartBuilder::new()
                         .message_type(MimeMultipartType::Alternative)
