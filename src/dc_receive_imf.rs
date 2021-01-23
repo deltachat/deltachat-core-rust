@@ -525,7 +525,7 @@ async fn add_parts(
                 if Blocked::Not == create_blocked {
                     chat_id.unblock(context).await;
                     chat_id_blocked = Blocked::Not;
-                } else if get_parent_message(context, mime_parser).await?.is_some() {
+                } else if parent.is_some() {
                     // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                     // the contact requests will pop up and this should be just fine.
                     Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo).await;
