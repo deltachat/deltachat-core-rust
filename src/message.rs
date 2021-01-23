@@ -1032,7 +1032,7 @@ impl Lot {
                         self.text1 = None;
                     }
                 } else if let Some(contact) = contact {
-                    self.text1 = Some(contact.get_first_name().into());
+                    self.text1 = Some(contact.get_display_name().into());
                 } else {
                     self.text1 = None;
                 }

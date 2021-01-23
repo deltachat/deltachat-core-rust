@@ -888,16 +888,6 @@ impl Contact {
         (&self.addr).into()
     }
 
-    /// Get the part of the name before the first space. In most languages, this seems to be
-    /// the prename. If there is no space, the full display name is returned.
-    /// If the display name is not set, the e-mail address is returned.
-    pub fn get_first_name(&self) -> &str {
-        if !self.name.is_empty() {
-            return get_first_name(&self.name);
-        }
-        &self.addr
-    }
-
     /// Get the contact's profile image.
     /// This is the image set by each remote user on their own
     /// using dc_set_config(context, "selfavatar", image).
@@ -1033,11 +1023,6 @@ impl Contact {
             .await
             .is_ok()
     }
-}
-
-/// Extracts first name from full name.
-fn get_first_name(full_name: &str) -> &str {
-    full_name.splitn(2, ' ').next().unwrap_or_default()
 }
 
 /// Returns false if addr is an invalid address, otherwise true.
@@ -1281,11 +1266,6 @@ mod tests {
         // normalisation preserves case to allow user-defined spelling.
         // however, case is ignored on addr_cmp()
         assert_ne!(addr_normalize("John@Doe.com"), "john@doe.com");
-    }
-
-    #[test]
-    fn test_get_first_name() {
-        assert_eq!(get_first_name("John Doe"), "John");
     }
 
     #[test]
