@@ -1390,13 +1390,7 @@ pub unsafe extern "C" fn dc_get_msg_html(
     }
     let ctx = &*context;
 
-    block_on(async move {
-        MsgId::new(msg_id)
-            .get_html(&ctx)
-            .await
-            .map(|s| s.strdup())
-            .unwrap_or_else(ptr::null_mut)
-    })
+    block_on(MsgId::new(msg_id).get_html(&ctx)).strdup()
 }
 
 #[no_mangle]
