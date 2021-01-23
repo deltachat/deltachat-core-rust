@@ -2946,7 +2946,9 @@ pub unsafe extern "C" fn dc_decide_on_contact_request(
             warn!(ctx, "{} is not a valid decision, ignoring", decision);
             0
         }
-        Some(d) => block_on(ffi_msg.message.decide_on_contact_request(ctx, d)),
+        Some(d) => block_on(ffi_msg.message.decide_on_contact_request(ctx, d))
+            .unwrap_or_default()
+            .to_u32(),
     }
 }
 

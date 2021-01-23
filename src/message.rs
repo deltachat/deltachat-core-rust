@@ -808,19 +808,20 @@ impl Message {
         &self,
         context: &Context,
         decision: ContactRequestDecision,
-    ) -> u32 {
+    ) -> Option<ChatId> {
         use ContactRequestDecision::*;
         let chat = match Chat::load_from_db(context, self.chat_id).await {
             Ok(c) => c,
             Err(e) => {
                 warn!(context, "Can't load chat: {}", e);
-                return 0;
+                return None;
             }
         };
 
+        let mut created_chat_id = None;
         match (decision, chat.is_mailing_list()) {
             (Yes, _) => match chat::create_by_msg_id(context, self.id).await {
-                Ok(id) => return id.to_u32(),
+                Ok(id) => created_chat_id = Some(id),
                 Err(e) => warn!(context, "decide_on_contact_request error: {}", e),
             },
 
@@ -853,7 +854,7 @@ impl Message {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
-        0
+        created_chat_id
     }
 
     pub async fn is_mailing_list(&self, context: &Context) -> anyhow::Result<bool> {
