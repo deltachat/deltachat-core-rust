@@ -70,8 +70,10 @@ pub struct MimeMessage {
     // clients should offer a way to view the original message in this case
     pub is_mime_modified: bool,
 
-    // this is non-empty only if the message was actually encrypted.
-    // used to save the decrypted, raw mime structure as needed eg. for late-parsing HTML.
+    /// The decrypted, raw mime structure.
+    ///
+    /// This is non-empty only if the message was actually encrypted.  It is used
+    /// for e.g. late-parsing HTML.
     pub decoded_data: Vec<u8>,
 }
 
