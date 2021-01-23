@@ -3834,7 +3834,7 @@ dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
  * By default, these names are equal,
  * but functions working with contact names
  * (e.g. dc_contact_get_name(), dc_contact_get_display_name(),
- * dc_contact_get_name_n_addr(), dc_contact_get_first_name(),
+ * dc_contact_get_name_n_addr(),
  * dc_create_contact() or dc_add_address_book())
  * only affect the given-name.
  */
@@ -3922,19 +3922,6 @@ char*           dc_contact_get_display_name  (const dc_contact_t* contact);
  *     Never returns NULL.
  */
 char*           dc_contact_get_name_n_addr   (const dc_contact_t* contact);
-
-
-/**
- * Get the part of the name before the first space. In most languages, this seems to be
- * the prename. If there is no space, the full display name is returned.
- * If the display name is not set, the e-mail address is returned.
- *
- * @memberof dc_contact_t
- * @param contact The contact object.
- * @return String with the name to display, must be released using dc_str_unref().
- *     Never returns NULL.
- */
-char*           dc_contact_get_first_name    (const dc_contact_t* contact);
 
 
 /**
