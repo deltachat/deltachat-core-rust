@@ -1,14 +1,15 @@
 //! # [Autocrypt Peer State](https://autocrypt.org/level1.html#peer-state-management) module
+
 use std::collections::HashSet;
 use std::fmt;
 
+use anyhow::{bail, Result};
 use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat;
 use crate::constants::Blocked;
 use crate::context::Context;
-use crate::error::{bail, Result};
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::sql::Sql;

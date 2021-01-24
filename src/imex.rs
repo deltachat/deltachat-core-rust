@@ -3,7 +3,7 @@
 use std::any::Any;
 use std::ffi::OsStr;
 
-use anyhow::Context as _;
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_std::path::{Path, PathBuf};
 use async_std::{
     fs::{self, File},
@@ -22,7 +22,6 @@ use crate::dc_tools::{
     dc_open_file_std, dc_read_file, dc_write_file, get_next_backup_path, time, EmailAddress,
 };
 use crate::e2ee;
-use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::message::{Message, MsgId};

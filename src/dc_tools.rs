@@ -12,13 +12,13 @@ use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use async_std::{fs, io};
 
+use anyhow::{bail, Error};
 use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
 use crate::chat::{add_device_msg, add_device_msg_with_importance};
 use crate::constants::{Viewtype, DC_OUTDATED_WARNING_DAYS};
 use crate::context::Context;
-use crate::error::{bail, Error};
 use crate::events::EventType;
 use crate::message::Message;
 use crate::provider::get_provider_update_timestamp;

@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::io::Cursor;
 
+use anyhow::{bail, ensure, format_err, Result};
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
@@ -17,7 +18,6 @@ use rand::{thread_rng, CryptoRng, Rng};
 
 use crate::constants::KeyGenType;
 use crate::dc_tools::EmailAddress;
-use crate::error::{bail, ensure, format_err, Result};
 use crate::key::{DcKey, Fingerprint};
 use crate::keyring::Keyring;
 

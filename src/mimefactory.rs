@@ -1,3 +1,4 @@
+use anyhow::{bail, ensure, format_err, Error};
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 
@@ -12,7 +13,6 @@ use crate::dc_tools::{
 };
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
-use crate::error::{bail, ensure, format_err, Error};
 use crate::format_flowed::{format_flowed, format_flowed_quote};
 use crate::location;
 use crate::message::{self, Message, MsgId};

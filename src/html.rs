@@ -10,10 +10,10 @@ use futures::future::FutureExt;
 use std::future::Future;
 use std::pin::Pin;
 
+use anyhow::Result;
 use lettre_email::mime::{self, Mime};
 
 use crate::context::Context;
-use crate::error::Result;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::parse_message_id;
