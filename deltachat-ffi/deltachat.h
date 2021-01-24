@@ -3446,14 +3446,6 @@ char*           dc_msg_get_summarytext        (const dc_msg_t* msg, int approx_c
 char*           dc_msg_get_override_sender_name(const dc_msg_t* msg);
 
 
-/**
- * Like dc_contact_get_first_name() but handles mailing lists correctly.
- * This function involves reading from the database; if performance matters (e.g. in a list
- * where the user might scroll very fast), consider using dc_msg_get_override_sender_name()
- * and dc_contact_get_display_name() instead.
- */
-char*           dc_msg_get_sender_first_name   (const dc_msg_t* msg);
-
 
 /**
  * Check if a message has a deviating timestamp.
