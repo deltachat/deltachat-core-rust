@@ -14,9 +14,7 @@ use crate::constants::{
 };
 use crate::contact::{addr_cmp, normalize_name, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
-use crate::dc_tools::{
-    dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time, time,
-};
+use crate::dc_tools::{dc_create_smeared_timestamp, dc_smeared_time, time};
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
@@ -555,7 +553,7 @@ async fn add_parts(
                 if Blocked::Not == create_blocked {
                     chat_id.unblock(context).await;
                     chat_id_blocked = Blocked::Not;
-                } else if get_parent_message(context, mime_parser).await?.is_some() {
+                } else if parent.is_some() {
                     // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                     // the contact requests will pop up and this should be just fine.
                     Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo).await;
@@ -852,16 +850,16 @@ async fn add_parts(
     // if indicated by the parser,
     // we save the full mime-message and add a flag
     // that the ui should show button to display the full message.
-    //
-    // (currently, we skip saving mime-messages for encrypted messages
-    // as there is probably no huge intersection between html-messages and encrypted messages,
-    // however, that should be doable, we need the decrypted mime-structure in this case)
 
     // a flag used to avoid adding "show full message" button to multiple parts of the message.
-    let mut save_mime_modified = mime_parser.is_mime_modified && !mime_parser.was_encrypted();
+    let mut save_mime_modified = mime_parser.is_mime_modified;
 
     let mime_headers = if save_mime_headers || save_mime_modified {
-        Some(String::from_utf8_lossy(imf_raw).to_string())
+        if mime_parser.was_encrypted() {
+            Some(String::from_utf8_lossy(&mime_parser.decoded_data).to_string())
+        } else {
+            Some(String::from_utf8_lossy(imf_raw).to_string())
+        }
     } else {
         None
     };
@@ -1127,17 +1125,18 @@ async fn calc_sort_timestamp(
     sort_timestamp
 }
 
-/// This function tries extracts the group-id from the message and returns the
-/// corresponding chat_id. If the chat_id is not existent, it is created.
+/// This function tries to extract the group-id from the message and returns the
+/// corresponding chat_id. If the chat does not exist, it is created.
 /// If the message contains groups commands (name, profile image, changed members),
 /// they are executed as well.
 ///
-/// if no group-id could be extracted from the message, create_or_lookup_adhoc_group() is called
-/// which tries to create or find out the chat_id by:
-/// - is there a group with the same recipients? if so, use this (if there are multiple, use the most recent one)
-/// - create an ad-hoc group based on the recipient list
+/// If no group-id could be extracted, message is assigned to the same chat as the
+/// parent message.
 ///
-/// on success the function returns the found/created (chat_id, chat_blocked) tuple .
+/// If there is no parent message in the database, and there are more than two members,
+/// a new ad-hoc group is created.
+///
+/// On success the function returns the found/created (chat_id, chat_blocked) tuple.
 #[allow(non_snake_case, clippy::cognitive_complexity)]
 async fn create_or_lookup_group(
     context: &Context,
@@ -1161,23 +1160,57 @@ async fn create_or_lookup_group(
         set_better_msg(mime_parser, &better_msg);
     }
 
-    let grpid = try_getting_grpid(mime_parser);
+    let grpid = if let Some(grpid) = mime_parser.get(HeaderDef::ChatGroupId) {
+        grpid.clone()
+    } else {
+        let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
+        if !member_ids.contains(&from_id) {
+            member_ids.push(from_id);
+        }
+        if !member_ids.contains(&DC_CONTACT_ID_SELF) {
+            member_ids.push(DC_CONTACT_ID_SELF);
+        }
 
-    if grpid.is_empty() {
-        return create_or_lookup_adhoc_group(
-            context,
-            mime_parser,
-            allow_creation,
-            create_blocked,
-            from_id,
-            to_ids,
-        )
-        .await
-        .map_err(|err| {
-            info!(context, "could not create adhoc-group: {:?}", err);
-            err
-        });
-    }
+        // Only search for parent message if there are more than two
+        // members to make sure private replies to group
+        // messages are assigned to a 1:1 chat.
+        //
+        // If group contains only 2 members, there is no way to
+        // distinguish between "Reply All" and "Reply", so replies
+        // to such groups from classic MUAs will be always assigned to
+        // 1:1 chat.
+        if member_ids.len() > 2 {
+            if let Some(parent) = get_parent_message(context, mime_parser).await? {
+                let chat = Chat::load_from_db(context, parent.chat_id).await?;
+
+                // Check that destination chat is a group chat.
+                // Otherwise, it could be a reply to an undecipherable
+                // group message that we previously assigned to a 1:1 chat.
+                if chat.typ == Chattype::Group {
+                    // Return immediately without attempting to execute group commands,
+                    // as this message does not contain an explicit group-id header.
+                    return Ok((chat.id, chat.blocked));
+                }
+            }
+        }
+
+        if !allow_creation {
+            info!(context, "creating ad-hoc group prevented from caller");
+            return Ok((ChatId::new(0), Blocked::Not));
+        }
+
+        return create_adhoc_group(context, mime_parser, create_blocked, &member_ids)
+            .await
+            .map(|chat_id| {
+                chat_id
+                    .map(|chat_id| (chat_id, create_blocked))
+                    .unwrap_or((ChatId::new(0), Blocked::Not))
+            })
+            .map_err(|err| {
+                info!(context, "could not create adhoc-group: {:?}", err);
+                err
+            });
+    };
 
     // now we have a grpid that is non-empty
     // but we might not know about this group
@@ -1517,108 +1550,19 @@ async fn create_or_lookup_mailinglist(
     }
 }
 
-fn try_getting_grpid(mime_parser: &MimeMessage) -> String {
-    if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupId) {
-        return optional_field.clone();
-    }
-
-    if let Some(extracted_grpid) = mime_parser
-        .get(HeaderDef::MessageId)
-        .and_then(|value| dc_extract_grpid_from_rfc724_mid(&value))
-    {
-        return extracted_grpid.to_string();
-    }
-    if !mime_parser.has_chat_version() {
-        if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
-            return extracted_grpid.to_string();
-        } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References) {
-            return extracted_grpid.to_string();
-        }
-    }
-    "".to_string()
-}
-
-/// try extract a grpid from a message-id list header value
-fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<&str> {
-    let header = mime_parser.get(headerdef)?;
-    let parts = header
-        .split(',')
-        .map(str::trim)
-        .filter(|part| !part.is_empty());
-    parts.filter_map(dc_extract_grpid_from_rfc724_mid).next()
-}
-
 /// Handle groups for received messages, return chat_id/Blocked status on success
-async fn create_or_lookup_adhoc_group(
+async fn create_adhoc_group(
     context: &Context,
     mime_parser: &MimeMessage,
-    allow_creation: bool,
     create_blocked: Blocked,
-    from_id: u32,
-    to_ids: &ContactIds,
-) -> Result<(ChatId, Blocked)> {
+    member_ids: &[u32],
+) -> Result<Option<ChatId>> {
     if mime_parser.is_mailinglist_message() {
         info!(
             context,
             "not creating ad-hoc group for mailing list message"
         );
-        return Ok((ChatId::new(0), Blocked::Not));
-    }
-
-    // if we're here, no grpid was found, check if there is an existing
-    // ad-hoc group matching the to-list or if we should and can create one
-    // (we do not want to heuristically look at the likely mangled Subject)
-
-    let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
-    if !member_ids.contains(&from_id) {
-        member_ids.push(from_id);
-    }
-    if !member_ids.contains(&DC_CONTACT_ID_SELF) {
-        member_ids.push(DC_CONTACT_ID_SELF);
-    }
-
-    if member_ids.len() < 3 {
-        info!(context, "not creating ad-hoc group: too few contacts");
-        return Ok((ChatId::new(0), Blocked::Not));
-    }
-
-    let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids).await?;
-    if !chat_ids.is_empty() {
-        let chat_ids_str = join(chat_ids.iter().map(|x| x.to_string()), ",");
-        let res = context
-            .sql
-            .query_row(
-                format!(
-                    "SELECT c.id,
-                        c.blocked
-                   FROM chats c
-                   LEFT JOIN msgs m
-                          ON m.chat_id=c.id
-                  WHERE c.id IN({})
-                  ORDER BY m.timestamp DESC,
-                           m.id DESC
-                  LIMIT 1;",
-                    chat_ids_str
-                ),
-                paramsv![],
-                |row| {
-                    Ok((
-                        row.get::<_, ChatId>(0)?,
-                        row.get::<_, Option<Blocked>>(1)?.unwrap_or_default(),
-                    ))
-                },
-            )
-            .await;
-
-        if let Ok((id, id_blocked)) = res {
-            /* success, chat found */
-            return Ok((id, id_blocked));
-        }
-    }
-
-    if !allow_creation {
-        info!(context, "creating ad-hoc group prevented from caller");
-        return Ok((ChatId::new(0), Blocked::Not));
+        return Ok(None);
     }
 
     if mime_parser.decrypting_failed {
@@ -1634,28 +1578,22 @@ async fn create_or_lookup_adhoc_group(
             context,
             "not creating ad-hoc group for message that cannot be decrypted"
         );
-        return Ok((ChatId::new(0), Blocked::Not));
+        return Ok(None);
     }
 
-    // we do not check if the message is a reply to another group, this may result in
-    // chats with unclear member list. instead we create a new group in the following lines ...
-
-    // create a new ad-hoc group
-    // - there is no need to check if this group exists; otherwise we would have caught it above
-    let grpid = create_adhoc_grp_id(context, &member_ids).await;
-    if grpid.is_empty() {
-        warn!(
-            context,
-            "failed to create ad-hoc grpid for {:?}", member_ids
-        );
-        return Ok((ChatId::new(0), Blocked::Not));
+    if member_ids.len() < 3 {
+        info!(context, "not creating ad-hoc group: too few contacts");
+        return Ok(None);
     }
+
+    // Create a new ad-hoc group.
+    let grpid = create_adhoc_grp_id(context, member_ids).await;
+
     // use subject as initial chat name
     let grpname = mime_parser
         .get_subject()
         .unwrap_or_else(|| "Unnamed group".to_string());
 
-    // create group record
     let new_chat_id: ChatId = create_group_record(
         context,
         &grpid,
@@ -1664,13 +1602,13 @@ async fn create_or_lookup_adhoc_group(
         ProtectionStatus::Unprotected,
     )
     .await;
-    for &member_id in &member_ids {
+    for &member_id in member_ids.iter() {
         chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await;
     }
 
     context.emit_event(EventType::ChatModified(new_chat_id));
 
-    Ok((new_chat_id, create_blocked))
+    Ok(Some(new_chat_id))
 }
 
 async fn create_group_record(
@@ -1742,13 +1680,18 @@ async fn create_mailinglist_record(
     Ok(chat_id)
 }
 
+/// Creates ad-hoc group ID.
+///
+/// Algorithm:
+/// - sort normalized, lowercased, e-mail addresses alphabetically
+/// - put all e-mail addresses into a single string, separate the address by a single comma
+/// - sha-256 this string (without possibly terminating null-characters)
+/// - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
+///
+/// This ensures that different Delta Chat clients generate the same group ID unless some of them
+/// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
+/// so having the same ID prevents group split.
 async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
-    /* algorithm:
-    - sort normalized, lowercased, e-mail addresses alphabetically
-    - put all e-mail addresses into a single string, separate the address by a single comma
-    - sha-256 this string (without possibly terminating null-characters)
-    - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
-     */
     let member_ids_str = join(member_ids.iter().map(|x| x.to_string()), ",");
     let member_cs = context
         .get_config(Config::ConfiguredAddr)
@@ -1787,71 +1730,6 @@ fn hex_hash(s: impl AsRef<str>) -> String {
     let bytes = s.as_ref().as_bytes();
     let result = Sha256::digest(bytes);
     hex::encode(&result[..8])
-}
-
-async fn search_chat_ids_by_contact_ids(
-    context: &Context,
-    unsorted_contact_ids: &[u32],
-) -> Result<Vec<ChatId>> {
-    /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
-    let mut contact_ids = Vec::with_capacity(23);
-    let mut chat_ids = Vec::with_capacity(23);
-
-    /* copy array, remove duplicates and SELF, sort by ID */
-    if !unsorted_contact_ids.is_empty() {
-        for &curr_id in unsorted_contact_ids {
-            if curr_id != 1 && !contact_ids.contains(&curr_id) {
-                contact_ids.push(curr_id);
-            }
-        }
-        if !contact_ids.is_empty() {
-            contact_ids.sort_unstable();
-            let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
-            context.sql.query_map(
-                format!(
-                    "SELECT DISTINCT cc.chat_id, cc.contact_id
-                       FROM chats_contacts cc
-                       LEFT JOIN chats c ON c.id=cc.chat_id
-                      WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))
-                        AND c.type=120
-                        AND cc.contact_id!=1
-                      ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
-                    contact_ids_str
-                ),
-                paramsv![],
-                |row| Ok((row.get::<_, ChatId>(0)?, row.get::<_, u32>(1)?)),
-                |rows| {
-                    let mut last_chat_id = ChatId::new(0);
-                    let mut matches = 0;
-                    let mut mismatches = 0;
-
-                    for row in rows {
-                        let (chat_id, contact_id) = row?;
-                        if chat_id != last_chat_id {
-                            if matches == contact_ids.len() && mismatches == 0 {
-                                chat_ids.push(last_chat_id);
-                            }
-                            last_chat_id = chat_id;
-                            matches = 0;
-                            mismatches = 0;
-                        }
-                        if contact_ids.get(matches) == Some(&contact_id) {
-                            matches += 1;
-                        } else {
-                            mismatches += 1;
-                        }
-                    }
-
-                    if matches == contact_ids.len() && mismatches == 0 {
-                        chat_ids.push(last_chat_id);
-                    }
-                Ok(())
-                }
-            ).await?;
-        }
-    }
-
-    Ok(chat_ids)
 }
 
 async fn check_verified_properties(
@@ -2121,42 +1999,6 @@ mod tests {
 
         let res = hex_hash(data);
         assert_eq!(res, "b94d27b9934d3e08");
-    }
-
-    #[async_std::test]
-    async fn test_grpid_simple() {
-        let context = TestContext::new().await;
-        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                    From: hello\n\
-                    Subject: outer-subject\n\
-                    In-Reply-To: <lqkjwelq123@123123>\n\
-                    References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
-                    \n\
-                    hello\x00";
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
-            .await
-            .unwrap();
-        assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
-        let grpid = Some("HcxyMARjyJy");
-        assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
-    }
-
-    #[async_std::test]
-    async fn test_grpid_from_multiple() {
-        let context = TestContext::new().await;
-        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                    From: hello\n\
-                    Subject: outer-subject\n\
-                    In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
-                    References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
-                    \n\
-                    hello\x00";
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
-            .await
-            .unwrap();
-        let grpid = Some("HcxyMARjyJy");
-        assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
-        assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
 
     #[test]
@@ -3124,5 +2966,76 @@ YEAAAAAA!.
             msg.param.get(Param::File).unwrap(),
             "$BLOBDIR/test pdf äöüß.pdf"
         );
+    }
+
+    /// Test that classical MUA messages are assigned to group chats based on the `In-Reply-To`
+    /// header.
+    #[async_std::test]
+    async fn test_in_reply_to() {
+        let t = TestContext::new().await;
+        t.configure_addr("bob@example.com").await;
+
+        // Receive message from Alice about group "foo".
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com, charlie@example.net\n\
+                 Subject: foo\n\
+                 Message-ID: <message@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: foo\n\
+                 Chat-Group-Name: foo\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello foo\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Receive reply from Charlie without group ID but with In-Reply-To header.
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: charlie@example.net\n\
+                 To: alice@example.org, bob@example.com\n\
+                 Subject: Re: foo\n\
+                 Message-ID: <message@example.net>\n\
+                 In-Reply-To: <message@example.org>\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 reply foo\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
+        assert_eq!(msg.get_text().unwrap(), "reply foo");
+
+        // Load the first message from the same chat.
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await;
+        let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
+            msg_id
+        } else {
+            panic!("Wrong item type");
+        };
+
+        let reply_msg = Message::load_from_db(&t, *msg_id).await.unwrap();
+        assert_eq!(reply_msg.get_text().unwrap(), "hello foo");
+
+        // Check that reply got into the same chat as the original message.
+        assert_eq!(msg.chat_id, reply_msg.chat_id);
+
+        // Make sure we looked at real chat ID and do not just
+        // test that both messages got into deaddrop.
+        assert!(!msg.chat_id.is_special());
     }
 }

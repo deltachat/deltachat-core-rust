@@ -1151,7 +1151,7 @@ impl Lot {
                         self.text1 = None;
                     }
                 } else if let Some(contact) = contact {
-                    self.text1 = Some(msg.get_sender_first_name(contact));
+                    self.text1 = Some(msg.get_sender_name(contact));
                 } else {
                     self.text1 = None;
                 }
