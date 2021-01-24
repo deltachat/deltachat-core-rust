@@ -6,19 +6,15 @@
 use std::fmt;
 use std::future::Future;
 
+use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
+use async_smtp::smtp::response::{Category, Code, Detail};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
-use anyhow::Context as _;
-use async_smtp::smtp::response::Category;
-use async_smtp::smtp::response::Code;
-use async_smtp::smtp::response::Detail;
-
 use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, dc_read_file, time};
 use crate::ephemeral::load_imap_deletion_msgid;
-use crate::error::{bail, ensure, format_err, Error, Result};
 use crate::events::EventType;
 use crate::imap::{Imap, ImapActionResult};
 use crate::location;

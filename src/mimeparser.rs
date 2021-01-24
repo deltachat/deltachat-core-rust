@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 
+use anyhow::{bail, Result};
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
@@ -15,7 +16,6 @@ use crate::context::Context;
 use crate::dc_tools::dc_get_filemeta;
 use crate::dehtml::dehtml;
 use crate::e2ee;
-use crate::error::{bail, Result};
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};

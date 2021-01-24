@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::time::Duration;
 
+use anyhow::format_err;
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
 use crate::chat::add_device_msg;
@@ -15,7 +16,6 @@ use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, time, EmailAddress};
 use crate::ephemeral::start_ephemeral_timers;
-use crate::error::format_err;
 use crate::imap;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
@@ -54,7 +54,7 @@ pub enum Error {
     #[error("{0:?}")]
     BlobError(#[from] crate::blob::BlobError),
     #[error("{0}")]
-    Other(#[from] crate::error::Error),
+    Other(#[from] anyhow::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -92,7 +92,7 @@ impl Sql {
         context: &Context,
         dbfile: T,
         readonly: bool,
-    ) -> crate::error::Result<()> {
+    ) -> anyhow::Result<()> {
         let res = open(context, self, &dbfile, readonly).await;
         if let Err(err) = &res {
             match err.downcast_ref::<Error>() {
@@ -697,7 +697,7 @@ async fn open(
     sql: &Sql,
     dbfile: impl AsRef<Path>,
     readonly: bool,
-) -> crate::error::Result<()> {
+) -> anyhow::Result<()> {
     if sql.is_open().await {
         error!(
             context,

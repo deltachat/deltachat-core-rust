@@ -6,6 +6,7 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
+use anyhow::{bail, ensure, format_err, Error};
 use async_std::path::{Path, PathBuf};
 use itertools::Itertools;
 use num_traits::FromPrimitive;
@@ -28,7 +29,6 @@ use crate::dc_tools::{
     improve_single_line_input, time, IsNoneOrEmpty,
 };
 use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
-use crate::error::{bail, ensure, format_err, Error};
 use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};

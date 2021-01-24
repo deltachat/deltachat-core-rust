@@ -1,5 +1,6 @@
 //! # Messages and their identifiers
 
+use anyhow::{ensure, Error};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -19,7 +20,6 @@ use crate::dc_tools::{
     dc_truncate, time,
 };
 use crate::ephemeral::Timer as EphemeralTimer;
-use crate::error::{ensure, Error};
 use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::lot::{Lot, LotState, Meaning};

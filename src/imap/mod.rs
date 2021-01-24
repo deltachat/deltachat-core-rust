@@ -5,7 +5,7 @@
 
 use std::{cmp, cmp::max, collections::BTreeMap};
 
-use anyhow::Context as _;
+use anyhow::{bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
     types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
@@ -20,7 +20,6 @@ use crate::constants::{
 };
 use crate::context::Context;
 use crate::dc_receive_imf::{from_field_to_contact_id, get_prefetch_parent_message};
-use crate::error::{bail, format_err, Result};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};

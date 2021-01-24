@@ -2,13 +2,13 @@
 
 use std::collections::HashSet;
 
+use anyhow::{bail, ensure, format_err, Result};
 use mailparse::ParsedMail;
 use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::config::Config;
 use crate::context::Context;
-use crate::error::{bail, ensure, format_err, Result};
 use crate::headerdef::HeaderDef;
 use crate::headerdef::HeaderDefMap;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
@@ -411,7 +411,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
     }
 
     #[async_std::test]
-    async fn test_encrypted_no_autocrypt() -> crate::error::Result<()> {
+    async fn test_encrypted_no_autocrypt() -> anyhow::Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 

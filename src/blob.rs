@@ -7,6 +7,7 @@ use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use async_std::{fs, io};
 
+use anyhow::Error;
 use image::GenericImageView;
 use num_traits::FromPrimitive;
 use thiserror::Error;
@@ -17,7 +18,6 @@ use crate::constants::{
     WORSE_IMAGE_SIZE,
 };
 use crate::context::Context;
-use crate::error::Error;
 use crate::events::EventType;
 use crate::message;
 

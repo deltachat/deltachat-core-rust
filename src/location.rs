@@ -1,5 +1,6 @@
 //! Location handling
 
+use anyhow::{ensure, Error};
 use bitflags::bitflags;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
@@ -8,7 +9,6 @@ use crate::config::Config;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
 use crate::dc_tools::time;
-use crate::error::{ensure, Error};
 use crate::events::EventType;
 use crate::job::{self, Job};
 use crate::message::{Message, MsgId};

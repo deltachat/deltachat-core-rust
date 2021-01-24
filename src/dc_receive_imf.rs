@@ -1,8 +1,8 @@
+use anyhow::{bail, ensure, format_err, Result};
 use itertools::join;
+use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
 use sha2::{Digest, Sha256};
-
-use mailparse::SingleInfo;
 
 use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
@@ -14,7 +14,6 @@ use crate::contact::{addr_cmp, normalize_name, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::dc_tools::{dc_create_smeared_timestamp, dc_smeared_time, time};
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
-use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};

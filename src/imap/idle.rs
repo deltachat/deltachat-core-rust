@@ -1,11 +1,11 @@
 use super::Imap;
 
+use anyhow::{bail, format_err, Result};
 use async_imap::extensions::idle::IdleResponse;
 use async_imap::types::UnsolicitedResponse;
 use async_std::prelude::*;
 use std::time::{Duration, SystemTime};
 
-use crate::error::{bail, format_err, Result};
 use crate::{context::Context, scheduler::InterruptInfo};
 
 use super::session::Session;

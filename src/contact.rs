@@ -1,5 +1,6 @@
 //! Contacts module
 
+use anyhow::{bail, ensure, format_err, Result};
 use async_std::path::PathBuf;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -17,7 +18,6 @@ use crate::context::Context;
 use crate::dc_tools::{
     dc_get_abs_path, dc_str_to_color, improve_single_line_input, listflags_has, EmailAddress,
 };
-use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
