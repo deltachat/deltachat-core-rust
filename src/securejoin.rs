@@ -1170,7 +1170,9 @@ mod tests {
                 } => {
                     let alice_contact_id =
                         Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
-                            .await;
+                            .await
+                            .expect("Error looking up contact")
+                            .expect("Contact not found");
                     assert_eq!(contact_id, alice_contact_id);
                     assert_eq!(progress, 400);
                 }
@@ -1198,7 +1200,10 @@ mod tests {
 
         // Alice should not yet have Bob verified
         let contact_bob_id =
-            Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown).await;
+            Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown)
+                .await
+                .expect("Error looking up contact")
+                .expect("Contact not found");
         let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id)
             .await
             .unwrap();
@@ -1243,7 +1248,10 @@ mod tests {
 
         // Bob should not yet have Alice verified
         let contact_alice_id =
-            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown).await;
+            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+                .await
+                .expect("Error looking up contact")
+                .expect("Contact not found");
         let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id)
             .await
             .unwrap();
@@ -1354,7 +1362,9 @@ mod tests {
                 } => {
                     let alice_contact_id =
                         Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
-                            .await;
+                            .await
+                            .expect("Error looking up contact")
+                            .expect("Contact not found");
                     assert_eq!(contact_id, alice_contact_id);
                     assert_eq!(progress, 400);
                 }
@@ -1414,7 +1424,10 @@ mod tests {
 
         // Bob should not yet have Alice verified
         let contact_alice_id =
-            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown).await;
+            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+                .await
+                .expect("Error looking up contact")
+                .expect("Contact not found");
         let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id)
             .await
             .unwrap();
@@ -1504,7 +1517,9 @@ mod tests {
                 } => {
                     let alice_contact_id =
                         Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
-                            .await;
+                            .await
+                            .expect("Error looking up contact")
+                            .expect("Contact not found");
                     assert_eq!(contact_id, alice_contact_id);
                     assert_eq!(progress, 400);
                 }
@@ -1531,7 +1546,10 @@ mod tests {
 
         // Alice should not yet have Bob verified
         let contact_bob_id =
-            Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown).await;
+            Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown)
+                .await
+                .expect("Error looking up contact")
+                .expect("Contact not found");
         let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id)
             .await
             .unwrap();
@@ -1554,7 +1572,10 @@ mod tests {
 
         // Bob should not yet have Alice verified
         let contact_alice_id =
-            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown).await;
+            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+                .await
+                .expect("Error looking up contact")
+                .expect("Contact not found");
         let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id)
             .await
             .unwrap();

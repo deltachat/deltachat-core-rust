@@ -1539,6 +1539,9 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
         to_string_lossy(addr),
         Origin::IncomingReplyTo,
     ))
+    .ok()
+    .flatten()
+    .unwrap_or_default()
 }
 
 #[no_mangle]
