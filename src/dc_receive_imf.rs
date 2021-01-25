@@ -12,7 +12,9 @@ use crate::constants::{
 };
 use crate::contact::{addr_cmp, normalize_name, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
-use crate::dc_tools::{dc_create_smeared_timestamp, dc_smeared_time, time};
+use crate::dc_tools::{
+    dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time, time,
+};
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -1129,8 +1131,8 @@ async fn create_or_lookup_group(
         set_better_msg(mime_parser, &better_msg);
     }
 
-    let grpid = if let Some(grpid) = mime_parser.get(HeaderDef::ChatGroupId) {
-        grpid.clone()
+    let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
+        grpid
     } else {
         let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
         if !member_ids.contains(&from_id) {
@@ -1441,6 +1443,37 @@ async fn create_or_lookup_group(
         context.emit_event(EventType::ChatModified(chat_id));
     }
     Ok((chat_id, chat_id_blocked))
+}
+
+fn try_getting_grpid(mime_parser: &MimeMessage) -> Option<String> {
+    if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupId) {
+        return Some(optional_field.clone());
+    }
+
+    // Useful for undecipherable messages sent to known group.
+    if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::MessageId) {
+        return Some(extracted_grpid.to_string());
+    }
+
+    if !mime_parser.has_chat_version() {
+        if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
+            return Some(extracted_grpid.to_string());
+        } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References) {
+            return Some(extracted_grpid.to_string());
+        }
+    }
+
+    None
+}
+
+/// try extract a grpid from a message-id list header value
+fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<&str> {
+    let header = mime_parser.get(headerdef)?;
+    let parts = header
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty());
+    parts.filter_map(dc_extract_grpid_from_rfc724_mid).next()
 }
 
 /// Creates ad-hoc group and returns chat ID on success.
@@ -1859,6 +1892,42 @@ mod tests {
 
         let res = hex_hash(data);
         assert_eq!(res, "b94d27b9934d3e08");
+    }
+
+    #[async_std::test]
+    async fn test_grpid_simple() {
+        let context = TestContext::new().await;
+        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: hello\n\
+                    Subject: outer-subject\n\
+                    In-Reply-To: <lqkjwelq123@123123>\n\
+                    References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
+                    \n\
+                    hello\x00";
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
+        let grpid = Some("HcxyMARjyJy");
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
+    }
+
+    #[async_std::test]
+    async fn test_grpid_from_multiple() {
+        let context = TestContext::new().await;
+        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: hello\n\
+                    Subject: outer-subject\n\
+                    In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
+                    References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
+                    \n\
+                    hello\x00";
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        let grpid = Some("HcxyMARjyJy");
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
 
     #[test]

@@ -29,7 +29,9 @@ use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::provider::Socket;
-use crate::{chat, scheduler::InterruptInfo, stock::StockMessage};
+use crate::{
+    chat, dc_tools::dc_extract_grpid_from_rfc724_mid, scheduler::InterruptInfo, stock::StockMessage,
+};
 use crate::{config::Config, dc_receive_imf::dc_receive_imf_inner};
 
 mod client;
@@ -38,6 +40,7 @@ pub mod scan_folders;
 pub mod select_folder;
 mod session;
 
+use chat::get_chat_id_by_grpid;
 use client::Client;
 use mailparse::SingleInfo;
 use message::Message;
@@ -1608,6 +1611,19 @@ pub(crate) async fn prefetch_should_download(
             // This might be a group command, like removing a group member.
             // We really need to fetch this to avoid inconsistent group state.
             return Ok(true);
+        }
+    }
+
+    // Same as previous check, but using group IDs embedded into
+    // Message-IDs as a last resort, in case parent message was
+    // deleted from the database or has not arrived yet.
+    if let Some(rfc724_mid) = headers.get_header_value(HeaderDef::MessageId) {
+        if let Some(group_id) = dc_extract_grpid_from_rfc724_mid(&rfc724_mid) {
+            if let Ok((chat_id, _, _)) = get_chat_id_by_grpid(context, group_id).await {
+                if !chat_id.is_unset() {
+                    return Ok(true);
+                }
+            }
         }
     }
 
