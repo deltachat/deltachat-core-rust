@@ -17,6 +17,7 @@ use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::parse_message_id;
+use crate::param::Param::SendHtml;
 use crate::plaintext::PlainText;
 use lettre_email::PartBuilder;
 use mailparse::ParsedContentType;
@@ -30,6 +31,24 @@ impl Message {
     /// To get the HTML-code of the message, use `MsgId.get_html()`.
     pub fn has_html(&self) -> bool {
         self.mime_modified
+    }
+
+    /// Set HTML-part part of a message that is about to be sent.
+    /// The HTML-part is written to the database before sending and
+    /// used as the `text/html` part in the MIME-structure.
+    ///
+    /// Received HTML parts are handled differently,
+    /// they are saved together with the whole MIME-structure
+    /// in `mime_headers` and the HTML-part is extracted using `MsgId::get_html()`.
+    /// (To underline this asynchronicity, we are using the wording "SendHtml")
+    pub fn set_html(&mut self, html: Option<String>) {
+        if let Some(html) = html {
+            self.param.set(SendHtml, html);
+            self.mime_modified = true;
+        } else {
+            self.param.remove(SendHtml);
+            self.mime_modified = false;
+        }
     }
 }
 

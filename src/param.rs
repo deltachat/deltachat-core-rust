@@ -34,6 +34,11 @@ pub enum Param {
     /// For Messages
     MimeType = b'm',
 
+    /// For Messages: HTML to be written to the database and to be send.
+    /// `SendHtml` param is not used for received messages.
+    /// Use `MsgId::get_html()` to get HTML of received messages.
+    SendHtml = b'T',
+
     /// For Messages: message is encrypted, outgoing: guarantee E2EE or the message is not send
     GuaranteeE2ee = b'c',
 
