@@ -3907,6 +3907,11 @@ char*           dc_contact_get_name          (const dc_contact_t* contact);
 char*           dc_contact_get_display_name  (const dc_contact_t* contact);
 
 
+// dc_contact_get_first_name is removed,
+// the following define is to make upgrading more smoothly.
+#define         dc_contact_get_first_name    dc_contact_get_display_name
+
+
 /**
  * Get a summary of name and address.
  *
