@@ -1140,15 +1140,12 @@ async fn create_or_lookup_group(
             member_ids.push(DC_CONTACT_ID_SELF);
         }
 
-        // Only search for parent message if there are more than two
-        // members to make sure private replies to group
-        // messages are assigned to a 1:1 chat.
+        // Try to assign message to the same group as the parent message.
         //
-        // If group contains only 2 members, there is no way to
-        // distinguish between "Reply All" and "Reply", so replies
-        // to such groups from classic MUAs will be always assigned to
-        // 1:1 chat.
-        if member_ids.len() > 2 {
+        // We don't do this for chat messages to ensure private replies to group messages, which
+        // have In-Reply-To and quote but no Chat-Group-ID header, are assigned to 1:1 chat.
+        // Chat messages should always include explicit group ID in group messages.
+        if mime_parser.get(HeaderDef::ChatVersion).is_none() {
             if let Some(parent) = get_parent_message(context, mime_parser).await? {
                 let chat = Chat::load_from_db(context, parent.chat_id).await?;
 
@@ -2609,9 +2606,7 @@ mod tests {
         .await
         .unwrap();
 
-        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
-        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
+        let msg = t.get_last_msg().await;
         assert_eq!(msg.get_text().unwrap(), "reply foo");
 
         // Load the first message from the same chat.
@@ -2631,5 +2626,117 @@ mod tests {
         // Make sure we looked at real chat ID and do not just
         // test that both messages got into deaddrop.
         assert!(!msg.chat_id.is_special());
+    }
+
+    /// Test that classical MUA messages are assigned to group chats
+    /// based on the `In-Reply-To` header for two-member groups.
+    #[async_std::test]
+    async fn test_in_reply_to_two_member_group() {
+        let t = TestContext::new().await;
+        t.configure_addr("bob@example.com").await;
+
+        // Receive message from Alice about group "foo".
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: foo\n\
+                 Message-ID: <message@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: foo\n\
+                 Chat-Group-Name: foo\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello foo\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Receive a classic MUA reply from Alice.
+        // It is assigned to the group chat.
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: Re: foo\n\
+                 Message-ID: <reply@example.org>\n\
+                 In-Reply-To: <message@example.org>\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 classic reply\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Ensure message is assigned to group chat.
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Group);
+        assert_eq!(msg.get_text().unwrap(), "classic reply");
+
+        // Receive a Delta Chat reply from Alice.
+        // It is assigned to group chat, because it has a group ID.
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: Re: foo\n\
+                 Message-ID: <chatreply@example.org>\n\
+                 In-Reply-To: <message@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: foo\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 chat reply\n",
+            "INBOX",
+            3,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Ensure message is assigned to group chat.
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Group);
+        assert_eq!(msg.get_text().unwrap(), "chat reply");
+
+        // Receive a private Delta Chat reply from Alice.
+        // It is assigned to 1:1 chat, because it has no group ID,
+        // which means it was created using "reply privately" feature.
+        // Normally it contains a quote, but it should not matter.
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: Re: foo\n\
+                 Message-ID: <chatprivatereply@example.org>\n\
+                 In-Reply-To: <message@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 private reply\n",
+            "INBOX",
+            4,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Ensure message is assigned to a 1:1 chat.
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Single);
+        assert_eq!(msg.get_text().unwrap(), "private reply");
     }
 }
