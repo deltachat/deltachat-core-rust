@@ -120,7 +120,15 @@ impl<'a> Peerstate<'a> {
             addr: gossip_header.addr.clone(),
             last_seen: 0,
             last_seen_autocrypt: 0,
-            prefer_encrypt: Default::default(),
+
+            // Non-standard extension. According to Autocrypt 1.1.0 gossip headers SHOULD NOT
+            // contain encryption preference.
+            //
+            // Delta Chat includes encryption preference to ensure new users introduced to a group
+            // learn encryption preferences of other members immediately and don't send unencrypted
+            // messages to a group where everyone prefers encryption.
+            prefer_encrypt: gossip_header.prefer_encrypt,
+
             public_key: None,
             public_key_fingerprint: None,
             gossip_key: Some(gossip_header.public_key.clone()),
