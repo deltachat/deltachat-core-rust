@@ -967,14 +967,16 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         // add HTML-part, this is needed only if a HTML-message from a non-delta-client is forwarded;
         // for simplificity and to avoid conversion errors, we're generating the HTML-part from the original message.
         if self.msg.has_html() {
-            if let Some(orig_msg_id) = self.msg.param.get_int(Param::Forwarded) {
-                let orig_msg_id = MsgId::new(orig_msg_id.try_into()?);
-                if let Some(html) = orig_msg_id.get_html(context).await {
-                    main_part = PartBuilder::new()
-                        .message_type(MimeMultipartType::Alternative)
-                        .child(main_part.build())
-                        .child(new_html_mimepart(html).await.build());
-                }
+            let html = if let Some(orig_msg_id) = self.msg.param.get_int(Param::Forwarded) {
+                MsgId::new(orig_msg_id.try_into()?).get_html(context).await
+            } else {
+                self.msg.param.get(Param::SendHtml).map(|s| s.to_string())
+            };
+            if let Some(html) = html {
+                main_part = PartBuilder::new()
+                    .message_type(MimeMultipartType::Alternative)
+                    .child(main_part.build())
+                    .child(new_html_mimepart(html).await.build());
             }
         }
 

@@ -1061,8 +1061,13 @@ impl Chat {
             EphemeralTimer::Enabled { duration } => time() + i64::from(duration),
         };
 
-        let new_mime_headers = if msg.param.exists(Param::Forwarded) && msg.mime_modified {
-            if let Some(html) = msg.get_id().get_html(context).await {
+        let new_mime_headers = if msg.has_html() {
+            let html = if msg.param.exists(Param::Forwarded) {
+                msg.get_id().get_html(context).await
+            } else {
+                msg.param.get(Param::SendHtml).map(|s| s.to_string())
+            };
+            if let Some(html) = html {
                 Some(new_html_mimepart(html).await.build().as_string())
             } else {
                 None
