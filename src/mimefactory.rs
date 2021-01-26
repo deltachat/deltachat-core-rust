@@ -14,6 +14,7 @@ use crate::dc_tools::{
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::format_flowed::{format_flowed, format_flowed_quote};
+use crate::html::new_html_mimepart;
 use crate::location;
 use crate::message::{self, Message, MsgId};
 use crate::mimeparser::SystemMessage;
@@ -968,11 +969,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         if self.msg.has_html() {
             if let Some(orig_msg_id) = self.msg.param.get_int(Param::Forwarded) {
                 let orig_msg_id = MsgId::new(orig_msg_id.try_into()?);
-                if let Some(html_part) = orig_msg_id.get_html_as_mimepart(context).await {
+                if let Some(html) = orig_msg_id.get_html(context).await {
                     main_part = PartBuilder::new()
                         .message_type(MimeMultipartType::Alternative)
                         .child(main_part.build())
-                        .child(html_part.build());
+                        .child(new_html_mimepart(html).await.build());
                 }
             }
         }
