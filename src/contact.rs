@@ -1,6 +1,6 @@
 //! Contacts module
 
-use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_std::path::PathBuf;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -294,7 +294,7 @@ impl Contact {
         min_origin: Origin,
     ) -> Result<Option<u32>> {
         if addr.as_ref().is_empty() {
-            return Err(Error::msg("lookup_id_by_addr: empty address"));
+            bail!("lookup_id_by_addr: empty address");
         }
 
         let addr_normalized = addr_normalize(addr.as_ref());
