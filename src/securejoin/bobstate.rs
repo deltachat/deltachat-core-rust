@@ -2,7 +2,7 @@
 //!
 //! This module contains the state machine to run the Secure-Join handshake for Bob and does
 //! not do any user interaction required by the protocol.  Instead the state machine
-//! provides all the information to the driver of them to perform the correct interactions.
+//! provides all the information to its driver so it can perform the correct interactions.
 //!
 //! The [`BobState`] is only directly used to initially create it when starting the
 //! protocol.  Afterwards it must be stored in a mutex and the [`BobStateHandle`] should be
@@ -53,15 +53,17 @@ pub enum BobHandshakeStage {
 /// to return the lock.
 pub struct BobStateHandle<'a> {
     guard: MutexGuard<'a, Option<BobState>>,
+    bobstate: BobState,
     clear_state_on_drop: bool,
 }
 
 impl<'a> BobStateHandle<'a> {
     /// Creates a new instance, upholding the guarantee that [`BobState`] must exist.
-    pub fn from_guard(guard: MutexGuard<'a, Option<BobState>>) -> Option<Self> {
-        match *guard {
-            Some(_) => Some(Self {
+    pub fn from_guard(mut guard: MutexGuard<'a, Option<BobState>>) -> Option<Self> {
+        match guard.take() {
+            Some(bobstate) => Some(Self {
                 guard,
+                bobstate,
                 clear_state_on_drop: false,
             }),
             None => None,
@@ -69,29 +71,13 @@ impl<'a> BobStateHandle<'a> {
     }
 
     /// Returns the [`ChatId`] of the 1:1 chat with the inviter (Alice).
-    ///
-    /// # Safety
-    ///
-    /// [`BobStateHandle::from_guard`] guarantees this struct is only created with a valid
-    /// state available.
     pub fn chat_id(&self) -> ChatId {
-        match *self.guard {
-            Some(ref bobstate) => bobstate.chat_id,
-            None => unreachable!(),
-        }
+        self.bobstate.chat_id
     }
 
     /// Returns a reference to the [`QrInvite`] of the joiner process.
-    ///
-    /// # Safety
-    ///
-    /// [`BobStateHandle::from_guard`] guarantees this struct is only created with a valid
-    /// state available.
     pub fn invite(&self) -> &QrInvite {
-        match *self.guard {
-            Some(ref bobstate) => &bobstate.invite,
-            None => unreachable!(),
-        }
+        &self.bobstate.invite
     }
 
     /// Handles the given message for the securejoin handshake for Bob.
@@ -105,24 +91,23 @@ impl<'a> BobStateHandle<'a> {
         mime_message: &MimeMessage,
     ) -> Option<BobHandshakeStage> {
         info!(context, "Handling securejoin message for BobStateHandle");
-        match *self.guard {
-            Some(ref mut bobstate) => match bobstate.handle_message(context, mime_message).await {
-                Ok(Some(stage)) => {
-                    if matches!(stage,
-                                BobHandshakeStage::Completed
-                                | BobHandshakeStage::Terminated(_))
-                    {
-                        self.finish_protocol(context).await;
-                    }
-                    Some(stage)
-                }
-                Ok(None) => None,
-                Err(_) => {
+        match self.bobstate.handle_message(context, mime_message).await {
+            Ok(Some(stage)) => {
+                if matches!(stage, BobHandshakeStage::Completed | BobHandshakeStage::Terminated(_))
+                {
                     self.finish_protocol(context).await;
-                    None
                 }
-            },
-            None => None, // also unreachable!()
+                Some(stage)
+            }
+            Ok(None) => None,
+            Err(err) => {
+                warn!(
+                    context,
+                    "Error handling handshake message, aborting handshake: {}", err
+                );
+                self.finish_protocol(context).await;
+                None
+            }
         }
     }
 
@@ -132,7 +117,7 @@ impl<'a> BobStateHandle<'a> {
     /// allowing a new handshake to be started from [`Bob`].
     ///
     /// Note that the state is only cleared on Drop since otherwise the invariant that the
-    /// state is always cosistent is violated.  However the "ongoing" prococess is released
+    /// state is always consistent is violated.  However the "ongoing" prococess is released
     /// here a little bit earlier as this requires access to the Context, which we do not
     /// have on Drop (Drop can not run asynchronous code).
     ///
@@ -141,10 +126,8 @@ impl<'a> BobStateHandle<'a> {
     async fn finish_protocol(&mut self, context: &Context) {
         info!(context, "Finishing securejoin handshake protocol for Bob");
         self.clear_state_on_drop = true;
-        if let Some(ref bobstate) = *self.guard {
-            if let QrInvite::Group { .. } = bobstate.invite {
-                context.stop_ongoing().await;
-            }
+        if let QrInvite::Group { .. } = self.bobstate.invite {
+            context.stop_ongoing().await;
         }
     }
 }
@@ -153,6 +136,10 @@ impl<'a> Drop for BobStateHandle<'a> {
     fn drop(&mut self) {
         if self.clear_state_on_drop {
             self.guard.take();
+        } else {
+            // Make sure to put back the BobState into the Option of the Mutex, it was taken
+            // out by the constructor.
+            self.guard.replace(self.bobstate.clone());
         }
     }
 }
@@ -165,18 +152,18 @@ impl<'a> Drop for BobStateHandle<'a> {
 /// This purposefully has nothing optional, the state is always fully valid.  See
 /// [`Bob::state`] to get access to this state.
 ///
-/// # Conducing the securejoin handshake
+/// # Conducting the securejoin handshake
 ///
 /// The methods on this struct allow you to interact with the state and thus conduct the
-/// securejoin handshake for Bob.  The methods **only concern themselves** with the protocol
-/// state and explicitly avoid doing performing any user interactions required by
-/// securejoin.  This simplifies the concerns and logic required in both the callers and in
-/// the state management.  The return values can be used to understand what user
-/// interactions need to happen.
+/// securejoin handshake for Bob.  The methods only concern themselves with the protocol
+/// state and explicitly avoid performing any user interactions required by securejoin.
+/// This simplifies the concerns and logic required in both the callers and in the state
+/// management.  The return values can be used to understand what user interactions need to
+/// happen.
 ///
 /// [`Bob`]: super::Bob
 /// [`Bob::state`]: super::Bob::state
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BobState {
     /// The QR Invite code.
     invite: QrInvite,
@@ -223,7 +210,7 @@ impl BobState {
         }
     }
 
-    /// Returns the [`QrInvite`] use to create this [`BobState`].
+    /// Returns the [`QrInvite`] used to create this [`BobState`].
     pub fn invite(&self) -> &QrInvite {
         &self.invite
     }
@@ -489,7 +476,7 @@ impl BobHandshakeMsg {
 }
 
 /// The next message expected by [`BobState`] in the setup-contact/secure-join protocol.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum SecureJoinStep {
     /// Expecting the auth-required message.
     ///

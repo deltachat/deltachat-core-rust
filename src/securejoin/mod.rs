@@ -83,13 +83,15 @@ impl Bob {
         if guard.is_some() {
             return Err(JoinError::AlreadyRunning);
         }
-        let mut did_alloc_ongoing = false;
-        if let QrInvite::Group { .. } = invite {
-            if context.alloc_ongoing().await.is_err() {
-                return Err(JoinError::OngoingRunning);
+        let did_alloc_ongoing = match invite {
+            QrInvite::Group { .. } => {
+                if context.alloc_ongoing().await.is_err() {
+                    return Err(JoinError::OngoingRunning);
+                }
+                true
             }
-            did_alloc_ongoing = true;
-        }
+            _ => false,
+        };
         match BobState::start_protocol(context, invite).await {
             Ok((state, stage)) => {
                 if matches!(stage, BobHandshakeStage::RequestWithAuthSent) {
@@ -235,7 +237,7 @@ pub enum JoinError {
 /// This is the start of the process for the joiner.  See the module and ffi documentation
 /// for more details.
 ///
-/// When **joining a group** this will start an "ongoing" process and will block until the
+/// When joining a group this will start an "ongoing" process and will block until the
 /// process is completed, the [`ChatId`] for the new group is not known any sooner.  When
 /// verifying a contact this returns immediately.
 pub async fn dc_join_securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
@@ -657,9 +659,16 @@ pub(crate) async fn handle_securejoin_handshake(
                             .await;
                         Ok(HandshakeMessage::Done)
                     }
-                    Some(_stage) => {
+                    Some(BobHandshakeStage::Completed) => {
                         // Can only be BobHandshakeStage::Completed
                         secure_connection_established(context, bobstate.chat_id()).await;
+                        Ok(retval)
+                    }
+                    Some(_) => {
+                        warn!(
+                            context,
+                            "Impossible state returned from handling handshake message"
+                        );
                         Ok(retval)
                     }
                     None => Ok(retval),
