@@ -372,7 +372,12 @@ pub async fn get_range(
 }
 
 fn is_marker(txt: &str) -> bool {
-    txt.len() == 1 && !txt.starts_with(' ')
+    let mut chars = txt.chars();
+    if let Some(c) = chars.next() {
+        !c.is_whitespace() && chars.next().is_none()
+    } else {
+        false
+    }
 }
 
 /// Deletes all locations from the database.
@@ -776,5 +781,14 @@ mod tests {
         assert!(locations_ref[0].longitude < 8.552557f64);
         assert!(locations_ref[0].accuracy.abs() < f64::EPSILON);
         assert_eq!(locations_ref[0].timestamp, timestamp);
+    }
+
+    #[test]
+    fn test_is_marker() {
+        assert!(is_marker("f"));
+        assert!(!is_marker("foo"));
+        assert!(is_marker("🏠"));
+        assert!(!is_marker(" "));
+        assert!(!is_marker("\t"));
     }
 }
