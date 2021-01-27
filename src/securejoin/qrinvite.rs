@@ -2,7 +2,7 @@
 //!
 //! QR-codes are decoded into a more general-purpose [`Lot`] struct normally, this struct is
 //! so general it is not even specific to QR-codes.  This makes working with it rather hard,
-//! so here we have a wrapper type that specifically deals weith Secure-Join QR-codes so
+//! so here we have a wrapper type that specifically deals with Secure-Join QR-codes so
 //! that the Secure-Join code can have many more guarantees when dealing with this.
 
 use std::convert::TryFrom;
@@ -37,7 +37,7 @@ impl QrInvite {
     /// The contact ID of the inviter.
     ///
     /// The actual QR-code contains a URL-encoded email address, but upon scanning this is
-    /// currently translated to a contact ID.
+    /// translated to a contact ID.
     pub fn contact_id(&self) -> u32 {
         match self {
             Self::Contact { contact_id, .. } | Self::Group { contact_id, .. } => *contact_id,
@@ -72,6 +72,9 @@ impl TryFrom<Lot> for QrInvite {
     fn try_from(lot: Lot) -> Result<Self, Self::Error> {
         if lot.state != LotState::QrAskVerifyContact && lot.state != LotState::QrAskVerifyGroup {
             return Err(QrError::UnsupportedProtocol);
+        }
+        if lot.id == 0 {
+            return Err(QrError::MissingContactId);
         }
         let fingerprint = lot.fingerprint.ok_or(QrError::MissingFingerprint)?;
         let invitenumber = lot.invitenumber.ok_or(QrError::MissingInviteNumber)?;
@@ -112,4 +115,6 @@ pub enum QrError {
     MissingGroupName,
     #[error("Missing group id")]
     MissingGroupId,
+    #[error("Missing contact id")]
+    MissingContactId,
 }

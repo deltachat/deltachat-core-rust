@@ -116,9 +116,9 @@ impl TestContext {
         }
     }
 
-    /// Creates a new configured [TestContext].
+    /// Creates a new configured [`TestContext`].
     ///
-    /// This is a shortcut which automatically calls [TestContext::configure_alice] after
+    /// This is a shortcut which automatically calls [`TestContext::configure_alice`] after
     /// creating the context.
     pub async fn new_alice() -> Self {
         let t = Self::with_name("alice").await;
@@ -126,7 +126,7 @@ impl TestContext {
         t
     }
 
-    /// Creates a new configured [TestContext].
+    /// Creates a new configured [`TestContext`].
     ///
     /// This is a shortcut which configures bob@example.net with a fixed key.
     pub async fn new_bob() -> Self {
