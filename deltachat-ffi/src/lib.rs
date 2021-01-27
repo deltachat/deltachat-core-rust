@@ -2924,6 +2924,16 @@ pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *const libc::
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_html(msg: *mut dc_msg_t, html: *const libc::c_char) {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_set_html()");
+        return;
+    }
+    let ffi_msg = &mut *msg;
+    ffi_msg.message.set_html(to_opt_string_lossy(html))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_set_file(
     msg: *mut dc_msg_t,
     file: *const libc::c_char,
