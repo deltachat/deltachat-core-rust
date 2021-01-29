@@ -2864,7 +2864,7 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
  * can't be used in mailing lists (like leaving, adding members, removing members)
  *
  * @memberof dc_chat_t
- * @return 1 if this group chat shows a mailing list, 0 otherwise. Also see dc_msg_is_mailing_list.
+ * @return 1 if this group chat shows a mailing list, 0 otherwise.
  */
 int             dc_chat_is_mailing_list              (const dc_chat_t* chat);
 
@@ -3123,12 +3123,26 @@ uint32_t        dc_msg_get_from_id            (const dc_msg_t* msg);
  * To get details about the chat, pass the returned ID to dc_get_chat().
  * If a message is still in the deaddrop, the ID DC_CHAT_ID_DEADDROP is returned
  * although internally another ID is used.
+ * (to get that internal id, use dc_msg_get_real_chat_id())
  *
  * @memberof dc_msg_t
  * @param msg The message object.
  * @return The ID of the chat the message belongs to, 0 on errors.
  */
 uint32_t        dc_msg_get_chat_id            (const dc_msg_t* msg);
+
+
+/**
+ * Get the ID of chat the message belongs to.
+ * To get details about the chat, pass the returned ID to dc_get_chat().
+ * In contrast to dc_msg_get_chat_id(), this function returns the chat-id also
+ * for messages in the deaddrop.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The ID of the chat the message belongs to, 0 on errors.
+ */
+uint32_t        dc_msg_get_real_chat_id       (const dc_msg_t* msg);
 
 
 /**
@@ -3653,12 +3667,13 @@ char*           dc_msg_get_error               (const dc_msg_t* msg);
  * the group names may be really weird when taken from the subject of implicit (= ad-hoc)
  * groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
  *
- * If dc_msg_is_mailing_list() returns true, you can also ask
+ * If the chat belongs to a mailing list, you can also ask
  * "Would you like to read 'MAILING LIST NAME' in Delta Chat?"
+ * (use dc_msg_get_real_chat_id() to get the chat-id for the contact request
+ * and then dc_chat_is_mailing_list(), dc_chat_get_name() and so on)
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @param context The context.
  * @param decision 0 = Yes, 1 = No, 2 = Not now
  * @return The chat id of the created chat, if any.
  */
@@ -3901,19 +3916,6 @@ char*           dc_msg_get_quoted_text        (const dc_msg_t* msg);
  *     Must be freed using dc_msg_unref() after usage.
  */
 dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
-
-
-/**
- * Whether this message belongs to a mailing list. Use this method for messages in the deaddrop,
- * for normal chats it is more performant to use dc_chat_is_mailing_list.
- *
- * If this returns true, ask the user whether they want to show the mailing list in Delta Chat
- * (like, "Show mailing list with %1$s in Delta Chat?")
- *
- * @memberof dc_msg_t
- * @return 1 if this message belongs to a mailing list, 0 otherwise.
- */
-int             dc_msg_is_mailing_list        (const dc_msg_t* msg);
 
 
 /**
