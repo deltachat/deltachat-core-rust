@@ -1289,11 +1289,14 @@ fn maybe_encode_words(words: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chatlist::Chatlist;
     use crate::contact::Origin;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::mimeparser::MimeMessage;
     use crate::test_utils::TestContext;
+    use crate::{
+        chatlist::Chatlist,
+        contact::{normalize_name, sanitize_name_and_addr},
+    };
 
     #[test]
     fn test_render_email_address() {
