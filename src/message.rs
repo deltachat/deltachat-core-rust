@@ -507,12 +507,20 @@ impl Message {
         self.from_id
     }
 
+    /// get the chat-id,
+    /// if the message is a contact request, the DC_CHAT_ID_DEADDROP is returned.
     pub fn get_chat_id(&self) -> ChatId {
         if self.chat_blocked != Blocked::Not {
             ChatId::new(DC_CHAT_ID_DEADDROP)
         } else {
             self.chat_id
         }
+    }
+
+    /// get the chat-id, also when the message is still a contact request.
+    /// DC_CHAT_ID_DEADDROP is never returned.
+    pub fn get_real_chat_id(&self) -> ChatId {
+        self.chat_id
     }
 
     pub fn get_viewtype(&self) -> Viewtype {
@@ -787,8 +795,10 @@ impl Message {
     /// the group names may be really weird when taken from the subject of implicit (= ad-hoc)
     /// groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
     ///
-    /// If dc_msg_is_mailing_list() returns true, you can also ask
+    /// If the chat belongs to a mailing list, you can also ask
     /// "Would you like to read MAILING LIST NAME in Delta Chat?"
+    /// (use `Message.get_real_chat_id()` to get the chat-id for the contact request
+    /// and then `Chat.is_mailing_list()`, `Chat.get_name()` and so on)
     ///
     /// @param msg The message object.
     /// @param context The context.
@@ -2021,6 +2031,7 @@ mod tests {
     use super::*;
     use crate::chat::ChatItem;
     use crate::constants::DC_CONTACT_ID_DEVICE;
+    use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils as test;
     use crate::test_utils::TestContext;
 
@@ -2143,7 +2154,6 @@ mod tests {
         outgoing: bool,
         setupmessage: bool,
     ) {
-        use crate::dc_receive_imf::dc_receive_imf;
         println!("Testing: For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}",
                                folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage);
 
@@ -2461,5 +2471,34 @@ mod tests {
             .expect("error while retrieving quoted message")
             .expect("quoted message not found");
         assert!(quoted_msg.get_text() == msg2.quoted_text());
+    }
+
+    #[async_std::test]
+    async fn test_get_chat_id() {
+        // Alice receives a message that pops up as a contact request
+        let alice = TestContext::new_alice().await;
+        dc_receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: alice@example.com\n\
+                    Chat-Version: 1.0\n\
+                    Message-ID: <123@example.com>\n\
+                    Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
+                    \n\
+                    hello\n",
+            "INBOX",
+            123,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // check chat-id of this message
+        let msg = alice.get_last_msg().await;
+        assert!(msg.get_chat_id().is_deaddrop());
+        assert!(msg.get_chat_id().is_special());
+        assert!(!msg.get_real_chat_id().is_deaddrop());
+        assert!(!msg.get_real_chat_id().is_special());
+        assert_eq!(msg.get_text().unwrap(), "hello".to_string());
     }
 }
