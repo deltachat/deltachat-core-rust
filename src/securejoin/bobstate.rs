@@ -135,6 +135,8 @@ impl<'a> BobStateHandle<'a> {
 impl<'a> Drop for BobStateHandle<'a> {
     fn drop(&mut self) {
         if self.clear_state_on_drop {
+            // The Option should already be empty because we take it out in the ctor,
+            // however the typesystem doesn't guarantee this so do it again anyway.
             self.guard.take();
         } else {
             // Make sure to put back the BobState into the Option of the Mutex, it was taken
