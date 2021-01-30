@@ -264,9 +264,6 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Message deletion timer is set to %1$s weeks."))]
     MsgEphemeralTimerWeeks = 96,
-
-    #[strum(props(fallback = "Unnamed newsletter"))]
-    UnnamedNewsletter = 97,
 }
 
 /*

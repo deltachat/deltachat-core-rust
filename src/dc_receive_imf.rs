@@ -1506,10 +1506,7 @@ async fn create_or_lookup_mailinglist(
     }
 
     if name.is_empty() {
-        name = context
-            .stock_str(StockMessage::UnnamedNewsletter)
-            .await
-            .into();
+        name = listid.clone();
     }
 
     if allow_creation {
