@@ -27,7 +27,7 @@ use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::log::LogExt;
 use crate::lot::{Lot, LotState, Meaning};
-use crate::mimeparser::{FailureReport, SystemMessage};
+use crate::mimeparser::{parse_message_id, FailureReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
 use crate::stock_str;
@@ -400,7 +400,9 @@ impl Message {
                     let msg = Message {
                         id: row.get("id")?,
                         rfc724_mid: row.get::<_, String>("rfc724mid")?,
-                        in_reply_to: row.get::<_, Option<String>>("mime_in_reply_to")?,
+                        in_reply_to: row
+                            .get::<_, Option<String>>("mime_in_reply_to")?
+                            .and_then(|in_reply_to| parse_message_id(&in_reply_to).ok()),
                         server_folder: row.get::<_, Option<String>>("server_folder")?,
                         server_uid: row.get("server_uid")?,
                         chat_id: row.get("chat_id")?,
