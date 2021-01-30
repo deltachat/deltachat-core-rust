@@ -206,9 +206,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Message deletion timer is set to 1 week."))]
     MsgEphemeralTimerWeek = 80,
 
-    #[strum(props(fallback = "Message deletion timer is set to 4 weeks."))]
-    MsgEphemeralTimerFourWeeks = 81,
-
     #[strum(props(fallback = "Video chat invitation"))]
     VideochatInvitation = 82,
 
@@ -255,6 +252,18 @@ pub enum StockMessage {
                     Settings → \"Chats and Media\" → \"Delete messages from server\" to continue using it."
     ))]
     DeleteServerTurnedOff = 92,
+
+    #[strum(props(fallback = "Message deletion timer is set to %1$s minutes."))]
+    MsgEphemeralTimerMinutes = 93,
+
+    #[strum(props(fallback = "Message deletion timer is set to %1$s hours."))]
+    MsgEphemeralTimerHours = 94,
+
+    #[strum(props(fallback = "Message deletion timer is set to %1$s days."))]
+    MsgEphemeralTimerDays = 95,
+
+    #[strum(props(fallback = "Message deletion timer is set to %1$s weeks."))]
+    MsgEphemeralTimerWeeks = 96,
 }
 
 /*
