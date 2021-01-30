@@ -56,13 +56,14 @@
 //! the database entries which are expired either according to their
 //! ephemeral message timers or global `delete_server_after` setting.
 
+use anyhow::{ensure, Error};
+
 use crate::chat::{lookup_by_contact_id, send_msg, ChatId};
 use crate::constants::{
     Viewtype, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF,
 };
 use crate::context::Context;
 use crate::dc_tools::time;
-use crate::error::{ensure, Error};
 use crate::events::EventType;
 use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
@@ -533,7 +534,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_ephemeral_timer() -> crate::error::Result<()> {
+    async fn test_ephemeral_timer() -> anyhow::Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 

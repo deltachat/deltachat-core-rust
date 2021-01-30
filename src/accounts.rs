@@ -6,11 +6,10 @@ use async_std::prelude::*;
 use async_std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
-use anyhow::{ensure, Context as _};
+use anyhow::{ensure, Context as _, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::context::Context;
-use crate::error::Result;
 use crate::events::Event;
 
 /// Account manager, that can handle multiple accounts in a single place.

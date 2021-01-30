@@ -11,10 +11,10 @@ Installing pre-built packages (Linux-only)
 ========================================================
 
 If you have a Linux system you may try to install the ``deltachat`` binary "wheel" packages
-without any "build-from-source" steps. Otherwise you need to `compile the Delta Chat bindings
-yourself <sourceinstall>`_.
+without any "build-from-source" steps.
+Otherwise you need to `compile the Delta Chat bindings yourself <#sourceinstall>`_.
 
-We recommend to first `install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_,
+We recommend to first `install virtualenv <https://virtualenv.pypa.io/en/stable/installation.html>`_,
 then create a fresh Python virtual environment and activate it in your shell::
 
         virtualenv venv  # or: python -m venv

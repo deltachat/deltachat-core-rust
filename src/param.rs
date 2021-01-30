@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
 
+use anyhow::{bail, Error};
 use async_std::path::PathBuf;
 use itertools::Itertools;
 use num_traits::FromPrimitive;
@@ -9,7 +10,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::blob::{BlobError, BlobObject};
 use crate::context::Context;
-use crate::error::{self, bail};
 use crate::message::MsgId;
 use crate::mimeparser::SystemMessage;
 
@@ -37,6 +37,11 @@ pub enum Param {
 
     /// For Messages
     MimeType = b'm',
+
+    /// For Messages: HTML to be written to the database and to be send.
+    /// `SendHtml` param is not used for received messages.
+    /// Use `MsgId::get_html()` to get HTML of received messages.
+    SendHtml = b'T',
 
     /// For Messages: message is encrypted, outgoing: guarantee E2EE or the message is not send
     GuaranteeE2ee = b'c',
@@ -174,7 +179,7 @@ impl fmt::Display for Params {
 }
 
 impl str::FromStr for Params {
-    type Err = error::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let mut inner = BTreeMap::new();

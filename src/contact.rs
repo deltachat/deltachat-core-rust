@@ -1,5 +1,6 @@
 //! Contacts module
 
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_std::path::PathBuf;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -15,7 +16,6 @@ use crate::context::Context;
 use crate::dc_tools::{
     dc_get_abs_path, dc_str_to_color, improve_single_line_input, listflags_has, EmailAddress,
 };
-use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -286,6 +286,7 @@ impl Contact {
     }
 
     /// Check if an e-mail address belongs to a known and unblocked contact.
+    ///
     /// Known and unblocked contacts will be returned by `dc_get_contacts()`.
     ///
     /// To validate an e-mail address independently of the contact database
@@ -294,29 +295,28 @@ impl Contact {
         context: &Context,
         addr: impl AsRef<str>,
         min_origin: Origin,
-    ) -> u32 {
+    ) -> Result<Option<u32>> {
         if addr.as_ref().is_empty() {
-            return 0;
+            bail!("lookup_id_by_addr: empty address");
         }
 
         let addr_normalized = addr_normalize(addr.as_ref());
-        let addr_self = context
-            .get_config(Config::ConfiguredAddr)
-            .await
-            .unwrap_or_default();
 
-        if addr_cmp(addr_normalized, addr_self) {
-            return DC_CONTACT_ID_SELF;
+        if let Some(addr_self) = context.get_config(Config::ConfiguredAddr).await {
+            if addr_cmp(addr_normalized, addr_self) {
+                return Ok(Some(DC_CONTACT_ID_SELF));
+            }
         }
-        context.sql.query_get_value(
-            context,
+        context.sql.query_get_value_result(
             "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
             paramsv![
                 addr_normalized,
                 DC_CONTACT_ID_LAST_SPECIAL as i32,
                 min_origin as u32,
             ],
-        ).await.unwrap_or_default()
+        )
+            .await
+            .context("lookup_id_by_addr: SQL query failed")
     }
 
     /// Lookup a contact and create it if it does not exist yet.
@@ -1643,5 +1643,30 @@ mod tests {
         assert!(Contact::create(&t, "", "<dskjf dslk@sadklj.dk")
             .await
             .is_err());
+    }
+
+    #[async_std::test]
+    async fn test_lookup_id_by_addr() {
+        let t = TestContext::new().await;
+
+        let id = Contact::lookup_id_by_addr(&t.ctx, "the.other@example.net", Origin::Unknown)
+            .await
+            .unwrap();
+        assert!(id.is_none());
+
+        let other_id = Contact::create(&t.ctx, "The Other", "the.other@example.net")
+            .await
+            .unwrap();
+        let id = Contact::lookup_id_by_addr(&t.ctx, "the.other@example.net", Origin::Unknown)
+            .await
+            .unwrap();
+        assert_eq!(id, Some(other_id));
+
+        let alice = TestContext::new_alice().await;
+
+        let id = Contact::lookup_id_by_addr(&alice.ctx, "alice@example.com", Origin::Unknown)
+            .await
+            .unwrap();
+        assert_eq!(id, Some(DC_CONTACT_ID_SELF));
     }
 }

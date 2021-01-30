@@ -2,7 +2,7 @@ extern crate dirs;
 
 use std::str::FromStr;
 
-use anyhow::{bail, ensure};
+use anyhow::{bail, ensure, Error};
 use async_std::path::Path;
 use deltachat::chat::{self, Chat, ChatId, ChatItem, ChatVisibility, ProtectionStatus};
 use deltachat::chatlist::*;
@@ -11,7 +11,6 @@ use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
-use deltachat::error::Error;
 use deltachat::imex::*;
 use deltachat::location;
 use deltachat::lot::LotState;
@@ -372,6 +371,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  send <text>\n\
                  sendimage <file> [<text>]\n\
                  sendfile <file> [<text>]\n\
+                 sendhtml <file for html-part> [<text for plain-part>]\n\
                  videochat\n\
                  draft [<text>]\n\
                  devicemsg <text>\n\
@@ -832,6 +832,22 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             if !arg2.is_empty() {
                 msg.set_text(Some(arg2.to_string()));
             }
+            chat::send_msg(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg).await?;
+        }
+        "sendhtml" => {
+            ensure!(sel_chat.is_some(), "No chat selected.");
+            ensure!(!arg1.is_empty(), "No html-file given.");
+            let path: &Path = arg1.as_ref();
+            let html = &*fs::read(&path)?;
+            let html = String::from_utf8_lossy(html);
+
+            let mut msg = Message::new(Viewtype::Text);
+            msg.set_html(Some(html.to_string()));
+            msg.set_text(Some(if arg2.is_empty() {
+                path.file_name().unwrap().to_string_lossy().to_string()
+            } else {
+                arg2.to_string()
+            }));
             chat::send_msg(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg).await?;
         }
         "videochat" => {

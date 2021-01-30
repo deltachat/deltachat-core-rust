@@ -1,10 +1,10 @@
+use anyhow::{bail, ensure, format_err, Result};
 use itertools::join;
+use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
-
-use mailparse::SingleInfo;
 
 use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
@@ -14,9 +14,10 @@ use crate::constants::{
 };
 use crate::contact::{addr_cmp, normalize_name, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
-use crate::dc_tools::{dc_create_smeared_timestamp, dc_smeared_time, time};
+use crate::dc_tools::{
+    dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time, time,
+};
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
-use crate::error::{bail, ensure, format_err, Result};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
@@ -1160,8 +1161,8 @@ async fn create_or_lookup_group(
         set_better_msg(mime_parser, &better_msg);
     }
 
-    let grpid = if let Some(grpid) = mime_parser.get(HeaderDef::ChatGroupId) {
-        grpid.clone()
+    let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
+        grpid
     } else {
         let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
         if !member_ids.contains(&from_id) {
@@ -1171,15 +1172,12 @@ async fn create_or_lookup_group(
             member_ids.push(DC_CONTACT_ID_SELF);
         }
 
-        // Only search for parent message if there are more than two
-        // members to make sure private replies to group
-        // messages are assigned to a 1:1 chat.
+        // Try to assign message to the same group as the parent message.
         //
-        // If group contains only 2 members, there is no way to
-        // distinguish between "Reply All" and "Reply", so replies
-        // to such groups from classic MUAs will be always assigned to
-        // 1:1 chat.
-        if member_ids.len() > 2 {
+        // We don't do this for chat messages to ensure private replies to group messages, which
+        // have In-Reply-To and quote but no Chat-Group-ID header, are assigned to 1:1 chat.
+        // Chat messages should always include explicit group ID in group messages.
+        if mime_parser.get(HeaderDef::ChatVersion).is_none() {
             if let Some(parent) = get_parent_message(context, mime_parser).await? {
                 let chat = Chat::load_from_db(context, parent.chat_id).await?;
 
@@ -1216,26 +1214,27 @@ async fn create_or_lookup_group(
     // but we might not know about this group
 
     let grpname = mime_parser.get(HeaderDef::ChatGroupName).cloned();
-    let mut removed_id = 0;
+    let mut removed_id = None;
 
     if let Some(removed_addr) = mime_parser.get(HeaderDef::ChatGroupMemberRemoved).cloned() {
-        removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await;
-        if removed_id == 0 {
-            warn!(context, "removed {:?} has no contact_id", removed_addr);
-        } else {
-            mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
-            better_msg = context
-                .stock_system_msg(
-                    if removed_id == from_id as u32 {
-                        StockMessage::MsgGroupLeft
-                    } else {
-                        StockMessage::MsgDelMember
-                    },
-                    &removed_addr,
-                    "",
-                    from_id as u32,
-                )
-                .await;
+        removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
+        match removed_id {
+            Some(contact_id) => {
+                mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
+                better_msg = context
+                    .stock_system_msg(
+                        if contact_id == from_id as u32 {
+                            StockMessage::MsgGroupLeft
+                        } else {
+                            StockMessage::MsgDelMember
+                        },
+                        &removed_addr,
+                        "",
+                        from_id as u32,
+                    )
+                    .await;
+            }
+            None => warn!(context, "removed {:?} has no contact_id", removed_addr),
         }
     } else {
         let field = mime_parser.get(HeaderDef::ChatGroupMemberAdded).cloned();
@@ -1317,7 +1316,7 @@ async fn create_or_lookup_group(
             && !grpid.is_empty()
             && grpname.is_some()
             // otherwise, a pending "quit" message may pop up
-            && removed_id == 0
+            && removed_id.is_none()
             // re-create explicitly left groups only if ourself is re-added
             && (!group_explicitly_left
                 || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
@@ -1466,8 +1465,8 @@ async fn create_or_lookup_group(
             }
         }
         send_EVENT_CHAT_MODIFIED = true;
-    } else if removed_id > 0 {
-        chat::remove_from_chat_contacts_table(context, chat_id, removed_id).await;
+    } else if let Some(contact_id) = removed_id {
+        chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await;
         send_EVENT_CHAT_MODIFIED = true;
     }
 
@@ -1550,7 +1549,38 @@ async fn create_or_lookup_mailinglist(
     }
 }
 
-/// Handle groups for received messages, return chat_id/Blocked status on success
+fn try_getting_grpid(mime_parser: &MimeMessage) -> Option<String> {
+    if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupId) {
+        return Some(optional_field.clone());
+    }
+
+    // Useful for undecipherable messages sent to known group.
+    if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::MessageId) {
+        return Some(extracted_grpid.to_string());
+    }
+
+    if !mime_parser.has_chat_version() {
+        if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
+            return Some(extracted_grpid.to_string());
+        } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References) {
+            return Some(extracted_grpid.to_string());
+        }
+    }
+
+    None
+}
+
+/// try extract a grpid from a message-id list header value
+fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<&str> {
+    let header = mime_parser.get(headerdef)?;
+    let parts = header
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty());
+    parts.filter_map(dc_extract_grpid_from_rfc724_mid).next()
+}
+
+/// Creates ad-hoc group and returns chat ID on success.
 async fn create_adhoc_group(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -1999,6 +2029,42 @@ mod tests {
 
         let res = hex_hash(data);
         assert_eq!(res, "b94d27b9934d3e08");
+    }
+
+    #[async_std::test]
+    async fn test_grpid_simple() {
+        let context = TestContext::new().await;
+        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: hello\n\
+                    Subject: outer-subject\n\
+                    In-Reply-To: <lqkjwelq123@123123>\n\
+                    References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
+                    \n\
+                    hello\x00";
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
+        let grpid = Some("HcxyMARjyJy");
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
+    }
+
+    #[async_std::test]
+    async fn test_grpid_from_multiple() {
+        let context = TestContext::new().await;
+        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: hello\n\
+                    Subject: outer-subject\n\
+                    In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
+                    References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
+                    \n\
+                    hello\x00";
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        let grpid = Some("HcxyMARjyJy");
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
 
     #[test]
@@ -3015,9 +3081,7 @@ YEAAAAAA!.
         .await
         .unwrap();
 
-        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
-        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
+        let msg = t.get_last_msg().await;
         assert_eq!(msg.get_text().unwrap(), "reply foo");
 
         // Load the first message from the same chat.
@@ -3037,5 +3101,117 @@ YEAAAAAA!.
         // Make sure we looked at real chat ID and do not just
         // test that both messages got into deaddrop.
         assert!(!msg.chat_id.is_special());
+    }
+
+    /// Test that classical MUA messages are assigned to group chats
+    /// based on the `In-Reply-To` header for two-member groups.
+    #[async_std::test]
+    async fn test_in_reply_to_two_member_group() {
+        let t = TestContext::new().await;
+        t.configure_addr("bob@example.com").await;
+
+        // Receive message from Alice about group "foo".
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: foo\n\
+                 Message-ID: <message@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: foo\n\
+                 Chat-Group-Name: foo\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello foo\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Receive a classic MUA reply from Alice.
+        // It is assigned to the group chat.
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: Re: foo\n\
+                 Message-ID: <reply@example.org>\n\
+                 In-Reply-To: <message@example.org>\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 classic reply\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Ensure message is assigned to group chat.
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Group);
+        assert_eq!(msg.get_text().unwrap(), "classic reply");
+
+        // Receive a Delta Chat reply from Alice.
+        // It is assigned to group chat, because it has a group ID.
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: Re: foo\n\
+                 Message-ID: <chatreply@example.org>\n\
+                 In-Reply-To: <message@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: foo\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 chat reply\n",
+            "INBOX",
+            3,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Ensure message is assigned to group chat.
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Group);
+        assert_eq!(msg.get_text().unwrap(), "chat reply");
+
+        // Receive a private Delta Chat reply from Alice.
+        // It is assigned to 1:1 chat, because it has no group ID,
+        // which means it was created using "reply privately" feature.
+        // Normally it contains a quote, but it should not matter.
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: Re: foo\n\
+                 Message-ID: <chatprivatereply@example.org>\n\
+                 In-Reply-To: <message@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 private reply\n",
+            "INBOX",
+            4,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Ensure message is assigned to a 1:1 chat.
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Single);
+        assert_eq!(msg.get_text().unwrap(), "private reply");
     }
 }

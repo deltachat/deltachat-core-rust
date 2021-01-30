@@ -1,14 +1,15 @@
 //! # [Autocrypt Peer State](https://autocrypt.org/level1.html#peer-state-management) module
+
 use std::collections::HashSet;
 use std::fmt;
 
+use anyhow::{bail, Result};
 use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat;
 use crate::constants::Blocked;
 use crate::context::Context;
-use crate::error::{bail, Result};
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::sql::Sql;
@@ -119,7 +120,15 @@ impl<'a> Peerstate<'a> {
             addr: gossip_header.addr.clone(),
             last_seen: 0,
             last_seen_autocrypt: 0,
-            prefer_encrypt: Default::default(),
+
+            // Non-standard extension. According to Autocrypt 1.1.0 gossip headers SHOULD NOT
+            // contain encryption preference.
+            //
+            // Delta Chat includes encryption preference to ensure new users introduced to a group
+            // learn encryption preferences of other members immediately and don't send unencrypted
+            // messages to a group where everyone prefers encryption.
+            prefer_encrypt: gossip_header.prefer_encrypt,
+
             public_key: None,
             public_key_fingerprint: None,
             gossip_key: Some(gossip_header.public_key.clone()),

@@ -1,7 +1,5 @@
 //! # Error handling
 
-pub use anyhow::{bail, ensure, format_err, Error, Result};
-
 #[macro_export]
 macro_rules! ensure_eq {
     ($left:expr, $right:expr) => ({

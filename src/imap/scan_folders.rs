@@ -1,9 +1,9 @@
 use std::time::Instant;
 
-use crate::{config::Config, context::Context};
-use anyhow::Context as _;
+use anyhow::{Context as _, Result};
 
-use crate::error::Result;
+use crate::config::Config;
+use crate::context::Context;
 use crate::imap::Imap;
 use async_std::prelude::*;
 

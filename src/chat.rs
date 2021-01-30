@@ -6,6 +6,7 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
+use anyhow::{bail, ensure, format_err, Error};
 use async_std::path::{Path, PathBuf};
 use itertools::Itertools;
 use num_traits::FromPrimitive;
@@ -28,8 +29,8 @@ use crate::dc_tools::{
     improve_single_line_input, time, IsNoneOrEmpty,
 };
 use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
-use crate::error::{bail, ensure, format_err, Error};
 use crate::events::EventType;
+use crate::html::new_html_mimepart;
 use crate::job::{self, Action};
 use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
@@ -1064,8 +1065,17 @@ impl Chat {
             EphemeralTimer::Enabled { duration } => time() + i64::from(duration),
         };
 
-        let new_mime_headers = if msg.param.exists(Param::Forwarded) && msg.mime_modified {
-            msg.get_id().get_html_as_rawmime(context).await
+        let new_mime_headers = if msg.has_html() {
+            let html = if msg.param.exists(Param::Forwarded) {
+                msg.get_id().get_html(context).await
+            } else {
+                msg.param.get(Param::SendHtml).map(|s| s.to_string())
+            };
+            if let Some(html) = html {
+                Some(new_html_mimepart(html).await.build().as_string())
+            } else {
+                None
+            }
         } else {
             None
         };

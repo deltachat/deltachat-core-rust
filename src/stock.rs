@@ -2,6 +2,7 @@
 
 use std::borrow::Cow;
 
+use anyhow::{bail, Error};
 use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
@@ -10,7 +11,6 @@ use crate::chat::ProtectionStatus;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
-use crate::error::{bail, Error};
 use crate::message::Message;
 use crate::param::Param;
 use crate::stock::StockMessage::{DeviceMessagesHint, WelcomeMessage};
@@ -386,16 +386,13 @@ impl Context {
         param2: impl AsRef<str>,
         from_id: u32,
     ) -> String {
-        let insert1 = if id == StockMessage::MsgAddMember || id == StockMessage::MsgDelMember {
-            let contact_id =
-                Contact::lookup_id_by_addr(self, param1.as_ref(), Origin::Unknown).await;
-            if contact_id != 0 {
-                Contact::get_by_id(self, contact_id)
+        let insert1 = if matches!(id, StockMessage::MsgAddMember | StockMessage::MsgDelMember) {
+            match Contact::lookup_id_by_addr(self, param1.as_ref(), Origin::Unknown).await {
+                Ok(Some(contact_id)) => Contact::get_by_id(self, contact_id)
                     .await
                     .map(|contact| contact.get_name_n_addr())
-                    .unwrap_or_default()
-            } else {
-                param1.as_ref().to_string()
+                    .unwrap_or_else(|_| param1.as_ref().to_string()),
+                _ => param1.as_ref().to_string(),
             }
         } else {
             param1.as_ref().to_string()

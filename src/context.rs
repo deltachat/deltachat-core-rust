@@ -7,6 +7,7 @@ use std::{
     time::Instant,
 };
 
+use anyhow::{bail, ensure, Result};
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
 use async_std::task;
@@ -16,7 +17,6 @@ use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
 use crate::dc_tools::duration_to_str;
-use crate::error::{bail, ensure, Result};
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;

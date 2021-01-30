@@ -1,5 +1,6 @@
 //! # Messages and their identifiers
 
+use anyhow::{ensure, Error};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -19,7 +20,6 @@ use crate::dc_tools::{
     dc_truncate, time,
 };
 use crate::ephemeral::Timer as EphemeralTimer;
-use crate::error::{ensure, Error};
 use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::lot::{Lot, LotState, Meaning};
@@ -1839,8 +1839,9 @@ async fn ndn_maybe_add_info_msg(
 ) -> anyhow::Result<()> {
     if chat_type == Chattype::Group {
         if let Some(failed_recipient) = &failed.failed_recipient {
-            let contact_id =
-                Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;
+            let contact_id = Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
+                .await?
+                .ok_or_else(|| Error::msg("ndn_maybe_add_info_msg: Contact ID not found"))?;
             let contact = Contact::load_from_db(context, contact_id).await?;
             // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
             let text = context

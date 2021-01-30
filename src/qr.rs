@@ -1,5 +1,6 @@
 //! # QR code module
 
+use anyhow::{bail, ensure, format_err, Error};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
@@ -9,7 +10,6 @@ use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{addr_normalize, may_be_valid_addr, Contact, Origin};
 use crate::context::Context;
-use crate::error::{bail, ensure, format_err, Error};
 use crate::key::Fingerprint;
 use crate::lot::{Lot, LotState};
 use crate::message::Message;

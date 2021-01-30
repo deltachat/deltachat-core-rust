@@ -1,5 +1,7 @@
 //! # Chat list module
 
+use anyhow::{bail, ensure, Result};
+
 use crate::chat;
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
@@ -10,7 +12,6 @@ use crate::constants::{
 use crate::contact::Contact;
 use crate::context::Context;
 use crate::ephemeral::delete_expired_messages;
-use crate::error::{bail, ensure, Result};
 use crate::lot::Lot;
 use crate::message::{Message, MessageState, MsgId};
 use crate::stock::StockMessage;

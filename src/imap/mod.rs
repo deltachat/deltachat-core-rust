@@ -5,7 +5,7 @@
 
 use std::{cmp, cmp::max, collections::BTreeMap};
 
-use anyhow::Context as _;
+use anyhow::{bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
     types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
@@ -20,7 +20,6 @@ use crate::constants::{
 };
 use crate::context::Context;
 use crate::dc_receive_imf::{from_field_to_contact_id, get_prefetch_parent_message};
-use crate::error::{bail, format_err, Result};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
@@ -30,7 +29,9 @@ use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::provider::Socket;
-use crate::{chat, scheduler::InterruptInfo, stock::StockMessage};
+use crate::{
+    chat, dc_tools::dc_extract_grpid_from_rfc724_mid, scheduler::InterruptInfo, stock::StockMessage,
+};
 use crate::{config::Config, dc_receive_imf::dc_receive_imf_inner};
 
 mod client;
@@ -39,6 +40,7 @@ pub mod scan_folders;
 pub mod select_folder;
 mod session;
 
+use chat::get_chat_id_by_grpid;
 use client::Client;
 use mailparse::SingleInfo;
 use message::Message;
@@ -1612,6 +1614,19 @@ pub(crate) async fn prefetch_should_download(
             // This might be a group command, like removing a group member.
             // We really need to fetch this to avoid inconsistent group state.
             return Ok(true);
+        }
+    }
+
+    // Same as previous check, but using group IDs embedded into
+    // Message-IDs as a last resort, in case parent message was
+    // deleted from the database or has not arrived yet.
+    if let Some(rfc724_mid) = headers.get_header_value(HeaderDef::MessageId) {
+        if let Some(group_id) = dc_extract_grpid_from_rfc724_mid(&rfc724_mid) {
+            if let Ok((chat_id, _, _)) = get_chat_id_by_grpid(context, group_id).await {
+                if !chat_id.is_unset() {
+                    return Ok(true);
+                }
+            }
         }
     }
 

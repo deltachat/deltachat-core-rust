@@ -3737,6 +3737,33 @@ void            dc_msg_set_text               (dc_msg_t* msg, const char* text);
 
 
 /**
+ * Set the HTML part of a message object.
+ * As for all other dc_msg_t setters,
+ * this is only useful if the message is sent using dc_send_msg() later.
+ *
+ * Please note, that Delta Chat clients show the plain text set with
+ * dc_msg_set_text() at the first place;
+ * the HTML part is not shown instead of this text.
+ * However, for messages with HTML parts,
+ * on the receiver's device, dc_msg_has_html() will return 1
+ * and a button "Show full message" is typically shown.
+ *
+ * So adding a HTML part might be useful eg. for bots,
+ * that want to add rich content to a message, eg. a website;
+ * this HTML part is similar to an attachment then.
+ *
+ * **dc_msg_set_html() is currently not meant for sending a message,
+ * a "normal user" has typed in!**
+ * Use dc_msg_set_text() for that purpose.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param html HTML to send.
+ */
+void            dc_msg_set_html               (dc_msg_t* msg, const char* html);
+
+
+/**
  * Set the file associated with a message object.
  * This does not alter any information in the database
  * nor copy or move the file or checks if the file exist.
@@ -3978,6 +4005,11 @@ char*           dc_contact_get_name          (const dc_contact_t* contact);
  *     Never returns NULL.
  */
 char*           dc_contact_get_display_name  (const dc_contact_t* contact);
+
+
+// dc_contact_get_first_name is removed,
+// the following define is to make upgrading more smoothly.
+#define         dc_contact_get_first_name    dc_contact_get_display_name
 
 
 /**
