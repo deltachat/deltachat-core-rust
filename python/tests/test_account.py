@@ -2251,8 +2251,9 @@ class TestOnlineAccount:
 
         Also, the newest existing emails from each folder are fetched during onboarding.
 
-        Additionally tests that bcc_self messages moved to the mvbox are marked as read."""
+        Additionally tests that bcc_self messages moved to the mvbox/sentbox are marked as read."""
         ac1 = acfactory.get_online_configuring_account(mvbox=mvbox_move, move=mvbox_move)
+        ac1.set_config("sentbox_move", "1")
         ac2 = acfactory.get_online_configuring_account()
 
         acfactory.wait_configure(ac1)
