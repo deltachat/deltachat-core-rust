@@ -451,7 +451,9 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         // alice receives a non-delta html-message
         let alice = TestContext::new_alice().await;
         alice.set_config(Config::ShowEmails, Some("2")).await.ok();
-        let chat = alice.chat_with_contact("", "sender@testrun.org").await;
+        let chat = alice
+            .create_chat_with_contact("", "sender@testrun.org")
+            .await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
         dc_receive_imf(&alice, raw, "INBOX", 1, false)
             .await
@@ -466,7 +468,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(html.find("this is <b>html</b>").is_some());
 
         // alice: create chat with bob and forward received html-message there
-        let chat = alice.chat_with_contact("", "bob@example.net").await;
+        let chat = alice.create_chat_with_contact("", "bob@example.net").await;
         forward_msgs(&alice, &[msg.get_id()], chat.get_id())
             .await
             .unwrap();
@@ -481,7 +483,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
         // bob: check that bob also got the html-part of the forwarded message
         let bob = TestContext::new_bob().await;
-        let chat = bob.chat_with_contact("", "alice@example.com").await;
+        let chat = bob.create_chat_with_contact("", "alice@example.com").await;
         bob.recv_msg(&alice.pop_sent_msg().await).await;
         let msg = bob.get_last_msg_in(chat.get_id()).await;
         assert_ne!(msg.get_from_id(), DC_CONTACT_ID_SELF);
@@ -500,7 +502,9 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         // the contact is marked as known by creating a chat using `chat_with_contact()`)
         let alice = TestContext::new_alice().await;
         alice.set_config(Config::ShowEmails, Some("1")).await.ok();
-        let chat = alice.chat_with_contact("", "sender@testrun.org").await;
+        let chat = alice
+            .create_chat_with_contact("", "sender@testrun.org")
+            .await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
         dc_receive_imf(&alice, raw, "INBOX", 1, false)
             .await

@@ -212,21 +212,89 @@ pub(crate) async fn stock_ephemeral_timer_changed(
     timer: Timer,
     from_id: u32,
 ) -> String {
-    let stock_message = match timer {
-        Timer::Disabled => StockMessage::MsgEphemeralTimerDisabled,
+    match timer {
+        Timer::Disabled => {
+            context
+                .stock_system_msg(
+                    StockMessage::MsgEphemeralTimerDisabled,
+                    timer.to_string(),
+                    "",
+                    from_id,
+                )
+                .await
+        }
         Timer::Enabled { duration } => match duration {
-            60 => StockMessage::MsgEphemeralTimerMinute,
-            3600 => StockMessage::MsgEphemeralTimerHour,
-            86400 => StockMessage::MsgEphemeralTimerDay,
-            604_800 => StockMessage::MsgEphemeralTimerWeek,
-            2_419_200 => StockMessage::MsgEphemeralTimerFourWeeks,
-            _ => StockMessage::MsgEphemeralTimerEnabled,
+            0..=59 => {
+                context
+                    .stock_system_msg(
+                        StockMessage::MsgEphemeralTimerEnabled,
+                        timer.to_string(),
+                        "",
+                        from_id,
+                    )
+                    .await
+            }
+            60 => {
+                context
+                    .stock_system_msg(StockMessage::MsgEphemeralTimerMinute, "", "", from_id)
+                    .await
+            }
+            61..=3599 => {
+                context
+                    .stock_system_msg(
+                        StockMessage::MsgEphemeralTimerMinutes,
+                        format!("{}", (f64::from(duration) / 6.0).round() / 10.0),
+                        "",
+                        from_id,
+                    )
+                    .await
+            }
+            3600 => {
+                context
+                    .stock_system_msg(StockMessage::MsgEphemeralTimerHour, "", "", from_id)
+                    .await
+            }
+            3601..=86399 => {
+                context
+                    .stock_system_msg(
+                        StockMessage::MsgEphemeralTimerHours,
+                        format!("{}", (f64::from(duration) / 360.0).round() / 10.0),
+                        "",
+                        from_id,
+                    )
+                    .await
+            }
+            86400 => {
+                context
+                    .stock_system_msg(StockMessage::MsgEphemeralTimerDay, "", "", from_id)
+                    .await
+            }
+            86401..=604_799 => {
+                context
+                    .stock_system_msg(
+                        StockMessage::MsgEphemeralTimerDays,
+                        format!("{}", (f64::from(duration) / 8640.0).round() / 10.0),
+                        "",
+                        from_id,
+                    )
+                    .await
+            }
+            604_800 => {
+                { context.stock_system_msg(StockMessage::MsgEphemeralTimerWeek, "", "", from_id) }
+                    .await
+            }
+            _ => {
+                context
+                    .stock_system_msg(
+                        StockMessage::MsgEphemeralTimerWeeks,
+                        format!("{}", (f64::from(duration) / 60480.0).round() / 10.0),
+                        "",
+                        from_id,
+                    )
+                    .await
+            }
         },
-    };
-
-    context
-        .stock_system_msg(stock_message, timer.to_string(), "", from_id)
-        .await
+    }
 }
 
 impl MsgId {
@@ -495,8 +563,31 @@ mod tests {
             "Message deletion timer is set to 1 minute."
         );
         assert_eq!(
+            stock_ephemeral_timer_changed(&context, Timer::Enabled { duration: 90 }, 0).await,
+            "Message deletion timer is set to 1.5 minutes."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(&context, Timer::Enabled { duration: 30 * 60 }, 0).await,
+            "Message deletion timer is set to 30 minutes."
+        );
+        assert_eq!(
             stock_ephemeral_timer_changed(&context, Timer::Enabled { duration: 60 * 60 }, 0).await,
             "Message deletion timer is set to 1 hour."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(&context, Timer::Enabled { duration: 5400 }, 0).await,
+            "Message deletion timer is set to 1.5 hours."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(
+                &context,
+                Timer::Enabled {
+                    duration: 2 * 60 * 60
+                },
+                0
+            )
+            .await,
+            "Message deletion timer is set to 2 hours."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -508,6 +599,17 @@ mod tests {
             )
             .await,
             "Message deletion timer is set to 1 day."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(
+                &context,
+                Timer::Enabled {
+                    duration: 2 * 24 * 60 * 60
+                },
+                0
+            )
+            .await,
+            "Message deletion timer is set to 2 days."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(

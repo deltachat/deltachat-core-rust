@@ -1,6 +1,6 @@
 //! Utilities to help writing tests.
 //!
-//! This module is only compiled for test runs.
+//! This private module is only compiled for test runs.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -20,7 +20,7 @@ use tempfile::{tempdir, TempDir};
 use crate::chat::{self, Chat, ChatId};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
-use crate::constants::DC_CONTACT_ID_SELF;
+use crate::constants::{Viewtype, DC_CONTACT_ID_SELF, DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
@@ -31,10 +31,6 @@ use crate::key::{self, DcKey};
 use crate::message::{update_msg_state, Message, MessageState, MsgId};
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
-
-use crate::constants::Viewtype;
-use crate::constants::DC_MSG_ID_DAYMARKER;
-use crate::constants::DC_MSG_ID_MARKER1;
 
 type EventSink =
     dyn Fn(Event) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync + 'static;
@@ -68,7 +64,7 @@ impl fmt::Debug for TestContext {
 }
 
 impl TestContext {
-    /// Creates a new [TestContext].
+    /// Creates a new [`TestContext`].
     ///
     /// The [Context] will be created and have an SQLite database named "db.sqlite" in the
     /// [TestContext.dir] directory.  This directory is cleaned up when the [TestContext] is
@@ -121,9 +117,9 @@ impl TestContext {
         }
     }
 
-    /// Create a new configured [TestContext].
+    /// Creates a new configured [`TestContext`].
     ///
-    /// This is a shortcut which automatically calls [TestContext::configure_alice] after
+    /// This is a shortcut which automatically calls [`TestContext::configure_alice`] after
     /// creating the context.
     pub async fn new_alice() -> Self {
         let t = Self::with_name("alice").await;
@@ -131,7 +127,7 @@ impl TestContext {
         t
     }
 
-    /// Create a new configured [TestContext].
+    /// Creates a new configured [`TestContext`].
     ///
     /// This is a shortcut which configures bob@example.net with a fixed key.
     pub async fn new_bob() -> Self {
@@ -201,7 +197,7 @@ impl TestContext {
         }
     }
 
-    /// Retrieve a sent message from the jobs table.
+    /// Retrieves a sent message from the jobs table.
     ///
     /// This retrieves and removes a message which has been scheduled to send from the jobs
     /// table.  Messages are returned in the order they have been sent.
@@ -259,7 +255,7 @@ impl TestContext {
         }
     }
 
-    /// Parse a message.
+    /// Parses a message.
     ///
     /// Parsing a message does not run the entire receive pipeline, but is not without
     /// side-effects either.  E.g. if the message includes autocrypt headers the relevant
@@ -287,7 +283,7 @@ impl TestContext {
             .unwrap();
     }
 
-    /// Get the most recent message of a chat.
+    /// Gets the most recent message of a chat.
     ///
     /// Panics on errors or if the most recent message is a marker.
     pub async fn get_last_msg_in(&self, chat_id: ChatId) -> Message {
@@ -300,13 +296,17 @@ impl TestContext {
         Message::load_from_db(&self.ctx, *msg_id).await.unwrap()
     }
 
-    /// Get the most recent message over all chats.
+    /// Gets the most recent message over all chats.
     pub async fn get_last_msg(&self) -> Message {
         let chats = Chatlist::try_load(&self.ctx, 0, None, None).await.unwrap();
         let msg_id = chats.get_msg_id(chats.len() - 1).unwrap();
         Message::load_from_db(&self.ctx, msg_id).await.unwrap()
     }
 
+    /// Creates or returns an existing 1:1 [`Chat`] with another account.
+    ///
+    /// This first creates a contact using the configured details on the other account, then
+    /// creates a 1:1 chat with this contact.
     pub async fn create_chat(&self, other: &TestContext) -> Chat {
         let (contact_id, _modified) = Contact::add_or_lookup(
             self,
@@ -325,7 +325,11 @@ impl TestContext {
         Chat::load_from_db(self, chat_id).await.unwrap()
     }
 
-    pub async fn chat_with_contact(&self, name: &str, addr: &str) -> Chat {
+    /// Creates or returns an existing [`Contact`] and 1:1 [`Chat`] with another email.
+    ///
+    /// This first creates a contact from the `name` and `addr` and then creates a 1:1 chat
+    /// with this contact.
+    pub async fn create_chat_with_contact(&self, name: &str, addr: &str) -> Chat {
         let contact = Contact::create(self, name, addr)
             .await
             .expect("failed to create contact");
@@ -333,6 +337,7 @@ impl TestContext {
         Chat::load_from_db(self, chat_id).await.unwrap()
     }
 
+    /// Retrieves the "self" chat.
     pub async fn get_self_chat(&self) -> Chat {
         let chat_id = chat::create_by_contact_id(self, DC_CONTACT_ID_SELF)
             .await
@@ -340,7 +345,11 @@ impl TestContext {
         Chat::load_from_db(self, chat_id).await.unwrap()
     }
 
-    /// Sends out the text message. If the other side shall receive it, you have to call `recv_msg()` with the returned `SentMessage`.
+    /// Sends out the text message.
+    ///
+    /// This is not hooked up to any SMTP-IMAP pipeline, so the other account must call
+    /// [`TestContext::recv_msg`] with the returned [`SentMessage`] if it wants to receive
+    /// the message.
     pub async fn send_text(&self, chat_id: ChatId, txt: &str) -> SentMessage {
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some(txt.to_string()));
@@ -349,8 +358,11 @@ impl TestContext {
         self.pop_sent_msg().await
     }
 
-    /// You can use this to debug your test by printing a chat structure
-    // This code is mainly the same as `log_msglist` in `cmdline.rs`, so one day, we could merge them to a public function in the `deltachat` crate.
+    /// Prints out the entire chat to stdout.
+    ///
+    /// You can use this to debug your test by printing the entire chat conversation.
+    // This code is mainly the same as `log_msglist` in `cmdline.rs`, so one day, we could
+    // merge them to a public function in the `deltachat` crate.
     #[allow(dead_code)]
     pub async fn print_chat(&self, chat: &Chat) {
         let msglist = chat::get_chat_msgs(&self, chat.get_id(), 0x1, None).await;
@@ -433,7 +445,7 @@ impl SentMessage {
 /// This saves CPU cycles by avoiding having to generate a key.
 ///
 /// The keypair was created using the crate::key::tests::gen_key test.
-pub(crate) fn alice_keypair() -> key::KeyPair {
+pub fn alice_keypair() -> key::KeyPair {
     let addr = EmailAddress::new("alice@example.com").unwrap();
     let public =
         key::SignedPublicKey::from_base64(include_str!("../test-data/key/alice-public.asc"))
@@ -451,7 +463,7 @@ pub(crate) fn alice_keypair() -> key::KeyPair {
 /// Load a pre-generated keypair for bob@example.net from disk.
 ///
 /// Like [alice_keypair] but a different key and identity.
-pub(crate) fn bob_keypair() -> key::KeyPair {
+pub fn bob_keypair() -> key::KeyPair {
     let addr = EmailAddress::new("bob@example.net").unwrap();
     let public =
         key::SignedPublicKey::from_base64(include_str!("../test-data/key/bob-public.asc")).unwrap();

@@ -47,6 +47,17 @@ impl Events {
     }
 }
 
+/// A receiver of events from a [`Context`].
+///
+/// See [`Context::get_event_emitter`] to create an instance.  If multiple instances are
+/// created events emitted by the [`Context`] will only be delivered to one of the
+/// `EventEmitter`s.
+///
+/// The `EventEmitter` is also a [`Stream`], so a typical usage is in a `while let` loop.
+///
+/// [`Context`]: crate::context::Context
+/// [`Context::get_event_emitter`]: crate::context::Context::get_event_emitter
+/// [`Stream`]: async_std::stream::Stream
 #[derive(Debug, Clone)]
 pub struct EventEmitter(Receiver<Event>);
 
@@ -120,8 +131,9 @@ impl EventType {
 #[derive(Debug, Clone, PartialEq, Eq, EnumProperty)]
 pub enum EventType {
     /// The library-user may write an informational string to the log.
-    /// Passed to the callback given to dc_context_new().
-    /// This event should not be reported to the end-user using a popup or something like that.
+    ///
+    /// This event should *not* be reported to the end-user using a popup or something like
+    /// that.
     #[strum(props(id = "100"))]
     Info(String),
 
@@ -154,14 +166,13 @@ pub enum EventType {
     DeletedBlobFile(String),
 
     /// The library-user should write a warning string to the log.
-    /// Passed to the callback given to dc_context_new().
     ///
-    /// This event should not be reported to the end-user using a popup or something like that.
+    /// This event should *not* be reported to the end-user using a popup or something like
+    /// that.
     #[strum(props(id = "300"))]
     Warning(String),
 
     /// The library-user should report an error to the end-user.
-    /// Passed to the callback given to dc_context_new().
     ///
     /// As most things are asynchronous, things may go wrong at any time and the user
     /// should not be disturbed by a dialog or so.  Instead, use a bubble or so.

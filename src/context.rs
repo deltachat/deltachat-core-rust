@@ -47,7 +47,7 @@ pub struct InnerContext {
     pub(crate) blobdir: PathBuf,
     pub(crate) sql: Sql,
     pub(crate) os_name: Option<String>,
-    pub(crate) bob: RwLock<Bob>,
+    pub(crate) bob: Bob,
     pub(crate) last_smeared_timestamp: RwLock<i64>,
     pub(crate) running_state: RwLock<RunningState>,
     /// Mutex to avoid generating the key for the user more than once.
@@ -129,7 +129,7 @@ impl Context {
             os_name: Some(os_name),
             running_state: RwLock::new(Default::default()),
             sql: Sql::new(),
-            bob: RwLock::new(Default::default()),
+            bob: Default::default(),
             last_smeared_timestamp: RwLock::new(0),
             generating_key_mutex: Mutex::new(()),
             oauth2_mutex: Mutex::new(()),
@@ -197,7 +197,10 @@ impl Context {
         });
     }
 
-    /// Get the next queued event.
+    /// Returns a receiver for emitted events.
+    ///
+    /// Multiple emitters can be created, but note that in this case each emitted event will
+    /// only be received by one of the emitters, not by all of them.
     pub fn get_event_emitter(&self) -> EventEmitter {
         self.events.get_emitter()
     }
