@@ -824,7 +824,7 @@ async fn secure_connection_established(context: &Context, contact_chat_id: ChatI
         .await;
     chat::add_info_msg(context, contact_chat_id, &msg).await;
     emit_event!(context, EventType::ChatModified(contact_chat_id));
-    info!(context, "{}", msg);
+    info!(context, "StockMessage::ContactVerified posted to 1:1 chat");
 }
 
 async fn could_not_establish_secure_connection(
@@ -846,7 +846,10 @@ async fn could_not_establish_secure_connection(
         .await;
 
     chat::add_info_msg(context, contact_chat_id, &msg).await;
-    error!(context, "{} ({})", &msg, details);
+    error!(
+        context,
+        "StockMessage::ContactNotVerified posted to 1:1 chat ({})", details
+    );
 }
 
 async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> Result<(), Error> {
