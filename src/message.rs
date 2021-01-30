@@ -119,6 +119,7 @@ impl MsgId {
                 && !msg.is_setupmessage()
                 && msg.to_id != DC_CONTACT_ID_SELF // Leave self-chat-messages in the inbox, not sure about this
                 && context.is_inbox(folder).await
+                && context.get_config_bool(SentboxMove).await
                 && context.get_config(ConfiguredSentboxFolder).await.is_some()
         {
             Ok(Some(ConfiguredSentboxFolder))

@@ -63,6 +63,9 @@ pub enum Config {
     #[strum(props(default = "1"))]
     MvboxMove,
 
+    #[strum(props(default = "0"))]
+    SentboxMove, // If `MvboxMove` is true, this config is ignored. Currently only used in tests.
+
     #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
     ShowEmails,
 
