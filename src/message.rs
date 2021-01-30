@@ -857,12 +857,6 @@ impl Message {
         created_chat_id
     }
 
-    pub async fn is_mailing_list(&self, context: &Context) -> anyhow::Result<bool> {
-        Ok(Chat::load_from_db(context, self.chat_id)
-            .await?
-            .is_mailing_list())
-    }
-
     pub fn set_text(&mut self, text: Option<String>) {
         self.text = text;
     }
