@@ -299,7 +299,7 @@ pub(crate) async fn dc_receive_imf_inner(
 ///
 /// Also returns whether it is blocked or not and its origin.
 ///
-/// * `prevent_rename`: passed through to [dc_add_or_lookup_contacts_by_address_list]
+/// * `prevent_rename`: passed through to `dc_add_or_lookup_contacts_by_address_list()`
 pub async fn from_field_to_contact_id(
     context: &Context,
     from_address_list: &[SingleInfo],
