@@ -782,81 +782,6 @@ impl Message {
         None
     }
 
-    /// Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
-    ///
-    /// If the decision is Yes (0), this will create a new chat and return the chat id.
-    /// If the decision is No (1), this will usually block the sender.
-    /// If the decision is Not now (2), this will usually mark all messages from this sender as read.
-    ///
-    /// If the message belongs to a mailing list, makes sure that all messages from this mailing list are
-    /// blocked or marked as noticed.
-    ///
-    /// The user should be asked whether they want to chat with the _contact_ belonging to the message;
-    /// the group names may be really weird when taken from the subject of implicit (= ad-hoc)
-    /// groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
-    ///
-    /// If the chat belongs to a mailing list, you can also ask
-    /// "Would you like to read MAILING LIST NAME in Delta Chat?"
-    /// (use `Message.get_real_chat_id()` to get the chat-id for the contact request
-    /// and then `Chat.is_mailing_list()`, `Chat.get_name()` and so on)
-    ///
-    /// @param msg The message object.
-    /// @param context The context.
-    /// @param decision 0 = Yes, 1 = No, 2 = Not now
-    /// @return The chat id of the created chat, if any.
-    pub async fn decide_on_contact_request(
-        &self,
-        context: &Context,
-        decision: ContactRequestDecision,
-    ) -> Option<ChatId> {
-        let chat = match Chat::load_from_db(context, self.chat_id).await {
-            Ok(c) => c,
-            Err(e) => {
-                warn!(context, "Can't load chat: {}", e);
-                return None;
-            }
-        };
-
-        let mut created_chat_id = None;
-        use ContactRequestDecision::*;
-        match (decision, chat.is_mailing_list()) {
-            (StartChat, _) => match chat::create_by_msg_id(context, self.id).await {
-                Ok(id) => created_chat_id = Some(id),
-                Err(e) => warn!(context, "decide_on_contact_request error: {}", e),
-            },
-
-            (Block, false) => Contact::block(context, self.from_id).await,
-            (Block, true) => {
-                match Contact::grpid_to_mailinglist_contact(
-                    context,
-                    &chat.name,
-                    &chat.grpid,
-                    self.chat_id,
-                )
-                .await
-                {
-                    Err(e) => warn!(context, "Can't get mailing list contact: {}", e),
-                    Ok(contact) => Contact::block(context, contact.id).await,
-                }
-            }
-
-            (NotNow, false) => Contact::mark_noticed(context, self.from_id).await,
-            (NotNow, true) => {
-                if let Err(e) = chat::marknoticed_chat(context, self.chat_id).await {
-                    warn!(context, "Marknoticed failed: {}", e)
-                }
-            }
-        }
-
-        // Multiple chats may have changed, so send 0s
-        // (performance is not so important because this function is not called very often)
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: ChatId::new(0),
-            msg_id: MsgId::new(0),
-        });
-        created_chat_id
-    }
-
     pub fn set_text(&mut self, text: Option<String>) {
         self.text = text;
     }
@@ -1174,6 +1099,84 @@ impl Lot {
         self.timestamp = msg.get_timestamp();
         self.state = msg.state.into();
     }
+}
+
+/// Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
+///
+/// If the decision is `StartChat`, this will create a new chat and return the chat id.
+/// If the decision is `Block`, this will usually block the sender.
+/// If the decision is `NotNow`, this will usually mark all messages from this sender as read.
+///
+/// If the message belongs to a mailing list, makes sure that all messages from this mailing list are
+/// blocked or marked as noticed.
+///
+/// The user should be asked whether they want to chat with the _contact_ belonging to the message;
+/// the group names may be really weird when taken from the subject of implicit (= ad-hoc)
+/// groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
+///
+/// If the chat belongs to a mailing list, you can also ask
+/// "Would you like to read MAILING LIST NAME in Delta Chat?"
+/// (use `Message.get_real_chat_id()` to get the chat-id for the contact request
+/// and then `Chat.is_mailing_list()`, `Chat.get_name()` and so on)
+pub async fn decide_on_contact_request(
+    context: &Context,
+    msg_id: MsgId,
+    decision: ContactRequestDecision,
+) -> Option<ChatId> {
+    let msg = match Message::load_from_db(context, msg_id).await {
+        Ok(m) => m,
+        Err(e) => {
+            warn!(context, "Can't load message: {}", e);
+            return None;
+        }
+    };
+
+    let chat = match Chat::load_from_db(context, msg.chat_id).await {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(context, "Can't load chat: {}", e);
+            return None;
+        }
+    };
+
+    let mut created_chat_id = None;
+    use ContactRequestDecision::*;
+    match (decision, chat.is_mailing_list()) {
+        (StartChat, _) => match chat::create_by_msg_id(context, msg.id).await {
+            Ok(id) => created_chat_id = Some(id),
+            Err(e) => warn!(context, "decide_on_contact_request error: {}", e),
+        },
+
+        (Block, false) => Contact::block(context, msg.from_id).await,
+        (Block, true) => {
+            match Contact::grpid_to_mailinglist_contact(
+                context,
+                &chat.name,
+                &chat.grpid,
+                msg.chat_id,
+            )
+            .await
+            {
+                Err(e) => warn!(context, "Can't get mailing list contact: {}", e),
+                Ok(contact) => Contact::block(context, contact.id).await,
+            }
+        }
+
+        (NotNow, false) => Contact::mark_noticed(context, msg.from_id).await,
+        (NotNow, true) => {
+            if let Err(e) = chat::marknoticed_chat(context, msg.chat_id).await {
+                warn!(context, "Marknoticed failed: {}", e)
+            }
+        }
+    }
+
+    // Multiple chats may have changed, so send 0s
+    // (performance is not so important because this function is not called very often)
+    context.emit_event(EventType::MsgsChanged {
+        chat_id: ChatId::new(0),
+        msg_id: MsgId::new(0),
+    });
+    created_chat_id
 }
 
 pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {

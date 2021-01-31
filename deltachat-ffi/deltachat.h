@@ -3692,12 +3692,13 @@ char*           dc_msg_get_error               (const dc_msg_t* msg);
  * (use dc_msg_get_real_chat_id() to get the chat-id for the contact request
  * and then dc_chat_is_mailing_list(), dc_chat_get_name() and so on)
  *
- * @memberof dc_msg_t
- * @param msg The message object.
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param msg_id ID of Message to decide on.
  * @param decision One of the DC_DECISION_* values.
  * @return The chat id of the created chat, if any.
  */
-uint32_t        dc_decide_on_contact_request (const dc_msg_t* msg, int decision);
+uint32_t        dc_decide_on_contact_request (dc_context_t* context, uint32_t msg_id, int decision);
 
 
 /**

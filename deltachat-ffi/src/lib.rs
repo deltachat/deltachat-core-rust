@@ -2925,23 +2925,27 @@ pub unsafe extern "C" fn dc_msg_get_videochat_url(msg: *mut dc_msg_t) -> *mut li
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_decide_on_contact_request(
-    msg: *mut dc_msg_t,
+    context: *mut dc_context_t,
+    msg_id: u32,
     decision: libc::c_int,
 ) -> u32 {
-    if msg.is_null() {
+    if context.is_null() || msg_id <= constants::DC_MSG_ID_LAST_SPECIAL as u32 {
         eprintln!("ignoring careless call to dc_decide_on_contact_request()");
     }
-    let ffi_msg = &*msg;
-    let ctx = &*ffi_msg.context;
+    let ctx = &*context;
 
     match from_prim(decision) {
         None => {
             warn!(ctx, "{} is not a valid decision, ignoring", decision);
             0
         }
-        Some(d) => block_on(ffi_msg.message.decide_on_contact_request(ctx, d))
-            .unwrap_or_default()
-            .to_u32(),
+        Some(d) => block_on(message::decide_on_contact_request(
+            ctx,
+            MsgId::new(msg_id),
+            d,
+        ))
+        .unwrap_or_default()
+        .to_u32(),
     }
 }
 

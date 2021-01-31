@@ -2873,7 +2873,7 @@ mod tests {
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
 
         // Answer "Block" on the contact request
-        msg.decide_on_contact_request(&t.ctx, Block).await;
+        message::decide_on_contact_request(&t.ctx, msg.get_id(), Block).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
@@ -2907,7 +2907,7 @@ mod tests {
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
 
         // Answer "Not now" on the contact request
-        msg.decide_on_contact_request(&t.ctx, NotNow).await;
+        message::decide_on_contact_request(&t.ctx, msg.get_id(), NotNow).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
@@ -2940,7 +2940,7 @@ mod tests {
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
 
         // Answer "Start chat" on the contact request
-        msg.decide_on_contact_request(&t.ctx, StartChat).await;
+        message::decide_on_contact_request(&t.ctx, msg.get_id(), StartChat).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1); // Test that the message is shown
