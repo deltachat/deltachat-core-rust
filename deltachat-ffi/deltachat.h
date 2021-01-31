@@ -1215,6 +1215,11 @@ void            dc_delete_chat               (dc_context_t* context, uint32_t ch
  *
  * - for the deaddrop, the list is empty
  *
+ * - for mailing lists, the behavior is not documented currently, we will decide on that later.
+ *   for now, the UI should not show the list for mailing lists.
+ *   (we do not know all members and there is not always a global mailing list address,
+ *   so we could return only SELF or the known members; this is not decided yet)
+ *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param chat_id Chat ID to get the belonging contact IDs for.
