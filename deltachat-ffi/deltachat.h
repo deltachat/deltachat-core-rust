@@ -3653,31 +3653,52 @@ char*           dc_msg_get_videochat_url (const dc_msg_t* msg);
  */
 char*           dc_msg_get_error               (const dc_msg_t* msg);
 
+
+#define DC_DECISION_START_CHAT 0
+#define DC_DECISION_BLOCK      1
+#define DC_DECISION_NOT_NOW    2
+
+
 /**
  * Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
  *
- * If the decision is Yes (0), this will create a new chat and return the chat id.
- * If the decision is No (1), this will usually block the sender.
- * If the decision is Not now (2), this will usually mark all messages from this sender as read.
+ * Possible decisions are:
+ * - DC_DECISION_START_CHAT (0)
+ *   - This will create a new chat and return the chat id.
+ * - DC_DECISION_BLOCK (1)
+ *   - This will block the sender.
+ *   - When a new message from the sender arrives,
+ *     that will not result in a new contact request.
+ *   - The blocked sender will be returned by dc_get_blocked_contacts()
+ *     typically, the UI offers an option to unblock senders from there.
+ * - DC_DECISION_NOT_NOW (2)
+ *   - This will mark all messages from this sender as noticed.
+ *   - That the contact request is removed from the chat list.
+ *   - When a new message from the sender arrives,
+ *     a new contact request with the new message will pop up in the chatlist.
+ *   - The contact request stays available in the explicit deaddrop.
+ *   - If the contact request is already noticed, nothing happens.
  *
- * If the message belongs to a mailing list, makes sure that all messages from this mailing list are
- * blocked or marked as noticed.
+ * If the message belongs to a mailing list,
+ * the function makes sure that all messages
+ * from the mailing list are blocked or marked as noticed.
  *
  * The user should be asked whether they want to chat with the _contact_ belonging to the message;
  * the group names may be really weird when taken from the subject of implicit (= ad-hoc)
  * groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
  *
  * If the chat belongs to a mailing list, you can also ask
- * "Would you like to read 'MAILING LIST NAME' in Delta Chat?"
+ * "Would you like to read MAILING LIST NAME?"
  * (use dc_msg_get_real_chat_id() to get the chat-id for the contact request
  * and then dc_chat_is_mailing_list(), dc_chat_get_name() and so on)
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @param decision 0 = Yes, 1 = No, 2 = Not now
+ * @param decision One of the DC_DECISION_* values.
  * @return The chat id of the created chat, if any.
  */
 uint32_t        dc_decide_on_contact_request (const dc_msg_t* msg, int decision);
+
 
 /**
  * Get type of videochat.
