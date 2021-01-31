@@ -820,13 +820,13 @@ impl Message {
         let mut created_chat_id = None;
         use ContactRequestDecision::*;
         match (decision, chat.is_mailing_list()) {
-            (Yes, _) => match chat::create_by_msg_id(context, self.id).await {
+            (StartChat, _) => match chat::create_by_msg_id(context, self.id).await {
                 Ok(id) => created_chat_id = Some(id),
                 Err(e) => warn!(context, "decide_on_contact_request error: {}", e),
             },
 
-            (Never, false) => Contact::block(context, self.from_id).await,
-            (Never, true) => {
+            (Block, false) => Contact::block(context, self.from_id).await,
+            (Block, true) => {
                 match Contact::grpid_to_mailinglist_contact(
                     context,
                     &chat.name,
@@ -976,8 +976,8 @@ impl Message {
 
 #[derive(Display, Debug, FromPrimitive)]
 pub enum ContactRequestDecision {
-    Yes = 0,
-    Never = 1,
+    StartChat = 0,
+    Block = 1,
     NotNow = 2,
 }
 
