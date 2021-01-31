@@ -1,15 +1,13 @@
 //! Context module
 
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
-use std::{
-    collections::{BTreeMap, HashMap},
-    time::Instant,
-};
+use std::time::{Instant, SystemTime};
 
 use anyhow::{bail, ensure, Result};
 use async_std::{
-    channel::{bounded as channel, Receiver, Sender},
+    channel::{self, Receiver, Sender},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
     task,
@@ -27,7 +25,6 @@ use crate::message::{self, MsgId};
 use crate::scheduler::Scheduler;
 use crate::securejoin::Bob;
 use crate::sql::Sql;
-use std::time::SystemTime;
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -225,7 +222,7 @@ impl Context {
 
         s.ongoing_running = true;
         s.shall_stop_ongoing = false;
-        let (sender, receiver) = channel(1);
+        let (sender, receiver) = channel::bounded(1);
         s.cancel_sender = Some(sender);
 
         Ok(receiver)

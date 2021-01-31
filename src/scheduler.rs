@@ -1,14 +1,16 @@
 use async_std::prelude::*;
 use async_std::{
-    channel::{bounded as channel, Receiver, Sender},
+    channel::{self, Receiver, Sender},
     task,
 };
 
+use crate::config::Config;
 use crate::context::Context;
 use crate::dc_tools::maybe_add_time_based_warnings;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
-use crate::{config::Config, message::MsgId, smtp::Smtp};
+use crate::message::MsgId;
+use crate::smtp::Smtp;
 
 pub(crate) struct StopToken;
 
@@ -277,12 +279,12 @@ impl Scheduler {
         let (smtp, smtp_handlers) = SmtpConnectionState::new();
         let (inbox, inbox_handlers) = ImapConnectionState::new();
 
-        let (inbox_start_send, inbox_start_recv) = channel(1);
-        let (mvbox_start_send, mvbox_start_recv) = channel(1);
+        let (inbox_start_send, inbox_start_recv) = channel::bounded(1);
+        let (mvbox_start_send, mvbox_start_recv) = channel::bounded(1);
         let mut mvbox_handle = None;
-        let (sentbox_start_send, sentbox_start_recv) = channel(1);
+        let (sentbox_start_send, sentbox_start_recv) = channel::bounded(1);
         let mut sentbox_handle = None;
-        let (smtp_start_send, smtp_start_recv) = channel(1);
+        let (smtp_start_send, smtp_start_recv) = channel::bounded(1);
 
         let inbox_handle = {
             let ctx = ctx.clone();
@@ -503,9 +505,9 @@ pub(crate) struct SmtpConnectionState {
 
 impl SmtpConnectionState {
     fn new() -> (Self, SmtpConnectionHandlers) {
-        let (stop_sender, stop_receiver) = channel(1);
-        let (shutdown_sender, shutdown_receiver) = channel(1);
-        let (idle_interrupt_sender, idle_interrupt_receiver) = channel(1);
+        let (stop_sender, stop_receiver) = channel::bounded(1);
+        let (shutdown_sender, shutdown_receiver) = channel::bounded(1);
+        let (idle_interrupt_sender, idle_interrupt_receiver) = channel::bounded(1);
 
         let handlers = SmtpConnectionHandlers {
             connection: Smtp::new(),
@@ -551,9 +553,9 @@ pub(crate) struct ImapConnectionState {
 impl ImapConnectionState {
     /// Construct a new connection.
     fn new() -> (Self, ImapConnectionHandlers) {
-        let (stop_sender, stop_receiver) = channel(1);
-        let (shutdown_sender, shutdown_receiver) = channel(1);
-        let (idle_interrupt_sender, idle_interrupt_receiver) = channel(1);
+        let (stop_sender, stop_receiver) = channel::bounded(1);
+        let (shutdown_sender, shutdown_receiver) = channel::bounded(1);
+        let (idle_interrupt_sender, idle_interrupt_receiver) = channel::bounded(1);
 
         let handlers = ImapConnectionHandlers {
             connection: Imap::new(idle_interrupt_receiver),
