@@ -2318,7 +2318,7 @@ pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_mailing_list(chat: *mut dc_chat_t) -> libc::c_int {
     if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_get_type()");
+        eprintln!("ignoring careless call to dc_chat_is_mailing_list()");
         return 0;
     }
     let ffi_chat = &*chat;
