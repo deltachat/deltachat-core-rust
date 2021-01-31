@@ -2,7 +2,7 @@
 
 use std::ops::Deref;
 
-use async_std::channel::{bounded as channel, Receiver, Sender, TrySendError};
+use async_std::channel::{self, Receiver, Sender, TrySendError};
 use async_std::path::PathBuf;
 use strum::EnumProperty;
 
@@ -18,7 +18,7 @@ pub struct Events {
 
 impl Default for Events {
     fn default() -> Self {
-        let (sender, receiver) = channel(1_000);
+        let (sender, receiver) = channel::bounded(1_000);
 
         Self { receiver, sender }
     }
