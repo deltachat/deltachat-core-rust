@@ -84,9 +84,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "End-to-end encryption available."))]
     E2eAvailable = 25,
 
-    #[strum(props(fallback = "Transport-encryption."))]
-    EncrTransp = 27,
-
     #[strum(props(fallback = "No encryption."))]
     EncrNone = 28,
 
