@@ -2871,8 +2871,9 @@ mod tests {
         assert_eq!(chats.get_chat_id(0), deaddrop); // Test that the message is shown in the deaddrop
 
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-        // ===================================== Answer "never" on the contact request =====================================
-        msg.decide_on_contact_request(&t.ctx, Never).await;
+
+        // Answer "Block" on the contact request
+        message::decide_on_contact_request(&t.ctx, msg.get_id(), Block).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
@@ -2904,8 +2905,9 @@ mod tests {
             .unwrap();
 
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-        // ===================================== Answer "not now" on the contact request =====================================
-        msg.decide_on_contact_request(&t.ctx, NotNow).await;
+
+        // Answer "Not now" on the contact request
+        message::decide_on_contact_request(&t.ctx, msg.get_id(), NotNow).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
@@ -2936,8 +2938,9 @@ mod tests {
             .unwrap();
 
         let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-        // ===================================== Answer "yes" on the contact request =====================================
-        msg.decide_on_contact_request(&t.ctx, Yes).await;
+
+        // Answer "Start chat" on the contact request
+        message::decide_on_contact_request(&t.ctx, msg.get_id(), StartChat).await;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1); // Test that the message is shown

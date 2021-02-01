@@ -63,9 +63,8 @@ impl Chatlist {
     ///   messages from addresses that have no relationship to the configured account.
     ///   The last of these messages is represented by DC_CHAT_ID_DEADDROP and you can retrieve details
     ///   about it with chatlist.get_msg_id(). Typically, the UI asks the user "Do you want to chat with NAME?"
-    ///   and offers the options "Yes" (call dc_create_chat_by_msg_id()), "Never" (call dc_block_contact())
-    ///   or "Not now".
-    ///   The UI can also offer a "Close" button that calls dc_marknoticed_contact() then.
+    ///   and offers the options "Start chat", "Block" and "Not now";
+    ///   The decision should be passed to dc_decide_on_contact_request().
     /// - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
     ///   archived *any* chat using dc_set_chat_visibility(). The UI should show a link as
     ///   "Show archived chats", if the user clicks this item, the UI should show a
