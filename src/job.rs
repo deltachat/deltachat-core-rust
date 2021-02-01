@@ -291,13 +291,20 @@ impl Job {
                         // We got a transient 4xx response from SMTP server.
                         // Give some time until the server-side error maybe goes away.
 
-
-                        if response.first_word() == Some("4.1.2") {
-                            // Sometimes we receive the 4.1.2 error, which stays for "Bad destination system address"
-                            // or more simple, the domain doesn't exist or is invalid. This should be a permanent error
-                            // and fail immediatly.
-                            info!(context, "Smtp-job #{} is a transient \"bad destination\" error. Lets let it fail immediatly.", self.job_id);
-                            Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                        if let Some(first_word) = response.first_word() {
+                            if first_word.ends_with(".1.1")
+                                || first_word.ends_with(".1.2")
+                                || first_word.ends_with(".1.3")
+                            {
+                                // Sometimes we receive transient errors that should be permanent.
+                                // Any extended smtp status codes like x.1.1, x.1.2 or x.1.3 that we
+                                // receive as a transient error are misconfigurations of the smtp server.
+                                // See https://tools.ietf.org/html/rfc3463#section-3.2
+                                info!(context, "Smtp-job #{} Received extended status code {} for a transient error. This looks like a misconfigured smtp server, let's fail immediatly", self.job_id, first_word);
+                                Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                            } else {
+                                Status::RetryLater
+                            }
                         } else {
                             Status::RetryLater
                         }
