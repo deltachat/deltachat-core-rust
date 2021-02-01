@@ -5120,9 +5120,7 @@ void dc_event_unref(dc_event_t* event);
 /// Used to build the string returned by dc_get_contact_encrinfo().
 #define DC_STR_E2E_AVAILABLE              25
 
-/// "Transport-encryption."
-///
-/// Used to build the string returned by dc_get_contact_encrinfo().
+/// DEPRECATED 2021-02-07
 #define DC_STR_ENCR_TRANSP                27
 
 /// "No encryption."
