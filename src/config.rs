@@ -290,6 +290,11 @@ impl Context {
             _ => self.sql.set_raw_config(self, key, value).await,
         }
     }
+
+    pub async fn set_config_bool(&self, key: Config, value: bool) -> crate::sql::Result<()> {
+        self.set_config(key, if value { Some("1") } else { None })
+            .await
+    }
 }
 
 /// Returns all available configuration keys concated together.
