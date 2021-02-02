@@ -1968,6 +1968,7 @@ mod tests {
                 true,
                 false,
                 false,
+                false,
             )
             .await;
         }
@@ -1984,6 +1985,7 @@ mod tests {
                 false,
                 false,
                 false,
+                false,
             )
             .await;
         }
@@ -1991,21 +1993,26 @@ mod tests {
 
     #[async_std::test]
     async fn test_needs_move_outgoing() {
-        // Test outgoing emails
-        for (folder, mvbox_move, chat_msg, mut expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
-            if *folder == "INBOX" && !mvbox_move && *chat_msg {
-                expected_destination = "Sent"
+        for sentbox_move in &[true, false] {
+            // Test outgoing emails
+            for (folder, mvbox_move, chat_msg, mut expected_destination) in
+                COMBINATIONS_ACCEPTED_CHAT
+            {
+                if *folder == "INBOX" && !mvbox_move && *chat_msg && *sentbox_move {
+                    expected_destination = "Sent"
+                }
+                check_needs_move_combination(
+                    folder,
+                    *mvbox_move,
+                    *chat_msg,
+                    expected_destination,
+                    true,
+                    true,
+                    false,
+                    *sentbox_move,
+                )
+                .await;
             }
-            check_needs_move_combination(
-                folder,
-                *mvbox_move,
-                *chat_msg,
-                expected_destination,
-                true,
-                true,
-                false,
-            )
-            .await;
         }
     }
 
@@ -2021,11 +2028,13 @@ mod tests {
                 true,
                 true,
                 true,
+                false,
             )
             .await;
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn check_needs_move_combination(
         folder: &str,
         mvbox_move: bool,
@@ -2034,6 +2043,7 @@ mod tests {
         accepted_chat: bool,
         outgoing: bool,
         setupmessage: bool,
+        sentbox_move: bool,
     ) {
         use crate::dc_receive_imf::dc_receive_imf;
         println!("Testing: For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}",
@@ -2058,6 +2068,10 @@ mod tests {
             .unwrap();
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config_bool(Config::SentboxMove, sentbox_move)
             .await
             .unwrap();
 
