@@ -312,6 +312,7 @@ impl Context {
         let sentbox_watch = self.get_config_int(Config::SentboxWatch).await;
         let mvbox_watch = self.get_config_int(Config::MvboxWatch).await;
         let mvbox_move = self.get_config_int(Config::MvboxMove).await;
+        let sentbox_move = self.get_config_int(Config::SentboxMove).await;
         let folders_configured = self
             .sql
             .get_raw_config_int(self, "folders_configured")
@@ -363,6 +364,7 @@ impl Context {
         res.insert("sentbox_watch", sentbox_watch.to_string());
         res.insert("mvbox_watch", mvbox_watch.to_string());
         res.insert("mvbox_move", mvbox_move.to_string());
+        res.insert("sentbox_move", sentbox_move.to_string());
         res.insert("folders_configured", folders_configured.to_string());
         res.insert("configured_sentbox_folder", configured_sentbox_folder);
         res.insert("configured_mvbox_folder", configured_mvbox_folder);
