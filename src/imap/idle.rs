@@ -125,10 +125,12 @@ impl Imap {
         let fake_idle_start_time = SystemTime::now();
 
         // Do not poll, just wait for an interrupt when no folder is passed in.
-        if watch_folder.is_none() {
+        let watch_folder = if let Some(watch_folder) = watch_folder {
+            watch_folder
+        } else {
             info!(context, "IMAP-fake-IDLE: no folder, waiting for interrupt");
             return self.idle_interrupt.recv().await.unwrap_or_default();
-        }
+        };
         info!(context, "IMAP-fake-IDLEing folder={:?}", watch_folder);
 
         // check every minute if there are new messages
@@ -170,18 +172,16 @@ impl Imap {
                     // will have already fetched the messages so perform_*_fetch
                     // will not find any new.
 
-                    if let Some(ref watch_folder) = watch_folder {
-                        match self.fetch_new_messages(context, watch_folder, false).await {
-                            Ok(res) => {
-                                info!(context, "fetch_new_messages returned {:?}", res);
-                                if res {
-                                    break InterruptInfo::new(false, None);
-                                }
+                    match self.fetch_new_messages(context, &watch_folder, false).await {
+                        Ok(res) => {
+                            info!(context, "fetch_new_messages returned {:?}", res);
+                            if res {
+                                break InterruptInfo::new(false, None);
                             }
-                            Err(err) => {
-                                error!(context, "could not fetch from folder: {:#}", err);
-                                self.trigger_reconnect()
-                            }
+                        }
+                        Err(err) => {
+                            error!(context, "could not fetch from folder: {:#}", err);
+                            self.trigger_reconnect()
                         }
                     }
                 }
