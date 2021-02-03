@@ -4,6 +4,7 @@ use anyhow::{bail, ensure, format_err, Error};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 
 use crate::chat;
 use crate::config::Config;
@@ -13,7 +14,6 @@ use crate::context::Context;
 use crate::key::Fingerprint;
 use crate::lot::{Lot, LotState};
 use crate::message::Message;
-use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
@@ -93,16 +93,18 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         }
     };
 
-    // replace & with \n to match expected param format
-    let fragment = fragment.replace('&', "\n");
+    let param: BTreeMap<&str, &str> = fragment
+        .split('&')
+        .filter_map(|s| {
+            if let [key, value] = s.splitn(2, '=').collect::<Vec<_>>()[..] {
+                Some((key, value))
+            } else {
+                None
+            }
+        })
+        .collect();
 
-    // Then parse the parameters
-    let param: Params = match fragment.parse() {
-        Ok(params) => params,
-        Err(err) => return err.into(),
-    };
-
-    let addr = if let Some(addr) = param.get(Param::Forwarded) {
+    let addr = if let Some(addr) = param.get("a") {
         match normalize_address(addr) {
             Ok(addr) => Some(addr),
             Err(err) => return err.into(),
@@ -112,7 +114,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
     };
 
     // what is up with that param name?
-    let name = if let Some(encoded_name) = param.get(Param::SetLongitude) {
+    let name = if let Some(encoded_name) = param.get("n") {
         let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
         match percent_decode_str(&encoded_name).decode_utf8() {
             Ok(name) => name.to_string(),
@@ -122,12 +124,12 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         "".to_string()
     };
 
-    let invitenumber = param.get(Param::ProfileImage).map(|s| s.to_string());
-    let auth = param.get(Param::Auth).map(|s| s.to_string());
-    let grpid = param.get(Param::GroupId).map(|s| s.to_string());
+    let invitenumber = param.get("i").map(|s| s.to_string());
+    let auth = param.get("s").map(|s| s.to_string());
+    let grpid = param.get("x").map(|s| s.to_string());
 
     let grpname = if grpid.is_some() {
-        if let Some(encoded_name) = param.get(Param::GroupName) {
+        if let Some(encoded_name) = param.get("g") {
             let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
             match percent_decode_str(&encoded_name).decode_utf8() {
                 Ok(name) => Some(name.to_string()),
@@ -563,6 +565,7 @@ mod tests {
         assert_eq!(res.get_text1().unwrap(), "test ? test !");
 
         // Test it again with lowercased "openpgp4fpr:" uri scheme
+        let ctx = TestContext::new().await;
         let res = check_qr(
             &ctx.ctx,
             "openpgp4fpr:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
@@ -603,6 +606,21 @@ mod tests {
         let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "cli@deltachat.de");
         assert_eq!(contact.get_name(), "Jörn P. P.");
+
+        // Regression test
+        let ctx = TestContext::new().await;
+        let res = check_qr(
+            &ctx.ctx,
+            "openpgp4fpr:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
+        ).await;
+
+        println!("{:?}", res);
+        assert_eq!(res.get_state(), LotState::QrAskVerifyContact);
+        assert_ne!(res.get_id(), 0);
+
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
+        assert_eq!(contact.get_addr(), "cli@deltachat.de");
+        assert_eq!(contact.get_name(), "");
     }
 
     #[async_std::test]
