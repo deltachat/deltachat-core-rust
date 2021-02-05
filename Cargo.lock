@@ -2079,9 +2079,9 @@ dependencies = [
 
 [[package]]
 name = "mailparse"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "388a77a7f161b32d0314404306b8ed5966b34b797fc9ef6bcf6686935162da3c"
+checksum = "31de1f9043c582efde7dbd93de56600df12b6c4488a67eeaefa74ea364019b22"
 dependencies = [
  "base64 0.12.3",
  "charset",

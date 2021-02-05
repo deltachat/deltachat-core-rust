@@ -1475,6 +1475,62 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_mimeparser_fromheader() {
+        let ctx = TestContext::new_alice().await;
+
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: g@c.de\n\nhi")
+            .await
+            .unwrap();
+        let contact = mimemsg.from.first().unwrap();
+        assert_eq!(contact.addr, "g@c.de");
+        assert_eq!(contact.display_name, None);
+
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From:   g@c.de  \n\nhi")
+            .await
+            .unwrap();
+        let contact = mimemsg.from.first().unwrap();
+        assert_eq!(contact.addr, "g@c.de");
+        assert_eq!(contact.display_name, None);
+
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: <g@c.de>\n\nhi")
+            .await
+            .unwrap();
+        let contact = mimemsg.from.first().unwrap();
+        assert_eq!(contact.addr, "g@c.de");
+        assert_eq!(contact.display_name, None);
+
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: Goetz C <g@c.de>\n\nhi")
+            .await
+            .unwrap();
+        let contact = mimemsg.from.first().unwrap();
+        assert_eq!(contact.addr, "g@c.de");
+        assert_eq!(contact.display_name, Some("Goetz C".to_string()));
+
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: \"Goetz C\" <g@c.de>\n\nhi")
+            .await
+            .unwrap();
+        let contact = mimemsg.from.first().unwrap();
+        assert_eq!(contact.addr, "g@c.de");
+        assert_eq!(contact.display_name, Some("Goetz C".to_string()));
+
+        let mimemsg =
+            MimeMessage::from_bytes(&ctx, b"From: =?utf-8?q?G=C3=B6tz?= C <g@c.de>\n\nhi")
+                .await
+                .unwrap();
+        let contact = mimemsg.from.first().unwrap();
+        assert_eq!(contact.addr, "g@c.de");
+        assert_eq!(contact.display_name, Some("Götz C".to_string()));
+
+        let mimemsg =
+            MimeMessage::from_bytes(&ctx, b"From: \"=?utf-8?q?G=C3=B6tz?= C\" <g@c.de>\n\nhi")
+                .await
+                .unwrap();
+        let contact = mimemsg.from.first().unwrap();
+        assert_eq!(contact.addr, "g@c.de");
+        assert_eq!(contact.display_name, Some("Götz C".to_string()));
+    }
+
+    #[async_std::test]
     async fn test_dc_mimeparser_crash() {
         let context = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
