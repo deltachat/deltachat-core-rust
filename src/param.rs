@@ -134,19 +134,7 @@ pub enum Param {
 
     /// For Chats
     Devicetalk = b'D',
-
-    /// For Chats: "1" if this chat is a mailing list, all other values are invalid.
-    MailingList = b'L',
-
-    /// For QR
-    Auth = b's',
-
-    /// For QR
-    GroupId = b'x',
-
-    /// For QR
-    GroupName = b'g',
-
+    
     /// For MDN-sending job
     MsgId = b'I',
 }
@@ -440,14 +428,6 @@ mod tests {
         params.set(Param::Height, "foo\nbar=baz\nquux");
         params.set(Param::Width, "\n\n\na=\n=");
         assert_eq!(params.to_string().parse::<Params>().unwrap(), params);
-    }
-
-    #[test]
-    fn test_regression() {
-        let p1: Params = "a=cli%40deltachat.de\nn=\ni=TbnwJ6lSvD5\ns=0ejvbdFSQxB"
-            .parse()
-            .unwrap();
-        assert_eq!(p1.get(Param::Forwarded).unwrap(), "cli%40deltachat.de");
     }
 
     #[async_std::test]

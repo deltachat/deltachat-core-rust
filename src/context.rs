@@ -1,16 +1,17 @@
 //! Context module
 
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
-use std::{
-    collections::{BTreeMap, HashMap},
-    time::Instant,
-};
+use std::time::{Instant, SystemTime};
 
 use anyhow::{bail, ensure, Result};
-use async_std::path::{Path, PathBuf};
-use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
-use async_std::task;
+use async_std::{
+    channel::{self, Receiver, Sender},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex, RwLock},
+    task,
+};
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
@@ -24,7 +25,6 @@ use crate::message::{self, MsgId};
 use crate::scheduler::Scheduler;
 use crate::securejoin::Bob;
 use crate::sql::Sql;
-use std::time::SystemTime;
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -222,7 +222,7 @@ impl Context {
 
         s.ongoing_running = true;
         s.shall_stop_ongoing = false;
-        let (sender, receiver) = channel(1);
+        let (sender, receiver) = channel::bounded(1);
         s.cancel_sender = Some(sender);
 
         Ok(receiver)
@@ -249,7 +249,9 @@ impl Context {
         let s_a = &self.running_state;
         let mut s = s_a.write().await;
         if let Some(cancel) = s.cancel_sender.take() {
-            cancel.send(()).await;
+            if let Err(err) = cancel.send(()).await {
+                warn!(self, "could not cancel ongoing: {:?}", err);
+            }
         }
 
         if s.ongoing_running && !s.shall_stop_ongoing {
@@ -310,6 +312,7 @@ impl Context {
         let sentbox_watch = self.get_config_int(Config::SentboxWatch).await;
         let mvbox_watch = self.get_config_int(Config::MvboxWatch).await;
         let mvbox_move = self.get_config_int(Config::MvboxMove).await;
+        let sentbox_move = self.get_config_int(Config::SentboxMove).await;
         let folders_configured = self
             .sql
             .get_raw_config_int(self, "folders_configured")
@@ -361,6 +364,7 @@ impl Context {
         res.insert("sentbox_watch", sentbox_watch.to_string());
         res.insert("mvbox_watch", mvbox_watch.to_string());
         res.insert("mvbox_move", mvbox_move.to_string());
+        res.insert("sentbox_move", sentbox_move.to_string());
         res.insert("folders_configured", folders_configured.to_string());
         res.insert("configured_sentbox_folder", configured_sentbox_folder);
         res.insert("configured_mvbox_folder", configured_mvbox_folder);

@@ -10,8 +10,8 @@ use async_imap::{
     error::Result as ImapResult,
     types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
 };
+use async_std::channel::Receiver;
 use async_std::prelude::*;
-use async_std::sync::Receiver;
 use num_traits::FromPrimitive;
 
 use crate::constants::{

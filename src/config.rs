@@ -63,6 +63,9 @@ pub enum Config {
     #[strum(props(default = "1"))]
     MvboxMove,
 
+    #[strum(props(default = "0"))]
+    SentboxMove, // If `MvboxMove` is true, this config is ignored. Currently only used in tests.
+
     #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
     ShowEmails,
 
@@ -286,6 +289,11 @@ impl Context {
             }
             _ => self.sql.set_raw_config(self, key, value).await,
         }
+    }
+
+    pub async fn set_config_bool(&self, key: Config, value: bool) -> crate::sql::Result<()> {
+        self.set_config(key, if value { Some("1") } else { None })
+            .await
     }
 }
 
