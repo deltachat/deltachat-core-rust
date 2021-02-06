@@ -167,6 +167,13 @@ class Chat(object):
         """
         return lib.dc_chat_get_type(self._dc_chat)
 
+    def get_encryption_info(self):
+        """Return encryption info for this chat.
+
+        :returns: a string with encryption preferences of all chat members"""
+        res = lib.dc_get_chat_encrinfo(self.account._dc_context, self.id)
+        return from_dc_charpointer(res)
+
     def get_join_qr(self):
         """ get/create Join-Group QR Code as ascii-string.
 

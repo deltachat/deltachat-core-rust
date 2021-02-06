@@ -12,6 +12,7 @@ use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
+use crate::aheader::EncryptPreference;
 use crate::blob::{BlobError, BlobObject};
 use crate::chatlist::dc_get_archived_cnt;
 use crate::config::Config;
@@ -35,6 +36,7 @@ use crate::job::{self, Action};
 use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
+use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql;
 use crate::stock::StockMessage;
 
@@ -635,6 +637,47 @@ impl ChatId {
         } else {
             Some((rfc724_mid, mime_in_reply_to, mime_references))
         }
+    }
+
+    /// Returns multi-line text summary of encryption preferences of all chat contacts.
+    ///
+    /// This can be used to find out if encryption is not available because
+    /// keys for some users are missing or simply because the majority of the users in a group
+    /// prefer plaintext emails.
+    ///
+    /// To get more verbose summary for a contact, including its key fingerprint, use [`Contact::get_encrinfo`].
+    pub async fn get_encryption_info(self, context: &Context) -> Result<String, Error> {
+        let mut ret = String::new();
+
+        for contact_id in get_chat_contacts(context, self)
+            .await
+            .iter()
+            .filter(|&contact_id| *contact_id > DC_CONTACT_ID_LAST_SPECIAL)
+        {
+            let contact = Contact::load_from_db(context, *contact_id).await?;
+            let addr = contact.get_addr();
+            let peerstate = Peerstate::from_addr(context, addr).await?;
+
+            let stock_message = peerstate
+                .filter(|peerstate| {
+                    peerstate
+                        .peek_key(PeerstateVerifiedStatus::Unverified)
+                        .is_some()
+                })
+                .map(|peerstate| match peerstate.prefer_encrypt {
+                    EncryptPreference::Mutual => StockMessage::E2ePreferred,
+                    EncryptPreference::NoPreference => StockMessage::E2eAvailable,
+                    EncryptPreference::Reset => StockMessage::EncrNone,
+                })
+                .unwrap_or(StockMessage::EncrNone);
+
+            if !ret.is_empty() {
+                ret.push('\n')
+            }
+            ret += &format!("{} {}", addr, context.stock_str(stock_message).await);
+        }
+
+        Ok(ret)
     }
 
     /// Bad evil escape hatch.
