@@ -1323,6 +1323,29 @@ pub unsafe extern "C" fn dc_set_chat_mute_duration(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_chat_encrinfo(
+    context: *mut dc_context_t,
+    chat_id: u32,
+) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_chat_encrinfo()");
+        return "".strdup();
+    }
+    let ctx = &*context;
+
+    block_on(async move {
+        ChatId::new(chat_id)
+            .get_encryption_info(&ctx)
+            .await
+            .map(|s| s.strdup())
+            .unwrap_or_else(|e| {
+                error!(&ctx, "{}", e);
+                ptr::null_mut()
+            })
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_chat_ephemeral_timer(
     context: *mut dc_context_t,
     chat_id: u32,

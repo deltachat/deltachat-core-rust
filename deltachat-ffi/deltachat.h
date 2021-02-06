@@ -1221,6 +1221,18 @@ void            dc_delete_chat               (dc_context_t* context, uint32_t ch
 dc_array_t*     dc_get_chat_contacts         (dc_context_t* context, uint32_t chat_id);
 
 /**
+ * Get encryption info for a chat.
+ * Get a multi-line encryption info, containing encryption preferences of all members.
+ * Can be used to find out why messages sent to group are not encrypted.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param chat_id ID of the chat to get the encryption info for.
+ * @return Multi-line text, must be released using dc_str_unref() after usage.
+ */
+char*           dc_get_chat_encrinfo (dc_context_t* context, uint32_t chat_id);
+
+/**
  * Get the chat's ephemeral message timer.
  * The ephemeral message timer is set by dc_set_chat_ephemeral_timer()
  * on this or any other device participating in the chat.

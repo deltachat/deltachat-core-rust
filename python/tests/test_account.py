@@ -1130,6 +1130,7 @@ class TestOnlineAccount:
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "first message"
         assert not msg.is_encrypted()
+        assert msg.chat.get_encryption_info() == f"{ac2.get_config('addr')} End-to-end encryption preferred."
 
         lp.sec("ac2 learns that ac3 prefers encryption")
         ac2.create_chat(ac3)
@@ -1141,6 +1142,7 @@ class TestOnlineAccount:
         lp.sec("ac3 does not know that ac1 prefers encryption")
         ac1.create_chat(ac3)
         chat = ac3.create_chat(ac1)
+        assert chat.get_encryption_info() == f"{ac1.get_config('addr')} No encryption."
         msg = chat.send_text("not encrypted")
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "not encrypted"
@@ -1149,6 +1151,8 @@ class TestOnlineAccount:
         lp.sec("ac1 creates a group chat with ac2")
         group_chat = ac1.create_group_chat("hello")
         group_chat.add_contact(ac2)
+        encryption_info = group_chat.get_encryption_info()
+        assert encryption_info == f"{ac2.get_config('addr')} End-to-end encryption preferred."
         msg = group_chat.send_text("hi")
 
         msg = ac2._evtracker.wait_next_incoming_message()
@@ -1161,6 +1165,9 @@ class TestOnlineAccount:
 
         lp.sec("ac3 learns that ac1 prefers encryption")
         msg = ac3._evtracker.wait_next_incoming_message()
+        encryption_info = msg.chat.get_encryption_info().splitlines()
+        assert f"{ac1.get_config('addr')} End-to-end encryption preferred." in encryption_info
+        assert f"{ac2.get_config('addr')} End-to-end encryption preferred." in encryption_info
         msg = chat.send_text("encrypted")
         assert msg.is_encrypted()
 
