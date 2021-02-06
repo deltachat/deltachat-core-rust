@@ -1150,16 +1150,8 @@ pub async fn decide_on_contact_request(
 
         (Block, false) => Contact::block(context, msg.from_id).await,
         (Block, true) => {
-            match Contact::grpid_to_mailinglist_contact(
-                context,
-                &chat.name,
-                &chat.grpid,
-                msg.chat_id,
-            )
-            .await
-            {
-                Err(e) => warn!(context, "Can't get mailing list contact: {}", e),
-                Ok(contact) => Contact::block(context, contact.id).await,
+            if !msg.chat_id.set_blocked(context, Blocked::Manually).await {
+                warn!(context, "Block mailing list failed.")
             }
         }
 

@@ -7,6 +7,8 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+use crate::aheader::EncryptPreference;
+use crate::chat::ChatId;
 use crate::config::Config;
 use crate::constants::{
     Chattype, DC_CHAT_ID_DEADDROP, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_DEVICE_ADDR,
@@ -25,8 +27,6 @@ use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::provider::Socket;
 use crate::stock::StockMessage;
-use crate::{aheader::EncryptPreference, chat};
-use crate::{chat::ChatId, constants::Blocked};
 
 /// An object representing a single contact in memory.
 ///
@@ -1045,28 +1045,6 @@ impl Contact {
             .await
             .is_ok()
     }
-
-    /// Looks up or creates a pseudo contact of the form {List-Id}@mailing.list
-    pub(crate) async fn grpid_to_mailinglist_contact(
-        context: &Context,
-        name: &str,
-        grpid: &str,
-        chat_id: ChatId,
-    ) -> Result<Contact> {
-        let addr = format!("{}@mailing.list", grpid);
-        let (contact_id, _) =
-            Contact::add_or_lookup(context, name, addr, Origin::IncomingUnknownFrom).await?;
-
-        chat::add_to_chat_contacts_table(context, chat_id, contact_id).await;
-
-        let mut contact = Contact::load_from_db(context, contact_id).await?;
-        contact
-            .param
-            .set_int(Param::MailingListPseudoContact, chat_id.to_u32() as i32);
-        contact.update_param(context).await?;
-
-        Ok(contact)
-    }
 }
 
 /// Returns false if addr is an invalid address, otherwise true.
@@ -1133,17 +1111,6 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
             {
                 Contact::mark_noticed(context, contact_id).await;
                 context.emit_event(EventType::ContactsChanged(Some(contact_id)));
-            }
-
-            if let Some(chat_id) = contact.param.get_int(Param::MailingListPseudoContact) {
-                let new_blocked = if new_blocking {
-                    Blocked::Manually
-                } else {
-                    Blocked::Not
-                };
-                ChatId::new(chat_id as u32)
-                    .set_blocked(context, new_blocked)
-                    .await;
             }
         }
     }

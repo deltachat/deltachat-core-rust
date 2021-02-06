@@ -1514,18 +1514,6 @@ async fn create_or_lookup_mailinglist(
         match create_mailinglist_record(context, &listid, &name, create_blocked).await {
             Ok(chat_id) => {
                 chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
-
-                match Contact::grpid_to_mailinglist_contact(context, &name, &listid, chat_id).await
-                {
-                    Err(e) => warn!(context, "grpid_to_mailinglist_contact failed: {}", e),
-                    Ok(contact) => {
-                        if contact.is_blocked() {
-                            chat_id.set_blocked(context, Blocked::Manually).await;
-                            return (chat_id, Blocked::Manually);
-                        }
-                    }
-                }
-
                 (chat_id, create_blocked)
             }
             Err(e) => {
@@ -2764,7 +2752,7 @@ mod tests {
         assert!(chat.is_mailing_list());
         assert_eq!(chat.can_send(), false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
-        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await.len(), 2);
+        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await.len(), 1);
 
         dc_receive_imf(&t.ctx, GH_MAILINGLIST2, "INBOX", 1, false)
             .await
@@ -2786,25 +2774,6 @@ mod tests {
         let contact2 = Contact::load_from_db(&t.ctx, msg2.from_id).await.unwrap();
         assert_eq!(contact2.get_addr(), "notifications@github.com");
 
-        let pseudo_contact = Contact::grpid_to_mailinglist_contact(
-            &t.ctx,
-            "",
-            "deltachat-core-rust.deltachat.github.com",
-            chat_id,
-        )
-        .await
-        .unwrap();
-        assert_eq!(
-            pseudo_contact.get_display_name(),
-            "deltachat/deltachat-core-rust"
-        );
-        assert_eq!(
-            pseudo_contact
-                .param
-                .get(Param::MailingListPseudoContact)
-                .unwrap(),
-            &chat_id.to_u32().to_string()
-        );
         assert_eq!(msg1.get_override_sender_name().unwrap(), "Max Mustermann");
         assert_eq!(msg2.get_override_sender_name().unwrap(), "Github");
     }
@@ -2851,7 +2820,6 @@ mod tests {
         let msg = get_chat_msg(&t, chat_id, 0, 1).await;
         let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
         assert_eq!(contact1.get_addr(), "bob@posteo.org");
-        assert_eq!(contact1.param.get(Param::MailingListPseudoContact), None);
     }
 
     #[async_std::test]

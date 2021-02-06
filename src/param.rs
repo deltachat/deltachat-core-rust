@@ -122,10 +122,6 @@ pub enum Param {
     /// For Groups and Contacts
     ProfileImage = b'i',
 
-    /// For contacts, contains the chat id of the mailing list if this is a pseudo contacts.
-    /// If the List-Id is e.g. delta.chat.1234, then the pseudo contact is delta.chat.1234@mailing.list
-    MailingListPseudoContact = b'p',
-
     /// For Chats
     Selftalk = b'K',
 
