@@ -1064,23 +1064,31 @@ impl Lot {
                 );
                 self.text1_meaning = Meaning::Text1Self;
             }
-        } else if chat.typ == Chattype::Group || chat.typ == Chattype::Mailinglist {
-            if msg.is_info() || contact.is_none() {
-                self.text1 = None;
-                self.text1_meaning = Meaning::None;
-            } else {
-                if chat.id.is_deaddrop() {
-                    if let Some(contact) = contact {
-                        self.text1 = Some(msg.get_sender_name(contact));
-                    } else {
+        } else {
+            match chat.typ {
+                Chattype::Group | Chattype::Mailinglist => {
+                    if msg.is_info() || contact.is_none() {
                         self.text1 = None;
+                        self.text1_meaning = Meaning::None;
+                    } else {
+                        if chat.id.is_deaddrop() {
+                            if let Some(contact) = contact {
+                                self.text1 = Some(msg.get_sender_name(contact));
+                            } else {
+                                self.text1 = None;
+                            }
+                        } else if let Some(contact) = contact {
+                            self.text1 = Some(msg.get_sender_name(contact));
+                        } else {
+                            self.text1 = None;
+                        }
+                        self.text1_meaning = Meaning::Text1Username;
                     }
-                } else if let Some(contact) = contact {
-                    self.text1 = Some(msg.get_sender_name(contact));
-                } else {
-                    self.text1 = None;
                 }
-                self.text1_meaning = Meaning::Text1Username;
+                Chattype::Single | Chattype::Undefined => {
+                    self.text1 = None;
+                    self.text1_meaning = Meaning::None;
+                }
             }
         }
 
