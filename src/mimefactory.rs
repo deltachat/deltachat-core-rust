@@ -1001,7 +1001,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             parts.push(msg_kml_part);
         }
 
-        if location::is_sending_locations_to_chat(context, self.msg.chat_id).await {
+        if location::is_sending_locations_to_chat(context, Some(self.msg.chat_id)).await {
             match self.get_location_kml_part().await {
                 Ok(part) => parts.push(part),
                 Err(err) => {

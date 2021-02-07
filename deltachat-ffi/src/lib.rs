@@ -1938,11 +1938,13 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
         return 0;
     }
     let ctx = &*context;
+    let chat_id = if chat_id == 0 {
+        None
+    } else {
+        Some(ChatId::new(chat_id))
+    };
 
-    block_on(location::is_sending_locations_to_chat(
-        &ctx,
-        ChatId::new(chat_id),
-    )) as libc::c_int
+    block_on(location::is_sending_locations_to_chat(&ctx, chat_id)) as libc::c_int
 }
 
 #[no_mangle]
@@ -1974,11 +1976,21 @@ pub unsafe extern "C" fn dc_get_locations(
         return ptr::null_mut();
     }
     let ctx = &*context;
+    let chat_id = if chat_id == 0 {
+        None
+    } else {
+        Some(ChatId::new(chat_id))
+    };
+    let contact_id = if contact_id == 0 {
+        None
+    } else {
+        Some(contact_id)
+    };
 
     block_on(async move {
         let res = location::get_range(
             &ctx,
-            ChatId::new(chat_id),
+            chat_id,
             contact_id,
             timestamp_begin as i64,
             timestamp_end as i64,
