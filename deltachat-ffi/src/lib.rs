@@ -1136,10 +1136,15 @@ pub unsafe extern "C" fn dc_search_msgs(
         return ptr::null_mut();
     }
     let ctx = &*context;
+    let chat_id = if chat_id == 0 {
+        None
+    } else {
+        Some(ChatId::new(chat_id))
+    };
 
     block_on(async move {
         let arr = dc_array_t::from(
-            ctx.search_msgs(ChatId::new(chat_id), to_string_lossy(query))
+            ctx.search_msgs(chat_id, to_string_lossy(query))
                 .await
                 .iter()
                 .map(|msg_id| msg_id.to_u32())
