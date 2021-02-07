@@ -10,22 +10,19 @@ use std::time::Duration;
 use anyhow::format_err;
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
-use crate::chat::add_device_msg;
+use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
+use crate::config::Config;
 use crate::config::Config::DeleteServerAfter;
-use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
+use crate::constants::{ShowEmails, Viewtype, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, time, EmailAddress};
 use crate::ephemeral::start_ephemeral_timers;
 use crate::imap;
+use crate::message::Message;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::provider::get_provider_by_domain;
-use crate::stock::StockMessage;
-use crate::{
-    chat::{update_device_icon, update_saved_messages_icon},
-    config::Config,
-};
-use crate::{constants::Viewtype, message::Message};
+use crate::stock::DeleteServerTurnedOff;
 
 #[macro_export]
 macro_rules! paramsv {
@@ -1544,12 +1541,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
             if context.get_config_delete_server_after().await.is_some() {
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(
-                    context
-                        .stock_str(StockMessage::DeleteServerTurnedOff)
-                        .await
-                        .into(),
-                );
+                msg.text = Some(DeleteServerTurnedOff::stock_str(context).await.into());
                 add_device_msg(context, None, Some(&mut msg)).await?;
                 context.set_config(DeleteServerAfter, Some("0")).await?;
             }

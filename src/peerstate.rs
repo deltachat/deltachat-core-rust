@@ -13,7 +13,7 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::sql::Sql;
-use crate::stock::StockMessage;
+use crate::stock::ContactSetupChanged;
 
 #[derive(Debug)]
 pub enum PeerstateKeyType {
@@ -281,9 +281,7 @@ impl<'a> Peerstate<'a> {
                         .await
                         .unwrap_or_default();
 
-                let msg = context
-                    .stock_string_repl_str(StockMessage::ContactSetupChanged, self.addr.clone())
-                    .await;
+                let msg = ContactSetupChanged::stock_str(context, self.addr.clone()).await;
 
                 chat::add_info_msg(context, contact_chat_id, msg).await;
                 emit_event!(context, EventType::ChatModified(contact_chat_id));

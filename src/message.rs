@@ -26,7 +26,10 @@ use crate::lot::{Lot, LotState, Meaning};
 use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
-use crate::stock::StockMessage;
+use crate::stock::{
+    AcSetupMsgSubject, Audio, Draft, FailedSendingTo, File, Gif, Image, Location, ReplyNoun,
+    SelfMsg, Sticker, Video, VideochatInvitation, VoiceMessage,
+};
 use std::collections::BTreeMap;
 
 // In practice, the user additionally cuts the string themselves
@@ -1055,26 +1058,14 @@ impl Lot {
         context: &Context,
     ) {
         if msg.state == MessageState::OutDraft {
-            self.text1 = Some(
-                context
-                    .stock_str(StockMessage::Draft)
-                    .await
-                    .to_owned()
-                    .into(),
-            );
+            self.text1 = Some(Draft::stock_str(context).await.to_owned().into());
             self.text1_meaning = Meaning::Text1Draft;
         } else if msg.from_id == DC_CONTACT_ID_SELF {
             if msg.is_info() || chat.is_self_talk() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
             } else {
-                self.text1 = Some(
-                    context
-                        .stock_str(StockMessage::SelfMsg)
-                        .await
-                        .to_owned()
-                        .into(),
-                );
+                self.text1 = Some(SelfMsg::stock_str(context).await.to_owned().into());
                 self.text1_meaning = Meaning::Text1Self;
             }
         } else {
@@ -1107,10 +1098,7 @@ impl Lot {
         .await;
 
         if text2.is_empty() && msg.quoted_text().is_some() {
-            text2 = context
-                .stock_str(StockMessage::ReplyNoun)
-                .await
-                .into_owned()
+            text2 = ReplyNoun::stock_str(context).await.into_owned()
         }
 
         self.text2 = Some(text2);
@@ -1562,21 +1550,15 @@ pub async fn get_summarytext_by_raw(
 ) -> String {
     let mut append_text = true;
     let prefix = match viewtype {
-        Viewtype::Image => context.stock_str(StockMessage::Image).await.into_owned(),
-        Viewtype::Gif => context.stock_str(StockMessage::Gif).await.into_owned(),
-        Viewtype::Sticker => context.stock_str(StockMessage::Sticker).await.into_owned(),
-        Viewtype::Video => context.stock_str(StockMessage::Video).await.into_owned(),
-        Viewtype::Voice => context
-            .stock_str(StockMessage::VoiceMessage)
-            .await
-            .into_owned(),
+        Viewtype::Image => Image::stock_str(context).await.into_owned(),
+        Viewtype::Gif => Gif::stock_str(context).await.into_owned(),
+        Viewtype::Sticker => Sticker::stock_str(context).await.into_owned(),
+        Viewtype::Video => Video::stock_str(context).await.into_owned(),
+        Viewtype::Voice => VoiceMessage::stock_str(context).await.into_owned(),
         Viewtype::Audio | Viewtype::File => {
             if param.get_cmd() == SystemMessage::AutocryptSetupMessage {
                 append_text = false;
-                context
-                    .stock_str(StockMessage::AcSetupMsgSubject)
-                    .await
-                    .to_string()
+                AcSetupMsgSubject::stock_str(context).await.to_string()
             } else {
                 let file_name: String = param
                     .get_path(Param::File, context)
@@ -1586,29 +1568,24 @@ pub async fn get_summarytext_by_raw(
                             .map(|fname| fname.to_string_lossy().into_owned())
                     })
                     .unwrap_or_else(|| String::from("ErrFileName"));
-                let label = context
-                    .stock_str(if viewtype == Viewtype::Audio {
-                        StockMessage::Audio
-                    } else {
-                        StockMessage::File
-                    })
-                    .await;
+                let label = if viewtype == Viewtype::Audio {
+                    Audio::stock_str(context).await
+                } else {
+                    File::stock_str(context).await
+                };
                 format!("{} – {}", label, file_name)
             }
         }
         Viewtype::VideochatInvitation => {
             append_text = false;
-            context
-                .stock_str(StockMessage::VideochatInvitation)
-                .await
-                .into_owned()
+            VideochatInvitation::stock_str(context).await.into_owned()
         }
         _ => {
             if param.get_cmd() != SystemMessage::LocationOnly {
                 "".to_string()
             } else {
                 append_text = false;
-                context.stock_str(StockMessage::Location).await.to_string()
+                Location::stock_str(context).await.to_string()
             }
         }
     };
@@ -1865,13 +1842,9 @@ async fn ndn_maybe_add_info_msg(
                             Error::msg("ndn_maybe_add_info_msg: Contact ID not found")
                         })?;
                 let contact = Contact::load_from_db(context, contact_id).await?;
-                // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
-                let text = context
-                    .stock_string_repl_str(
-                        StockMessage::FailedSendingTo,
-                        contact.get_display_name(),
-                    )
-                    .await;
+                // Tell the user which of the recipients failed if we know that (because in
+                // a group, this might otherwise be unclear)
+                let text = FailedSendingTo::stock_str(context, contact.get_display_name()).await;
                 chat::add_info_msg(context, chat_id, text).await;
                 context.emit_event(EventType::ChatModified(chat_id));
             }

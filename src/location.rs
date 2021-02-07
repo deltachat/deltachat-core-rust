@@ -14,7 +14,7 @@ use crate::job::{self, Job};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::Params;
-use crate::stock::StockMessage;
+use crate::stock::{MsgLocationDisabled, MsgLocationEnabled};
 
 /// Location record
 #[derive(Debug, Clone, Default)]
@@ -212,19 +212,13 @@ pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds:
         {
             if 0 != seconds && !is_sending_locations_before {
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(
-                    context
-                        .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0)
-                        .await,
-                );
+                msg.text = Some(MsgLocationEnabled::stock_str(context).await.to_string());
                 msg.param.set_cmd(SystemMessage::LocationStreamingEnabled);
                 chat::send_msg(context, chat_id, &mut msg)
                     .await
                     .unwrap_or_default();
             } else if 0 == seconds && is_sending_locations_before {
-                let stock_str = context
-                    .stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0)
-                    .await;
+                let stock_str = MsgLocationDisabled::stock_str(context).await;
                 chat::add_info_msg(context, chat_id, stock_str).await;
             }
             context.emit_event(EventType::ChatModified(chat_id));
@@ -716,9 +710,7 @@ pub(crate) async fn job_maybe_send_locations_ended(
                 paramsv![chat_id],
             ).await);
 
-            let stock_str = context
-                .stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0)
-                .await;
+            let stock_str = MsgLocationDisabled::stock_str(context).await;
             chat::add_info_msg(context, chat_id, stock_str).await;
             context.emit_event(EventType::ChatModified(chat_id));
         }

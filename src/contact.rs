@@ -25,7 +25,7 @@ use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
-use crate::stock::StockMessage;
+use crate::stock::{DeviceMessages, E2eAvailable, E2ePreferred, EncrNone, FingerPrints, SelfMsg};
 
 /// An object representing a single contact in memory.
 ///
@@ -195,7 +195,7 @@ impl Contact {
             )
             .await?;
         if contact_id == DC_CONTACT_ID_SELF {
-            res.name = context.stock_str(StockMessage::SelfMsg).await.to_string();
+            res.name = SelfMsg::stock_str(context).await.to_string();
             res.addr = context
                 .get_config(Config::ConfiguredAddr)
                 .await
@@ -205,10 +205,7 @@ impl Contact {
                 .await
                 .unwrap_or_default();
         } else if contact_id == DC_CONTACT_ID_DEVICE {
-            res.name = context
-                .stock_str(StockMessage::DeviceMessages)
-                .await
-                .to_string();
+            res.name = DeviceMessages::stock_str(context).await.to_string();
             res.addr = DC_CONTACT_ID_DEVICE_ADDR.to_string();
         }
         Ok(res)
@@ -635,7 +632,7 @@ impl Contact {
                 .get_config(Config::Displayname)
                 .await
                 .unwrap_or_default();
-            let self_name2 = context.stock_str(StockMessage::SelfMsg);
+            let self_name2 = SelfMsg::stock_str(context);
 
             if let Some(query) = query {
                 if self_addr.contains(query.as_ref())
@@ -729,15 +726,15 @@ impl Contact {
                     .is_some()
             }) {
                 let stock_message = match peerstate.prefer_encrypt {
-                    EncryptPreference::Mutual => StockMessage::E2ePreferred,
-                    EncryptPreference::NoPreference => StockMessage::E2eAvailable,
-                    EncryptPreference::Reset => StockMessage::EncrNone,
+                    EncryptPreference::Mutual => E2ePreferred::stock_str(context).await,
+                    EncryptPreference::NoPreference => E2eAvailable::stock_str(context).await,
+                    EncryptPreference::Reset => EncrNone::stock_str(context).await,
                 };
 
                 ret += &format!(
                     "{}\n{}:",
-                    context.stock_str(stock_message).await,
-                    context.stock_str(StockMessage::FingerPrints).await
+                    stock_message,
+                    FingerPrints::stock_str(context).await
                 );
 
                 let fingerprint_self = SignedPublicKey::load_self(context)
@@ -770,7 +767,7 @@ impl Contact {
                     cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
                 }
             } else {
-                ret += &context.stock_str(StockMessage::EncrNone).await;
+                ret += &EncrNone::stock_str(context).await;
             }
         }
 
@@ -1510,7 +1507,7 @@ mod tests {
         // check SELF
         let contact = Contact::load_from_db(&t, DC_CONTACT_ID_SELF).await.unwrap();
         assert_eq!(DC_CONTACT_ID_SELF, 1);
-        assert_eq!(contact.get_name(), t.stock_str(StockMessage::SelfMsg).await);
+        assert_eq!(contact.get_name(), SelfMsg::stock_str(&t).await);
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
     }

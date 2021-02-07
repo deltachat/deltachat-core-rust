@@ -14,12 +14,17 @@ use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
+use crate::chat;
+use crate::config::Config;
 use crate::constants::{
     Chattype, ShowEmails, Viewtype, DC_CONTACT_ID_SELF, DC_FETCH_EXISTING_MSGS_COUNT,
     DC_FOLDERS_CONFIGURED_VERSION, DC_LP_AUTH_OAUTH2,
 };
 use crate::context::Context;
-use crate::dc_receive_imf::{from_field_to_contact_id, get_prefetch_parent_message};
+use crate::dc_receive_imf::{
+    dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message,
+};
+use crate::dc_tools::dc_extract_grpid_from_rfc724_mid;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
@@ -29,10 +34,8 @@ use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::provider::Socket;
-use crate::{
-    chat, dc_tools::dc_extract_grpid_from_rfc724_mid, scheduler::InterruptInfo, stock::StockMessage,
-};
-use crate::{config::Config, dc_receive_imf::dc_receive_imf_inner};
+use crate::scheduler::InterruptInfo;
+use crate::stock::CannotLogin;
 
 mod client;
 mod idle;
@@ -252,9 +255,9 @@ impl Imap {
 
             Err((err, _)) => {
                 let imap_user = self.config.lp.user.to_owned();
-                let message = context
-                    .stock_string_repl_str(StockMessage::CannotLogin, &imap_user)
-                    .await;
+                let message = CannotLogin::stock_str(context, &imap_user)
+                    .await
+                    .to_string();
 
                 warn!(context, "{} ({})", message, err);
 

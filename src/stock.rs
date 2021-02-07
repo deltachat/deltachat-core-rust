@@ -6,15 +6,15 @@ use anyhow::{bail, Error};
 use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
+use crate::blob::BlobObject;
 use crate::chat;
 use crate::chat::ProtectionStatus;
+use crate::config::Config;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::message::Message;
 use crate::param::Param;
-use crate::stock::StockMessage::{DeviceMessagesHint, WelcomeMessage};
-use crate::{blob::BlobObject, config::Config};
 
 /// Stock strings
 ///
@@ -263,16 +263,1135 @@ pub enum StockMessage {
     MsgEphemeralTimerWeeks = 96,
 }
 
-/*
-"
-*/
-
 impl StockMessage {
     /// Default untranslated strings for stock messages.
     ///
     /// These could be used in logging calls, so no logging here.
     fn fallback(self) -> &'static str {
         self.get_str("fallback").unwrap_or_default()
+    }
+}
+
+/// Builder for a stock string.
+///
+/// See [`NoMessages`] or any other stock string in this module for an example of how to use
+/// this.
+struct StockString<'a> {
+    context: &'a Context,
+}
+
+impl<'a> StockString<'a> {
+    /// Creates a new [`StockString`] builder.
+    fn new(context: &'a Context) -> Self {
+        Self { context }
+    }
+
+    /// Looks up a translation and returns a further builder.
+    ///
+    /// This will look up the translation in the [`Context`] if one is registered.  It
+    /// returns a further builder type which can be used to substitute replacement strings
+    /// or build the final message.
+    async fn id(self, id: StockMessage) -> TranslatedStockString<'a> {
+        TranslatedStockString {
+            context: self.context,
+            message: self
+                .context
+                .translated_stockstrings
+                .read()
+                .await
+                .get(&(id as usize))
+                .map(|s| Cow::Owned(s.to_owned()))
+                .unwrap_or_else(|| Cow::Borrowed(id.fallback())),
+        }
+    }
+}
+
+/// Stock string builder which allows retrieval of the message.
+///
+/// This builder allows retrieval of the message using [`TranslatedStockString::msg`], if it
+/// needs substitutions first however it provides further builder methods.
+struct TranslatedStockString<'a> {
+    context: &'a Context,
+    message: Cow<'static, str>,
+}
+
+impl<'a> TranslatedStockString<'a> {
+    /// Retrieves the built message.
+    fn msg(self) -> Cow<'static, str> {
+        self.message
+    }
+
+    /// Substitutes the first replacement value if one is present.
+    fn replace1(self, replacement: impl AsRef<str>) -> Self {
+        let msg = self
+            .message
+            .as_ref()
+            .replacen("%1$s", replacement.as_ref(), 1)
+            .replacen("%1$d", replacement.as_ref(), 1)
+            .replacen("%1$@", replacement.as_ref(), 1);
+        Self {
+            context: self.context,
+            message: Cow::Owned(msg),
+        }
+    }
+
+    /// Substitutes the second replacement value if one is present.
+    ///
+    /// Be aware you probably should have also called [`TranslatedStockString::replace1`] if
+    /// you are calling this.
+    fn replace2(self, replacement: impl AsRef<str>) -> Self {
+        let msg = self
+            .message
+            .as_ref()
+            .replacen("%2$s", replacement.as_ref(), 1)
+            .replacen("%2$d", replacement.as_ref(), 1)
+            .replacen("%2$@", replacement.as_ref(), 1);
+        Self {
+            context: self.context,
+            message: Cow::Owned(msg),
+        }
+    }
+
+    /// Augments the message by saying it was performed by a user.
+    ///
+    /// This looks up the display name of `contact` and uses the [`MsgActionByMe`] and
+    /// [`MsgActionByUser`] stock strings to turn the stock string in one that says the
+    /// action was performed by this user.
+    ///
+    /// E.g. this turns `Group image changed.` into `Group image changed by me.` or `Group
+    /// image changed by Alice`.
+    ///
+    /// Note that the original message should end in a `.`.
+    async fn action_by_contact(self, contact: u32) -> TranslatedStockString<'a> {
+        let message = self.message.as_ref().trim_end_matches('.');
+        let message = match contact {
+            DC_CONTACT_ID_SELF => MsgActionByMe::stock_str(self.context, message).await,
+            _ => {
+                let displayname = Contact::get_by_id(self.context, contact)
+                    .await
+                    .map(|contact| contact.get_name_n_addr())
+                    .unwrap_or_else(|_| format!("{}", contact));
+                MsgActionByUser::stock_str(self.context, message, displayname).await
+            }
+        };
+        TranslatedStockString {
+            context: self.context,
+            message,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum NoMessages {}
+
+impl NoMessages {
+    /// Stock string: `No messages.`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::NoMessages)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum SelfMsg {}
+
+impl SelfMsg {
+    /// Stock string: `Me`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::SelfMsg)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum Draft {}
+
+impl Draft {
+    /// Stock string: `Draft`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::Draft)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum VoiceMessage {}
+
+impl VoiceMessage {
+    /// Stock string: `Voice message`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::VoiceMessage)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum DeadDrop {}
+
+impl DeadDrop {
+    /// Stock string: `Contact requests`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::DeadDrop)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum Image {}
+
+impl Image {
+    /// Stock string: `Image`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::Image)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum Video {}
+
+impl Video {
+    /// Stock string: `Video`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::Video)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum Audio {}
+
+impl Audio {
+    /// Stock string: `Audio`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::Audio)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum File {}
+
+impl File {
+    /// Stock string: `File`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context).id(StockMessage::File).await.msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum StatusLine {}
+
+impl StatusLine {
+    /// Stock string: `Sent with my Delta Chat Messenger: https://delta.chat`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::StatusLine)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum NewGroupDraft {}
+
+impl NewGroupDraft {
+    /// Stock string: `Hello, I've just created the group "%1$s" for us.`.
+    pub async fn stock_str(context: &Context, group_name: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::NewGroupDraft)
+            .await
+            .replace1(group_name)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgGrpName {}
+
+impl MsgGrpName {
+    /// Stock string: `Group name changed from "%1$s" to "%2$s".`.
+    pub async fn stock_str(
+        context: &Context,
+        from_group: impl AsRef<str>,
+        to_group: impl AsRef<str>,
+        by_contact: u32,
+    ) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgGrpName)
+            .await
+            .replace1(from_group)
+            .replace2(to_group)
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgGrpImgChanged {}
+
+impl MsgGrpImgChanged {
+    /// Stock string: `Group image changed.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgGrpImgChanged)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgAddMember {}
+
+impl MsgAddMember {
+    /// Stock string: `Member %1$s added.`.
+    ///
+    /// The `added_member_addr` parameter should be an email address and is looked up in the
+    /// contacts to combine with the display name.
+    pub async fn stock_str(
+        context: &Context,
+        added_member_addr: impl AsRef<str>,
+        by_contact: u32,
+    ) -> Cow<'static, str> {
+        let addr = added_member_addr.as_ref();
+        let who = match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
+            Ok(Some(contact_id)) => Contact::get_by_id(context, contact_id)
+                .await
+                .map(|contact| contact.get_name_n_addr())
+                .unwrap_or_else(|_| addr.to_string()),
+            _ => addr.to_string(),
+        };
+        StockString::new(context)
+            .id(StockMessage::MsgAddMember)
+            .await
+            .replace1(who)
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgDelMember {}
+
+impl MsgDelMember {
+    /// Stock string: `Member %1$s removed.`.
+    ///
+    /// The `removed_member_addr` parameter should be an email address and is looked up in
+    /// the contacts to combine with the display name.
+    pub async fn stock_str(
+        context: &Context,
+        removed_member_addr: impl AsRef<str>,
+        by_contact: u32,
+    ) -> Cow<'static, str> {
+        let addr = removed_member_addr.as_ref();
+        let who = match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
+            Ok(Some(contact_id)) => Contact::get_by_id(context, contact_id)
+                .await
+                .map(|contact| contact.get_name_n_addr())
+                .unwrap_or_else(|_| addr.to_string()),
+            _ => addr.to_string(),
+        };
+        StockString::new(context)
+            .id(StockMessage::MsgDelMember)
+            .await
+            .replace1(who)
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgGroupLeft {}
+
+impl MsgGroupLeft {
+    /// Stock string: `Group left.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgGroupLeft)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum Gif {}
+
+impl Gif {
+    /// Stock string: `GIF`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context).id(StockMessage::Gif).await.msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum EncryptedMsg {}
+
+impl EncryptedMsg {
+    /// Stock string: `Encrypted message`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::EncryptedMsg)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum E2eAvailable {}
+
+impl E2eAvailable {
+    /// Stock string: `End-to-end encryption available.`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::E2eAvailable)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum EncrNone {}
+
+impl EncrNone {
+    /// Stock string: `No encryption.`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::EncrNone)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum CantDecryptMsgBody {}
+
+impl CantDecryptMsgBody {
+    /// Stock string: `This message was encrypted for another setup.`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::CantDecryptMsgBody)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum FingerPrints {}
+
+impl FingerPrints {
+    /// Stock string: `Fingerprints`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::FingerPrints)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ReadRcpt {}
+
+impl ReadRcpt {
+    /// Stock string: `Return receipt`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ReadRcpt)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ReadRcptMailBody {}
+
+impl ReadRcptMailBody {
+    /// Stock string: `This is a return receipt for the message "%1$s".`.
+    pub async fn stock_str(context: &Context, message: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ReadRcptMailBody)
+            .await
+            .replace1(message)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgGrpImgDeleted {}
+
+impl MsgGrpImgDeleted {
+    /// Stock string: `Group image deleted.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgGrpImgDeleted)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum E2ePreferred {}
+
+impl E2ePreferred {
+    /// Stock string: `End-to-end encryption preferred.`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::E2ePreferred)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ContactVerified {}
+
+impl ContactVerified {
+    /// Stock string: `%1$s verified.`.
+    pub async fn stock_str(context: &Context, contact_addr: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ContactVerified)
+            .await
+            .replace1(contact_addr)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ContactNotVerified {}
+
+impl ContactNotVerified {
+    /// Stock string: `Cannot verify %1$s`.
+    pub async fn stock_str(context: &Context, contact_addr: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ContactNotVerified)
+            .await
+            .replace1(contact_addr)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ContactSetupChanged {}
+
+impl ContactSetupChanged {
+    /// Stock string: `Changed setup for %1$s`.
+    pub async fn stock_str(context: &Context, contact_addr: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ContactSetupChanged)
+            .await
+            .replace1(contact_addr)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ArchivedChats {}
+
+impl ArchivedChats {
+    /// Stock string: `Archived chats`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ArchivedChats)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum AcSetupMsgSubject {}
+
+impl AcSetupMsgSubject {
+    /// Stock string: `Autocrypt Setup Message`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::AcSetupMsgSubject)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum AcSetupMsgBody {}
+
+impl AcSetupMsgBody {
+    /// Stock string: `This is the Autocrypt Setup Message used to transfer...`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::AcSetupMsgBody)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum CannotLogin {}
+
+impl CannotLogin {
+    /// Stock string: `Cannot login as \"%1$s\". Please check...`.
+    pub async fn stock_str(context: &Context, user: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::CannotLogin)
+            .await
+            .replace1(user)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ServerResponse {}
+
+impl ServerResponse {
+    /// Stock string: `Could not connect to %1$s: %2$s`.
+    pub async fn stock_str(
+        context: &Context,
+        server: impl AsRef<str>,
+        details: impl AsRef<str>,
+    ) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ServerResponse)
+            .await
+            .replace1(server)
+            .replace2(details)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgActionByUser {}
+
+impl MsgActionByUser {
+    /// Stock string: `%1$s by %2$s.`.
+    pub async fn stock_str(
+        context: &Context,
+        action: impl AsRef<str>,
+        user: impl AsRef<str>,
+    ) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgActionByUser)
+            .await
+            .replace1(action)
+            .replace2(user)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgActionByMe {}
+
+impl MsgActionByMe {
+    /// Stock string: `%1$s by me.`.
+    pub async fn stock_str(context: &Context, action: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgActionByMe)
+            .await
+            .replace1(action)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgLocationEnabled {}
+
+impl MsgLocationEnabled {
+    /// Stock string: `Location streaming enabled.`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgLocationEnabled)
+            .await
+            .msg()
+    }
+
+    /// Stock string: `Location streaming enabled.`.
+    pub async fn stock_str_by(context: &Context, contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgLocationEnabled)
+            .await
+            .action_by_contact(contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgLocationDisabled {}
+
+impl MsgLocationDisabled {
+    /// Stock string: `Location streaming disabled.`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgLocationDisabled)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum Location {}
+
+impl Location {
+    /// Stock string: `Location`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::Location)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum Sticker {}
+
+impl Sticker {
+    /// Stock string: `Sticker`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::Sticker)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum DeviceMessages {}
+
+impl DeviceMessages {
+    /// Stock string: `Device messages`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::DeviceMessages)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum SavedMessages {}
+
+impl SavedMessages {
+    /// Stock string: `Saved messages`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::SavedMessages)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum DeviceMessagesHint {}
+
+impl DeviceMessagesHint {
+    /// Stock string: `Messages in this chat are generated locally by...`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::DeviceMessagesHint)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum WelcomeMessage {}
+
+impl WelcomeMessage {
+    /// Stock string: `Welcome to Delta Chat! – ...`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::WelcomeMessage)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum UnknownSenderForChat {}
+
+impl UnknownSenderForChat {
+    /// Stock string: `Unknown sender for this chat. See 'info' for more details.`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::UnknownSenderForChat)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum SubjectForNewContact {}
+
+impl SubjectForNewContact {
+    /// Stock string: `Message from %1$s`.
+    // TODO: This can compute `self_name` itself instead of asking the caller to do this.
+    pub async fn stock_str(context: &Context, self_name: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::SubjectForNewContact)
+            .await
+            .replace1(self_name)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum FailedSendingTo {}
+
+impl FailedSendingTo {
+    /// Stock string: `Failed to send message to %1$s.`.
+    pub async fn stock_str(context: &Context, name: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::FailedSendingTo)
+            .await
+            .replace1(name)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerDisabled {}
+
+impl MsgEphemeralTimerDisabled {
+    /// Stock string: `Message deletion timer is disabled.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerDisabled)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerEnabled {}
+
+impl MsgEphemeralTimerEnabled {
+    /// Stock string: `Message deletion timer is set to %1$s s.`.
+    pub async fn stock_str(
+        context: &Context,
+        timer: impl AsRef<str>,
+        by_contact: u32,
+    ) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerEnabled)
+            .await
+            .replace1(timer)
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerMinute {}
+
+impl MsgEphemeralTimerMinute {
+    /// Stock string: `Message deletion timer is set to 1 minute.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerMinute)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerHour {}
+
+impl MsgEphemeralTimerHour {
+    /// Stock string: `Message deletion timer is set to 1 hour.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerHour)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerDay {}
+
+impl MsgEphemeralTimerDay {
+    /// Stock string: `Message deletion timer is set to 1 day.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerDay)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerWeek {}
+
+impl MsgEphemeralTimerWeek {
+    /// Stock string: `Message deletion timer is set to 1 week.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerWeek)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum VideochatInvitation {}
+
+impl VideochatInvitation {
+    /// Stock string: `Video chat invitation`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::VideochatInvitation)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum VideochatInviteMsgBody {}
+
+impl VideochatInviteMsgBody {
+    /// Stock string: `You are invited to a video chat, click %1$s to join.`.
+    pub async fn stock_str(context: &Context, url: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::VideochatInviteMsgBody)
+            .await
+            .replace1(url)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ConfigurationFailed {}
+
+impl ConfigurationFailed {
+    /// Stock string: `Error:\n\n“%1$s”`.
+    pub async fn stock_str(context: &Context, details: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ConfigurationFailed)
+            .await
+            .replace1(details)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum BadTimeMsgBody {}
+
+impl BadTimeMsgBody {
+    /// Stock string: `⚠️ Date or time of your device seem to be inaccurate (%1$s)...`.
+    // TODO: This could compute now itself.
+    pub async fn stock_str(context: &Context, now: impl AsRef<str>) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::BadTimeMsgBody)
+            .await
+            .replace1(now)
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum UpdateReminderMsgBody {}
+
+impl UpdateReminderMsgBody {
+    /// Stock string: `⚠️ Your Delta Chat version might be outdated...`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::UpdateReminderMsgBody)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ErrorNoNetwork {}
+
+impl ErrorNoNetwork {
+    /// Stock string: `Could not find your mail server...`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ErrorNoNetwork)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ProtectionEnabled {}
+
+impl ProtectionEnabled {
+    /// Stock string: `Chat protection enabled.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ProtectionEnabled)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ProtectionDisabled {}
+
+impl ProtectionDisabled {
+    /// Stock string: `Chat protection disabled.`.
+    pub async fn stock_str(context: &Context, by_contact: u32) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ProtectionDisabled)
+            .await
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ReplyNoun {}
+
+impl ReplyNoun {
+    /// Stock string: `Reply`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::ReplyNoun)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum SelfDeletedMsgBody {}
+
+impl SelfDeletedMsgBody {
+    /// Stock string: `You deleted the \"Saved messages\" chat...`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::SelfDeletedMsgBody)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum DeleteServerTurnedOff {}
+
+impl DeleteServerTurnedOff {
+    /// Stock string: `⚠️ The "Delete messages from server" feature now also...`.
+    pub async fn stock_str(context: &Context) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::DeleteServerTurnedOff)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerMinutes {}
+
+impl MsgEphemeralTimerMinutes {
+    /// Stock string: `Message deletion timer is set to %1$s minutes.`.
+    pub async fn stock_str(
+        context: &Context,
+        minutes: impl AsRef<str>,
+        by_contact: u32,
+    ) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerMinutes)
+            .await
+            .replace1(minutes)
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerHours {}
+
+impl MsgEphemeralTimerHours {
+    /// Stock string: `Message deletion timer is set to %1$s hours.`.
+    pub async fn stock_str(
+        context: &Context,
+        hours: impl AsRef<str>,
+        by_contact: u32,
+    ) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerHours)
+            .await
+            .replace1(hours)
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerDays {}
+
+impl MsgEphemeralTimerDays {
+    /// Stock string: `Message deletion timer is set to %1$s days.`.
+    pub async fn stock_str(
+        context: &Context,
+        days: impl AsRef<str>,
+        by_contact: u32,
+    ) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerDays)
+            .await
+            .replace1(days)
+            .action_by_contact(by_contact)
+            .await
+            .msg()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum MsgEphemeralTimerWeeks {}
+
+impl MsgEphemeralTimerWeeks {
+    /// Stock string: `Message deletion timer is set to %1$s weeks.`.
+    pub async fn stock_str(
+        context: &Context,
+        weeks: impl AsRef<str>,
+        by_contact: u32,
+    ) -> Cow<'static, str> {
+        StockString::new(context)
+            .id(StockMessage::MsgEphemeralTimerWeeks)
+            .await
+            .replace1(weeks)
+            .action_by_contact(by_contact)
+            .await
+            .msg()
     }
 }
 
@@ -305,136 +1424,17 @@ impl Context {
         Ok(())
     }
 
-    /// Return the stock string for the [StockMessage].
-    ///
-    /// Return a translation (if it was set with set_stock_translation before)
-    /// or a default (English) string.
-    pub async fn stock_str(&self, id: StockMessage) -> Cow<'_, str> {
-        match self
-            .translated_stockstrings
-            .read()
-            .await
-            .get(&(id as usize))
-        {
-            Some(ref x) => Cow::Owned((*x).to_string()),
-            None => Cow::Borrowed(id.fallback()),
-        }
-    }
-
-    /// Return stock string, replacing placeholders with provided string.
-    ///
-    /// This replaces both the *first* `%1$s`, `%1$d` and `%1$@`
-    /// placeholders with the provided string.
-    /// (the `%1$@` variant is used on iOS, the other are used on Android and Desktop)
-    pub async fn stock_string_repl_str(&self, id: StockMessage, insert: impl AsRef<str>) -> String {
-        self.stock_str(id)
-            .await
-            .replacen("%1$s", insert.as_ref(), 1)
-            .replacen("%1$d", insert.as_ref(), 1)
-            .replacen("%1$@", insert.as_ref(), 1)
-    }
-
-    /// Return stock string, replacing placeholders with provided int.
-    ///
-    /// Like [Context::stock_string_repl_str] but substitute the placeholders
-    /// with an integer.
-    pub async fn stock_string_repl_int(&self, id: StockMessage, insert: i32) -> String {
-        self.stock_string_repl_str(id, format!("{}", insert).as_str())
-            .await
-    }
-
-    /// Return stock string, replacing 2 placeholders with provided string.
-    ///
-    /// This replaces both the *first* `%1$s`, `%1$d` and `%1$@`
-    /// placeholders with the string in `insert` and does the same for
-    /// `%2$s`, `%2$d` and `%2$@` for `insert2`.
-    /// (the `%1$@` variant is used on iOS, the other are used on Android and Desktop)
-    pub async fn stock_string_repl_str2(
+    /// Returns a stock message saying that protection status has changed.
+    pub(crate) async fn stock_protection_msg(
         &self,
-        id: StockMessage,
-        insert: impl AsRef<str>,
-        insert2: impl AsRef<str>,
-    ) -> String {
-        self.stock_str(id)
-            .await
-            .replacen("%1$s", insert.as_ref(), 1)
-            .replacen("%1$d", insert.as_ref(), 1)
-            .replacen("%1$@", insert.as_ref(), 1)
-            .replacen("%2$s", insert2.as_ref(), 1)
-            .replacen("%2$d", insert2.as_ref(), 1)
-            .replacen("%2$@", insert2.as_ref(), 1)
-    }
-
-    /// Return some kind of stock message
-    ///
-    /// If the `id` is [StockMessage::MsgAddMember] or
-    /// [StockMessage::MsgDelMember] then `param1` is considered to be the
-    /// contact address and will be replaced by that contact's display
-    /// name.
-    ///
-    /// If `from_id` is not `0`, any trailing dot is removed from the
-    /// first stock string created so far.  If the `from_id` contact is
-    /// the user itself, i.e. `DC_CONTACT_ID_SELF` the string is used
-    /// itself as param to the [StockMessage::MsgActionByMe] stock string
-    /// resulting in a string like "Member Alice added by me." (for
-    /// [StockMessage::MsgAddMember] as `id`).  If the `from_id` contact
-    /// is any other user than the contact's display name is looked up and
-    /// used as the second parameter to [StockMessage::MsgActionByUser] with
-    /// again the original stock string being used as the first parameter,
-    /// resulting in a string like "Member Alice added by Bob.".
-    pub async fn stock_system_msg(
-        &self,
-        id: StockMessage,
-        param1: impl AsRef<str>,
-        param2: impl AsRef<str>,
+        protect: ProtectionStatus,
         from_id: u32,
     ) -> String {
-        let insert1 = if matches!(id, StockMessage::MsgAddMember | StockMessage::MsgDelMember) {
-            match Contact::lookup_id_by_addr(self, param1.as_ref(), Origin::Unknown).await {
-                Ok(Some(contact_id)) => Contact::get_by_id(self, contact_id)
-                    .await
-                    .map(|contact| contact.get_name_n_addr())
-                    .unwrap_or_else(|_| param1.as_ref().to_string()),
-                _ => param1.as_ref().to_string(),
-            }
-        } else {
-            param1.as_ref().to_string()
-        };
-
-        let action = self
-            .stock_string_repl_str2(id, insert1, param2.as_ref().to_string())
-            .await;
-        let action1 = action.trim_end_matches('.');
-        match from_id {
-            0 => action,
-            DC_CONTACT_ID_SELF => {
-                self.stock_string_repl_str(StockMessage::MsgActionByMe, action1)
-                    .await
-            }
-            _ => {
-                let displayname = Contact::get_by_id(self, from_id)
-                    .await
-                    .map(|contact| contact.get_name_n_addr())
-                    .unwrap_or_default();
-
-                self.stock_string_repl_str2(StockMessage::MsgActionByUser, action1, &displayname)
-                    .await
-            }
+        match protect {
+            ProtectionStatus::Unprotected => ProtectionEnabled::stock_str(self, from_id).await,
+            ProtectionStatus::Protected => ProtectionDisabled::stock_str(self, from_id).await,
         }
-    }
-
-    /// Returns a stock message saying that protection status has changed.
-    pub async fn stock_protection_msg(&self, protect: ProtectionStatus, from_id: u32) -> String {
-        self.stock_system_msg(
-            match protect {
-                ProtectionStatus::Protected => StockMessage::ProtectionEnabled,
-                ProtectionStatus::Unprotected => StockMessage::ProtectionDisabled,
-            },
-            "",
-            "",
-            from_id,
-        )
-        .await
+        .to_string()
     }
 
     pub(crate) async fn update_device_chats(&self) -> Result<(), Error> {
@@ -454,7 +1454,7 @@ impl Context {
         // add welcome-messages. by the label, this is done only once,
         // if the user has deleted the message or the chat, it is not added again.
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(self.stock_str(DeviceMessagesHint).await.to_string());
+        msg.text = Some(DeviceMessagesHint::stock_str(self).await.to_string());
         chat::add_device_msg(&self, Some("core-about-device-chat"), Some(&mut msg)).await?;
 
         let image = include_bytes!("../assets/welcome-image.jpg");
@@ -464,7 +1464,7 @@ impl Context {
         chat::add_device_msg(&self, Some("core-welcome-image"), Some(&mut msg)).await?;
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(self.stock_str(WelcomeMessage).await.to_string());
+        msg.text = Some(WelcomeMessage::stock_str(self).await.to_string());
         chat::add_device_msg(&self, Some("core-welcome"), Some(&mut msg)).await?;
         Ok(())
     }
@@ -498,7 +1498,7 @@ mod tests {
         t.set_stock_translation(StockMessage::NoMessages, "xyz".to_string())
             .await
             .unwrap();
-        assert_eq!(t.stock_str(StockMessage::NoMessages).await, "xyz")
+        assert_eq!(NoMessages::stock_str(&t).await, "xyz")
     }
 
     #[async_std::test]
@@ -519,37 +1519,22 @@ mod tests {
     #[async_std::test]
     async fn test_stock_str() {
         let t = TestContext::new().await;
-        assert_eq!(t.stock_str(StockMessage::NoMessages).await, "No messages.");
+        assert_eq!(NoMessages::stock_str(&t).await, "No messages.");
     }
 
     #[async_std::test]
     async fn test_stock_string_repl_str() {
         let t = TestContext::new().await;
         // uses %1$s substitution
-        assert_eq!(
-            t.stock_string_repl_str(StockMessage::MsgAddMember, "Foo")
-                .await,
-            "Member Foo added."
-        );
+        assert_eq!(ContactVerified::stock_str(&t, "Foo").await, "Foo verified.");
         // We have no string using %1$d to test...
-    }
-
-    #[async_std::test]
-    async fn test_stock_string_repl_int() {
-        let t = TestContext::new().await;
-        assert_eq!(
-            t.stock_string_repl_int(StockMessage::MsgAddMember, 42)
-                .await,
-            "Member 42 added."
-        );
     }
 
     #[async_std::test]
     async fn test_stock_string_repl_str2() {
         let t = TestContext::new().await;
         assert_eq!(
-            t.stock_string_repl_str2(StockMessage::ServerResponse, "foo", "bar")
-                .await,
+            ServerResponse::stock_str(&t, "foo", "bar").await,
             "Could not connect to foo: bar"
         );
     }
@@ -558,8 +1543,7 @@ mod tests {
     async fn test_stock_system_msg_simple() {
         let t = TestContext::new().await;
         assert_eq!(
-            t.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0)
-                .await,
+            MsgLocationEnabled::stock_str(&t).await,
             "Location streaming enabled."
         )
     }
@@ -568,13 +1552,7 @@ mod tests {
     async fn test_stock_system_msg_add_member_by_me() {
         let t = TestContext::new().await;
         assert_eq!(
-            t.stock_system_msg(
-                StockMessage::MsgAddMember,
-                "alice@example.com",
-                "",
-                DC_CONTACT_ID_SELF
-            )
-            .await,
+            MsgAddMember::stock_str(&t, "alice@example.com", DC_CONTACT_ID_SELF).await,
             "Member alice@example.com added by me."
         )
     }
@@ -586,13 +1564,7 @@ mod tests {
             .await
             .expect("failed to create contact");
         assert_eq!(
-            t.stock_system_msg(
-                StockMessage::MsgAddMember,
-                "alice@example.com",
-                "",
-                DC_CONTACT_ID_SELF
-            )
-            .await,
+            MsgAddMember::stock_str(&t, "alice@example.com", DC_CONTACT_ID_SELF).await,
             "Member Alice (alice@example.com) added by me."
         );
     }
@@ -609,44 +1581,9 @@ mod tests {
                 .expect("failed to create bob")
         };
         assert_eq!(
-            t.stock_system_msg(
-                StockMessage::MsgAddMember,
-                "alice@example.com",
-                "",
-                contact_id,
-            )
-            .await,
+            MsgAddMember::stock_str(&t, "alice@example.com", contact_id,).await,
             "Member Alice (alice@example.com) added by Bob (bob@example.com)."
         );
-    }
-
-    #[async_std::test]
-    async fn test_stock_system_msg_grp_name() {
-        let t = TestContext::new().await;
-        assert_eq!(
-            t.stock_system_msg(
-                StockMessage::MsgGrpName,
-                "Some chat",
-                "Other chat",
-                DC_CONTACT_ID_SELF
-            )
-            .await,
-            "Group name changed from \"Some chat\" to \"Other chat\" by me."
-        )
-    }
-
-    #[async_std::test]
-    async fn test_stock_system_msg_grp_name_other() {
-        let t = TestContext::new().await;
-        let id = Contact::create(&t, "Alice", "alice@example.com")
-            .await
-            .expect("failed to create contact");
-
-        assert_eq!(
-            t.stock_system_msg(StockMessage::MsgGrpName, "Some chat", "Other chat", id)
-                .await,
-            "Group name changed from \"Some chat\" to \"Other chat\" by Alice (alice@example.com)."
-        )
     }
 
     #[async_std::test]

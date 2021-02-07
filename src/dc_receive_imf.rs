@@ -26,7 +26,10 @@ use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMess
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
-use crate::stock::StockMessage;
+use crate::stock::{
+    MsgAddMember, MsgDelMember, MsgGroupLeft, MsgGrpImgChanged, MsgGrpImgDeleted, MsgGrpName,
+    MsgLocationEnabled, UnknownSenderForChat,
+};
 use crate::{contact, location};
 
 // IndexSet is like HashSet but maintains order of insertion
@@ -1165,9 +1168,9 @@ async fn create_or_lookup_group(
     let mut better_msg: String = From::from("");
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
-        better_msg = context
-            .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", from_id as u32)
-            .await;
+        better_msg = MsgLocationEnabled::stock_str_by(context, from_id)
+            .await
+            .to_string();
         set_better_msg(mime_parser, &better_msg);
     }
 
@@ -1231,48 +1234,38 @@ async fn create_or_lookup_group(
         match removed_id {
             Some(contact_id) => {
                 mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
-                better_msg = context
-                    .stock_system_msg(
-                        if contact_id == from_id as u32 {
-                            StockMessage::MsgGroupLeft
-                        } else {
-                            StockMessage::MsgDelMember
-                        },
-                        &removed_addr,
-                        "",
-                        from_id as u32,
-                    )
-                    .await;
+                better_msg = if contact_id == from_id {
+                    MsgGroupLeft::stock_str(context, from_id).await.to_string()
+                } else {
+                    MsgDelMember::stock_str(context, &removed_addr, from_id)
+                        .await
+                        .to_string()
+                };
             }
             None => warn!(context, "removed {:?} has no contact_id", removed_addr),
         }
     } else {
         let field = mime_parser.get(HeaderDef::ChatGroupMemberAdded).cloned();
-        if let Some(optional_field) = field {
+        if let Some(added_member) = field {
             mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
-            better_msg = context
-                .stock_system_msg(
-                    StockMessage::MsgAddMember,
-                    &optional_field,
-                    "",
-                    from_id as u32,
-                )
-                .await;
-            X_MrAddToGrp = Some(optional_field);
+            better_msg = MsgAddMember::stock_str(context, &added_member, from_id)
+                .await
+                .to_string();
+            X_MrAddToGrp = Some(added_member);
         } else if let Some(old_name) = mime_parser.get(HeaderDef::ChatGroupNameChanged) {
             X_MrGrpNameChanged = true;
-            better_msg = context
-                .stock_system_msg(
-                    StockMessage::MsgGrpName,
-                    old_name,
-                    if let Some(ref name) = grpname {
-                        name
-                    } else {
-                        ""
-                    },
-                    from_id as u32,
-                )
-                .await;
+            better_msg = MsgGrpName::stock_str(
+                context,
+                old_name,
+                if let Some(ref name) = grpname {
+                    name
+                } else {
+                    ""
+                },
+                from_id as u32,
+            )
+            .await
+            .to_string();
             mime_parser.is_system_message = SystemMessage::GroupNameChanged;
         } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent) {
             if value == "group-avatar-changed" {
@@ -1280,17 +1273,14 @@ async fn create_or_lookup_group(
                     // this is just an explicit message containing the group-avatar,
                     // apart from that, the group-avatar is send along with various other messages
                     mime_parser.is_system_message = SystemMessage::GroupImageChanged;
-                    better_msg = context
-                        .stock_system_msg(
-                            match avatar_action {
-                                AvatarAction::Delete => StockMessage::MsgGrpImgDeleted,
-                                AvatarAction::Change(_) => StockMessage::MsgGrpImgChanged,
-                            },
-                            "",
-                            "",
-                            from_id as u32,
-                        )
-                        .await
+                    better_msg = match avatar_action {
+                        AvatarAction::Delete => MsgGrpImgDeleted::stock_str(context, from_id)
+                            .await
+                            .to_string(),
+                        AvatarAction::Change(_) => MsgGrpImgChanged::stock_str(context, from_id)
+                            .await
+                            .to_string(),
+                    };
                 }
             }
         }
@@ -1308,7 +1298,7 @@ async fn create_or_lookup_group(
         // but still show the message as part of the chat.
         // After all, the sender has a reference/in-reply-to that
         // points to this chat.
-        let s = context.stock_str(StockMessage::UnknownSenderForChat).await;
+        let s = UnknownSenderForChat::stock_str(context).await;
         mime_parser.repl_msg_by_error(s.to_string());
     }
 
@@ -1989,6 +1979,7 @@ mod tests {
     use crate::constants::{DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
     use crate::message::ContactRequestDecision::*;
     use crate::message::Message;
+    use crate::stock::FailedSendingTo;
     use crate::test_utils::TestContext;
     use crate::{
         chat::{ChatItem, ChatVisibility},
@@ -2656,11 +2647,9 @@ mod tests {
         assert_eq!(
             last_msg.text,
             Some(
-                t.stock_string_repl_str(
-                    StockMessage::FailedSendingTo,
-                    "assidhfaaspocwaeofi@gmail.com",
-                )
-                .await,
+                FailedSendingTo::stock_str(&t, "assidhfaaspocwaeofi@gmail.com")
+                    .await
+                    .to_string(),
             )
         );
         assert_eq!(last_msg.from_id, DC_CONTACT_ID_INFO);
