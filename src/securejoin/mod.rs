@@ -128,7 +128,11 @@ impl Bob {
     }
 }
 
-pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> Option<String> {
+/// Generates a Secure Join QR code.
+///
+/// With `group` set to `None` this generates a setup-contact QR code, with `group` set to a
+/// [`ChatId`] generates a join-group QR code for the given chat.
+pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Option<String> {
     /*=======================================================
     ====             Alice - the inviter side            ====
     ====   Step 1 in "Setup verified contact" protocol   ====
@@ -138,9 +142,8 @@ pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> O
 
     // invitenumber will be used to allow starting the handshake,
     // auth will be used to verify the fingerprint
-    let invitenumber =
-        token::lookup_or_new(context, token::Namespace::InviteNumber, group_chat_id).await;
-    let auth = token::lookup_or_new(context, token::Namespace::Auth, group_chat_id).await;
+    let invitenumber = token::lookup_or_new(context, token::Namespace::InviteNumber, group).await;
+    let auth = token::lookup_or_new(context, token::Namespace::Auth, group).await;
     let self_addr = match context.get_config(Config::ConfiguredAddr).await {
         Some(addr) => addr,
         None => {
@@ -166,9 +169,9 @@ pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> O
     let self_name_urlencoded =
         utf8_percent_encode(&self_name, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
 
-    let qr = if !group_chat_id.is_unset() {
+    let qr = if let Some(group) = group {
         // parameters used: a=g=x=i=s=
-        if let Ok(chat) = Chat::load_from_db(context, group_chat_id).await {
+        if let Ok(chat) = Chat::load_from_db(context, group).await {
             let group_name = chat.get_name();
             let group_name_urlencoded =
                 utf8_percent_encode(&group_name, NON_ALPHANUMERIC).to_string();
@@ -183,7 +186,7 @@ pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> O
                 &auth,
             ))
         } else {
-            error!(context, "Cannot get QR-code for chat-id {}", group_chat_id,);
+            error!(context, "Cannot get QR-code for chat-id {}", group,);
             return None;
         }
     } else {
@@ -934,9 +937,7 @@ mod tests {
         .await;
 
         // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
-        let qr = dc_get_securejoin_qr(&alice.ctx, ChatId::new(0))
-            .await
-            .unwrap();
+        let qr = dc_get_securejoin_qr(&alice.ctx, None).await.unwrap();
 
         // Step 2: Bob scans QR-code, sends vc-request
         dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
@@ -1144,9 +1145,7 @@ mod tests {
         peerstate.save_to_db(&bob.ctx.sql, true).await.unwrap();
 
         // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
-        let qr = dc_get_securejoin_qr(&alice.ctx, ChatId::new(0))
-            .await
-            .unwrap();
+        let qr = dc_get_securejoin_qr(&alice.ctx, None).await.unwrap();
 
         // Step 2+4: Bob scans QR-code, sends vc-request-with-auth, skipping vc-request
         dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
@@ -1278,7 +1277,9 @@ mod tests {
             .unwrap();
 
         // Step 1: Generate QR-code, secure-join implied by chatid
-        let qr = dc_get_securejoin_qr(&alice.ctx, chatid).await.unwrap();
+        let qr = dc_get_securejoin_qr(&alice.ctx, Some(chatid))
+            .await
+            .unwrap();
 
         // Step 2: Bob scans QR-code, sends vg-request; blocks on ongoing process
         let joiner = {
