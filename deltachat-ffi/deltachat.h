@@ -629,9 +629,8 @@ int             dc_preconfigure_keypair        (dc_context_t* context, const cha
  *   messages from addresses that have no relationship to the configured account.
  *   The last of these messages is represented by DC_CHAT_ID_DEADDROP and you can retrieve details
  *   about it with dc_chatlist_get_msg_id(). Typically, the UI asks the user "Do you want to chat with NAME?"
- *   and offers the options "Yes" (call dc_create_chat_by_msg_id()), "Never" (call dc_block_contact())
- *   or "Not now".
- *   The UI can also offer a "Close" button that calls dc_marknoticed_contact() then.
+ *   and offers the options "Start chat", "Block" or "Not now".
+ *   Call dc_decide_on_contact_request() when the user selected one of these options.
  * - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
  *   archived _any_ chat using dc_set_chat_visibility(). The UI should show a link as
  *   "Show archived chats", if the user clicks this item, the UI should show a
@@ -673,6 +672,8 @@ dc_chatlist_t*  dc_get_chatlist              (dc_context_t* context, int flags, 
 // handle chats
 
 /**
+ * DEPRECATED Use dc_decide_on_contact_request().
+ *
  * Create a normal chat or a group chat by a messages ID that comes typically
  * from the deaddrop, DC_CHAT_ID_DEADDROP (1).
  *
@@ -692,6 +693,7 @@ dc_chatlist_t*  dc_get_chatlist              (dc_context_t* context, int flags, 
  * same group may be shown or not - so, all in all, it is fine to show the
  * contact name only.
  *
+ * @deprecated Use dc_decide_on_contact_request() instead
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param msg_id The message ID to create the chat for.
@@ -1087,7 +1089,7 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
  * (IMAP/MDNs is not done for noticed messages).
  *
  * Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
- * See also dc_marknoticed_contact() and dc_markseen_msgs().
+ * See also dc_markseen_msgs().
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -1212,6 +1214,11 @@ void            dc_delete_chat               (dc_context_t* context, uint32_t ch
  *   group
  *
  * - for the deaddrop, the list is empty
+ *
+ * - for mailing lists, the behavior is not documented currently, we will decide on that later.
+ *   for now, the UI should not show the list for mailing lists.
+ *   (we do not know all members and there is not always a global mailing list address,
+ *   so we could return only SELF or the known members; this is not decided yet)
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -1540,6 +1547,8 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
 
 
 /**
+ * DEPRECATED
+ *
  * Mark all messages sent by the given contact as _noticed_.
  * This function is typically used to ignore a user in the deaddrop temporarily ("Not now" button).
  *
@@ -1548,6 +1557,9 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  *
  * See also dc_marknoticed_chat() and dc_markseen_msgs()
  *
+ * @deprecated Use dc_decide_on_contact_request() if the user just hit "Not now" on a button in the deaddrop,
+ *      dc_marknoticed_chat() if the user has entered a chat
+ *      and dc_markseen_msgs() if the user actually _saw_ a message.
  * @memberof dc_context_t
  * @param context The context object.
  * @param contact_id The contact ID of which all messages should be marked as noticed.
@@ -1559,7 +1571,7 @@ void            dc_marknoticed_contact       (dc_context_t* context, uint32_t co
  * Mark a message as _seen_, updates the IMAP state and
  * sends MDNs. If the message is not in a real chat (e.g. a contact request), the
  * message is only marked as NOTICED and no IMAP/MDNs is done.  See also
- * dc_marknoticed_chat() and dc_marknoticed_contact()
+ * dc_marknoticed_chat().
  *
  * Moreover, if messages belong to a chat with ephemeral messages enabled,
  * the ephemeral timer is started for these messages.
@@ -1587,6 +1599,53 @@ void            dc_markseen_msgs             (dc_context_t* context, const uint3
  *     When done, the object must be freed using dc_msg_unref().
  */
 dc_msg_t*       dc_get_msg                   (dc_context_t* context, uint32_t msg_id);
+
+
+#define DC_DECISION_START_CHAT 0
+#define DC_DECISION_BLOCK      1
+#define DC_DECISION_NOT_NOW    2
+
+
+/**
+ * Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
+ *
+ * Possible decisions are:
+ * - DC_DECISION_START_CHAT (0)
+ *   - This will create a new chat and return the chat id.
+ * - DC_DECISION_BLOCK (1)
+ *   - This will block the sender.
+ *   - When a new message from the sender arrives,
+ *     that will not result in a new contact request.
+ *   - The blocked sender will be returned by dc_get_blocked_contacts()
+ *     typically, the UI offers an option to unblock senders from there.
+ * - DC_DECISION_NOT_NOW (2)
+ *   - This will mark all messages from this sender as noticed.
+ *   - That the contact request is removed from the chat list.
+ *   - When a new message from the sender arrives,
+ *     a new contact request with the new message will pop up in the chatlist.
+ *   - The contact request stays available in the explicit deaddrop.
+ *   - If the contact request is already noticed, nothing happens.
+ *
+ * If the message belongs to a mailing list,
+ * the function makes sure that all messages
+ * from the mailing list are blocked or marked as noticed.
+ *
+ * The user should be asked whether they want to chat with the _contact_ belonging to the message;
+ * the group names may be really weird when taken from the subject of implicit (= ad-hoc)
+ * groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
+ *
+ * If the chat belongs to a mailing list, you can also ask
+ * "Would you like to read MAILING LIST NAME?"
+ * (use dc_msg_get_real_chat_id() to get the chat-id for the contact request
+ * and then dc_chat_is_mailing_list(), dc_chat_get_name() and so on)
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param msg_id ID of Message to decide on.
+ * @param decision One of the DC_DECISION_* values.
+ * @return The chat id of the created chat, if any.
+ */
+uint32_t        dc_decide_on_contact_request (dc_context_t* context, uint32_t msg_id, int decision);
 
 
 // handle contacts
@@ -2818,6 +2877,7 @@ char*            dc_chat_get_info_json       (dc_context_t* context, size_t chat
 #define         DC_CHAT_TYPE_UNDEFINED       0
 #define         DC_CHAT_TYPE_SINGLE          100
 #define         DC_CHAT_TYPE_GROUP           120
+#define         DC_CHAT_TYPE_MAILINGLIST     140
 
 
 /**
@@ -2857,6 +2917,11 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
  *
  * - DC_CHAT_TYPE_GROUP  (120) - a group chat, chats_contacts contain all group
  *   members, incl. DC_CONTACT_ID_SELF
+ *
+ * - DC_CHAT_TYPE_MAILINGLIST (140) - a mailing list, this is similar to groups,
+ *   however, the member list cannot be retrieved completely
+ *   and cannot be changed using this api.
+ *   moreover, for now, mailist lists are read-only.
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
@@ -3120,12 +3185,26 @@ uint32_t        dc_msg_get_from_id            (const dc_msg_t* msg);
  * To get details about the chat, pass the returned ID to dc_get_chat().
  * If a message is still in the deaddrop, the ID DC_CHAT_ID_DEADDROP is returned
  * although internally another ID is used.
+ * (to get that internal id, use dc_msg_get_real_chat_id())
  *
  * @memberof dc_msg_t
  * @param msg The message object.
  * @return The ID of the chat the message belongs to, 0 on errors.
  */
 uint32_t        dc_msg_get_chat_id            (const dc_msg_t* msg);
+
+
+/**
+ * Get the ID of chat the message belongs to.
+ * To get details about the chat, pass the returned ID to dc_get_chat().
+ * In contrast to dc_msg_get_chat_id(), this function returns the chat-id also
+ * for messages in the deaddrop.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The ID of the chat the message belongs to, 0 on errors.
+ */
+uint32_t        dc_msg_get_real_chat_id       (const dc_msg_t* msg);
 
 
 /**
@@ -3144,7 +3223,7 @@ int             dc_msg_get_viewtype           (const dc_msg_t* msg);
  *
  * Incoming message states:
  * - DC_STATE_IN_FRESH (10) - Incoming _fresh_ message. Fresh messages are neither noticed nor seen and are typically shown in notifications. Use dc_get_fresh_msgs() to get all fresh messages.
- * - DC_STATE_IN_NOTICED (13) - Incoming _noticed_ message. E.g. chat opened but message not yet read - noticed messages are not counted as unread but did not marked as read nor resulted in MDNs. Use dc_marknoticed_chat() or dc_marknoticed_contact() to mark messages as being noticed.
+ * - DC_STATE_IN_NOTICED (13) - Incoming _noticed_ message. E.g. chat opened but message not yet read - noticed messages are not counted as unread but were not marked as read nor resulted in MDNs. Use dc_marknoticed_chat() to mark messages as being noticed.
  * - DC_STATE_IN_SEEN (16) - Incoming message, really _seen_ by the user. Marked as read on IMAP and MDN may be sent. Use dc_markseen_msgs() to mark messages as being seen.
  *
  * Outgoing message states:
@@ -3427,6 +3506,24 @@ char*           dc_msg_get_summarytext        (const dc_msg_t* msg, int approx_c
 
 
 /**
+ * Get the name that should be shown over the message (in a group chat) instead of the contact
+ * display name.
+ *
+ * In mailing lists, sender display name and sender address do not always belong together.
+ * In this case, this function gives you the name that should actually be shown over the message.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return the name to show over this message or NULL.
+ *     If this returns NULL, call `dc_contact_get_display_name()`.
+ *     The returned string must be released using dc_str_unref().
+ *     Returns an empty string on errors, never returns NULL.
+ */
+char*           dc_msg_get_override_sender_name(const dc_msg_t* msg);
+
+
+
+/**
  * Check if a message has a deviating timestamp.
  * A message has a deviating timestamp
  * when it is sent on another day as received/sorted by.
@@ -3595,7 +3692,8 @@ char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
  *     If the message is no videochat invitation, NULL is returned.
  *     Must be released using dc_str_unref() when done.
  */
-char* dc_msg_get_videochat_url (const dc_msg_t* msg);
+char*           dc_msg_get_videochat_url (const dc_msg_t* msg);
+
 
 /**
  * Gets the error status of the message.
@@ -3937,6 +4035,9 @@ char*           dc_contact_get_name          (const dc_contact_t* contact);
  *
  * This name is typically used in lists.
  * To get the name editable in a formular, use dc_contact_get_name().
+ *
+ * In a group, you should show the sender's name over a message. To get it, call dc_msg_get_override_sender_name()
+ * first and if it returns NULL, call dc_contact_get_display_name().
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
@@ -4741,7 +4842,7 @@ void dc_event_unref(dc_event_t* event);
  * Messages were marked noticed or seen.
  * The UI may update badge counters or stop showing a chatlist-item with a bold font.
  *
- * This event is emitted e.g. when calling dc_markseen_msgs(), dc_marknoticed_chat() or dc_marknoticed_contact()
+ * This event is emitted e.g. when calling dc_markseen_msgs() or dc_marknoticed_chat()
  * or when a chat is answered on another device.
  * Do not try to derive the state of an item from just the fact you received the event;
  * use e.g. dc_msg_get_state() or dc_get_fresh_msg_cnt() for this purpose.

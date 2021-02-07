@@ -508,12 +508,20 @@ impl Message {
         self.from_id
     }
 
+    /// get the chat-id,
+    /// if the message is a contact request, the DC_CHAT_ID_DEADDROP is returned.
     pub fn get_chat_id(&self) -> ChatId {
         if self.chat_blocked != Blocked::Not {
             ChatId::new(DC_CHAT_ID_DEADDROP)
         } else {
             self.chat_id
         }
+    }
+
+    /// get the chat-id, also when the message is still a contact request.
+    /// DC_CHAT_ID_DEADDROP is never returned.
+    pub fn get_real_chat_id(&self) -> ChatId {
+        self.chat_id
     }
 
     pub fn get_viewtype(&self) -> Viewtype {
@@ -590,8 +598,13 @@ impl Message {
             return ret;
         };
 
-        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32 && chat.typ == Chattype::Group {
-            Contact::get_by_id(context, self.from_id).await.ok()
+        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32 {
+            match chat.typ {
+                Chattype::Group | Chattype::Mailinglist => {
+                    Contact::get_by_id(context, self.from_id).await.ok()
+                }
+                Chattype::Single | Chattype::Undefined => None,
+            }
         } else {
             None
         };
@@ -610,6 +623,29 @@ impl Message {
             context,
         )
         .await
+    }
+
+    // It's a little unfortunate that the UI has to first call dc_msg_get_override_sender_name() and then if it was NULL, call
+    // dc_contact_get_display_name() but this was the best solution:
+    // - We could load a Contact struct from the db here to call get_display_name() instead of returning None, but then we had a db
+    //   call everytime (and this fn is called a lot while the user is scrolling through a group), so performance would be bad
+    // - We could pass both a Contact struct and a Message struct in the FFI, but at least on Android we would need to handle raw
+    //   C-data in the Java code (i.e. a `long` storing a C pointer)
+    // - We can't make a param `SenderDisplayname` for messages as sometimes the display name of a contact changes, and we want to show
+    //   the same display name over all messages from the same sender.
+    pub fn get_override_sender_name(&self) -> Option<String> {
+        if let Some(name) = self.param.get(Param::OverrideSenderDisplayname) {
+            Some(name.to_string())
+        } else {
+            None
+        }
+    }
+
+    // Exposing this function over the ffi instead of get_override_sender_name() would mean that at least Android Java code has
+    // to handle raw C-data (as it is done for dc_msg_get_summary())
+    pub fn get_sender_name(&self, contact: &Contact) -> String {
+        self.get_override_sender_name()
+            .unwrap_or_else(|| contact.get_display_name().to_string())
     }
 
     pub fn has_deviating_timestamp(&self) -> bool {
@@ -876,6 +912,13 @@ impl Message {
     }
 }
 
+#[derive(Display, Debug, FromPrimitive)]
+pub enum ContactRequestDecision {
+    StartChat = 0,
+    Block = 1,
+    NotNow = 2,
+}
+
 #[derive(
     Debug,
     Clone,
@@ -1028,23 +1071,31 @@ impl Lot {
                 );
                 self.text1_meaning = Meaning::Text1Self;
             }
-        } else if chat.typ == Chattype::Group {
-            if msg.is_info() || contact.is_none() {
-                self.text1 = None;
-                self.text1_meaning = Meaning::None;
-            } else {
-                if chat.id.is_deaddrop() {
-                    if let Some(contact) = contact {
-                        self.text1 = Some(contact.get_display_name().into());
-                    } else {
+        } else {
+            match chat.typ {
+                Chattype::Group | Chattype::Mailinglist => {
+                    if msg.is_info() || contact.is_none() {
                         self.text1 = None;
+                        self.text1_meaning = Meaning::None;
+                    } else {
+                        if chat.id.is_deaddrop() {
+                            if let Some(contact) = contact {
+                                self.text1 = Some(msg.get_sender_name(contact));
+                            } else {
+                                self.text1 = None;
+                            }
+                        } else if let Some(contact) = contact {
+                            self.text1 = Some(msg.get_sender_name(contact));
+                        } else {
+                            self.text1 = None;
+                        }
+                        self.text1_meaning = Meaning::Text1Username;
                     }
-                } else if let Some(contact) = contact {
-                    self.text1 = Some(contact.get_display_name().into());
-                } else {
-                    self.text1 = None;
                 }
-                self.text1_meaning = Meaning::Text1Username;
+                Chattype::Single | Chattype::Undefined => {
+                    self.text1 = None;
+                    self.text1_meaning = Meaning::None;
+                }
             }
         }
 
@@ -1069,6 +1120,76 @@ impl Lot {
         self.timestamp = msg.get_timestamp();
         self.state = msg.state.into();
     }
+}
+
+/// Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
+///
+/// If the decision is `StartChat`, this will create a new chat and return the chat id.
+/// If the decision is `Block`, this will usually block the sender.
+/// If the decision is `NotNow`, this will usually mark all messages from this sender as read.
+///
+/// If the message belongs to a mailing list, makes sure that all messages from this mailing list are
+/// blocked or marked as noticed.
+///
+/// The user should be asked whether they want to chat with the _contact_ belonging to the message;
+/// the group names may be really weird when taken from the subject of implicit (= ad-hoc)
+/// groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
+///
+/// If the chat belongs to a mailing list, you can also ask
+/// "Would you like to read MAILING LIST NAME in Delta Chat?"
+/// (use `Message.get_real_chat_id()` to get the chat-id for the contact request
+/// and then `Chat.is_mailing_list()`, `Chat.get_name()` and so on)
+pub async fn decide_on_contact_request(
+    context: &Context,
+    msg_id: MsgId,
+    decision: ContactRequestDecision,
+) -> Option<ChatId> {
+    let msg = match Message::load_from_db(context, msg_id).await {
+        Ok(m) => m,
+        Err(e) => {
+            warn!(context, "Can't load message: {}", e);
+            return None;
+        }
+    };
+
+    let chat = match Chat::load_from_db(context, msg.chat_id).await {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(context, "Can't load chat: {}", e);
+            return None;
+        }
+    };
+
+    let mut created_chat_id = None;
+    use ContactRequestDecision::*;
+    match (decision, chat.is_mailing_list()) {
+        (StartChat, _) => match chat::create_by_msg_id(context, msg.id).await {
+            Ok(id) => created_chat_id = Some(id),
+            Err(e) => warn!(context, "decide_on_contact_request error: {}", e),
+        },
+
+        (Block, false) => Contact::block(context, msg.from_id).await,
+        (Block, true) => {
+            if !msg.chat_id.set_blocked(context, Blocked::Manually).await {
+                warn!(context, "Block mailing list failed.")
+            }
+        }
+
+        (NotNow, false) => Contact::mark_noticed(context, msg.from_id).await,
+        (NotNow, true) => {
+            if let Err(e) = chat::marknoticed_chat(context, msg.chat_id).await {
+                warn!(context, "Marknoticed failed: {}", e)
+            }
+        }
+    }
+
+    // Multiple chats may have changed, so send 0s
+    // (performance is not so important because this function is not called very often)
+    context.emit_event(EventType::MsgsChanged {
+        chat_id: ChatId::new(0),
+        msg_id: MsgId::new(0),
+    });
+    created_chat_id
 }
 
 pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
@@ -1736,19 +1857,33 @@ async fn ndn_maybe_add_info_msg(
     chat_id: ChatId,
     chat_type: Chattype,
 ) -> anyhow::Result<()> {
-    if chat_type == Chattype::Group {
-        if let Some(failed_recipient) = &failed.failed_recipient {
-            let contact_id = Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
-                .await?
-                .ok_or_else(|| Error::msg("ndn_maybe_add_info_msg: Contact ID not found"))?;
-            let contact = Contact::load_from_db(context, contact_id).await?;
-            // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
-            let text = context
-                .stock_string_repl_str(StockMessage::FailedSendingTo, contact.get_display_name())
-                .await;
-            chat::add_info_msg(context, chat_id, text).await;
-            context.emit_event(EventType::ChatModified(chat_id));
+    match chat_type {
+        Chattype::Group => {
+            if let Some(failed_recipient) = &failed.failed_recipient {
+                let contact_id =
+                    Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
+                        .await?
+                        .ok_or_else(|| {
+                            Error::msg("ndn_maybe_add_info_msg: Contact ID not found")
+                        })?;
+                let contact = Contact::load_from_db(context, contact_id).await?;
+                // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
+                let text = context
+                    .stock_string_repl_str(
+                        StockMessage::FailedSendingTo,
+                        contact.get_display_name(),
+                    )
+                    .await;
+                chat::add_info_msg(context, chat_id, text).await;
+                context.emit_event(EventType::ChatModified(chat_id));
+            }
         }
+        Chattype::Mailinglist => {
+            // ndn_maybe_add_info_msg() is about the case when delivery to the group failed.
+            // If we get an NDN for the mailing list, just issue a warning.
+            warn!(context, "ignoring NDN for mailing list.");
+        }
+        Chattype::Single | Chattype::Undefined => {}
     }
     Ok(())
 }
@@ -1920,6 +2055,7 @@ mod tests {
     use super::*;
     use crate::chat::ChatItem;
     use crate::constants::DC_CONTACT_ID_DEVICE;
+    use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils as test;
     use crate::test_utils::TestContext;
 
@@ -2052,7 +2188,6 @@ mod tests {
         setupmessage: bool,
         sentbox_move: bool,
     ) {
-        use crate::dc_receive_imf::dc_receive_imf;
         println!("Testing: For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}",
                                folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage);
 
@@ -2394,5 +2529,34 @@ mod tests {
             .expect("error while retrieving quoted message")
             .expect("quoted message not found");
         assert!(quoted_msg.get_text() == msg2.quoted_text());
+    }
+
+    #[async_std::test]
+    async fn test_get_chat_id() {
+        // Alice receives a message that pops up as a contact request
+        let alice = TestContext::new_alice().await;
+        dc_receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: alice@example.com\n\
+                    Chat-Version: 1.0\n\
+                    Message-ID: <123@example.com>\n\
+                    Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
+                    \n\
+                    hello\n",
+            "INBOX",
+            123,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // check chat-id of this message
+        let msg = alice.get_last_msg().await;
+        assert!(msg.get_chat_id().is_deaddrop());
+        assert!(msg.get_chat_id().is_special());
+        assert!(!msg.get_real_chat_id().is_deaddrop());
+        assert!(!msg.get_real_chat_id().is_special());
+        assert_eq!(msg.get_text().unwrap(), "hello".to_string());
     }
 }

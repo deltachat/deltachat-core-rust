@@ -221,6 +221,7 @@ impl ChatId {
                         }
                     }
                 }
+                Chattype::Mailinglist => bail!("Cannot protect mailing lists"),
                 Chattype::Undefined => bail!("Undefined group type"),
             },
             ProtectionStatus::Unprotected => {}
@@ -828,9 +829,13 @@ impl Chat {
         self.param.exists(Param::Devicetalk)
     }
 
+    pub fn is_mailing_list(&self) -> bool {
+        self.typ == Chattype::Mailinglist
+    }
+
     /// Returns true if user can send messages to this chat.
     pub fn can_send(&self) -> bool {
-        !self.id.is_special() && !self.is_device_talk()
+        !self.id.is_special() && !self.is_device_talk() && !self.is_mailing_list()
     }
 
     pub async fn update_param(&mut self, context: &Context) -> Result<(), Error> {
@@ -1321,7 +1326,11 @@ pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId
             msg_id: MsgId::new(0),
         });
     }
-    Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat).await;
+
+    // If the message is from a mailing list, the contacts are not counted as "known"
+    if !chat.is_mailing_list() {
+        Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat).await;
+    }
     Ok(chat.id)
 }
 
@@ -2273,6 +2282,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         "invalid contact_id {} for adding to group",
         contact_id
     );
+    ensure!(!chat.is_mailing_list(), "Mailing lists can't be changed");
 
     if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF as u32).await {
         /* we should respect this - whatever we send to the group, it gets discarded anyway! */
@@ -2528,6 +2538,7 @@ pub async fn remove_contact_from_chat(
     /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
     /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
+        ensure!(!chat.is_mailing_list(), "Mailing lists can't be changed");
         if real_group_exists(context, chat_id).await {
             if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
                 emit_event!(
@@ -2654,7 +2665,7 @@ pub async fn set_chat_name(
                 .await
                 .is_ok()
             {
-                if chat.is_promoted() {
+                if chat.is_promoted() && !chat.is_mailing_list() {
                     msg.viewtype = Viewtype::Text;
                     msg.text = Some(
                         context
@@ -2746,7 +2757,7 @@ pub async fn set_chat_profile_image(
         );
     }
     chat.update_param(context).await?;
-    if chat.is_promoted() {
+    if chat.is_promoted() && !chat.is_mailing_list() {
         msg.id = send_msg(context, chat_id, &mut msg).await?;
         emit_event!(
             context,

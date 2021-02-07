@@ -2592,6 +2592,16 @@ pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg_t) -> u32 {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_real_chat_id(msg: *mut dc_msg_t) -> u32 {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_real_chat_id()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_real_chat_id().to_u32()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_viewtype(msg: *mut dc_msg_t) -> libc::c_int {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_viewtype()");
@@ -2811,6 +2821,17 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_override_sender_name(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_override_sender_name()");
+        return "".strdup();
+    }
+    let ffi_msg = &mut *msg;
+
+    ffi_msg.message.get_override_sender_name().strdup()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg_t) -> libc::c_int {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_has_deviating_timestamp()");
@@ -2913,6 +2934,32 @@ pub unsafe extern "C" fn dc_msg_get_videochat_url(msg: *mut dc_msg_t) -> *mut li
         .get_videochat_url()
         .unwrap_or_default()
         .strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_decide_on_contact_request(
+    context: *mut dc_context_t,
+    msg_id: u32,
+    decision: libc::c_int,
+) -> u32 {
+    if context.is_null() || msg_id <= constants::DC_MSG_ID_LAST_SPECIAL as u32 {
+        eprintln!("ignoring careless call to dc_decide_on_contact_request()");
+    }
+    let ctx = &*context;
+
+    match from_prim(decision) {
+        None => {
+            warn!(ctx, "{} is not a valid decision, ignoring", decision);
+            0
+        }
+        Some(d) => block_on(message::decide_on_contact_request(
+            ctx,
+            MsgId::new(msg_id),
+            d,
+        ))
+        .unwrap_or_default()
+        .to_u32(),
+    }
 }
 
 #[no_mangle]

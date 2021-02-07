@@ -22,6 +22,10 @@ pub enum Param {
     /// For messages and jobs
     File = b'f',
 
+    /// For messages: This name should be shown instead of contact.get_display_name()
+    /// (used if this is a mailinglist)
+    OverrideSenderDisplayname = b'O',
+
     /// For Messages
     Width = b'w',
 

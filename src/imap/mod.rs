@@ -761,9 +761,12 @@ impl Imap {
                 let msg = fetch?;
                 match get_fetch_headers(&msg) {
                     Ok(headers) => {
-                        let (from_id, _, _) =
-                            from_field_to_contact_id(context, &mimeparser::get_from(&headers))
-                                .await?;
+                        let (from_id, _, _) = from_field_to_contact_id(
+                            context,
+                            &mimeparser::get_from(&headers),
+                            false,
+                        )
+                        .await?;
                         if from_id == DC_CONTACT_ID_SELF {
                             result.extend(mimeparser::get_recipients(&headers));
                         }
@@ -1640,7 +1643,9 @@ pub(crate) async fn prefetch_should_download(
         .is_some();
 
     let (_contact_id, blocked_contact, origin) =
-        from_field_to_contact_id(context, &mimeparser::get_from(headers)).await?;
+        from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
+    // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
+    // (prevent_rename is the last argument of from_field_to_contact_id())
     let accepted_contact = origin.is_known();
 
     let show = is_autocrypt_setup_message
