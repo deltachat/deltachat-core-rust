@@ -25,7 +25,6 @@ use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
-use crate::provider::Socket;
 use crate::stock::StockMessage;
 
 /// An object representing a single contact in memory.
@@ -709,29 +708,32 @@ impl Contact {
     /// of the contact and if the connection is encrypted the
     /// fingerprints of the keys involved.
     pub async fn get_encrinfo(context: &Context, contact_id: u32) -> Result<String> {
+        ensure!(
+            contact_id > DC_CONTACT_ID_LAST_SPECIAL,
+            "Can not provide encryption info for special contact"
+        );
+
         let mut ret = String::new();
-
         if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-            let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
             let loginparam = LoginParam::from_database(context, "configured_").await;
+            let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
 
-            if peerstate.is_some()
-                && peerstate
-                    .as_ref()
-                    .and_then(|p| p.peek_key(PeerstateVerifiedStatus::Unverified))
+            if let Some(peerstate) = peerstate.filter(|peerstate| {
+                peerstate
+                    .peek_key(PeerstateVerifiedStatus::Unverified)
                     .is_some()
-            {
-                let peerstate = peerstate.as_ref().unwrap();
-                let p = context
-                    .stock_str(if peerstate.prefer_encrypt == EncryptPreference::Mutual {
-                        StockMessage::E2ePreferred
-                    } else {
-                        StockMessage::E2eAvailable
-                    })
-                    .await;
-                ret += &p;
-                let p = context.stock_str(StockMessage::FingerPrints).await;
-                ret += &format!(" {}:", p);
+            }) {
+                let stock_message = match peerstate.prefer_encrypt {
+                    EncryptPreference::Mutual => StockMessage::E2ePreferred,
+                    EncryptPreference::NoPreference => StockMessage::E2eAvailable,
+                    EncryptPreference::Reset => StockMessage::EncrNone,
+                };
+
+                ret += &format!(
+                    "{}\n{}:",
+                    context.stock_str(stock_message).await,
+                    context.stock_str(StockMessage::FingerPrints).await
+                );
 
                 let fingerprint_self = SignedPublicKey::load_self(context)
                     .await?
@@ -762,10 +764,6 @@ impl Contact {
                     );
                     cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
                 }
-            } else if loginparam.imap.security != Socket::Plain
-                && loginparam.smtp.security != Socket::Plain
-            {
-                ret += &context.stock_str(StockMessage::EncrTransp).await;
             } else {
                 ret += &context.stock_str(StockMessage::EncrNone).await;
             }
@@ -1250,6 +1248,7 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
 mod tests {
     use super::*;
 
+    use crate::chat::send_text_msg;
     use crate::test_utils::TestContext;
 
     #[test]
@@ -1635,5 +1634,48 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(id, Some(DC_CONTACT_ID_SELF));
+    }
+
+    #[async_std::test]
+    async fn test_contact_get_encrinfo() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Return error for special IDs
+        let encrinfo = Contact::get_encrinfo(&alice, DC_CONTACT_ID_SELF).await;
+        assert!(encrinfo.is_err());
+        let encrinfo = Contact::get_encrinfo(&alice, DC_CONTACT_ID_DEVICE).await;
+        assert!(encrinfo.is_err());
+
+        let (contact_bob_id, _modified) =
+            Contact::add_or_lookup(&alice, "Bob", "bob@example.net", Origin::ManuallyCreated)
+                .await?;
+
+        let encrinfo = Contact::get_encrinfo(&alice, contact_bob_id).await?;
+        assert_eq!(encrinfo, "No encryption.");
+
+        let bob = TestContext::new_bob().await;
+        let chat_alice = bob
+            .create_chat_with_contact("Alice", "alice@example.com")
+            .await;
+        send_text_msg(&bob, chat_alice.id, "Hello".to_string()).await?;
+        let msg = bob.pop_sent_msg().await;
+        alice.recv_msg(&msg).await;
+
+        let encrinfo = Contact::get_encrinfo(&alice, contact_bob_id).await?;
+        assert_eq!(
+            encrinfo,
+            "End-to-end encryption preferred.
+Fingerprints:
+
+alice@example.com:
+2E6F A2CB 23B5 32D7 2863
+4B58 64B0 8F61 A9ED 9443
+
+bob@example.net:
+CCCB 5AA9 F6E1 141C 9431
+65F1 DB18 B18C BCF7 0487"
+        );
+
+        Ok(())
     }
 }

@@ -123,7 +123,7 @@ Language bindings are available for:
 - [C](https://c.delta.chat)
 - [Node.js](https://www.npmjs.com/package/deltachat-node)
 - [Python](https://py.delta.chat)
-- [Go](https://github.com/hugot/go-deltachat/)
+- [Go](https://github.com/deltachat/go-deltachat/)
 - [Free Pascal](https://github.com/deltachat/deltachat-fp/)
 - **Java** and **Swift** (contained in the Android/iOS repos)
 

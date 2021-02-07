@@ -731,6 +731,13 @@ impl Message {
         // add/replace room
         let url = if url.contains("$ROOM") {
             url.replace("$ROOM", &room)
+        } else if url.contains("$NOROOM") {
+            // there are some usecases where a separate room is not needed to use a service
+            // eg. if you let in people manually anyway, see discussion at
+            // https://support.delta.chat/t/videochat-with-webex/1412/4 .
+            // hacks as hiding the room behind `#` are not reliable, therefore,
+            // these services are supported by adding the string `$NOROOM` to the url.
+            url.replace("$NOROOM", "")
         } else {
             // if there nothing that would separate the room, add a slash as a separator;
             // this way, urls can be given as "https://meet.jit.si" as well as "https://meet.jit.si/"
@@ -2437,6 +2444,26 @@ mod tests {
 
         let instance = Message::create_webrtc_instance(" basicwebrtc: basic . stuff\n ", "12345ab");
         assert_eq!(instance, "basicwebrtc:https://basic.stuff/12345ab");
+    }
+
+    #[async_std::test]
+    async fn test_create_webrtc_instance_noroom() {
+        // webrtc_instance may come from an input field of the ui, be pretty tolerant on input
+        let instance = Message::create_webrtc_instance("bla.foo$NOROOM", "123");
+        assert_eq!(instance, "https://bla.foo");
+
+        let instance = Message::create_webrtc_instance(" bla . foo $NOROOM ", "456");
+        assert_eq!(instance, "https://bla.foo");
+
+        let instance = Message::create_webrtc_instance(" $NOROOM bla . foo  ", "789");
+        assert_eq!(instance, "https://bla.foo");
+
+        let instance = Message::create_webrtc_instance(" bla.foo  / $NOROOM ? a = b ", "123");
+        assert_eq!(instance, "https://bla.foo/?a=b");
+
+        // $ROOM has a higher precedence
+        let instance = Message::create_webrtc_instance("bla.foo/?$NOROOM=$ROOM", "123");
+        assert_eq!(instance, "https://bla.foo/?$NOROOM=123");
     }
 
     #[async_std::test]
