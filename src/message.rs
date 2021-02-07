@@ -1842,19 +1842,33 @@ async fn ndn_maybe_add_info_msg(
     chat_id: ChatId,
     chat_type: Chattype,
 ) -> anyhow::Result<()> {
-    if chat_type == Chattype::Group || chat_type == Chattype::Mailinglist {
-        if let Some(failed_recipient) = &failed.failed_recipient {
-            let contact_id = Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
-                .await?
-                .ok_or_else(|| Error::msg("ndn_maybe_add_info_msg: Contact ID not found"))?;
-            let contact = Contact::load_from_db(context, contact_id).await?;
-            // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
-            let text = context
-                .stock_string_repl_str(StockMessage::FailedSendingTo, contact.get_display_name())
-                .await;
-            chat::add_info_msg(context, chat_id, text).await;
-            context.emit_event(EventType::ChatModified(chat_id));
+    match chat_type {
+        Chattype::Group => {
+            if let Some(failed_recipient) = &failed.failed_recipient {
+                let contact_id =
+                    Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
+                        .await?
+                        .ok_or_else(|| {
+                            Error::msg("ndn_maybe_add_info_msg: Contact ID not found")
+                        })?;
+                let contact = Contact::load_from_db(context, contact_id).await?;
+                // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
+                let text = context
+                    .stock_string_repl_str(
+                        StockMessage::FailedSendingTo,
+                        contact.get_display_name(),
+                    )
+                    .await;
+                chat::add_info_msg(context, chat_id, text).await;
+                context.emit_event(EventType::ChatModified(chat_id));
+            }
         }
+        Chattype::Mailinglist => {
+            // ndn_maybe_add_info_msg() is about the case when delivery to the group failed.
+            // If we get an NDN for the mailing list, just issue a warning.
+            warn!(context, "ignoring NDN for mailing list.");
+        }
+        Chattype::Single | Chattype::Undefined => {}
     }
     Ok(())
 }
