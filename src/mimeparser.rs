@@ -3,10 +3,12 @@ use std::future::Future;
 use std::pin::Pin;
 
 use anyhow::{bail, Result};
+use charset::Charset;
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
+use percent_encoding::percent_decode_str;
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -25,9 +27,7 @@ use crate::message;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::simplify;
-use crate::stock::StockMessage;
-use charset::Charset;
-use percent_encoding::percent_decode_str;
+use crate::stock::CantDecryptMsgBody;
 
 /// A parsed MIME message.
 ///
@@ -625,7 +625,7 @@ impl MimeMessage {
                 // we currently do not try to decrypt non-autocrypt messages
                 // at all. If we see an encrypted part, we set
                 // decrypting_failed.
-                let msg_body = context.stock_str(StockMessage::CantDecryptMsgBody).await;
+                let msg_body = CantDecryptMsgBody::stock_str(context).await;
                 let txt = format!("[{}]", msg_body);
 
                 let part = Part {

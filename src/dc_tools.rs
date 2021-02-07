@@ -22,7 +22,7 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::message::Message;
 use crate::provider::get_provider_update_timestamp;
-use crate::stock::StockMessage;
+use crate::stock::{BadTimeMsgBody, UpdateReminderMsgBody};
 
 /// Shortens a string to a specified length and adds "[...]" to the
 /// end of the shortened string.
@@ -169,15 +169,15 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
     if now < known_past_timestamp {
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some(
-            context
-                .stock_string_repl_str(
-                    StockMessage::BadTimeMsgBody,
-                    Local
-                        .timestamp(now, 0)
-                        .format("%Y-%m-%d %H:%M:%S")
-                        .to_string(),
-                )
-                .await,
+            BadTimeMsgBody::stock_str(
+                context,
+                Local
+                    .timestamp(now, 0)
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string(),
+            )
+            .await
+            .to_string(),
         );
         add_device_msg_with_importance(
             context,
@@ -201,12 +201,7 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
 async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time: i64) {
     if now > approx_compile_time + DC_OUTDATED_WARNING_DAYS * 24 * 60 * 60 {
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(
-            context
-                .stock_str(StockMessage::UpdateReminderMsgBody)
-                .await
-                .into(),
-        );
+        msg.text = Some(UpdateReminderMsgBody::stock_str(context).await.into());
         add_device_msg(
             context,
             Some(

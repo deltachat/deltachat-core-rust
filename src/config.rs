@@ -3,6 +3,7 @@
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
+use crate::blob::BlobObject;
 use crate::chat::ChatId;
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
@@ -11,11 +12,8 @@ use crate::events::EventType;
 use crate::job;
 use crate::message::MsgId;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
-use crate::stock::StockMessage;
-use crate::{
-    blob::BlobObject,
-    provider::{get_provider_by_id, Provider},
-};
+use crate::provider::{get_provider_by_id, Provider};
+use crate::stock::StatusLine;
 
 /// The available configuration keys.
 #[derive(
@@ -175,7 +173,7 @@ impl Context {
 
         // Default values
         match key {
-            Config::Selfstatus => Some(self.stock_str(StockMessage::StatusLine).await.into_owned()),
+            Config::Selfstatus => Some(StatusLine::stock_str(self).await.into_owned()),
             Config::ConfiguredInboxFolder => Some("INBOX".to_owned()),
             _ => key.get_str("default").map(|s| s.to_string()),
         }
@@ -260,7 +258,7 @@ impl Context {
                 }
             }
             Config::Selfstatus => {
-                let def = self.stock_str(StockMessage::StatusLine).await;
+                let def = StatusLine::stock_str(self).await;
                 let val = if value.is_none() || value.unwrap() == def {
                     None
                 } else {
