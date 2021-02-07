@@ -399,9 +399,8 @@ async fn handle_cmd(
         }
         "getqr" | "getbadqr" => {
             ctx.start_io().await;
-            if let Some(mut qr) =
-                dc_get_securejoin_qr(&ctx, ChatId::new(arg1.parse().unwrap_or_default())).await
-            {
+            let group = arg1.parse::<u32>().ok().map(|id| ChatId::new(id));
+            if let Some(mut qr) = dc_get_securejoin_qr(&ctx, group).await {
                 if !qr.is_empty() {
                     if arg0 == "getbadqr" && qr.len() > 40 {
                         qr.replace_range(12..22, "0000000000")
