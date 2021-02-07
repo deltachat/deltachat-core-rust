@@ -219,6 +219,7 @@ impl ChatId {
                         }
                     }
                 }
+                Chattype::Mailinglist => bail!("Cannot protect mailing lists"),
                 Chattype::Undefined => bail!("Undefined group type"),
             },
             ProtectionStatus::Unprotected => {}
@@ -786,7 +787,7 @@ impl Chat {
     }
 
     pub fn is_mailing_list(&self) -> bool {
-        self.param.exists(Param::MailingList)
+        self.typ == Chattype::Mailinglist
     }
 
     /// Returns true if user can send messages to this chat.

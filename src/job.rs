@@ -690,7 +690,7 @@ impl Job {
                     }
                     Ok(c) => c,
                 };
-                if chat.typ == Chattype::Group {
+                if chat.typ == Chattype::Group || chat.typ == Chattype::Mailinglist {
                     // The next lines are actually what we do in
                     let (test_normal_chat_id, test_normal_chat_id_blocked) =
                         chat::lookup_by_contact_id(context, msg.from_id)

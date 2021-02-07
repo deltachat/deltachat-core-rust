@@ -598,8 +598,13 @@ impl Message {
             return ret;
         };
 
-        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32 && chat.typ == Chattype::Group {
-            Contact::get_by_id(context, self.from_id).await.ok()
+        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32 {
+            match chat.typ {
+                Chattype::Group | Chattype::Mailinglist => {
+                    Contact::get_by_id(context, self.from_id).await.ok()
+                }
+                Chattype::Single | Chattype::Undefined => None,
+            }
         } else {
             None
         };
@@ -1059,7 +1064,7 @@ impl Lot {
                 );
                 self.text1_meaning = Meaning::Text1Self;
             }
-        } else if chat.typ == Chattype::Group {
+        } else if chat.typ == Chattype::Group || chat.typ == Chattype::Mailinglist {
             if msg.is_info() || contact.is_none() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
@@ -1837,7 +1842,7 @@ async fn ndn_maybe_add_info_msg(
     chat_id: ChatId,
     chat_type: Chattype,
 ) -> anyhow::Result<()> {
-    if chat_type == Chattype::Group {
+    if chat_type == Chattype::Group || chat_type == Chattype::Mailinglist {
         if let Some(failed_recipient) = &failed.failed_recipient {
             let contact_id = Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
                 .await?
