@@ -598,8 +598,13 @@ impl Message {
             return ret;
         };
 
-        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32 && chat.typ == Chattype::Group {
-            Contact::get_by_id(context, self.from_id).await.ok()
+        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32 {
+            match chat.typ {
+                Chattype::Group | Chattype::Mailinglist => {
+                    Contact::get_by_id(context, self.from_id).await.ok()
+                }
+                Chattype::Single | Chattype::Undefined => None,
+            }
         } else {
             None
         };
@@ -1059,23 +1064,31 @@ impl Lot {
                 );
                 self.text1_meaning = Meaning::Text1Self;
             }
-        } else if chat.typ == Chattype::Group {
-            if msg.is_info() || contact.is_none() {
-                self.text1 = None;
-                self.text1_meaning = Meaning::None;
-            } else {
-                if chat.id.is_deaddrop() {
-                    if let Some(contact) = contact {
-                        self.text1 = Some(msg.get_sender_name(contact));
-                    } else {
+        } else {
+            match chat.typ {
+                Chattype::Group | Chattype::Mailinglist => {
+                    if msg.is_info() || contact.is_none() {
                         self.text1 = None;
+                        self.text1_meaning = Meaning::None;
+                    } else {
+                        if chat.id.is_deaddrop() {
+                            if let Some(contact) = contact {
+                                self.text1 = Some(msg.get_sender_name(contact));
+                            } else {
+                                self.text1 = None;
+                            }
+                        } else if let Some(contact) = contact {
+                            self.text1 = Some(msg.get_sender_name(contact));
+                        } else {
+                            self.text1 = None;
+                        }
+                        self.text1_meaning = Meaning::Text1Username;
                     }
-                } else if let Some(contact) = contact {
-                    self.text1 = Some(msg.get_sender_name(contact));
-                } else {
-                    self.text1 = None;
                 }
-                self.text1_meaning = Meaning::Text1Username;
+                Chattype::Single | Chattype::Undefined => {
+                    self.text1 = None;
+                    self.text1_meaning = Meaning::None;
+                }
             }
         }
 
@@ -1837,19 +1850,33 @@ async fn ndn_maybe_add_info_msg(
     chat_id: ChatId,
     chat_type: Chattype,
 ) -> anyhow::Result<()> {
-    if chat_type == Chattype::Group {
-        if let Some(failed_recipient) = &failed.failed_recipient {
-            let contact_id = Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
-                .await?
-                .ok_or_else(|| Error::msg("ndn_maybe_add_info_msg: Contact ID not found"))?;
-            let contact = Contact::load_from_db(context, contact_id).await?;
-            // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
-            let text = context
-                .stock_string_repl_str(StockMessage::FailedSendingTo, contact.get_display_name())
-                .await;
-            chat::add_info_msg(context, chat_id, text).await;
-            context.emit_event(EventType::ChatModified(chat_id));
+    match chat_type {
+        Chattype::Group => {
+            if let Some(failed_recipient) = &failed.failed_recipient {
+                let contact_id =
+                    Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
+                        .await?
+                        .ok_or_else(|| {
+                            Error::msg("ndn_maybe_add_info_msg: Contact ID not found")
+                        })?;
+                let contact = Contact::load_from_db(context, contact_id).await?;
+                // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
+                let text = context
+                    .stock_string_repl_str(
+                        StockMessage::FailedSendingTo,
+                        contact.get_display_name(),
+                    )
+                    .await;
+                chat::add_info_msg(context, chat_id, text).await;
+                context.emit_event(EventType::ChatModified(chat_id));
+            }
         }
+        Chattype::Mailinglist => {
+            // ndn_maybe_add_info_msg() is about the case when delivery to the group failed.
+            // If we get an NDN for the mailing list, just issue a warning.
+            warn!(context, "ignoring NDN for mailing list.");
+        }
+        Chattype::Single | Chattype::Undefined => {}
     }
     Ok(())
 }

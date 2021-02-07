@@ -1339,14 +1339,15 @@ async fn create_or_lookup_group(
             return Ok((ChatId::new(0), Blocked::Not));
         }
 
-        chat_id = create_group_record(
+        chat_id = create_multiuser_record(
             context,
+            Chattype::Group,
             &grpid,
             grpname.as_ref().unwrap(),
             create_blocked,
             create_protected,
         )
-        .await;
+        .await?;
         chat_id_blocked = create_blocked;
         recreate_member_list = true;
 
@@ -1511,7 +1512,16 @@ async fn create_or_lookup_mailinglist(
 
     if allow_creation {
         // list does not exist but should be created
-        match create_mailinglist_record(context, &listid, &name, create_blocked).await {
+        match create_multiuser_record(
+            context,
+            Chattype::Mailinglist,
+            &listid,
+            &name,
+            create_blocked,
+            ProtectionStatus::Unprotected,
+        )
+        .await
+        {
             Ok(chat_id) => {
                 chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
                 (chat_id, create_blocked)
@@ -1608,14 +1618,15 @@ async fn create_adhoc_group(
         .get_subject()
         .unwrap_or_else(|| "Unnamed group".to_string());
 
-    let new_chat_id: ChatId = create_group_record(
+    let new_chat_id: ChatId = create_multiuser_record(
         context,
+        Chattype::Group,
         &grpid,
         grpname,
         create_blocked,
         ProtectionStatus::Unprotected,
     )
-    .await;
+    .await?;
     for &member_id in member_ids.iter() {
         chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await;
     }
@@ -1625,39 +1636,30 @@ async fn create_adhoc_group(
     Ok(Some(new_chat_id))
 }
 
-async fn create_group_record(
+async fn create_multiuser_record(
     context: &Context,
+    chattype: Chattype,
     grpid: impl AsRef<str>,
     grpname: impl AsRef<str>,
     create_blocked: Blocked,
     create_protected: ProtectionStatus,
-) -> ChatId {
-    if context.sql.execute(
+) -> Result<ChatId> {
+    context.sql.execute(
         "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);",
         paramsv![
-            Chattype::Group,
+            chattype,
             grpname.as_ref(),
             grpid.as_ref(),
             create_blocked,
             time(),
             create_protected,
         ],
-    ).await
-    .is_err()
-    {
-        warn!(
-            context,
-            "Failed to create group/mailinglist '{}' for grpid={}",
-            grpname.as_ref(),
-            grpid.as_ref()
-        );
-        return ChatId::new(0);
-    }
+    ).await?;
+
     let row_id = context
         .sql
         .get_rowid(context, "chats", "grpid", grpid.as_ref())
-        .await
-        .unwrap_or_default();
+        .await?;
 
     let chat_id = ChatId::new(row_id);
     info!(
@@ -1667,30 +1669,6 @@ async fn create_group_record(
         grpid.as_ref(),
         chat_id
     );
-    chat_id
-}
-
-async fn create_mailinglist_record(
-    context: &Context,
-    listid: impl AsRef<str>,
-    name: impl AsRef<str>,
-    create_blocked: Blocked,
-) -> Result<ChatId> {
-    let chat_id = create_group_record(
-        context,
-        &listid,
-        &name,
-        create_blocked,
-        ProtectionStatus::Unprotected,
-    )
-    .await;
-
-    if !chat_id.is_unset() {
-        let mut chat = Chat::load_from_db(context, chat_id).await?;
-        chat.param.set(Param::MailingList, "1");
-        chat.update_param(context).await?;
-    }
-
     Ok(chat_id)
 }
 

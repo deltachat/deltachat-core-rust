@@ -363,17 +363,23 @@ impl Chatlist {
             return ret;
         };
 
-        let mut lastcontact = None;
-
-        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id).await {
-            if lastmsg.from_id != DC_CONTACT_ID_SELF && chat.typ == Chattype::Group {
-                lastcontact = Contact::load_from_db(context, lastmsg.from_id).await.ok();
-            }
-
-            Some(lastmsg)
-        } else {
-            None
-        };
+        let (lastmsg, lastcontact) =
+            if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id).await {
+                if lastmsg.from_id == DC_CONTACT_ID_SELF {
+                    (Some(lastmsg), None)
+                } else {
+                    match chat.typ {
+                        Chattype::Group | Chattype::Mailinglist => {
+                            let lastcontact =
+                                Contact::load_from_db(context, lastmsg.from_id).await.ok();
+                            (Some(lastmsg), lastcontact)
+                        }
+                        Chattype::Single | Chattype::Undefined => (Some(lastmsg), None),
+                    }
+                }
+            } else {
+                (None, None)
+            };
 
         if chat.id.is_archived_link() {
             ret.text2 = None;
