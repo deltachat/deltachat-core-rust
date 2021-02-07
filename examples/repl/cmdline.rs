@@ -858,9 +858,9 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(!arg1.is_empty(), "Argument <query> missing.");
 
             let chat = if let Some(ref sel_chat) = sel_chat {
-                sel_chat.get_id()
+                Some(sel_chat.get_id())
             } else {
-                ChatId::new(0)
+                None
             };
 
             let msglist = context.search_msgs(chat, arg1).await;

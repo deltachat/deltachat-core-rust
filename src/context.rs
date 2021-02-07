@@ -457,48 +457,22 @@ impl Context {
             .unwrap_or_default()
     }
 
-    #[allow(non_snake_case)]
-    pub async fn search_msgs(&self, chat_id: ChatId, query: impl AsRef<str>) -> Vec<MsgId> {
+    /// Searches for messages containing the query string.
+    ///
+    /// If `chat_id` is provided this searches only for messages in this chat, if `chat_id`
+    /// is `None` this searches messages from all chats.
+    pub async fn search_msgs(&self, chat_id: Option<ChatId>, query: impl AsRef<str>) -> Vec<MsgId> {
         let real_query = query.as_ref().trim();
         if real_query.is_empty() {
             return Vec::new();
         }
-        let strLikeInText = format!("%{}%", real_query);
-        let strLikeBeg = format!("{}%", real_query);
+        let str_like_in_text = format!("%{}%", real_query);
+        let str_like_beg = format!("{}%", real_query);
 
-        let query = if !chat_id.is_unset() {
-            concat!(
-                "SELECT m.id AS id, m.timestamp AS timestamp",
-                " FROM msgs m",
-                " LEFT JOIN contacts ct",
-                "        ON m.from_id=ct.id",
-                " WHERE m.chat_id=?",
-                "   AND m.hidden=0",
-                "   AND ct.blocked=0",
-                "   AND (txt LIKE ? OR ct.name LIKE ?)",
-                " ORDER BY m.timestamp,m.id;"
-            )
-        } else {
-            concat!(
-                "SELECT m.id AS id, m.timestamp AS timestamp",
-                " FROM msgs m",
-                " LEFT JOIN contacts ct",
-                "        ON m.from_id=ct.id",
-                " LEFT JOIN chats c",
-                "        ON m.chat_id=c.id",
-                " WHERE m.chat_id>9",
-                "   AND m.hidden=0",
-                "   AND (c.blocked=0 OR c.blocked=?)",
-                "   AND ct.blocked=0",
-                "   AND (m.txt LIKE ? OR ct.name LIKE ?)",
-                " ORDER BY m.timestamp DESC,m.id DESC;"
-            )
-        };
-
-        self.sql
-            .query_map(
+        let do_query = |query, params| {
+            self.sql.query_map(
                 query,
-                paramsv![chat_id, strLikeInText, strLikeBeg],
+                params,
                 |row| row.get::<_, MsgId>("id"),
                 |rows| {
                     let mut ret = Vec::new();
@@ -508,8 +482,42 @@ impl Context {
                     Ok(ret)
                 },
             )
+        };
+
+        if let Some(chat_id) = chat_id {
+            do_query(
+                "SELECT m.id AS id, m.timestamp AS timestamp
+                 FROM msgs m
+                 LEFT JOIN contacts ct
+                        ON m.from_id=ct.id
+                 WHERE m.chat_id=?
+                   AND m.hidden=0
+                   AND ct.blocked=0
+                   AND (txt LIKE ? OR ct.name LIKE ?)
+                 ORDER BY m.timestamp,m.id;",
+                paramsv![chat_id, str_like_in_text, str_like_beg],
+            )
             .await
             .unwrap_or_default()
+        } else {
+            do_query(
+                "SELECT m.id AS id, m.timestamp AS timestamp
+                 FROM msgs m
+                 LEFT JOIN contacts ct
+                        ON m.from_id=ct.id
+                 LEFT JOIN chats c
+                        ON m.chat_id=c.id
+                 WHERE m.chat_id>9
+                   AND m.hidden=0
+                   AND c.blocked=0
+                   AND ct.blocked=0
+                   AND (m.txt LIKE ? OR ct.name LIKE ?)
+                 ORDER BY m.timestamp DESC,m.id DESC;",
+                paramsv![str_like_in_text, str_like_beg],
+            )
+            .await
+            .unwrap_or_default()
+        }
     }
 
     pub async fn is_inbox(&self, folder_name: impl AsRef<str>) -> bool {
