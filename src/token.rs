@@ -26,38 +26,71 @@ impl Default for Namespace {
 }
 
 /// Creates a new token and saves it into the database.
+///
 /// Returns created token.
-pub async fn save(context: &Context, namespace: Namespace, foreign_id: ChatId) -> String {
-    // foreign_id may be 0
+pub async fn save(context: &Context, namespace: Namespace, chat: Option<ChatId>) -> String {
     let token = dc_create_id();
-    context
-        .sql
-        .execute(
-            "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
-            paramsv![namespace, foreign_id, token, time()],
-        )
-        .await
-        .ok();
+    match chat {
+        Some(chat_id) => context
+            .sql
+            .execute(
+                "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
+                paramsv![namespace, chat_id, token, time()],
+            )
+            .await
+            .ok(),
+        None => context
+            .sql
+            .execute(
+                "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);",
+                paramsv![namespace, token, time()],
+            )
+            .await
+            .ok(),
+    };
     token
 }
 
-pub async fn lookup(context: &Context, namespace: Namespace, foreign_id: ChatId) -> Option<String> {
-    context
-        .sql
-        .query_get_value::<String>(
-            context,
-            "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
-            paramsv![namespace, foreign_id],
-        )
-        .await
+pub async fn lookup(
+    context: &Context,
+    namespace: Namespace,
+    chat: Option<ChatId>,
+) -> Option<String> {
+    match chat {
+        Some(chat_id) => {
+            context
+                .sql
+                .query_get_value::<String>(
+                    context,
+                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
+                    paramsv![namespace, chat_id],
+                )
+                .await
+        }
+        // foreign_id is declared as `INTEGER DEFAULT 0` in the schema.
+        None => {
+            context
+                .sql
+                .query_get_value::<String>(
+                    context,
+                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=0;",
+                    paramsv![namespace],
+                )
+                .await
+        }
+    }
 }
 
-pub async fn lookup_or_new(context: &Context, namespace: Namespace, foreign_id: ChatId) -> String {
-    if let Some(token) = lookup(context, namespace, foreign_id).await {
+pub async fn lookup_or_new(
+    context: &Context,
+    namespace: Namespace,
+    chat: Option<ChatId>,
+) -> String {
+    if let Some(token) = lookup(context, namespace, chat).await {
         return token;
     }
 
-    save(context, namespace, foreign_id).await
+    save(context, namespace, chat).await
 }
 
 pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> bool {

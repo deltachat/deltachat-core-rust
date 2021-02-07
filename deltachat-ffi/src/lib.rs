@@ -1852,9 +1852,14 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
         return "".strdup();
     }
     let ctx = &*context;
+    let chat_id = if chat_id == 0 {
+        None
+    } else {
+        Some(ChatId::new(chat_id))
+    };
 
     block_on(async move {
-        securejoin::dc_get_securejoin_qr(&ctx, ChatId::new(chat_id))
+        securejoin::dc_get_securejoin_qr(&ctx, chat_id)
             .await
             .unwrap_or_else(|| "".to_string())
             .strdup()
