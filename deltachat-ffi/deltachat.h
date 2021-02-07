@@ -2865,6 +2865,7 @@ char*            dc_chat_get_info_json       (dc_context_t* context, size_t chat
 #define         DC_CHAT_TYPE_UNDEFINED       0
 #define         DC_CHAT_TYPE_SINGLE          100
 #define         DC_CHAT_TYPE_GROUP           120
+#define         DC_CHAT_TYPE_MAILINGLIST     140
 
 
 /**
@@ -2905,20 +2906,17 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
  * - DC_CHAT_TYPE_GROUP  (120) - a group chat, chats_contacts contain all group
  *   members, incl. DC_CONTACT_ID_SELF
  *
+ * - DC_CHAT_TYPE_MAILINGLIST (140) - a mailing list, this is similar to groups,
+ *   however, the member list cannot be retrieved completely
+ *   and cannot be changed using this api.
+ *   moreover, for now, mailist lists are read-only.
+ *
  * @memberof dc_chat_t
  * @param chat The chat object.
  * @return Chat type.
  */
 int             dc_chat_get_type             (const dc_chat_t* chat);
 
-/**
- * Get whether group chat shows a mailing list. If yes, you should probably remove controls that
- * can't be used in mailing lists (like leaving, adding members, removing members)
- *
- * @memberof dc_chat_t
- * @return 1 if this group chat shows a mailing list, 0 otherwise.
- */
-int             dc_chat_is_mailing_list              (const dc_chat_t* chat);
 
 /**
  * Get name of a chat. For one-to-one chats, this is the name of the contact.
