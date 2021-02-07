@@ -573,7 +573,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     );
                 }
             }
-            if location::is_sending_locations_to_chat(&context, ChatId::new(0)).await {
+            if location::is_sending_locations_to_chat(&context, None).await {
                 println!("Location streaming enabled.");
             }
             println!("{} chats", cnt);
@@ -735,7 +735,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 contacts.len(),
                 location::is_sending_locations_to_chat(
                     &context,
-                    sel_chat.as_ref().unwrap().get_id()
+                    Some(sel_chat.as_ref().unwrap().get_id())
                 )
                 .await,
             );
@@ -743,10 +743,10 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "getlocations" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
 
-            let contact_id = arg1.parse().unwrap_or_default();
+            let contact_id: Option<u32> = arg1.parse().ok();
             let locations = location::get_range(
                 &context,
-                sel_chat.as_ref().unwrap().get_id(),
+                Some(sel_chat.as_ref().unwrap().get_id()),
                 contact_id,
                 0,
                 0,
