@@ -704,14 +704,12 @@ impl Job {
                 match chat.typ {
                     Chattype::Group | Chattype::Mailinglist => {
                         // The next lines are actually what we do in
-                        let (test_normal_chat_id, test_normal_chat_id_blocked) =
+                        let (_test_normal_chat_id, test_normal_chat_id_blocked) =
                             chat::lookup_by_contact_id(context, msg.from_id)
                                 .await
                                 .unwrap_or_default();
 
-                        if !test_normal_chat_id.is_unset()
-                            && test_normal_chat_id_blocked == Blocked::Not
-                        {
+                        if test_normal_chat_id_blocked == Blocked::Not {
                             chat.id.unblock(context).await;
                         }
                     }
