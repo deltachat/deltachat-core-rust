@@ -1622,10 +1622,8 @@ pub(crate) async fn prefetch_should_download(
     // deleted from the database or has not arrived yet.
     if let Some(rfc724_mid) = headers.get_header_value(HeaderDef::MessageId) {
         if let Some(group_id) = dc_extract_grpid_from_rfc724_mid(&rfc724_mid) {
-            if let Ok((chat_id, _, _)) = get_chat_id_by_grpid(context, group_id).await {
-                if !chat_id.is_unset() {
-                    return Ok(true);
-                }
+            if let Ok((_chat_id, _, _)) = get_chat_id_by_grpid(context, group_id).await {
+                return Ok(true);
             }
         }
     }
