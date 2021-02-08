@@ -2273,7 +2273,7 @@ pub(crate) async fn add_contact_to_chat_ex(
     /*this also makes sure, not contacts are added to special or normal chats*/
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     ensure!(
-        real_group_exists(context, chat_id).await,
+        chat.typ == Chattype::Group,
         "{} is not a group where one can add members",
         chat_id
     );
@@ -2350,22 +2350,6 @@ pub(crate) async fn add_contact_to_chat_ex(
     }
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(true)
-}
-
-async fn real_group_exists(context: &Context, chat_id: ChatId) -> bool {
-    // check if a group or a verified group exists under the given ID
-    if !context.sql.is_open().await || chat_id.is_special() {
-        return false;
-    }
-
-    context
-        .sql
-        .exists(
-            "SELECT id FROM chats WHERE id=? AND type=120;",
-            paramsv![chat_id],
-        )
-        .await
-        .unwrap_or_default()
 }
 
 pub(crate) async fn reset_gossiped_timestamp(
@@ -2538,8 +2522,7 @@ pub async fn remove_contact_from_chat(
     /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
     /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
-        ensure!(!chat.is_mailing_list(), "Mailing lists can't be changed");
-        if real_group_exists(context, chat_id).await {
+        if chat.typ == Chattype::Group {
             if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
                 emit_event!(
                     context,
@@ -2646,7 +2629,7 @@ pub async fn set_chat_name(
     let chat = Chat::load_from_db(context, chat_id).await?;
     let mut msg = Message::default();
 
-    if real_group_exists(context, chat_id).await {
+    if chat.typ == Chattype::Group || chat.typ == Chattype::Mailinglist {
         if chat.name == new_name {
             success = true;
         } else if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
@@ -2713,7 +2696,7 @@ pub async fn set_chat_profile_image(
     ensure!(!chat_id.is_special(), "Invalid chat ID");
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     ensure!(
-        real_group_exists(context, chat_id).await,
+        chat.typ == Chattype::Group || chat.typ == Chattype::Mailinglist,
         "Failed to set profile image; group does not exist"
     );
     /* we should respect this - whatever we send to the group, it gets discarded anyway! */
