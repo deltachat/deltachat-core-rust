@@ -1519,6 +1519,8 @@ mod tests {
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Götz C".to_string()));
 
+        // although RFC 2047 says, encoded-words shall not appear inside quoted-string,
+        // this combination is used in the wild eg. by MailMate
         let mimemsg =
             MimeMessage::from_bytes(&ctx, b"From: \"=?utf-8?q?G=C3=B6tz?= C\" <g@c.de>\n\nhi")
                 .await
