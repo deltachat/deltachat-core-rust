@@ -435,11 +435,11 @@ class TestOfflineChat:
         email = "hello <hello@example.org>"
         contact1 = ac1.create_contact(email)
         assert contact1.addr == "hello@example.org"
-        assert contact1.display_name == "hello"
+        assert contact1.name == "hello"
         contact1 = ac1.create_contact(email, name="world")
-        assert contact1.display_name == "world"
+        assert contact1.name == "world"
         contact2 = ac1.create_contact("display1 <x@example.org>", "real")
-        assert contact2.display_name == "real"
+        assert contact2.name == "real"
 
     def test_create_chat_simple(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
@@ -2131,7 +2131,9 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
         ac1.set_config("displayname", "Account 1")
 
-        chat12 = acfactory.get_accepted_chat(ac1, ac2)
+        # Similar to acfactory.get_accepted_chat, but without setting the contact name.
+        ac2.create_contact(ac1.get_config("addr")).create_chat()
+        chat12 = ac1.create_contact(ac2.get_config("addr")).create_chat()
         contact = None
 
         def update_name():
@@ -2162,12 +2164,7 @@ class TestOnlineAccount:
         # so it should not be changed.
         ac1.set_config("displayname", "Renamed again")
         updated_name = update_name()
-        if updated_name == "Renamed again":
-            # Known bug, mark as XFAIL
-            pytest.xfail("Contact was renamed after explicit rename")
-        else:
-            # No renames should happen after explicit rename
-            assert updated_name == "Renamed"
+        assert updated_name == "Renamed"
 
     def test_group_quote(self, acfactory, lp):
         """Test quoting in a group with a new member who have not seen the quoted message."""
