@@ -3784,4 +3784,53 @@ mod tests {
         assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
         assert_eq!(msg.get_state(), MessageState::OutDelivered); // as bcc-self is disabled and there is nobody else in the chat
     }
+
+    #[async_std::test]
+    async fn test_lookup_by_contact_id() {
+        let ctx = TestContext::new_alice().await;
+
+        // create contact, then unblocked chat
+        let contact_id = Contact::create(&ctx, "", "bob@foo.de").await.unwrap();
+        assert_ne!(contact_id, 0);
+        let res = lookup_by_contact_id(&ctx, contact_id).await;
+        assert!(res.is_err());
+
+        let chat_id = create_by_contact_id(&ctx, contact_id).await.unwrap();
+        let (chat_id2, blocked) = lookup_by_contact_id(&ctx, contact_id).await.unwrap();
+        assert_eq!(chat_id, chat_id2);
+        assert_eq!(blocked, Blocked::Not);
+
+        // create contact, then blocked chat
+        let contact_id = Contact::create(&ctx, "", "claire@foo.de").await.unwrap();
+        let (chat_id, _) = create_or_lookup_by_contact_id(&ctx, contact_id, Blocked::Manually)
+            .await
+            .unwrap();
+        let (chat_id2, blocked) = lookup_by_contact_id(&ctx, contact_id).await.unwrap();
+        assert_eq!(chat_id, chat_id2);
+        assert_eq!(blocked, Blocked::Manually);
+
+        // test nonexistent contact, and also check if reasonable defaults are used
+        let res = lookup_by_contact_id(&ctx, 1234).await;
+        assert!(res.is_err());
+
+        let (chat_id, blocked) = lookup_by_contact_id(&ctx, 1234).await.unwrap_or_default();
+        assert_eq!(chat_id, ChatId::new(0));
+        assert_eq!(blocked, Blocked::Not);
+    }
+
+    #[async_std::test]
+    async fn test_lookup_self_by_contact_id() {
+        let ctx = TestContext::new_alice().await;
+
+        let res = lookup_by_contact_id(&ctx, DC_CONTACT_ID_SELF).await;
+        assert!(res.is_err());
+
+        ctx.update_device_chats().await.unwrap();
+        let (chat_id, blocked) = lookup_by_contact_id(&ctx, DC_CONTACT_ID_SELF)
+            .await
+            .unwrap();
+        assert!(!chat_id.is_special());
+        assert!(chat_id.is_self_talk(&ctx).await.unwrap());
+        assert_eq!(blocked, Blocked::Not);
+    }
 }
