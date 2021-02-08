@@ -272,7 +272,7 @@ impl Job {
                                 // Other enhanced status codes, such as Postfix
                                 // "550 5.1.1 <foobar@example.org>: Recipient address rejected: User unknown in local recipient table"
                                 // are not ignored.
-                                response.message.get(0) == Some(&"5.5.0".to_string())
+                                response.first_word() == Some(&"5.5.0".to_string())
                             }
                             _ => false,
                         };
