@@ -2422,13 +2422,9 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(
-            Contact::load_from_db(&t, carl_contact_id)
-                .await
-                .unwrap()
-                .get_name(),
-            "h2"
-        );
+        let contact = Contact::load_from_db(&t, carl_contact_id).await.unwrap();
+        assert_eq!(contact.get_name(), "");
+        assert_eq!(contact.get_display_name(), "h2");
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         let msg = Message::load_from_db(&t, chats.get_msg_id(0).unwrap())
@@ -2471,13 +2467,9 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(
-            Contact::load_from_db(&t, carl_contact_id)
-                .await
-                .unwrap()
-                .get_name(),
-            "Carl"
-        );
+        let contact = Contact::load_from_db(&t, carl_contact_id).await.unwrap();
+        assert_eq!(contact.get_name(), "");
+        assert_eq!(contact.get_display_name(), "Carl");
     }
 
     #[async_std::test]

@@ -490,6 +490,8 @@ mod tests {
         let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "stress@test.local");
         assert_eq!(contact.get_name(), "First Last");
+        assert_eq!(contact.get_authname(), "");
+        assert_eq!(contact.get_display_name(), "First Last");
     }
 
     #[async_std::test]
