@@ -682,8 +682,8 @@ impl Job {
             }
         }
 
-        // Make sure that if there now is a chat with a contact (created by an outgoing message), then group contact requests
-        // from this contact should also be unblocked.
+        // Make sure that if there now is a chat with a contact (created by an outgoing
+        // message), then group contact requests from this contact should also be unblocked.
         // See https://github.com/deltachat/deltachat-core-rust/issues/2097.
         for item in chat::get_chat_msgs(context, ChatId::new(DC_CHAT_ID_DEADDROP), 0, None).await {
             if let ChatItem::Message { msg_id } = item {
@@ -703,14 +703,15 @@ impl Job {
                 };
                 match chat.typ {
                     Chattype::Group | Chattype::Mailinglist => {
-                        // The next lines are actually what we do in
-                        let (_test_normal_chat_id, test_normal_chat_id_blocked) =
-                            chat::lookup_by_contact_id(context, msg.from_id)
-                                .await
-                                .unwrap_or_default();
-
-                        if test_normal_chat_id_blocked == Blocked::Not {
-                            chat.id.unblock(context).await;
+                        match chat::lookup_by_contact_id(context, msg.from_id).await {
+                            Err(e) => {
+                                warn!(context, "can't get chat: {:#}", e);
+                                return Status::RetryLater;
+                            }
+                            Ok((_1to1_chat, Blocked::Not)) => {
+                                chat.id.unblock(context).await;
+                            }
+                            Ok(_) => (),
                         }
                     }
                     Chattype::Single | Chattype::Undefined => {}
