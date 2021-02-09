@@ -4015,8 +4015,10 @@ char*           dc_contact_get_addr          (const dc_contact_t* contact);
 
 
 /**
- * Get the contact name. This is the name as defined by the contact himself or
- * modified by the user.  May be an empty string.
+ * Get the edited contact name.
+ * This is the name as given or modified by the local user using dc_create_contact().
+ * If there is no such name for the contact, an empty string is returned.
+ * The function does not return the contact name as received from the network.
  *
  * This name is typically used in a form where the user can edit the name of a contact.
  * To get a fine name to display in lists etc., use dc_contact_get_display_name() or dc_contact_get_name_n_addr().

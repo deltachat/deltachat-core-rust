@@ -867,8 +867,8 @@ impl Contact {
         &self.authname
     }
 
-    /// Get the contact name. This is the name as defined by the contact himself or
-    /// modified by the user.  May be an empty string.
+    /// Get the contact name. This is the name as modified by the local user.
+    /// May be an empty string.
     ///
     /// This name is typically used in a form where the user can edit the name of a contact.
     /// To get a fine name to display in lists etc., use `Contact::get_display_name` or `Contact::get_name_n_addr`.
