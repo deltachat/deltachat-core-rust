@@ -3182,6 +3182,30 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_add_remove_contact_for_single() {
+        let ctx = TestContext::new_alice().await;
+        let bob = Contact::create(&ctx, "", "bob@f.br").await.unwrap();
+        let chat_id = create_by_contact_id(&ctx, bob).await.unwrap();
+        let chat = Chat::load_from_db(&ctx, chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Single);
+        assert_eq!(get_chat_contacts(&ctx, chat.id).await.len(), 1);
+
+        // adding or removing contacts from one-to-one-chats result in an error
+        let claire = Contact::create(&ctx, "", "claire@foo.de").await.unwrap();
+        let added = add_contact_to_chat_ex(&ctx, chat.id, claire, false).await;
+        assert!(added.is_err());
+        assert_eq!(get_chat_contacts(&ctx, chat.id).await.len(), 1);
+
+        let removed = remove_contact_from_chat(&ctx, chat.id, claire).await;
+        assert!(removed.is_err());
+        assert_eq!(get_chat_contacts(&ctx, chat.id).await.len(), 1);
+
+        let removed = remove_contact_from_chat(&ctx, chat.id, DC_CONTACT_ID_SELF).await;
+        assert!(removed.is_err());
+        assert_eq!(get_chat_contacts(&ctx, chat.id).await.len(), 1);
+    }
+
+    #[async_std::test]
     async fn test_self_talk() {
         let t = TestContext::new().await;
         let chat = &t.get_self_chat().await;
