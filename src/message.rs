@@ -1078,17 +1078,9 @@ impl Lot {
                         self.text1 = None;
                         self.text1_meaning = Meaning::None;
                     } else {
-                        if chat.id.is_deaddrop() {
-                            if let Some(contact) = contact {
-                                self.text1 = Some(msg.get_sender_name(contact));
-                            } else {
-                                self.text1 = None;
-                            }
-                        } else if let Some(contact) = contact {
-                            self.text1 = Some(msg.get_sender_name(contact));
-                        } else {
-                            self.text1 = None;
-                        }
+                        self.text1 = msg
+                            .get_override_sender_name()
+                            .or_else(|| contact.map(|contact| msg.get_sender_name(contact)));
                         self.text1_meaning = Meaning::Text1Username;
                     }
                 }
