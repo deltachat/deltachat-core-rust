@@ -502,18 +502,23 @@ class Chat(object):
                 latitude=lib.dc_array_get_latitude(dc_array, i),
                 longitude=lib.dc_array_get_longitude(dc_array, i),
                 accuracy=lib.dc_array_get_accuracy(dc_array, i),
-                timestamp=datetime.utcfromtimestamp(lib.dc_array_get_timestamp(dc_array, i)))
+                timestamp=datetime.utcfromtimestamp(
+                    lib.dc_array_get_timestamp(dc_array, i)
+                ),
+                marker=from_dc_charpointer(lib.dc_array_get_marker(dc_array, i)),
+            )
             for i in range(lib.dc_array_get_cnt(dc_array))
         ]
 
 
 class Location:
-    def __init__(self, latitude, longitude, accuracy, timestamp):
+    def __init__(self, latitude, longitude, accuracy, timestamp, marker):
         assert isinstance(timestamp, datetime)
         self.latitude = latitude
         self.longitude = longitude
         self.accuracy = accuracy
         self.timestamp = timestamp
+        self.marker = marker
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__

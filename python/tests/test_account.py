@@ -1876,7 +1876,7 @@ class TestOnlineAccount:
 
         ac1.set_location(latitude=2.0, longitude=3.0, accuracy=0.5)
         ac1._evtracker.get_matching("DC_EVENT_LOCATION_CHANGED")
-        chat1.send_text("hello")
+        chat1.send_text("🍞")
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
         lp.sec("ac2: wait for incoming location message")
@@ -1890,6 +1890,7 @@ class TestOnlineAccount:
         assert locations[0].longitude == 3.0
         assert locations[0].accuracy == 0.5
         assert locations[0].timestamp > now
+        assert locations[0].marker == "🍞"
 
         contact = ac2.create_contact(ac1)
         locations2 = chat2.get_locations(contact=contact)
