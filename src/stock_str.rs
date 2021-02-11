@@ -296,7 +296,7 @@ trait StockStringMods: AsRef<str> + Sized {
 
     /// Substitutes the second replacement value if one is present.
     ///
-    /// Be aware you probably should have also called [`TranslatedStockString::replace1`] if
+    /// Be aware you probably should have also called [`StockStringMods::replace1`] if
     /// you are calling this.
     fn replace2(&self, replacement: impl AsRef<str>) -> String {
         self.as_ref()
@@ -307,8 +307,8 @@ trait StockStringMods: AsRef<str> + Sized {
 
     /// Augments the message by saying it was performed by a user.
     ///
-    /// This looks up the display name of `contact` and uses the [`MsgActionByMe`] and
-    /// [`MsgActionByUser`] stock strings to turn the stock string in one that says the
+    /// This looks up the display name of `contact` and uses the [`msg_action_by_me`] and
+    /// [`msg_action_by_user`] stock strings to turn the stock string in one that says the
     /// action was performed by this user.
     ///
     /// E.g. this turns `Group image changed.` into `Group image changed by me.` or `Group
