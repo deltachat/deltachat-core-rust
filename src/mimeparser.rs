@@ -66,6 +66,9 @@ pub struct MimeMessage {
     pub(crate) mdn_reports: Vec<Report>,
     pub(crate) failure_report: Option<FailureReport>,
 
+    /// Standard USENET signature, if any.
+    pub(crate) footer: Option<String>,
+
     // if this flag is set, the parts/text/etc. are just close to the original mime-message;
     // clients should offer a way to view the original message in this case
     pub is_mime_modified: bool,
@@ -233,6 +236,7 @@ impl MimeMessage {
             user_avatar: None,
             group_avatar: None,
             failure_report: None,
+            footer: None,
             is_mime_modified: false,
             decoded_data: Vec::new(),
         };
@@ -752,9 +756,9 @@ impl MimeMessage {
 
                         let mut dehtml_failed = false;
 
-                        let (simplified_txt, is_forwarded, is_cut, top_quote) =
+                        let (simplified_txt, is_forwarded, is_cut, top_quote, footer) =
                             if decoded_data.is_empty() {
-                                ("".to_string(), false, false, None)
+                                ("".to_string(), false, false, None, None)
                             } else {
                                 let is_html = mime_type == mime::TEXT_HTML;
                                 let out = if is_html {
@@ -814,6 +818,8 @@ impl MimeMessage {
                         if is_forwarded {
                             self.is_forwarded = true;
                         }
+
+                        self.footer = footer;
                     }
                     _ => {}
                 }

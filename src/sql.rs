@@ -1500,6 +1500,15 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             .await?;
             sql.set_raw_config_int(context, "dbversion", 74).await?;
         }
+        if dbversion < 75 {
+            info!(context, "[migration] v75");
+            sql.execute(
+                "ALTER TABLE contacts ADD COLUMN status TEXT DEFAULT '';",
+                paramsv![],
+            )
+            .await?;
+            sql.set_raw_config_int(context, "dbversion", 75).await?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
