@@ -1278,7 +1278,7 @@ async fn create_or_lookup_group(
         // After all, the sender has a reference/in-reply-to that
         // points to this chat.
         let s = stock_str::unknown_sender_for_chat(context).await;
-        mime_parser.repl_msg_by_error(s.to_string());
+        mime_parser.repl_msg_by_error(s);
     }
 
     // check if the group does not exist but should be created
@@ -2630,11 +2630,7 @@ mod tests {
 
         assert_eq!(
             last_msg.text,
-            Some(
-                stock_str::failed_sending_to(&t, "assidhfaaspocwaeofi@gmail.com")
-                    .await
-                    .to_string(),
-            )
+            Some(stock_str::failed_sending_to(&t, "assidhfaaspocwaeofi@gmail.com").await,)
         );
         assert_eq!(last_msg.from_id, DC_CONTACT_ID_INFO);
     }

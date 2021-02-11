@@ -385,7 +385,7 @@ impl Chatlist {
             ret.text2 = None;
         } else if lastmsg.is_none() || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED
         {
-            ret.text2 = Some(stock_str::no_messages(context).await.to_string());
+            ret.text2 = Some(stock_str::no_messages(context).await);
         } else {
             ret.fill(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context)
                 .await;

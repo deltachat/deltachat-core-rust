@@ -195,11 +195,7 @@ impl ChatId {
         }
         self.inner_set_ephemeral_timer(context, timer).await?;
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(
-            stock_ephemeral_timer_changed(context, timer, DC_CONTACT_ID_SELF)
-                .await
-                .to_string(),
-        );
+        msg.text = Some(stock_ephemeral_timer_changed(context, timer, DC_CONTACT_ID_SELF).await);
         msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
         if let Err(err) = send_msg(context, self, &mut msg).await {
             error!(

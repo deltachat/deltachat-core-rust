@@ -895,7 +895,6 @@ impl Context {
             ProtectionStatus::Unprotected => protection_enabled(self, from_id).await,
             ProtectionStatus::Protected => protection_disabled(self, from_id).await,
         }
-        .to_string()
     }
 
     pub(crate) async fn update_device_chats(&self) -> Result<(), Error> {
