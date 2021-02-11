@@ -29,7 +29,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::pgp;
 use crate::sql::{self, Sql};
-use crate::stock::{AcSetupMsgBody, AcSetupMsgSubject};
+use crate::stock_str;
 use ::pgp::types::KeyTrait;
 use async_tar::Archive;
 
@@ -275,8 +275,8 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
     );
     let pgp_msg = encr.replace("-----BEGIN PGP MESSAGE-----", &replacement);
 
-    let msg_subj = AcSetupMsgSubject::stock_str(context).await;
-    let msg_body = AcSetupMsgBody::stock_str(context).await;
+    let msg_subj = stock_str::ac_setup_msg_subject(context).await;
+    let msg_body = stock_str::ac_setup_msg_body(context).await;
     let msg_body_html = msg_body.replace("\r", "").replace("\n", "<br>");
     Ok(format!(
         concat!(
@@ -904,7 +904,7 @@ mod tests {
     use super::*;
 
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
-    use crate::stock::StockMessage;
+    use crate::stock_str::StockMessage;
     use crate::test_utils::{alice_keypair, TestContext};
 
     use ::pgp::armor::BlockType;

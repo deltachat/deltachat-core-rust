@@ -73,7 +73,7 @@ pub mod qr;
 pub mod securejoin;
 mod simplify;
 mod smtp;
-pub mod stock;
+pub mod stock_str;
 mod token;
 #[macro_use]
 mod dehtml;

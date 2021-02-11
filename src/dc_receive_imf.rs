@@ -26,10 +26,7 @@ use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMess
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
-use crate::stock::{
-    MsgAddMember, MsgDelMember, MsgGroupLeft, MsgGrpImgChanged, MsgGrpImgDeleted, MsgGrpName,
-    MsgLocationEnabled, UnknownSenderForChat,
-};
+use crate::stock_str;
 use crate::{contact, location};
 
 // IndexSet is like HashSet but maintains order of insertion
@@ -1168,9 +1165,7 @@ async fn create_or_lookup_group(
     let mut better_msg: String = From::from("");
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
-        better_msg = MsgLocationEnabled::stock_str_by(context, from_id)
-            .await
-            .to_string();
+        better_msg = stock_str::msg_location_enabled_by(context, from_id).await;
         set_better_msg(mime_parser, &better_msg);
     }
 
@@ -1235,11 +1230,9 @@ async fn create_or_lookup_group(
             Some(contact_id) => {
                 mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
                 better_msg = if contact_id == from_id {
-                    MsgGroupLeft::stock_str(context, from_id).await.to_string()
+                    stock_str::msg_group_left(context, from_id).await
                 } else {
-                    MsgDelMember::stock_str(context, &removed_addr, from_id)
-                        .await
-                        .to_string()
+                    stock_str::msg_del_member(context, &removed_addr, from_id).await
                 };
             }
             None => warn!(context, "removed {:?} has no contact_id", removed_addr),
@@ -1248,13 +1241,11 @@ async fn create_or_lookup_group(
         let field = mime_parser.get(HeaderDef::ChatGroupMemberAdded).cloned();
         if let Some(added_member) = field {
             mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
-            better_msg = MsgAddMember::stock_str(context, &added_member, from_id)
-                .await
-                .to_string();
+            better_msg = stock_str::msg_add_member(context, &added_member, from_id).await;
             X_MrAddToGrp = Some(added_member);
         } else if let Some(old_name) = mime_parser.get(HeaderDef::ChatGroupNameChanged) {
             X_MrGrpNameChanged = true;
-            better_msg = MsgGrpName::stock_str(
+            better_msg = stock_str::msg_grp_name(
                 context,
                 old_name,
                 if let Some(ref name) = grpname {
@@ -1264,8 +1255,7 @@ async fn create_or_lookup_group(
                 },
                 from_id as u32,
             )
-            .await
-            .to_string();
+            .await;
             mime_parser.is_system_message = SystemMessage::GroupNameChanged;
         } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent) {
             if value == "group-avatar-changed" {
@@ -1274,12 +1264,12 @@ async fn create_or_lookup_group(
                     // apart from that, the group-avatar is send along with various other messages
                     mime_parser.is_system_message = SystemMessage::GroupImageChanged;
                     better_msg = match avatar_action {
-                        AvatarAction::Delete => MsgGrpImgDeleted::stock_str(context, from_id)
-                            .await
-                            .to_string(),
-                        AvatarAction::Change(_) => MsgGrpImgChanged::stock_str(context, from_id)
-                            .await
-                            .to_string(),
+                        AvatarAction::Delete => {
+                            stock_str::msg_grp_img_deleted(context, from_id).await
+                        }
+                        AvatarAction::Change(_) => {
+                            stock_str::msg_grp_img_changed(context, from_id).await
+                        }
                     };
                 }
             }
@@ -1298,7 +1288,7 @@ async fn create_or_lookup_group(
         // but still show the message as part of the chat.
         // After all, the sender has a reference/in-reply-to that
         // points to this chat.
-        let s = UnknownSenderForChat::stock_str(context).await;
+        let s = stock_str::unknown_sender_for_chat(context).await;
         mime_parser.repl_msg_by_error(s.to_string());
     }
 
@@ -1976,16 +1966,13 @@ fn dc_create_incoming_rfc724_mid(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::{DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
+
+    use crate::chat::{ChatItem, ChatVisibility};
+    use crate::chatlist::Chatlist;
+    use crate::constants::{DC_CHAT_ID_DEADDROP, DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
     use crate::message::ContactRequestDecision::*;
     use crate::message::Message;
-    use crate::stock::FailedSendingTo;
-    use crate::test_utils::TestContext;
-    use crate::{
-        chat::{ChatItem, ChatVisibility},
-        constants::DC_CHAT_ID_DEADDROP,
-    };
-    use crate::{chatlist::Chatlist, test_utils::get_chat_msg};
+    use crate::test_utils::{get_chat_msg, TestContext};
 
     #[test]
     fn test_hex_hash() {
@@ -2647,7 +2634,7 @@ mod tests {
         assert_eq!(
             last_msg.text,
             Some(
-                FailedSendingTo::stock_str(&t, "assidhfaaspocwaeofi@gmail.com")
+                stock_str::failed_sending_to(&t, "assidhfaaspocwaeofi@gmail.com")
                     .await
                     .to_string(),
             )

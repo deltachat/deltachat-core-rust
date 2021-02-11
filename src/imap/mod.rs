@@ -35,7 +35,7 @@ use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::provider::Socket;
 use crate::scheduler::InterruptInfo;
-use crate::stock::CannotLogin;
+use crate::stock_str;
 
 mod client;
 mod idle;
@@ -255,9 +255,7 @@ impl Imap {
 
             Err((err, _)) => {
                 let imap_user = self.config.lp.user.to_owned();
-                let message = CannotLogin::stock_str(context, &imap_user)
-                    .await
-                    .to_string();
+                let message = stock_str::cannot_login(context, &imap_user).await;
 
                 warn!(context, "{} ({})", message, err);
 

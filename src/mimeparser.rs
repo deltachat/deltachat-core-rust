@@ -27,7 +27,7 @@ use crate::message;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::simplify;
-use crate::stock::CantDecryptMsgBody;
+use crate::stock_str;
 
 /// A parsed MIME message.
 ///
@@ -629,7 +629,7 @@ impl MimeMessage {
                 // we currently do not try to decrypt non-autocrypt messages
                 // at all. If we see an encrypted part, we set
                 // decrypting_failed.
-                let msg_body = CantDecryptMsgBody::stock_str(context).await;
+                let msg_body = stock_str::cant_decrypt_msg_body(context).await;
                 let txt = format!("[{}]", msg_body);
 
                 let part = Part {

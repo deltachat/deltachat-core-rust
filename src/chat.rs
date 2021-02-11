@@ -1,6 +1,5 @@
 //! # Chat module
 
-use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
@@ -39,11 +38,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql;
-use crate::stock::{
-    ArchivedChats, DeadDrop, DeviceMessages, E2eAvailable, E2ePreferred, EncrNone, MsgAddMember,
-    MsgDelMember, MsgGroupLeft, MsgGrpImgChanged, MsgGrpImgDeleted, MsgGrpName, NewGroupDraft,
-    SavedMessages, SelfDeletedMsgBody, VideochatInviteMsgBody,
-};
+use crate::stock_str;
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone)]
@@ -401,7 +396,7 @@ impl ChatId {
 
         if chat.is_self_talk() {
             let mut msg = Message::new(Viewtype::Text);
-            msg.text = Some(SelfDeletedMsgBody::stock_str(context).await.into());
+            msg.text = Some(stock_str::self_deleted_msg_body(context).await);
             add_device_msg(&context, None, Some(&mut msg)).await?;
         }
 
@@ -667,10 +662,10 @@ impl ChatId {
                 })
                 .map(|peerstate| peerstate.prefer_encrypt)
             {
-                Some(EncryptPreference::Mutual) => E2ePreferred::stock_str(context).await,
-                Some(EncryptPreference::NoPreference) => E2eAvailable::stock_str(context).await,
-                Some(EncryptPreference::Reset) => EncrNone::stock_str(context).await,
-                None => EncrNone::stock_str(context).await,
+                Some(EncryptPreference::Mutual) => stock_str::e2e_preferred(context).await,
+                Some(EncryptPreference::NoPreference) => stock_str::e2e_available(context).await,
+                Some(EncryptPreference::Reset) => stock_str::encr_none(context).await,
+                None => stock_str::encr_none(context).await,
             };
             if !ret.is_empty() {
                 ret.push('\n')
@@ -793,9 +788,9 @@ impl Chat {
             }
             Ok(mut chat) => {
                 if chat.id.is_deaddrop() {
-                    chat.name = DeadDrop::stock_str(context).await.into();
+                    chat.name = stock_str::dead_drop(context).await;
                 } else if chat.id.is_archived_link() {
-                    let tempname = ArchivedChats::stock_str(context).await;
+                    let tempname = stock_str::archived_chats(context).await;
                     let cnt = dc_get_archived_cnt(context).await;
                     chat.name = format!("{} ({})", tempname, cnt);
                 } else {
@@ -810,9 +805,9 @@ impl Chat {
                         chat.name = chat_name;
                     }
                     if chat.param.exists(Param::Selftalk) {
-                        chat.name = SavedMessages::stock_str(context).await.into();
+                        chat.name = stock_str::saved_messages(context).await;
                     } else if chat.param.exists(Param::Devicetalk) {
-                        chat.name = DeviceMessages::stock_str(context).await.into();
+                        chat.name = stock_str::device_messages(context).await;
                     }
                 }
                 Ok(chat)
@@ -1411,10 +1406,9 @@ pub(crate) async fn update_device_icon(context: &Context) -> Result<(), Error> {
 async fn update_special_chat_name(
     context: &Context,
     contact_id: u32,
-    name: Cow<'static, str>,
+    name: String,
 ) -> Result<(), Error> {
     if let Ok((chat_id, _)) = lookup_by_contact_id(context, contact_id).await {
-        let name: String = name.into();
         // the `!= name` condition avoids unneeded writes
         context
             .sql
@@ -1431,13 +1425,13 @@ pub(crate) async fn update_special_chat_names(context: &Context) -> Result<(), E
     update_special_chat_name(
         context,
         DC_CONTACT_ID_DEVICE,
-        DeviceMessages::stock_str(context).await,
+        stock_str::device_messages(context).await,
     )
     .await?;
     update_special_chat_name(
         context,
         DC_CONTACT_ID_SELF,
-        SavedMessages::stock_str(context).await,
+        stock_str::saved_messages(context).await,
     )
     .await?;
     Ok(())
@@ -1822,9 +1816,8 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
     let mut msg = Message::new(Viewtype::VideochatInvitation);
     msg.param.set(Param::WebrtcRoom, &instance);
     msg.text = Some(
-        VideochatInviteMsgBody::stock_str(context, Message::parse_webrtc_instance(&instance).1)
-            .await
-            .to_string(),
+        stock_str::videochat_invite_msg_body(context, Message::parse_webrtc_instance(&instance).1)
+            .await,
     );
     send_msg(context, chat_id, &mut msg).await
 }
@@ -2161,9 +2154,7 @@ pub async fn create_group_chat(
     let chat_name = improve_single_line_input(chat_name);
     ensure!(!chat_name.is_empty(), "Invalid chat name");
 
-    let draft_txt = NewGroupDraft::stock_str(context, &chat_name)
-        .await
-        .to_string();
+    let draft_txt = stock_str::new_group_draft(context, &chat_name).await;
     let grpid = dc_create_id();
 
     context.sql.execute(
@@ -2340,11 +2331,8 @@ pub(crate) async fn add_contact_to_chat_ex(
     }
     if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
         msg.viewtype = Viewtype::Text;
-        msg.text = Some(
-            MsgAddMember::stock_str(context, contact.get_addr(), DC_CONTACT_ID_SELF)
-                .await
-                .to_string(),
-        );
+        msg.text =
+            Some(stock_str::msg_add_member(context, contact.get_addr(), DC_CONTACT_ID_SELF).await);
         msg.param.set_cmd(SystemMessage::MemberAddedToGroup);
         msg.param.set(Param::Arg, contact.get_addr());
         msg.param.set_int(Param::Arg2, from_handshake.into());
@@ -2538,20 +2526,16 @@ pub async fn remove_contact_from_chat(
                         msg.viewtype = Viewtype::Text;
                         if contact.id == DC_CONTACT_ID_SELF {
                             set_group_explicitly_left(context, chat.grpid).await?;
-                            msg.text = Some(
-                                MsgGroupLeft::stock_str(context, DC_CONTACT_ID_SELF)
-                                    .await
-                                    .to_string(),
-                            );
+                            msg.text =
+                                Some(stock_str::msg_group_left(context, DC_CONTACT_ID_SELF).await);
                         } else {
                             msg.text = Some(
-                                MsgDelMember::stock_str(
+                                stock_str::msg_del_member(
                                     context,
                                     contact.get_addr(),
                                     DC_CONTACT_ID_SELF,
                                 )
-                                .await
-                                .to_string(),
+                                .await,
                             );
                         }
                         msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
@@ -2647,9 +2631,8 @@ pub async fn set_chat_name(
                 if chat.is_promoted() && !chat.is_mailing_list() {
                     msg.viewtype = Viewtype::Text;
                     msg.text = Some(
-                        MsgGrpName::stock_str(context, &chat.name, &new_name, DC_CONTACT_ID_SELF)
-                            .await
-                            .to_string(),
+                        stock_str::msg_grp_name(context, &chat.name, &new_name, DC_CONTACT_ID_SELF)
+                            .await,
                     );
                     msg.param.set_cmd(SystemMessage::GroupNameChanged);
                     if !chat.name.is_empty() {
@@ -2706,11 +2689,7 @@ pub async fn set_chat_profile_image(
     if new_image.as_ref().is_empty() {
         chat.param.remove(Param::ProfileImage);
         msg.param.remove(Param::Arg);
-        msg.text = Some(
-            MsgGrpImgDeleted::stock_str(context, DC_CONTACT_ID_SELF)
-                .await
-                .to_string(),
-        );
+        msg.text = Some(stock_str::msg_grp_img_deleted(context, DC_CONTACT_ID_SELF).await);
     } else {
         let image_blob = match BlobObject::from_path(context, Path::new(new_image.as_ref())) {
             Ok(blob) => Ok(blob),
@@ -2724,11 +2703,7 @@ pub async fn set_chat_profile_image(
         image_blob.recode_to_avatar_size(context).await?;
         chat.param.set(Param::ProfileImage, image_blob.as_name());
         msg.param.set(Param::Arg, image_blob.as_name());
-        msg.text = Some(
-            MsgGrpImgChanged::stock_str(context, DC_CONTACT_ID_SELF)
-                .await
-                .to_string(),
-        );
+        msg.text = Some(stock_str::msg_grp_img_changed(context, DC_CONTACT_ID_SELF).await);
     }
     chat.update_param(context).await?;
     if chat.is_promoted() && !chat.is_mailing_list() {
@@ -3206,7 +3181,7 @@ mod tests {
         assert!(chat.visibility == ChatVisibility::Normal);
         assert!(!chat.is_device_talk());
         assert!(chat.can_send());
-        assert_eq!(chat.name, SavedMessages::stock_str(&t).await);
+        assert_eq!(chat.name, stock_str::saved_messages(&t).await);
         assert!(chat.get_profile_image(&t).await.is_some());
     }
 
@@ -3222,7 +3197,7 @@ mod tests {
         assert!(chat.visibility == ChatVisibility::Normal);
         assert!(!chat.is_device_talk());
         assert!(!chat.can_send());
-        assert_eq!(chat.name, DeadDrop::stock_str(&t).await);
+        assert_eq!(chat.name, stock_str::dead_drop(&t).await);
     }
 
     #[async_std::test]
@@ -3299,7 +3274,7 @@ mod tests {
         assert!(chat.is_device_talk());
         assert!(!chat.is_self_talk());
         assert!(!chat.can_send());
-        assert_eq!(chat.name, DeviceMessages::stock_str(&t).await);
+        assert_eq!(chat.name, stock_str::device_messages(&t).await);
         assert!(chat.get_profile_image(&t).await.is_some());
 
         // delete device message, make sure it is not added again

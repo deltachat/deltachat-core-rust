@@ -32,7 +32,7 @@ use deltachat::context::Context;
 use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
-use deltachat::stock::StockMessage;
+use deltachat::stock_str::StockMessage;
 use deltachat::*;
 
 mod dc_array;
