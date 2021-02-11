@@ -877,7 +877,13 @@ impl Message {
         if self.param.get(Param::Quote).is_some() {
             if let Some(in_reply_to) = &self.in_reply_to {
                 if let Some((_, _, msg_id)) = rfc724_mid_exists(context, in_reply_to).await? {
-                    return Ok(Some(Message::load_from_db(context, msg_id).await?));
+                    let msg = Message::load_from_db(context, msg_id).await?;
+                    return if msg.chat_id.is_trash() {
+                        // If message is already moved to trash chat, pretend it does not exist.
+                        Ok(None)
+                    } else {
+                        Ok(Some(msg))
+                    };
                 }
             }
         }
