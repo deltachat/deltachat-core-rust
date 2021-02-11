@@ -77,6 +77,14 @@ class Contact(object):
             return None
         return from_dc_charpointer(dc_res)
 
+    @property
+    def status(self):
+        """Get contact status.
+
+        :returns: contact status, empty string if it doesn't exist.
+        """
+        return from_dc_charpointer(lib.dc_contact_get_status(self._dc_contact))
+
     def create_chat(self):
         """ create or get an existing 1:1 chat object for the specified contact or contact id.
 

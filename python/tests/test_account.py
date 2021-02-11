@@ -2167,6 +2167,23 @@ class TestOnlineAccount:
         updated_name = update_name()
         assert updated_name == "Renamed"
 
+    def test_status(self, acfactory):
+        """Test that status is transferred over the network."""
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        chat12 = acfactory.get_accepted_chat(ac1, ac2)
+        ac1.set_config("selfstatus", "New status")
+        chat12.send_text("hi")
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.text == "hi"
+        assert msg.get_sender_contact().status == "New status"
+
+        ac1.set_config("selfstatus", "")
+        chat12.send_text("hello")
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.text == "hello"
+        assert msg.get_sender_contact().status == ""
+
     def test_group_quote(self, acfactory, lp):
         """Test quoting in a group with a new member who have not seen the quoted message."""
         ac1, ac2, ac3 = accounts = acfactory.get_many_online_accounts(3)

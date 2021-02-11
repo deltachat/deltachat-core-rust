@@ -17,16 +17,16 @@ pub fn escape_message_footer_marks(text: &str) -> String {
 }
 
 /// Remove standard (RFC 3676, §4.3) footer if it is found.
-/// Returns `(lines, is_footer_removed)` tuple;
-/// `is_footer_removed` is set to `true` if the footer was actually removed from `lines`
+/// Returns `(lines, footer_lines)` tuple;
+/// `footer_lines` is set to `Some` if the footer was actually removed from `lines`
 /// (which is equal to the input array otherwise).
 #[allow(clippy::indexing_slicing)]
-fn remove_message_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+fn remove_message_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<&'a [&'a str]>) {
     let mut nearly_standard_footer = None;
     for (ix, &line) in lines.iter().enumerate() {
         match line {
             // some providers encode `-- ` to `-- =20` which results in `--  `
-            "-- " | "--  " => return (&lines[..ix], true),
+            "-- " | "--  " => return (&lines[..ix], lines.get(ix + 1..)),
             // some providers encode `-- ` to `=2D-` which results in only `--`;
             // use that only when no other footer is found
             // and if the line before is empty and the line after is not empty
@@ -42,9 +42,9 @@ fn remove_message_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
         }
     }
     if let Some(ix) = nearly_standard_footer {
-        return (&lines[..ix], true);
+        return (&lines[..ix], lines.get(ix + 1..));
     }
-    (lines, false)
+    (lines, None)
 }
 
 /// Remove nonstandard footer and a boolean indicating whether such footer was removed.
@@ -73,9 +73,12 @@ pub(crate) fn split_lines(buf: &str) -> Vec<&str> {
 
 /// Simplify message text for chat display.
 /// Remove quotes, signatures, trailing empty lines etc.
-/// Returns `(text, is_forwarded, is_cut, quote)` tuple,
+/// Returns `(text, is_forwarded, is_cut, quote, footer)` tuple,
 /// returning the simplified text and some additional information gained from the input.
-pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, bool, Option<String>) {
+pub fn simplify(
+    mut input: String,
+    is_chat_message: bool,
+) -> (String, bool, bool, Option<String>, Option<String>) {
     let mut is_cut = false;
 
     input.retain(|c| c != '\r');
@@ -84,8 +87,9 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, bool
 
     let (lines, mut top_quote) = remove_top_quote(lines);
     let original_lines = &lines;
-    let (lines, footer_removed) = remove_message_footer(lines);
-    is_cut = is_cut || footer_removed;
+    let (lines, footer_lines) = remove_message_footer(lines);
+    let footer = footer_lines.map(|footer_lines| render_message(footer_lines, false));
+    is_cut = is_cut || footer.is_some();
 
     let text = if is_chat_message {
         render_message(lines, false)
@@ -108,13 +112,13 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool, bool
     if !is_chat_message {
         top_quote = top_quote.map(|quote| {
             let quote_lines = split_lines(&quote);
-            let (quote_lines, footer_removed) = remove_message_footer(&quote_lines);
-            is_cut = is_cut || footer_removed;
+            let (quote_lines, quote_footer_lines) = remove_message_footer(&quote_lines);
+            is_cut = is_cut || quote_footer_lines.is_some();
 
             render_message(quote_lines, false)
         });
     }
-    (text, is_forwarded, is_cut, top_quote)
+    (text, is_forwarded, is_cut, top_quote, footer)
 }
 
 /// Skips "forwarded message" header.
@@ -269,7 +273,7 @@ mod tests {
         #[test]
         // proptest does not support [[:graphical:][:space:]] regex.
         fn test_simplify_plain_text_fuzzy(input in "[!-~\t \n]+") {
-            let (output, _is_forwarded, _, _) = simplify(input, true);
+            let (output, _is_forwarded, _, _, _) = simplify(input, true);
             assert!(output.split('\n').all(|s| s != "-- "));
         }
     }
@@ -277,7 +281,7 @@ mod tests {
     #[test]
     fn test_dont_remove_whole_message() {
         let input = "\n------\nFailed\n------\n\nUh-oh, this workflow did not succeed!\n\nlots of other text".to_string();
-        let (plain, is_forwarded, is_cut, _) = simplify(input, false);
+        let (plain, is_forwarded, is_cut, _, _) = simplify(input, false);
         assert_eq!(
             plain,
             "------\nFailed\n------\n\nUh-oh, this workflow did not succeed!\n\nlots of other text"
@@ -289,16 +293,20 @@ mod tests {
     #[test]
     fn test_chat_message() {
         let input = "Hi! How are you?\n\n---\n\nI am good.\n-- \nSent with my Delta Chat Messenger: https://delta.chat".to_string();
-        let (plain, is_forwarded, is_cut, _) = simplify(input, true);
+        let (plain, is_forwarded, is_cut, _, footer) = simplify(input, true);
         assert_eq!(plain, "Hi! How are you?\n\n---\n\nI am good.");
         assert!(!is_forwarded);
         assert!(is_cut);
+        assert_eq!(
+            footer.unwrap(),
+            "Sent with my Delta Chat Messenger: https://delta.chat"
+        );
     }
 
     #[test]
     fn test_simplify_trim() {
         let input = "line1\n\r\r\rline2".to_string();
-        let (plain, is_forwarded, is_cut, _) = simplify(input, false);
+        let (plain, is_forwarded, is_cut, _, _) = simplify(input, false);
 
         assert_eq!(plain, "line1\nline2");
         assert!(!is_forwarded);
@@ -308,11 +316,12 @@ mod tests {
     #[test]
     fn test_simplify_forwarded_message() {
         let input = "---------- Forwarded message ----------\r\nFrom: test@example.com\r\n\r\nForwarded message\r\n-- \r\nSignature goes here".to_string();
-        let (plain, is_forwarded, is_cut, _) = simplify(input, false);
+        let (plain, is_forwarded, is_cut, _, footer) = simplify(input, false);
 
         assert_eq!(plain, "Forwarded message");
         assert!(is_forwarded);
         assert!(is_cut);
+        assert_eq!(footer.unwrap(), "Signature goes here");
     }
 
     #[test]
@@ -354,50 +363,60 @@ mod tests {
     #[test]
     fn test_remove_message_footer() {
         let input = "text\n--\nno footer".to_string();
-        let (plain, _, is_cut, _) = simplify(input, true);
+        let (plain, _, is_cut, _, footer) = simplify(input, true);
         assert_eq!(plain, "text\n--\nno footer");
+        assert_eq!(footer, None);
         assert!(!is_cut);
 
         let input = "text\n\n--\n\nno footer".to_string();
-        let (plain, _, is_cut, _) = simplify(input, true);
+        let (plain, _, is_cut, _, footer) = simplify(input, true);
         assert_eq!(plain, "text\n\n--\n\nno footer");
+        assert_eq!(footer, None);
         assert!(!is_cut);
 
         let input = "text\n\n-- no footer\n\n".to_string();
-        let (plain, _, _, _) = simplify(input, true);
+        let (plain, _, _, _, footer) = simplify(input, true);
         assert_eq!(plain, "text\n\n-- no footer");
+        assert_eq!(footer, None);
 
         let input = "text\n\n--\nno footer\n-- \nfooter".to_string();
-        let (plain, _, is_cut, _) = simplify(input, true);
+        let (plain, _, is_cut, _, footer) = simplify(input, true);
         assert_eq!(plain, "text\n\n--\nno footer");
         assert!(is_cut);
+        assert_eq!(footer.unwrap(), "footer");
 
         let input = "text\n\n--\ntreated as footer when unescaped".to_string();
-        let (plain, _, is_cut, _) = simplify(input.clone(), true);
+        let (plain, _, is_cut, _, footer) = simplify(input.clone(), true);
         assert_eq!(plain, "text"); // see remove_message_footer() for some explanations
         assert!(is_cut);
+        assert_eq!(footer.unwrap(), "treated as footer when unescaped");
         let escaped = escape_message_footer_marks(&input);
-        let (plain, _, is_cut, _) = simplify(escaped, true);
+        let (plain, _, is_cut, _, footer) = simplify(escaped, true);
         assert_eq!(plain, "text\n\n--\ntreated as footer when unescaped");
         assert!(!is_cut);
+        assert_eq!(footer, None);
 
         // Nonstandard footer sent by https://siju.es/
         let input = "Message text here\n---Desde mi teléfono con SIJÚ\n\nQuote here".to_string();
-        let (plain, _, is_cut, _) = simplify(input.clone(), false);
+        let (plain, _, is_cut, _, footer) = simplify(input.clone(), false);
         assert_eq!(plain, "Message text here [...]");
         assert!(is_cut);
-        let (plain, _, is_cut, _) = simplify(input.clone(), true);
+        assert_eq!(footer, None);
+        let (plain, _, is_cut, _, footer) = simplify(input.clone(), true);
         assert_eq!(plain, input);
         assert!(!is_cut);
+        assert_eq!(footer, None);
 
         let input = "--\ntreated as footer when unescaped".to_string();
-        let (plain, _, is_cut, _) = simplify(input.clone(), true);
+        let (plain, _, is_cut, _, footer) = simplify(input.clone(), true);
         assert_eq!(plain, ""); // see remove_message_footer() for some explanations
         assert!(is_cut);
+        assert_eq!(footer.unwrap(), "treated as footer when unescaped");
 
         let escaped = escape_message_footer_marks(&input);
-        let (plain, _, is_cut, _) = simplify(escaped, true);
+        let (plain, _, is_cut, _, footer) = simplify(escaped, true);
         assert_eq!(plain, "--\ntreated as footer when unescaped");
         assert!(!is_cut);
+        assert_eq!(footer, None);
     }
 }

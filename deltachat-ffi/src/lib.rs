@@ -3276,6 +3276,16 @@ pub unsafe extern "C" fn dc_contact_get_color(contact: *mut dc_contact_t) -> u32
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_status(contact: *mut dc_contact_t) -> *mut libc::c_char {
+    if contact.is_null() {
+        eprintln!("ignoring careless call to dc_contact_get_status()");
+        return "".strdup();
+    }
+    let ffi_contact = &*contact;
+    ffi_contact.contact.get_status().strdup()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_contact_is_blocked(contact: *mut dc_contact_t) -> libc::c_int {
     if contact.is_null() {
         eprintln!("ignoring careless call to dc_contact_is_blocked()");

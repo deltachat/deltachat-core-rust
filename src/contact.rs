@@ -71,6 +71,9 @@ pub struct Contact {
 
     /// Parameters as Param::ProfileImage
     pub param: Params,
+
+    /// Last seen message signature for this contact, to be displayed in the profile.
+    status: String,
 }
 
 /// Possible origins of a contact.
@@ -172,7 +175,7 @@ impl Contact {
         let mut res = context
             .sql
             .query_row(
-                "SELECT c.name, c.addr, c.origin, c.blocked, c.authname, c.param
+                "SELECT c.name, c.addr, c.origin, c.blocked, c.authname, c.param, c.status
                FROM contacts c
               WHERE c.id=?;",
                 paramsv![contact_id as i32],
@@ -185,6 +188,7 @@ impl Contact {
                         blocked: row.get::<_, Option<i32>>(3)?.unwrap_or_default() != 0,
                         origin: row.get(2)?,
                         param: row.get::<_, String>(5)?.parse().unwrap_or_default(),
+                        status: row.get(6).unwrap_or_default(),
                     };
                     Ok(contact)
                 },
@@ -194,6 +198,10 @@ impl Contact {
             res.name = context.stock_str(StockMessage::SelfMsg).await.to_string();
             res.addr = context
                 .get_config(Config::ConfiguredAddr)
+                .await
+                .unwrap_or_default();
+            res.status = context
+                .get_config(Config::Selfstatus)
                 .await
                 .unwrap_or_default();
         } else if contact_id == DC_CONTACT_ID_DEVICE {
@@ -841,12 +849,25 @@ impl Contact {
         Ok(contact)
     }
 
-    pub async fn update_param(&mut self, context: &Context) -> Result<()> {
+    /// Updates `param` column in the database.
+    pub async fn update_param(&self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
                 "UPDATE contacts SET param=? WHERE id=?",
                 paramsv![self.param.to_string(), self.id as i32],
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Updates `status` column in the database.
+    pub async fn update_status(&self, context: &Context) -> Result<()> {
+        context
+            .sql
+            .execute(
+                "UPDATE contacts SET status=? WHERE id=?",
+                paramsv![self.status, self.id as i32],
             )
             .await?;
         Ok(())
@@ -930,6 +951,13 @@ impl Contact {
     /// as well as for headlines in bubbles of group chats.
     pub fn get_color(&self) -> u32 {
         dc_str_to_color(&self.addr)
+    }
+
+    /// Gets the contact's status.
+    ///
+    /// Status is the last signature received in a message from this contact.
+    pub fn get_status(&self) -> &str {
+        self.status.as_str()
     }
 
     /// Check if a contact was verified. E.g. by a secure-join QR code scan
@@ -1158,6 +1186,18 @@ pub(crate) async fn set_profile_image(
     };
     if changed {
         contact.update_param(context).await?;
+        context.emit_event(EventType::ContactsChanged(Some(contact_id)));
+    }
+    Ok(())
+}
+
+/// Sets contact status.
+pub(crate) async fn set_status(context: &Context, contact_id: u32, status: String) -> Result<()> {
+    let mut contact = Contact::load_from_db(context, contact_id).await?;
+
+    if contact.status != status {
+        contact.status = status;
+        contact.update_status(context).await?;
         context.emit_event(EventType::ContactsChanged(Some(contact_id)));
     }
     Ok(())

@@ -4100,6 +4100,19 @@ uint32_t        dc_contact_get_color         (const dc_contact_t* contact);
 
 
 /**
+ * Get the contact's status.
+ *
+ * Status is the last signature received in a message from this contact.
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return Contact status, if any.
+ *     Empty string otherwise.
+ *     Must be released by using dc_str_unref() after usage.
+ */
+char*           dc_contact_get_status        (const dc_contact_t* contact);
+
+/**
  * Check if a contact is blocked.
  *
  * To block or unblock a contact, use dc_block_contact().
