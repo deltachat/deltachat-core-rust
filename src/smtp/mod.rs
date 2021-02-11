@@ -13,7 +13,7 @@ use crate::events::EventType;
 use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::provider::Socket;
-use crate::stock::ServerResponse;
+use crate::stock_str;
 
 /// SMTP write and read timeout in seconds.
 const SMTP_TIMEOUT: u64 = 30;
@@ -111,13 +111,12 @@ impl Smtp {
             )
             .await;
         if let Err(ref err) = res {
-            let message = ServerResponse::stock_str(
+            let message = stock_str::server_response(
                 context,
                 format!("SMTP {}:{}", lp.smtp.server, lp.smtp.port),
                 err.to_string(),
             )
-            .await
-            .to_string();
+            .await;
 
             context.emit_event(EventType::ErrorNetwork(message));
         };

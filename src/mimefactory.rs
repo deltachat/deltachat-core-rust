@@ -21,10 +21,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
-use crate::stock::{
-    AcSetupMsgBody, AcSetupMsgSubject, EncryptedMsg, ReadRcpt, ReadRcptMailBody, StatusLine,
-    SubjectForNewContact,
-};
+use crate::stock_str;
 use std::convert::TryInto;
 
 // attachments of 25 mb brutto should work on the majority of providers
@@ -142,7 +139,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             )
             .await?;
 
-        let default_str = StatusLine::stock_str(context).await.to_string();
+        let default_str = stock_str::status_line(context).await;
         let factory = MimeFactory {
             from_addr,
             from_displayname,
@@ -180,7 +177,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .get_config(Config::Displayname)
             .await
             .unwrap_or_default();
-        let default_str = StatusLine::stock_str(context).await.to_string();
+        let default_str = stock_str::status_line(context).await;
         let selfstatus = context
             .get_config(Config::Selfstatus)
             .await
@@ -342,9 +339,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         match self.loaded {
             Loaded::Message { ref chat } => {
                 if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-                    AcSetupMsgSubject::stock_str(self.context)
-                        .await
-                        .into_owned()
+                    stock_str::ac_setup_msg_subject(self.context).await
                 } else if chat.typ == Chattype::Group {
                     let re = if self.in_reply_to.is_empty() {
                         ""
@@ -386,14 +381,12 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                                     .unwrap_or_default(),
                             };
 
-                            SubjectForNewContact::stock_str(self.context, self_name)
-                                .await
-                                .to_string()
+                            stock_str::subject_for_new_contact(self.context, self_name).await
                         }
                     }
                 }
             }
-            Loaded::MDN { .. } => ReadRcpt::stock_str(self.context).await.into_owned(),
+            Loaded::MDN { .. } => stock_str::read_rcpt(self.context).await,
         }
     }
 
@@ -797,7 +790,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 unprotected_headers
                     .push(Header::new("Autocrypt-Setup-Message".into(), "v1".into()));
 
-                placeholdertext = Some(AcSetupMsgBody::stock_str(self.context).await.to_string());
+                placeholdertext = Some(stock_str::ac_setup_msg_body(self.context).await);
             }
             SystemMessage::SecurejoinMessage => {
                 let msg = &self.msg;
@@ -1055,11 +1048,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 .get_int(Param::GuaranteeE2ee)
                 .unwrap_or_default()
         {
-            EncryptedMsg::stock_str(self.context).await.into_owned()
+            stock_str::encrypted_msg(self.context).await
         } else {
             self.msg.get_summarytext(self.context, 32).await
         };
-        let p2 = ReadRcptMailBody::stock_str(self.context, p1).await;
+        let p2 = stock_str::read_rcpt_mail_body(self.context, p1).await;
         let message_text = format!("{}\r\n", p2);
         message = message.child(
             PartBuilder::new()

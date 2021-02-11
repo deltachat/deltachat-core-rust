@@ -22,7 +22,7 @@ use crate::message::Message;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::provider::get_provider_by_domain;
-use crate::stock::DeleteServerTurnedOff;
+use crate::stock_str;
 
 #[macro_export]
 macro_rules! paramsv {
@@ -1523,7 +1523,7 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
             // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
             if context.get_config_delete_server_after().await.is_some() {
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(DeleteServerTurnedOff::stock_str(context).await.into());
+                msg.text = Some(stock_str::delete_server_turned_off(context).await);
                 add_device_msg(context, None, Some(&mut msg)).await?;
                 context.set_config(DeleteServerAfter, Some("0")).await?;
             }

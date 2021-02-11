@@ -26,10 +26,7 @@ use crate::lot::{Lot, LotState, Meaning};
 use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
-use crate::stock::{
-    AcSetupMsgSubject, Audio, Draft, FailedSendingTo, File, Gif, Image, Location, ReplyNoun,
-    SelfMsg, Sticker, Video, VideochatInvitation, VoiceMessage,
-};
+use crate::stock_str;
 use std::collections::BTreeMap;
 
 // In practice, the user additionally cuts the string themselves
@@ -1052,14 +1049,14 @@ impl Lot {
         context: &Context,
     ) {
         if msg.state == MessageState::OutDraft {
-            self.text1 = Some(Draft::stock_str(context).await.to_owned().into());
+            self.text1 = Some(stock_str::draft(context).await);
             self.text1_meaning = Meaning::Text1Draft;
         } else if msg.from_id == DC_CONTACT_ID_SELF {
             if msg.is_info() || chat.is_self_talk() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
             } else {
-                self.text1 = Some(SelfMsg::stock_str(context).await.to_owned().into());
+                self.text1 = Some(stock_str::self_msg(context).await);
                 self.text1_meaning = Meaning::Text1Self;
             }
         } else {
@@ -1100,7 +1097,7 @@ impl Lot {
         .await;
 
         if text2.is_empty() && msg.quoted_text().is_some() {
-            text2 = ReplyNoun::stock_str(context).await.into_owned()
+            text2 = stock_str::reply_noun(context).await
         }
 
         self.text2 = Some(text2);
@@ -1552,15 +1549,15 @@ pub async fn get_summarytext_by_raw(
 ) -> String {
     let mut append_text = true;
     let prefix = match viewtype {
-        Viewtype::Image => Image::stock_str(context).await.into_owned(),
-        Viewtype::Gif => Gif::stock_str(context).await.into_owned(),
-        Viewtype::Sticker => Sticker::stock_str(context).await.into_owned(),
-        Viewtype::Video => Video::stock_str(context).await.into_owned(),
-        Viewtype::Voice => VoiceMessage::stock_str(context).await.into_owned(),
+        Viewtype::Image => stock_str::image(context).await,
+        Viewtype::Gif => stock_str::gif(context).await,
+        Viewtype::Sticker => stock_str::sticker(context).await,
+        Viewtype::Video => stock_str::video(context).await,
+        Viewtype::Voice => stock_str::voice_message(context).await,
         Viewtype::Audio | Viewtype::File => {
             if param.get_cmd() == SystemMessage::AutocryptSetupMessage {
                 append_text = false;
-                AcSetupMsgSubject::stock_str(context).await.to_string()
+                stock_str::ac_setup_msg_subject(context).await
             } else {
                 let file_name: String = param
                     .get_path(Param::File, context)
@@ -1571,23 +1568,23 @@ pub async fn get_summarytext_by_raw(
                     })
                     .unwrap_or_else(|| String::from("ErrFileName"));
                 let label = if viewtype == Viewtype::Audio {
-                    Audio::stock_str(context).await
+                    stock_str::audio(context).await
                 } else {
-                    File::stock_str(context).await
+                    stock_str::file(context).await
                 };
                 format!("{} – {}", label, file_name)
             }
         }
         Viewtype::VideochatInvitation => {
             append_text = false;
-            VideochatInvitation::stock_str(context).await.into_owned()
+            stock_str::videochat_invitation(context).await
         }
         _ => {
             if param.get_cmd() != SystemMessage::LocationOnly {
                 "".to_string()
             } else {
                 append_text = false;
-                Location::stock_str(context).await.to_string()
+                stock_str::location(context).await
             }
         }
     };
@@ -1846,7 +1843,7 @@ async fn ndn_maybe_add_info_msg(
                 let contact = Contact::load_from_db(context, contact_id).await?;
                 // Tell the user which of the recipients failed if we know that (because in
                 // a group, this might otherwise be unclear)
-                let text = FailedSendingTo::stock_str(context, contact.get_display_name()).await;
+                let text = stock_str::failed_sending_to(context, contact.get_display_name()).await;
                 chat::add_info_msg(context, chat_id, text).await;
                 context.emit_event(EventType::ChatModified(chat_id));
             }

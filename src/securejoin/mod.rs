@@ -23,7 +23,7 @@ use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus, ToSave};
 use crate::qr::check_qr;
 use crate::sql;
-use crate::stock::{ContactNotVerified, ContactVerified};
+use crate::stock_str;
 use crate::token;
 
 mod bobstate;
@@ -822,7 +822,7 @@ async fn secure_connection_established(context: &Context, contact_chat_id: ChatI
     } else {
         "?"
     };
-    let msg = ContactVerified::stock_str(context, addr).await;
+    let msg = stock_str::contact_verified(context, addr).await;
     chat::add_info_msg(context, contact_chat_id, msg).await;
     emit_event!(context, EventType::ChatModified(contact_chat_id));
     info!(context, "StockMessage::ContactVerified posted to 1:1 chat");
@@ -835,7 +835,7 @@ async fn could_not_establish_secure_connection(
 ) {
     let contact_id = chat_id_2_contact_id(context, contact_chat_id).await;
     let contact = Contact::get_by_id(context, contact_id).await;
-    let msg = ContactNotVerified::stock_str(
+    let msg = stock_str::contact_not_verified(
         context,
         if let Ok(ref contact) = contact {
             contact.get_addr()

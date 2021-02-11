@@ -14,7 +14,7 @@ use crate::context::Context;
 use crate::ephemeral::delete_expired_messages;
 use crate::lot::Lot;
 use crate::message::{Message, MessageState, MsgId};
-use crate::stock::NoMessages;
+use crate::stock_str;
 
 /// An object representing a single chatlist in memory.
 ///
@@ -385,7 +385,7 @@ impl Chatlist {
             ret.text2 = None;
         } else if lastmsg.is_none() || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED
         {
-            ret.text2 = Some(NoMessages::stock_str(context).await.to_string());
+            ret.text2 = Some(stock_str::no_messages(context).await.to_string());
         } else {
             ret.fill(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context)
                 .await;
@@ -440,7 +440,7 @@ mod tests {
 
     use crate::chat::{create_group_chat, ProtectionStatus};
     use crate::constants::Viewtype;
-    use crate::stock::StockMessage;
+    use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;
 
     #[async_std::test]

@@ -56,7 +56,6 @@
 //! the database entries which are expired either according to their
 //! ephemeral message timers or global `delete_server_after` setting.
 
-use std::borrow::Cow;
 use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -76,12 +75,7 @@ use crate::events::EventType;
 use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::sql;
-use crate::stock::{
-    MsgEphemeralTimerDay, MsgEphemeralTimerDays, MsgEphemeralTimerDisabled,
-    MsgEphemeralTimerEnabled, MsgEphemeralTimerHour, MsgEphemeralTimerHours,
-    MsgEphemeralTimerMinute, MsgEphemeralTimerMinutes, MsgEphemeralTimerWeek,
-    MsgEphemeralTimerWeeks,
-};
+use crate::stock_str;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum Timer {
@@ -222,43 +216,43 @@ pub(crate) async fn stock_ephemeral_timer_changed(
     context: &Context,
     timer: Timer,
     from_id: u32,
-) -> Cow<'static, str> {
+) -> String {
     match timer {
-        Timer::Disabled => MsgEphemeralTimerDisabled::stock_str(context, from_id).await,
+        Timer::Disabled => stock_str::msg_ephemeral_timer_disabled(context, from_id).await,
         Timer::Enabled { duration } => match duration {
             0..=59 => {
-                MsgEphemeralTimerEnabled::stock_str(context, timer.to_string(), from_id).await
+                stock_str::msg_ephemeral_timer_enabled(context, timer.to_string(), from_id).await
             }
-            60 => MsgEphemeralTimerMinute::stock_str(context, from_id).await,
+            60 => stock_str::msg_ephemeral_timer_minute(context, from_id).await,
             61..=3599 => {
-                MsgEphemeralTimerMinutes::stock_str(
+                stock_str::msg_ephemeral_timer_minutes(
                     context,
                     format!("{}", (f64::from(duration) / 6.0).round() / 10.0),
                     from_id,
                 )
                 .await
             }
-            3600 => MsgEphemeralTimerHour::stock_str(context, from_id).await,
+            3600 => stock_str::msg_ephemeral_timer_hour(context, from_id).await,
             3601..=86399 => {
-                MsgEphemeralTimerHours::stock_str(
+                stock_str::msg_ephemeral_timer_hours(
                     context,
                     format!("{}", (f64::from(duration) / 360.0).round() / 10.0),
                     from_id,
                 )
                 .await
             }
-            86400 => MsgEphemeralTimerDay::stock_str(context, from_id).await,
+            86400 => stock_str::msg_ephemeral_timer_day(context, from_id).await,
             86401..=604_799 => {
-                MsgEphemeralTimerDays::stock_str(
+                stock_str::msg_ephemeral_timer_days(
                     context,
                     format!("{}", (f64::from(duration) / 8640.0).round() / 10.0),
                     from_id,
                 )
                 .await
             }
-            604_800 => MsgEphemeralTimerWeek::stock_str(context, from_id).await,
+            604_800 => stock_str::msg_ephemeral_timer_week(context, from_id).await,
             _ => {
-                MsgEphemeralTimerWeeks::stock_str(
+                stock_str::msg_ephemeral_timer_weeks(
                     context,
                     format!("{}", (f64::from(duration) / 60480.0).round() / 10.0),
                     from_id,

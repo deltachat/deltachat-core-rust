@@ -13,7 +13,7 @@ use crate::job;
 use crate::message::MsgId;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
-use crate::stock::StatusLine;
+use crate::stock_str;
 
 /// The available configuration keys.
 #[derive(
@@ -173,7 +173,7 @@ impl Context {
 
         // Default values
         match key {
-            Config::Selfstatus => Some(StatusLine::stock_str(self).await.into_owned()),
+            Config::Selfstatus => Some(stock_str::status_line(self).await),
             Config::ConfiguredInboxFolder => Some("INBOX".to_owned()),
             _ => key.get_str("default").map(|s| s.to_string()),
         }
@@ -258,7 +258,7 @@ impl Context {
                 }
             }
             Config::Selfstatus => {
-                let def = StatusLine::stock_str(self).await;
+                let def = stock_str::status_line(self).await;
                 let val = if value.is_none() || value.unwrap() == def {
                     None
                 } else {
