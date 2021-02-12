@@ -101,8 +101,8 @@ pub const DC_GCL_FOR_FORWARDING: usize = 0x08;
 pub const DC_GCM_ADDDAYMARKER: u32 = 0x01;
 pub const DC_GCM_INFO_ONLY: u32 = 0x02;
 
-pub const DC_GCL_VERIFIED_ONLY: usize = 0x01;
-pub const DC_GCL_ADD_SELF: usize = 0x02;
+pub const DC_GCL_VERIFIED_ONLY: u32 = 0x01;
+pub const DC_GCL_ADD_SELF: u32 = 0x02;
 
 // unchanged user avatars are resent to the recipients every some days
 pub const DC_RESEND_USER_AVATAR_DAYS: i64 = 14;

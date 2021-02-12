@@ -16,7 +16,7 @@ use crate::constants::{
     DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY,
 };
 use crate::context::Context;
-use crate::dc_tools::{dc_get_abs_path, improve_single_line_input, listflags_has, EmailAddress};
+use crate::dc_tools::{dc_get_abs_path, improve_single_line_input, EmailAddress};
 use crate::events::EventType;
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -586,8 +586,8 @@ impl Contact {
 
         let mut add_self = false;
         let mut ret = Vec::new();
-        let flag_verified_only = listflags_has(listflags, DC_GCL_VERIFIED_ONLY);
-        let flag_add_self = listflags_has(listflags, DC_GCL_ADD_SELF);
+        let flag_verified_only = (listflags & DC_GCL_VERIFIED_ONLY) != 0;
+        let flag_add_self = (listflags & DC_GCL_ADD_SELF) != 0;
 
         if flag_verified_only || query.is_some() {
             let s3str_like_cmd = format!(

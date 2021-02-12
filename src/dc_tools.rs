@@ -642,13 +642,6 @@ impl rusqlite::types::ToSql for EmailAddress {
     }
 }
 
-/// Utility to check if a in the binary represantion of listflags
-/// the bit at position bitindex is 1.
-pub(crate) fn listflags_has(listflags: u32, bitindex: usize) -> bool {
-    let listflags = listflags as usize;
-    (listflags & bitindex) == bitindex
-}
-
 /// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
 pub(crate) fn improve_single_line_input(input: impl AsRef<str>) -> String {
     input
@@ -676,9 +669,7 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-    use std::convert::TryInto;
 
-    use crate::constants::{DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
     use crate::test_utils::TestContext;
 
     #[test]
@@ -928,20 +919,6 @@ mod tests {
 
         assert!(dc_delete_file(context, &fn0).await);
         assert!(!dc_file_exist!(context, &fn0).await);
-    }
-
-    #[test]
-    fn test_listflags_has() {
-        let listflags: u32 = 0x1101;
-        assert!(listflags_has(listflags, 0x1));
-        assert!(!listflags_has(listflags, 0x10));
-        assert!(listflags_has(listflags, 0x100));
-        assert!(listflags_has(listflags, 0x1000));
-        let listflags: u32 = (DC_GCL_ADD_SELF | DC_GCL_VERIFIED_ONLY).try_into().unwrap();
-        assert!(listflags_has(listflags, DC_GCL_VERIFIED_ONLY));
-        assert!(listflags_has(listflags, DC_GCL_ADD_SELF));
-        let listflags: u32 = DC_GCL_VERIFIED_ONLY.try_into().unwrap();
-        assert!(!listflags_has(listflags, DC_GCL_ADD_SELF));
     }
 
     #[async_std::test]
