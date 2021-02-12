@@ -4032,6 +4032,28 @@ char*           dc_contact_get_name          (const dc_contact_t* contact);
 
 
 /**
+ * Get original contact name.
+ * This is the name of the contact as defined by the contact themself.
+ * If the contact themself does not define such a name,
+ * an empty string is returned.
+ *
+ * This function is typically only needed for the controls that
+ * allow the local user to edit the name,
+ * eg. you want to show the original name somewhere in the edit dialog
+ * (you cannot use dc_contact_get_display_name() for that as
+ * this would return previously set edited names).
+ *
+ * In most other situations than the name-edit-dialog,
+ * as lists, messages etc. use dc_contact_get_display_name().
+ *
+ * @memberof dc_contact_t
+ * @return String with the original name, must be released using dc_str_unref().
+ *     Empty string if unset, never returns NULL.
+ */
+char*           dc_contact_get_auth_name     (const dc_contact_t* contact);
+
+
+/**
  * Get display name. This is the name as defined by the contact himself,
  * modified by the user or, if both are unset, the email address.
  *
