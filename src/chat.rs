@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::aheader::EncryptPreference;
 use crate::blob::{BlobError, BlobObject};
 use crate::chatlist::dc_get_archived_cnt;
+use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, ShowEmails, Viewtype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
@@ -26,8 +27,8 @@ use crate::contact::{addr_cmp, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::dc_tools::{
     dc_create_id, dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp,
-    dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, dc_str_to_color,
-    improve_single_line_input, time, IsNoneOrEmpty,
+    dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, improve_single_line_input,
+    time, IsNoneOrEmpty,
 };
 use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -891,7 +892,7 @@ impl Chat {
                 }
             }
         } else {
-            color = dc_str_to_color(&self.name);
+            color = str_to_color(&self.name);
         }
 
         color
@@ -3081,7 +3082,7 @@ mod tests {
                 "param": "",
                 "gossiped_timestamp": 0,
                 "is_sending_locations": false,
-                "color": 15895624,
+                "color": 35391,
                 "profile_image": "",
                 "draft": "",
                 "is_muted": false,
