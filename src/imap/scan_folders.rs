@@ -20,7 +20,6 @@ impl Imap {
                 .await;
 
             if elapsed_secs < debounce_secs {
-                info!(context, "Not scanning, we scanned {}s ago", elapsed_secs);
                 return Ok(());
             }
         }
