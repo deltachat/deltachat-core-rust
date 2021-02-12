@@ -1018,9 +1018,9 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let contacts = Contact::get_all(
                 &context,
                 if arg0 == "listverified" {
-                    0x1 | 0x2
+                    DC_GCL_VERIFIED_ONLY | DC_GCL_ADD_SELF
                 } else {
-                    0x2
+                    DC_GCL_ADD_SELF
                 },
                 Some(arg1),
             )
