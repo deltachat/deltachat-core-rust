@@ -77,6 +77,7 @@ pub mod stock_str;
 mod token;
 #[macro_use]
 mod dehtml;
+mod color;
 pub mod html;
 pub mod plaintext;
 

@@ -48,31 +48,6 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
     }
 }
 
-/// the colors must fulfill some criterions as:
-/// - contrast to black and to white
-/// - work as a text-color
-/// - being noticeable on a typical map
-/// - harmonize together while being different enough
-/// (therefore, we cannot just use random rgb colors :)
-const COLORS: [u32; 16] = [
-    0xe5_65_55, 0xf2_8c_48, 0x8e_85_ee, 0x76_c8_4d, 0x5b_b6_cc, 0x54_9c_dd, 0xd2_5c_99, 0xb3_78_00,
-    0xf2_30_30, 0x39_b2_49, 0xbb_24_3b, 0x96_40_78, 0x66_87_4f, 0x30_8a_b9, 0x12_7e_d0, 0xbe_45_0c,
-];
-
-#[allow(clippy::indexing_slicing)]
-pub(crate) fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
-    let str_lower = s.as_ref().to_lowercase();
-    let mut checksum = 0;
-    let bytes = str_lower.as_bytes();
-    for (i, byte) in bytes.iter().enumerate() {
-        checksum += (i + 1) * *byte as usize;
-        checksum %= 0x00ff_ffff;
-    }
-    let color_index = checksum % COLORS.len();
-
-    COLORS[color_index]
-}
-
 /* ******************************************************************************
  * date/time tools
  ******************************************************************************/
