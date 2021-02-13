@@ -194,7 +194,7 @@ impl HtmlMsgParser {
                     if mimetype.type_() == mime::IMAGE {
                         if let Some(cid) = mail.headers.get_header_value(HeaderDef::ContentId) {
                             if let Ok(cid) = parse_message_id(&cid) {
-                                if let Ok(replacement) = mimepart_to_data_url(&mail).await {
+                                if let Ok(replacement) = mimepart_to_data_url(mail).await {
                                     let re_string = format!(
                                         "(<img[^>]*src[^>]*=[^>]*)(cid:{})([^>]*>)",
                                         regex::escape(&cid)

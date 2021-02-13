@@ -959,13 +959,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         // add attachment part
         if chat::msgtype_has_file(self.msg.viewtype) {
-            if !is_file_size_okay(context, &self.msg).await {
+            if !is_file_size_okay(context, self.msg).await {
                 bail!(
                     "Message exceeds the recommended {} MB.",
                     RECOMMENDED_FILE_SIZE / 1_000_000,
                 );
             } else {
-                let (file_part, _) = build_body_file(context, &self.msg, "").await?;
+                let (file_part, _) = build_body_file(context, self.msg, "").await?;
                 parts.push(file_part);
             }
         }
@@ -1078,7 +1078,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             "Additional-Message-IDs: ".to_string()
                 + &additional_msg_ids
                     .iter()
-                    .map(|mid| render_rfc724_mid(&mid))
+                    .map(|mid| render_rfc724_mid(mid))
                     .collect::<Vec<String>>()
                     .join(" ")
                 + "\r\n"

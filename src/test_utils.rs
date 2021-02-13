@@ -353,8 +353,8 @@ impl TestContext {
     pub async fn send_text(&self, chat_id: ChatId, txt: &str) -> SentMessage {
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some(txt.to_string()));
-        chat::prepare_msg(&self, chat_id, &mut msg).await.unwrap();
-        chat::send_msg(&self, chat_id, &mut msg).await.unwrap();
+        chat::prepare_msg(self, chat_id, &mut msg).await.unwrap();
+        chat::send_msg(self, chat_id, &mut msg).await.unwrap();
         self.pop_sent_msg().await
     }
 
@@ -365,7 +365,7 @@ impl TestContext {
     // merge them to a public function in the `deltachat` crate.
     #[allow(dead_code)]
     pub async fn print_chat(&self, chat: &Chat) {
-        let msglist = chat::get_chat_msgs(&self, chat.get_id(), 0x1, None).await;
+        let msglist = chat::get_chat_msgs(self, chat.get_id(), 0x1, None).await;
         let msglist: Vec<MsgId> = msglist
             .into_iter()
             .map(|x| match x {
@@ -390,7 +390,7 @@ impl TestContext {
                 );
                     lines_out += 1
                 }
-                let msg = Message::load_from_db(&self, msg_id).await.unwrap();
+                let msg = Message::load_from_db(self, msg_id).await.unwrap();
                 log_msg(self, "", &msg).await;
             }
         }
@@ -559,7 +559,7 @@ fn receive_event(event: Event) {
     };
     let context_names = CONTEXT_NAMES.read().unwrap();
     match context_names.get(&event.id) {
-        Some(ref name) => println!("{} {}", name, msg),
+        Some(name) => println!("{} {}", name, msg),
         None => println!("{} {}", event.id, msg),
     }
 }

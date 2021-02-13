@@ -153,7 +153,7 @@ pub async fn try_decrypt(
     let from = mail
         .headers
         .get_header(HeaderDef::From_)
-        .and_then(|from_addr| mailparse::addrparse_header(&from_addr).ok())
+        .and_then(|from_addr| mailparse::addrparse_header(from_addr).ok())
         .and_then(|from| from.extract_single_info())
         .map(|from| from.addr)
         .unwrap_or_default();
@@ -163,7 +163,7 @@ pub async fn try_decrypt(
     // Apply Autocrypt header
     if let Some(ref header) = Aheader::from_headers(context, &from, &mail.headers) {
         if let Some(ref mut peerstate) = peerstate {
-            peerstate.apply_header(&header, message_time);
+            peerstate.apply_header(header, message_time);
             peerstate.save_to_db(&context.sql, false).await?;
         } else {
             let p = Peerstate::from_header(context, header, message_time);
@@ -504,7 +504,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let addr = "bob@foo.bar";
         let pub_key = bob_keypair().public;
         let peerstate = Peerstate {
-            context: &ctx,
+            context: ctx,
             addr: addr.into(),
             last_seen: 13,
             last_seen_autocrypt: 14,

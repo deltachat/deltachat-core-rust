@@ -174,7 +174,7 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> O
         if let Ok(chat) = Chat::load_from_db(context, group).await {
             let group_name = chat.get_name();
             let group_name_urlencoded =
-                utf8_percent_encode(&group_name, NON_ALPHANUMERIC).to_string();
+                utf8_percent_encode(group_name, NON_ALPHANUMERIC).to_string();
 
             Some(format!(
                 "OPENPGP4FPR:{}#a={}&g={}&x={}&i={}&s={}",
@@ -489,7 +489,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
-            if !token::exists(context, token::Namespace::InviteNumber, &invitenumber).await {
+            if !token::exists(context, token::Namespace::InviteNumber, invitenumber).await {
                 warn!(context, "Secure-join denied (bad invitenumber).");
                 return Ok(HandshakeMessage::Ignore);
             }
@@ -583,7 +583,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
-            if !token::exists(context, token::Namespace::Auth, &auth_0).await {
+            if !token::exists(context, token::Namespace::Auth, auth_0).await {
                 could_not_establish_secure_connection(context, contact_chat_id, "Auth invalid.")
                     .await;
                 return Ok(HandshakeMessage::Ignore);

@@ -1328,7 +1328,7 @@ mod tests {
     #[test]
     fn test_split_address_book() {
         let book = "Name one\nAddress one\nName two\nAddress two\nrest name";
-        let list = split_address_book(&book);
+        let list = split_address_book(book);
         assert_eq!(
             list,
             vec![("Name one", "Address one"), ("Name two", "Address two")]

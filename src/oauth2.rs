@@ -269,7 +269,7 @@ impl Oauth2 {
             .find('@')
             .map(|index| addr_normalized.split_at(index + 1).1)
         {
-            if let Some(oauth2_authorizer) = provider::get_provider_info(&domain)
+            if let Some(oauth2_authorizer) = provider::get_provider_info(domain)
                 .await
                 .and_then(|provider| provider.oauth2_authorizer.as_ref())
             {

@@ -73,7 +73,7 @@ fn parse_protocol<B: BufRead>(
                 }
             }
             Event::Text(ref e) => {
-                let val = e.unescape_and_decode(&reader).unwrap_or_default();
+                let val = e.unescape_and_decode(reader).unwrap_or_default();
 
                 if let Some(ref tag) = current_tag {
                     match tag.as_str() {
@@ -117,7 +117,7 @@ fn parse_redirecturl<B: BufRead>(
     let mut buf = Vec::new();
     match reader.read_event(&mut buf)? {
         Event::Text(ref e) => {
-            let val = e.unescape_and_decode(&reader).unwrap_or_default();
+            let val = e.unescape_and_decode(reader).unwrap_or_default();
             Ok(val.trim().to_string())
         }
         _ => Ok("".to_string()),
@@ -154,7 +154,7 @@ fn parse_xml_reader<B: BufRead>(
 }
 
 fn parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
-    let mut reader = quick_xml::Reader::from_str(&xml_raw);
+    let mut reader = quick_xml::Reader::from_str(xml_raw);
     reader.trim_text(true);
 
     parse_xml_reader(&mut reader).map_err(|error| Error::InvalidXml {

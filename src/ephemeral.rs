@@ -715,7 +715,7 @@ mod tests {
     }
 
     async fn check_msg_was_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
-        let chat_items = chat::get_chat_msgs(&t, chat.id, 0, None).await;
+        let chat_items = chat::get_chat_msgs(t, chat.id, 0, None).await;
         // Check that the chat is empty except for possibly info messages:
         for item in &chat_items {
             if let ChatItem::Message { msg_id } = item {
@@ -725,13 +725,13 @@ mod tests {
         }
 
         // Check that if there is a message left, the text and metadata are gone
-        if let Ok(msg) = Message::load_from_db(&t, msg_id).await {
+        if let Ok(msg) = Message::load_from_db(t, msg_id).await {
             assert_eq!(msg.from_id, 0);
             assert_eq!(msg.to_id, 0);
             assert!(msg.text.is_none_or_empty(), msg.text);
             let rawtxt: Option<String> = t
                 .sql
-                .query_get_value(&t, "SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
+                .query_get_value(t, "SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
                 .await;
             assert!(rawtxt.is_none_or_empty(), rawtxt);
         }

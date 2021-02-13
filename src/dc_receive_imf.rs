@@ -221,7 +221,7 @@ pub(crate) async fn dc_receive_imf_inner(
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
         match contact::set_profile_image(
-            &context,
+            context,
             from_id,
             avatar_action,
             mime_parser.was_encrypted(),
@@ -239,7 +239,7 @@ pub(crate) async fn dc_receive_imf_inner(
 
     // Always update the status, even if there is no footer, to allow removing the status.
     if let Err(err) = contact::set_status(
-        &context,
+        context,
         from_id,
         mime_parser.footer.clone().unwrap_or_default(),
     )
@@ -387,10 +387,10 @@ async fn add_parts(
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
     // moved between folders. make sure, this check is done eg. before securejoin-processing) */
     if let Some((old_server_folder, old_server_uid, _)) =
-        message::rfc724_mid_exists(context, &rfc724_mid).await?
+        message::rfc724_mid_exists(context, rfc724_mid).await?
     {
         if old_server_folder != server_folder.as_ref() || old_server_uid != server_uid {
-            message::update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid)
+            message::update_server_uid(context, rfc724_mid, server_folder.as_ref(), server_uid)
                 .await;
         }
 
@@ -1870,13 +1870,13 @@ async fn get_parent_message(
     mime_parser: &MimeMessage,
 ) -> Result<Option<Message>> {
     if let Some(field) = mime_parser.get(HeaderDef::References) {
-        if let Some(msg) = get_rfc724_mid_in_list(context, &field).await? {
+        if let Some(msg) = get_rfc724_mid_in_list(context, field).await? {
             return Ok(Some(msg));
         }
     }
 
     if let Some(field) = mime_parser.get(HeaderDef::InReplyTo) {
-        if let Some(msg) = get_rfc724_mid_in_list(context, &field).await? {
+        if let Some(msg) = get_rfc724_mid_in_list(context, field).await? {
             return Ok(Some(msg));
         }
     }
@@ -2643,12 +2643,12 @@ mod tests {
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
-        dc_receive_imf(&context, imf_raw, "INBOX", 0, false)
+        dc_receive_imf(context, imf_raw, "INBOX", 0, false)
             .await
             .unwrap();
-        let chats = Chatlist::try_load(&context, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
         let msg_id = chats.get_msg_id(0).unwrap();
-        Message::load_from_db(&context, msg_id).await.unwrap()
+        Message::load_from_db(context, msg_id).await.unwrap()
     }
 
     #[async_std::test]

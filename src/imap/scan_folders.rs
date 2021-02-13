@@ -55,7 +55,7 @@ impl Imap {
             info!(context, "Scanning folder: {}", foldername);
 
             let folder_meaning = get_folder_meaning(&folder);
-            let folder_name_meaning = get_folder_meaning_by_name(&foldername);
+            let folder_name_meaning = get_folder_meaning_by_name(foldername);
 
             if folder_meaning == FolderMeaning::SentObjects {
                 // Always takes precedent

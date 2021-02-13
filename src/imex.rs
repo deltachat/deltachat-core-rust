@@ -263,7 +263,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
     let private_key_asc = private_key.to_asc(ac_headers);
-    let encr = pgp::symm_encrypt(&passphrase, private_key_asc.as_bytes()).await?;
+    let encr = pgp::symm_encrypt(passphrase, private_key_asc.as_bytes()).await?;
 
     let replacement = format!(
         concat!(
@@ -529,11 +529,11 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
 
     context
         .sql
-        .open(&context, &context.get_dbfile(), false)
+        .open(context, &context.get_dbfile(), false)
         .await
         .context("Could not re-open db")?;
 
-    delete_and_reset_all_device_msgs(&context).await?;
+    delete_and_reset_all_device_msgs(context).await?;
 
     Ok(())
 }
@@ -565,11 +565,11 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     /* re-open copied database file */
     context
         .sql
-        .open(&context, &context.get_dbfile(), false)
+        .open(context, &context.get_dbfile(), false)
         .await
         .context("Could not re-open db")?;
 
-    delete_and_reset_all_device_msgs(&context).await?;
+    delete_and_reset_all_device_msgs(context).await?;
 
     let total_files_cnt = context
         .sql
@@ -678,7 +678,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // we re-open the database after export is finished
     context
         .sql
-        .open(&context, &context.get_dbfile(), false)
+        .open(context, &context.get_dbfile(), false)
         .await;
 
     match &res {

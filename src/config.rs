@@ -248,7 +248,7 @@ impl Context {
                     .await?;
                 match value {
                     Some(value) => {
-                        let blob = BlobObject::new_from_path(&self, value).await?;
+                        let blob = BlobObject::new_from_path(self, value).await?;
                         blob.recode_to_avatar_size(self).await?;
                         self.sql
                             .set_raw_config(self, key, Some(blob.as_name()))
@@ -344,7 +344,7 @@ mod tests {
             .unwrap();
         let avatar_blob = t.get_blobdir().join("avatar.jpg");
         assert!(!avatar_blob.exists().await);
-        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         assert!(avatar_blob.exists().await);
@@ -375,7 +375,7 @@ mod tests {
         assert_eq!(img.width(), 900);
         assert_eq!(img.height(), 900);
 
-        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         let avatar_cfg = t.get_config(Config::Selfavatar).await;
@@ -397,7 +397,7 @@ mod tests {
             .unwrap();
         let avatar_blob = t.get_blobdir().join("avatar.png");
         assert!(!avatar_blob.exists().await);
-        t.set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         assert!(avatar_blob.exists().await);

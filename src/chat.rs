@@ -398,7 +398,7 @@ impl ChatId {
         if chat.is_self_talk() {
             let mut msg = Message::new(Viewtype::Text);
             msg.text = Some(stock_str::self_deleted_msg_body(context).await);
-            add_device_msg(&context, None, Some(&mut msg)).await?;
+            add_device_msg(context, None, Some(&mut msg)).await?;
         }
 
         Ok(())
