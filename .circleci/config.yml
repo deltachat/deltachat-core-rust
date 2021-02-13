@@ -157,7 +157,7 @@ jobs:
       - attach_workspace:
           at: workspace
       - run: pyenv versions
-      - run: pyenv global 3.6.0
+      # - run: pyenv global 3.6.0
       - run: ls -laR workspace
       - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse workspace/c-docs
 
