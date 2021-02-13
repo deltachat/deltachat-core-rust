@@ -23,7 +23,8 @@ pub enum Param {
     File = b'f',
 
     /// For messages: This name should be shown instead of contact.get_display_name()
-    /// (used if this is a mailinglist)
+    /// (used if this is a mailinglist
+    /// or explictly set using set_override_sender_name(), eg. by bots)
     OverrideSenderDisplayname = b'O',
 
     /// For Messages

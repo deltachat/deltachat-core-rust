@@ -3817,6 +3817,21 @@ void            dc_msg_set_html               (dc_msg_t* msg, const char* html);
 
 
 /**
+ * Set different sender name for a message.
+ * This overrides the name set by the dc_set_config()-option `displayname`.
+ *
+ * Usually, this function is not needed
+ * when implementing pure messaging functions.
+ * However, it might be useful for bots eg. building bridges to other networks.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param name The name to send along with the message.
+ */
+void            dc_msg_set_override_sender_name(dc_msg_t* msg, const char* name);
+
+
+/**
  * Set the file associated with a message object.
  * This does not alter any information in the database
  * nor copy or move the file or checks if the file exist.
