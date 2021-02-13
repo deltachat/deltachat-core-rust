@@ -483,7 +483,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             encode_words(&subject_str)
         };
 
-        let mut message = match self.loaded {
+        let message = match self.loaded {
             Loaded::Message { .. } => {
                 self.render_message(&mut protected_headers, &mut unprotected_headers, &grpimage)
                     .await?
@@ -533,6 +533,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         let mut is_gossiped = false;
 
+        // Store protected headers in the inner message.
+        let mut message = protected_headers
+            .into_iter()
+            .fold(message, |message, header| message.header(header));
+
         let outer_message = if is_encrypted {
             // Add gossip headers in chats with multiple recipients
             if peerstates.len() > 1 && self.should_do_gossip().await {
@@ -547,11 +552,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 }
             }
 
-            // Store protected headers in the inner message.
-            for header in protected_headers.into_iter() {
-                message = message.header(header);
-            }
-
             // Set the appropriate Content-Type for the inner message.
             let mut existing_ct = message
                 .get_header("Content-Type".to_string())
@@ -561,21 +561,21 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             if !existing_ct.ends_with(';') {
                 existing_ct += ";";
             }
-            message = message.replace_header(Header::new(
+            let message = message.replace_header(Header::new(
                 "Content-Type".to_string(),
                 format!("{} protected-headers=\"v1\";", existing_ct),
             ));
 
             // Set the appropriate Content-Type for the outer message
-            let mut outer_message = PartBuilder::new().header((
+            let outer_message = PartBuilder::new().header((
                 "Content-Type".to_string(),
                 "multipart/encrypted; protocol=\"application/pgp-encrypted\"".to_string(),
             ));
 
             // Store the unprotected headers on the outer message.
-            for header in unprotected_headers.into_iter() {
-                outer_message = outer_message.header(header);
-            }
+            let outer_message = unprotected_headers
+                .into_iter()
+                .fold(outer_message, |message, header| message.header(header));
 
             if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
                 info!(self.context, "mimefactory: outgoing message mime:");
@@ -587,7 +587,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 .encrypt(self.context, min_verified, message, peerstates)
                 .await?;
 
-            outer_message = outer_message
+            outer_message
                 .child(
                     // Autocrypt part 1
                     PartBuilder::new()
@@ -609,18 +609,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         .body(encrypted)
                         .build(),
                 )
-                .header(("Subject".to_string(), "...".to_string()));
-
-            outer_message
+                .header(("Subject".to_string(), "...".to_string()))
         } else {
-            // In the unencrypted case, we add all headers to the outer message.
-            for header in protected_headers.into_iter() {
-                message = message.header(header);
-            }
-            for header in unprotected_headers.into_iter() {
-                message = message.header(header);
-            }
-            message
+            unprotected_headers
+                .into_iter()
+                .fold(message, |message, header| message.header(header))
         };
 
         let MimeFactory {
