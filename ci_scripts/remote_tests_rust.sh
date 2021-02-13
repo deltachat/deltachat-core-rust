@@ -1,7 +1,7 @@
 #!/bin/bash 
 
-export BRANCH=${CIRCLE_BRANCH:master}
-export REPONAME=${CIRCLE_PROJECT_REPONAME:deltachat-core-rust}
+export BRANCH=${CIRCLE_BRANCH:-master}
+export REPONAME=${CIRCLE_PROJECT_REPONAME:-deltachat-core-rust}
 export SSHTARGET=${SSHTARGET-ci@b1.delta.chat}
 
 export BUILDDIR=ci_builds/$REPONAME/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}
