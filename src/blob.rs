@@ -58,7 +58,7 @@ impl<'a> BlobObject<'a> {
     ) -> std::result::Result<BlobObject<'a>, BlobError> {
         let blobdir = context.get_blobdir();
         let (stem, ext) = BlobObject::sanitise_name(suggested_name.as_ref());
-        let (name, mut file) = BlobObject::create_new_file(&blobdir, &stem, &ext).await?;
+        let (name, mut file) = BlobObject::create_new_file(blobdir, &stem, &ext).await?;
         file.write_all(data)
             .await
             .map_err(|err| BlobError::WriteFailure {

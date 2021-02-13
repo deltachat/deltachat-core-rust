@@ -47,21 +47,21 @@ impl QrInvite {
     /// The fingerprint of the inviter.
     pub fn fingerprint(&self) -> &Fingerprint {
         match self {
-            Self::Contact { fingerprint, .. } | Self::Group { fingerprint, .. } => &fingerprint,
+            Self::Contact { fingerprint, .. } | Self::Group { fingerprint, .. } => fingerprint,
         }
     }
 
     /// The `INVITENUMBER` of the setup-contact/secure-join protocol.
     pub fn invitenumber(&self) -> &str {
         match self {
-            Self::Contact { invitenumber, .. } | Self::Group { invitenumber, .. } => &invitenumber,
+            Self::Contact { invitenumber, .. } | Self::Group { invitenumber, .. } => invitenumber,
         }
     }
 
     /// The `AUTH` code of the setup-contact/secure-join protocol.
     pub fn authcode(&self) -> &str {
         match self {
-            Self::Contact { authcode, .. } | Self::Group { authcode, .. } => &authcode,
+            Self::Contact { authcode, .. } | Self::Group { authcode, .. } => authcode,
         }
     }
 }

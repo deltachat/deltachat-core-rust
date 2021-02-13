@@ -324,7 +324,7 @@ impl Sql {
         }
 
         let key = key.as_ref();
-        let res = if let Some(ref value) = value {
+        let res = if let Some(value) = value {
             let exists = self
                 .exists("SELECT value FROM config WHERE keyname=?;", paramsv![key])
                 .await?;

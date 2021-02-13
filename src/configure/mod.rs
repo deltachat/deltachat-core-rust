@@ -450,7 +450,7 @@ async fn get_autoconfig(
             "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
             param_domain, param_addr_urlencoded
         ),
-        &param,
+        param,
     )
     .await
     {
@@ -465,7 +465,7 @@ async fn get_autoconfig(
             "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
             &param_domain, &param_addr_urlencoded
         ),
-        &param,
+        param,
     )
     .await
     {
@@ -501,7 +501,7 @@ async fn get_autoconfig(
     if let Ok(res) = moz_autoconfigure(
         ctx,
         format!("https://autoconfig.thunderbird.net/v1.1/{}", &param_domain),
-        &param,
+        param,
     )
     .await
     {

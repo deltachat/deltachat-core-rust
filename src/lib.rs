@@ -4,7 +4,8 @@
     missing_debug_implementations,
     clippy::all,
     clippy::indexing_slicing,
-    clippy::wildcard_imports
+    clippy::wildcard_imports,
+    clippy::needless_borrow
 )]
 #![allow(clippy::match_bool, clippy::eval_order_dependence)]
 

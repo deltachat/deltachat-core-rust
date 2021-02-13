@@ -715,7 +715,7 @@ impl Imap {
         let new_uid_next = largest_uid_without_errors + 1;
 
         if new_uid_next > old_uid_next {
-            set_uid_next(context, &folder, new_uid_next).await?;
+            set_uid_next(context, folder, new_uid_next).await?;
         }
 
         if read_errors == 0 {
@@ -932,7 +932,7 @@ impl Imap {
 
                 match dc_receive_imf_inner(
                     &context,
-                    &body,
+                    body,
                     &folder,
                     server_uid,
                     is_seen,
@@ -1311,7 +1311,7 @@ impl Imap {
                 }
 
                 let folder_meaning = get_folder_meaning(&folder);
-                let folder_name_meaning = get_folder_meaning_by_name(&folder.name());
+                let folder_name_meaning = get_folder_meaning_by_name(folder.name());
                 if folder.name() == "DeltaChat" {
                     // Always takes precendent
                     mvbox_folder = Some(folder.name().to_string());
@@ -1501,7 +1501,7 @@ async fn precheck_imf(
     server_uid: u32,
 ) -> Result<bool> {
     if let Some((old_server_folder, old_server_uid, msg_id)) =
-        message::rfc724_mid_exists(context, &rfc724_mid).await?
+        message::rfc724_mid_exists(context, rfc724_mid).await?
     {
         if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(
@@ -1667,7 +1667,7 @@ async fn message_needs_processing(
     folder: &str,
     show_emails: ShowEmails,
 ) -> bool {
-    let skip = match precheck_imf(context, &msg_id, folder, current_uid).await {
+    let skip = match precheck_imf(context, msg_id, folder, current_uid).await {
         Ok(skip) => skip,
         Err(err) => {
             warn!(context, "precheck_imf error: {}", err);
@@ -1687,7 +1687,7 @@ async fn message_needs_processing(
     // we do not know the message-id
     // or the message-id is missing (in this case, we create one in the further process)
     // or some other error happened
-    let show = match prefetch_should_download(context, &headers, show_emails).await {
+    let show = match prefetch_should_download(context, headers, show_emails).await {
         Ok(show) => show,
         Err(err) => {
             warn!(context, "prefetch_should_download error: {}", err);

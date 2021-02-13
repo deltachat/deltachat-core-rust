@@ -119,20 +119,20 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 async fn fetch(ctx: &Context, connection: &mut Imap) {
     match ctx.get_config(Config::ConfiguredInboxFolder).await {
         Some(watch_folder) => {
-            if let Err(err) = connection.connect_configured(&ctx).await {
+            if let Err(err) = connection.connect_configured(ctx).await {
                 error_network!(ctx, "{}", err);
                 return;
             }
 
             // fetch
-            if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
+            if let Err(err) = connection.fetch(ctx, &watch_folder).await {
                 connection.trigger_reconnect();
                 warn!(ctx, "{:#}", err);
             }
         }
         None => {
             warn!(ctx, "Can not fetch inbox folder, not set");
-            connection.fake_idle(&ctx, None).await;
+            connection.fake_idle(ctx, None).await;
         }
     }
 }
@@ -141,18 +141,18 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
     match ctx.get_config(folder).await {
         Some(watch_folder) => {
             // connect and fake idle if unable to connect
-            if let Err(err) = connection.connect_configured(&ctx).await {
+            if let Err(err) = connection.connect_configured(ctx).await {
                 warn!(ctx, "imap connection failed: {}", err);
-                return connection.fake_idle(&ctx, Some(watch_folder)).await;
+                return connection.fake_idle(ctx, Some(watch_folder)).await;
             }
 
             // fetch
-            if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
+            if let Err(err) = connection.fetch(ctx, &watch_folder).await {
                 connection.trigger_reconnect();
                 warn!(ctx, "{:#}", err);
             }
 
-            if let Err(err) = connection.scan_folders(&ctx).await {
+            if let Err(err) = connection.scan_folders(ctx).await {
                 // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
                 // but maybe just one folder can't be selected or something
                 warn!(ctx, "{}", err);
@@ -161,7 +161,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             // idle
             if connection.can_idle() {
                 connection
-                    .idle(&ctx, Some(watch_folder))
+                    .idle(ctx, Some(watch_folder))
                     .await
                     .unwrap_or_else(|err| {
                         connection.trigger_reconnect();
@@ -169,12 +169,12 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                         InterruptInfo::new(false, None)
                     })
             } else {
-                connection.fake_idle(&ctx, Some(watch_folder)).await
+                connection.fake_idle(ctx, Some(watch_folder)).await
             }
         }
         None => {
             warn!(ctx, "Can not watch {} folder, not set", folder);
-            connection.fake_idle(&ctx, None).await
+            connection.fake_idle(ctx, None).await
         }
     }
 }

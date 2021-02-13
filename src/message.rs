@@ -730,7 +730,7 @@ impl Message {
 
         // add/replace room
         let url = if url.contains("$ROOM") {
-            url.replace("$ROOM", &room)
+            url.replace("$ROOM", room)
         } else if url.contains("$NOROOM") {
             // there are some usecases where a separate room is not needed to use a service
             // eg. if you let in people manually anyway, see discussion at
@@ -2286,66 +2286,65 @@ mod tests {
         some_file.set(Param::File, "foo.bar");
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Text, some_text.as_ref(), &Params::new(), 50, &ctx)
+            get_summarytext_by_raw(Viewtype::Text, some_text.as_ref(), &Params::new(), 50, ctx)
                 .await,
             "bla bla" // for simple text, the type is not added to the summary
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Image, no_text.as_ref(), &some_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::Image, no_text.as_ref(), &some_file, 50, ctx).await,
             "Image" // file names are not added for images
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Video, no_text.as_ref(), &some_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::Video, no_text.as_ref(), &some_file, 50, ctx).await,
             "Video" // file names are not added for videos
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Gif, no_text.as_ref(), &some_file, 50, &ctx,).await,
+            get_summarytext_by_raw(Viewtype::Gif, no_text.as_ref(), &some_file, 50, ctx,).await,
             "GIF" // file names are not added for GIFs
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Sticker, no_text.as_ref(), &some_file, 50, &ctx,)
-                .await,
+            get_summarytext_by_raw(Viewtype::Sticker, no_text.as_ref(), &some_file, 50, ctx,).await,
             "Sticker" // file names are not added for stickers
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Voice, empty_text.as_ref(), &some_file, 50, &ctx,)
+            get_summarytext_by_raw(Viewtype::Voice, empty_text.as_ref(), &some_file, 50, ctx,)
                 .await,
             "Voice message" // file names are not added for voice messages, empty text is skipped
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Voice, no_text.as_ref(), &some_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::Voice, no_text.as_ref(), &some_file, 50, ctx).await,
             "Voice message" // file names are not added for voice messages
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Voice, some_text.as_ref(), &some_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::Voice, some_text.as_ref(), &some_file, 50, ctx).await,
             "Voice message \u{2013} bla bla" // `\u{2013}` explicitly checks for "EN DASH"
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Audio, no_text.as_ref(), &some_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::Audio, no_text.as_ref(), &some_file, 50, ctx).await,
             "Audio \u{2013} foo.bar" // file name is added for audio
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Audio, empty_text.as_ref(), &some_file, 50, &ctx,)
+            get_summarytext_by_raw(Viewtype::Audio, empty_text.as_ref(), &some_file, 50, ctx,)
                 .await,
             "Audio \u{2013} foo.bar" // file name is added for audio, empty text is not added
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Audio, some_text.as_ref(), &some_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::Audio, some_text.as_ref(), &some_file, 50, ctx).await,
             "Audio \u{2013} foo.bar \u{2013} bla bla" // file name and text added for audio
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::File, some_text.as_ref(), &some_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::File, some_text.as_ref(), &some_file, 50, ctx).await,
             "File \u{2013} foo.bar \u{2013} bla bla" // file name is added for files
         );
 
@@ -2353,7 +2352,7 @@ mod tests {
         asm_file.set(Param::File, "foo.bar");
         asm_file.set_cmd(SystemMessage::AutocryptSetupMessage);
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), &asm_file, 50, &ctx).await,
+            get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), &asm_file, 50, ctx).await,
             "Autocrypt Setup Message" // file name is not added for autocrypt setup messages
         );
     }

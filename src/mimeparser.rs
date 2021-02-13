@@ -431,7 +431,7 @@ impl MimeMessage {
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
             if let Some(ref dn_to) = self.chat_disposition_notification_to {
-                if let Some(ref from) = self.from.get(0) {
+                if let Some(from) = self.from.get(0) {
                     if from.addr.to_lowercase() == dn_to.addr.to_lowercase() {
                         if let Some(part) = self.parts.last_mut() {
                             part.param.set_int(Param::WantsMdn, 1);
@@ -1355,7 +1355,7 @@ fn get_attachment_filename(
                 let mut parts = name.splitn(3, '\'');
                 desired_filename =
                     if let (Some(charset), Some(value)) = (parts.next(), parts.last()) {
-                        let decoded_bytes = percent_decode_str(&value);
+                        let decoded_bytes = percent_decode_str(value);
                         if charset.to_lowercase() == "utf-8" {
                             Some(decoded_bytes.decode_utf8_lossy().to_string())
                         } else {
@@ -1597,8 +1597,8 @@ mod tests {
 
     fn load_mail_with_attachment<'a>(t: &'a TestContext, raw: &'a [u8]) -> ParsedMail<'a> {
         let mail = mailparse::parse_mail(raw).unwrap();
-        assert!(get_attachment_filename(&t, &mail).unwrap().is_none());
-        assert!(get_attachment_filename(&t, &mail.subparts[0])
+        assert!(get_attachment_filename(t, &mail).unwrap().is_none());
+        assert!(get_attachment_filename(t, &mail.subparts[0])
             .unwrap()
             .is_none());
         mail

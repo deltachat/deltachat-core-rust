@@ -153,7 +153,7 @@ pub async fn get_provider_by_mx(domain: impl AsRef<str>) -> Option<&'static Prov
 
 pub fn get_provider_by_id(id: &str) -> Option<&'static Provider> {
     if let Some(provider) = PROVIDER_IDS.get(id) {
-        Some(&provider)
+        Some(provider)
     } else {
         None
     }

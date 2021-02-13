@@ -904,28 +904,28 @@ impl Context {
 
         // create saved-messages chat; we do this only once, if the user has deleted the chat,
         // he can recreate it manually (make sure we do not re-add it when configure() was called a second time)
-        if !self.sql.get_raw_config_bool(&self, "self-chat-added").await {
+        if !self.sql.get_raw_config_bool(self, "self-chat-added").await {
             self.sql
-                .set_raw_config_bool(&self, "self-chat-added", true)
+                .set_raw_config_bool(self, "self-chat-added", true)
                 .await?;
-            chat::create_by_contact_id(&self, DC_CONTACT_ID_SELF).await?;
+            chat::create_by_contact_id(self, DC_CONTACT_ID_SELF).await?;
         }
 
         // add welcome-messages. by the label, this is done only once,
         // if the user has deleted the message or the chat, it is not added again.
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some(device_messages_hint(self).await);
-        chat::add_device_msg(&self, Some("core-about-device-chat"), Some(&mut msg)).await?;
+        chat::add_device_msg(self, Some("core-about-device-chat"), Some(&mut msg)).await?;
 
         let image = include_bytes!("../assets/welcome-image.jpg");
-        let blob = BlobObject::create(&self, "welcome-image.jpg".to_string(), image).await?;
+        let blob = BlobObject::create(self, "welcome-image.jpg".to_string(), image).await?;
         let mut msg = Message::new(Viewtype::Image);
         msg.param.set(Param::File, blob.as_name());
-        chat::add_device_msg(&self, Some("core-welcome-image"), Some(&mut msg)).await?;
+        chat::add_device_msg(self, Some("core-welcome-image"), Some(&mut msg)).await?;
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some(welcome_message(self).await);
-        chat::add_device_msg(&self, Some("core-welcome"), Some(&mut msg)).await?;
+        chat::add_device_msg(self, Some("core-welcome"), Some(&mut msg)).await?;
         Ok(())
     }
 }
