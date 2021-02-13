@@ -483,14 +483,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             encode_words(&subject_str)
         };
 
-        let message = match self.loaded {
-            Loaded::Message { .. } => {
-                self.render_message(&mut protected_headers, &mut unprotected_headers, &grpimage)
-                    .await?
-            }
-            Loaded::MDN { .. } => self.render_mdn().await?,
-        };
-
         if !skip_autocrypt {
             // unless determined otherwise we add the Autocrypt header
             let aheader = encrypt_helper.get_aheader().to_string();
@@ -498,11 +490,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
 
         protected_headers.push(Header::new("Subject".into(), subject));
-
-        let peerstates = self.peerstates_for_recipients().await?;
-        let should_encrypt =
-            encrypt_helper.should_encrypt(self.context, e2ee_guaranteed, &peerstates)?;
-        let is_encrypted = should_encrypt && !force_plaintext;
 
         let rfc724_mid = match self.loaded {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
@@ -532,6 +519,32 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         unprotected_headers.push(Header::new_with_value("From".into(), vec![from]).unwrap());
 
         let mut is_gossiped = false;
+
+        let (main_part, parts) = match self.loaded {
+            Loaded::Message { .. } => {
+                self.render_message(&mut protected_headers, &mut unprotected_headers, &grpimage)
+                    .await?
+            }
+            Loaded::MDN { .. } => (self.render_mdn().await?, Vec::new()),
+        };
+
+        let peerstates = self.peerstates_for_recipients().await?;
+        let should_encrypt =
+            encrypt_helper.should_encrypt(self.context, e2ee_guaranteed, &peerstates)?;
+        let is_encrypted = should_encrypt && !force_plaintext;
+
+        let message = if parts.is_empty() {
+            // Single part, render as regular message.
+            main_part
+        } else {
+            // Multiple parts, render as multipart.
+            parts.into_iter().fold(
+                PartBuilder::new()
+                    .message_type(MimeMultipartType::Mixed)
+                    .child(main_part.build()),
+                |message, part| message.child(part.build()),
+            )
+        };
 
         // Store protected headers in the inner message.
         let mut message = protected_headers
@@ -677,7 +690,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         protected_headers: &mut Vec<Header>,
         unprotected_headers: &mut Vec<Header>,
         grpimage: &Option<String>,
-    ) -> Result<PartBuilder, Error> {
+    ) -> Result<(PartBuilder, Vec<PartBuilder>), Error> {
         let context = self.context;
         let chat = match &self.loaded {
             Loaded::Message { chat } => chat,
@@ -993,18 +1006,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
         }
 
-        if parts.is_empty() {
-            // Single part, render as regular message.
-            Ok(main_part)
-        } else {
-            // Multiple parts, render as multipart.
-            let mut message = PartBuilder::new().message_type(MimeMultipartType::Mixed);
-            message = message.child(main_part.build());
-            for part in parts.into_iter() {
-                message = message.child(part.build());
-            }
-            Ok(message)
-        }
+        Ok((main_part, parts))
     }
 
     /// Render an MDN
