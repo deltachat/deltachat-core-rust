@@ -15,6 +15,7 @@ End-to-end encryption            | [Autocrypt Level 1](https://autocrypt.org/lev
 Configuration assistance         | [Autoconfigure](https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration) and [Autodiscover](https://technet.microsoft.com/library/bb124251(v=exchg.150).aspx)
 Messenger functions              | [Chat-over-Email](https://github.com/deltachat/deltachat-core-rust/blob/master/spec.md#chat-over-email-specification)
 Detect mailing list              | List-Id ([RFC 2919](https://tools.ietf.org/html/rfc2919)) and Precedence ([RFC 3834](https://tools.ietf.org/html/rfc3834))
+User and chat colors             | [XEP-0392](https://xmpp.org/extensions/xep-0392.html): Consistent Color Generation
 Send and receive system messages | Multipart/Report Media Type ([RFC 6522](https://tools.ietf.org/html/rfc6522))
 Return receipts                  | Message Disposition Notification (MDN, [RFC 8098](https://tools.ietf.org/html/rfc8098), [RFC 3503](https://tools.ietf.org/html/rfc3503)) using the Chat-Disposition-Notification-To header
 Locations                        | KML ([Open Geospatial Consortium](http://www.opengeospatial.org/standards/kml/), [Google Dev](https://developers.google.com/kml/))
