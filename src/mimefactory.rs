@@ -39,7 +39,7 @@ pub enum Loaded {
 
 /// Helper to construct mime messages.
 #[derive(Debug, Clone)]
-pub struct MimeFactory<'a, 'b> {
+pub struct MimeFactory<'a> {
     from_addr: String,
     from_displayname: String,
     selfstatus: String,
@@ -49,11 +49,10 @@ pub struct MimeFactory<'a, 'b> {
 
     timestamp: i64,
     loaded: Loaded,
-    msg: &'b Message,
+    msg: &'a Message,
     in_reply_to: String,
     references: String,
     req_mdn: bool,
-    context: &'a Context,
     last_added_location_id: u32,
     attach_selfavatar: bool,
 }
@@ -71,12 +70,12 @@ pub struct RenderedEmail {
     pub rfc724_mid: String,
 }
 
-impl<'a, 'b> MimeFactory<'a, 'b> {
+impl<'a> MimeFactory<'a> {
     pub async fn from_msg(
-        context: &'a Context,
-        msg: &'b Message,
+        context: &Context,
+        msg: &'a Message,
         attach_selfavatar: bool,
-    ) -> Result<MimeFactory<'a, 'b>, Error> {
+    ) -> Result<MimeFactory<'a>, Error> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
 
         let from_addr = context
@@ -156,16 +155,15 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             req_mdn,
             last_added_location_id: 0,
             attach_selfavatar,
-            context,
         };
         Ok(factory)
     }
 
     pub async fn from_mdn(
-        context: &'a Context,
-        msg: &'b Message,
+        context: &Context,
+        msg: &'a Message,
         additional_msg_ids: Vec<String>,
-    ) -> Result<MimeFactory<'a, 'b>, Error> {
+    ) -> Result<MimeFactory<'a>, Error> {
         ensure!(!msg.chat_id.is_special(), "Invalid chat id");
 
         let contact = Contact::load_from_db(context, msg.from_id).await?;
@@ -184,8 +182,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .unwrap_or(default_str);
         let timestamp = dc_create_smeared_timestamp(context).await;
 
-        let res = MimeFactory::<'a, 'b> {
-            context,
+        let res = MimeFactory::<'a> {
             from_addr,
             from_displayname,
             selfstatus,
@@ -206,9 +203,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         Ok(res)
     }
 
-    async fn peerstates_for_recipients(&self) -> Result<Vec<(Option<Peerstate<'_>>, &str)>, Error> {
-        let self_addr = self
-            .context
+    async fn peerstates_for_recipients(
+        &self,
+        context: &Context,
+    ) -> Result<Vec<(Option<Peerstate>, &str)>, Error> {
+        let self_addr = context
             .get_config(Config::ConfiguredAddr)
             .await
             .ok_or_else(|| format_err!("Not configured"))?;
@@ -219,10 +218,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .iter()
             .filter(|(_, addr)| addr != &self_addr)
         {
-            res.push((
-                Peerstate::from_addr(self.context, addr).await?,
-                addr.as_str(),
-            ));
+            res.push((Peerstate::from_addr(context, addr).await?, addr.as_str()));
         }
 
         Ok(res)
@@ -290,11 +286,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
     }
 
-    async fn should_do_gossip(&self) -> bool {
+    async fn should_do_gossip(&self, context: &Context) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
                 // beside key- and member-changes, force re-gossip every 48 hours
-                let gossiped_timestamp = chat.get_gossiped_timestamp(self.context).await;
+                let gossiped_timestamp = chat.get_gossiped_timestamp(context).await;
                 if time() > gossiped_timestamp + (2 * 24 * 60 * 60) {
                     return true;
                 }
@@ -335,11 +331,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
     }
 
-    async fn subject_str(&self) -> String {
+    async fn subject_str(&self, context: &Context) -> String {
         match self.loaded {
             Loaded::Message { ref chat } => {
                 if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-                    stock_str::ac_setup_msg_subject(self.context).await
+                    stock_str::ac_setup_msg_subject(context).await
                 } else if chat.typ == Chattype::Group {
                     let re = if self.in_reply_to.is_empty() {
                         ""
@@ -371,22 +367,17 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                             )
                         }
                         None => {
-                            let self_name = match self.context.get_config(Config::Displayname).await
-                            {
+                            let self_name = match context.get_config(Config::Displayname).await {
                                 Some(name) => name,
-                                None => self
-                                    .context
-                                    .get_config(Config::Addr)
-                                    .await
-                                    .unwrap_or_default(),
+                                None => context.get_config(Config::Addr).await.unwrap_or_default(),
                             };
 
-                            stock_str::subject_for_new_contact(self.context, self_name).await
+                            stock_str::subject_for_new_contact(context, self_name).await
                         }
                     }
                 }
             }
-            Loaded::MDN { .. } => stock_str::read_rcpt(self.context).await,
+            Loaded::MDN { .. } => stock_str::read_rcpt(context).await,
         }
     }
 
@@ -397,7 +388,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .collect()
     }
 
-    pub async fn render(mut self) -> Result<RenderedEmail, Error> {
+    pub async fn render(mut self, context: &Context) -> Result<RenderedEmail, Error> {
         // Headers that are encrypted
         // - Chat-*, except Chat-Version
         // - Secure-Join*
@@ -468,9 +459,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
         let skip_autocrypt = self.should_skip_autocrypt();
-        let subject_str = self.subject_str().await;
+        let subject_str = self.subject_str(context).await;
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
-        let encrypt_helper = EncryptHelper::new(self.context).await?;
+        let encrypt_helper = EncryptHelper::new(context).await?;
 
         let subject = if subject_str
             .chars()
@@ -496,7 +487,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::MDN { .. } => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
         };
 
-        let ephemeral_timer = self.msg.chat_id.get_ephemeral_timer(self.context).await?;
+        let ephemeral_timer = self.msg.chat_id.get_ephemeral_timer(context).await?;
         if let EphemeralTimer::Enabled { duration } = ephemeral_timer {
             protected_headers.push(Header::new(
                 "Ephemeral-Timer".to_string(),
@@ -522,15 +513,20 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         let (main_part, parts) = match self.loaded {
             Loaded::Message { .. } => {
-                self.render_message(&mut protected_headers, &mut unprotected_headers, &grpimage)
-                    .await?
+                self.render_message(
+                    context,
+                    &mut protected_headers,
+                    &mut unprotected_headers,
+                    &grpimage,
+                )
+                .await?
             }
-            Loaded::MDN { .. } => (self.render_mdn().await?, Vec::new()),
+            Loaded::MDN { .. } => (self.render_mdn(context).await?, Vec::new()),
         };
 
-        let peerstates = self.peerstates_for_recipients().await?;
+        let peerstates = self.peerstates_for_recipients(context).await?;
         let should_encrypt =
-            encrypt_helper.should_encrypt(self.context, e2ee_guaranteed, &peerstates)?;
+            encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && !force_plaintext;
 
         let message = if parts.is_empty() {
@@ -553,7 +549,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         let outer_message = if is_encrypted {
             // Add gossip headers in chats with multiple recipients
-            if peerstates.len() > 1 && self.should_do_gossip().await {
+            if peerstates.len() > 1 && self.should_do_gossip(context).await {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
                     if peerstate.peek_key(min_verified).is_some() {
                         if let Some(header) = peerstate.render_gossip_header(min_verified) {
@@ -591,13 +587,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 .fold(outer_message, |message, header| message.header(header));
 
             if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                info!(self.context, "mimefactory: outgoing message mime:");
+                info!(context, "mimefactory: outgoing message mime:");
                 let raw_message = message.clone().build().as_string();
                 println!("{}", raw_message);
             }
 
             let encrypted = encrypt_helper
-                .encrypt(self.context, min_verified, message, peerstates)
+                .encrypt(context, min_verified, message, peerstates)
                 .await?;
 
             outer_message
@@ -663,9 +659,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         Some(part)
     }
 
-    async fn get_location_kml_part(&mut self) -> Result<PartBuilder, Error> {
+    async fn get_location_kml_part(&mut self, context: &Context) -> Result<PartBuilder, Error> {
         let (kml_content, last_added_location_id) =
-            location::get_kml(self.context, self.msg.chat_id).await?;
+            location::get_kml(context, self.msg.chat_id).await?;
         let part = PartBuilder::new()
             .content_type(
                 &"application/vnd.google-earth.kml+xml"
@@ -687,11 +683,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     #[allow(clippy::cognitive_complexity)]
     async fn render_message(
         &mut self,
+        context: &Context,
         protected_headers: &mut Vec<Header>,
         unprotected_headers: &mut Vec<Header>,
         grpimage: &Option<String>,
     ) -> Result<(PartBuilder, Vec<PartBuilder>), Error> {
-        let context = self.context;
         let chat = match &self.loaded {
             Loaded::Message { chat } => chat,
             Loaded::MDN { .. } => bail!("Attempt to render MDN as a message"),
@@ -796,7 +792,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 unprotected_headers
                     .push(Header::new("Autocrypt-Setup-Message".into(), "v1".into()));
 
-                placeholdertext = Some(stock_str::ac_setup_msg_body(self.context).await);
+                placeholdertext = Some(stock_str::ac_setup_msg_body(context).await);
             }
             SystemMessage::SecurejoinMessage => {
                 let msg = &self.msg;
@@ -848,7 +844,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
 
         if let Some(grpimage) = grpimage {
-            info!(self.context, "setting group image '{}'", grpimage);
+            info!(context, "setting group image '{}'", grpimage);
             let mut meta = Message {
                 viewtype: Viewtype::Image,
                 ..Default::default()
@@ -985,7 +981,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
 
         if location::is_sending_locations_to_chat(context, Some(self.msg.chat_id)).await {
-            match self.get_location_kml_part().await {
+            match self.get_location_kml_part(context).await {
                 Ok(part) => parts.push(part),
                 Err(err) => {
                     warn!(context, "mimefactory: could not send location: {}", err);
@@ -1010,7 +1006,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 
     /// Render an MDN
-    async fn render_mdn(&mut self) -> Result<PartBuilder, Error> {
+    async fn render_mdn(&mut self, context: &Context) -> Result<PartBuilder, Error> {
         // RFC 6522, this also requires the `report-type` parameter which is equal
         // to the MIME subtype of the second body part of the multipart/report
         //
@@ -1043,11 +1039,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 .get_int(Param::GuaranteeE2ee)
                 .unwrap_or_default()
         {
-            stock_str::encrypted_msg(self.context).await
+            stock_str::encrypted_msg(context).await
         } else {
-            self.msg.get_summarytext(self.context, 32).await
+            self.msg.get_summarytext(context, 32).await
         };
-        let p2 = stock_str::read_rcpt_mail_body(self.context, p1).await;
+        let p2 = stock_str::read_rcpt_mail_body(context, p1).await;
         let message_text = format!("{}\r\n", p2);
         message = message.child(
             PartBuilder::new()
@@ -1500,7 +1496,7 @@ mod tests {
                  \n", &t).await;
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
         // The subject string should not be "Re: message opened"
-        assert_eq!("Re: Hello, Charlie", mf.subject_str().await);
+        assert_eq!("Re: Hello, Charlie", mf.subject_str(&t).await);
     }
 
     async fn first_subject_str(t: TestContext) -> String {
@@ -1519,14 +1515,14 @@ mod tests {
 
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
 
-        mf.subject_str().await
+        mf.subject_str(&t).await
     }
 
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
         let t = TestContext::new_alice().await;
         let new_msg = incoming_msg_to_reply_msg(imf_raw, &t).await;
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
-        mf.subject_str().await
+        mf.subject_str(&t).await
     }
 
     // Creates a `Message` that replies "Hi" to the incoming email in `imf_raw`.
@@ -1581,7 +1577,7 @@ mod tests {
         let recipients = mimefactory.recipients();
         assert_eq!(recipients, vec!["charlie@example.com"]);
 
-        let rendered_msg = mimefactory.render().await.unwrap();
+        let rendered_msg = mimefactory.render(context).await.unwrap();
 
         let mail = mailparse::parse_mail(&rendered_msg.message).unwrap();
         assert_eq!(

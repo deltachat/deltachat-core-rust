@@ -30,8 +30,7 @@ pub enum PeerstateVerifiedStatus {
 }
 
 /// Peerstate represents the state of an Autocrypt peer.
-pub struct Peerstate<'a> {
-    pub context: &'a Context,
+pub struct Peerstate {
     pub addr: String,
     pub last_seen: i64,
     pub last_seen_autocrypt: i64,
@@ -47,7 +46,7 @@ pub struct Peerstate<'a> {
     pub fingerprint_changed: bool,
 }
 
-impl<'a> PartialEq for Peerstate<'a> {
+impl PartialEq for Peerstate {
     fn eq(&self, other: &Peerstate) -> bool {
         self.addr == other.addr
             && self.last_seen == other.last_seen
@@ -65,9 +64,9 @@ impl<'a> PartialEq for Peerstate<'a> {
     }
 }
 
-impl<'a> Eq for Peerstate<'a> {}
+impl Eq for Peerstate {}
 
-impl<'a> fmt::Debug for Peerstate<'a> {
+impl fmt::Debug for Peerstate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Peerstate")
             .field("addr", &self.addr)
@@ -94,10 +93,9 @@ pub enum ToSave {
     All = 0x02,
 }
 
-impl<'a> Peerstate<'a> {
-    pub fn from_header(context: &'a Context, header: &Aheader, message_time: i64) -> Self {
+impl Peerstate {
+    pub fn from_header(header: &Aheader, message_time: i64) -> Self {
         Peerstate {
-            context,
             addr: header.addr.clone(),
             last_seen: message_time,
             last_seen_autocrypt: message_time,
@@ -114,9 +112,8 @@ impl<'a> Peerstate<'a> {
         }
     }
 
-    pub fn from_gossip(context: &'a Context, gossip_header: &Aheader, message_time: i64) -> Self {
+    pub fn from_gossip(gossip_header: &Aheader, message_time: i64) -> Self {
         Peerstate {
-            context,
             addr: gossip_header.addr.clone(),
             last_seen: 0,
             last_seen_autocrypt: 0,
@@ -141,7 +138,7 @@ impl<'a> Peerstate<'a> {
         }
     }
 
-    pub async fn from_addr(context: &'a Context, addr: &str) -> Result<Option<Peerstate<'a>>> {
+    pub async fn from_addr(context: &Context, addr: &str) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
@@ -151,10 +148,10 @@ impl<'a> Peerstate<'a> {
     }
 
     pub async fn from_fingerprint(
-        context: &'a Context,
+        context: &Context,
         _sql: &Sql,
         fingerprint: &Fingerprint,
-    ) -> Result<Option<Peerstate<'a>>> {
+    ) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
@@ -167,10 +164,10 @@ impl<'a> Peerstate<'a> {
     }
 
     async fn from_stmt(
-        context: &'a Context,
+        context: &Context,
         query: &str,
         params: Vec<&dyn crate::ToSql>,
-    ) -> Result<Option<Peerstate<'a>>> {
+    ) -> Result<Option<Peerstate>> {
         let peerstate = context
             .sql
             .query_row_optional(query, params, |row| {
@@ -181,7 +178,6 @@ impl<'a> Peerstate<'a> {
                 */
 
                 let res = Peerstate {
-                    context,
                     addr: row.get(0)?,
                     last_seen: row.get(1)?,
                     last_seen_autocrypt: row.get(2)?,
@@ -434,31 +430,31 @@ impl<'a> Peerstate<'a> {
         if self.to_save == Some(ToSave::All) || create {
             sql.execute(
                 if create {
-                "INSERT INTO acpeerstates (last_seen, last_seen_autocrypt, prefer_encrypted, \
+                    "INSERT INTO acpeerstates (last_seen, last_seen_autocrypt, prefer_encrypted, \
                  public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                  verified_key, verified_key_fingerprint, addr \
                 ) VALUES(?,?,?,?,?,?,?,?,?,?,?)"
                 } else {
-                "UPDATE acpeerstates \
+                    "UPDATE acpeerstates \
                  SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
                  public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
                  verified_key=?, verified_key_fingerprint=? \
                  WHERE addr=?"
                 },
                 paramsv![
-                    self.last_seen,
-                    self.last_seen_autocrypt,
-                    self.prefer_encrypt as i64,
-                    self.public_key.as_ref().map(|k| k.to_bytes()),
-                    self.gossip_timestamp,
-                    self.gossip_key.as_ref().map(|k| k.to_bytes()),
-                    self.public_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                    self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                    self.verified_key.as_ref().map(|k| k.to_bytes()),
-                    self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                    self.addr,
+                self.last_seen,
+                self.last_seen_autocrypt,
+                self.prefer_encrypt as i64,
+                self.public_key.as_ref().map(|k| k.to_bytes()),
+                self.gossip_timestamp,
+                self.gossip_key.as_ref().map(|k| k.to_bytes()),
+                self.public_key_fingerprint.as_ref().map(|fp| fp.hex()),
+                self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
+                self.verified_key.as_ref().map(|k| k.to_bytes()),
+                self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
+                self.addr,
                 ],
-            ).await?;
+                ).await?;
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql.execute(
                 "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
@@ -505,7 +501,6 @@ mod tests {
         let pub_key = alice_keypair().public;
 
         let mut peerstate = Peerstate {
-            context: &ctx.ctx,
             addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
@@ -549,7 +544,6 @@ mod tests {
         let pub_key = alice_keypair().public;
 
         let peerstate = Peerstate {
-            context: &ctx.ctx,
             addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
@@ -583,7 +577,6 @@ mod tests {
         let pub_key = alice_keypair().public;
 
         let mut peerstate = Peerstate {
-            context: &ctx.ctx,
             addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
@@ -644,13 +637,11 @@ mod tests {
 
     #[async_std::test]
     async fn test_peerstate_degrade_reordering() {
-        let context = crate::test_utils::TestContext::new().await.ctx;
         let addr = "example@example.org";
         let pub_key = alice_keypair().public;
         let header = Aheader::new(addr.to_string(), pub_key, EncryptPreference::Mutual);
 
         let mut peerstate = Peerstate {
-            context: &context,
             addr: addr.to_string(),
             last_seen: 0,
             last_seen_autocrypt: 0,

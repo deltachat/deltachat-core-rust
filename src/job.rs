@@ -488,7 +488,7 @@ impl Job {
         let msg = job_try!(Message::load_from_db(context, msg_id).await);
         let mimefactory =
             job_try!(MimeFactory::from_mdn(context, &msg, additional_rfc724_mids).await);
-        let rendered_msg = job_try!(mimefactory.render().await);
+        let rendered_msg = job_try!(mimefactory.render(context).await);
         let body = rendered_msg.message;
 
         let addr = contact.get_addr();
@@ -961,7 +961,7 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
         return Ok(None);
     }
 
-    let rendered_msg = match mimefactory.render().await {
+    let rendered_msg = match mimefactory.render(context).await {
         Ok(res) => Ok(res),
         Err(err) => {
             message::set_msg_failed(context, msg_id, Some(err.to_string())).await;

@@ -971,7 +971,7 @@ impl Contact {
     pub async fn is_verified_ex(
         &self,
         context: &Context,
-        peerstate: Option<&Peerstate<'_>>,
+        peerstate: Option<&Peerstate>,
     ) -> VerifiedStatus {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device

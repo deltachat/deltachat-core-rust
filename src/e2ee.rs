@@ -113,7 +113,7 @@ impl EncryptHelper {
         context: &Context,
         min_verified: PeerstateVerifiedStatus,
         mail_to_encrypt: lettre_email::PartBuilder,
-        peerstates: Vec<(Option<Peerstate<'_>>, &str)>,
+        peerstates: Vec<(Option<Peerstate>, &str)>,
     ) -> Result<String> {
         let mut keyring: Keyring<SignedPublicKey> = Keyring::new();
 
@@ -166,7 +166,7 @@ pub async fn try_decrypt(
             peerstate.apply_header(header, message_time);
             peerstate.save_to_db(&context.sql, false).await?;
         } else {
-            let p = Peerstate::from_header(context, header, message_time);
+            let p = Peerstate::from_header(header, message_time);
             p.save_to_db(&context.sql, true).await?;
             peerstate = Some(p);
         }
@@ -497,14 +497,10 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         Ok(())
     }
 
-    fn new_peerstates(
-        ctx: &Context,
-        prefer_encrypt: EncryptPreference,
-    ) -> Vec<(Option<Peerstate<'_>>, &str)> {
+    fn new_peerstates(prefer_encrypt: EncryptPreference) -> Vec<(Option<Peerstate>, &'static str)> {
         let addr = "bob@foo.bar";
         let pub_key = bob_keypair().public;
         let peerstate = Peerstate {
-            context: ctx,
             addr: addr.into(),
             last_seen: 13,
             last_seen_autocrypt: 14,
@@ -531,17 +527,17 @@ Sent with my Delta Chat Messenger: https://delta.chat";
 
         // test with EncryptPreference::NoPreference:
         // if e2ee_eguaranteed is unset, there is no encryption as not more than half of peers want encryption
-        let ps = new_peerstates(&t, EncryptPreference::NoPreference);
+        let ps = new_peerstates(EncryptPreference::NoPreference);
         assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
         assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with EncryptPreference::Reset
-        let ps = new_peerstates(&t, EncryptPreference::Reset);
+        let ps = new_peerstates(EncryptPreference::Reset);
         assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
         assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with EncryptPreference::Mutual (self is also Mutual)
-        let ps = new_peerstates(&t, EncryptPreference::Mutual);
+        let ps = new_peerstates(EncryptPreference::Mutual);
         assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
         assert!(encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 

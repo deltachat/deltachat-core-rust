@@ -1172,7 +1172,7 @@ async fn update_gossip_peerstates(
                     peerstate.apply_gossip(header, message_time);
                     peerstate.save_to_db(&context.sql, false).await?;
                 } else {
-                    let p = Peerstate::from_gossip(context, header, message_time);
+                    let p = Peerstate::from_gossip(header, message_time);
                     p.save_to_db(&context.sql, true).await?;
                     peerstate = Some(p);
                 }
