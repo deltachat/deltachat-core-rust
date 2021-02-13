@@ -1130,8 +1130,8 @@ class TestOnlineAccount:
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "first message"
         assert not msg.is_encrypted()
-        assert msg.chat.get_encryption_info() == f"{ac2.get_config('addr')} End-to-end encryption preferred."
-
+        res = "{} End-to-end encryption preferred.".format(ac2.get_config('addr'))
+        assert msg.chat.get_encryption_info() == res
         lp.sec("ac2 learns that ac3 prefers encryption")
         ac2.create_chat(ac3)
         msg = ac3.create_chat(ac2).send_text("I prefer encryption")
