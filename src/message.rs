@@ -806,6 +806,16 @@ impl Message {
         }
     }
 
+    /// Set different sender name for a message.
+    /// This overrides the name set by the `set_config()`-option `displayname`.
+    pub fn set_override_sender_name(&mut self, name: Option<String>) {
+        if let Some(name) = name {
+            self.param.set(Param::OverrideSenderDisplayname, name);
+        } else {
+            self.param.remove(Param::OverrideSenderDisplayname);
+        }
+    }
+
     pub fn set_dimension(&mut self, width: i32, height: i32) {
         self.param.set_int(Param::Width, width);
         self.param.set_int(Param::Height, height);
@@ -2525,5 +2535,46 @@ mod tests {
         assert!(!msg.get_real_chat_id().is_deaddrop());
         assert!(!msg.get_real_chat_id().is_special());
         assert_eq!(msg.get_text().unwrap(), "hello".to_string());
+    }
+
+    #[async_std::test]
+    async fn test_set_override_sender_name() {
+        // send message with overridden sender name
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat = alice.create_chat(&bob).await;
+        let contact_id = *chat::get_chat_contacts(&alice, chat.id)
+            .await
+            .first()
+            .unwrap();
+        let contact = Contact::load_from_db(&alice, contact_id).await.unwrap();
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("bla blubb".to_string()));
+        msg.set_override_sender_name(Some("over ride".to_string()));
+        assert_eq!(
+            msg.get_override_sender_name(),
+            Some("over ride".to_string())
+        );
+        assert_eq!(msg.get_sender_name(&contact), "over ride".to_string());
+        assert_ne!(contact.get_display_name(), "over ride".to_string());
+        chat::send_msg(&alice, chat.id, &mut msg).await.unwrap();
+
+        // bob receives that message
+        let chat = bob.create_chat(&alice).await;
+        let contact_id = *chat::get_chat_contacts(&bob, chat.id)
+            .await
+            .first()
+            .unwrap();
+        let contact = Contact::load_from_db(&bob, contact_id).await.unwrap();
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+        let msg = bob.get_last_msg_in(chat.id).await;
+        assert_eq!(msg.text, Some("bla blubb".to_string()));
+        assert_eq!(
+            msg.get_override_sender_name(),
+            Some("over ride".to_string())
+        );
+        assert_eq!(msg.get_sender_name(&contact), "over ride".to_string());
+        assert_ne!(contact.get_display_name(), "over ride".to_string());
     }
 }
