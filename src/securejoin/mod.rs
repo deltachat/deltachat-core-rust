@@ -1124,7 +1124,6 @@ mod tests {
         // Ensure Bob knows Alice_FP
         let alice_pubkey = SignedPublicKey::load_self(&alice.ctx).await.unwrap();
         let peerstate = Peerstate {
-            context: &bob.ctx,
             addr: "alice@example.com".into(),
             last_seen: 10,
             last_seen_autocrypt: 10,
