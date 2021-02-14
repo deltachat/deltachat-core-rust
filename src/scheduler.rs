@@ -96,6 +96,9 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                     info = if ctx.get_config_bool(Config::InboxWatch).await {
                         fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await
                     } else {
+                        if let Err(err) = connection.scan_folders(&ctx).await {
+                            warn!(ctx, "{}", err);
+                        }
                         connection.fake_idle(&ctx, None).await
                     };
                 }
@@ -152,10 +155,13 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 warn!(ctx, "{:#}", err);
             }
 
-            if let Err(err) = connection.scan_folders(ctx).await {
-                // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
-                // but maybe just one folder can't be selected or something
-                warn!(ctx, "{}", err);
+            if folder == Config::ConfiguredInboxFolder {
+                // Only scan on the Inbox thread in order to prevent parallel scans, which might lead to duplicate messages
+                if let Err(err) = connection.scan_folders(ctx).await {
+                    // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
+                    // but maybe just one folder can't be selected or something
+                    warn!(ctx, "{}", err);
+                }
             }
 
             // idle
