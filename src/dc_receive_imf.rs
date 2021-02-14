@@ -125,6 +125,8 @@ pub(crate) async fn dc_receive_imf_inner(
         sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
     }
 
+    let prevent_rename = list_id_header.is_some() || mime_parser.get(HeaderDef::Sender).is_some();
+
     // get From: (it can be an address list!) and check if it is known (for known From:'s we add
     // the other To:/Cc: in the 3rd pass)
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
@@ -134,7 +136,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // If this is a mailing list email (i.e. list_id_header is some), don't change the displayname because in
     // a mailing list the sender displayname sometimes does not belong to the sender email address.
     let (from_id, _from_id_blocked, incoming_origin) =
-        from_field_to_contact_id(context, &mime_parser.from, list_id_header.is_some()).await?;
+        from_field_to_contact_id(context, &mime_parser.from, prevent_rename).await?;
 
     let incoming = from_id != DC_CONTACT_ID_SELF;
 
@@ -151,7 +153,7 @@ pub(crate) async fn dc_receive_imf_inner(
             } else {
                 Origin::IncomingUnknownTo
             },
-            list_id_header.is_some(),
+            prevent_rename,
         )
         .await?,
     );
@@ -193,6 +195,7 @@ pub(crate) async fn dc_receive_imf_inner(
             &mut created_db_entries,
             &mut create_event_to_send,
             fetching_existing_messages,
+            prevent_rename,
         )
         .await
         {
@@ -376,6 +379,7 @@ async fn add_parts(
     created_db_entries: &mut Vec<(ChatId, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
     fetching_existing_messages: bool,
+    prevent_rename: bool,
 ) -> Result<()> {
     let mut state: MessageState;
     let mut chat_id_blocked = Blocked::Not;
@@ -536,6 +540,18 @@ async fn add_parts(
                         for part in mime_parser.parts.iter_mut() {
                             part.param.set(Param::OverrideSenderDisplayname, from_name);
                         }
+                    }
+                }
+            }
+        }
+
+        // if contact renaming is prevented (for mailinglists and bots),
+        // we use name from From:-header as override name
+        if prevent_rename {
+            if let Some(from) = mime_parser.from.first() {
+                if let Some(name) = &from.display_name {
+                    for part in mime_parser.parts.iter_mut() {
+                        part.param.set(Param::OverrideSenderDisplayname, name);
                     }
                 }
             }
