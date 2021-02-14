@@ -402,13 +402,22 @@ impl<'a> MimeFactory<'a> {
     }
 
     pub async fn render(mut self, context: &Context) -> Result<RenderedEmail> {
-        // Headers that are encrypted
-        // - Chat-*, except Chat-Version
-        // - Secure-Join*
-        // - Subject
+        // Opportunistically protected headers.
+        //
+        // These headers are placed into encrypted part *if* the message is encrypted. Place headers
+        // which are not needed before decryption (e.g. Chat-Group-Name) or are not interesting if
+        // the message cannot be decrypted (e.g. Chat-Disposition-Notification-To) here.
+        //
+        // If the message is not encrypted, these headers are placed into IMF header section, so
+        // make sure that the message will be encrypted if you place any sensitive information here.
         let mut protected_headers: Vec<Header> = Vec::new();
 
-        // All other headers
+        // Headers that must go into IMF header section.
+        //
+        // These are standard headers such as Date, In-Reply-To, References, which cannot be placed
+        // anywhere else according to the standard. Placing headers here also allows them to be
+        // fetched individually over IMAP without downloading the message body. This is why
+        // Chat-Version is placed here.
         let mut unprotected_headers: Vec<Header> = Vec::new();
 
         let from = Address::new_mailbox_with_name(
