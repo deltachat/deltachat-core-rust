@@ -365,9 +365,9 @@ static VCARD_NAME_RE: Lazy<regex::Regex> =
 static VCARD_EMAIL_RE: Lazy<regex::Regex> =
     Lazy::new(|| regex::Regex::new(r"(?m)^EMAIL([^:\n]*):([^;\n]*)").unwrap());
 
-/// Extract address for the matmsg scheme.
+/// Extract address for the vcard scheme.
 ///
-/// Scheme: `VCARD:BEGIN\nN:last name;first name;...;\nEMAIL;<type>:addr...;
+/// Scheme: `VCARD:BEGIN\nN:last name;first name;...;\nEMAIL;<type>:addr...;`
 #[allow(clippy::indexing_slicing)]
 async fn decode_vcard(context: &Context, qr: &str) -> Lot {
     let name = VCARD_NAME_RE
