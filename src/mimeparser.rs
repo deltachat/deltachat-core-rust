@@ -408,7 +408,7 @@ impl MimeMessage {
 
             // For mailing lists, always add the subject because sometimes there are different topics
             // and otherwise it might be hard to keep track:
-            if self.get(HeaderDef::ListId).is_some() {
+            if self.is_mailinglist_message() {
                 prepend_subject = true;
             }
 
