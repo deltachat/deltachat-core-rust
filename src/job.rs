@@ -703,15 +703,10 @@ impl Job {
                 };
                 match chat.typ {
                     Chattype::Group | Chattype::Mailinglist => {
-                        match chat::lookup_by_contact_id(context, msg.from_id).await {
-                            Err(e) => {
-                                warn!(context, "can't get chat: {:#}", e);
-                                return Status::RetryLater;
-                            }
-                            Ok((_1to1_chat, Blocked::Not)) => {
-                                chat.id.unblock(context).await;
-                            }
-                            Ok(_) => (),
+                        if let Ok((_1to1_chat, Blocked::Not)) =
+                            chat::lookup_by_contact_id(context, msg.from_id).await
+                        {
+                            chat.id.unblock(context).await;
                         }
                     }
                     Chattype::Single | Chattype::Undefined => {}
