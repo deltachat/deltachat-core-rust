@@ -104,6 +104,12 @@ struct MessageHeaders {
     /// individually over IMAP without downloading the message body. This is why Chat-Version is
     /// placed here.
     pub unprotected: Vec<Header>,
+
+    /// Headers that MUST NOT go into IMF header section.
+    ///
+    /// These are large headers which may hit the header section size limit on the server, such as
+    /// Chat-User-Avatar with a base64-encoded image inside.
+    pub hidden: Vec<Header>,
 }
 
 impl<'a> MimeFactory<'a> {
@@ -582,12 +588,18 @@ impl<'a> MimeFactory<'a> {
         };
 
         // Store protected headers in the inner message.
-        let mut message = headers
+        let message = headers
             .protected
             .into_iter()
             .fold(message, |message, header| message.header(header));
 
         let outer_message = if is_encrypted {
+            // Add hidden headers to encrypted payload.
+            let mut message = headers
+                .hidden
+                .into_iter()
+                .fold(message, |message, header| message.header(header));
+
             // Add gossip headers in chats with multiple recipients
             if peerstates.len() > 1 && self.should_do_gossip(context).await? {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
@@ -620,12 +632,6 @@ impl<'a> MimeFactory<'a> {
                 "Content-Type".to_string(),
                 "multipart/encrypted; protocol=\"application/pgp-encrypted\"".to_string(),
             ));
-
-            // Store the unprotected headers on the outer message.
-            let outer_message = headers
-                .unprotected
-                .into_iter()
-                .fold(outer_message, |message, header| message.header(header));
 
             if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
                 info!(context, "mimefactory: outgoing message mime:");
@@ -660,12 +666,24 @@ impl<'a> MimeFactory<'a> {
                         .build(),
                 )
                 .header(("Subject".to_string(), "...".to_string()))
+        } else if headers.hidden.is_empty() {
+            message
         } else {
-            headers
-                .unprotected
+            let message = headers
+                .hidden
                 .into_iter()
-                .fold(message, |message, header| message.header(header))
+                .fold(message, |message, header| message.header(header));
+
+            PartBuilder::new()
+                .message_type(MimeMultipartType::Mixed)
+                .child(message.build())
         };
+
+        // Store the unprotected headers on the outer message.
+        let outer_message = headers
+            .unprotected
+            .into_iter()
+            .fold(outer_message, |message, header| message.header(header));
 
         let MimeFactory {
             last_added_location_id,
