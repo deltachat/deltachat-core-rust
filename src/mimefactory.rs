@@ -42,6 +42,15 @@ pub enum Loaded {
 pub struct MimeFactory<'a> {
     from_addr: String,
     from_displayname: String,
+
+    /// Goes to the `Sender:`-header, if set.
+    /// For overridden names, `sender_displayname` is set to the
+    /// config-name while `from_displayname` is set to the overridden name.
+    /// From the perspective of the receiver,
+    /// a set `Sender:`-header is used as an indicator that the name is overridden;
+    /// names are alsways read from the `From:`-header.
+    sender_displayname: Option<String>,
+
     selfstatus: String,
 
     /// Vector of pairs of recipient name and address
@@ -82,10 +91,18 @@ impl<'a> MimeFactory<'a> {
             .get_config(Config::ConfiguredAddr)
             .await
             .unwrap_or_default();
-        let from_displayname = context
+
+        let config_displayname = context
             .get_config(Config::Displayname)
             .await
             .unwrap_or_default();
+        let (from_displayname, sender_displayname) =
+            if let Some(override_name) = msg.param.get(Param::OverrideSenderDisplayname) {
+                (override_name.to_string(), Some(config_displayname))
+            } else {
+                (config_displayname, None)
+            };
+
         let mut recipients = Vec::with_capacity(5);
         let mut req_mdn = false;
 
@@ -142,6 +159,7 @@ impl<'a> MimeFactory<'a> {
         let factory = MimeFactory {
             from_addr,
             from_displayname,
+            sender_displayname,
             selfstatus: context
                 .get_config(Config::Selfstatus)
                 .await
@@ -185,6 +203,7 @@ impl<'a> MimeFactory<'a> {
         let res = MimeFactory::<'a> {
             from_addr,
             from_displayname,
+            sender_displayname: None,
             selfstatus,
             recipients: vec![(
                 contact.get_authname().to_string(),
@@ -508,6 +527,12 @@ impl<'a> MimeFactory<'a> {
 
         unprotected_headers.push(Header::new_with_value("To".into(), to).unwrap());
         unprotected_headers.push(Header::new_with_value("From".into(), vec![from]).unwrap());
+        if let Some(sender_displayname) = &self.sender_displayname {
+            let sender =
+                Address::new_mailbox_with_name(sender_displayname.clone(), self.from_addr.clone());
+            unprotected_headers
+                .push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
+        }
 
         let mut is_gossiped = false;
 
