@@ -44,15 +44,6 @@ impl Imap {
             };
 
             let foldername = folder.name();
-            if watched_folders.contains(&foldername.to_string()) {
-                info!(
-                    context,
-                    "Not scanning folder {} as it is watched anyway", foldername
-                );
-                continue;
-            }
-            info!(context, "Scanning folder: {}", foldername);
-
             let folder_meaning = get_folder_meaning(&folder);
             let folder_name_meaning = get_folder_meaning_by_name(foldername);
 
@@ -70,8 +61,17 @@ impl Imap {
                 spam_folder = Some(folder.name().to_string());
             }
 
-            if let Err(e) = self.fetch_new_messages(context, foldername, false).await {
-                warn!(context, "Can't fetch new msgs in scanned folder: {:#}", e);
+            if watched_folders.contains(&foldername.to_string()) {
+                info!(
+                    context,
+                    "Not scanning folder {} as it is watched anyway", foldername
+                );
+            } else {
+                info!(context, "Scanning folder: {}", foldername);
+
+                if let Err(e) = self.fetch_new_messages(context, foldername, false).await {
+                    warn!(context, "Can't fetch new msgs in scanned folder: {:#}", e);
+                }
             }
         }
 
