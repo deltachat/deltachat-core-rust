@@ -2278,6 +2278,14 @@ class TestOnlineAccount:
         Also, the newest existing emails from each folder are fetched during onboarding.
 
         Additionally tests that bcc_self messages moved to the mvbox/sentbox are marked as read."""
+
+        def assert_folders_configured(ac):
+            """There was a bug that scan_folders() set the configured folders to None under some circumstances.
+            So, check that they are still configured:"""
+            assert ac.get_config("configured_sentbox_folder") == "Sent"
+            if mvbox_move:
+                assert ac.get_config("configured_mvbox_folder")
+
         ac1 = acfactory.get_online_configuring_account(mvbox=mvbox_move, move=mvbox_move)
         ac1.set_config("sentbox_move", "1")
         ac2 = acfactory.get_online_configuring_account()
@@ -2294,6 +2302,7 @@ class TestOnlineAccount:
         # ConfiguredSentboxFolder and do nothing.
         ac1._configtracker = ac1.configure(reconfigure=True)
         acfactory.wait_configure_and_start_io()
+        assert_folders_configured(ac1)
 
         if mvbox_move:
             ac1.direct_imap.select_config_folder("mvbox")
@@ -2305,22 +2314,28 @@ class TestOnlineAccount:
         ac1.set_config("bcc_self", "1")
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message text")
+        assert_folders_configured(ac1)
 
         # now wait until the bcc_self message arrives
         # Also test that bcc_self messages moved to the mvbox are marked as read.
         assert ac1.direct_imap.idle_wait_for_seen()
+        assert_folders_configured(ac1)
 
         ac1_clone = acfactory.clone_online_account(ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
         ac1_clone._configtracker.wait_finish()
         ac1_clone.start_io()
+        assert_folders_configured(ac1_clone)
 
         ac1_clone._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
         ac2_addr = ac2.get_config("addr")
         assert any(c.addr == ac2_addr for c in ac1_clone.get_contacts())
+        assert_folders_configured(ac1_clone)
 
         msg = ac1_clone._evtracker.wait_next_messages_changed()
         assert msg.text == "message text"
+        assert_folders_configured(ac1)
+        assert_folders_configured(ac1_clone)
 
     def test_fetch_existing_msgs_group_and_single(self, acfactory, lp):
         """There was a bug concerning fetch-existing-msgs:
