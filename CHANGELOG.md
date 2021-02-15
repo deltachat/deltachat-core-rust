@@ -1,5 +1,110 @@
 # Changelog 
 
+## UNRELEASED
+
+- new apis to get full or html message,
+  `dc_msg_has_html()` and `dc_get_msg_html()` #2125 #2151
+
+- new chat type and apis for the new mailing list support,
+  `DC_CHAT_TYPE_MAILINGLIST`, `dc_msg_get_real_chat_id()`,
+  `dc_msg_get_override_sender_name()` #1964 #2181 #2185 #2195 #2211 #2210
+
+- new api `dc_decide_on_contact_request()`,
+  deprecated `dc_create_chat_by_msg_id()` and `dc_marknoticed_contact()` #1964
+
+- new flag `DC_GCM_INFO_ONLY` for api `dc_get_chat_msgs()` #2132
+
+- new api `dc_get_chat_encrinfo()` #2186
+
+- new api `dc_contact_get_status()`, returning the recent footer #2218
+
+- improve contact name update rules,
+  add api `dc_contact_get_auth_name()` #2206 #2212 #2225
+
+- new api for bots: `dc_msg_set_html()` #2153
+
+- new api for bots: `dc_msg_set_override_sender_name()` #2231
+
+- api removed: `dc_is_io_running()` #2139
+
+- api removed: `dc_contact_get_first_name()` #2165 #2171
+
+- implement Consistent Color Generation (XEP-0392),
+  that results in contact colors be be changed #2228 #2229
+
+- fetch recent existing messages
+  and create corresponding chats after configure #2106
+
+- improve e-mail compatibility
+  by scanning all folders from time to time #2067 #2152 #2158 #2184 #2215 #2224
+
+- better support videochat-services not supporting random rooms #2191
+
+- export backups as .tar files #2023
+
+- scale avatars based on media_quality, fix avatar rotation #2063
+
+- compare ephemeral timer to parent message to deal with reordering better #2100
+
+- better ephemeral system messages #2183
+
+- read quotes out of html messages #2104
+
+- prepend subject to messages with attachments, if needed #2111
+
+- run housekeeping at least once a day #2114
+
+- resolve MX domain only once per OAuth2 provider #2122
+
+- configure provider based on MX record #2123 #2134
+
+- make transient bad destination address error permanent
+  after n tries #2126 #2202
+
+- enable strict TLS for known providers by default #2121
+
+- improve and harden secure join #2154 #2161
+
+- update `dc_get_info()` to return more information #2156
+
+- prefer In-Reply-To/References
+  over group-id stored in Message-ID #2164 #2172 #2173
+
+- apply gossiped encryption preference to new peerstates #2174
+
+- fix: do not return quoted messages from the trash chat #2221
+
+- fix: allow emojis for location markers #2177
+
+- fix encoding of Chat-Group-Name-Changed messages that could even lead to
+  messages not being delivered #2141
+
+- fix error when no temporary directory is available #1929
+
+- fix marking read receipts as seen #2117
+
+- fix read-notification for mixed-case addresses #2103
+
+- fix decoding of attachment filenames #2080 #2094 #2102
+
+- fix downloading ranges of message #2061
+
+- fix parsing quoted encoded words in From: header #2193 #2204
+
+- fix ci #2217 #2226
+
+- try harder on backup opening #2148
+
+- switch to rust 1.49, update toolchains, deps #2150 #2155 #2165 #2107
+
+- improve python bindings #2113 #2115 #2133 #2214
+
+- improve documentation #2143 #2160 #2175 #2146
+
+- refactorings #2110 #2136 #2135 #2168 #2178 #2189 #2190 #2198 #2197 #2201 #2196
+  #2200 #2230
+
+
 ## 1.50.0
 
 - do not fetch emails in between inbox_watch disabled and enabled again #2087
