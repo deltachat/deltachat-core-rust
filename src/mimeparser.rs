@@ -86,6 +86,23 @@ pub(crate) enum AvatarAction {
     Change(String),
 }
 
+#[derive(Debug, PartialEq)]
+pub(crate) enum MailinglistType {
+    /// The message belongs to a mailing list and has a `ListId:`-header
+    /// that should be used to get a unique id.
+    ListIdBased,
+
+    /// The message belongs to a mailing list, but there is no `ListId:`-header;
+    /// `Sender:`-header should be used to get a unique id.
+    /// This method is used by implementations as Majordomo.
+    /// Note, that the `Sender:` header alone is not sufficient to detect these lists,
+    /// `get_mailinglist_type()` check additional conditions therefore.
+    SenderBased,
+
+    /// The message does not belong to a mailing list.
+    None,
+}
+
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
 #[repr(i32)]
 pub enum SystemMessage {
@@ -901,15 +918,25 @@ impl MimeMessage {
         self.parts.push(part);
     }
 
-    pub fn is_mailinglist_message(&self) -> bool {
+    pub(crate) fn get_mailinglist_type(&self) -> MailinglistType {
         if self.get(HeaderDef::ListId).is_some() {
-            return true;
+            return MailinglistType::ListIdBased;
+        } else if self.get(HeaderDef::Sender).is_some() {
+            // the `Sender:`-header alone is no indicator for mailing list
+            // as also used for bot-impersonation via `set_override_sender_name()`
+            if let Some(precedence) = self.get(HeaderDef::Precedence) {
+                if precedence == "list" || precedence == "bulk" {
+                    return MailinglistType::SenderBased;
+                }
+            }
         }
+        MailinglistType::None
+    }
 
-        if let Some(precedence) = self.get(HeaderDef::Precedence) {
-            precedence == "list" || precedence == "bulk"
-        } else {
-            false
+    pub(crate) fn is_mailinglist_message(&self) -> bool {
+        match self.get_mailinglist_type() {
+            MailinglistType::ListIdBased | MailinglistType::SenderBased => true,
+            MailinglistType::None => false,
         }
     }
 
