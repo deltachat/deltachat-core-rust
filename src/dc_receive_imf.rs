@@ -22,7 +22,9 @@ use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
 use crate::message::{self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId};
-use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
+use crate::mimeparser::{
+    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
+};
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
@@ -103,8 +105,6 @@ pub(crate) async fn dc_receive_imf_inner(
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
 
-    let list_id_header: Option<&String> = mime_parser.get(HeaderDef::ListId);
-
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    create_event_to_send: &Option<CreateEvent>,
@@ -125,7 +125,8 @@ pub(crate) async fn dc_receive_imf_inner(
         sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
     }
 
-    let prevent_rename = list_id_header.is_some() || mime_parser.get(HeaderDef::Sender).is_some();
+    let prevent_rename =
+        mime_parser.is_mailinglist_message() || mime_parser.get(HeaderDef::Sender).is_some();
 
     // get From: (it can be an address list!) and check if it is known (for known From:'s we add
     // the other To:/Cc: in the 3rd pass)
@@ -521,27 +522,36 @@ async fn add_parts(
 
         if chat_id.is_unset() {
             // check if the message belongs to a mailing list
-            if let Some(list_id_header) = mime_parser.get(HeaderDef::ListId) {
-                let create_blocked = Blocked::Deaddrop;
-
-                let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
-                    context,
-                    allow_creation,
-                    create_blocked,
-                    list_id_header,
-                    &mime_parser.get_subject().unwrap_or_default(),
-                )
-                .await;
-
-                *chat_id = new_chat_id;
-                chat_id_blocked = new_chat_id_blocked;
-                if let Some(from) = mime_parser.from.first() {
-                    if let Some(from_name) = &from.display_name {
-                        for part in mime_parser.parts.iter_mut() {
-                            part.param.set(Param::OverrideSenderDisplayname, from_name);
-                        }
+            match mime_parser.get_mailinglist_type() {
+                MailinglistType::ListIdBased => {
+                    if let Some(list_id) = mime_parser.get(HeaderDef::ListId) {
+                        let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
+                            context,
+                            allow_creation,
+                            Blocked::Deaddrop,
+                            list_id,
+                            &mime_parser.get_subject().unwrap_or_default(),
+                        )
+                        .await;
+                        *chat_id = new_chat_id;
+                        chat_id_blocked = new_chat_id_blocked;
                     }
                 }
+                MailinglistType::SenderBased => {
+                    if let Some(sender) = mime_parser.get(HeaderDef::Sender) {
+                        let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
+                            context,
+                            allow_creation,
+                            Blocked::Deaddrop,
+                            sender,
+                            &mime_parser.get_subject().unwrap_or_default(),
+                        )
+                        .await;
+                        *chat_id = new_chat_id;
+                        chat_id_blocked = new_chat_id_blocked;
+                    }
+                }
+                MailinglistType::None => {}
             }
         }
 
