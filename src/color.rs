@@ -16,23 +16,29 @@ fn str_to_angle(s: impl AsRef<str>) -> f64 {
     f64::from(checksum) / 65536.0 * 360.0
 }
 
-/// Converts an identifier to RGB color.
+/// Converts RGB tuple to a 24-bit number.
 ///
 /// Returns a 24-bit number with 8 least significant bits corresponding to the blue color and 8
 /// most significant bits corresponding to the red color.
+fn rgb_to_u32((r, g, b): (f64, f64, f64)) -> u32 {
+    let r = ((r * 256.0) as u32).min(255);
+    let g = ((g * 256.0) as u32).min(255);
+    let b = ((b * 256.0) as u32).min(255);
+    65536 * r + 256 * g + b
+}
+
+/// Converts an identifier to RGB color.
 ///
 /// Saturation is set to maximum (100.0) to make colors distinguishable, and lightness is set to
 /// half (50.0) to make colors suitable both for light and dark theme.
 pub(crate) fn str_to_color(s: impl AsRef<str>) -> u32 {
-    let (r, g, b) = hsluv_to_rgb((str_to_angle(s), 100.0, 50.0));
-    65536 * (r * 256.0) as u32 + 256 * (g * 256.0) as u32 + (b * 256.0) as u32
+    rgb_to_u32(hsluv_to_rgb((str_to_angle(s), 100.0, 50.0)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[allow(clippy::float_cmp)]
     #[test]
     fn test_str_to_angle() {
         // Test against test vectors from
@@ -42,5 +48,15 @@ mod tests {
         assert!((str_to_angle("😺") - 331.199341).abs() < 1e-6);
         assert!((str_to_angle("council") - 359.994507).abs() < 1e-6);
         assert!((str_to_angle("Board") - 171.430664).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_rgb_to_u32() {
+        assert_eq!(rgb_to_u32((0.0, 0.0, 0.0)), 0);
+        assert_eq!(rgb_to_u32((1.0, 1.0, 1.0)), 0xffffff);
+        assert_eq!(rgb_to_u32((0.0, 0.0, 1.0)), 0x0000ff);
+        assert_eq!(rgb_to_u32((0.0, 1.0, 0.0)), 0x00ff00);
+        assert_eq!(rgb_to_u32((1.0, 0.0, 0.0)), 0xff0000);
+        assert_eq!(rgb_to_u32((1.0, 0.5, 0.0)), 0xff8000);
     }
 }
