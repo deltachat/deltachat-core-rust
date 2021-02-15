@@ -14,7 +14,7 @@ use deltachat::dc_tools::*;
 use deltachat::imex::*;
 use deltachat::location;
 use deltachat::lot::LotState;
-use deltachat::message::{self, Message, MessageState, MsgId};
+use deltachat::message::{self, ContactRequestDecision, Message, MessageState, MsgId};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
@@ -171,8 +171,11 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let contact = Contact::get_by_id(context, msg.get_from_id())
         .await
         .expect("invalid contact");
-
-    let contact_name = contact.get_name();
+    let contact_name = if let Some(name) = msg.get_override_sender_name() {
+        format!("~{}", name)
+    } else {
+        contact.get_display_name().to_string()
+    };
     let contact_id = contact.get_id();
 
     let statestr = match msg.get_state() {
@@ -260,7 +263,7 @@ async fn log_contactlist(context: &Context, contacts: &[u32]) {
         let line;
         let mut line2 = "".to_string();
         if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-            let name = contact.get_name();
+            let name = contact.get_display_name();
             let addr = contact.get_addr();
             let verified_state = contact.is_verified(context).await;
             let verified_str = if VerifiedStatus::Unverified != verified_state {
@@ -609,6 +612,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             } else if sel_chat.get_type() == Chattype::Single && !members.is_empty() {
                 let contact = Contact::get_by_id(&context, members[0]).await?;
                 contact.get_addr().to_string()
+            } else if sel_chat.get_type() == Chattype::Mailinglist && !members.is_empty() {
+                "mailinglist".to_string()
             } else {
                 format!("{} member(s)", members.len())
             };
@@ -657,10 +662,19 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "createchatbymsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
             let msg_id = MsgId::new(arg1.parse()?);
-            let chat_id = chat::create_by_msg_id(&context, msg_id).await?;
-            let chat = Chat::load_from_db(&context, chat_id).await?;
-
-            println!("{}#{} created successfully.", chat_prefix(&chat), chat_id,);
+            match message::decide_on_contact_request(
+                &context,
+                msg_id,
+                ContactRequestDecision::StartChat,
+            )
+            .await
+            {
+                Some(chat_id) => {
+                    let chat = Chat::load_from_db(&context, chat_id).await?;
+                    println!("{}#{} created successfully.", chat_prefix(&chat), chat_id);
+                }
+                None => println!("Cannot crate chat."),
+            }
         }
         "creategroup" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
