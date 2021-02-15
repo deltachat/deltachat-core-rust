@@ -528,7 +528,6 @@ async fn add_parts(
                         let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
                             context,
                             allow_creation,
-                            Blocked::Deaddrop,
                             list_id,
                             &mime_parser.get_subject().unwrap_or_default(),
                         )
@@ -542,7 +541,6 @@ async fn add_parts(
                         let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
                             context,
                             allow_creation,
-                            Blocked::Deaddrop,
                             sender,
                             &mime_parser.get_subject().unwrap_or_default(),
                         )
@@ -1497,7 +1495,6 @@ async fn create_or_lookup_group(
 async fn create_or_lookup_mailinglist(
     context: &Context,
     allow_creation: bool,
-    create_blocked: Blocked,
     list_id_header: &str,
     subject: &str,
 ) -> (ChatId, Blocked) {
@@ -1534,14 +1531,14 @@ async fn create_or_lookup_mailinglist(
             Chattype::Mailinglist,
             &listid,
             &name,
-            create_blocked,
+            Blocked::Deaddrop,
             ProtectionStatus::Unprotected,
         )
         .await
         {
             Ok(chat_id) => {
                 chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
-                (chat_id, create_blocked)
+                (chat_id, Blocked::Deaddrop)
             }
             Err(e) => {
                 warn!(
@@ -1551,7 +1548,7 @@ async fn create_or_lookup_mailinglist(
                     &listid,
                     e.to_string()
                 );
-                (ChatId::new(0), create_blocked)
+                (ChatId::new(0), Blocked::Deaddrop)
             }
         }
     } else {
