@@ -2576,5 +2576,10 @@ mod tests {
         );
         assert_eq!(msg.get_sender_name(&contact), "over ride".to_string());
         assert_ne!(contact.get_display_name(), "over ride".to_string());
+
+        // explicitly check that the message does not create a mailing list
+        // (mailing lists may also use `Sender:`-header)
+        let chat = Chat::load_from_db(&bob, msg.chat_id).await.unwrap();
+        assert_ne!(chat.typ, Chattype::Mailinglist);
     }
 }

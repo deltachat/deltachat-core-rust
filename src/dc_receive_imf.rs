@@ -1997,7 +1997,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::{DC_CHAT_ID_DEADDROP, DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
     use crate::message::ContactRequestDecision::*;
-    use crate::message::Message;
+    use crate::message::{ContactRequestDecision, Message};
     use crate::test_utils::{get_chat_msg, TestContext};
 
     #[test]
@@ -2900,6 +2900,62 @@ mod tests {
 
         let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
         assert_eq!(msgs.len(), 2);
+    }
+
+    #[async_std::test]
+    async fn test_majordomo_mailing_list() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        // test mailing lists not having a `ListId:`-header
+        dc_receive_imf(
+            &t,
+            b"From: Foo Bar <foo@bar.org>\n\
+    To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
+    Subject: [ola] just a subject\n\
+    Message-ID: <3333@example.org>\n\
+    Sender: My list <mylist@bar.org>\n\
+    Precedence: list\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        let chat_id =
+            message::decide_on_contact_request(&t, msg.id, ContactRequestDecision::StartChat)
+                .await
+                .unwrap();
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.grpid, "mylist@bar.org");
+        assert_eq!(chat.name, "ola");
+        assert_eq!(chat::get_chat_msgs(&t, chat.id, 0, None).await.len(), 1);
+
+        // receive another message with no sender name but the same address,
+        // make sure this lands in the same chat
+        dc_receive_imf(
+            &t,
+            b"From: Nu Bar <nu@bar.org>\n\
+    To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
+    Subject: [ola] Re: just a subject\n\
+    Message-ID: <4444@example.org>\n\
+    Sender: mylist@bar.org\n\
+    Precedence: list\n\
+    Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
+    \n\
+    hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        assert_eq!(chat::get_chat_msgs(&t, chat.id, 0, None).await.len(), 2);
     }
 
     #[async_std::test]
