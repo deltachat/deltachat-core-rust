@@ -2956,6 +2956,38 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_mailchimp_mailing_list() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        dc_receive_imf(
+            &t,
+            b"To: alice <alice@example.org>\n\
+            Subject: =?utf-8?Q?How=20early=20megacities=20emerged=20from=20Cambodia=E2=80=99s=20jungles?=\n\
+            From: =?utf-8?Q?Atlas=20Obscura?= <info@atlasobscura.com>\n\
+            List-ID: 399fc0402f1b154b67965632emc list <399fc0402f1b154b67965632e.100761.list-id.mcsv.net>\n\
+            Message-ID: <555@example.org>\n\
+            Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+            \n\
+            hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.blocked, Blocked::Deaddrop);
+        assert_eq!(
+            chat.grpid,
+            "399fc0402f1b154b67965632e.100761.list-id.mcsv.net"
+        );
+        assert_eq!(chat.name, "Atlas Obscura");
+    }
+
+    #[async_std::test]
     async fn test_dont_show_tokens_in_contacts_list() {
         check_dont_show_in_contacts_list(
             "reply+OGHVYCLVBEGATYBICAXBIRQATABUOTUCERABERAHNO@reply.github.com",
