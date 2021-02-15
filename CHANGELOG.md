@@ -30,7 +30,7 @@
 - api removed: `dc_contact_get_first_name()` #2165 #2171
 
 - implement Consistent Color Generation (XEP-0392),
-  that results in contact colors be be changed #2228 #2229
+  that results in contact colors be be changed #2228 #2229 #2239
 
 - fetch recent existing messages
   and create corresponding chats after configure #2106
