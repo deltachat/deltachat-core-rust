@@ -1524,6 +1524,14 @@ async fn create_or_lookup_mailinglist(
         return (chat_id, blocked);
     }
 
+    if listid.ends_with(".list-id.mcsv.net") {
+        if let Some(from) = mime_parser.from.first() {
+            if let Some(display_name) = &from.display_name {
+                name = display_name.clone();
+            }
+        }
+    }
+
     // if we have an additional name square brackets in the subject, we prefer that
     // (as that part is much more visible, we assume, that names is shorter and comes more to the point,
     // than the sometimes longer part from ListId)

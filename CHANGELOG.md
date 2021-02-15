@@ -8,6 +8,7 @@
 - new chat type and apis for the new mailing list support,
   `DC_CHAT_TYPE_MAILINGLIST`, `dc_msg_get_real_chat_id()`,
   `dc_msg_get_override_sender_name()` #1964 #2181 #2185 #2195 #2211 #2210 #2240
+  #2243
 
 - new api `dc_decide_on_contact_request()`,
   deprecated `dc_create_chat_by_msg_id()` and `dc_marknoticed_contact()` #1964
