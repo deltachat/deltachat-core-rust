@@ -529,7 +529,7 @@ async fn add_parts(
                             context,
                             allow_creation,
                             list_id,
-                            &mime_parser.get_subject().unwrap_or_default(),
+                            &mime_parser,
                         )
                         .await;
                         *chat_id = new_chat_id;
@@ -542,7 +542,7 @@ async fn add_parts(
                             context,
                             allow_creation,
                             sender,
-                            &mime_parser.get_subject().unwrap_or_default(),
+                            &mime_parser,
                         )
                         .await;
                         *chat_id = new_chat_id;
@@ -1491,12 +1491,21 @@ async fn create_or_lookup_group(
     Ok((chat_id, chat_id_blocked))
 }
 
+/// Create or lookup a mailing list chat.
+///
+/// `list_id_header` contains the Id that must be used for the mailing list
+/// and has the form `Name <Id>`, `<Id>` or just `Id`.
+/// Depending on the mailing list type, `list_id_header`
+/// was picked from `ListId:`-header or the `Sender:`-header.
+///
+/// `mime_parser` is the corresponding message
+/// and is used to figure out the mailing list name from different header fields.
 #[allow(clippy::indexing_slicing)]
 async fn create_or_lookup_mailinglist(
     context: &Context,
     allow_creation: bool,
     list_id_header: &str,
-    subject: &str,
+    mime_parser: &MimeMessage,
 ) -> (ChatId, Blocked) {
     static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
     let (mut name, listid) = match LIST_ID.captures(list_id_header) {
@@ -1515,8 +1524,12 @@ async fn create_or_lookup_mailinglist(
         return (chat_id, blocked);
     }
 
+    // if we have an additional name square brackets in the subject, we prefer that
+    // (as that part is much more visible, we assume, that names is shorter and comes more to the point,
+    // than the sometimes longer part from ListId)
+    let subject = mime_parser.get_subject().unwrap_or_default();
     static SUBJECT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^.{0,5}\[(.*.)\]").unwrap());
-    if let Some(cap) = SUBJECT.captures(subject) {
+    if let Some(cap) = SUBJECT.captures(&subject) {
         name = cap[1].to_string();
     }
 
