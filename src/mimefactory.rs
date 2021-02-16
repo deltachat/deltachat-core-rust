@@ -1289,14 +1289,11 @@ fn maybe_encode_words(words: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chatlist::Chatlist;
     use crate::contact::Origin;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::mimeparser::MimeMessage;
     use crate::test_utils::TestContext;
-    use crate::{
-        chatlist::Chatlist,
-        contact::{normalize_name, sanitize_name_and_addr},
-    };
 
     #[test]
     fn test_render_email_address() {
@@ -1623,7 +1620,8 @@ mod tests {
     }
 
     #[test]
-    fn test_no_empty_directly() {
+    fn test_no_empty_lines_in_header() {
+        // See https://github.com/deltachat/deltachat-core-rust/issues/2118
         let to_tuples = vec![
             ("Nnnn", "nnn@ttttttttt.de"),
             ("😀 ttttttt", "ttttttt@rrrrrr.net"),
@@ -1665,65 +1663,11 @@ mod tests {
             .insert(Header::new_with_value("To".into(), to).unwrap());
         message.body = "Hi".to_string();
 
-        println!("======= HEADERS BEFORE CALL TO AS_STRING: =======");
-        for h in message.headers.iter() {
-            println!("{}", h);
-        }
-        let msg = message.as_string(); // <-- seems like here the empty line is introduced
+        let msg = message.as_string();
 
         let header_end = msg.find("Hi").unwrap();
         let headers = msg[0..header_end].trim();
-        println!(
-            "======= HEADERS AFTER CALL TO AS_STRING: =======\n{}\n",
-            headers
-        );
-        assert!(!headers.lines().any(|l| l.trim().is_empty())); // <--  panics
-    }
 
-    #[async_std::test]
-    async fn test_no_empty_lines_in_header() {
-        let t = TestContext::new().await;
-        t.configure_addr("dddddd@ttttttttt.de").await;
-        add_all_contacts(
-            &t,
-            "Nnnn <nnn@ttttttttt.de>, 
-            =?utf-8?q?=F0=9F=8C=B4ttttttt?= <ttttttt@rrrrrr.net>, 
-            dididididididi <t@iiiiiii.org>, Ttttttt <oooooooooo@abcd.de>, 
-            Mmmmm <mmmmm@rrrrrr.net>, Zzzzzz <rrrrrrrrrrrrr@ttttttttt.net>, 
-            Xyz <qqqqqqqqqq@rrrrrr.net>, <geug@ttttttttt.de>, qqqqqq <q@iiiiiii.org>, 
-            bbbb <bbbb@iiiiiii.org>, <fsfs@iiiiiii.org>, rqrqrqrqr <rqrqr@iiiiiii.org>,
-            
-            tttttttt <tttttttt@iiiiiii.org>, <tttttt@rrrrrr.net>",
-        )
-        .await;
-
-        let msg =
-            incoming_msg_to_reply_msg(include_bytes!("../test-data/message/to_empty_line.eml"), &t)
-                .await;
-
-        let mimefactory = MimeFactory::from_msg(&t, &msg, false).await.unwrap();
-        let recipients = mimefactory.recipients();
-        assert_eq!(recipients.len(), 14);
-
-        let rendered_msg = mimefactory.render().await.unwrap();
-        let msg = std::str::from_utf8(&rendered_msg.message).unwrap();
-        println!("ALL:{}END ALL", msg);
-        let header_end = msg.find("Hi").unwrap();
-        let headers = msg[0..header_end].trim();
-        println!("HEADERS:{}END HEADERS", headers);
         assert!(!headers.lines().any(|l| l.trim().is_empty()));
-    }
-
-    async fn add_all_contacts(t: &TestContext, addr_book: &str) {
-        for name_addr in addr_book.split(',') {
-            let (name, addr) = sanitize_name_and_addr("", name_addr);
-            let name = normalize_name(name);
-            Contact::add_or_lookup(&t, &name, &addr, Origin::ManuallyCreated)
-                .await
-                .unwrap();
-            Contact::add_or_lookup(&t, &name, &addr, Origin::IncomingUnknownFrom)
-                .await
-                .unwrap(); // This is necessary to also upate the authname
-        }
     }
 }
