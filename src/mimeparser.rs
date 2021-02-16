@@ -278,7 +278,7 @@ impl MimeMessage {
         parser.maybe_remove_bad_parts();
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
-        parser.parse_headers(context);
+        parser.parse_headers(context).await;
 
         if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
@@ -325,13 +325,13 @@ impl MimeMessage {
     }
 
     /// Parses avatar action headers.
-    fn parse_avatar_headers(&mut self) {
+    async fn parse_avatar_headers(&mut self, context: &Context) {
         if let Some(header_value) = self.get(HeaderDef::ChatGroupAvatar).cloned() {
-            self.group_avatar = self.avatar_action_from_header(header_value);
+            self.group_avatar = self.avatar_action_from_header(context, header_value).await;
         }
 
         if let Some(header_value) = self.get(HeaderDef::ChatUserAvatar).cloned() {
-            self.user_avatar = self.avatar_action_from_header(header_value);
+            self.user_avatar = self.avatar_action_from_header(context, header_value).await;
         }
     }
 
@@ -421,9 +421,9 @@ impl MimeMessage {
         }
     }
 
-    fn parse_headers(&mut self, context: &Context) {
+    async fn parse_headers(&mut self, context: &Context) {
         self.parse_system_message_headers(context);
-        self.parse_avatar_headers();
+        self.parse_avatar_headers(context).await;
         self.parse_videochat_headers();
         self.squash_attachment_parts();
 
@@ -500,10 +500,37 @@ impl MimeMessage {
         }
     }
 
-    fn avatar_action_from_header(&mut self, header_value: String) -> Option<AvatarAction> {
+    async fn avatar_action_from_header(
+        &mut self,
+        context: &Context,
+        header_value: String,
+    ) -> Option<AvatarAction> {
         if header_value == "0" {
             Some(AvatarAction::Delete)
+        } else if let Some(avatar) = header_value
+            .split_ascii_whitespace()
+            .collect::<String>()
+            .strip_prefix("base64:")
+            .map(base64::decode)
+        {
+            // Avatar sent directly in the header as base64.
+            if let Ok(decoded_data) = avatar {
+                match BlobObject::create(context, "avatar", &decoded_data).await {
+                    Ok(blob) => Some(AvatarAction::Change(blob.as_name().to_string())),
+                    Err(err) => {
+                        warn!(
+                            context,
+                            "Could not save decoded avatar to blob file: {}", err
+                        );
+                        None
+                    }
+                }
+            } else {
+                None
+            }
         } else {
+            // Avatar sent in attachment, as previous versions of Delta Chat did.
+
             let mut i = 0;
             while let Some(part) = self.parts.get_mut(i) {
                 if let Some(part_filename) = &part.org_filename {
