@@ -149,7 +149,7 @@ impl MimeMessage {
         let mut from = Default::default();
         let mut chat_disposition_notification_to = None;
 
-        // init known headers with what mailparse provided us
+        // Parse IMF headers.
         MimeMessage::merge_headers(
             context,
             &mut headers,
@@ -158,6 +158,21 @@ impl MimeMessage {
             &mut chat_disposition_notification_to,
             &mail.headers,
         );
+
+        // Parse hidden headers.
+        let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
+        if mimetype.type_() == mime::MULTIPART && mimetype.subtype().as_str() == "mixed" {
+            if let Some(part) = mail.subparts.first() {
+                for field in &part.headers {
+                    let key = field.get_key().to_lowercase();
+
+                    // For now only Chat-User-Avatar can be hidden.
+                    if !headers.contains_key(&key) && key == "chat-user-avatar" {
+                        headers.insert(key.to_string(), field.get_value());
+                    }
+                }
+            }
+        }
 
         // remove headers that are allowed _only_ in the encrypted part
         headers.remove("secure-join-fingerprint");
