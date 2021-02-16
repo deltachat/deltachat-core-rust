@@ -1666,6 +1666,7 @@ mod tests {
         let msg = message.as_string();
 
         let header_end = msg.find("Hi").unwrap();
+        #[allow(clippy::indexing_slicing)]
         let headers = msg[0..header_end].trim();
 
         assert!(!headers.lines().any(|l| l.trim().is_empty()));
