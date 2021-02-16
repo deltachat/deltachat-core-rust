@@ -652,7 +652,7 @@ class TestOnlineAccount:
             config={"key_gen_type": str(const.DC_KEY_GEN_ED25519)}
         )
         # rsa key gen can be slow especially on CI, adjust timeout
-        ac1._evtracker.set_timeout(120)
+        ac1._evtracker.set_timeout(240)
         acfactory.wait_configure_and_start_io()
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
