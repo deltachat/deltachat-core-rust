@@ -1524,6 +1524,9 @@ async fn create_or_lookup_mailinglist(
         return (chat_id, blocked);
     }
 
+    // for mailchimp lists, the name in `ListId` is just a long number.
+    // a usable name for these lists is in the `From` header
+    // and we can detect these lists by a unique `ListId`-suffix.
     if listid.ends_with(".list-id.mcsv.net") {
         if let Some(from) = mime_parser.from.first() {
             if let Some(display_name) = &from.display_name {
