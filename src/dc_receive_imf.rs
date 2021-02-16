@@ -529,7 +529,7 @@ async fn add_parts(
                             context,
                             allow_creation,
                             list_id,
-                            &mime_parser.get_subject().unwrap_or_default(),
+                            mime_parser,
                         )
                         .await;
                         *chat_id = new_chat_id;
@@ -542,7 +542,7 @@ async fn add_parts(
                             context,
                             allow_creation,
                             sender,
-                            &mime_parser.get_subject().unwrap_or_default(),
+                            mime_parser,
                         )
                         .await;
                         *chat_id = new_chat_id;
@@ -1491,12 +1491,21 @@ async fn create_or_lookup_group(
     Ok((chat_id, chat_id_blocked))
 }
 
+/// Create or lookup a mailing list chat.
+///
+/// `list_id_header` contains the Id that must be used for the mailing list
+/// and has the form `Name <Id>`, `<Id>` or just `Id`.
+/// Depending on the mailing list type, `list_id_header`
+/// was picked from `ListId:`-header or the `Sender:`-header.
+///
+/// `mime_parser` is the corresponding message
+/// and is used to figure out the mailing list name from different header fields.
 #[allow(clippy::indexing_slicing)]
 async fn create_or_lookup_mailinglist(
     context: &Context,
     allow_creation: bool,
     list_id_header: &str,
-    subject: &str,
+    mime_parser: &MimeMessage,
 ) -> (ChatId, Blocked) {
     static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
     let (mut name, listid) = match LIST_ID.captures(list_id_header) {
@@ -1515,8 +1524,23 @@ async fn create_or_lookup_mailinglist(
         return (chat_id, blocked);
     }
 
+    // for mailchimp lists, the name in `ListId` is just a long number.
+    // a usable name for these lists is in the `From` header
+    // and we can detect these lists by a unique `ListId`-suffix.
+    if listid.ends_with(".list-id.mcsv.net") {
+        if let Some(from) = mime_parser.from.first() {
+            if let Some(display_name) = &from.display_name {
+                name = display_name.clone();
+            }
+        }
+    }
+
+    // if we have an additional name square brackets in the subject, we prefer that
+    // (as that part is much more visible, we assume, that names is shorter and comes more to the point,
+    // than the sometimes longer part from ListId)
+    let subject = mime_parser.get_subject().unwrap_or_default();
     static SUBJECT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^.{0,5}\[(.*.)\]").unwrap());
-    if let Some(cap) = SUBJECT.captures(subject) {
+    if let Some(cap) = SUBJECT.captures(&subject) {
         name = cap[1].to_string();
     }
 
@@ -2953,6 +2977,38 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(chat::get_chat_msgs(&t, chat.id, 0, None).await.len(), 2);
+    }
+
+    #[async_std::test]
+    async fn test_mailchimp_mailing_list() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        dc_receive_imf(
+            &t,
+            b"To: alice <alice@example.org>\n\
+            Subject: =?utf-8?Q?How=20early=20megacities=20emerged=20from=20Cambodia=E2=80=99s=20jungles?=\n\
+            From: =?utf-8?Q?Atlas=20Obscura?= <info@atlasobscura.com>\n\
+            List-ID: 399fc0402f1b154b67965632emc list <399fc0402f1b154b67965632e.100761.list-id.mcsv.net>\n\
+            Message-ID: <555@example.org>\n\
+            Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+            \n\
+            hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.blocked, Blocked::Deaddrop);
+        assert_eq!(
+            chat.grpid,
+            "399fc0402f1b154b67965632e.100761.list-id.mcsv.net"
+        );
+        assert_eq!(chat.name, "Atlas Obscura");
     }
 
     #[async_std::test]
