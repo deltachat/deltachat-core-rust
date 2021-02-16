@@ -529,7 +529,7 @@ async fn add_parts(
                             context,
                             allow_creation,
                             list_id,
-                            &mime_parser,
+                            mime_parser,
                         )
                         .await;
                         *chat_id = new_chat_id;
@@ -542,7 +542,7 @@ async fn add_parts(
                             context,
                             allow_creation,
                             sender,
-                            &mime_parser,
+                            mime_parser,
                         )
                         .await;
                         *chat_id = new_chat_id;
