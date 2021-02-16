@@ -1274,7 +1274,7 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "email"
 version = "0.0.21"
-source = "git+https://github.com/deltachat/rust-email?branch=master#9161f2d45d29ae8f0119fde0facdb1b0d7c6f077"
+source = "git+https://github.com/deltachat/rust-email?branch=master#25702df99254d059483b41417cd80696a258df8e"
 dependencies = [
  "base64 0.11.0",
  "chrono",
