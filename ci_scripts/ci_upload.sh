@@ -27,10 +27,9 @@ rsync -avz \
   delta@py.delta.chat:build/${BRANCH}
 
 # C docs to c.delta.chat
-#ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null delta@c.delta.chat mkdir -p build-c/${BRANCH}
+ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null delta@c.delta.chat mkdir -p build-c/${BRANCH}
 rsync -avz \
   --delete \
-  --mkpath \
   -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
   "$DOXYDOCDIR/html/" \
   delta@c.delta.chat:build-c/${BRANCH}
@@ -41,8 +40,8 @@ echo -----------------------
 
 # Bundle external shared libraries into the wheels
 
+ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $SSHTARGET mkdir -p $BUILDDIR 
 rsync -avz \
-  --mkpath \
   -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
   $WHEELHOUSEDIR \
   $SSHTARGET:$BUILDDIR 
