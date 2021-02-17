@@ -1622,7 +1622,7 @@ mod tests {
     #[test]
     fn test_no_empty_lines_in_header() {
         // See https://github.com/deltachat/deltachat-core-rust/issues/2118
-        let to_tuples = vec![
+        let to_tuples = [
             ("Nnnn", "nnn@ttttttttt.de"),
             ("😀 ttttttt", "ttttttt@rrrrrr.net"),
             ("dididididididi", "t@iiiiiii.org"),
@@ -1637,18 +1637,17 @@ mod tests {
             ("rqrqrqrqr", "rqrqr@iiiiiii.org"),
             ("tttttttt", "tttttttt@iiiiiii.org"),
             ("", "tttttt@rrrrrr.net"),
-        ];
-        let mut to = Vec::new();
-        for (name, addr) in to_tuples {
-            if name.is_empty() {
-                to.push(Address::new_mailbox(addr.to_string()));
-            } else {
-                to.push(Address::new_mailbox_with_name(
-                    name.to_string(),
-                    addr.to_string(),
-                ));
-            }
-        }
+        ]
+        .iter();
+        let to: Vec<_> = to_tuples
+            .map(|(name, addr)| {
+                if name.is_empty() {
+                    Address::new_mailbox(addr.to_string())
+                } else {
+                    Address::new_mailbox_with_name(name.to_string(), addr.to_string())
+                }
+            })
+            .collect();
 
         let mut message = email::MimeMessage::new_blank_message();
         message.headers.insert(
