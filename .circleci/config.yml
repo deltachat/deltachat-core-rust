@@ -7,9 +7,6 @@ executors:
   doxygen:
     docker:
       - image: hrektts/doxygen
-  python:
-    docker:
-      - image: 3.7.7-stretch
             
 
 restore-workspace: &restore-workspace
@@ -156,8 +153,6 @@ jobs:
       - checkout
       - attach_workspace:
           at: workspace
-      - run: pyenv versions
-      # - run: pyenv global 3.6.0
       - run: ls -laR workspace
       - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse workspace/c-docs
 
@@ -192,8 +187,8 @@ workflows:
           filters:
             branches:
               only: master
-            tags:
-              only: /.*/
+            #tags:
+            #  only: /.*/
 
       - upload_docs_wheels:
           requires:
