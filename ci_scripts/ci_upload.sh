@@ -61,11 +61,11 @@ ssh $SSHTARGET <<_HERE
 
     N_BRANCH=${BRANCH//[\/]}
 
-    devpi use dc/$$N_BRANCH || {
-        devpi index -c $$N_BRANCH 
-        devpi use dc/$$N_BRANCH
+    devpi use dc/\$N_BRANCH || {
+        devpi index -c \$N_BRANCH 
+        devpi use dc/\$N_BRANCH
     }
-    devpi index $$N_BRANCH bases=/root/pypi
+    devpi index \$N_BRANCH bases=/root/pypi
     devpi upload deltachat*
 
     # remove devpi non-master dc indices if thy are too old

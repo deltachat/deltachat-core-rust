@@ -28,6 +28,8 @@ ln -s /opt/python/cp36-cp36m/bin/python3.6
 ln -s /opt/python/cp37-cp37m/bin/python3.7
 ln -s /opt/python/cp38-cp38/bin/python3.8
 ln -s /opt/python/cp39-cp39/bin/python3.9
+
+ls -la
 popd
 
 pushd python
@@ -42,7 +44,7 @@ mkdir -p $TOXWORKDIR
 # live-testing already. 
 unset DCC_PY_LIVECONFIG
 unset DCC_NEW_TMP_EMAIL
-tox --workdir "$TOXWORKDIR" -e py35,py36,py37,py38,py39,auditwheels
+tox --workdir "$TOXWORKDIR" -e py35,py36,py37,py38,auditwheels
 popd
 
 
