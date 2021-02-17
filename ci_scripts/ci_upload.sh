@@ -50,6 +50,8 @@ ssh $SSHTARGET <<_HERE
     set +x -e
     # make sure all processes exit when ssh dies
     shopt -s huponexit
+
+    source venv/bin/activate
     cd $BUILDDIR
 
     devpi use https://m.devpi.net
