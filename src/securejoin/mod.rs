@@ -102,7 +102,7 @@ impl Bob {
             }
             Err(err) => {
                 if did_alloc_ongoing {
-                    context.stop_ongoing().await;
+                    context.free_ongoing().await;
                 }
                 Err(err)
             }
@@ -291,6 +291,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
                         Ok((chatid, _is_protected, _blocked)) => break chatid,
                         Err(err) => {
                             if start.elapsed() > Duration::from_secs(7) {
+                                context.free_ongoing().await;
                                 return Err(JoinError::MissingChat(err));
                             }
                         }
@@ -298,6 +299,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
                 }
                 async_std::task::sleep(Duration::from_millis(50)).await;
             };
+            context.free_ongoing().await;
             Ok(chatid)
         }
     }
@@ -940,6 +942,7 @@ mod tests {
         dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
 
         let sent = bob.pop_sent_msg().await;
+        assert!(!bob.ctx.has_ongoing().await);
         assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
@@ -1170,6 +1173,7 @@ mod tests {
                 _ => panic!("Wrong event type"),
             }
         }
+        assert!(!bob.ctx.has_ongoing().await);
 
         // Check Bob sent the right handshake message.
         let sent = bob.pop_sent_msg().await;
@@ -1285,6 +1289,7 @@ mod tests {
         };
 
         let sent = bob.pop_sent_msg().await;
+        assert!(bob.ctx.has_ongoing().await);
         assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
@@ -1403,5 +1408,6 @@ mod tests {
         let bob_chatid = joiner.await;
         let bob_chat = Chat::load_from_db(&bob.ctx, bob_chatid).await.unwrap();
         assert!(bob_chat.is_protected());
+        assert!(!bob.ctx.has_ongoing().await)
     }
 }
