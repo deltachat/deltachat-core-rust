@@ -151,10 +151,7 @@ jobs:
       - run: ci_scripts/remote_tests_python.sh
 
   upload_docs_wheels:
-    working_directory: ~/upload_docs_wheels 
-    docker: 
-        #- image: circleci/python:3.8.7
-        - image: circleci/rc-buster
+    executor: python
     steps:
       - checkout
       - attach_workspace:
