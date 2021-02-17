@@ -176,15 +176,15 @@ workflows:
     jobs:
       # - cargo_fetch
 
-      - remote_tests_rust:
-          filters:
-            tags:
-              only: /.*/
-
-      - remote_tests_python:
-          filters:
-            tags:
-              only: /.*/
+#      - remote_tests_rust:
+#          filters:
+#            tags:
+#              only: /.*/
+#
+#      - remote_tests_python:
+#          filters:
+#            tags:
+#              only: /.*/
 
       - remote_python_packaging:
           filters:
