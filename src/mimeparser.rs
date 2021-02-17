@@ -950,7 +950,8 @@ impl MimeMessage {
     }
 
     pub fn get_rfc724_mid(&self) -> Option<String> {
-        self.get(HeaderDef::MessageId)
+        self.get(HeaderDef::XMicrosoftOriginalMessageId)
+            .or_else(|| self.get(HeaderDef::MessageId))
             .and_then(|msgid| parse_message_id(msgid).ok())
     }
 
@@ -2747,6 +2748,29 @@ On 2020-10-25, Bob wrote:
         assert_eq!(
             mimeparser.parts[0].msg,
             "mime-modified test – mime-modified *set*; simplify is always regarded as lossy."
+        );
+    }
+
+    #[async_std::test]
+    async fn test_x_microsoft_original_message_id() {
+        let t = TestContext::new().await;
+        let message = MimeMessage::from_bytes(&t, b"Date: Wed, 17 Feb 2021 15:45:15 +0000\n\
+                Chat-Version: 1.0\n\
+                Message-ID: <DBAPR03MB1180CE51A1BFE265BD018D4790869@DBAPR03MB6691.eurprd03.prod.outlook.com>\n\
+                To: Bob <bob@example.org>\n\
+                From: Alice <alice@example.org>\n\
+                Subject: Message from Alice\n\
+                Content-Type: text/plain\n\
+                X-Microsoft-Original-Message-ID: <Mr.6Dx7ITn4w38.n9j7epIcuQI@outlook.com>\n\
+                MIME-Version: 1.0\n\
+                \n\
+                Does it work with outlook now?\n\
+                ")
+            .await
+            .unwrap();
+        assert_eq!(
+            message.get_rfc724_mid(),
+            Some("Mr.6Dx7ITn4w38.n9j7epIcuQI@outlook.com".to_string())
         );
     }
 }
