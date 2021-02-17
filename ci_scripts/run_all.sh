@@ -27,9 +27,6 @@ ln -s /opt/python/cp35-cp35m/bin/python3.5
 ln -s /opt/python/cp36-cp36m/bin/python3.6
 ln -s /opt/python/cp37-cp37m/bin/python3.7
 ln -s /opt/python/cp38-cp38/bin/python3.8
-ln -s /opt/python/cp39-cp39/bin/python3.9
-
-ls -la
 popd
 
 pushd python

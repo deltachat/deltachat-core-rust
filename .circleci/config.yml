@@ -7,9 +7,6 @@ executors:
   doxygen:
     docker:
       - image: hrektts/doxygen
-  python:
-    docker:
-      - image: python/3.7.7-stretch
             
 
 restore-workspace: &restore-workspace
@@ -151,7 +148,7 @@ jobs:
       - run: ci_scripts/remote_tests_python.sh
 
   upload_docs_wheels:
-    machine: true 
+    machine: true
     steps:
       - checkout
       - attach_workspace:
@@ -176,32 +173,32 @@ workflows:
     jobs:
       # - cargo_fetch
 
-#      - remote_tests_rust:
-#          filters:
-#            tags:
-#              only: /.*/
-#
-#      - remote_tests_python:
-#          filters:
-#            tags:
-#              only: /.*/
+      - remote_tests_rust:
+          filters:
+            tags:
+              only: /.*/
+
+      - remote_tests_python:
+          filters:
+            tags:
+              only: /.*/
 
       - remote_python_packaging:
           filters:
             branches:
-              only: /.*/  
-      #      tags:
-      #        only: /.*/
+              only: master
+            #tags:
+            #  only: /.*/
 
       - upload_docs_wheels:
           requires:
              - remote_python_packaging
              - build_doxygen
-          #filters:
-            #branches:
-            #  only: master
-            #tags:
-            #  only: /.*/
+          filters:
+            branches:
+              only: master
+            tags:
+              only: /.*/
       # - rustfmt:
       #     requires:
       #       - cargo_fetch
@@ -212,9 +209,9 @@ workflows:
       - build_doxygen:
           filters:
             branches:
+              only: master
+            tags:
               only: /.*/
-      #      tags:
-      #        only: /.*/
 
       # Linux Desktop 64bit
       # - test_x86_64-unknown-linux-gnu:
