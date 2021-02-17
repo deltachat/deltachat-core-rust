@@ -42,7 +42,7 @@ mkdir -p $TOXWORKDIR
 # live-testing already. 
 unset DCC_PY_LIVECONFIG
 unset DCC_NEW_TMP_EMAIL
-tox --workdir "$TOXWORKDIR" -e py35,py36,py37,py38,auditwheels
+tox --workdir "$TOXWORKDIR" -e py35,py36,py37,py38,py39,auditwheels
 popd
 
 

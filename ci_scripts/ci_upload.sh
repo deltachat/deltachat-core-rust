@@ -41,6 +41,7 @@ echo -----------------------
 # Bundle external shared libraries into the wheels
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $SSHTARGET mkdir -p $BUILDDIR 
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ci_scripts/cleanup_devpi_indices.py $SSHTARGET:$BUILDDIR 
 rsync -avz \
   -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
   $WHEELHOUSEDIR \
@@ -51,6 +52,7 @@ ssh $SSHTARGET <<_HERE
     # make sure all processes exit when ssh dies
     shopt -s huponexit
 
+    # we rely on the "venv" virtualenv on the remote account to exist 
     source venv/bin/activate
     cd $BUILDDIR
 
@@ -59,14 +61,14 @@ ssh $SSHTARGET <<_HERE
 
     N_BRANCH=${BRANCH//[\/]}
 
-    devpi use dc/$N_BRANCH || {
-        devpi index -c $N_BRANCH 
-        devpi use dc/$N_BRANCH
+    devpi use dc/$$N_BRANCH || {
+        devpi index -c $$N_BRANCH 
+        devpi use dc/$$N_BRANCH
     }
-    devpi index $N_BRANCH bases=/root/pypi
+    devpi index $$N_BRANCH bases=/root/pypi
     devpi upload deltachat*
 
+    # remove devpi non-master dc indices if thy are too old
+    # this script was copied above 
+    python cleanup_devpi_indices.py
 _HERE
-
-# remove devpi non-master dc indices if thy are too old
-#python ci_scripts/cleanup_devpi_indices.py
