@@ -66,7 +66,7 @@ ssh $SSHTARGET <<_HERE
         devpi use dc/\$N_BRANCH
     }
     devpi index \$N_BRANCH bases=/root/pypi
-    devpi upload deltachat*
+    devpi upload wheelhouse/deltachat*
 
     # remove devpi non-master dc indices if thy are too old
     # this script was copied above 
