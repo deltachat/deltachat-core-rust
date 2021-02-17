@@ -9,7 +9,7 @@ executors:
       - image: hrektts/doxygen
   python:
     docker:
-      - image: 3.7.7-stretch
+      - image: python/3.7.7-stretch
             
 
 restore-workspace: &restore-workspace
@@ -151,7 +151,7 @@ jobs:
       - run: ci_scripts/remote_tests_python.sh
 
   upload_docs_wheels:
-    executor: python
+    machine: true 
     steps:
       - checkout
       - attach_workspace:
