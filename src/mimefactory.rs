@@ -514,12 +514,6 @@ impl<'a> MimeFactory<'a> {
             ));
         }
 
-        // we could also store the message-id in the protected headers
-        // which would probably help to survive providers like
-        // Outlook.com or hotmail which mangle the Message-ID.
-        // but they also strip the Autocrypt header so we probably
-        // never get a chance to tunnel our protected headers in a
-        // cryptographic payload.
         unprotected_headers.push(Header::new(
             "Message-ID".into(),
             render_rfc724_mid(&rfc724_mid),

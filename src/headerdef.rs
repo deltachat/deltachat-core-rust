@@ -11,10 +11,19 @@ pub enum HeaderDef {
     To,
     Cc,
     Disposition,
+
+    /// Used in the "Body Part Header" of MDNs as of RFC 8098.
+    /// Indicates the Message-ID of the message for which the MDN is being issued.
     OriginalMessageId,
 
     /// Delta Chat extension for message IDs in combined MDNs
     AdditionalMessageIds,
+
+    /// Outlook-SMTP-server replace the `Message-ID:`-header
+    /// and write the original ID to `X-Microsoft-Original-Message-ID`.
+    /// To sort things correctly and to not show outgoing messages twice,
+    /// we need to check that header as well.
+    XMicrosoftOriginalMessageId,
 
     ListId,
     References,
