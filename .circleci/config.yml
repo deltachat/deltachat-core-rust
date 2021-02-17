@@ -190,8 +190,8 @@ workflows:
 
       - remote_python_packaging:
           filters:
-            branches:
-              only: master
+            # branches:
+            #  only: master
             tags:
               only: /.*/
 
@@ -200,8 +200,8 @@ workflows:
              - remote_python_packaging
              - build_doxygen
           filters:
-            branches:
-              only: master
+            #branches:
+            #  only: master
             tags:
               only: /.*/
       # - rustfmt:
