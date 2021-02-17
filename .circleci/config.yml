@@ -190,20 +190,20 @@ workflows:
 
       - remote_python_packaging:
           filters:
-            # branches:
-            #  only: master
-            tags:
-              only: /.*/
+            branches:
+              only: /.*/  
+      #      tags:
+      #        only: /.*/
 
       - upload_docs_wheels:
           requires:
              - remote_python_packaging
              - build_doxygen
-          filters:
+          #filters:
             #branches:
             #  only: master
-            tags:
-              only: /.*/
+            #tags:
+            #  only: /.*/
       # - rustfmt:
       #     requires:
       #       - cargo_fetch
@@ -214,9 +214,9 @@ workflows:
       - build_doxygen:
           filters:
             branches:
-              only: master
-            tags:
               only: /.*/
+      #      tags:
+      #        only: /.*/
 
       # Linux Desktop 64bit
       # - test_x86_64-unknown-linux-gnu:
