@@ -1073,12 +1073,10 @@ impl<'a> MimeFactory<'a> {
         if self.attach_selfavatar {
             match context.get_config(Config::Selfavatar).await? {
                 Some(path) => match build_selfavatar_file(context, &path) {
-                    Ok((part, filename)) => {
-                        parts.push(part);
-                        headers
-                            .protected
-                            .push(Header::new("Chat-User-Avatar".into(), filename))
-                    }
+                    Ok(avatar) => headers.hidden.push(Header::new(
+                        "Chat-User-Avatar".into(),
+                        format!("base64:{}", avatar),
+                    )),
                     Err(err) => warn!(context, "mimefactory: cannot attach selfavatar: {}", err),
                 },
                 None => headers
@@ -1263,29 +1261,11 @@ async fn build_body_file(
     Ok((mail, filename_to_send))
 }
 
-fn build_selfavatar_file(context: &Context, path: &str) -> Result<(PartBuilder, String)> {
+fn build_selfavatar_file(context: &Context, path: &str) -> Result<String> {
     let blob = BlobObject::from_path(context, path)?;
-    let filename_to_send = match blob.suffix() {
-        Some(suffix) => format!("avatar.{}", suffix),
-        None => "avatar".to_string(),
-    };
-    let mimetype = match message::guess_msgtype_from_suffix(blob.as_rel_path()) {
-        Some(res) => res.1.parse()?,
-        None => mime::APPLICATION_OCTET_STREAM,
-    };
     let body = std::fs::read(blob.to_abs_path())?;
     let encoded_body = wrapped_base64_encode(&body);
-
-    let part = PartBuilder::new()
-        .content_type(&mimetype)
-        .header((
-            "Content-Disposition",
-            format!("attachment; filename=\"{}\"", &filename_to_send),
-        ))
-        .header(("Content-Transfer-Encoding", "base64"))
-        .body(encoded_body);
-
-    Ok((part, filename_to_send))
+    Ok(encoded_body)
 }
 
 fn recipients_contain_addr(recipients: &[(String, String)], addr: &str) -> bool {
