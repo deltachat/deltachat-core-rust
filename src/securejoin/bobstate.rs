@@ -117,7 +117,7 @@ impl<'a> BobStateHandle<'a> {
     /// allowing a new handshake to be started from [`Bob`].
     ///
     /// Note that the state is only cleared on Drop since otherwise the invariant that the
-    /// state is always consistent is violated.  However the "ongoing" prococess is released
+    /// state is always consistent is violated.  However the "ongoing" process is released
     /// here a little bit earlier as this requires access to the Context, which we do not
     /// have on Drop (Drop can not run asynchronous code).  Stopping the "ongoing" process
     /// will release [`securejoin`](super::securejoin) which in turn will finally free the
