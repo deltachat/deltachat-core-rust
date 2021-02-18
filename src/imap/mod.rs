@@ -72,8 +72,14 @@ const PREFETCH_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
                               CHAT-VERSION \
                               AUTOCRYPT-SETUP-MESSAGE\
                               )])";
-const DELETE_CHECK_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])";
-const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])";
+const DELETE_CHECK_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
+                                  MESSAGE-ID \
+                                  X-MICROSOFT-ORIGINAL-MESSAGE-ID\
+                                  )])";
+const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
+                             MESSAGE-ID \
+                             X-MICROSOFT-ORIGINAL-MESSAGE-ID\
+                             )])";
 const JUST_UID: &str = "(UID)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 
@@ -1594,7 +1600,9 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
 }
 
 fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
-    if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId) {
+    if let Some(message_id) = headers.get_header_value(HeaderDef::XMicrosoftOriginalMessageId) {
+        Ok(crate::mimeparser::parse_message_id(&message_id)?)
+    } else if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId) {
         Ok(crate::mimeparser::parse_message_id(&message_id)?)
     } else {
         bail!("prefetch: No message ID found");
