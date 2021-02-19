@@ -73,6 +73,8 @@
 
 - apply gossiped encryption preference to new peerstates #2174
 
+- fix race condition and db corruption when a message was received during backup
+
 - fix: do not return quoted messages from the trash chat #2221
 
 - fix: allow emojis for location markers #2177

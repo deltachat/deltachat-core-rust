@@ -9,10 +9,10 @@ use std::time::{Duration, Instant};
 use std::{collections::BTreeMap, panic};
 
 use ansi_term::Color;
+use async_std::future::Future;
 use async_std::path::PathBuf;
-use async_std::pin::Pin;
 use async_std::sync::{Arc, RwLock};
-use async_std::{future::Future, process};
+use async_std::{channel, pin::Pin};
 use chat::ChatItem;
 use once_cell::sync::Lazy;
 use tempfile::{tempdir, TempDir};
@@ -50,6 +50,8 @@ pub(crate) struct TestContext {
     recv_idx: RwLock<u32>,
     /// Functions to call for events received.
     event_sinks: Arc<RwLock<Vec<Box<EventSink>>>>,
+    /// Receives a panic during an event handler (sink)
+    poison_receiver: channel::Receiver<String>,
 }
 
 impl fmt::Debug for TestContext {
@@ -97,12 +99,13 @@ impl TestContext {
         let events = ctx.get_event_emitter();
         let event_sinks: Arc<RwLock<Vec<Box<EventSink>>>> = Arc::new(RwLock::new(Vec::new()));
         let sinks = Arc::clone(&event_sinks);
+        let (poison_sender, poison_receiver) = channel::bounded(1);
         async_std::task::spawn(async move {
+            // Make sure that the test fails if there is a panic on this thread here:
             let orig_hook = panic::take_hook();
             panic::set_hook(Box::new(move |panic_info| {
-                // invoke the default handler and exit the process
+                poison_sender.try_send(panic_info.to_string()).ok();
                 orig_hook(panic_info);
-                process::exit(1);
             }));
 
             while let Some(event) = events.recv().await {
@@ -121,6 +124,7 @@ impl TestContext {
             dir,
             recv_idx: RwLock::new(0),
             event_sinks,
+            poison_receiver,
         }
     }
 
@@ -414,6 +418,14 @@ impl Deref for TestContext {
 
     fn deref(&self) -> &Context {
         &self.ctx
+    }
+}
+
+impl Drop for TestContext {
+    fn drop(&mut self) {
+        if let Ok(p) = self.poison_receiver.try_recv() {
+            panic!(p);
+        }
     }
 }
 

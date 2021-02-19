@@ -1636,9 +1636,10 @@ mod test {
             match event.typ {
                 EventType::Info(s) => assert!(
                     !s.contains("Keeping new unreferenced file"),
-                    "File {} would have been deleted if it was older",
+                    "File {} was almost deleted, only reason it was not is, it was created recently",
                     s
                 ),
+                EventType::Error(s) => panic!(s),
                 _ => {}
             }
         })
