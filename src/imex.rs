@@ -4,10 +4,13 @@ use std::any::Any;
 use std::ffi::OsStr;
 
 use anyhow::{bail, ensure, format_err, Context as _, Result};
-use async_std::path::{Path, PathBuf};
 use async_std::{
     fs::{self, File},
     prelude::*,
+};
+use async_std::{
+    path::{Path, PathBuf},
+    task::sleep,
 };
 use rand::{thread_rng, Rng};
 
@@ -728,6 +731,7 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
     let read_dir: Vec<_> = fs::read_dir(context.get_blobdir()).await?.collect().await;
     let count = read_dir.len();
     let mut written_files = 0;
+    sleep(std::time::Duration::from_secs(5)).await;
 
     for entry in read_dir.into_iter() {
         let entry = entry?;

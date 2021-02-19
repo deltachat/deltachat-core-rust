@@ -21,6 +21,11 @@ class ImexTracker:
             self._imex_events.put(ffi_event.data2)
 
     def wait_progress(self, target_progress, progress_upper_limit=1000, progress_timeout=60):
+        # while not self._imex_events.empty():
+        #     progress = self._imex_events.get_nowait()
+        #     assert progress <= progress_upper_limit, \
+        #         "Hit the progress " + str(progress) + " too early!"
+
         while True:
             ev = self._imex_events.get(timeout=progress_timeout)
             if isinstance(ev, int) and ev >= target_progress:
