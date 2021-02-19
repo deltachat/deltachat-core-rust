@@ -1570,8 +1570,10 @@ async fn prune_tombstones(context: &Context) -> Result<()> {
 
 #[cfg(test)]
 mod test {
+    use async_std::fs::File;
+
     use super::*;
-    use crate::test_utils::TestContext;
+    use crate::{test_utils::TestContext, Event, EventType};
 
     #[test]
     fn test_maybe_add_file() {
@@ -1612,5 +1614,44 @@ mod test {
         assert!(t.ctx.sql.col_exists("msgs", "mime_modified").await.unwrap());
         assert!(!t.ctx.sql.col_exists("msgs", "foobar").await.unwrap());
         assert!(!t.ctx.sql.col_exists("foobar", "foobar").await.unwrap());
+    }
+
+    #[async_std::test]
+    async fn test_housekeeping_db_closed() {
+        let t = TestContext::new().await;
+
+        let avatar_src = t.dir.path().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        File::create(&avatar_src)
+            .await
+            .unwrap()
+            .write_all(avatar_bytes)
+            .await
+            .unwrap();
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
+            .await
+            .unwrap();
+
+        t.add_event_sink(move |event: Event| async move {
+            match event.typ {
+                EventType::Info(s) => assert!(
+                    !s.contains("Keeping new unreferenced file"),
+                    "File {} would have been deleted if it was older",
+                    s
+                ),
+                _ => {}
+            }
+        })
+        .await;
+
+        let a = t.get_config(Config::Selfavatar).await.unwrap();
+        assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
+
+        t.sql.close().await;
+        housekeeping(&t).await;
+
+        t.sql.open(&t, &t.get_dbfile(), false).await.unwrap();
+        let a = t.get_config(Config::Selfavatar).await.unwrap();
+        assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
     }
 }

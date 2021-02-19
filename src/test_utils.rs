@@ -2,17 +2,17 @@
 //!
 //! This private module is only compiled for test runs.
 
-use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
+use std::{collections::BTreeMap, panic};
 
 use ansi_term::Color;
-use async_std::future::Future;
 use async_std::path::PathBuf;
 use async_std::pin::Pin;
 use async_std::sync::{Arc, RwLock};
+use async_std::{future::Future, process};
 use chat::ChatItem;
 use once_cell::sync::Lazy;
 use tempfile::{tempdir, TempDir};
@@ -98,6 +98,13 @@ impl TestContext {
         let event_sinks: Arc<RwLock<Vec<Box<EventSink>>>> = Arc::new(RwLock::new(Vec::new()));
         let sinks = Arc::clone(&event_sinks);
         async_std::task::spawn(async move {
+            let orig_hook = panic::take_hook();
+            panic::set_hook(Box::new(move |panic_info| {
+                // invoke the default handler and exit the process
+                orig_hook(panic_info);
+                process::exit(1);
+            }));
+
             while let Some(event) = events.recv().await {
                 {
                     let sinks = sinks.read().await;

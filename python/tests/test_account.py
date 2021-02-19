@@ -1487,7 +1487,13 @@ class TestOnlineAccount:
         assert m == msg_in
 
     def test_import_export_online_all(self, acfactory, tmpdir, data, lp):
-        ac1, ac2 = acfactory.get_many_online_accounts(2) # TODO we now have 2 "ac2"
+        ac1, ac2 = acfactory.get_many_online_accounts(2)
+        
+        p = data.get_path("d.png")
+        ac2.set_avatar(p)
+        chat21 = acfactory.get_accepted_chat(ac2, ac1)
+        chat21.send_text("with avatar")
+        ac1._evtracker.wait_next_incoming_message()
 
         lp.sec("create some chat content")
         chat1 = ac1.create_contact("some1@example.org", name="some1").create_chat()
@@ -1496,8 +1502,33 @@ class TestOnlineAccount:
 
         original_image_path = data.get_path("d.png")
         chat1.send_image(original_image_path)
-            
-        chat21 = acfactory.get_accepted_chat(ac2, ac1)
+
+
+        def assert_account_is_proper(ac):
+            contacts = ac.get_contacts(query="some1")
+            assert len(contacts) == 1
+            contact2 = contacts[0]
+            assert contact2.addr == "some1@example.org"
+            chat2 = contact2.create_chat()
+            messages = chat2.get_messages()
+            assert len(messages) == 2
+            assert messages[0].text == "msg1"
+            lp.sec("dbg file"+messages[1].filename)
+            assert messages[1].filemime == "image/png"
+            assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
+            ac.set_config("displayname", "new displayname")
+            assert ac.get_config("displayname") == "new displayname"
+
+            contacts = ac.get_contacts(query=ac2.get_config("addr"))
+            assert len(contacts) == 1
+            received_avatar = contacts[0].get_profile_image()
+            assert received_avatar is not None
+            assert open(received_avatar, "rb").read() == open(p, "rb").read()
+
+
+        assert_account_is_proper(ac1)
+
+
         chat21.send_text("DISRUPTION!!!!")
 
         backupdir = tmpdir.mkdir("backup")
@@ -1506,8 +1537,7 @@ class TestOnlineAccount:
         with ac1.temp_plugin(ImexTracker()) as imex_tracker:
             chat21.send_text("DISRUPTION!!!!")
 
-            ac1.set_config("last_housekeeping", "0")
-            ac1.imex(backupdir.strpath, 11)
+            ac1.imex(backupdir.strpath, const.DC_IMEX_EXPORT_BACKUP)
 
             chat21.send_text("DISRUPTION!!!!")
 
@@ -1526,19 +1556,16 @@ class TestOnlineAccount:
 
         t = time.time()
 
-        ac1.stop_io() # TODO rm
-        ac1.start_io() # TODO rm
-
         lp.sec("get fresh empty account")
-        ac2 = acfactory.get_unconfigured_account()
+        ac3 = acfactory.get_unconfigured_account()
 
         lp.sec("get latest backup file")
-        path2 = ac2.get_latest_backupfile(backupdir.strpath)
+        path2 = ac3.get_latest_backupfile(backupdir.strpath)
         assert path2 == path
 
         lp.sec("import backup and check it's proper")
-        with ac2.temp_plugin(ImexTracker()) as imex_tracker:
-            ac2.import_all(path)
+        with ac3.temp_plugin(ImexTracker()) as imex_tracker:
+            ac3.import_all(path)
 
             # check progress events for import
             assert imex_tracker.wait_progress(1, progress_upper_limit=249)
@@ -1546,24 +1573,8 @@ class TestOnlineAccount:
             assert imex_tracker.wait_progress(750, progress_upper_limit=999)
             assert imex_tracker.wait_progress(1000)
 
-        def assert_account_is_proper(ac):
-            contacts = ac.get_contacts(query="some1")
-            assert len(contacts) == 1
-            contact2 = contacts[0]
-            assert contact2.addr == "some1@example.org"
-            chat2 = contact2.create_chat()
-            messages = chat2.get_messages()
-            assert len(messages) == 2
-            assert messages[0].text == "msg1"
-            assert messages[1].filemime == "image/png"
-            assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
-            ac.set_config("displayname", "new displayname")
-            assert ac.get_config("displayname") == "new displayname"
-
-        lp.sec("dbg checking ac1 proper")
         assert_account_is_proper(ac1)
-        lp.sec("Done")
-        assert_account_is_proper(ac2)
+        assert_account_is_proper(ac3)
 
         # wait until a second passed since last backup
         # because get_latest_backupfile() shall return the latest backup
@@ -1574,7 +1585,7 @@ class TestOnlineAccount:
         path2 = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path2)
         assert path2 != path
-        assert ac2.get_latest_backupfile(backupdir.strpath) == path2        
+        assert ac3.get_latest_backupfile(backupdir.strpath) == path2        
 
     def test_ac_setup_message(self, acfactory, lp):
         # note that the receiving account needs to be configured and running
