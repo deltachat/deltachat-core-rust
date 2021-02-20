@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   height="60"
+   width="60"
+   version="1.1"
+   x="0px"
+   y="0px"
+   viewBox="0 0 60 60"
+   enable-background="new 0 0 1000 1000"
+   xml:space="preserve"
+   id="svg18"
+   sodipodi:docname="icon-mailinglist.svg"
+   inkscape:version="1.0.2 (e86c8708, 2021-01-15)"
+   inkscape:export-filename="/Users/bpetersen/projects/deltachat-core-rust/assets/icon-mailinglist.png"
+   inkscape:export-xdpi="409.60001"
+   inkscape:export-ydpi="409.60001"><metadata
+   id="metadata16">
+  <rdf:RDF>
+    <cc:Work
+   rdf:about="">
+      <dc:format>image/svg+xml</dc:format>
+      <dc:type
+   rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      <dc:title />
+    </cc:Work>
+  </rdf:RDF>
+</metadata>
+<defs
+   id="defs22" />
+
+<sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   inkscape:document-rotation="0"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1873"
+   inkscape:window-height="1035"
+   id="namedview20"
+   showgrid="false"
+   inkscape:zoom="8.4906002"
+   inkscape:cx="23.926033"
+   inkscape:cy="24.683998"
+   inkscape:window-x="47"
+   inkscape:window-y="23"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="svg18"
+   inkscape:snap-global="true" />
+
+
+<rect
+   y="0"
+   x="0"
+   height="60"
+   width="60"
+   id="rect1420"
+   style="fill:#ffd42a;fill-opacity:1;stroke:none;stroke-width:1.29077" /><g
+   transform="matrix(0.04411821,0,0,0.04411821,7.9422427,3.9395157)"
+   id="g16"
+   style="fill:#ffffff">
+  
+
+  
+
+</g>
+
+
+<path
+   id="rect94-4"
+   style="fill:#ffffff;stroke:#ffffff;stroke-opacity:1;stroke-width:0.37795276;stroke-miterlimit:4;stroke-dasharray:none"
+   d="m 11.334307,44.251788 h 37.331387 c 0.344536,0 0.621906,0.27737 0.621906,0.621907 v 1.170645 c 0,0.344537 -0.27737,0.621908 -0.621906,0.621908 H 11.334307 c -0.344536,0 -0.621907,-0.277371 -0.621907,-0.621908 v -1.170645 c 0,-0.344537 0.277371,-0.621907 0.621907,-0.621907 z m 0,-4.654398 h 37.331387 c 0.344536,0 0.621906,0.27737 0.621906,0.621907 v 1.170645 c 0,0.344537 -0.27737,0.621908 -0.621906,0.621908 H 11.334307 c -0.344536,0 -0.621907,-0.277371 -0.621907,-0.621908 v -1.170645 c 0,-0.344537 0.277371,-0.621907 0.621907,-0.621907 z M 48.030873,37.3604 H 11.98722 c -0.663115,0 -1.196746,-0.537555 -1.196746,-1.200671 V 14.531968 c 0,-0.663115 0.537555,-1.196746 1.196746,-1.196746 h 36.043653 c 0.663116,0 1.196747,0.537555 1.196747,1.196746 v 21.623838 c 0,0.667039 -0.537555,1.204594 -1.196747,1.204594 z M 13.183967,34.959059 H 46.826279 V 15.736562 H 13.183967 Z M 29.95019,28.12387 c -0.235425,0 -0.474774,-0.0667 -0.686658,-0.215806 L 11.292715,15.520756 c -0.545403,-0.372757 -0.686658,-1.122196 -0.306054,-1.667598 0.372758,-0.545402 1.122196,-0.686658 1.667598,-0.302129 l 17.288084,11.912532 17.28416,-11.912532 c 0.545402,-0.384529 1.298764,-0.243273 1.667597,0.302129 0.372758,0.545402 0.243274,1.298765 -0.306053,1.667598 L 30.61723,27.908064 c -0.200112,0.141255 -0.435538,0.215806 -0.682734,0.215806 z" /></svg>
