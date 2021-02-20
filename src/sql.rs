@@ -8,6 +8,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::format_err;
+use anyhow::Context as _;
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
@@ -495,7 +496,7 @@ pub fn get_rowid2(
     )
 }
 
-pub async fn housekeeping(context: &Context) {
+pub async fn housekeeping(context: &Context) -> anyhow::Result<()> {
     if let Err(err) = crate::ephemeral::delete_expired_messages(context).await {
         warn!(context, "Failed to delete expired messages: {}", err);
     }
@@ -510,28 +511,28 @@ pub async fn housekeeping(context: &Context) {
         "SELECT param FROM msgs  WHERE chat_id!=3   AND type!=10;",
         Param::File,
     )
-    .await;
+    .await?;
     maybe_add_from_param(
         context,
         &mut files_in_use,
         "SELECT param FROM jobs;",
         Param::File,
     )
-    .await;
+    .await?;
     maybe_add_from_param(
         context,
         &mut files_in_use,
         "SELECT param FROM chats;",
         Param::ProfileImage,
     )
-    .await;
+    .await?;
     maybe_add_from_param(
         context,
         &mut files_in_use,
         "SELECT param FROM contacts;",
         Param::ProfileImage,
     )
-    .await;
+    .await?;
 
     context
         .sql
@@ -547,9 +548,7 @@ pub async fn housekeeping(context: &Context) {
             },
         )
         .await
-        .unwrap_or_else(|err| {
-            warn!(context, "sql: failed query: {}", err);
-        });
+        .context("housekeeping: failed to SELECT value FROM config")?;
 
     info!(context, "{} files in use.", files_in_use.len(),);
     /* go through directory and delete unused files */
@@ -637,6 +636,7 @@ pub async fn housekeeping(context: &Context) {
         warn!(context, "Can't set config: {}", e);
     }
     info!(context, "Housekeeping done.");
+    Ok(())
 }
 
 #[allow(clippy::indexing_slicing)]
@@ -665,7 +665,7 @@ async fn maybe_add_from_param(
     files_in_use: &mut HashSet<String>,
     query: &str,
     param_id: Param,
-) {
+) -> anyhow::Result<()> {
     context
         .sql
         .query_map(
@@ -683,9 +683,7 @@ async fn maybe_add_from_param(
             },
         )
         .await
-        .unwrap_or_else(|err| {
-            warn!(context, "sql: failed to add_from_param: {}", err);
-        });
+        .context(format!("housekeeping: failed to add_from_param {}", query))
 }
 
 #[allow(clippy::cognitive_complexity)]
@@ -1636,7 +1634,7 @@ mod test {
             match event.typ {
                 EventType::Info(s) => assert!(
                     !s.contains("Keeping new unreferenced file"),
-                    "File {} was almost deleted, only reason it was not is, it was created recently",
+                    "File {} was almost deleted, only reason it was kept is that it was created recently (as the tests don't run for a long time)",
                     s
                 ),
                 EventType::Error(s) => panic!(s),
@@ -1649,7 +1647,9 @@ mod test {
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
 
         t.sql.close().await;
-        housekeeping(&t).await;
+
+        // Don't check return type, this is not supposed to successfully run, we just want to make sure that no files are deleted
+        housekeeping(&t).await.ok();
 
         t.sql.open(&t, &t.get_dbfile(), false).await.unwrap();
         let a = t.get_config(Config::Selfavatar).await.unwrap();

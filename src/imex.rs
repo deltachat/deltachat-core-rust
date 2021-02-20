@@ -14,7 +14,6 @@ use async_std::{
 };
 use rand::{thread_rng, Rng};
 
-use crate::blob::BlobObject;
 use crate::chat;
 use crate::chat::delete_and_reset_all_device_msgs;
 use crate::config::Config;
@@ -33,6 +32,7 @@ use crate::param::Param;
 use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock_str;
+use crate::{blob::BlobObject, log::LogExt};
 use ::pgp::types::KeyTrait;
 use async_tar::Archive;
 
@@ -671,7 +671,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .sql
         .set_raw_config_int(context, "backup_time", now as i32)
         .await?;
-    sql::housekeeping(context).await;
+    sql::housekeeping(context).await.log(context);
 
     context
         .sql

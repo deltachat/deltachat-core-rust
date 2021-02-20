@@ -11,7 +11,6 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
-use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, dc_read_file, time};
 use crate::ephemeral::load_imap_deletion_msgid;
 use crate::events::EventType;
@@ -29,6 +28,7 @@ use crate::{
 };
 use crate::{config::Config, constants::Blocked};
 use crate::{constants::Chattype, contact::Contact};
+use crate::{context::Context, log::LogExt};
 use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
@@ -1154,7 +1154,7 @@ async fn perform_job_action(
         Action::MoveMsg => job.move_msg(context, connection.inbox()).await,
         Action::FetchExistingMsgs => job.fetch_existing_msgs(context, connection.inbox()).await,
         Action::Housekeeping => {
-            sql::housekeeping(context).await;
+            sql::housekeeping(context).await.log(context);
             Status::Finished(Ok(()))
         }
     };
