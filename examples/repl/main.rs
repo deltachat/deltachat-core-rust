@@ -168,12 +168,14 @@ const DB_COMMANDS: [&str; 9] = [
     "housekeeping",
 ];
 
-const CHAT_COMMANDS: [&str; 28] = [
+const CHAT_COMMANDS: [&str; 30] = [
     "listchats",
     "listarchived",
     "chat",
     "createchat",
-    "createchatbymsg",
+    "decidestartchat",
+    "decideblock",
+    "decidenotnow",
     "creategroup",
     "createverified",
     "addmember",
@@ -206,13 +208,16 @@ const MESSAGE_COMMANDS: [&str; 6] = [
     "markseen",
     "delmsg",
 ];
-const CONTACT_COMMANDS: [&str; 6] = [
+const CONTACT_COMMANDS: [&str; 9] = [
     "listcontacts",
     "listverified",
     "addcontact",
     "contactinfo",
     "delcontact",
     "cleanupcontacts",
+    "block",
+    "unblock",
+    "listblocked",
 ];
 const MISC_COMMANDS: [&str; 10] = [
     "getqr",

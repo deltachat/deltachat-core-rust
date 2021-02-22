@@ -674,18 +674,6 @@ impl Contact {
         Ok(ret)
     }
 
-    pub async fn get_blocked_cnt(context: &Context) -> usize {
-        context
-            .sql
-            .query_get_value::<isize>(
-                context,
-                "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
-                paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
-            )
-            .await
-            .unwrap_or_default() as usize
-    }
-
     /// Get blocked contacts.
     pub async fn get_all_blocked(context: &Context) -> Vec<u32> {
         context

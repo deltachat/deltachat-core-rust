@@ -672,8 +672,6 @@ dc_chatlist_t*  dc_get_chatlist              (dc_context_t* context, int flags, 
 // handle chats
 
 /**
- * DEPRECATED Use dc_decide_on_contact_request().
- *
  * Create a normal chat or a group chat by a messages ID that comes typically
  * from the deaddrop, DC_CHAT_ID_DEADDROP (1).
  *
@@ -693,7 +691,7 @@ dc_chatlist_t*  dc_get_chatlist              (dc_context_t* context, int flags, 
  * same group may be shown or not - so, all in all, it is fine to show the
  * contact name only.
  *
- * @deprecated Use dc_decide_on_contact_request() instead
+ * @deprecated Deprecated 2021-02-07, use dc_decide_on_contact_request() instead
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param msg_id The message ID to create the chat for.
@@ -1547,8 +1545,6 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
 
 
 /**
- * DEPRECATED
- *
  * Mark all messages sent by the given contact as _noticed_.
  * This function is typically used to ignore a user in the deaddrop temporarily ("Not now" button).
  *
@@ -1557,7 +1553,7 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  *
  * See also dc_marknoticed_chat() and dc_markseen_msgs()
  *
- * @deprecated Use dc_decide_on_contact_request() if the user just hit "Not now" on a button in the deaddrop,
+ * @deprecated Deprecated 2021-02-07, use dc_decide_on_contact_request() if the user just hit "Not now" on a button in the deaddrop,
  *      dc_marknoticed_chat() if the user has entered a chat
  *      and dc_markseen_msgs() if the user actually _saw_ a message.
  * @memberof dc_context_t
@@ -1757,6 +1753,7 @@ dc_array_t*     dc_get_contacts              (dc_context_t* context, uint32_t fl
 /**
  * Get the number of blocked contacts.
  *
+ * @deprecated Deprecated 2021-02-22, use dc_array_get_cnt() on dc_get_blocked_contacts() instead.
  * @memberof dc_context_t
  * @param context The context object.
  * @return The number of blocked contacts.
@@ -5285,7 +5282,7 @@ void dc_event_unref(dc_event_t* event);
 /// Used to build the string returned by dc_get_contact_encrinfo().
 #define DC_STR_E2E_AVAILABLE              25
 
-/// DEPRECATED 2021-02-07
+/// @deprecated Deprecated 2021-02-07, this string is no longer needed.
 #define DC_STR_ENCR_TRANSP                27
 
 /// "No encryption."
@@ -5475,9 +5472,7 @@ void dc_event_unref(dc_event_t* event);
 /// Used in status messages.
 #define DC_STR_EPHEMERAL_WEEK             80
 
-/// DEPRECATED
-///
-/// DC_STR_EPHEMERAL_WEEKS is used instead.
+/// @deprecated Deprecated 2021-01-30, DC_STR_EPHEMERAL_WEEKS is used instead.
 #define DC_STR_EPHEMERAL_FOUR_WEEKS       81
 
 /// "Video chat invitation"

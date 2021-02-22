@@ -1640,7 +1640,7 @@ pub unsafe extern "C" fn dc_get_blocked_cnt(context: *mut dc_context_t) -> libc:
     }
     let ctx = &*context;
 
-    block_on(Contact::get_blocked_cnt(&ctx)) as libc::c_int
+    block_on(async move { Contact::get_all_blocked(&ctx).await.len() as libc::c_int })
 }
 
 #[no_mangle]
