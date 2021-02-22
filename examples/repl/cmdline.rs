@@ -255,14 +255,10 @@ async fn log_msglist(context: &Context, msglist: &[MsgId]) -> Result<(), Error> 
 }
 
 async fn log_contactlist(context: &Context, contacts: &[u32]) {
-    let mut contacts = contacts.to_vec();
-    if !contacts.contains(&1) {
-        contacts.push(1);
-    }
     for contact_id in contacts {
         let line;
         let mut line2 = "".to_string();
-        if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
+        if let Ok(contact) = Contact::get_by_id(context, *contact_id).await {
             let name = contact.get_display_name();
             let addr = contact.get_addr();
             let verified_state = contact.is_verified(context).await;
@@ -292,14 +288,14 @@ async fn log_contactlist(context: &Context, contacts: &[u32]) {
             let peerstate = Peerstate::from_addr(context, &addr)
                 .await
                 .expect("peerstate error");
-            if peerstate.is_some() && contact_id != 1 as libc::c_uint {
+            if peerstate.is_some() && *contact_id != 1 as libc::c_uint {
                 line2 = format!(
                     ", prefer-encrypt={}",
                     peerstate.as_ref().unwrap().prefer_encrypt
                 );
             }
 
-            println!("Contact#{}: {}{}", contact_id, line, line2);
+            println!("Contact#{}: {}{}", *contact_id, line, line2);
         }
     }
 }
@@ -404,6 +400,9 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  contactinfo <contact-id>\n\
                  delcontact <contact-id>\n\
                  cleanupcontacts\n\
+                 block <contact-id>\n\
+                 unblock <contact-id>\n\
+                 listblocked\n\
                  ======================================Misc.==\n\
                  getqr [<chat-id>]\n\
                  getbadqr\n\
@@ -1092,6 +1091,21 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "delcontact" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
             Contact::delete(&context, arg1.parse()?).await?;
+        }
+        "block" => {
+            ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
+            let contact_id = arg1.parse()?;
+            Contact::block(&context, contact_id).await;
+        }
+        "unblock" => {
+            ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
+            let contact_id = arg1.parse()?;
+            Contact::unblock(&context, contact_id).await;
+        }
+        "listblocked" => {
+            let contacts = Contact::get_all_blocked(&context).await;
+            log_contactlist(&context, &contacts).await;
+            println!("{} blocked contacts.", contacts.len());
         }
         "checkqr" => {
             ensure!(!arg1.is_empty(), "Argument <qr-content> missing.");

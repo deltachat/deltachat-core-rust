@@ -208,13 +208,16 @@ const MESSAGE_COMMANDS: [&str; 6] = [
     "markseen",
     "delmsg",
 ];
-const CONTACT_COMMANDS: [&str; 6] = [
+const CONTACT_COMMANDS: [&str; 9] = [
     "listcontacts",
     "listverified",
     "addcontact",
     "contactinfo",
     "delcontact",
     "cleanupcontacts",
+    "block",
+    "unblock",
+    "listblocked",
 ];
 const MISC_COMMANDS: [&str; 10] = [
     "getqr",
