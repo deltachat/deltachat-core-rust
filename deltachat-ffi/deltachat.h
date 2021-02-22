@@ -1757,6 +1757,7 @@ dc_array_t*     dc_get_contacts              (dc_context_t* context, uint32_t fl
 /**
  * Get the number of blocked contacts.
  *
+ * @deprecated Deprecated on 2021-02-22: Use dc_array_get_cnt() on dc_get_blocked_contacts() instead.
  * @memberof dc_context_t
  * @param context The context object.
  * @return The number of blocked contacts.
