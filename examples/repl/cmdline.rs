@@ -359,7 +359,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  listarchived\n\
                  chat [<chat-id>|0]\n\
                  createchat <contact-id>\n\
-                 createchatbymsg <msg-id>\n\
                  creategroup <name>\n\
                  createprotected <name>\n\
                  addmember <contact-id>\n\
@@ -386,6 +385,10 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  protect <chat-id>\n\
                  unprotect <chat-id>\n\
                  delchat <chat-id>\n\
+                 ===========================Contact requests==\n\
+                 decidestartchat <msg-id>\n\
+                 decideblock <msg-id>\n\
+                 decidenotnow <msg-id>\n\
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
                  msginfo <msg-id>\n\
@@ -659,7 +662,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             println!("Single#{} created successfully.", chat_id,);
         }
-        "createchatbymsg" => {
+        "decidestartchat" | "createchatbymsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
             let msg_id = MsgId::new(arg1.parse()?);
             match message::decide_on_contact_request(
@@ -675,6 +678,18 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 }
                 None => println!("Cannot crate chat."),
             }
+        }
+        "decidenotnow" => {
+            ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
+            let msg_id = MsgId::new(arg1.parse()?);
+            message::decide_on_contact_request(&context, msg_id, ContactRequestDecision::NotNow)
+                .await;
+        }
+        "decideblock" => {
+            ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
+            let msg_id = MsgId::new(arg1.parse()?);
+            message::decide_on_contact_request(&context, msg_id, ContactRequestDecision::Block)
+                .await;
         }
         "creategroup" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
