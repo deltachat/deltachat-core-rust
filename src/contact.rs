@@ -679,7 +679,7 @@ impl Contact {
         context
             .sql
             .query_map(
-                "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;",
+                "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(iif(name='',authname,name)||addr),id;",
                 paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
                 |row| row.get::<_, u32>(0),
                 |ids| {
