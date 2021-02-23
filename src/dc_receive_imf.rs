@@ -2860,6 +2860,43 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_mailing_list_decide_block_then_unblock() {
+        let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        dc_receive_imf(&t, DC_MAILINGLIST, "INBOX", 1000, false)
+            .await
+            .unwrap();
+        let blocked = Contact::get_all_blocked(&t).await.unwrap();
+        assert_eq!(blocked.len(), 0);
+
+        // Answer "Block" on the contact request,
+        // this should add one blocked contact and deaddrop should be empty again
+        let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
+        message::decide_on_contact_request(&t, msg.get_id(), Block).await;
+        let blocked = Contact::get_all_blocked(&t).await.unwrap();
+        assert_eq!(blocked.len(), 1);
+        let msgs = chat::get_chat_msgs(&t, deaddrop, 0, None).await;
+        assert_eq!(msgs.len(), 0);
+
+        // Unblock contact and check if the next message arrives in real chat
+        Contact::unblock(&t, *blocked.first().unwrap()).await;
+        let blocked = Contact::get_all_blocked(&t).await.unwrap();
+        assert_eq!(blocked.len(), 0);
+
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 1001, false)
+            .await
+            .unwrap();
+        let msg = t.get_last_msg().await;
+        assert_ne!(msg.chat_id, deaddrop);
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 2);
+        let msgs = chat::get_chat_msgs(&t, deaddrop, 0, None).await;
+        assert_eq!(msgs.len(), 0);
+    }
+
+    #[async_std::test]
     async fn test_mailing_list_decide_not_now() {
         let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
         let t = TestContext::new_alice().await;
