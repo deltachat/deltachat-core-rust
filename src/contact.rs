@@ -12,7 +12,7 @@ use crate::chat::ChatId;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
-    Chattype, DC_CHAT_ID_DEADDROP, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_DEVICE_ADDR,
+    Blocked, Chattype, DC_CHAT_ID_DEADDROP, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_DEVICE_ADDR,
     DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY,
 };
 use crate::context::Context;
@@ -24,7 +24,7 @@ use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
-use crate::stock_str;
+use crate::{chat, stock_str};
 
 /// An object representing a single contact in memory.
 ///
@@ -82,6 +82,9 @@ pub struct Contact {
 #[repr(i32)]
 pub enum Origin {
     Unknown = 0,
+
+    /// The contact is a mailing list address, needed to unblock mailing lists
+    MailinglistAddress = 0x2,
 
     /// Hidden on purpose, e.g. addresses with the word "noreply" in it
     Hidden = 0x8,
@@ -674,8 +677,56 @@ impl Contact {
         Ok(ret)
     }
 
+    // add blocked mailinglists as contacts
+    // to allow unblocking them as if they are contacts
+    // (this way, only one unblock-ffi is needed and only one set of ui-functions,
+    // from the users perspective,
+    // there is not much difference in an email- and a mailinglist-address)
+    async fn update_blocked_mailinglist_contacts(context: &Context) -> Result<()> {
+        let blocked_mailinglists = context
+            .sql
+            .query_map(
+                "SELECT name, grpid FROM chats WHERE type=? AND blocked=?;",
+                paramsv![Chattype::Mailinglist, Blocked::Manually],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                |rows| {
+                    rows.collect::<std::result::Result<Vec<_>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await?;
+        for (name, grpid) in blocked_mailinglists {
+            if !context
+                .sql
+                .exists("SELECT id FROM contacts WHERE addr=?;", paramsv![grpid])
+                .await?
+            {
+                context
+                    .sql
+                    .execute("INSERT INTO contacts (addr) VALUES (?);", paramsv![grpid])
+                    .await?;
+            }
+            // always do an update in case the blocking is reset or name is changed
+            context
+                .sql
+                .execute(
+                    "UPDATE contacts SET name=?, origin=?, blocked=1 WHERE addr=?;",
+                    paramsv![name, Origin::MailinglistAddress, grpid],
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
     /// Get blocked contacts.
     pub async fn get_all_blocked(context: &Context) -> Result<Vec<u32>> {
+        if let Err(e) = Contact::update_blocked_mailinglist_contacts(context).await {
+            warn!(
+                context,
+                "Cannot update blocked mailinglist contacts: {:?}", e
+            );
+        }
+
         let ret = context
             .sql
             .query_map(
@@ -1121,6 +1172,15 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
             {
                 Contact::mark_noticed(context, contact_id).await;
                 context.emit_event(EventType::ContactsChanged(Some(contact_id)));
+            }
+
+            // also unblock mailinglist
+            // if the contact is a mailinglist address explicitly created to allow unblocking
+            if !new_blocking && contact.origin == Origin::MailinglistAddress {
+                if let Ok((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, contact.addr).await
+                {
+                    chat_id.set_blocked(context, Blocked::Not).await;
+                }
             }
         }
     }
