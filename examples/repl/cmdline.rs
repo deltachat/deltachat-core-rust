@@ -1103,7 +1103,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             Contact::unblock(&context, contact_id).await;
         }
         "listblocked" => {
-            let contacts = Contact::get_all_blocked(&context).await;
+            let contacts = Contact::get_all_blocked(&context).await?;
             log_contactlist(&context, &contacts).await;
             println!("{} blocked contacts.", contacts.len());
         }
