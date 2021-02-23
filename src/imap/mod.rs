@@ -17,8 +17,8 @@ use num_traits::FromPrimitive;
 use crate::chat;
 use crate::config::Config;
 use crate::constants::{
-    Chattype, ShowEmails, Viewtype, DC_CONTACT_ID_SELF, DC_FETCH_EXISTING_MSGS_COUNT,
-    DC_FOLDERS_CONFIGURED_VERSION, DC_LP_AUTH_OAUTH2,
+    Chattype, ShowEmails, Viewtype, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
+    DC_LP_AUTH_OAUTH2,
 };
 use crate::context::Context;
 use crate::dc_receive_imf::{
@@ -768,17 +768,12 @@ impl Imap {
                 let msg = fetch?;
                 match get_fetch_headers(&msg) {
                     Ok(headers) => {
-                        let (from_id, _, _) = from_field_to_contact_id(
-                            context,
-                            &mimeparser::get_from(&headers),
-                            false,
-                        )
-                        .await?;
-                        if from_id == DC_CONTACT_ID_SELF {
-                            result.extend(mimeparser::get_recipients(&headers));
+                        if let Some(from) = mimeparser::get_from(&headers).first() {
+                            if context.is_self_addr(&from.addr).await? {
+                                result.extend(mimeparser::get_recipients(&headers));
+                            }
                         }
                     }
-
                     Err(err) => {
                         warn!(context, "{}", err);
                         continue;
