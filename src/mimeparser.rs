@@ -12,10 +12,10 @@ use percent_encoding::percent_decode_str;
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
-use crate::constants::Viewtype;
+use crate::constants::{Viewtype, DC_DESIRED_TEXT_LEN, DC_ELLIPSE};
 use crate::contact::addr_normalize;
 use crate::context::Context;
-use crate::dc_tools::dc_get_filemeta;
+use crate::dc_tools::{dc_get_filemeta, dc_truncate};
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::events::EventType;
@@ -816,6 +816,14 @@ impl MimeMessage {
                         } else {
                             (simplified_txt, top_quote)
                         };
+
+                        let simplified_txt =
+                            if simplified_txt.len() > DC_DESIRED_TEXT_LEN + DC_ELLIPSE.len() {
+                                self.is_mime_modified = true;
+                                dc_truncate(&*simplified_txt, DC_DESIRED_TEXT_LEN).to_string()
+                            } else {
+                                simplified_txt
+                            };
 
                         if !simplified_txt.is_empty() || simplified_quote.is_some() {
                             let mut part = Part {
@@ -2781,6 +2789,7 @@ On 2020-10-25, Bob wrote:
         static REPEAT_TXT: &str = "this text with 42 chars is just repeated.\n";
         static REPEAT_CNT: usize = 2000; // results in a text of 84k, should be more than DC_MAX_GET_TEXT_LEN
         let long_txt = format!("From: alice@c.de\n\n{}", REPEAT_TXT.repeat(REPEAT_CNT));
+        assert!(DC_DESIRED_TEXT_LEN + DC_ELLIPSE.len() < DC_MAX_GET_TEXT_LEN);
 
         let mimemsg = MimeMessage::from_bytes(&t, long_txt.as_ref())
             .await

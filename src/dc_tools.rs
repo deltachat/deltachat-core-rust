@@ -17,7 +17,7 @@ use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
 use crate::chat::{add_device_msg, add_device_msg_with_importance};
-use crate::constants::{Viewtype, DC_OUTDATED_WARNING_DAYS};
+use crate::constants::{Viewtype, DC_ELLIPSE, DC_OUTDATED_WARNING_DAYS};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::message::Message;
@@ -28,10 +28,8 @@ use crate::stock_str;
 /// end of the shortened string.
 #[allow(clippy::indexing_slicing)]
 pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
-    let ellipse = "[...]";
-
     let count = buf.chars().count();
-    if approx_chars > 0 && count > approx_chars + ellipse.len() {
+    if approx_chars > 0 && count > approx_chars + DC_ELLIPSE.len() {
         let end_pos = buf
             .char_indices()
             .nth(approx_chars)
@@ -39,9 +37,9 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
             .unwrap_or_default();
 
         if let Some(index) = buf[..end_pos].rfind(|c| c == ' ' || c == '\n') {
-            Cow::Owned(format!("{}{}", &buf[..=index], ellipse))
+            Cow::Owned(format!("{}{}", &buf[..=index], DC_ELLIPSE))
         } else {
-            Cow::Owned(format!("{}{}", &buf[..end_pos], ellipse))
+            Cow::Owned(format!("{}{}", &buf[..end_pos], DC_ELLIPSE))
         }
     } else {
         Cow::Borrowed(buf)
