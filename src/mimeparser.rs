@@ -1509,6 +1509,7 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
+    use crate::constants::DC_MAX_GET_TEXT_LEN;
     use crate::{
         chatlist::Chatlist,
         config::Config,
@@ -2771,6 +2772,27 @@ On 2020-10-25, Bob wrote:
             mimeparser.parts[0].msg,
             "mime-modified test – mime-modified *set*; simplify is always regarded as lossy."
         );
+    }
+
+    #[async_std::test]
+    async fn test_mime_modified_large_plain() {
+        let t = TestContext::new().await;
+
+        static REPEAT_TXT: &str = "this text with 42 chars is just repeated.\n";
+        static REPEAT_CNT: usize = 2000; // results in a text of 84k, should be more than DC_MAX_GET_TEXT_LEN
+        let long_txt = format!("From: alice@c.de\n\n{}", REPEAT_TXT.repeat(REPEAT_CNT));
+
+        let mimemsg = MimeMessage::from_bytes(&t, long_txt.as_ref())
+            .await
+            .unwrap();
+        assert_eq!(long_txt.matches("just repeated").count(), REPEAT_CNT);
+        assert!(long_txt.len() > DC_MAX_GET_TEXT_LEN);
+        assert!(mimemsg.is_mime_modified);
+        assert!(
+            mimemsg.parts[0].msg.matches("just repeated").count()
+                < DC_MAX_GET_TEXT_LEN / REPEAT_TXT.len()
+        );
+        assert!(mimemsg.parts[0].msg.len() <= DC_MAX_GET_TEXT_LEN);
     }
 
     #[async_std::test]
