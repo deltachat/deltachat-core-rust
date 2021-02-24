@@ -260,7 +260,7 @@ impl MimeMessage {
         parser.parse_mime_recursive(context, &mail).await?;
         parser.maybe_remove_bad_parts();
         parser.heuristically_parse_ndn(context).await;
-        parser.parse_headers(context)?;
+        parser.parse_headers(context);
 
         if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
@@ -276,7 +276,7 @@ impl MimeMessage {
     }
 
     /// Parses system messages.
-    fn parse_system_message_headers(&mut self, context: &Context) -> Result<()> {
+    fn parse_system_message_headers(&mut self, context: &Context) {
         if self.get(HeaderDef::AutocryptSetupMessage).is_some() {
             self.parts = self
                 .parts
@@ -304,7 +304,6 @@ impl MimeMessage {
                 self.is_system_message = SystemMessage::ChatProtectionDisabled;
             }
         }
-        Ok(())
     }
 
     /// Parses avatar action headers.
@@ -404,8 +403,8 @@ impl MimeMessage {
         }
     }
 
-    fn parse_headers(&mut self, context: &Context) -> Result<()> {
-        self.parse_system_message_headers(context)?;
+    fn parse_headers(&mut self, context: &Context) {
+        self.parse_system_message_headers(context);
         self.parse_avatar_headers();
         self.parse_videochat_headers();
         self.squash_attachment_parts();
@@ -481,8 +480,6 @@ impl MimeMessage {
 
             self.parts.push(part);
         }
-
-        Ok(())
     }
 
     fn avatar_action_from_header(&mut self, header_value: String) -> Option<AvatarAction> {
@@ -1236,7 +1233,7 @@ pub(crate) struct FailureReport {
 }
 
 #[allow(clippy::indexing_slicing)]
-pub(crate) fn parse_message_ids(ids: &str) -> Result<Vec<String>> {
+pub(crate) fn parse_message_ids(ids: &str) -> Vec<String> {
     // take care with mailparse::msgidparse() that is pretty untolerant eg. wrt missing `<` or `>`
     let mut msgids = Vec::new();
     for id in ids.split_whitespace() {
@@ -1251,11 +1248,11 @@ pub(crate) fn parse_message_ids(ids: &str) -> Result<Vec<String>> {
             msgids.push(id);
         }
     }
-    Ok(msgids)
+    msgids
 }
 
 pub(crate) fn parse_message_id(ids: &str) -> Result<String> {
-    if let Some(id) = parse_message_ids(ids)?.first() {
+    if let Some(id) = parse_message_ids(ids).first() {
         Ok(id.to_string())
     } else {
         bail!("could not parse message_id: {}", ids);
@@ -2507,23 +2504,23 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
     #[test]
     fn test_parse_message_ids() {
-        let test = parse_message_ids("  foo  bar <foobar>").unwrap();
+        let test = parse_message_ids("  foo  bar <foobar>");
         assert_eq!(test.len(), 3);
         assert_eq!(test[0], "foo");
         assert_eq!(test[1], "bar");
         assert_eq!(test[2], "foobar");
 
-        let test = parse_message_ids("  < foobar >").unwrap();
+        let test = parse_message_ids("  < foobar >");
         assert_eq!(test.len(), 1);
         assert_eq!(test[0], "foobar");
 
-        let test = parse_message_ids("").unwrap();
+        let test = parse_message_ids("");
         assert!(test.is_empty());
 
-        let test = parse_message_ids(" ").unwrap();
+        let test = parse_message_ids(" ");
         assert!(test.is_empty());
 
-        let test = parse_message_ids("  < ").unwrap();
+        let test = parse_message_ids("  < ");
         assert!(test.is_empty());
     }
 
