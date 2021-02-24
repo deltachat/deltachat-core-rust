@@ -165,8 +165,16 @@ pub const DC_MSG_ID_MARKER1: u32 = 1;
 pub const DC_MSG_ID_DAYMARKER: u32 = 9;
 pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 
+/// string that indicates sth. is left out or truncated
+pub const DC_ELLIPSE: &str = "[...]";
+
+/// to keep bubbles and chat flow usable, we limit the text length to DC_DESIRED_TEXT_LEN.
+/// if the text is longer, the full text can be retrieved usind has_html()/get_html().
+pub const DC_DESIRED_TEXT_LEN: usize = 20000;
+
 /// approx. max. length returned by dc_msg_get_text()
 pub const DC_MAX_GET_TEXT_LEN: usize = 30000;
+
 /// approx. max. length returned by dc_get_msg_info()
 pub const DC_MAX_GET_INFO_LEN: usize = 100_000;
 
