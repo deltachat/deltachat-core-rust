@@ -1058,7 +1058,16 @@ impl Chat {
                     new_references = format!("{} {}", parent_in_reply_to, parent_rfc724_mid);
                 } else if !parent_in_reply_to.is_empty() {
                     new_references = parent_in_reply_to;
+                } else {
+                    // as a fallback, use our Message-ID, see reasoning below.
+                    new_references = new_rfc724_mid.clone();
                 }
+            } else {
+                // this is a top-level message, add our Message-ID as first reference.
+                // as we always try to extract the grpid also from `References:`-header,
+                // this allows group conversations also if smtp-server as outlook change `Message-ID:`-header
+                // (MUAs usually keep the first Message-ID in `References:`-header unchanged).
+                new_references = new_rfc724_mid.clone();
             }
         }
 
