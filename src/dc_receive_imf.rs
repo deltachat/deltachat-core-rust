@@ -1539,6 +1539,24 @@ async fn create_or_lookup_mailinglist(
         name = cap[1].to_string();
     }
 
+    // if we do not have a name yet and `From` indicates, that this is a notification list,
+    // a usable name is often in the `From` header.
+    // this pattern was seen for parcel service notifications
+    // and is similar to mailchimp above, however, with weaker conditions.
+    if name.is_empty() {
+        if let Some(from) = mime_parser.from.first() {
+            if from.addr.contains("noreply")
+                || from.addr.contains("no-reply")
+                || from.addr.starts_with("notifications@")
+            {
+                if let Some(display_name) = &from.display_name {
+                    name = display_name.clone();
+                }
+            }
+        }
+    }
+
+    // as a last resort, use the ListId as the name
     if name.is_empty() {
         name = listid.clone();
     }
