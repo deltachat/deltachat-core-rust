@@ -17,11 +17,11 @@ use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
-use crate::dc_tools::duration_to_str;
+use crate::dc_tools::{duration_to_str, time};
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
-use crate::message::{self, MsgId};
+use crate::message::{self, MessageState, MsgId};
 use crate::scheduler::Scheduler;
 use crate::securejoin::Bob;
 use crate::sql::Sql;
@@ -425,8 +425,13 @@ impl Context {
         res
     }
 
+    /// Get a list of fresh, unmuted messages in any chat but deaddrop.
+    ///
+    /// The list starts with the most recent message
+    /// and is typically used to show notifications.
+    /// Moreover, the number of returned messages
+    /// can be used for a badge counter on the app icon.
     pub async fn get_fresh_msgs(&self) -> Vec<MsgId> {
-        let show_deaddrop: i32 = 0;
         self.sql
             .query_map(
                 concat!(
@@ -438,12 +443,13 @@ impl Context {
                     "        ON m.chat_id=c.id",
                     " WHERE m.state=?",
                     "   AND m.hidden=0",
-                    "   AND m.chat_id>?",
+                    "   AND m.chat_id>9",
                     "   AND ct.blocked=0",
-                    "   AND (c.blocked=0 OR c.blocked=?)",
+                    "   AND c.blocked=0",
+                    "   AND NOT(c.muted_until=-1 OR (c.muted_until>0 AND c.muted_until<?))",
                     " ORDER BY m.timestamp DESC,m.id DESC;"
                 ),
-                paramsv![10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
+                paramsv![MessageState::InFresh, time()],
                 |row| row.get::<_, MsgId>(0),
                 |rows| {
                     let mut ret = Vec::new();
