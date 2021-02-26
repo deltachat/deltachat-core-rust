@@ -431,8 +431,9 @@ impl Context {
     /// and is typically used to show notifications.
     /// Moreover, the number of returned messages
     /// can be used for a badge counter on the app icon.
-    pub async fn get_fresh_msgs(&self) -> Vec<MsgId> {
-        self.sql
+    pub async fn get_fresh_msgs(&self) -> Result<Vec<MsgId>> {
+        let ret = self
+            .sql
             .query_map(
                 concat!(
                     "SELECT m.id",
@@ -459,8 +460,8 @@ impl Context {
                     Ok(ret)
                 },
             )
-            .await
-            .unwrap_or_default()
+            .await?;
+        Ok(ret)
     }
 
     /// Searches for messages containing the query string.
@@ -610,7 +611,7 @@ mod tests {
     #[async_std::test]
     async fn test_get_fresh_msgs() {
         let t = TestContext::new().await;
-        let fresh = t.get_fresh_msgs().await;
+        let fresh = t.get_fresh_msgs().await.unwrap();
         assert!(fresh.is_empty())
     }
 
