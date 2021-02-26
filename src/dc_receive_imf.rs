@@ -3041,6 +3041,60 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_dhl_mailing_list() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_dhl.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        assert_eq!(
+            msg.text,
+            Some("Ihr Paket ist in der Packstation 123 – bla bla".to_string())
+        );
+        assert!(msg.has_html());
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.blocked, Blocked::Deaddrop);
+        assert_eq!(chat.grpid, "1234ABCD-123LMNO.mailing.dhl.de");
+        assert_eq!(chat.name, "DHL Paket");
+    }
+
+    #[async_std::test]
+    async fn test_dpd_mailing_list() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_dpd.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        assert_eq!(
+            msg.text,
+            Some("Bald ist Ihr DPD Paket da – bla bla".to_string())
+        );
+        assert!(msg.has_html());
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.blocked, Blocked::Deaddrop);
+        assert_eq!(chat.grpid, "dpdde.mxmail.service.dpd.de");
+        assert_eq!(chat.name, "DPD");
+    }
+
+    #[async_std::test]
     async fn test_dont_show_tokens_in_contacts_list() {
         check_dont_show_in_contacts_list(
             "reply+OGHVYCLVBEGATYBICAXBIRQATABUOTUCERABERAHNO@reply.github.com",
