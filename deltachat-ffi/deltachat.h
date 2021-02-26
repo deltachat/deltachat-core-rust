@@ -1039,8 +1039,12 @@ int             dc_get_msg_cnt               (dc_context_t* context, uint32_t ch
 
 
 /**
- * Get the number of _fresh_ messages in a chat.  Typically used to implement
- * a badge with a number in the chatlist.
+ * Get the number of _fresh_ messages in a chat.
+ * Typically used to implement a badge with a number in the chatlist.
+ *
+ * If the specified chat is muted,
+ * the UI should show the badge counter "less obtrusive",
+ * eg. using "gray" instead of "red" color.
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -1067,10 +1071,19 @@ int             dc_get_fresh_msg_cnt         (dc_context_t* context, uint32_t ch
  */
 int             dc_estimate_deletion_cnt    (dc_context_t* context, int from_server, int64_t seconds);
 
+
 /**
  * Returns the message IDs of all _fresh_ messages of any chat.
- * Typically used for implementing notification summaries.
+ * Typically used for implementing notification summaries
+ * or badge counters eg. on the app-icon.
  * The list is already sorted and starts with the most recent fresh message.
+ *
+ * Messages belonging to muted chats are not returned,
+ * as they should not be notified
+ * and also a badge counters should not include messages of muted chats.
+ *
+ * To get the number of fresh messages for a single chat, muted or not,
+ * use dc_get_fresh_msg_cnt().
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -1426,13 +1439,21 @@ int             dc_set_chat_profile_image    (dc_context_t* context, uint32_t ch
 /**
  * Set mute duration of a chat.
  *
- * The UI can then call dc_chat_is_muted() when receiving a new message to decide whether it should trigger an notification.
+ * The UI can then call dc_chat_is_muted() when receiving a new message
+ * to decide whether it should trigger an notification.
+ *
+ * Muted chats should not sound or vibrate
+ * and should not show a visual notification in the system area.
+ * Moreover, muted chats should be excluded from global badge counter
+ * (dc_get_fresh_msgs() skips muted chats therefore)
+ * and the in-app, per-chat badge counter should use a less obtrusive color.
  *
  * Sends out #DC_EVENT_CHAT_MODIFIED.
  *
  * @memberof dc_context_t
  * @param chat_id The chat ID to set the mute duration.
- * @param duration The duration (0 for no mute, -1 for forever mute, everything else is is the relative mute duration from now in seconds)
+ * @param duration The duration (0 for no mute, -1 for forever mute,
+ *      everything else is is the relative mute duration from now in seconds)
  * @param context The context object.
  * @return 1=success, 0=error
  */
