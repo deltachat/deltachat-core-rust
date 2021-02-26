@@ -1000,7 +1000,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             println!("HTML written to: {:#?}", file);
         }
         "listfresh" => {
-            let msglist = context.get_fresh_msgs().await;
+            let msglist = context.get_fresh_msgs().await?;
 
             log_msglist(&context, &msglist).await?;
             print!("{} fresh messages.", msglist.len());

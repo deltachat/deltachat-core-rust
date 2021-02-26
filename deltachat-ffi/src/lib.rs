@@ -925,6 +925,8 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
         let arr = dc_array_t::from(
             ctx.get_fresh_msgs()
                 .await
+                .log_err(ctx, "Failed to get fresh messages")
+                .unwrap_or_default()
                 .iter()
                 .map(|msg_id| msg_id.to_u32())
                 .collect::<Vec<u32>>(),
