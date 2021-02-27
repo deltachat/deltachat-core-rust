@@ -596,6 +596,9 @@ pub fn get_version_str() -> &'static str {
 mod tests {
     use super::*;
 
+    use crate::chat::{get_chat_contacts, get_chat_msgs, set_muted, Chat, MuteDuration};
+    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::dc_tools::dc_create_outgoing_rfc724_mid;
     use crate::test_utils::TestContext;
     use strum::IntoEnumIterator;
 
@@ -613,6 +616,78 @@ mod tests {
         let t = TestContext::new().await;
         let fresh = t.get_fresh_msgs().await.unwrap();
         assert!(fresh.is_empty())
+    }
+
+    async fn receive_msg(t: &TestContext, chat: &Chat) {
+        let members = get_chat_contacts(t, chat.id).await;
+        let contact = Contact::load_from_db(t, *members.first().unwrap())
+            .await
+            .unwrap();
+        let msg = format!(
+            "From: {}\n\
+             To: alice@example.com\n\
+             Message-ID: <{}>\n\
+             Chat-Version: 1.0\n\
+             Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+             \n\
+             hello\n",
+            contact.get_addr(),
+            dc_create_outgoing_rfc724_mid(None, contact.get_addr())
+        );
+        println!("{}", msg);
+        dc_receive_imf(t, msg.as_bytes(), "INBOX", 1, false)
+            .await
+            .unwrap();
+    }
+
+    #[async_std::test]
+    async fn test_get_fresh_msgs_and_muted_chats() {
+        // receive various mails in 3 chats
+        let t = TestContext::new_alice().await;
+        let bob = t.create_chat_with_contact("", "bob@g.it").await;
+        let claire = t.create_chat_with_contact("", "claire@g.it").await;
+        let dave = t.create_chat_with_contact("", "dave@g.it").await;
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 0);
+
+        receive_msg(&t, &bob).await;
+        assert_eq!(get_chat_msgs(&t, bob.id, 0, None).await.len(), 1);
+        assert_eq!(bob.id.get_fresh_msg_cnt(&t).await, 1);
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
+
+        receive_msg(&t, &claire).await;
+        receive_msg(&t, &claire).await;
+        assert_eq!(get_chat_msgs(&t, claire.id, 0, None).await.len(), 2);
+        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await, 2);
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 3);
+
+        receive_msg(&t, &dave).await;
+        receive_msg(&t, &dave).await;
+        receive_msg(&t, &dave).await;
+        assert_eq!(get_chat_msgs(&t, dave.id, 0, None).await.len(), 3);
+        assert_eq!(dave.id.get_fresh_msg_cnt(&t).await, 3);
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 6);
+
+        // mute one of the chats
+        set_muted(&t, claire.id, MuteDuration::Forever)
+            .await
+            .unwrap();
+        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await, 2);
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 4); // muted claires messages are no longer counted
+
+        // receive more messages
+        receive_msg(&t, &bob).await;
+        receive_msg(&t, &claire).await;
+        receive_msg(&t, &dave).await;
+        assert_eq!(get_chat_msgs(&t, claire.id, 0, None).await.len(), 3);
+        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await, 3);
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 6); // muted claire is not counted
+
+        // unmute claire again
+        set_muted(&t, claire.id, MuteDuration::NotMuted)
+            .await
+            .unwrap();
+        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await, 3);
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 9); // claire is counted again
     }
 
     #[async_std::test]
