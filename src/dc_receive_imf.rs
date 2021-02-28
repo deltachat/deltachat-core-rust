@@ -3260,6 +3260,37 @@ YEAAAAAA!.
         );
     }
 
+    /// HTML-images may come with many embedded images, eg. tiny icons, corners for formatting,
+    /// twitter/facebook/whatever logos and so on.
+    /// that may easily be 50 and more images, one would not have these images in a chat.
+    ///
+    /// fortunately, if we remove them, they are accessible by get_msg_html() now.
+    ///
+    /// unfortunately, these images are not that easy to detect as they may also be on purpose,
+    /// or mua may use multipart/related not correctly -
+    /// so this test is in competition with parse_thunderbird_html_embedded_image()
+    /// that wants the image to be kept in the chat.
+    #[async_std::test]
+    async fn test_many_images() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/many_images_amazon_via_apple_mail.eml"),
+            "INBOX",
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.viewtype, Viewtype::Image);
+        assert!(msg.has_html());
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(get_chat_msgs(&t, chat.id, 0, None).await.len(), 1);
+    }
+
     /// Test that classical MUA messages are assigned to group chats based on the `In-Reply-To`
     /// header.
     #[async_std::test]
