@@ -443,7 +443,7 @@ class Account(object):
     def import_all(self, path):
         """import delta chat state from the specified backup `path` (a file).
 
-        The account must be in unconfigured state for import to attempted
+        The account must be in unconfigured state for import to attempted.
         """
         assert not self.is_configured(), "cannot import into configured account"
         self._import(path, imex_cmd=const.DC_IMEX_IMPORT_BACKUP)
