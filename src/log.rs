@@ -96,18 +96,3 @@ impl<T> LogExt<T> for anyhow::Result<T> {
         }
     }
 }
-
-// TODO remove test or make it work OK
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils::TestContext;
-    use anyhow::format_err;
-
-    #[async_std::test]
-    async fn test_log() {
-        let t = TestContext::new_alice().await;
-        let res: anyhow::Result<()> = Err(format_err!("testerror").context("Some context"));
-        res.log(&t);
-    }
-}
