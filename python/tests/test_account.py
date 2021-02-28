@@ -1489,7 +1489,7 @@ class TestOnlineAccount:
 
     def test_import_export_online_all(self, acfactory, tmpdir, data, lp):
         ac1, ac2 = acfactory.get_many_online_accounts(2)
-        
+
         p = data.get_path("d.png")
         ac2.set_avatar(p)
         chat21 = acfactory.get_accepted_chat(ac2, ac1)
@@ -1547,8 +1547,6 @@ class TestOnlineAccount:
             assert os.path.exists(path)
             ac1.start_io()
 
-        t = time.time()
-
         lp.sec("get fresh empty account")
         ac3 = acfactory.get_unconfigured_account()
 
@@ -1574,7 +1572,7 @@ class TestOnlineAccount:
         path2 = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path2)
         assert path2 != path
-        assert ac3.get_latest_backupfile(backupdir.strpath) == path2        
+        assert ac3.get_latest_backupfile(backupdir.strpath) == path2
 
     def test_ac_setup_message(self, acfactory, lp):
         # note that the receiving account needs to be configured and running

@@ -598,7 +598,7 @@ class Account(object):
 
         Finally, if the context was created by the dc_accounts_t account manager
         (currently not implemented in the Python bindings),
-        use dc_accounts_maybe_network() instead of this function 
+        use dc_accounts_maybe_network() instead of this function
         """
         lib.dc_maybe_network(self._dc_context)
 
