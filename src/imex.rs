@@ -499,6 +499,10 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         !context.is_configured().await,
         "Cannot import backups to accounts in use."
     );
+    ensure!(
+        !context.scheduler.read().await.is_running(),
+        "cannot import backup, already running (help: You have to call stop_io()/start_io() before/after backup operations)"
+    );
     context.sql.close().await;
     dc_delete_file(context, context.get_dbfile()).await;
     ensure!(
@@ -565,6 +569,10 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     ensure!(
         !context.is_configured().await,
         "Cannot import backups to accounts in use."
+    );
+    ensure!(
+        !context.scheduler.read().await.is_running(),
+        "cannot import backup, already running (help: You have to call stop_io()/start_io() before/after backup operations)"
     );
     context.sql.close().await;
     dc_delete_file(context, context.get_dbfile()).await;
@@ -679,6 +687,11 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .await
         .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e));
 
+    ensure!(
+        !context.scheduler.read().await.is_running(),
+        "cannot export backup, already running (help: You have to call stop_io()/start_io() before/after backup operations)"
+    );
+
     // we close the database during the export
     context.sql.close().await;
 
@@ -731,7 +744,7 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
     let read_dir: Vec<_> = fs::read_dir(context.get_blobdir()).await?.collect().await;
     let count = read_dir.len();
     let mut written_files = 0;
-    sleep(std::time::Duration::from_secs(5)).await;
+    sleep(std::time::Duration::from_secs(5)).await; // TODO
 
     for entry in read_dir.into_iter() {
         let entry = entry?;

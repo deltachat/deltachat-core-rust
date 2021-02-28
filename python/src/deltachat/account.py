@@ -419,7 +419,7 @@ class Account(object):
         (chats, contacts, keys, media, ...). The file is created in the
         the `path` directory.
 
-        Note that the account does not have to be started.
+        Note that the account has to be stopped; call stop_io() if necessary.
         """
         export_files = self._export(path, const.DC_IMEX_EXPORT_BACKUP)
         if len(export_files) != 1:
@@ -443,7 +443,7 @@ class Account(object):
     def import_all(self, path):
         """import delta chat state from the specified backup `path` (a file).
 
-        The account must be in unconfigured state for import to attempted.
+        The account must be in unconfigured state for import to attempted
         """
         assert not self.is_configured(), "cannot import into configured account"
         self._import(path, imex_cmd=const.DC_IMEX_IMPORT_BACKUP)
@@ -576,8 +576,8 @@ class Account(object):
 
         :returns: None
         """
-        #if not self.is_configured():
-            #raise ValueError("account not configured, cannot start io")
+        if not self.is_configured():
+            raise ValueError("account not configured, cannot start io")
         lib.dc_start_io(self._dc_context)
 
     def maybe_network(self):

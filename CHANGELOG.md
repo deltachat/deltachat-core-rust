@@ -2,6 +2,9 @@
 
 ## UNRELEASED
 
+- breaking change: You have to call dc_stop_io()/dc_start_io() before/after EXPORT_BACKUP:
+  fix race condition and db corruption when a message was received during backup #2253
+
 - new apis to get full or html message,
   `dc_msg_has_html()` and `dc_get_msg_html()` #2125 #2151
 
@@ -72,8 +75,6 @@
   over group-id stored in Message-ID #2164 #2172 #2173
 
 - apply gossiped encryption preference to new peerstates #2174
-
-- fix race condition and db corruption when a message was received during backup
 
 - fix: do not return quoted messages from the trash chat #2221
 

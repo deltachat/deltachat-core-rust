@@ -476,6 +476,7 @@ class TestOfflineChat:
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
         assert not backupdir.listdir()
+        ac1.stop_io()
         path = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path)
         ac2 = acfactory.get_unconfigured_account()
@@ -1537,6 +1538,7 @@ class TestOnlineAccount:
         with ac1.temp_plugin(ImexTracker()) as imex_tracker:
             chat21.send_text("DISRUPTION!!!!")
 
+            ac1.stop_io()
             ac1.imex(backupdir.strpath, const.DC_IMEX_EXPORT_BACKUP)
 
             chat21.send_text("DISRUPTION!!!!")
@@ -1553,6 +1555,7 @@ class TestOnlineAccount:
             assert len(paths) == 1
             path = paths[0]
             assert os.path.exists(path)
+            ac1.start_io()
 
         t = time.time()
 
@@ -1582,6 +1585,7 @@ class TestOnlineAccount:
         # backups in one second.
         time.sleep(max(0, 1 - (time.time() - t))) # TODO is this still needed with tar backups?
         lp.sec("Second-time export all to {}".format(backupdir))
+        ac1.stop_io()
         path2 = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path2)
         assert path2 != path
