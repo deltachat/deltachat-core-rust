@@ -13,6 +13,7 @@ use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
 use deltachat::imex::*;
 use deltachat::location;
+use deltachat::log::LogExt;
 use deltachat::lot::LotState;
 use deltachat::message::{self, ContactRequestDecision, Message, MessageState, MsgId};
 use deltachat::peerstate::*;
@@ -506,7 +507,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             context.maybe_network().await;
         }
         "housekeeping" => {
-            sql::housekeeping(&context).await;
+            sql::housekeeping(&context).await.log(&context);
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };

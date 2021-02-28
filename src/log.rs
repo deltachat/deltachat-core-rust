@@ -61,7 +61,7 @@ macro_rules! emit_event {
     };
 }
 
-pub(crate) trait LogExt<T> {
+pub trait LogExt<T> {
     /// Emits a warning if the receiver contains an Err value.
     ///
     /// Returns an [`Option<T>`] with the `Ok(_)` value, if any:
