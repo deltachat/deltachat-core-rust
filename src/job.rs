@@ -2,11 +2,12 @@
 //!
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
-use std::fmt;
 use std::future::Future;
+use std::{fmt, time::Duration};
 
 use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
 use async_smtp::smtp::response::{Category, Code, Detail};
+use async_std::task::sleep;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
@@ -1262,6 +1263,17 @@ pub(crate) async fn load_next(
     info: &InterruptInfo,
 ) -> Option<Job> {
     info!(context, "loading job for {}-thread", thread);
+
+    while !context.sql.is_open().await {
+        // The db is closed, which means that this thread should not be running.
+        // Wait until the db is re-opened (if we returned None, this thread might do further damage)
+        warn!(
+            context,
+            "{}: load_next() was called but the db was not opened, THIS SHOULD NOT HAPPEN. Waiting...",
+            thread
+        );
+        sleep(Duration::from_millis(500)).await;
+    }
 
     let query;
     let params;

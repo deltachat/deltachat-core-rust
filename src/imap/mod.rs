@@ -558,8 +558,8 @@ impl Imap {
             .uid_validity
             .with_context(|| format!("No UIDVALIDITY for folder {}", folder))?;
 
-        let old_uid_validity = get_uidvalidity(context, folder).await;
-        let old_uid_next = get_uid_next(context, folder).await;
+        let old_uid_validity = get_uidvalidity(context, folder).await?;
+        let old_uid_next = get_uid_next(context, folder).await?;
 
         if new_uid_validity == old_uid_validity {
             let new_emails = if newly_selected == NewlySelected::No {
@@ -652,7 +652,7 @@ impl Imap {
             return Ok(false);
         }
 
-        let old_uid_next = get_uid_next(context, folder.as_ref()).await;
+        let old_uid_next = get_uid_next(context, folder.as_ref()).await?;
 
         let msgs = if fetch_existing_msgs {
             self.prefetch_existing_msgs().await?
@@ -1730,16 +1730,15 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
 /// This method returns the uid_next from the last time we fetched messages.
 /// We can compare this to the current uid_next to find out whether there are new messages
 /// and fetch from this value on to get all new messages.
-async fn get_uid_next(context: &Context, folder: &str) -> u32 {
-    context
+async fn get_uid_next(context: &Context, folder: &str) -> Result<u32> {
+    Ok(context
         .sql
-        .query_get_value(
-            context,
+        .query_get_value_result(
             "SELECT uid_next FROM imap_sync WHERE folder=?;",
             paramsv![folder],
         )
-        .await
-        .unwrap_or(0)
+        .await?
+        .unwrap_or(0))
 }
 
 pub(crate) async fn set_uidvalidity(
@@ -1758,16 +1757,15 @@ pub(crate) async fn set_uidvalidity(
     Ok(())
 }
 
-async fn get_uidvalidity(context: &Context, folder: &str) -> u32 {
-    context
+async fn get_uidvalidity(context: &Context, folder: &str) -> Result<u32> {
+    Ok(context
         .sql
-        .query_get_value(
-            context,
+        .query_get_value_result(
             "SELECT uidvalidity FROM imap_sync WHERE folder=?;",
             paramsv![folder],
         )
-        .await
-        .unwrap_or(0)
+        .await?
+        .unwrap_or(0))
 }
 
 /// Deprecated, use get_uid_next() and get_uidvalidity()
@@ -1876,17 +1874,17 @@ mod tests {
     #[async_std::test]
     async fn test_set_uid_next_validity() {
         let t = TestContext::new_alice().await;
-        assert_eq!(get_uid_next(&t.ctx, "Inbox").await, 0);
-        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await, 0);
+        assert_eq!(get_uid_next(&t.ctx, "Inbox").await.unwrap(), 0);
+        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await.unwrap(), 0);
 
         set_uidvalidity(&t.ctx, "Inbox", 7).await.unwrap();
-        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await, 7);
-        assert_eq!(get_uid_next(&t.ctx, "Inbox").await, 0);
+        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await.unwrap(), 7);
+        assert_eq!(get_uid_next(&t.ctx, "Inbox").await.unwrap(), 0);
 
         set_uid_next(&t.ctx, "Inbox", 5).await.unwrap();
         set_uidvalidity(&t.ctx, "Inbox", 6).await.unwrap();
-        assert_eq!(get_uid_next(&t.ctx, "Inbox").await, 5);
-        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await, 6);
+        assert_eq!(get_uid_next(&t.ctx, "Inbox").await.unwrap(), 5);
+        assert_eq!(get_uidvalidity(&t.ctx, "Inbox").await.unwrap(), 6);
     }
 
     #[test]
