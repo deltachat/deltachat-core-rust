@@ -259,6 +259,7 @@ impl MimeMessage {
         };
         parser.parse_mime_recursive(context, &mail).await?;
         parser.maybe_remove_bad_parts();
+        parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context);
 
@@ -1081,6 +1082,28 @@ impl MimeMessage {
             self.parts.truncate(1);
         } else if good_parts < self.parts.len() {
             self.parts.retain(|p| !p.dehtml_failed);
+        }
+    }
+
+    /// Remove unwanted, additional text parts used for mailing list footer.
+    /// Some mailinglist software add footers as separate mimeparts
+    /// eg. when the user-edited-content is html.
+    /// As these footers would appear as repeated, separate text-bubbles,
+    /// we remove them.
+    fn maybe_remove_inline_mailinglist_footer(&mut self) {
+        if self.is_mailinglist_message() {
+            let text_part_cnt = self
+                .parts
+                .iter()
+                .filter(|p| p.typ == Viewtype::Text)
+                .count();
+            if text_part_cnt == 2 {
+                if let Some(last_part) = self.parts.last() {
+                    if last_part.typ == Viewtype::Text {
+                        self.parts.pop();
+                    }
+                }
+            }
         }
     }
 
