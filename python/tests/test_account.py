@@ -1569,11 +1569,6 @@ class TestOnlineAccount:
         assert_account_is_proper(ac1)
         assert_account_is_proper(ac3)
 
-        # wait until a second passed since last backup
-        # because get_latest_backupfile() shall return the latest backup
-        # from a UI it's unlikely anyone manages to export two
-        # backups in one second.
-        time.sleep(max(0, 1 - (time.time() - t))) # TODO is this still needed with tar backups?
         lp.sec("Second-time export all to {}".format(backupdir))
         ac1.stop_io()
         path2 = ac1.export_all(backupdir.strpath)
