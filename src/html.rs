@@ -420,23 +420,16 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/apple_cid_jpg.eml");
         let test = String::from_utf8_lossy(raw);
-        assert!(test
-            .find("Content-Id: <8AE052EF-BC90-486F-BB78-58D3590308EC@fritz.box>")
-            .is_some());
-        assert!(test
-            .find("cid:8AE052EF-BC90-486F-BB78-58D3590308EC@fritz.box")
-            .is_some());
+        assert!(test.contains("Content-Id: <8AE052EF-BC90-486F-BB78-58D3590308EC@fritz.box>"));
+        assert!(test.contains("cid:8AE052EF-BC90-486F-BB78-58D3590308EC@fritz.box"));
         assert!(test.find("data:").is_none());
 
         // parsing converts cid: to data:
         let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
-        assert!(parser.html.find("<html>").is_some());
-        assert!(parser.html.find("Content-Id:").is_none());
-        assert!(parser
-            .html
-            .find("data:image/jpeg;base64,/9j/4AAQ")
-            .is_some());
-        assert!(parser.html.find("cid:").is_none());
+        assert!(parser.html.contains("<html>"));
+        assert!(!parser.html.contains("Content-Id:"));
+        assert!(parser.html.contains("data:image/jpeg;base64,/9j/4AAQ"));
+        assert!(!parser.html.contains("cid:"));
     }
 
     #[async_std::test]
@@ -462,10 +455,10 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_ne!(msg.get_from_id(), DC_CONTACT_ID_SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::No);
         assert!(!msg.is_forwarded());
-        assert!(msg.get_text().unwrap().find("this is plain").is_some());
+        assert!(msg.get_text().unwrap().contains("this is plain"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&alice).await.unwrap();
-        assert!(html.find("this is <b>html</b>").is_some());
+        assert!(html.contains("this is <b>html</b>"));
 
         // alice: create chat with bob and forward received html-message there
         let chat = alice.create_chat_with_contact("", "bob@example.net").await;
@@ -476,10 +469,10 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_eq!(msg.get_from_id(), DC_CONTACT_ID_SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.is_forwarded());
-        assert!(msg.get_text().unwrap().find("this is plain").is_some());
+        assert!(msg.get_text().unwrap().contains("this is plain"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&alice).await.unwrap();
-        assert!(html.find("this is <b>html</b>").is_some());
+        assert!(html.contains("this is <b>html</b>"));
 
         // bob: check that bob also got the html-part of the forwarded message
         let bob = TestContext::new_bob().await;
@@ -489,10 +482,10 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_ne!(msg.get_from_id(), DC_CONTACT_ID_SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.is_forwarded());
-        assert!(msg.get_text().unwrap().find("this is plain").is_some());
+        assert!(msg.get_text().unwrap().contains("this is plain"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&bob).await.unwrap();
-        assert!(html.find("this is <b>html</b>").is_some());
+        assert!(html.contains("this is <b>html</b>"));
     }
 
     #[async_std::test]
@@ -529,10 +522,10 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.get_showpadlock());
         assert!(msg.is_forwarded());
-        assert!(msg.get_text().unwrap().find("this is plain").is_some());
+        assert!(msg.get_text().unwrap().contains("this is plain"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&alice).await.unwrap();
-        assert!(html.find("this is <b>html</b>").is_some());
+        assert!(html.contains("this is <b>html</b>"));
     }
 
     #[async_std::test]
@@ -554,7 +547,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(!msg.is_forwarded());
         assert!(msg.mime_modified);
         let html = msg.get_id().get_html(&alice).await.unwrap();
-        assert!(html.find("<b>html</b> text").is_some());
+        assert!(html.contains("<b>html</b> text"));
 
         // let bob receive the message
         let chat_id = bob.create_chat(&alice).await.id;
@@ -564,6 +557,6 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(!msg.is_forwarded());
         assert!(msg.mime_modified);
         let html = msg.get_id().get_html(&bob).await.unwrap();
-        assert!(html.find("<b>html</b> text").is_some());
+        assert!(html.contains("<b>html</b> text"));
     }
 }

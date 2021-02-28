@@ -32,7 +32,9 @@ impl Default for Blocked {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(u8)]
 pub enum ShowEmails {
     Off = 0,
@@ -46,7 +48,9 @@ impl Default for ShowEmails {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(u8)]
 pub enum MediaQuality {
     Balanced = 0,
@@ -59,7 +63,9 @@ impl Default for MediaQuality {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(u8)]
 pub enum KeyGenType {
     Default = 0,
@@ -73,7 +79,9 @@ impl Default for KeyGenType {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(i8)]
 pub enum VideochatType {
     Unknown = 0,

@@ -93,8 +93,10 @@ impl<'a> BobStateHandle<'a> {
         info!(context, "Handling securejoin message for BobStateHandle");
         match self.bobstate.handle_message(context, mime_message).await {
             Ok(Some(stage)) => {
-                if matches!(stage, BobHandshakeStage::Completed | BobHandshakeStage::Terminated(_))
-                {
+                if matches!(
+                    stage,
+                    BobHandshakeStage::Completed | BobHandshakeStage::Terminated(_)
+                ) {
                     self.finish_protocol(context).await;
                 }
                 Some(stage)

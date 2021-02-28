@@ -103,7 +103,9 @@ pub(crate) enum MailinglistType {
     None,
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+)]
 #[repr(i32)]
 pub enum SystemMessage {
     Unknown = 0,

@@ -35,7 +35,9 @@ use crate::{scheduler::InterruptInfo, sql};
 const JOB_RETRIES: u32 = 17;
 
 /// Thread IDs
-#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[derive(
+    Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(i32)]
 pub(crate) enum Thread {
     Unknown = 0,

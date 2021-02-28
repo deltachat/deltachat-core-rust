@@ -96,7 +96,7 @@
 
 - try harder on backup opening #2148
 
-- switch to rust 1.49, update toolchains, deps #2150 #2155 #2165 #2107
+- switch to rust 1.50, update toolchains, deps #2150 #2155 #2165 #2107 #2262 #2271
 
 - improve python bindings #2113 #2115 #2133 #2214
 
