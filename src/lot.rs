@@ -22,7 +22,9 @@ pub struct Lot {
 }
 
 #[repr(u8)]
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+)]
 pub enum Meaning {
     None = 0,
     Text1Draft = 1,
@@ -67,7 +69,9 @@ impl Lot {
 }
 
 #[repr(i32)]
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+)]
 pub enum LotState {
     // Default
     Undefined = 0,

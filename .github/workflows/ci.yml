@@ -18,7 +18,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.49.0
+          toolchain: 1.50.0
           override: true
       - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
         with:
-            toolchain: 1.49.0
+            toolchain: 1.50.0
             components: clippy
             override: true
       - uses: actions-rs/clippy-check@v1
@@ -72,7 +72,7 @@ jobs:
         # macOS disabled due to random failures related to caching
         #os: [ubuntu-latest, windows-latest, macOS-latest]
         os: [ubuntu-latest, windows-latest]
-        rust: [1.49.0]
+        rust: [1.50.0]
         experimental: [false]
 #        include:
 #          - os: ubuntu-latest
