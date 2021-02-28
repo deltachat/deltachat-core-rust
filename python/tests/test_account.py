@@ -1504,7 +1504,6 @@ class TestOnlineAccount:
         original_image_path = data.get_path("d.png")
         chat1.send_image(original_image_path)
 
-
         def assert_account_is_proper(ac):
             contacts = ac.get_contacts(query="some1")
             assert len(contacts) == 1
@@ -1526,29 +1525,20 @@ class TestOnlineAccount:
             assert received_avatar is not None
             assert open(received_avatar, "rb").read() == open(p, "rb").read()
 
-
         assert_account_is_proper(ac1)
-
-
-        chat21.send_text("DISRUPTION!!!!")
 
         backupdir = tmpdir.mkdir("backup")
 
         lp.sec("export all to {}".format(backupdir))
         with ac1.temp_plugin(ImexTracker()) as imex_tracker:
-            chat21.send_text("DISRUPTION!!!!")
 
             ac1.stop_io()
             ac1.imex(backupdir.strpath, const.DC_IMEX_EXPORT_BACKUP)
 
-            chat21.send_text("DISRUPTION!!!!")
-
             # check progress events for export
             assert imex_tracker.wait_progress(1, progress_upper_limit=249)
-            chat21.send_text("DISRUPTION!!!!")
             assert imex_tracker.wait_progress(250, progress_upper_limit=499)
             assert imex_tracker.wait_progress(500, progress_upper_limit=749)
-            chat21.send_text("DISRUPTION!!!!")
             assert imex_tracker.wait_progress(750, progress_upper_limit=999)
 
             paths = imex_tracker.wait_finish()
