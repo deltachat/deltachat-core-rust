@@ -50,7 +50,7 @@ pub(crate) struct TestContext {
     recv_idx: RwLock<u32>,
     /// Functions to call for events received.
     event_sinks: Arc<RwLock<Vec<Box<EventSink>>>>,
-    /// Receives a panic during an event handler (sink)
+    /// Receives panics from sinks ("sink" means "event handler" here)
     poison_receiver: channel::Receiver<String>,
 }
 

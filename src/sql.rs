@@ -1647,11 +1647,9 @@ mod test {
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
 
         t.sql.close().await;
-
-        // Don't check return type, this is not supposed to successfully run, we just want to make sure that no files are deleted
-        housekeeping(&t).await.ok();
-
+        housekeeping(&t).await.unwrap_err(); // housekeeping should fail as the db is closed
         t.sql.open(&t, &t.get_dbfile(), false).await.unwrap();
+
         let a = t.get_config(Config::Selfavatar).await.unwrap();
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
     }
