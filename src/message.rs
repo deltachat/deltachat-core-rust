@@ -147,13 +147,18 @@ impl MsgId {
 
     /// Put message into trash chat and delete message text.
     ///
-    /// It means the message is deleted locally, but not on the server
-    /// yet.
+    /// It means the message is deleted locally, but not on the server.
+    /// We keep some infos to
+    /// 1. not download the same message again
+    /// 2. be able to delete the message on the server if we want to
     pub async fn trash(self, context: &Context) -> crate::sql::Result<()> {
         let chat_id = ChatId::new(DC_CHAT_ID_TRASH);
         context
             .sql
             .execute(
+                // If you change which information is removed here, also change delete_expired_messages() and
+                // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
+                // (to find the exact location, you can grep for `MsgId::trash()`)
                 "UPDATE msgs SET chat_id=?, txt='', txt_raw='', mime_headers='', from_id=0, to_id=0, param='' WHERE id=?",
                 paramsv![chat_id, self],
             )
