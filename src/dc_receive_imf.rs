@@ -957,32 +957,32 @@ async fn add_parts(
                 // If you change which information is skipped if the message is trashed,
                 // also change `MsgId::trash()` and `delete_expired_messages()`
                 // (to find the exact location, you can grep for `MsgId::trash()`)
-                let shown = !chat_id.is_trash();
+                let trash = chat_id.is_trash();
 
                 stmt.execute(paramsv![
                     rfc724_mid,
                     server_folder,
                     server_uid as i32,
                     chat_id,
-                    if shown { from_id as i32 } else { 0 },
-                    if shown { to_id as i32 } else { 0 },
+                    if trash { 0 } else { from_id as i32 },
+                    if trash { 0 } else { to_id as i32 },
                     sort_timestamp,
                     sent_timestamp,
                     rcvd_timestamp,
                     part.typ,
                     state,
                     is_dc_message,
-                    if shown { &part.msg } else { "" },
+                    if trash { "" } else { &part.msg },
                     // txt_raw might contain invalid utf8
-                    if shown { &txt_raw } else { "" },
-                    if shown {
-                        part.param.to_string()
+                    if trash { "" } else { &txt_raw },
+                    if trash {
+                        "".to_string()
                     } else {
-                        "".into()
+                        part.param.to_string()
                     },
                     part.bytes as isize,
                     is_hidden,
-                    if (save_mime_headers || mime_modified) && shown {
+                    if (save_mime_headers || mime_modified) && !trash {
                         mime_headers.clone()
                     } else {
                         None
