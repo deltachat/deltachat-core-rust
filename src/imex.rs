@@ -498,7 +498,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
     );
     ensure!(
         !context.scheduler.read().await.is_running(),
-        "cannot import backup, already running (help: You have to call stop_io()/start_io() before/after backup operations)"
+        "cannot import backup, IO already running"
     );
     context.sql.close().await;
     dc_delete_file(context, context.get_dbfile()).await;
@@ -569,7 +569,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     );
     ensure!(
         !context.scheduler.read().await.is_running(),
-        "cannot import backup, already running (help: You have to call stop_io()/start_io() before/after backup operations)"
+        "cannot import backup, IO already running"
     );
     context.sql.close().await;
     dc_delete_file(context, context.get_dbfile()).await;
@@ -686,7 +686,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     ensure!(
         !context.scheduler.read().await.is_running(),
-        "cannot export backup, already running (help: You have to call stop_io()/start_io() before/after backup operations)"
+        "cannot export backup, IO already running"
     );
 
     // we close the database during the export
