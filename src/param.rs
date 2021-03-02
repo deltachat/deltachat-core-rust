@@ -126,7 +126,9 @@ pub enum Param {
     /// For Chats
     Selftalk = b'K',
 
-    /// For Chats: So that on sending a new message we can sent the subject to "Re: <last subject>"
+    /// For Chats: On sending a new message we set the subject to "Re: <last subject>".
+    /// Usually we just use the subject of the parent message, but if the parent message
+    /// is deleted, we use the LastSubject of the chat.
     LastSubject = b't',
 
     /// For Chats

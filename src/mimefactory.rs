@@ -8,6 +8,7 @@ use crate::config::Config;
 use crate::constants::{Chattype, Viewtype, DC_FROM_HANDSHAKE};
 use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
+use crate::dc_tools::IsNoneOrEmpty;
 use crate::dc_tools::{
     dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp, dc_get_filebytes, time,
 };
@@ -350,8 +351,8 @@ impl<'a> MimeFactory<'a> {
         }
     }
 
-    async fn subject_str(&self, context: &Context) -> String {
-        match self.loaded {
+    async fn subject_str(&self, context: &Context) -> anyhow::Result<String> {
+        let res = match self.loaded {
             Loaded::Message { ref chat } => {
                 if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
                     stock_str::ac_setup_msg_subject(context).await
@@ -363,7 +364,21 @@ impl<'a> MimeFactory<'a> {
                     };
                     format!("{}{}", re, chat.name)
                 } else {
-                    match chat.param.get(Param::LastSubject) {
+                    let parent_subject: Option<String> = context
+                        .sql
+                        .query_get_value_result(
+                            "SELECT subject FROM msgs WHERE rfc724_mid=?",
+                            paramsv![self.in_reply_to],
+                        )
+                        .await?;
+
+                    let parent_subject = if parent_subject.is_none_or_empty() {
+                        chat.param.get(Param::LastSubject)
+                    } else {
+                        parent_subject.as_deref()
+                    };
+
+                    match parent_subject {
                         Some(last_subject) => {
                             let subject_start = if last_subject.starts_with("Chat:") {
                                 0
@@ -397,7 +412,8 @@ impl<'a> MimeFactory<'a> {
                 }
             }
             Loaded::MDN { .. } => stock_str::read_rcpt(context).await,
-        }
+        };
+        Ok(res)
     }
 
     pub fn recipients(&self) -> Vec<String> {
@@ -478,7 +494,7 @@ impl<'a> MimeFactory<'a> {
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
         let skip_autocrypt = self.should_skip_autocrypt();
-        let subject_str = self.subject_str(context).await;
+        let subject_str = self.subject_str(context).await?;
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(context).await?;
 
@@ -1515,7 +1531,7 @@ mod tests {
                  \n", &t).await;
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
         // The subject string should not be "Re: message opened"
-        assert_eq!("Re: Hello, Charlie", mf.subject_str(&t).await);
+        assert_eq!("Re: Hello, Charlie", mf.subject_str(&t).await.unwrap());
     }
 
     async fn first_subject_str(t: TestContext) -> String {
@@ -1534,14 +1550,14 @@ mod tests {
 
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
 
-        mf.subject_str(&t).await
+        mf.subject_str(&t).await.unwrap()
     }
 
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
         let t = TestContext::new_alice().await;
         let new_msg = incoming_msg_to_reply_msg(imf_raw, &t).await;
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
-        mf.subject_str(&t).await
+        mf.subject_str(&t).await.unwrap()
     }
 
     // Creates a `Message` that replies "Hi" to the incoming email in `imf_raw`.

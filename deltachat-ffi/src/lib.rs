@@ -2699,6 +2699,16 @@ pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg_t) -> *mut libc::c_cha
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_subject(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_subject()");
+        return "".strdup();
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_subject().strdup()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_file()");

@@ -5,6 +5,11 @@
 - breaking change: You have to call dc_stop_io()/dc_start_io() before/after EXPORT_BACKUP:
   fix race condition and db corruption when a message was received during backup #2253
 
+- save subject for messages:
+  new api `dc_msg_get_subject()`,
+  when quoting, use the subject of the quoted message as the new subject, instead of the
+  last subject in the chat
+
 - new apis to get full or html message,
   `dc_msg_has_html()` and `dc_get_msg_html()` #2125 #2151
 

@@ -1498,6 +1498,8 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * this removes the need for the UI
  * to deal with different formatting options of PLAIN-parts.
  *
+ * As the title of the full-message-view, you can use the subject (see dc_msg_get_subject()).
+ *
  * **Note:** The returned HTML-code may contain scripts,
  * external images that may be misused as hidden read-receipts and so on.
  * Taking care of these parts
@@ -3343,6 +3345,18 @@ int64_t          dc_msg_get_sort_timestamp     (const dc_msg_t* msg);
  */
 char*           dc_msg_get_text               (const dc_msg_t* msg);
 
+
+/**
+ * Get the subject of the email.
+ * In the very rare case where there is no subject associated with the message, an empty string is returned.
+ * NULL is never returned.
+ *
+ * You usually don't need this; if the core thinks that the subject might contain important
+ * information, it automatically prepends it to the message text.
+ *
+ * You can use the subject e.g. as the title for the full-message-view (see dc_get_msg_html())
+ */
+char*           dc_msg_get_subject            (const dc_msg_t* msg);
 
 /**
  * Find out full path, file name and extension of the file associated with a
