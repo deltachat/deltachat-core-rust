@@ -954,26 +954,34 @@ async fn add_parts(
                     }
                 };
 
+                // If you change which information is skipped if the message is trashed,
+                // also change `MsgId::trash()` and `delete_expired_messages()`
+                let trash = chat_id.is_trash();
+
                 stmt.execute(paramsv![
                     rfc724_mid,
                     server_folder,
                     server_uid as i32,
                     chat_id,
-                    from_id as i32,
-                    to_id as i32,
+                    if trash { 0 } else { from_id as i32 },
+                    if trash { 0 } else { to_id as i32 },
                     sort_timestamp,
                     sent_timestamp,
                     rcvd_timestamp,
                     part.typ,
                     state,
                     is_dc_message,
-                    part.msg,
+                    if trash { "" } else { &part.msg },
                     // txt_raw might contain invalid utf8
-                    txt_raw,
-                    part.param.to_string(),
+                    if trash { "" } else { &txt_raw },
+                    if trash {
+                        "".to_string()
+                    } else {
+                        part.param.to_string()
+                    },
                     part.bytes as isize,
                     is_hidden,
-                    if save_mime_headers || mime_modified {
+                    if (save_mime_headers || mime_modified) && !trash {
                         mime_headers.clone()
                     } else {
                         None

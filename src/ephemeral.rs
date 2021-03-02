@@ -308,8 +308,10 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, E
     let mut updated = context
         .sql
         .execute(
+            // If you change which information is removed here, also change MsgId::trash() and
+            // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
             "UPDATE msgs \
-             SET chat_id=?, txt='', txt_raw='', from_id=0, to_id=0, param='' \
+             SET chat_id=?, txt='', txt_raw='', mime_headers='', from_id=0, to_id=0, param='' \
              WHERE \
              ephemeral_timestamp != 0 \
              AND ephemeral_timestamp <= ? \
