@@ -412,23 +412,23 @@ class Account(object):
 
         Note that the account does not have to be started.
         """
-        return self._export(path, imex_cmd=1)
+        return self._export(path, imex_cmd=const.DC_IMEX_EXPORT_SELF_KEYS)
 
     def export_all(self, path):
         """return new file containing a backup of all database state
         (chats, contacts, keys, media, ...). The file is created in the
         the `path` directory.
 
-        Note that the account does not have to be started.
+        Note that the account has to be stopped; call stop_io() if necessary.
         """
-        export_files = self._export(path, 11)
+        export_files = self._export(path, const.DC_IMEX_EXPORT_BACKUP)
         if len(export_files) != 1:
             raise RuntimeError("found more than one new file")
         return export_files[0]
 
     def _export(self, path, imex_cmd):
         with self.temp_plugin(ImexTracker()) as imex_tracker:
-            lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
+            self.imex(path, imex_cmd)
             return imex_tracker.wait_finish()
 
     def import_self_keys(self, path):
@@ -438,7 +438,7 @@ class Account(object):
 
         Note that the account does not have to be started.
         """
-        self._import(path, imex_cmd=2)
+        self._import(path, imex_cmd=const.DC_IMEX_IMPORT_SELF_KEYS)
 
     def import_all(self, path):
         """import delta chat state from the specified backup `path` (a file).
@@ -446,12 +446,15 @@ class Account(object):
         The account must be in unconfigured state for import to attempted.
         """
         assert not self.is_configured(), "cannot import into configured account"
-        self._import(path, imex_cmd=12)
+        self._import(path, imex_cmd=const.DC_IMEX_IMPORT_BACKUP)
 
     def _import(self, path, imex_cmd):
         with self.temp_plugin(ImexTracker()) as imex_tracker:
-            lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
+            self.imex(path, imex_cmd)
             imex_tracker.wait_finish()
+
+    def imex(self, path, imex_cmd):
+        lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
 
     def initiate_key_transfer(self):
         """return setup code after a Autocrypt setup message
@@ -576,6 +579,28 @@ class Account(object):
         if not self.is_configured():
             raise ValueError("account not configured, cannot start io")
         lib.dc_start_io(self._dc_context)
+
+    def maybe_network(self):
+        """This function should be called when there is a hint
+        that the network is available again,
+        e.g. as a response to system event reporting network availability.
+        The library will try to send pending messages out immediately.
+
+        Moreover, to have a reliable state
+        when the app comes to foreground with network available,
+        it may be reasonable to call the function also at that moment.
+
+        It is okay to call the function unconditionally when there is
+        network available, however, calling the function
+        _without_ having network may interfere with the backoff algorithm
+        and will led to let the jobs fail faster, with fewer retries
+        and may avoid messages being sent out.
+
+        Finally, if the context was created by the dc_accounts_t account manager
+        (currently not implemented in the Python bindings),
+        use dc_accounts_maybe_network() instead of this function
+        """
+        lib.dc_maybe_network(self._dc_context)
 
     def configure(self, reconfigure=False):
         """ Start configuration process and return a Configtracker instance

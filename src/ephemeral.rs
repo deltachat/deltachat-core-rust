@@ -501,7 +501,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_ephemeral_messages() {
-        let context = TestContext::new().await.ctx;
+        let context = TestContext::new().await;
 
         assert_eq!(
             stock_ephemeral_timer_changed(&context, Timer::Disabled, DC_CONTACT_ID_SELF).await,

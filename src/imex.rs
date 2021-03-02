@@ -11,7 +11,6 @@ use async_std::{
 };
 use rand::{thread_rng, Rng};
 
-use crate::blob::BlobObject;
 use crate::chat;
 use crate::chat::delete_and_reset_all_device_msgs;
 use crate::config::Config;
@@ -30,6 +29,7 @@ use crate::param::Param;
 use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock_str;
+use crate::{blob::BlobObject, log::LogExt};
 use ::pgp::types::KeyTrait;
 use async_tar::Archive;
 
@@ -496,6 +496,10 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         !context.is_configured().await,
         "Cannot import backups to accounts in use."
     );
+    ensure!(
+        !context.scheduler.read().await.is_running(),
+        "cannot import backup, IO already running"
+    );
     context.sql.close().await;
     dc_delete_file(context, context.get_dbfile()).await;
     ensure!(
@@ -562,6 +566,10 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     ensure!(
         !context.is_configured().await,
         "Cannot import backups to accounts in use."
+    );
+    ensure!(
+        !context.scheduler.read().await.is_running(),
+        "cannot import backup, IO already running"
     );
     context.sql.close().await;
     dc_delete_file(context, context.get_dbfile()).await;
@@ -668,13 +676,18 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .sql
         .set_raw_config_int(context, "backup_time", now as i32)
         .await?;
-    sql::housekeeping(context).await;
+    sql::housekeeping(context).await.log(context);
 
     context
         .sql
         .execute("VACUUM;", paramsv![])
         .await
         .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e));
+
+    ensure!(
+        !context.scheduler.read().await.is_running(),
+        "cannot export backup, IO already running"
+    );
 
     // we close the database during the export
     context.sql.close().await;

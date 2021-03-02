@@ -476,6 +476,7 @@ class TestOfflineChat:
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
         assert not backupdir.listdir()
+        ac1.stop_io()
         path = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path)
         ac2 = acfactory.get_unconfigured_account()
@@ -1497,21 +1498,42 @@ class TestOnlineAccount:
         original_image_path = data.get_path("d.png")
         chat1.send_image(original_image_path)
 
+        def assert_account_is_proper(ac):
+            contacts = ac.get_contacts(query="some1")
+            assert len(contacts) == 1
+            contact2 = contacts[0]
+            assert contact2.addr == "some1@example.org"
+            chat2 = contact2.create_chat()
+            messages = chat2.get_messages()
+            assert len(messages) == 2
+            assert messages[0].text == "msg1"
+            lp.sec("dbg file"+messages[1].filename)
+            assert messages[1].filemime == "image/png"
+            assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
+            ac.set_config("displayname", "new displayname")
+            assert ac.get_config("displayname") == "new displayname"
+
+        assert_account_is_proper(ac1)
+
         backupdir = tmpdir.mkdir("backup")
 
         lp.sec("export all to {}".format(backupdir))
         with ac1.temp_plugin(ImexTracker()) as imex_tracker:
-            path = ac1.export_all(backupdir.strpath)
-            assert os.path.exists(path)
+
+            ac1.stop_io()
+            ac1.imex(backupdir.strpath, const.DC_IMEX_EXPORT_BACKUP)
 
             # check progress events for export
             assert imex_tracker.wait_progress(1, progress_upper_limit=249)
             assert imex_tracker.wait_progress(250, progress_upper_limit=499)
             assert imex_tracker.wait_progress(500, progress_upper_limit=749)
             assert imex_tracker.wait_progress(750, progress_upper_limit=999)
-            assert imex_tracker.wait_progress(1000)
 
-        t = time.time()
+            paths = imex_tracker.wait_finish()
+            assert len(paths) == 1
+            path = paths[0]
+            assert os.path.exists(path)
+            ac1.start_io()
 
         lp.sec("get fresh empty account")
         ac2 = acfactory.get_unconfigured_account()
@@ -1530,23 +1552,11 @@ class TestOnlineAccount:
             assert imex_tracker.wait_progress(750, progress_upper_limit=999)
             assert imex_tracker.wait_progress(1000)
 
-        contacts = ac2.get_contacts(query="some1")
-        assert len(contacts) == 1
-        contact2 = contacts[0]
-        assert contact2.addr == "some1@example.org"
-        chat2 = contact2.create_chat()
-        messages = chat2.get_messages()
-        assert len(messages) == 2
-        assert messages[0].text == "msg1"
-        assert messages[1].filemime == "image/png"
-        assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
+        assert_account_is_proper(ac1)
+        assert_account_is_proper(ac2)
 
-        # wait until a second passed since last backup
-        # because get_latest_backupfile() shall return the latest backup
-        # from a UI it's unlikely anyone manages to export two
-        # backups in one second.
-        time.sleep(max(0, 1 - (time.time() - t)))
         lp.sec("Second-time export all to {}".format(backupdir))
+        ac1.stop_io()
         path2 = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path2)
         assert path2 != path

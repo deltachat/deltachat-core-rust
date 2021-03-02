@@ -2,16 +2,16 @@
 //!
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
-use std::fmt;
 use std::future::Future;
+use std::{fmt, time::Duration};
 
 use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
 use async_smtp::smtp::response::{Category, Code, Detail};
+use async_std::task::sleep;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
-use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, dc_read_file, time};
 use crate::ephemeral::load_imap_deletion_msgid;
 use crate::events::EventType;
@@ -29,6 +29,7 @@ use crate::{
 };
 use crate::{config::Config, constants::Blocked};
 use crate::{constants::Chattype, contact::Contact};
+use crate::{context::Context, log::LogExt};
 use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
@@ -1156,7 +1157,7 @@ async fn perform_job_action(
         Action::MoveMsg => job.move_msg(context, connection.inbox()).await,
         Action::FetchExistingMsgs => job.fetch_existing_msgs(context, connection.inbox()).await,
         Action::Housekeeping => {
-            sql::housekeeping(context).await;
+            sql::housekeeping(context).await.log(context);
             Status::Finished(Ok(()))
         }
     };
@@ -1264,6 +1265,17 @@ pub(crate) async fn load_next(
     info: &InterruptInfo,
 ) -> Option<Job> {
     info!(context, "loading job for {}-thread", thread);
+
+    while !context.sql.is_open().await {
+        // The db is closed, which means that this thread should not be running.
+        // Wait until the db is re-opened (if we returned None, this thread might do further damage)
+        warn!(
+            context,
+            "{}: load_next() was called but the db was not opened, THIS SHOULD NOT HAPPEN. Waiting...",
+            thread
+        );
+        sleep(Duration::from_millis(500)).await;
+    }
 
     let query;
     let params;
