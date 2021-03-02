@@ -4,7 +4,9 @@ use std::str::FromStr;
 
 use anyhow::{bail, ensure, Error};
 use async_std::path::Path;
-use deltachat::chat::{self, Chat, ChatId, ChatItem, ChatVisibility, ProtectionStatus};
+use deltachat::chat::{
+    self, Chat, ChatId, ChatItem, ChatVisibility, MuteDuration, ProtectionStatus,
+};
 use deltachat::chatlist::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
@@ -22,6 +24,7 @@ use deltachat::sql;
 use deltachat::EventType;
 use deltachat::{config, provider};
 use std::fs;
+use std::time::{Duration, SystemTime};
 
 /// Reset database tables.
 /// Argument is a bitmask, executing single or multiple actions in one call.
@@ -379,6 +382,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  unarchive <chat-id>\n\
                  pin <chat-id>\n\
                  unpin <chat-id>\n\
+                 mute <chat-id> [<seconds>]\n\
+                 unmute <chat-id>\n\
                  protect <chat-id>\n\
                  unprotect <chat-id>\n\
                  delchat <chat-id>\n\
@@ -534,11 +539,12 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 for i in (0..cnt).rev() {
                     let chat = Chat::load_from_db(&context, chatlist.get_chat_id(i)).await?;
                     println!(
-                        "{}#{}: {} [{} fresh] {}{}",
+                        "{}#{}: {} [{} fresh] {}{}{}",
                         chat_prefix(&chat),
                         chat.get_id(),
                         chat.get_name(),
                         chat.get_id().get_fresh_msg_cnt(&context).await,
+                        if chat.is_muted() { "🔇" } else { "" },
                         match chat.visibility {
                             ChatVisibility::Normal => "",
                             ChatVisibility::Archived => "📦",
@@ -621,11 +627,12 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 format!("{} member(s)", members.len())
             };
             println!(
-                "{}#{}: {} [{}]{}{} {}",
+                "{}#{}: {} [{}]{}{}{} {}",
                 chat_prefix(sel_chat),
                 sel_chat.get_id(),
                 sel_chat.get_name(),
                 subtitle,
+                if sel_chat.is_muted() { "🔇" } else { "" },
                 if sel_chat.is_sending_locations() {
                     "📍"
                 } else {
@@ -964,6 +971,24 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     },
                 )
                 .await?;
+        }
+        "mute" | "unmute" => {
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = ChatId::new(arg1.parse()?);
+            let duration = match arg0 {
+                "mute" => {
+                    if arg2.is_empty() {
+                        MuteDuration::Forever
+                    } else {
+                        SystemTime::now()
+                            .checked_add(Duration::from_secs(arg2.parse()?))
+                            .map_or(MuteDuration::Forever, MuteDuration::Until)
+                    }
+                }
+                "unmute" => MuteDuration::NotMuted,
+                _ => unreachable!("arg0={:?}", arg0),
+            };
+            chat::set_muted(&context, chat_id, duration).await?;
         }
         "protect" | "unprotect" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
