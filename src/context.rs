@@ -447,7 +447,7 @@ impl Context {
                     "   AND m.chat_id>9",
                     "   AND ct.blocked=0",
                     "   AND c.blocked=0",
-                    "   AND NOT(c.muted_until=-1 OR (c.muted_until>0 AND c.muted_until<?))",
+                    "   AND NOT(c.muted_until=-1 OR c.muted_until>?)",
                     " ORDER BY m.timestamp DESC,m.id DESC;"
                 ),
                 paramsv![MessageState::InFresh, time()],
