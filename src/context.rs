@@ -600,6 +600,7 @@ mod tests {
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::dc_tools::dc_create_outgoing_rfc724_mid;
     use crate::test_utils::TestContext;
+    use std::time::Duration;
     use strum::IntoEnumIterator;
 
     #[async_std::test]
@@ -688,6 +689,64 @@ mod tests {
             .unwrap();
         assert_eq!(claire.id.get_fresh_msg_cnt(&t).await, 3);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 9); // claire is counted again
+    }
+
+    #[async_std::test]
+    async fn test_get_fresh_msgs_and_muted_until() {
+        let t = TestContext::new_alice().await;
+        let bob = t.create_chat_with_contact("", "bob@g.it").await;
+        receive_msg(&t, &bob).await;
+        assert_eq!(get_chat_msgs(&t, bob.id, 0, None).await.len(), 1);
+
+        // chat is unmuted by default, here and in the following assert(),
+        // we check mainly that the SQL-statements in is_muted() and get_fresh_msgs()
+        // have the same view to the database.
+        assert!(!bob.is_muted());
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
+
+        // test get_fresh_msgs() with mute_until in the future
+        set_muted(
+            &t,
+            bob.id,
+            MuteDuration::Until(SystemTime::now() + Duration::from_secs(3600)),
+        )
+        .await
+        .unwrap();
+        let bob = Chat::load_from_db(&t, bob.id).await.unwrap();
+        assert!(bob.is_muted());
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 0);
+
+        // to test get_fresh_msgs() with mute_until in the past,
+        // we need to modify the database directly
+        t.sql
+            .execute(
+                "UPDATE chats SET muted_until=? WHERE id=?;",
+                paramsv![time() - 3600, bob.id],
+            )
+            .await
+            .unwrap();
+        let bob = Chat::load_from_db(&t, bob.id).await.unwrap();
+        assert!(!bob.is_muted());
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
+
+        // test get_fresh_msgs() with "forever" mute_until
+        set_muted(&t, bob.id, MuteDuration::Forever).await.unwrap();
+        let bob = Chat::load_from_db(&t, bob.id).await.unwrap();
+        assert!(bob.is_muted());
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 0);
+
+        // to test get_fresh_msgs() with invalid mute_until (everything < -1),
+        // that results in "muted forever" by definition.
+        t.sql
+            .execute(
+                "UPDATE chats SET muted_until=-2 WHERE id=?;",
+                paramsv![bob.id],
+            )
+            .await
+            .unwrap();
+        let bob = Chat::load_from_db(&t, bob.id).await.unwrap();
+        assert!(!bob.is_muted());
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
     }
 
     #[async_std::test]
