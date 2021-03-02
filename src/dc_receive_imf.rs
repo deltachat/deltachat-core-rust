@@ -956,7 +956,6 @@ async fn add_parts(
 
                 // If you change which information is skipped if the message is trashed,
                 // also change `MsgId::trash()` and `delete_expired_messages()`
-                // (to find the exact location, you can grep for `MsgId::trash()`)
                 let trash = chat_id.is_trash();
 
                 stmt.execute(paramsv![

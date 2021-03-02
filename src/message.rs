@@ -158,7 +158,6 @@ impl MsgId {
             .execute(
                 // If you change which information is removed here, also change delete_expired_messages() and
                 // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
-                // (to find the exact location, you can grep for `MsgId::trash()`)
                 "UPDATE msgs SET chat_id=?, txt='', txt_raw='', mime_headers='', from_id=0, to_id=0, param='' WHERE id=?",
                 paramsv![chat_id, self],
             )
