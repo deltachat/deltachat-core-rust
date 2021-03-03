@@ -3157,6 +3157,31 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_mailing_list_with_mimepart_footer_signed() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_with_mimepart_footer_signed.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        assert_eq!(get_chat_msgs(&t, msg.chat_id, 0, None).await.len(), 1);
+        let text = msg.text.clone().unwrap();
+        assert!(text.contains("content text"));
+        assert!(!text.contains("footer text"));
+        assert!(msg.has_html());
+        let html = msg.get_id().get_html(&t).await.unwrap();
+        assert!(html.contains("content text"));
+        assert!(!html.contains("footer text"));
+    }
+
+    #[async_std::test]
     async fn test_dont_show_tokens_in_contacts_list() {
         check_dont_show_in_contacts_list(
             "reply+OGHVYCLVBEGATYBICAXBIRQATABUOTUCERABERAHNO@reply.github.com",
