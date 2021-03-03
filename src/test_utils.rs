@@ -2,11 +2,11 @@
 //!
 //! This private module is only compiled for test runs.
 
-use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use std::{collections::BTreeMap, panic};
+use std::{fmt, thread};
 
 use ansi_term::Color;
 use async_std::future::Future;
@@ -423,8 +423,10 @@ impl Deref for TestContext {
 
 impl Drop for TestContext {
     fn drop(&mut self) {
-        if let Ok(p) = self.poison_receiver.try_recv() {
-            panic!(p);
+        if !thread::panicking() {
+            if let Ok(p) = self.poison_receiver.try_recv() {
+                panic!(p);
+            }
         }
     }
 }
