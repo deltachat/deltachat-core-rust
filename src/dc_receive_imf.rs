@@ -972,9 +972,9 @@ async fn add_parts(
                     state,
                     is_dc_message,
                     if trash { "" } else { &part.msg },
+                    if trash { "" } else { &subject },
                     // txt_raw might contain invalid utf8
                     if trash { "" } else { &txt_raw },
-                    if trash { "" } else { &subject },
                     if trash {
                         "".to_string()
                     } else {

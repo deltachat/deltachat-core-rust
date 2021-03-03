@@ -2157,7 +2157,7 @@ mod tests {
                 *mvbox_move,
                 *chat_msg,
                 if folder == &"Spam" { "INBOX" } else { folder }, // Never move setup messages, except if they are in "Spam"
-                true,
+                false,
                 true,
                 true,
                 false,
