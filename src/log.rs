@@ -126,7 +126,7 @@ where
     }
 }
 
-impl<T: Default, E: std::fmt::Display> LogExt<T, E> for Result<T, E> {
+impl<T, E: std::fmt::Display> LogExt<T, E> for Result<T, E> {
     #[track_caller]
     fn log_err_inner(self, context: &Context, msg: Option<&str>) -> Result<T, E> {
         if let Err(e) = &self {

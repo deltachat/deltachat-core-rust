@@ -8,7 +8,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
-use crate::chat::{self, Chat, ChatId, ProtectionStatus};
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, ShowEmails, Viewtype, DC_CHAT_ID_TRASH, DC_CONTACT_ID_LAST_SPECIAL,
@@ -604,12 +604,13 @@ async fn add_parts(
                 *chat_id = test_normal_chat_id;
                 chat_id_blocked = test_normal_chat_id_blocked;
             } else if allow_creation {
-                let (id, bl) =
-                    chat::create_or_lookup_by_contact_id(context, from_id, create_blocked)
-                        .await
-                        .unwrap_or_default();
-                *chat_id = id;
-                chat_id_blocked = bl;
+                if let Ok(chat) = ChatIdBlocked::get_for_contact(context, from_id, create_blocked)
+                    .await
+                    .log_err(context, "Failed to get (new) chat for contact")
+                {
+                    *chat_id = chat.id;
+                    chat_id_blocked = chat.blocked;
+                }
             }
             if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
                 if Blocked::Not == create_blocked {
@@ -725,11 +726,12 @@ async fn add_parts(
                 } else {
                     Blocked::Deaddrop
                 };
-                let (id, bl) = chat::create_or_lookup_by_contact_id(context, to_id, create_blocked)
-                    .await
-                    .unwrap_or_default();
-                *chat_id = id;
-                chat_id_blocked = bl;
+                if let Ok(chat) =
+                    ChatIdBlocked::get_for_contact(context, to_id, create_blocked).await
+                {
+                    *chat_id = chat.id;
+                    chat_id_blocked = chat.blocked;
+                }
 
                 if !chat_id.is_unset()
                     && Blocked::Not != chat_id_blocked
@@ -747,12 +749,14 @@ async fn add_parts(
         if chat_id.is_unset() && self_sent {
             // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
             // maybe an Autocrypt Setup Message
-            let (id, bl) =
-                chat::create_or_lookup_by_contact_id(context, DC_CONTACT_ID_SELF, Blocked::Not)
+            if let Ok(chat) =
+                ChatIdBlocked::get_for_contact(context, DC_CONTACT_ID_SELF, Blocked::Not)
                     .await
-                    .unwrap_or_default();
-            *chat_id = id;
-            chat_id_blocked = bl;
+                    .log_err(context, "Failed to get (new) chat for contact")
+            {
+                *chat_id = chat.id;
+                chat_id_blocked = chat.blocked;
+            }
 
             if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
                 chat_id.unblock(context).await;

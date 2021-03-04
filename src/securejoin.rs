@@ -9,7 +9,7 @@ use async_std::sync::Mutex;
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::{self, Chat, ChatId};
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_LAST_SPECIAL};
 use crate::contact::{Contact, Origin, VerifiedStatus};
@@ -498,19 +498,18 @@ pub(crate) async fn handle_securejoin_handshake(
     );
 
     let contact_chat_id = {
-        let (chat_id, blocked) =
-            chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Failed to look up or create chat for contact {}",
-                        contact_id
-                    )
-                })?;
-        if blocked != Blocked::Not {
-            chat_id.unblock(context).await;
+        let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Not)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to look up or create chat for contact {}",
+                    contact_id
+                )
+            })?;
+        if chat.blocked != Blocked::Not {
+            chat.id.unblock(context).await;
         }
-        chat_id
+        chat.id
     };
 
     let join_vg = step.starts_with("vg-");
@@ -794,19 +793,18 @@ pub(crate) async fn observe_securejoin_on_other_device(
     info!(context, "observing secure-join message \'{}\'", step);
 
     let contact_chat_id = {
-        let (chat_id, blocked) =
-            chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Failed to look up or create chat for contact {}",
-                        contact_id
-                    )
-                })?;
-        if blocked != Blocked::Not {
-            chat_id.unblock(context).await;
+        let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Not)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to look up or create chat for contact {}",
+                    contact_id
+                )
+            })?;
+        if chat.blocked != Blocked::Not {
+            chat.id.unblock(context).await;
         }
-        chat_id
+        chat.id
     };
 
     match step.as_str() {
