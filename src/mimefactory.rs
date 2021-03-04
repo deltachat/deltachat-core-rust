@@ -1300,14 +1300,14 @@ fn maybe_encode_words(words: &str) -> String {
 mod tests {
     use super::*;
     use crate::chat::ChatId;
-    use crate::constants::DC_CHAT_ID_DEADDROP;
+
     use crate::contact::Origin;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::mimeparser::MimeMessage;
     use crate::test_utils::TestContext;
     use crate::{chatlist::Chatlist, test_utils::get_chat_msg};
-    use chat::create_group_chat;
-    use pretty_assertions::{assert_eq, assert_ne};
+
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_render_email_address() {
@@ -1637,7 +1637,7 @@ mod tests {
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
         let subject_str = msg_to_subject_str_inner(imf_raw, false, false, false).await;
 
-        // Check that all combinations of true and false reproduce the same subject_str
+        // Check that combinations of true and false reproduce the same subject_str:
         assert_eq!(
             subject_str,
             msg_to_subject_str_inner(imf_raw, true, false, false).await
@@ -1654,23 +1654,23 @@ mod tests {
             subject_str,
             msg_to_subject_str_inner(imf_raw, true, true, false).await
         );
-        // assert_eq!(
-        //     subject_str,
-        //     msg_to_subject_str_inner(imf_raw, true, true, true).await
-        // ); TODO this one would be kinda mean (and rare in production, as few people quote deleted messages), maybe just remove it
 
-        // These two combinations can't work, though: If `message_arrives_inbetween` is true,
-        // `reply` has to be true, too, so that the core has a chance to know which subject to
-        // use.
-        // In other cases, it is expected that DC fails to find the correct subject.
-        assert_ne!(
-            subject_str,
+        // These two combinations are different: If `message_arrives_inbetween` is true, but
+        // `reply` is false, the core is actually expected to use the subject of the message
+        // that arrived inbetween.
+        assert_eq!(
+            "Re: Some other, completely unrelated subject",
             msg_to_subject_str_inner(imf_raw, false, false, true).await
         );
-        assert_ne!(
-            subject_str,
+        assert_eq!(
+            "Re: Some other, completely unrelated subject",
             msg_to_subject_str_inner(imf_raw, true, false, true).await
         );
+
+        // We leave away the combination (true, true, true) here:
+        // It would mean that the original message is quoted without sending the quoting message
+        // out yet, then the original message is deleted, then another unrelated message arrives
+        // and then the message with the quote is sent out. Not very realistic.
 
         subject_str
     }
