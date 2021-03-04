@@ -1568,7 +1568,7 @@ mod tests {
             let mut new_msg = Message::new(Viewtype::Text);
             new_msg.set_text(Some("Hi".to_string()));
             if let Some(q) = quote {
-                new_msg.set_quote(&t, q).await.unwrap();
+                new_msg.set_quote(t, q).await.unwrap();
             }
             let sent = t.send_msg(group_id, &mut new_msg).await;
             t.parse_msg(&sent).await.get_subject().unwrap()
@@ -1691,17 +1691,14 @@ mod tests {
         if message_arrives_inbetween {
             dc_receive_imf(
                 &t,
-                format!(
-                    "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: Bob <bob@example.com>\n\
                     To: alice@example.com\n\
                     Subject: Some other, completely unrelated subject\n\
                     Message-ID: <3cl4@example.com>\n\
                     Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
                     \n\
-                    Some other, completely unrelated content\n"
-                )
-                .as_bytes(),
+                    Some other, completely unrelated content\n",
                 "INBOX",
                 2,
                 false,

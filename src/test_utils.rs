@@ -392,6 +392,7 @@ impl TestContext {
     // This code is mainly the same as `log_msglist` in `cmdline.rs`, so one day, we could
     // merge them to a public function in the `deltachat` crate.
     #[allow(dead_code)]
+    #[allow(clippy::clippy::indexing_slicing)]
     pub async fn print_chat(&self, chat_id: ChatId) {
         let msglist = chat::get_chat_msgs(self, chat_id, 0x1, None).await;
         let msglist: Vec<MsgId> = msglist
@@ -427,7 +428,7 @@ impl TestContext {
             } else {
                 ""
             },
-            match sel_chat.get_profile_image(&self).await {
+            match sel_chat.get_profile_image(self).await {
                 Some(icon) => match icon.to_str() {
                     Some(icon) => format!(" Icon: {}", icon),
                     _ => " Icon: Err".to_string(),
