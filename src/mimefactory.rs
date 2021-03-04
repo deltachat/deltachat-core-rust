@@ -158,14 +158,6 @@ impl<'a> MimeFactory<'a> {
             .await
             .context("Can't get mime_in_reply_to, mime_references")?;
 
-        println!(
-            "Subject would be {:?}",
-            msg.quoted_message(context)
-                .await
-                .unwrap()
-                .map(|m| m.subject + " " + &m.rfc724_mid) // TODO dbg
-        );
-
         let default_str = stock_str::status_line(context).await;
         let factory = MimeFactory {
             from_addr,
@@ -1314,6 +1306,7 @@ mod tests {
     use crate::mimeparser::MimeMessage;
     use crate::test_utils::TestContext;
     use crate::{chatlist::Chatlist, test_utils::get_chat_msg};
+    use chat::create_group_chat;
     use pretty_assertions::{assert_eq, assert_ne};
 
     #[test]
@@ -1557,6 +1550,70 @@ mod tests {
         assert_eq!("Re: Hello, Bob", mf.subject_str(&t).await.unwrap());
     }
 
+    #[async_std::test]
+    async fn test_subject_in_group() {
+        // 6. Test that in a group, replies also take the quoted message's subject, while non-replies use the group title as subject
+        let t = TestContext::new_alice().await;
+        let group_id =
+            chat::create_group_chat(&t, chat::ProtectionStatus::Unprotected, "groupname")
+                .await
+                .unwrap();
+        let bob = Contact::create(&t, "", "bob@example.org").await.unwrap();
+        chat::add_contact_to_chat(&t, group_id, bob).await;
+
+        async fn send_msg_get_subject(
+            t: &TestContext,
+            group_id: ChatId,
+            quote: Option<&Message>,
+        ) -> String {
+            let mut new_msg = Message::new(Viewtype::Text);
+            new_msg.set_text(Some("Hi".to_string()));
+            if let Some(q) = quote {
+                new_msg.set_quote(&t, q).await.unwrap();
+            }
+            let sent = t.send_msg(group_id, &mut new_msg).await;
+            t.parse_msg(&sent).await.get_subject().unwrap()
+        }
+
+        let subject = send_msg_get_subject(&t, group_id, None).await;
+        assert_eq!(subject, "groupname");
+
+        let subject = send_msg_get_subject(&t, group_id, None).await;
+        assert_eq!(subject, "Re: groupname");
+
+        dc_receive_imf(
+            &t,
+            format!(
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: bob@example.com\n\
+                To: alice@example.com\n\
+                Subject: Different subject\n\
+                In-Reply-To: {}\n\
+                Message-ID: <2893@example.com>\n\
+                Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+                \n\
+                hello\n",
+                t.get_last_msg().await.rfc724_mid
+            )
+            .as_bytes(),
+            "INBOX",
+            5,
+            false,
+        )
+        .await
+        .unwrap();
+        let message_from_bob = t.get_last_msg().await;
+
+        let subject = send_msg_get_subject(&t, group_id, None).await;
+        assert_eq!(subject, "Re: groupname");
+
+        let subject = send_msg_get_subject(&t, group_id, Some(&message_from_bob)).await;
+        assert_eq!(subject, "Re: Different subject");
+
+        let subject = send_msg_get_subject(&t, group_id, None).await;
+        assert_eq!(subject, "Re: groupname");
+    }
+
     async fn first_subject_str(t: TestContext) -> String {
         let contact_id =
             Contact::add_or_lookup(&t, "Dave", "dave@example.com", Origin::ManuallyCreated)
@@ -1576,7 +1633,7 @@ mod tests {
         mf.subject_str(&t).await.unwrap()
     }
 
-    // In `imf_raw`, From has to be bob@example.com, To alice@example.com
+    // In `imf_raw`, From has to be bob@example.com, To has to be alice@example.com
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
         let subject_str = msg_to_subject_str_inner(imf_raw, false, false, false).await;
 

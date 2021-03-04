@@ -371,8 +371,17 @@ impl TestContext {
     pub async fn send_text(&self, chat_id: ChatId, txt: &str) -> SentMessage {
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some(txt.to_string()));
-        chat::prepare_msg(self, chat_id, &mut msg).await.unwrap();
-        chat::send_msg(self, chat_id, &mut msg).await.unwrap();
+        self.send_msg(chat_id, &mut msg).await
+    }
+
+    /// Sends out the message to the specified chat.
+    ///
+    /// This is not hooked up to any SMTP-IMAP pipeline, so the other account must call
+    /// [`TestContext::recv_msg`] with the returned [`SentMessage`] if it wants to receive
+    /// the message.
+    pub async fn send_msg(&self, chat_id: ChatId, msg: &mut Message) -> SentMessage {
+        chat::prepare_msg(self, chat_id, msg).await.unwrap();
+        chat::send_msg(self, chat_id, msg).await.unwrap();
         self.pop_sent_msg().await
     }
 

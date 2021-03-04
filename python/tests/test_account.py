@@ -1507,7 +1507,6 @@ class TestOnlineAccount:
             messages = chat2.get_messages()
             assert len(messages) == 2
             assert messages[0].text == "msg1"
-            lp.sec("dbg file"+messages[1].filename)
             assert messages[1].filemime == "image/png"
             assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
             ac.set_config("displayname", "new displayname")
