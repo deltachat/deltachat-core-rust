@@ -2592,10 +2592,9 @@ mod tests {
         // test that get_width() and get_height() are returning some dimensions for images;
         // (as the device-chat contains a welcome-images, we check that)
         t.update_device_chats().await.ok();
-        let (device_chat_id, _) =
-            chat::create_or_lookup_by_contact_id(&t, DC_CONTACT_ID_DEVICE, Blocked::Not)
-                .await
-                .unwrap();
+        let device_chat_id = ChatId::get_for_contact(&t, DC_CONTACT_ID_DEVICE)
+            .await
+            .unwrap();
 
         let mut has_image = false;
         let chatitems = chat::get_chat_msgs(&t, device_chat_id, 0, None)
