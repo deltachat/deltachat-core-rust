@@ -138,9 +138,11 @@ impl HtmlMsgParser {
                 }
                 MimeMultipartType::Single => {
                     let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
-                    if mimetype == mime::TEXT_HTML && self.html.is_empty() {
-                        if let Ok(decoded_data) = mail.get_body() {
-                            self.html = decoded_data;
+                    if mimetype == mime::TEXT_HTML {
+                        if self.html.is_empty() {
+                            if let Ok(decoded_data) = mail.get_body() {
+                                self.html = decoded_data;
+                            }
                         }
                     } else if mimetype == mime::TEXT_PLAIN && self.plain.is_none() {
                         if let Ok(decoded_data) = mail.get_body() {
