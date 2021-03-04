@@ -3348,13 +3348,16 @@ char*           dc_msg_get_text               (const dc_msg_t* msg);
 
 /**
  * Get the subject of the email.
- * In the very rare case where there is no subject associated with the message, an empty string is returned.
+ * If there is no subject associated with the message, an empty string is returned.
  * NULL is never returned.
  *
  * You usually don't need this; if the core thinks that the subject might contain important
  * information, it automatically prepends it to the message text.
  *
- * You can use the subject e.g. as the title for the full-message-view (see dc_get_msg_html())
+ * This function was introduced so that you can use the subject as the title for the 
+ * full-message-view (see dc_get_msg_html()).
+ *
+ * For outgoing messages, the subject is not stored and an empty string is returned.
  */
 char*           dc_msg_get_subject            (const dc_msg_t* msg);
 
