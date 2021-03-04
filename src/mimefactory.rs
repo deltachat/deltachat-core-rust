@@ -363,7 +363,8 @@ impl<'a> MimeFactory<'a> {
                 }
 
                 if chat.typ == Chattype::Group && self.quoted_msg_subject.is_none_or_empty() {
-                    // If we have a parent_subj
+                    // If we have a `quoted_msg_subject`, we use the subject of the quoted message
+                    // instead of the group name
                     let re = if self.in_reply_to.is_empty() {
                         ""
                     } else {
@@ -410,9 +411,7 @@ impl<'a> MimeFactory<'a> {
                     }
                 }
             }
-            Loaded::MDN { .. } => {
-                return Ok(stock_str::read_rcpt(context).await);
-            }
+            Loaded::MDN { .. } => stock_str::read_rcpt(context).await,
         })
     }
 
