@@ -148,27 +148,3 @@ impl<T> LogExt<T> for anyhow::Result<T> {
         }
     }
 }
-
-// #[track_caller]
-// fn do_something_with_sql(context: &Context) {
-//     // context
-//     //     .sql
-//     //     .table_exists("config")
-//     //     .await
-//     goes_wrong().log_m(context, "Can't do something");
-// }
-
-// fn goes_wrong() -> anyhow::Result<()> {
-//     Err(anyhow::format_err!("went wrong"))
-// }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     #[async_std::test]
-//     async fn test_log() {
-//         let t = crate::test_utils::TestContext::new_alice().await;
-//         t.sql.close().await;
-//         do_something_with_sql(&t);
-//     }
-// }
