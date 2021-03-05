@@ -3358,6 +3358,10 @@ char*           dc_msg_get_text               (const dc_msg_t* msg);
  * full-message-view (see dc_get_msg_html()).
  *
  * For outgoing messages, the subject is not stored and an empty string is returned.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The subject. The result must be released using dc_str_unref(). Never returns NULL.
  */
 char*           dc_msg_get_subject            (const dc_msg_t* msg);
 

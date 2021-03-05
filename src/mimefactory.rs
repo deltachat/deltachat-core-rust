@@ -1708,7 +1708,6 @@ mod tests {
 
             let arrived_msg = t.get_last_msg().await;
             assert_eq!(arrived_msg.chat_id, incoming_msg.chat_id);
-            t.print_chat(arrived_msg.chat_id).await;
         }
 
         if reply {

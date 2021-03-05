@@ -314,11 +314,11 @@ impl TestContext {
     /// Gets the most recent message over all chats.
     pub async fn get_last_msg(&self) -> Message {
         let chats = Chatlist::try_load(&self.ctx, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
-        // 0 is correct here (as opposed to `chats.len() - 1`, which would be the last element):
+        // 0 is correct in the next line (as opposed to `chats.len() - 1`, which would be the last element):
         // The chatlist describes what you see when you open DC, a list of chats and in each of them
         // the first words of the last message. To get the last message overall, we look at the chat at the top of the
         // list, which has the index 0.
+        let msg_id = chats.get_msg_id(0).unwrap();
         Message::load_from_db(&self.ctx, msg_id).await.unwrap()
     }
 
