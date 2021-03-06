@@ -63,18 +63,20 @@ macro_rules! emit_event {
 pub trait LogExt<T> {
     /// Emits a warning if the receiver contains an Err value.
     ///
+    /// If you want to add context to the log, use `log_m()`.
+    ///
     /// Returns an [`Option<T>`] with the `Ok(_)` value, if any:
     /// - You won't get any warnings about unused results but can still use the value if you need it
     /// - This prevents the same warning from being printed to the log multiple times
     ///
     /// Example: This:
-    /// ```
+    /// ```ignore
     /// if let Err(e) = do_something() {
     ///     warn!(context, "{:#}", e);
     /// }
     /// ```
     /// can be replaced with:
-    /// ```
+    /// ```ignore
     /// do_something().log(context);
     /// ```
     ///
@@ -82,22 +84,23 @@ pub trait LogExt<T> {
     /// feature, the location of the caller is printed to the log, just like with the warn!() macro.
     ///
     /// Unfortunately, the track_caller feature does not work on async functions (as of Rust 1.50).
-    /// This means that we can't make our logs even better by adding `#[track_caller]` to our helper
-    /// functions.  
+    /// Once it is, you can add `#[track_caller]` to helper functions that use `log()` and `log_m()`
+    /// so that the location of the caller can be seen in the log. (this won't work with the macros,
+    /// like warn!(), since the file!() and line!() macros don't work with track_caller)  
     /// See https://github.com/rust-lang/rust/issues/78840 for progress on this.
     #[track_caller]
     fn log(self, context: &Context) -> Option<T>;
 
-    /// Like `log()`, but you can pass an extra string message.
+    /// Like `log()`, but you can pass an extra message that is prepended in the log.
     ///
     /// Example: This:
-    /// ```
+    /// ```ignore
     /// if let Err(e) = do_something() {
     ///     warn!(context, "Something went wrong: {:#}", e);
     /// }
     /// ```
     /// can be replaced with:
-    /// ```
+    /// ```ignore
     /// do_something().log_m(context, "Something went wrong");
     /// ```
     #[track_caller]
