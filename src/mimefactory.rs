@@ -1573,7 +1573,12 @@ mod tests {
                 new_msg.set_quote(t, q).await.unwrap();
             }
             let sent = t.send_msg(group_id, &mut new_msg).await;
-            t.parse_msg(&sent).await.get_subject().unwrap()
+            let parsed_subject = t.parse_msg(&sent).await.get_subject().unwrap();
+
+            let sent_msg = Message::load_from_db(t, sent.sender_msg_id).await.unwrap();
+            assert_eq!(parsed_subject, sent_msg.subject);
+
+            parsed_subject
         }
 
         let subject = send_msg_get_subject(&t, group_id, None).await;
