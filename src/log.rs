@@ -69,14 +69,16 @@ pub trait LogExt<T> {
     /// - You won't get any warnings about unused results but can still use the value if you need it
     /// - This prevents the same warning from being printed to the log multiple times
     ///
+    // Sidenote: If 'javascript' below is removed or replaced with 'ignore', then the CI doc-tests
+    // fail (apparently, ignoring doesn't work)
     /// Example: This:
-    /// ```ignore
+    /// ```javascript
     /// if let Err(e) = do_something() {
     ///     warn!(context, "{:#}", e);
     /// }
     /// ```
     /// can be replaced with:
-    /// ```ignore
+    /// ```javascript
     /// do_something().log(context);
     /// ```
     ///
@@ -93,14 +95,16 @@ pub trait LogExt<T> {
 
     /// Like `log()`, but you can pass an extra message that is prepended in the log.
     ///
+    // Sidenote: If 'javascript' below is removed or replaced with 'ignore', then the CI doc-tests
+    // fail (apparently, ignoring doesn't work)
     /// Example: This:
-    /// ```ignore
+    /// ```javascript
     /// if let Err(e) = do_something() {
     ///     warn!(context, "Something went wrong: {:#}", e);
     /// }
     /// ```
     /// can be replaced with:
-    /// ```ignore
+    /// ```javascript
     /// do_something().log_m(context, "Something went wrong");
     /// ```
     #[track_caller]
