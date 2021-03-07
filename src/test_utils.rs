@@ -9,10 +9,10 @@ use std::{collections::BTreeMap, panic};
 use std::{fmt, thread};
 
 use ansi_term::Color;
-use async_std::future::Future;
 use async_std::path::PathBuf;
 use async_std::sync::{Arc, RwLock};
 use async_std::{channel, pin::Pin};
+use async_std::{future::Future, task};
 use chat::ChatItem;
 use once_cell::sync::Lazy;
 use tempfile::{tempdir, TempDir};
@@ -20,6 +20,7 @@ use tempfile::{tempdir, TempDir};
 use crate::chat::{self, Chat, ChatId};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
+use crate::constants::Chattype;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF, DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
@@ -102,9 +103,12 @@ impl TestContext {
         let (poison_sender, poison_receiver) = channel::bounded(1);
         async_std::task::spawn(async move {
             // Make sure that the test fails if there is a panic on this thread here:
+            let current_id = task::current().id();
             let orig_hook = panic::take_hook();
             panic::set_hook(Box::new(move |panic_info| {
-                poison_sender.try_send(panic_info.to_string()).ok();
+                if task::current().id() == current_id {
+                    poison_sender.try_send(panic_info.to_string()).ok();
+                }
                 orig_hook(panic_info);
             }));
 
@@ -310,7 +314,11 @@ impl TestContext {
     /// Gets the most recent message over all chats.
     pub async fn get_last_msg(&self) -> Message {
         let chats = Chatlist::try_load(&self.ctx, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(chats.len() - 1).unwrap();
+        // 0 is correct in the next line (as opposed to `chats.len() - 1`, which would be the last element):
+        // The chatlist describes what you see when you open DC, a list of chats and in each of them
+        // the first words of the last message. To get the last message overall, we look at the chat at the top of the
+        // list, which has the index 0.
+        let msg_id = chats.get_msg_id(0).unwrap();
         Message::load_from_db(&self.ctx, msg_id).await.unwrap()
     }
 
@@ -364,8 +372,17 @@ impl TestContext {
     pub async fn send_text(&self, chat_id: ChatId, txt: &str) -> SentMessage {
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some(txt.to_string()));
-        chat::prepare_msg(self, chat_id, &mut msg).await.unwrap();
-        chat::send_msg(self, chat_id, &mut msg).await.unwrap();
+        self.send_msg(chat_id, &mut msg).await
+    }
+
+    /// Sends out the message to the specified chat.
+    ///
+    /// This is not hooked up to any SMTP-IMAP pipeline, so the other account must call
+    /// [`TestContext::recv_msg`] with the returned [`SentMessage`] if it wants to receive
+    /// the message.
+    pub async fn send_msg(&self, chat_id: ChatId, msg: &mut Message) -> SentMessage {
+        chat::prepare_msg(self, chat_id, msg).await.unwrap();
+        chat::send_msg(self, chat_id, msg).await.unwrap();
         self.pop_sent_msg().await
     }
 
@@ -375,8 +392,9 @@ impl TestContext {
     // This code is mainly the same as `log_msglist` in `cmdline.rs`, so one day, we could
     // merge them to a public function in the `deltachat` crate.
     #[allow(dead_code)]
-    pub async fn print_chat(&self, chat: &Chat) {
-        let msglist = chat::get_chat_msgs(self, chat.get_id(), 0x1, None).await;
+    #[allow(clippy::clippy::indexing_slicing)]
+    pub async fn print_chat(&self, chat_id: ChatId) {
+        let msglist = chat::get_chat_msgs(self, chat_id, 0x1, None).await;
         let msglist: Vec<MsgId> = msglist
             .into_iter()
             .map(|x| match x {
@@ -385,6 +403,44 @@ impl TestContext {
                 ChatItem::DayMarker { .. } => MsgId::new(DC_MSG_ID_DAYMARKER),
             })
             .collect();
+
+        let sel_chat = Chat::load_from_db(self, chat_id).await.unwrap();
+        let members = chat::get_chat_contacts(self, sel_chat.id).await;
+        let subtitle = if sel_chat.is_device_talk() {
+            "device-talk".to_string()
+        } else if sel_chat.get_type() == Chattype::Single && !members.is_empty() {
+            let contact = Contact::get_by_id(self, members[0]).await.unwrap();
+            contact.get_addr().to_string()
+        } else if sel_chat.get_type() == Chattype::Mailinglist && !members.is_empty() {
+            "mailinglist".to_string()
+        } else {
+            format!("{} member(s)", members.len())
+        };
+        println!(
+            "{}#{}: {} [{}]{}{}{} {}",
+            sel_chat.typ,
+            sel_chat.get_id(),
+            sel_chat.get_name(),
+            subtitle,
+            if sel_chat.is_muted() { "🔇" } else { "" },
+            if sel_chat.is_sending_locations() {
+                "📍"
+            } else {
+                ""
+            },
+            match sel_chat.get_profile_image(self).await {
+                Some(icon) => match icon.to_str() {
+                    Some(icon) => format!(" Icon: {}", icon),
+                    _ => " Icon: Err".to_string(),
+                },
+                _ => "".to_string(),
+            },
+            if sel_chat.is_protected() {
+                "🛡️"
+            } else {
+                ""
+            },
+        );
 
         let mut lines_out = 0;
         for msg_id in msglist {

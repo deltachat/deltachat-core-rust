@@ -912,10 +912,10 @@ async fn add_parts(
                 let mut stmt = conn.prepare_cached(
                     "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
-         timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
+         timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, subject, txt_raw, param, \
          bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, mime_modified, \
          error, ephemeral_timer, ephemeral_timestamp) \
-         VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?);",
+         VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?);",
                 )?;
 
                 let is_location_kml = location_kml_is
@@ -972,6 +972,7 @@ async fn add_parts(
                     state,
                     is_dc_message,
                     if trash { "" } else { &part.msg },
+                    if trash { "" } else { &subject },
                     // txt_raw might contain invalid utf8
                     if trash { "" } else { &txt_raw },
                     if trash {

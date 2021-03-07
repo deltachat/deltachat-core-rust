@@ -158,7 +158,7 @@ impl MsgId {
             .execute(
                 // If you change which information is removed here, also change delete_expired_messages() and
                 // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
-                "UPDATE msgs SET chat_id=?, txt='', txt_raw='', mime_headers='', from_id=0, to_id=0, param='' WHERE id=?",
+                "UPDATE msgs SET chat_id=?, txt='', subject='', txt_raw='', mime_headers='', from_id=0, to_id=0, param='' WHERE id=?",
                 paramsv![chat_id, self],
             )
             .await?;
@@ -307,6 +307,8 @@ pub struct Message {
     pub(crate) ephemeral_timer: EphemeralTimer,
     pub(crate) ephemeral_timestamp: i64,
     pub(crate) text: Option<String>,
+    /// The value of the Subject header. Not set for messages that we sent ourselves.
+    pub(crate) subject: String,
     pub(crate) rfc724_mid: String,
     pub(crate) in_reply_to: Option<String>,
     pub(crate) server_folder: Option<String>,
@@ -356,6 +358,7 @@ impl Message {
                     "    m.msgrmsg AS msgrmsg,",
                     "    m.mime_modified AS mime_modified,",
                     "    m.txt AS txt,",
+                    "    m.subject AS subject,",
                     "    m.param AS param,",
                     "    m.hidden AS hidden,",
                     "    m.location_id AS location,",
@@ -405,6 +408,7 @@ impl Message {
                         is_dc_message: row.get("msgrmsg")?,
                         mime_modified: row.get("mime_modified")?,
                         text: Some(text),
+                        subject: row.get("subject")?,
                         param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
                         hidden: row.get("hidden")?,
                         location_id: row.get("location")?,
@@ -548,6 +552,10 @@ impl Message {
         self.text
             .as_ref()
             .map(|text| dc_truncate(text, DC_MAX_GET_TEXT_LEN).to_string())
+    }
+
+    pub fn get_subject(&self) -> &str {
+        &self.subject
     }
 
     pub fn get_filename(&self) -> Option<String> {
@@ -2150,7 +2158,7 @@ mod tests {
                 *mvbox_move,
                 *chat_msg,
                 if folder == &"Spam" { "INBOX" } else { folder }, // Never move setup messages, except if they are in "Spam"
-                true,
+                false,
                 true,
                 true,
                 false,

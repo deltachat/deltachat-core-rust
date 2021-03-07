@@ -1,13 +1,10 @@
-use anyhow::{bail, ensure, format_err, Error};
-use chrono::TimeZone;
-use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
-
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
 use crate::constants::{Chattype, Viewtype, DC_FROM_HANDSHAKE};
 use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
+use crate::dc_tools::IsNoneOrEmpty;
 use crate::dc_tools::{
     dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp, dc_get_filebytes, time,
 };
@@ -22,6 +19,10 @@ use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
 use crate::stock_str;
+use anyhow::Context as _;
+use anyhow::{bail, ensure, format_err, Error};
+use chrono::TimeZone;
+use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 use std::convert::TryInto;
 
 // attachments of 25 mb brutto should work on the majority of providers
@@ -64,6 +65,7 @@ pub struct MimeFactory<'a> {
     req_mdn: bool,
     last_added_location_id: u32,
     attach_selfavatar: bool,
+    quoted_msg_subject: Option<String>,
 }
 
 /// Result of rendering a message, ready to be submitted to a send job.
@@ -153,7 +155,8 @@ impl<'a> MimeFactory<'a> {
                     ))
                 },
             )
-            .await?;
+            .await
+            .context("Can't get mime_in_reply_to, mime_references")?;
 
         let default_str = stock_str::status_line(context).await;
         let factory = MimeFactory {
@@ -173,6 +176,7 @@ impl<'a> MimeFactory<'a> {
             req_mdn,
             last_added_location_id: 0,
             attach_selfavatar,
+            quoted_msg_subject: msg.quoted_message(context).await?.map(|m| m.subject),
         };
         Ok(factory)
     }
@@ -217,6 +221,7 @@ impl<'a> MimeFactory<'a> {
             req_mdn: false,
             last_added_location_id: 0,
             attach_selfavatar: false,
+            quoted_msg_subject: None,
         };
 
         Ok(res)
@@ -350,54 +355,64 @@ impl<'a> MimeFactory<'a> {
         }
     }
 
-    async fn subject_str(&self, context: &Context) -> String {
-        match self.loaded {
+    async fn subject_str(&self, context: &Context) -> anyhow::Result<String> {
+        Ok(match self.loaded {
             Loaded::Message { ref chat } => {
                 if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-                    stock_str::ac_setup_msg_subject(context).await
-                } else if chat.typ == Chattype::Group {
+                    return Ok(stock_str::ac_setup_msg_subject(context).await);
+                }
+
+                if chat.typ == Chattype::Group && self.quoted_msg_subject.is_none_or_empty() {
+                    // If we have a `quoted_msg_subject`, we use the subject of the quoted message
+                    // instead of the group name
                     let re = if self.in_reply_to.is_empty() {
                         ""
                     } else {
                         "Re: "
                     };
-                    format!("{}{}", re, chat.name)
-                } else {
-                    match chat.param.get(Param::LastSubject) {
-                        Some(last_subject) => {
-                            let subject_start = if last_subject.starts_with("Chat:") {
-                                0
-                            } else {
-                                // "Antw:" is the longest abbreviation in
-                                // https://en.wikipedia.org/wiki/List_of_email_subject_abbreviations#Abbreviations_in_other_languages,
-                                // so look at the first _5_ characters:
-                                match last_subject.chars().take(5).position(|c| c == ':') {
-                                    Some(prefix_end) => prefix_end + 1,
-                                    None => 0,
-                                }
-                            };
-                            format!(
-                                "Re: {}",
-                                last_subject
-                                    .chars()
-                                    .skip(subject_start)
-                                    .collect::<String>()
-                                    .trim()
-                            )
-                        }
-                        None => {
-                            let self_name = match context.get_config(Config::Displayname).await {
-                                Some(name) => name,
-                                None => context.get_config(Config::Addr).await.unwrap_or_default(),
-                            };
+                    return Ok(format!("{}{}", re, chat.name));
+                }
 
-                            stock_str::subject_for_new_contact(context, self_name).await
-                        }
+                let parent_subject = if self.quoted_msg_subject.is_none_or_empty() {
+                    chat.param.get(Param::LastSubject)
+                } else {
+                    self.quoted_msg_subject.as_deref()
+                };
+
+                match parent_subject {
+                    Some(last_subject) => {
+                        let subject_start = if last_subject.starts_with("Chat:") {
+                            0
+                        } else {
+                            // "Antw:" is the longest abbreviation in
+                            // https://en.wikipedia.org/wiki/List_of_email_subject_abbreviations#Abbreviations_in_other_languages,
+                            // so look at the first _5_ characters:
+                            match last_subject.chars().take(5).position(|c| c == ':') {
+                                Some(prefix_end) => prefix_end + 1,
+                                None => 0,
+                            }
+                        };
+                        format!(
+                            "Re: {}",
+                            last_subject
+                                .chars()
+                                .skip(subject_start)
+                                .collect::<String>()
+                                .trim()
+                        )
+                    }
+                    None => {
+                        let self_name = match context.get_config(Config::Displayname).await {
+                            Some(name) => name,
+                            None => context.get_config(Config::Addr).await.unwrap_or_default(),
+                        };
+
+                        stock_str::subject_for_new_contact(context, self_name).await
                     }
                 }
             }
             Loaded::MDN { .. } => stock_str::read_rcpt(context).await,
-        }
+        })
     }
 
     pub fn recipients(&self) -> Vec<String> {
@@ -478,7 +493,7 @@ impl<'a> MimeFactory<'a> {
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
         let skip_autocrypt = self.should_skip_autocrypt();
-        let subject_str = self.subject_str(context).await;
+        let subject_str = self.subject_str(context).await?;
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(context).await?;
 
@@ -1283,11 +1298,15 @@ fn maybe_encode_words(words: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chatlist::Chatlist;
+    use crate::chat::ChatId;
+
     use crate::contact::Origin;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::mimeparser::MimeMessage;
     use crate::test_utils::TestContext;
+    use crate::{chatlist::Chatlist, test_utils::get_chat_msg};
+
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_render_email_address() {
@@ -1379,8 +1398,8 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_subject() {
-        // 1.: Receive a mail from an MUA or Delta Chat
+    async fn test_subject_from_mua() {
+        // 1.: Receive a mail from an MUA
         assert_eq!(
             msg_to_subject_str(
                 b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
@@ -1410,12 +1429,15 @@ mod tests {
             .await,
             "Re: Infos: 42"
         );
+    }
 
-        // 2. Receive a message from Delta Chat when we did not send any messages before
+    #[async_std::test]
+    async fn test_subject_from_dc() {
+        // 2. Receive a message from Delta Chat
         assert_eq!(
             msg_to_subject_str(
                 b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                From: Charlie <charlie@example.com>\n\
+                From: bob@example.com\n\
                 To: alice@example.com\n\
                 Subject: Chat: hello\n\
                 Chat-Version: 1.0\n\
@@ -1427,7 +1449,10 @@ mod tests {
             .await,
             "Re: Chat: hello"
         );
+    }
 
+    #[async_std::test]
+    async fn test_subject_outgoing() {
         // 3. Send the first message to a new contact
         let t = TestContext::new_alice().await;
 
@@ -1438,11 +1463,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(first_subject_str(t).await, "Message from Alice");
+    }
 
+    #[async_std::test]
+    async fn test_subject_unicode() {
         // 4. Receive messages with unicode characters and make sure that we do not panic (we do not care about the result)
         msg_to_subject_str(
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-            From: Charlie <charlie@example.com>\n\
+            From: bob@example.com\n\
             To: alice@example.com\n\
             Subject: äääää\n\
             Chat-Version: 1.0\n\
@@ -1456,7 +1484,7 @@ mod tests {
 
         msg_to_subject_str(
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-            From: Charlie <charlie@example.com>\n\
+            From: bob@example.com\n\
             To: alice@example.com\n\
             Subject: aäääää\n\
             Chat-Version: 1.0\n\
@@ -1467,15 +1495,18 @@ mod tests {
                 .as_bytes(),
         )
         .await;
+    }
 
+    #[async_std::test]
+    async fn test_subject_mdn() {
         // 5. Receive an mdn (read receipt) and make sure the mdn's subject is not used
         let t = TestContext::new_alice().await;
         dc_receive_imf(
             &t,
             b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
             From: alice@example.com\n\
-            To: Charlie <charlie@example.com>\n\
-            Subject: Hello, Charlie\n\
+            To: bob@example.com\n\
+            Subject: Hello, Bob\n\
             Chat-Version: 1.0\n\
             Message-ID: <2893@example.com>\n\
             Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
@@ -1489,7 +1520,7 @@ mod tests {
         .unwrap();
         let new_msg = incoming_msg_to_reply_msg(
             b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                 From: charlie@example.com\n\
+                 From: bob@example.com\n\
                  To: alice@example.com\n\
                  Subject: message opened\n\
                  Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
@@ -1508,14 +1539,78 @@ mod tests {
                  Content-Type: message/disposition-notification\n\
                  \n\
                  Reporting-UA: Delta Chat 1.28.0\n\
-                 Original-Recipient: rfc822;charlie@example.com\n\
-                 Final-Recipient: rfc822;charlie@example.com\n\
+                 Original-Recipient: rfc822;bob@example.com\n\
+                 Final-Recipient: rfc822;bob@example.com\n\
                  Original-Message-ID: <2893@example.com>\n\
                  Disposition: manual-action/MDN-sent-automatically; displayed\n\
                  \n", &t).await;
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
         // The subject string should not be "Re: message opened"
-        assert_eq!("Re: Hello, Charlie", mf.subject_str(&t).await);
+        assert_eq!("Re: Hello, Bob", mf.subject_str(&t).await.unwrap());
+    }
+
+    #[async_std::test]
+    async fn test_subject_in_group() {
+        // 6. Test that in a group, replies also take the quoted message's subject, while non-replies use the group title as subject
+        let t = TestContext::new_alice().await;
+        let group_id =
+            chat::create_group_chat(&t, chat::ProtectionStatus::Unprotected, "groupname")
+                .await
+                .unwrap();
+        let bob = Contact::create(&t, "", "bob@example.org").await.unwrap();
+        chat::add_contact_to_chat(&t, group_id, bob).await;
+
+        async fn send_msg_get_subject(
+            t: &TestContext,
+            group_id: ChatId,
+            quote: Option<&Message>,
+        ) -> String {
+            let mut new_msg = Message::new(Viewtype::Text);
+            new_msg.set_text(Some("Hi".to_string()));
+            if let Some(q) = quote {
+                new_msg.set_quote(t, q).await.unwrap();
+            }
+            let sent = t.send_msg(group_id, &mut new_msg).await;
+            t.parse_msg(&sent).await.get_subject().unwrap()
+        }
+
+        let subject = send_msg_get_subject(&t, group_id, None).await;
+        assert_eq!(subject, "groupname");
+
+        let subject = send_msg_get_subject(&t, group_id, None).await;
+        assert_eq!(subject, "Re: groupname");
+
+        dc_receive_imf(
+            &t,
+            format!(
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: bob@example.com\n\
+                To: alice@example.com\n\
+                Subject: Different subject\n\
+                In-Reply-To: {}\n\
+                Message-ID: <2893@example.com>\n\
+                Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+                \n\
+                hello\n",
+                t.get_last_msg().await.rfc724_mid
+            )
+            .as_bytes(),
+            "INBOX",
+            5,
+            false,
+        )
+        .await
+        .unwrap();
+        let message_from_bob = t.get_last_msg().await;
+
+        let subject = send_msg_get_subject(&t, group_id, None).await;
+        assert_eq!(subject, "Re: groupname");
+
+        let subject = send_msg_get_subject(&t, group_id, Some(&message_from_bob)).await;
+        assert_eq!(subject, "Re: Different subject");
+
+        let subject = send_msg_get_subject(&t, group_id, None).await;
+        assert_eq!(subject, "Re: groupname");
     }
 
     async fn first_subject_str(t: TestContext) -> String {
@@ -1534,14 +1629,93 @@ mod tests {
 
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
 
-        mf.subject_str(&t).await
+        mf.subject_str(&t).await.unwrap()
     }
 
+    // In `imf_raw`, From has to be bob@example.com, To has to be alice@example.com
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
+        let subject_str = msg_to_subject_str_inner(imf_raw, false, false, false).await;
+
+        // Check that combinations of true and false reproduce the same subject_str:
+        assert_eq!(
+            subject_str,
+            msg_to_subject_str_inner(imf_raw, true, false, false).await
+        );
+        assert_eq!(
+            subject_str,
+            msg_to_subject_str_inner(imf_raw, false, true, false).await
+        );
+        assert_eq!(
+            subject_str,
+            msg_to_subject_str_inner(imf_raw, false, true, true).await
+        );
+        assert_eq!(
+            subject_str,
+            msg_to_subject_str_inner(imf_raw, true, true, false).await
+        );
+
+        // These two combinations are different: If `message_arrives_inbetween` is true, but
+        // `reply` is false, the core is actually expected to use the subject of the message
+        // that arrived inbetween.
+        assert_eq!(
+            "Re: Some other, completely unrelated subject",
+            msg_to_subject_str_inner(imf_raw, false, false, true).await
+        );
+        assert_eq!(
+            "Re: Some other, completely unrelated subject",
+            msg_to_subject_str_inner(imf_raw, true, false, true).await
+        );
+
+        // We leave away the combination (true, true, true) here:
+        // It would mean that the original message is quoted without sending the quoting message
+        // out yet, then the original message is deleted, then another unrelated message arrives
+        // and then the message with the quote is sent out. Not very realistic.
+
+        subject_str
+    }
+
+    async fn msg_to_subject_str_inner(
+        imf_raw: &[u8],
+        delete_original_msg: bool,
+        reply: bool,
+        message_arrives_inbetween: bool,
+    ) -> String {
         let t = TestContext::new_alice().await;
-        let new_msg = incoming_msg_to_reply_msg(imf_raw, &t).await;
+        let mut new_msg = incoming_msg_to_reply_msg(imf_raw, &t).await;
+        let incoming_msg = get_chat_msg(&t, new_msg.chat_id, 0, 2).await;
+
+        if delete_original_msg {
+            incoming_msg.id.delete_from_db(&t).await.unwrap();
+        }
+
+        if message_arrives_inbetween {
+            dc_receive_imf(
+                &t,
+                b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: Bob <bob@example.com>\n\
+                    To: alice@example.com\n\
+                    Subject: Some other, completely unrelated subject\n\
+                    Message-ID: <3cl4@example.com>\n\
+                    Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+                    \n\
+                    Some other, completely unrelated content\n",
+                "INBOX",
+                2,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let arrived_msg = t.get_last_msg().await;
+            assert_eq!(arrived_msg.chat_id, incoming_msg.chat_id);
+        }
+
+        if reply {
+            new_msg.set_quote(&t, &incoming_msg).await.unwrap();
+        }
+
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
-        mf.subject_str(&t).await
+        mf.subject_str(&t).await.unwrap()
     }
 
     // Creates a `Message` that replies "Hi" to the incoming email in `imf_raw`.
