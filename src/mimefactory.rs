@@ -363,7 +363,7 @@ impl<'a> MimeFactory<'a> {
                     return Ok(stock_str::ac_setup_msg_subject(context).await);
                 }
 
-                if self.msg.subject != "" {
+                if !self.msg.subject.is_empty() {
                     return Ok(self.msg.subject.clone());
                 }
 
