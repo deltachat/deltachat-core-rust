@@ -99,6 +99,9 @@ pub enum Param {
     /// is used to also send all the forwarded messages.
     PrepForwards = b'P',
 
+    /// For Messages: Set this before sending in order set the subject
+    ForceSubject = b's',
+
     /// For Jobs
     SetLatitude = b'l',
 

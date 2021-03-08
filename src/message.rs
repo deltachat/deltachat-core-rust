@@ -308,7 +308,8 @@ pub struct Message {
     pub(crate) ephemeral_timer: EphemeralTimer,
     pub(crate) ephemeral_timestamp: i64,
     pub(crate) text: Option<String>,
-    /// The value of the Subject header. Not set for messages that we sent ourselves.
+    /// The value of the Subject header.
+    /// Can also be used to set a subject before sending a message
     pub(crate) subject: String,
     pub(crate) rfc724_mid: String,
     pub(crate) in_reply_to: Option<String>,

@@ -662,6 +662,26 @@ where
     }
 }
 
+pub fn remove_subject_prefix(last_subject: &str) -> String {
+    let subject_start = if last_subject.starts_with("Chat:") {
+        0
+    } else {
+        // "Antw:" is the longest abbreviation in
+        // https://en.wikipedia.org/wiki/List_of_email_subject_abbreviations#Abbreviations_in_other_languages,
+        // so look at the first _5_ characters:
+        match last_subject.chars().take(5).position(|c| c == ':') {
+            Some(prefix_end) => prefix_end + 1,
+            None => 0,
+        }
+    };
+    last_subject
+        .chars()
+        .skip(subject_start)
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing)]

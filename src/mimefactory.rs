@@ -6,7 +6,8 @@ use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
 use crate::dc_tools::IsNoneOrEmpty;
 use crate::dc_tools::{
-    dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp, dc_get_filebytes, time,
+    dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp, dc_get_filebytes,
+    remove_subject_prefix, time,
 };
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
@@ -65,7 +66,6 @@ pub struct MimeFactory<'a> {
     req_mdn: bool,
     last_added_location_id: u32,
     attach_selfavatar: bool,
-    quoted_msg_subject: Option<String>,
 }
 
 /// Result of rendering a message, ready to be submitted to a send job.
@@ -177,7 +177,6 @@ impl<'a> MimeFactory<'a> {
             req_mdn,
             last_added_location_id: 0,
             attach_selfavatar,
-            quoted_msg_subject: msg.quoted_message(context).await?.map(|m| m.subject),
         };
         Ok(factory)
     }
@@ -222,7 +221,6 @@ impl<'a> MimeFactory<'a> {
             req_mdn: false,
             last_added_location_id: 0,
             attach_selfavatar: false,
-            quoted_msg_subject: None,
         };
 
         Ok(res)
@@ -357,13 +355,19 @@ impl<'a> MimeFactory<'a> {
     }
 
     async fn subject_str(&self, context: &Context) -> anyhow::Result<String> {
+        let quoted_msg_subject = self.msg.quoted_message(context).await?.map(|m| m.subject);
+
         Ok(match self.loaded {
             Loaded::Message { ref chat } => {
                 if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
                     return Ok(stock_str::ac_setup_msg_subject(context).await);
                 }
 
-                if chat.typ == Chattype::Group && self.quoted_msg_subject.is_none_or_empty() {
+                if self.msg.subject != "" {
+                    return Ok(self.msg.subject.clone());
+                }
+
+                if chat.typ == Chattype::Group && quoted_msg_subject.is_none_or_empty() {
                     // If we have a `quoted_msg_subject`, we use the subject of the quoted message
                     // instead of the group name
                     let re = if self.in_reply_to.is_empty() {
@@ -374,42 +378,21 @@ impl<'a> MimeFactory<'a> {
                     return Ok(format!("{}{}", re, chat.name));
                 }
 
-                let parent_subject = if self.quoted_msg_subject.is_none_or_empty() {
+                let parent_subject = if quoted_msg_subject.is_none_or_empty() {
                     chat.param.get(Param::LastSubject)
                 } else {
-                    self.quoted_msg_subject.as_deref()
+                    quoted_msg_subject.as_deref()
                 };
 
-                match parent_subject {
-                    Some(last_subject) => {
-                        let subject_start = if last_subject.starts_with("Chat:") {
-                            0
-                        } else {
-                            // "Antw:" is the longest abbreviation in
-                            // https://en.wikipedia.org/wiki/List_of_email_subject_abbreviations#Abbreviations_in_other_languages,
-                            // so look at the first _5_ characters:
-                            match last_subject.chars().take(5).position(|c| c == ':') {
-                                Some(prefix_end) => prefix_end + 1,
-                                None => 0,
-                            }
-                        };
-                        format!(
-                            "Re: {}",
-                            last_subject
-                                .chars()
-                                .skip(subject_start)
-                                .collect::<String>()
-                                .trim()
-                        )
-                    }
-                    None => {
-                        let self_name = match context.get_config(Config::Displayname).await {
-                            Some(name) => name,
-                            None => context.get_config(Config::Addr).await.unwrap_or_default(),
-                        };
+                if let Some(last_subject) = parent_subject {
+                    format!("Re: {}", remove_subject_prefix(last_subject))
+                } else {
+                    let self_name = match context.get_config(Config::Displayname).await {
+                        Some(name) => name,
+                        None => context.get_config(Config::Addr).await.unwrap_or_default(),
+                    };
 
-                        stock_str::subject_for_new_contact(context, self_name).await
-                    }
+                    stock_str::subject_for_new_contact(context, self_name).await
                 }
             }
             Loaded::MDN { .. } => stock_str::read_rcpt(context).await,
@@ -498,13 +481,13 @@ impl<'a> MimeFactory<'a> {
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(context).await?;
 
-        let subject = if subject_str
+        let encoded_subject = if subject_str
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == ' ')
         // We do not use needs_encoding() here because needs_encoding() returns true if the string contains a space
         // but we do not want to encode all subjects just because they contain a space.
         {
-            subject_str
+            subject_str.clone()
         } else {
             encode_words(&subject_str)
         };
@@ -515,7 +498,7 @@ impl<'a> MimeFactory<'a> {
             unprotected_headers.push(Header::new("Autocrypt".into(), aheader));
         }
 
-        protected_headers.push(Header::new("Subject".into(), subject.clone()));
+        protected_headers.push(Header::new("Subject".into(), encoded_subject));
 
         let rfc724_mid = match self.loaded {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
@@ -672,7 +655,7 @@ impl<'a> MimeFactory<'a> {
             is_gossiped,
             last_added_location_id,
             rfc724_mid,
-            subject,
+            subject: subject_str,
         })
     }
 
@@ -1553,15 +1536,6 @@ mod tests {
 
     #[async_std::test]
     async fn test_subject_in_group() {
-        // 6. Test that in a group, replies also take the quoted message's subject, while non-replies use the group title as subject
-        let t = TestContext::new_alice().await;
-        let group_id =
-            chat::create_group_chat(&t, chat::ProtectionStatus::Unprotected, "groupname")
-                .await
-                .unwrap();
-        let bob = Contact::create(&t, "", "bob@example.org").await.unwrap();
-        chat::add_contact_to_chat(&t, group_id, bob).await;
-
         async fn send_msg_get_subject(
             t: &TestContext,
             group_id: ChatId,
@@ -1573,6 +1547,9 @@ mod tests {
                 new_msg.set_quote(t, q).await.unwrap();
             }
             let sent = t.send_msg(group_id, &mut new_msg).await;
+            get_subject(t, sent).await
+        }
+        async fn get_subject(t: &TestContext, sent: crate::test_utils::SentMessage) -> String {
             let parsed_subject = t.parse_msg(&sent).await.get_subject().unwrap();
 
             let sent_msg = Message::load_from_db(t, sent.sender_msg_id).await.unwrap();
@@ -1580,6 +1557,15 @@ mod tests {
 
             parsed_subject
         }
+
+        // 6. Test that in a group, replies also take the quoted message's subject, while non-replies use the group title as subject
+        let t = TestContext::new_alice().await;
+        let group_id =
+            chat::create_group_chat(&t, chat::ProtectionStatus::Unprotected, "groupname") // TODO encodings, ä
+                .await
+                .unwrap();
+        let bob = Contact::create(&t, "", "bob@example.org").await.unwrap();
+        chat::add_contact_to_chat(&t, group_id, bob).await;
 
         let subject = send_msg_get_subject(&t, group_id, None).await;
         assert_eq!(subject, "groupname");
@@ -1614,10 +1600,20 @@ mod tests {
         assert_eq!(subject, "Re: groupname");
 
         let subject = send_msg_get_subject(&t, group_id, Some(&message_from_bob)).await;
+        let outgoing_quoting_msg = t.get_last_msg().await;
         assert_eq!(subject, "Re: Different subject");
 
         let subject = send_msg_get_subject(&t, group_id, None).await;
         assert_eq!(subject, "Re: groupname");
+
+        let subject = send_msg_get_subject(&t, group_id, Some(&outgoing_quoting_msg)).await;
+        assert_eq!(subject, "Re: Different subject");
+
+        chat::forward_msgs(&t, &[message_from_bob.id], group_id)
+            .await
+            .unwrap();
+        let subject = get_subject(&t, t.pop_sent_msg().await).await;
+        assert_eq!(subject, "Fwd: Different subject");
     }
 
     async fn first_subject_str(t: TestContext) -> String {

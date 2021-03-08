@@ -28,7 +28,7 @@ use crate::context::Context;
 use crate::dc_tools::{
     dc_create_id, dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp,
     dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, improve_single_line_input,
-    time, IsNoneOrEmpty,
+    remove_subject_prefix, time, IsNoneOrEmpty,
 };
 use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -1134,6 +1134,7 @@ impl Chat {
                         type,
                         state,
                         txt,
+                        subject,
                         param,
                         hidden,
                         mime_in_reply_to,
@@ -1143,7 +1144,7 @@ impl Chat {
                         location_id,
                         ephemeral_timer,
                         ephemeral_timestamp)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
                 paramsv![
                     new_rfc724_mid,
                     self.id,
@@ -1153,6 +1154,7 @@ impl Chat {
                     msg.viewtype,
                     msg.state,
                     msg.text.as_ref().cloned().unwrap_or_default(),
+                    &msg.subject,
                     msg.param.to_string(),
                     msg.hidden,
                     msg.in_reply_to.as_deref().unwrap_or_default(),
@@ -2769,6 +2771,8 @@ pub async fn forward_msgs(
             msg.param.remove(Param::ForcePlaintext);
             msg.param.remove(Param::Cmd);
             msg.param.remove(Param::OverrideSenderDisplayname);
+
+            msg.subject = format!("Fwd: {}", remove_subject_prefix(&msg.subject));
 
             let new_msg_id: MsgId;
             if msg.state == MessageState::OutPreparing {
