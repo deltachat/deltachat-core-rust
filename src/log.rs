@@ -68,7 +68,7 @@ pub trait LogExt<T> {
     /// feature, the location of the caller is printed to the log, just like with the warn!() macro.
     ///
     /// Unfortunately, the track_caller feature does not work on async functions (as of Rust 1.50).
-    /// Once it is, you can add `#[track_caller]` to helper functions that use `log()` and `log_m()`
+    /// Once it is, you can add `#[track_caller]` to helper functions that use one of the log helpers here
     /// so that the location of the caller can be seen in the log. (this won't work with the macros,
     /// like warn!(), since the file!() and line!() macros don't work with track_caller)  
     /// See https://github.com/rust-lang/rust/issues/78840 for progress on this.
