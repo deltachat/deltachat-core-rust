@@ -3451,18 +3451,25 @@ pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
 }
 
 trait ResultExt<T, E> {
+    /// Like `log_err()`, but:
+    /// - returns the default value instead of an Err value.
+    /// - emits an error instead of a warning for an [Err] result. This means
+    /// that the error will be shown to the user in a small pop-up.
+    #[track_caller]
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
 
-    /// Log a warning to a [ContextWrapper] for an [Err] result.
+    /// Logs a warning to a [ContextWrapper] for an [Err] result.
     ///
     /// Does nothing for an [Ok].
     ///
     /// You can do this as soon as the wrapper exists, it does not
     /// have to be open (which is required for the `warn!()` macro).
+    #[track_caller]
     fn log_err(self, wrapper: &Context, message: &str) -> Result<T, E>;
 }
 
 impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
+    #[track_caller]
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T {
         match self {
             Ok(t) => t,
@@ -3473,6 +3480,7 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
         }
     }
 
+    #[track_caller]
     fn log_err(self, ctx: &Context, message: &str) -> Result<T, E> {
         self.map_err(|err| {
             // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
