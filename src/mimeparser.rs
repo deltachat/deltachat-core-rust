@@ -259,7 +259,7 @@ impl MimeMessage {
             is_mime_modified: false,
             decoded_data: Vec::new(),
         };
-        parser.parse_mime_recursive(context, &mail).await?;
+        parser.parse_mime_recursive(context, &mail, false).await?;
         parser.maybe_remove_bad_parts();
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
@@ -538,6 +538,7 @@ impl MimeMessage {
         &'a mut self,
         context: &'a Context,
         mail: &'a mailparse::ParsedMail<'a>,
+        is_related: bool,
     ) -> Pin<Box<dyn Future<Output = Result<bool>> + 'a + Send>> {
         use futures::future::FutureExt;
 
@@ -579,8 +580,9 @@ impl MimeMessage {
                 MimeS::Single
             };
 
+            let is_related = is_related || mimetype == "multipart/related";
             match m {
-                MimeS::Multiple => self.handle_multiple(context, mail).await,
+                MimeS::Multiple => self.handle_multiple(context, mail, is_related).await,
                 MimeS::Message => {
                     let raw = mail.get_body_raw()?;
                     if raw.is_empty() {
@@ -588,9 +590,9 @@ impl MimeMessage {
                     }
                     let mail = mailparse::parse_mail(&raw).unwrap();
 
-                    self.parse_mime_recursive(context, &mail).await
+                    self.parse_mime_recursive(context, &mail, is_related).await
                 }
-                MimeS::Single => self.add_single_part_if_known(context, mail).await,
+                MimeS::Single => self.add_single_part_if_known(context, mail, is_related).await,
             }
         }
         .boxed()
@@ -600,6 +602,7 @@ impl MimeMessage {
         &mut self,
         context: &Context,
         mail: &mailparse::ParsedMail<'_>,
+        is_related: bool,
     ) -> Result<bool> {
         let mut any_part_added = false;
         let mimetype = get_mime_type(mail)?.0;
@@ -613,7 +616,9 @@ impl MimeMessage {
                     if get_mime_type(cur_data)?.0 == "multipart/mixed"
                         || get_mime_type(cur_data)?.0 == "multipart/related"
                     {
-                        any_part_added = self.parse_mime_recursive(context, cur_data).await?;
+                        any_part_added = self
+                            .parse_mime_recursive(context, cur_data, is_related)
+                            .await?;
                         break;
                     }
                 }
@@ -621,7 +626,9 @@ impl MimeMessage {
                     /* search for text/plain and add this */
                     for cur_data in &mail.subparts {
                         if get_mime_type(cur_data)?.0.type_() == mime::TEXT {
-                            any_part_added = self.parse_mime_recursive(context, cur_data).await?;
+                            any_part_added = self
+                                .parse_mime_recursive(context, cur_data, is_related)
+                                .await?;
                             break;
                         }
                     }
@@ -629,7 +636,10 @@ impl MimeMessage {
                 if !any_part_added {
                     /* `text/plain` not found - use the first part */
                     for cur_part in &mail.subparts {
-                        if self.parse_mime_recursive(context, cur_part).await? {
+                        if self
+                            .parse_mime_recursive(context, cur_part, is_related)
+                            .await?
+                        {
                             any_part_added = true;
                             break;
                         }
@@ -671,7 +681,9 @@ impl MimeMessage {
                 https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
                 for background information why we use encrypted+signed) */
                 if let Some(first) = mail.subparts.get(0) {
-                    any_part_added = self.parse_mime_recursive(context, first).await?;
+                    any_part_added = self
+                        .parse_mime_recursive(context, first, is_related)
+                        .await?;
                 }
             }
             (mime::MULTIPART, "report") => {
@@ -703,14 +715,19 @@ impl MimeMessage {
 
                             // Add all parts (we need another part, preferably text/plain, to show as an error message)
                             for cur_data in mail.subparts.iter() {
-                                if self.parse_mime_recursive(context, cur_data).await? {
+                                if self
+                                    .parse_mime_recursive(context, cur_data, is_related)
+                                    .await?
+                                {
                                     any_part_added = true;
                                 }
                             }
                         }
                         Some(_) => {
                             if let Some(first) = mail.subparts.get(0) {
-                                any_part_added = self.parse_mime_recursive(context, first).await?;
+                                any_part_added = self
+                                    .parse_mime_recursive(context, first, is_related)
+                                    .await?;
                             }
                         }
                     }
@@ -720,7 +737,10 @@ impl MimeMessage {
                 // Add all parts (in fact, AddSinglePartIfKnown() later check if
                 // the parts are really supported)
                 for cur_data in mail.subparts.iter() {
-                    if self.parse_mime_recursive(context, cur_data).await? {
+                    if self
+                        .parse_mime_recursive(context, cur_data, is_related)
+                        .await?
+                    {
                         any_part_added = true;
                     }
                 }
@@ -734,6 +754,7 @@ impl MimeMessage {
         &mut self,
         context: &Context,
         mail: &mailparse::ParsedMail<'_>,
+        is_related: bool,
     ) -> Result<bool> {
         // return true if a part was added
         let (mime_type, msg_type) = get_mime_type(mail)?;
@@ -752,6 +773,7 @@ impl MimeMessage {
                     &raw_mime,
                     &mail.get_body_raw()?,
                     &filename,
+                    is_related,
                 )
                 .await;
             }
@@ -863,6 +885,7 @@ impl MimeMessage {
         raw_mime: &str,
         decoded_data: &[u8],
         filename: &str,
+        is_related: bool,
     ) {
         if decoded_data.is_empty() {
             return;
@@ -915,6 +938,7 @@ impl MimeMessage {
         part.bytes = decoded_data.len();
         part.param.set(Param::File, blob.as_name());
         part.param.set(Param::MimeType, raw_mime);
+        part.is_related = is_related;
 
         self.do_add_single_part(part);
     }
@@ -1321,6 +1345,14 @@ pub struct Part {
     org_filename: Option<String>,
     pub error: Option<String>,
     dehtml_failed: bool,
+
+    /// the part is a child or a descendant of multipart/related.
+    /// typically, these are images that are referenced from text/html part
+    /// and should not displayed inside chat.
+    ///
+    /// note that multipart/related may contain further multipart nestings
+    /// and all of them needs to be marked with `is_related`.
+    is_related: bool,
 }
 
 /// return mimetype and viewtype for a parsed mail
