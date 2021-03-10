@@ -1117,6 +1117,30 @@ impl MimeMessage {
         } else if good_parts < self.parts.len() {
             self.parts.retain(|p| !p.dehtml_failed);
         }
+
+        // remove images that are descendants of multipart/related but the first one:
+        // - for newsletters or so, that is often the logo
+        // - for user-generated html-mails, that may be some drag'n'drop photo,
+        //   so, the recipient sees at least the first image directly
+        // - all other images can be accessed by "show full message"
+        // - to ensure, there is such a button, we do removal only if
+        //   `is_mime_modified` is set
+        if !self.has_chat_version() && self.is_mime_modified {
+            fn is_related_image(p: &&Part) -> bool {
+                (p.typ == Viewtype::Image || p.typ == Viewtype::Gif) && p.is_related
+            }
+            let related_image_cnt = self.parts.iter().filter(is_related_image).count();
+            if related_image_cnt > 1 {
+                let mut is_first_image = true;
+                self.parts.retain(|p| {
+                    let retain = is_first_image || !is_related_image(&p);
+                    if p.typ == Viewtype::Image || p.typ == Viewtype::Gif {
+                        is_first_image = false;
+                    }
+                    retain
+                });
+            }
+        }
     }
 
     /// Remove unwanted, additional text parts used for mailing list footer.
