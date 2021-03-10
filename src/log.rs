@@ -1,6 +1,5 @@
 //! # Logging
 use crate::context::Context;
-use anyhow::Context as _;
 
 #[macro_export]
 macro_rules! info {
@@ -61,7 +60,13 @@ macro_rules! emit_event {
     };
 }
 
-pub trait LogExt<T> {
+pub trait LogExt<T, E>
+where
+    Self: std::marker::Sized,
+{
+    #[track_caller]
+    fn format_log(self, context: &Context, msg: Option<&str>) -> Result<T, E>;
+
     /// Emits a warning if the receiver contains an Err value.
     ///
     /// Thanks to the [track_caller](https://blog.rust-lang.org/2020/08/27/Rust-1.46.0.html#track_caller)
@@ -73,11 +78,11 @@ pub trait LogExt<T> {
     /// like warn!(), since the file!() and line!() macros don't work with track_caller)  
     /// See https://github.com/rust-lang/rust/issues/78840 for progress on this.
     #[track_caller]
-    fn log_err(self, context: &Context) -> Self;
+    fn log_err(self, context: &Context, msg: &str) -> Result<T, E> {
+        self.format_log(context, Some(msg))
+    }
 
-    /// Emits a warning if the receiver contains an Err value.
-    ///
-    /// Unlike `log_err()`, returns an [`Option<T>`] instead of Self.
+    /// Emits a warning if the receiver contains an Err value and returns an [`Option<T>`].
     ///
     /// Example:
     /// ```text
@@ -89,14 +94,12 @@ pub trait LogExt<T> {
     /// ```text
     /// do_something().ok_or_log(context);
     /// ```
-    /// and is also equivalent to:
-    /// ```text
-    /// do_something().log_err(context).ok();
-    /// ```
     ///
     /// For a note on the `track_caller` feature, see the doc comment on `log_err()`.
     #[track_caller]
-    fn ok_or_log(self, context: &Context) -> Option<T>;
+    fn ok_or_log(self, context: &Context) -> Option<T> {
+        self.format_log(context, None).ok()
+    }
 
     /// Like `ok_or_log()`, but you can pass an extra message that is prepended in the log.
     ///
@@ -112,40 +115,39 @@ pub trait LogExt<T> {
     /// ```
     /// and is also equivalent to:
     /// ```text
+    /// use anyhow::Context as _;
     /// do_something().context("Something went wrong").ok_or_log(context);
     /// ```
     ///
     /// For a note on the `track_caller` feature, see the doc comment on `log_err()`.
     #[track_caller]
-    fn ok_or_log_msg(self, context: &Context, msg: &'static str) -> Option<T>;
+    fn ok_or_log_msg(self, context: &Context, msg: &'static str) -> Option<T> {
+        self.format_log(context, Some(msg)).ok()
+    }
 }
 
-impl<T> LogExt<T> for anyhow::Result<T> {
+impl<T: Default, E: std::fmt::Display> LogExt<T, E> for Result<T, E> {
     #[track_caller]
-    fn log_err(self, context: &Context) -> Self {
-        self.map_err(|e| {
+    fn format_log(self, context: &Context, msg: Option<&str>) -> Result<T, E> {
+        if let Err(e) = &self {
             let location = std::panic::Location::caller();
+
+            let separator = if msg.is_none() { "" } else { ": " };
+            let msg = msg.unwrap_or_default();
+
             // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
             let full = format!(
-                "{file}:{line}: {e:#}",
+                "{file}:{line}: {msg}{separator}{e:#}",
                 file = location.file(),
                 line = location.line(),
+                msg = msg,
+                separator = separator,
                 e = e
             );
             // We can't use the warn!() macro here as the file!() and line!() macros
             // don't work with #[track_caller]
             emit_event!(context, crate::EventType::Warning(full));
-            e
-        })
-    }
-
-    #[track_caller]
-    fn ok_or_log(self, context: &Context) -> Option<T> {
-        self.log_err(context).ok()
-    }
-
-    #[track_caller]
-    fn ok_or_log_msg(self, context: &Context, msg: &'static str) -> Option<T> {
-        self.context(msg).log_err(context).ok()
+        };
+        self
     }
 }
