@@ -575,6 +575,15 @@ impl Imap {
                 // new messages is only one command, just as a SELECT command)
                 true
             } else if let Some(uid_next) = mailbox.uid_next {
+                if uid_next < old_uid_next {
+                    warn!(
+                        context,
+                        "The server illegally decreased the uid_next of folder {} from {} to {} without changing validity ({}), resyncing UIDs...", 
+                        folder, old_uid_next, uid_next, new_uid_validity,
+                    );
+                    set_uid_next(context, folder, uid_next).await?;
+                    job::schedule_resync(context).await;
+                }
                 uid_next != old_uid_next // If uid_next changed, there are new emails
             } else {
                 true // We have no uid_next and if in doubt, return true
