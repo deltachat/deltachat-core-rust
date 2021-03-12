@@ -6,6 +6,7 @@ use std::fmt;
 
 use anyhow::{bail, format_err, Context as _, Error, Result};
 use deltachat_derive::{FromSql, ToSql};
+use futures::StreamExt;
 use rand::{thread_rng, Rng};
 
 use crate::config::Config;
@@ -372,22 +373,45 @@ impl Job {
             return Status::RetryLater;
         }
 
-        let sentbox_folder = job_try!(context.get_config(Config::ConfiguredSentboxFolder).await);
-        if let Some(sentbox_folder) = sentbox_folder {
-            job_try!(imap.resync_folder_uids(context, sentbox_folder).await);
+        let configured_folders: Vec<_> = async_std::stream::from_iter(&[
+            Config::ConfiguredSentboxFolder,
+            Config::ConfiguredInboxFolder,
+            Config::ConfiguredMvboxFolder,
+        ])
+        .filter_map(|c| async move { context.get_config(*c).await.ok_or_log(context).flatten() })
+        .collect()
+        .await;
+
+        let all_except_configured =
+            match imap.list_folders_except(context, &configured_folders).await {
+                Ok(v) => v,
+                Err(e) => {
+                    warn!(context, "Listing folders for resync failed: {:#}", e);
+                    return Status::RetryLater;
+                }
+            };
+
+        let mut any_failed = false;
+
+        for folder in all_except_configured {
+            if let Err(e) = imap.resync_folder_uids(context, folder).await {
+                warn!(context, "{:#}", e);
+                any_failed = true;
+            }
         }
 
-        let inbox_folder = job_try!(context.get_config(Config::ConfiguredInboxFolder).await);
-        if let Some(inbox_folder) = inbox_folder {
-            job_try!(imap.resync_folder_uids(context, inbox_folder).await);
+        for folder in configured_folders {
+            if let Err(e) = imap.resync_folder_uids(context, folder).await {
+                warn!(context, "{:#}", e);
+                any_failed = true;
+            }
         }
 
-        let mvbox_folder = job_try!(context.get_config(Config::ConfiguredMvboxFolder).await);
-        if let Some(mvbox_folder) = mvbox_folder {
-            job_try!(imap.resync_folder_uids(context, mvbox_folder).await);
+        if any_failed {
+            Status::RetryLater
+        } else {
+            Status::Finished(Ok(()))
         }
-
-        Status::Finished(Ok(()))
     }
 
     async fn markseen_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {
