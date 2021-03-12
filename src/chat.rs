@@ -2768,6 +2768,7 @@ pub async fn forward_msgs(
             msg.param.remove(Param::GuaranteeE2ee);
             msg.param.remove(Param::ForcePlaintext);
             msg.param.remove(Param::Cmd);
+            msg.param.remove(Param::OverrideSenderDisplayname);
 
             let new_msg_id: MsgId;
             if msg.state == MessageState::OutPreparing {
