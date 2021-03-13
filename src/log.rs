@@ -65,7 +65,7 @@ where
     Self: std::marker::Sized,
 {
     #[track_caller]
-    fn format_log(self, context: &Context, msg: Option<&str>) -> Result<T, E>;
+    fn log_err_inner(self, context: &Context, msg: Option<&str>) -> Result<T, E>;
 
     /// Emits a warning if the receiver contains an Err value.
     ///
@@ -79,7 +79,7 @@ where
     /// See https://github.com/rust-lang/rust/issues/78840 for progress on this.
     #[track_caller]
     fn log_err(self, context: &Context, msg: &str) -> Result<T, E> {
-        self.format_log(context, Some(msg))
+        self.log_err_inner(context, Some(msg))
     }
 
     /// Emits a warning if the receiver contains an Err value and returns an [`Option<T>`].
@@ -98,7 +98,7 @@ where
     /// For a note on the `track_caller` feature, see the doc comment on `log_err()`.
     #[track_caller]
     fn ok_or_log(self, context: &Context) -> Option<T> {
-        self.format_log(context, None).ok()
+        self.log_err_inner(context, None).ok()
     }
 
     /// Like `ok_or_log()`, but you can pass an extra message that is prepended in the log.
@@ -122,13 +122,13 @@ where
     /// For a note on the `track_caller` feature, see the doc comment on `log_err()`.
     #[track_caller]
     fn ok_or_log_msg(self, context: &Context, msg: &'static str) -> Option<T> {
-        self.format_log(context, Some(msg)).ok()
+        self.log_err_inner(context, Some(msg)).ok()
     }
 }
 
 impl<T: Default, E: std::fmt::Display> LogExt<T, E> for Result<T, E> {
     #[track_caller]
-    fn format_log(self, context: &Context, msg: Option<&str>) -> Result<T, E> {
+    fn log_err_inner(self, context: &Context, msg: Option<&str>) -> Result<T, E> {
         if let Err(e) = &self {
             let location = std::panic::Location::caller();
 
