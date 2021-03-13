@@ -1157,7 +1157,7 @@ async fn perform_job_action(
         Action::MoveMsg => job.move_msg(context, connection.inbox()).await,
         Action::FetchExistingMsgs => job.fetch_existing_msgs(context, connection.inbox()).await,
         Action::Housekeeping => {
-            sql::housekeeping(context).await.log(context);
+            sql::housekeeping(context).await.ok_or_log(context);
             Status::Finished(Ok(()))
         }
     };

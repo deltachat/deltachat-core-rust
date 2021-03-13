@@ -676,7 +676,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .sql
         .set_raw_config_int(context, "backup_time", now as i32)
         .await?;
-    sql::housekeeping(context).await.log(context);
+    sql::housekeeping(context).await.ok_or_log(context);
 
     context
         .sql
