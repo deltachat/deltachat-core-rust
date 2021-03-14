@@ -920,7 +920,7 @@ impl Message {
                 paramsv![self.param.to_string(), self.id],
             )
             .await
-            .log(context);
+            .ok_or_log(context);
     }
 
     pub(crate) async fn update_subject(&self, context: &Context) {
@@ -931,7 +931,7 @@ impl Message {
                 paramsv![self.subject, self.id],
             )
             .await
-            .log(context);
+            .ok_or_log(context);
     }
 
     /// Gets the error status of the message.
