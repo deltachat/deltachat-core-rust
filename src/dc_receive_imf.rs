@@ -1164,6 +1164,44 @@ async fn calc_sort_timestamp(
     sort_timestamp
 }
 
+async fn update_member_list(
+    context: &Context,
+    chat_id: ChatId,
+    self_addr: String,
+    from_id: u32,
+    to_ids: &ContactIds,
+) -> Result<()> {
+    if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
+        // Members could have been removed while we were
+        // absent. We can't use existing member list and need to
+        // start from scratch.
+        context
+            .sql
+            .execute(
+                "DELETE FROM chats_contacts WHERE chat_id=?;",
+                paramsv![chat_id],
+            )
+            .await?;
+
+        chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
+    }
+    if from_id > DC_CONTACT_ID_LAST_SPECIAL
+        && !Contact::addr_equals_contact(context, &self_addr, from_id as u32).await
+        && !chat::is_contact_in_chat(context, chat_id, from_id).await
+    {
+        chat::add_to_chat_contacts_table(context, chat_id, from_id as u32).await;
+    }
+    for &to_id in to_ids.iter() {
+        info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
+        if !Contact::addr_equals_contact(context, &self_addr, to_id).await
+            && !chat::is_contact_in_chat(context, chat_id, to_id).await
+        {
+            chat::add_to_chat_contacts_table(context, chat_id, to_id).await;
+        }
+    }
+    Ok(())
+}
+
 /// This function tries to extract the group-id from the message and returns the
 /// corresponding chat_id. If the chat does not exist, it is created.
 /// If the message contains groups commands (name, profile image, changed members),
@@ -1197,6 +1235,11 @@ async fn create_or_lookup_group(
         set_better_msg(mime_parser, &better_msg);
     }
 
+    let self_addr = context
+        .get_config(Config::ConfiguredAddr)
+        .await
+        .unwrap_or_default();
+
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
     } else {
@@ -1221,6 +1264,11 @@ async fn create_or_lookup_group(
                 // Otherwise, it could be a reply to an undecipherable
                 // group message that we previously assigned to a 1:1 chat.
                 if chat.typ == Chattype::Group {
+                    // If we assign a non-dc-message to an existing chat,
+                    // add missing contacts to the member list.
+                    update_member_list(context, chat.id, self_addr, from_id, to_ids).await?;
+                    context.emit_event(EventType::ChatModified(chat.id));
+
                     // Return immediately without attempting to execute group commands,
                     // as this message does not contain an explicit group-id header.
                     return Ok((chat.id, chat.blocked));
@@ -1322,10 +1370,6 @@ async fn create_or_lookup_group(
 
     // check if the group does not exist but should be created
     let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid)
-        .await
-        .unwrap_or_default();
-    let self_addr = context
-        .get_config(Config::ConfiguredAddr)
         .await
         .unwrap_or_default();
 
@@ -1454,35 +1498,7 @@ async fn create_or_lookup_group(
 
     // add members to group/check members
     if recreate_member_list {
-        if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
-            // Members could have been removed while we were
-            // absent. We can't use existing member list and need to
-            // start from scratch.
-            context
-                .sql
-                .execute(
-                    "DELETE FROM chats_contacts WHERE chat_id=?;",
-                    paramsv![chat_id],
-                )
-                .await
-                .ok();
-
-            chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
-        }
-        if from_id > DC_CONTACT_ID_LAST_SPECIAL
-            && !Contact::addr_equals_contact(context, &self_addr, from_id as u32).await
-            && !chat::is_contact_in_chat(context, chat_id, from_id).await
-        {
-            chat::add_to_chat_contacts_table(context, chat_id, from_id as u32).await;
-        }
-        for &to_id in to_ids.iter() {
-            info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
-            if !Contact::addr_equals_contact(context, &self_addr, to_id).await
-                && !chat::is_contact_in_chat(context, chat_id, to_id).await
-            {
-                chat::add_to_chat_contacts_table(context, chat_id, to_id).await;
-            }
-        }
+        update_member_list(context, chat_id, self_addr, from_id, to_ids).await?;
         send_EVENT_CHAT_MODIFIED = true;
     } else if let Some(contact_id) = removed_id {
         chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await;
