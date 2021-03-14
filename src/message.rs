@@ -22,6 +22,7 @@ use crate::dc_tools::{
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::job::{self, Action};
+use crate::log::LogExt;
 use crate::lot::{Lot, LotState, Meaning};
 use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::{Param, Params};
@@ -912,7 +913,7 @@ impl Message {
         Ok(None)
     }
 
-    pub async fn update_param(&mut self, context: &Context) -> bool {
+    pub async fn update_param(&self, context: &Context) {
         context
             .sql
             .execute(
@@ -920,7 +921,18 @@ impl Message {
                 paramsv![self.param.to_string(), self.id],
             )
             .await
-            .is_ok()
+            .log(context);
+    }
+
+    pub(crate) async fn update_subject(&self, context: &Context) {
+        context
+            .sql
+            .execute(
+                "UPDATE msgs SET subject=? WHERE id=?;",
+                paramsv![self.subject, self.id],
+            )
+            .await
+            .log(context);
     }
 
     /// Gets the error status of the message.

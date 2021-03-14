@@ -79,6 +79,7 @@ pub struct RenderedEmail {
 
     /// Message ID (Message in the sense of Email)
     pub rfc724_mid: String,
+    pub subject: String,
 }
 
 impl<'a> MimeFactory<'a> {
@@ -514,7 +515,7 @@ impl<'a> MimeFactory<'a> {
             unprotected_headers.push(Header::new("Autocrypt".into(), aheader));
         }
 
-        protected_headers.push(Header::new("Subject".into(), subject));
+        protected_headers.push(Header::new("Subject".into(), subject.clone()));
 
         let rfc724_mid = match self.loaded {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
@@ -671,6 +672,7 @@ impl<'a> MimeFactory<'a> {
             is_gossiped,
             last_added_location_id,
             rfc724_mid,
+            subject,
         })
     }
 
