@@ -72,6 +72,7 @@ pub async fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
 
 /// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR&g=GROUPNAME&x=GROUPID&i=INVITENUMBER&s=AUTH`
+///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR`
 #[allow(clippy::indexing_slicing)]
 async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
     let payload = &qr[OPENPGP4FPR_SCHEME.len()..];
@@ -169,6 +170,14 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
                 .unwrap_or_default();
 
             chat::add_info_msg(context, id, format!("{} verified.", peerstate.addr)).await;
+        } else if let Some(addr) = addr {
+            lot.state = LotState::QrFprMismatch;
+            lot.id = match Contact::lookup_id_by_addr(context, &addr, Origin::Unknown).await {
+                Ok(contact_id) => contact_id.unwrap_or_default(),
+                Err(err) => {
+                    return format_err!("Error looking up contact {:?}: {}", addr, err).into()
+                }
+            };
         } else {
             lot.state = LotState::QrFprWithoutAddr;
             lot.text1 = Some(fingerprint.to_string());
@@ -436,7 +445,10 @@ fn normalize_address(addr: &str) -> Result<String, Error> {
 mod tests {
     use super::*;
 
-    use crate::test_utils::TestContext;
+    use crate::aheader::EncryptPreference;
+    use crate::key::DcKey;
+    use crate::peerstate::ToSave;
+    use crate::test_utils::{alice_keypair, TestContext};
 
     #[async_std::test]
     async fn test_decode_http() {
@@ -623,6 +635,59 @@ mod tests {
         let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "cli@deltachat.de");
         assert_eq!(contact.get_name(), "");
+    }
+
+    #[async_std::test]
+    async fn test_decode_openpgp_fingerprint() {
+        let ctx = TestContext::new().await;
+
+        let contact_id = Contact::create(&ctx, "Alice", "alice@example.com")
+            .await
+            .expect("failed to create contact");
+        let pub_key = alice_keypair().public;
+        let peerstate = Peerstate {
+            addr: "alice@example.com".to_string(),
+            last_seen: 1,
+            last_seen_autocrypt: 1,
+            prefer_encrypt: EncryptPreference::Mutual,
+            public_key: Some(pub_key.clone()),
+            public_key_fingerprint: Some(pub_key.fingerprint()),
+            gossip_key: None,
+            gossip_timestamp: 0,
+            gossip_key_fingerprint: None,
+            verified_key: None,
+            verified_key_fingerprint: None,
+            to_save: Some(ToSave::All),
+            fingerprint_changed: false,
+        };
+        assert!(
+            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
+            "failed to save peerstate"
+        );
+
+        let res = check_qr(
+            &ctx.ctx,
+            "OPENPGP4FPR:1234567890123456789012345678901234567890#a=alice@example.com",
+        )
+        .await;
+        assert_eq!(res.get_state(), LotState::QrFprMismatch);
+        assert_eq!(res.get_id(), contact_id);
+
+        let res = check_qr(
+            &ctx.ctx,
+            format!("OPENPGP4FPR:{}#a=alice@example.com", pub_key.fingerprint()),
+        )
+        .await;
+        assert_eq!(res.get_state(), LotState::QrFprOk);
+        assert_eq!(res.get_id(), contact_id);
+
+        let res = check_qr(
+            &ctx.ctx,
+            "OPENPGP4FPR:1234567890123456789012345678901234567890#a=bob@example.org",
+        )
+        .await;
+        assert_eq!(res.get_state(), LotState::QrFprMismatch);
+        assert_eq!(res.get_id(), 0);
     }
 
     #[async_std::test]

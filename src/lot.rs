@@ -87,7 +87,7 @@ pub enum LotState {
     QrFprOk = 210,
 
     /// id=contact
-    QrFprMissmatch = 220,
+    QrFprMismatch = 220,
 
     /// test1=formatted fingerprint
     QrFprWithoutAddr = 230,
