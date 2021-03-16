@@ -490,6 +490,16 @@ async fn add_parts(
         }
 
         if chat_id.is_unset() {
+            // try to assign to a chat based on In-Reply-To/References:
+            // TODO also do this for outgoing messages (below)?
+
+            let (new_chat_id, new_chat_id_blocked) =
+                lookup_chat_by_reply(context, &mime_parser, to_ids).await?;
+            *chat_id = new_chat_id;
+            chat_id_blocked = new_chat_id_blocked;
+        }
+
+        if chat_id.is_unset() {
             // try to create a group
 
             let create_blocked =
@@ -520,6 +530,24 @@ async fn add_parts(
             {
                 new_chat_id.unblock(context).await;
                 chat_id_blocked = Blocked::Not;
+            }
+        }
+
+        // In lookup_chat_by_reply() and create_or_lookup_group(), it can happen that the message is put into a chat
+        // but the From-address is not a member of this chat.
+        if !chat_id.is_unset() && !chat::is_contact_in_chat(context, *chat_id, from_id as u32).await
+        {
+            let chat = Chat::load_from_db(context, *chat_id).await?;
+            if chat.is_protected() {
+                let s = stock_str::unknown_sender_for_chat(context).await;
+                mime_parser.repl_msg_by_error(s);
+            } else {
+                if let Some(from) = mime_parser.from.first() {
+                    let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
+                    for part in mime_parser.parts.iter_mut() {
+                        part.param.set(Param::OverrideSenderDisplayname, name);
+                    }
+                }
             }
         }
 
@@ -1071,6 +1099,33 @@ INSERT INTO msgs
     Ok(())
 }
 
+async fn lookup_chat_by_reply(
+    context: &Context,
+    mime_parser: &&mut MimeMessage,
+    to_ids: &ContactIds,
+) -> Result<(ChatId, Blocked)> {
+    // Try to assign message to the same group as the parent message.
+    //
+    // We don't do this for chat messages to ensure private replies to group messages, which
+    // have In-Reply-To and quote but no Chat-Group-ID header, are assigned to 1:1 chat.
+    // Chat messages should always include explicit group ID in group messages. TODO untrue now
+    //if mime_parser.get(HeaderDef::ChatVersion).is_none() {
+
+    // If this was a private message just to self, it was probably a private reply.
+    // It should not go into the group then, but into the private chat.
+
+    // TODO if this message comes from a normal MUA AND below, we find a group that only consists of
+    // self and the sender, then it should probably go there
+    let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>(); // TODO inline?
+    if !private_message {
+        if let Some(parent) = get_parent_message(context, mime_parser).await? {
+            let chat = Chat::load_from_db(context, parent.chat_id).await?;
+            return Ok((chat.id, chat.blocked));
+        }
+    }
+    return Ok((ChatId::new(0), Blocked::Not));
+}
+
 async fn save_locations(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -1208,27 +1263,6 @@ async fn create_or_lookup_group(
         if !member_ids.contains(&(DC_CONTACT_ID_SELF as u32)) {
             member_ids.push(DC_CONTACT_ID_SELF as u32);
         }
-
-        // Try to assign message to the same group as the parent message.
-        //
-        // We don't do this for chat messages to ensure private replies to group messages, which
-        // have In-Reply-To and quote but no Chat-Group-ID header, are assigned to 1:1 chat.
-        // Chat messages should always include explicit group ID in group messages.
-        if mime_parser.get(HeaderDef::ChatVersion).is_none() {
-            if let Some(parent) = get_parent_message(context, mime_parser).await? {
-                let chat = Chat::load_from_db(context, parent.chat_id).await?;
-
-                // Check that destination chat is a group chat.
-                // Otherwise, it could be a reply to an undecipherable
-                // group message that we previously assigned to a 1:1 chat.
-                if chat.typ == Chattype::Group {
-                    // Return immediately without attempting to execute group commands,
-                    // as this message does not contain an explicit group-id header.
-                    return Ok((chat.id, chat.blocked));
-                }
-            }
-        }
-
         if !allow_creation {
             info!(context, "creating ad-hoc group prevented from caller");
             return Ok((ChatId::new(0), Blocked::Not));
@@ -1310,16 +1344,6 @@ async fn create_or_lookup_group(
     let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
         .await
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
-    if !chat_id.is_unset() && !chat::is_contact_in_chat(context, chat_id, from_id).await {
-        // The From-address is not part of this group.
-        // It could be a new user or a DSN from a mailer-daemon.
-        // in any case we do not want to recreate the member list
-        // but still show the message as part of the chat.
-        // After all, the sender has a reference/in-reply-to that
-        // points to this chat.
-        let s = stock_str::unknown_sender_for_chat(context).await;
-        mime_parser.repl_msg_by_error(s);
-    }
 
     // check if the group does not exist but should be created
     let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid)
@@ -1413,16 +1437,6 @@ async fn create_or_lookup_group(
     }
 
     // We have a valid chat_id > DC_CHAT_ID_LAST_SPECIAL.
-    //
-    // However, it's possible that we got a non-DC message
-    // and the user hit "reply" instead of "reply-all".
-    // We heuristically detect this case and show
-    // a placeholder-system-message to warn about this
-    // and refer to "message-info" to see the message.
-    // This is similar to how we show messages arriving
-    // in verified chat using an un-verified key or cleartext.
-
-    // XXX insert code in a different PR :)
 
     // execute group commands
     if X_MrAddToGrp.is_some() {
@@ -1934,6 +1948,7 @@ async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Opt
 ///
 /// If none found, tries In-Reply-To: as a fallback for classic MUAs that don't set the
 /// References: header.
+// TODO also save first entry of References and look for this?
 async fn get_parent_message(
     context: &Context,
     mime_parser: &MimeMessage,
