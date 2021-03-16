@@ -3609,33 +3609,29 @@ YEAAAAAA!.
         Ok(())
     }
 
-    async fn test_alias() -> (TestContext, Chat) {
+    async fn test_alias() -> (TestContext, TestContext) {
         // Claire, a customer, sends a support request
         // to the alias address <support@example.org> from a classic MUA.
         // The alias expands to the supporters Alice and Bob.
         // Check that Alice receives the message in a group chat.
-        let alice = TestContext::new_alice().await;
-        alice
-            .set_config(Config::ShowEmails, Some("2"))
-            .await
-            .unwrap();
-
-        dc_receive_imf(
-            &alice,
-            b"To: support@example.org\n\
+        let claire_request = b"To: support@example.org\n\
                 From: claire@example.org\n\
                 Subject: i have a question\n\
                 Message-ID: <non-dc-1@example.org>\n\
                 Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
                 Content-Type: text/plain\n\
                 \n\
-                hi support! what is the current version?",
-            "INBOX",
-            1,
-            false,
-        )
-        .await
-        .unwrap();
+                hi support! what is the current version?";
+
+        let alice = TestContext::new_alice().await;
+        alice
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+        dc_receive_imf(&alice, claire_request, "INBOX", 1, false)
+            .await
+            .unwrap();
+
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.get_subject(), "i have a question");
         assert!(msg.get_text().unwrap().contains("hi support!"));
@@ -3643,46 +3639,76 @@ YEAAAAAA!.
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(get_chat_msgs(&alice, chat.id, 0, None).await.len(), 1);
         assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 3);
-        (alice, chat)
+
+        let claire = TestContext::new().await;
+        claire.configure_addr("claire@example.org").await;
+        claire
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+        dc_receive_imf(&claire, claire_request, "INBOX", 1, false)
+            .await
+            .unwrap();
+        // TODO let Claire test a bit
+
+        (claire, alice)
     }
 
     #[async_std::test]
     async fn test_alias_support_answer_from_nondc() {
-        let (alice, chat) = test_alias().await;
+        let (claire, alice) = test_alias().await;
 
         // Bob, the other supporter, answers with a classic MUA.
+        let bob_answer = b"To: support@example.org, claire@example.org\n\
+        From: bob@example.net\n\
+        Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
+        References: <non-dc-1@example.org>\n\
+        In-Reply-To: <non-dc-1@example.org>\n\
+        Message-ID: <non-dc-2@example.net>\n\
+        Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
+        Content-Type: text/plain\n\
+        \n\
+        hi claire, the version is 1.0, cheers bob";
+
         // Check that Alice gets the message in the same chat.
-        dc_receive_imf(
-            &alice,
-            b"To: support@example.org, claire@example.org\n\
-                From: bob@example.net\n\
-                Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
-                References: <non-dc-1@example.org>\n\
-                In-Reply-To: <non-dc-1@example.org>\n\
-                Message-ID: <non-dc-2@example.net>\n\
-                Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
-                Content-Type: text/plain\n\
-                \n\
-                hi claire, the version is 1.0, cheers bob",
-            "INBOX",
-            2,
-            false,
-        )
-        .await
-        .unwrap();
-        let msg = alice.get_last_msg().await;
-        assert_eq!(msg.get_subject(), "Re: i have a question");
-        assert!(msg.get_text().unwrap().contains("the version is 1.0"));
-        assert_eq!(msg.chat_id, chat.id);
-        assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 4);
+        let request = alice.get_last_msg().await;
+        dc_receive_imf(&alice, bob_answer, "INBOX", 2, false)
+            .await
+            .unwrap();
+        let answer = alice.get_last_msg().await;
+        assert_eq!(answer.get_subject(), "Re: i have a question");
+        assert!(answer.get_text().unwrap().contains("the version is 1.0"));
+        assert_eq!(answer.chat_id, request.chat_id);
+        assert_eq!(get_chat_contacts(&alice, answer.chat_id).await.len(), 3); // Claire, Support and Alice (Bob is not added)
+        assert_eq!(
+            answer.get_override_sender_name().unwrap(),
+            "bob@example.net"
+        ); // Bob is not part of the group, so override-sender-name should be set
+
+        // Check that Claire also gets the message in the same chat.
+        let request = claire.get_last_msg().await;
+        dc_receive_imf(&claire, bob_answer, "INBOX", 2, false)
+            .await
+            .unwrap();
+        let answer = claire.get_last_msg().await;
+        assert_eq!(answer.get_subject(), "Re: i have a question");
+        assert!(answer.get_text().unwrap().contains("the version is 1.0"));
+        assert_eq!(answer.chat_id, request.chat_id);
+        let chat = Chat::load_from_db(&claire, answer.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Single);
+        assert_eq!(
+            answer.get_override_sender_name().unwrap(),
+            "bob@example.net"
+        );
     }
 
     #[async_std::test]
     async fn test_alias_answer_from_dc() {
-        let (alice, chat) = test_alias().await;
+        let (claire, alice) = test_alias().await;
 
         // Bob, the other supporter, answers with Delta Chat.
         // Check that Alice gets the message in the same chat.
+        let request = alice.get_last_msg().await;
         dc_receive_imf(
             &alice,
             b"To: support@example.org, claire@example.org\n\
@@ -3705,10 +3731,10 @@ YEAAAAAA!.
         )
         .await
         .unwrap();
-        let msg = alice.get_last_msg().await;
-        assert_eq!(msg.get_subject(), "Re: i have a question");
-        assert!(msg.get_text().unwrap().contains("the version is 1.0"));
-        assert_eq!(msg.chat_id, chat.id); // FIXME: that fails
-        assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 4); // FIXME: that fails
+        let answer = alice.get_last_msg().await;
+        assert_eq!(answer.get_subject(), "Re: i have a question");
+        assert!(answer.get_text().unwrap().contains("the version is 1.0"));
+        assert_eq!(answer.chat_id, request.chat_id);
+        assert_eq!(get_chat_contacts(&alice, answer.chat_id).await.len(), 3);
     }
 }
