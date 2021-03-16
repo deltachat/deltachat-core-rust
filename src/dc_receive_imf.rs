@@ -494,7 +494,7 @@ async fn add_parts(
             // TODO also do this for outgoing messages (below)?
 
             let (new_chat_id, new_chat_id_blocked) =
-                lookup_chat_by_reply(context, &mime_parser, to_ids).await?;
+                lookup_chat_by_reply(context, &mime_parser, from_id, to_ids).await?;
             *chat_id = new_chat_id;
             chat_id_blocked = new_chat_id_blocked;
         }
@@ -1099,33 +1099,6 @@ INSERT INTO msgs
     Ok(())
 }
 
-async fn lookup_chat_by_reply(
-    context: &Context,
-    mime_parser: &&mut MimeMessage,
-    to_ids: &ContactIds,
-) -> Result<(ChatId, Blocked)> {
-    // Try to assign message to the same group as the parent message.
-    //
-    // We don't do this for chat messages to ensure private replies to group messages, which
-    // have In-Reply-To and quote but no Chat-Group-ID header, are assigned to 1:1 chat.
-    // Chat messages should always include explicit group ID in group messages. TODO untrue now
-    //if mime_parser.get(HeaderDef::ChatVersion).is_none() {
-
-    // If this was a private message just to self, it was probably a private reply.
-    // It should not go into the group then, but into the private chat.
-
-    // TODO if this message comes from a normal MUA AND below, we find a group that only consists of
-    // self and the sender, then it should probably go there
-    let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>(); // TODO inline?
-    if !private_message {
-        if let Some(parent) = get_parent_message(context, mime_parser).await? {
-            let chat = Chat::load_from_db(context, parent.chat_id).await?;
-            return Ok((chat.id, chat.blocked));
-        }
-    }
-    return Ok((ChatId::new(0), Blocked::Not));
-}
-
 async fn save_locations(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -1218,6 +1191,46 @@ async fn calc_sort_timestamp(
     }
 
     Ok(sort_timestamp)
+}
+
+async fn lookup_chat_by_reply(
+    context: &Context,
+    mime_parser: &&mut MimeMessage,
+    from_id: u32,
+    to_ids: &ContactIds,
+) -> Result<(ChatId, Blocked)> {
+    // Try to assign message to the same chat as the parent message.
+
+    // If this was a private message just to self, it was probably a private reply.
+    // It should not go into the group then, but into the private chat.
+
+    // TODO if this message comes from a normal MUA AND below, we find a group that only consists of
+    // self and the sender, then it should probably go there
+    let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>(); // TODO inline?
+    let classical_email = mime_parser.get(HeaderDef::ChatVersion).is_none();
+
+    if (!private_message) || classical_email {
+        if let Some(parent) = get_parent_message(context, mime_parser).await? {
+            let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
+            let chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await;
+
+            // Usually we don't want to show private messages in the parent chat, but in the
+            // 1:1 chat with the sender.
+            // This is to make sure that private replies are shown in the correct chat.
+            //
+            // There is one exception: Classical MUA replies to two-member groups
+            // should be assigned to the group chat.
+            if (!private_message)
+                || (classical_email
+                    && chat_contacts.len() == 2
+                    && chat_contacts.contains(&DC_CONTACT_ID_SELF)
+                    && chat_contacts.contains(&from_id))
+            {
+                return Ok((parent_chat.id, parent_chat.blocked));
+            }
+        }
+    }
+    return Ok((ChatId::new(0), Blocked::Not));
 }
 
 /// This function tries to extract the group-id from the message and returns the
