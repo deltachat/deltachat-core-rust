@@ -2033,6 +2033,8 @@ fn dc_create_incoming_rfc724_mid(
 
 #[cfg(test)]
 mod tests {
+    use chat::get_chat_contacts;
+
     use super::*;
 
     use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
@@ -3577,5 +3579,108 @@ YEAAAAAA!.
         assert!(mime.contains("Received:"));
         assert!(mime.contains("From:"));
         Ok(())
+    }
+
+    async fn test_alias() -> (TestContext, Chat) {
+        // Claire, a customer, sends a support request
+        // to the alias address <support@example.org> from a classic MUA.
+        // The alias expands to the supporters Alice and Bob.
+        // Check that Alice receives the message in a group chat.
+        let alice = TestContext::new_alice().await;
+        alice
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        dc_receive_imf(
+            &alice,
+            b"To: support@example.org\n\
+                From: claire@example.org\n\
+                Subject: i have a question\n\
+                Message-ID: <non-dc-1@example.org>\n\
+                Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
+                Content-Type: text/plain\n\
+                \n\
+                hi support! what is the current version?",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_subject(), "i have a question");
+        assert!(msg.get_text().unwrap().contains("hi support!"));
+        let chat = Chat::load_from_db(&alice, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Group);
+        assert_eq!(get_chat_msgs(&alice, chat.id, 0, None).await.len(), 1);
+        assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 3);
+        (alice, chat)
+    }
+
+    #[async_std::test]
+    async fn test_alias_support_answer_from_nondc() {
+        let (alice, chat) = test_alias().await;
+
+        // Bob, the other supporter, answers with a classic MUA.
+        // Check that Alice gets the message in the same chat.
+        dc_receive_imf(
+            &alice,
+            b"To: support@example.org, claire@example.org\n\
+                From: bob@example.net\n\
+                Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
+                References: <non-dc-1@example.org>\n\
+                In-Reply-To: <non-dc-1@example.org>\n\
+                Message-ID: <non-dc-2@example.net>\n\
+                Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
+                Content-Type: text/plain\n\
+                \n\
+                hi claire, the version is 1.0, cheers bob",
+            "INBOX",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_subject(), "Re: i have a question");
+        assert!(msg.get_text().unwrap().contains("the version is 1.0"));
+        assert_eq!(msg.chat_id, chat.id);
+        assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 4);
+    }
+
+    #[async_std::test]
+    async fn test_alias_answer_from_dc() {
+        let (alice, chat) = test_alias().await;
+
+        // Bob, the other supporter, answers with Delta Chat.
+        // Check that Alice gets the message in the same chat.
+        dc_receive_imf(
+            &alice,
+            b"To: support@example.org, claire@example.org\n\
+                From: bob@example.net\n\
+                Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
+                References: <Gr.af9e810c9b592927.gNm8dVdkZsH@example.net>\n\
+                In-Reply-To: <non-dc-1@example.org>\n\
+                Message-ID: <Gr.af9e810c9b592927.gNm8dVdkZsH@example.net>\n\
+                Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
+                Chat-Version: 1.0\n\
+                Chat-Group-ID: af9e810c9b592927\n\
+                Chat-Group-Name: =?utf-8?q?i_have_a_question?=\n\
+                Chat-Disposition-Notification-To: bob@example.net\n\
+                Content-Type: text/plain\n\
+                \n\
+                hi claire, the version is 1.0, cheers bob",
+            "INBOX",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_subject(), "Re: i have a question");
+        assert!(msg.get_text().unwrap().contains("the version is 1.0"));
+        assert_eq!(msg.chat_id, chat.id); // FIXME: that fails
+        assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 4); // FIXME: that fails
     }
 }
