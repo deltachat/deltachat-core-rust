@@ -3547,17 +3547,31 @@ char*           dc_msg_get_summarytext        (const dc_msg_t* msg, int approx_c
 
 /**
  * Get the name that should be shown over the message (in a group chat) instead of the contact
- * display name.
+ * display name, or NULL.
+ *
+ * If this returns non-NULL, put a `~` before the override-sender-name and show the
+ * override-sender-name and the sender's avatar even in 1:1 chats.
  *
  * In mailing lists, sender display name and sender address do not always belong together.
  * In this case, this function gives you the name that should actually be shown over the message.
+ *
+ * Also, sometimes, we need to indicate a different sender in 1:1 chats:
+ * Suppose that our user writes an email to support@delta.chat, which forwards to 
+ * Bob <bob@delta.chat>, and Bob replies.
+ * 
+ * Then, Bob's reply is shown in our 1:1 chat with support@delta.chat and the override-sender-name is
+ * set to `Bob`. The UI should show the sender name as `~Bob` and view the avatar, just
+ * as in group messages. If the user then taps on the avatar, they can see that this message
+ * comes from bob@delta.chat.
+ * 
+ * You should show a `~` before the override-sender-name in chats, so that the user can
+ * see that this isn't the sender's actual name.
  *
  * @memberof dc_msg_t
  * @param msg The message object.
  * @return the name to show over this message or NULL.
  *     If this returns NULL, call `dc_contact_get_display_name()`.
  *     The returned string must be released using dc_str_unref().
- *     Returns an empty string on errors, never returns NULL.
  */
 char*           dc_msg_get_override_sender_name(const dc_msg_t* msg);
 
