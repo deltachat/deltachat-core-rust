@@ -296,6 +296,35 @@ static P_DUBBY_ORG: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
+// e.email.md: e.email
+static P_E_EMAIL: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "e.email",
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/e-email",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "mail.ecloud.global",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "mail.ecloud.global",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
 // espiv.net.md: espiv.net
 static P_ESPIV_NET: Lazy<Provider> = Lazy::new(|| Provider {
     id: "espiv.net",
@@ -337,7 +366,29 @@ static P_FASTMAIL: Lazy<Provider> = Lazy::new(|| Provider {
         "You must create an app-specific password for Delta Chat before you can log in.",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/fastmail",
-    server: vec![],
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imap.fastmail.com",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "smtp.fastmail.com",
+            port: 465,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "smtp.fastmail.com",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
     config_defaults: None,
     strict_tls: true,
     max_smtp_rcpt_to: None,
@@ -393,32 +444,22 @@ static P_FIVE_CHAT: Lazy<Provider> = Lazy::new(|| Provider {
 });
 
 // freenet.de.md: freenet.de
-static P_FREENET_DE: Lazy<Provider> = Lazy::new(|| Provider {
+static P_FREENET_DE: Lazy<Provider> = Lazy::new(|| {
+    Provider {
     id: "freenet.de",
-    status: Status::OK,
-    before_login_hint: "",
+    status: Status::PREPARATION,
+    before_login_hint: "Um deine freenet.de E-Mail-Adresse mit Delta Chat zu benutzen, musst du erst auf der freenet.de-Webseite \"POP3/IMAP/SMTP\" aktivieren.",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/freenet-de",
     server: vec![
-        Server {
-            protocol: IMAP,
-            socket: SSL,
-            hostname: "mx.freenet.de",
-            port: 993,
-            username_pattern: EMAIL,
-        },
-        Server {
-            protocol: SMTP,
-            socket: STARTTLS,
-            hostname: "mx.freenet.de",
-            port: 587,
-            username_pattern: EMAIL,
-        },
+        Server { protocol: IMAP, socket: SSL, hostname: "mx.freenet.de", port: 993, username_pattern: EMAIL },
+        Server { protocol: SMTP, socket: STARTTLS, hostname: "mx.freenet.de", port: 587, username_pattern: EMAIL },
     ],
     config_defaults: None,
     strict_tls: true,
     max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
+}
 });
 
 // gmail.md: gmail.com, googlemail.com, google.com
@@ -538,6 +579,20 @@ static P_I_UA: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
+// i3.net.md: i3.net
+static P_I3_NET: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "i3.net",
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/i3-net",
+    server: vec![],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
 // icloud.md: icloud.com, me.com, mac.com
 static P_ICLOUD: Lazy<Provider> = Lazy::new(|| Provider {
     id: "icloud",
@@ -624,51 +679,124 @@ static P_MAILBOX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
-// nauta.cu.md: nauta.cu
-static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| {
-    Provider {
-    id: "nauta.cu",
+// mailo.com.md: mailo.com
+static P_MAILO_COM: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "mailo.com",
     status: Status::OK,
     before_login_hint: "",
-    after_login_hint: "Atención - con nauta.cu, puede enviar mensajes sólo a un máximo de 20 personas a la vez. En grupos más grandes, no puede enviar mensajes o abandonar el grupo.",
-    overview_page: "https://providers.delta.chat/nauta-cu",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/mailo-com",
     server: vec![
-        Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.nauta.cu", port: 143, username_pattern: EMAIL },
-        Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.nauta.cu", port: 25, username_pattern: EMAIL },
-    ],
-    config_defaults: Some(vec![
-        ConfigDefault { key: Config::DeleteServerAfter, value: "1" },
-        ConfigDefault { key: Config::BccSelf, value: "0" },
-        ConfigDefault { key: Config::SentboxWatch, value: "0" },
-        ConfigDefault { key: Config::MvboxWatch, value: "0" },
-        ConfigDefault { key: Config::MvboxMove, value: "0" },
-        ConfigDefault { key: Config::E2eeEnabled, value: "0" },
-        ConfigDefault { key: Config::MediaQuality, value: "1" },
-        ConfigDefault { key: Config::FetchExistingMsgs, value: "0" },
-    ]),
-    strict_tls: false,
-    max_smtp_rcpt_to: Some(20),
-    oauth2_authorizer: None,
-}
-});
-
-// outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
-static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| {
-    Provider {
-    id: "outlook.com",
-    status: Status::BROKEN,
-    before_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
-    after_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Unencrypted 1-on-1 chats kind of work, but groups and encryption don't. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
-    overview_page: "https://providers.delta.chat/outlook-com",
-    server: vec![
-        Server { protocol: IMAP, socket: SSL, hostname: "imap-mail.outlook.com", port: 993, username_pattern: EMAIL },
-        Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp-mail.outlook.com", port: 587, username_pattern: EMAIL },
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "imap.mailo.com",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: SSL,
+            hostname: "smtp.mailo.com",
+            port: 465,
+            username_pattern: EMAIL,
+        },
     ],
     config_defaults: None,
     strict_tls: true,
     max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
-}
+});
+
+// nauta.cu.md: nauta.cu
+static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "nauta.cu",
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/nauta-cu",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: STARTTLS,
+            hostname: "imap.nauta.cu",
+            port: 143,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "smtp.nauta.cu",
+            port: 25,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: Some(vec![
+        ConfigDefault {
+            key: Config::DeleteServerAfter,
+            value: "1",
+        },
+        ConfigDefault {
+            key: Config::BccSelf,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::SentboxWatch,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MvboxWatch,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MvboxMove,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::E2eeEnabled,
+            value: "0",
+        },
+        ConfigDefault {
+            key: Config::MediaQuality,
+            value: "1",
+        },
+        ConfigDefault {
+            key: Config::FetchExistingMsgs,
+            value: "0",
+        },
+    ]),
+    strict_tls: false,
+    max_smtp_rcpt_to: Some(20),
+    oauth2_authorizer: None,
+});
+
+// outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
+static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "outlook.com",
+    status: Status::OK,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/outlook-com",
+    server: vec![
+        Server {
+            protocol: IMAP,
+            socket: SSL,
+            hostname: "outlook.office365.com",
+            port: 993,
+            username_pattern: EMAIL,
+        },
+        Server {
+            protocol: SMTP,
+            socket: STARTTLS,
+            hostname: "smtp.office365.com",
+            port: 587,
+            username_pattern: EMAIL,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
 });
 
 // posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
@@ -1057,6 +1185,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("dismail.de", &*P_DISMAIL_DE),
         ("disroot.org", &*P_DISROOT),
         ("dubby.org", &*P_DUBBY_ORG),
+        ("e.email", &*P_E_EMAIL),
         ("espiv.net", &*P_ESPIV_NET),
         ("example.com", &*P_EXAMPLE_COM),
         ("example.org", &*P_EXAMPLE_COM),
@@ -1081,6 +1210,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("hermes.radio", &*P_HERMES_RADIO),
         ("hey.com", &*P_HEY_COM),
         ("i.ua", &*P_I_UA),
+        ("i3.net", &*P_I3_NET),
         ("icloud.com", &*P_ICLOUD),
         ("me.com", &*P_ICLOUD),
         ("mac.com", &*P_ICLOUD),
@@ -1092,6 +1222,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("list.ru", &*P_MAIL_RU),
         ("mailbox.org", &*P_MAILBOX_ORG),
         ("secure.mailbox.org", &*P_MAILBOX_ORG),
+        ("mailo.com", &*P_MAILO_COM),
         ("nauta.cu", &*P_NAUTA_CU),
         ("hotmail.com", &*P_OUTLOOK_COM),
         ("outlook.com", &*P_OUTLOOK_COM),
@@ -1230,6 +1361,7 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("dismail.de", &*P_DISMAIL_DE),
         ("disroot", &*P_DISROOT),
         ("dubby.org", &*P_DUBBY_ORG),
+        ("e.email", &*P_E_EMAIL),
         ("espiv.net", &*P_ESPIV_NET),
         ("example.com", &*P_EXAMPLE_COM),
         ("fastmail", &*P_FASTMAIL),
@@ -1241,11 +1373,13 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("hermes.radio", &*P_HERMES_RADIO),
         ("hey.com", &*P_HEY_COM),
         ("i.ua", &*P_I_UA),
+        ("i3.net", &*P_I3_NET),
         ("icloud", &*P_ICLOUD),
         ("kolst.com", &*P_KOLST_COM),
         ("kontent.com", &*P_KONTENT_COM),
         ("mail.ru", &*P_MAIL_RU),
         ("mailbox.org", &*P_MAILBOX_ORG),
+        ("mailo.com", &*P_MAILO_COM),
         ("nauta.cu", &*P_NAUTA_CU),
         ("outlook.com", &*P_OUTLOOK_COM),
         ("posteo", &*P_POSTEO),
@@ -1271,4 +1405,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 1, 8));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 3, 18));
