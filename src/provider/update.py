@@ -175,7 +175,7 @@ if __name__ == "__main__":
     "use crate::provider::Protocol::*;\n"
     "use crate::provider::Socket::*;\n"
     "use crate::provider::UsernamePattern::*;\n"
-    "use crate::provider::*;\n"
+    "use crate::provider::{Config, ConfigDefault, Oauth2Authorizer, Provider, Server, Status};\n"
     "use std::collections::HashMap;\n\n"
     "use once_cell::sync::Lazy;\n\n")
 
