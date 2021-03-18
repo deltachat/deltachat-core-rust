@@ -3610,28 +3610,59 @@ YEAAAAAA!.
         Ok(())
     }
 
-    async fn test_alias() -> (TestContext, TestContext) {
+    async fn create_test_alias(
+        chat_request: bool,
+        group_request: bool,
+    ) -> (TestContext, TestContext) {
         // Claire, a customer, sends a support request
         // to the alias address <support@example.org> from a classic MUA.
         // The alias expands to the supporters Alice and Bob.
         // Check that Alice receives the message in a group chat.
-        let claire_request =
-            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+        let claire_request = if group_request {
+            format!(
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                To: support@example.org, ceo@example.org\n\
+                From: claire@example.org\n\
+                Subject: i have a question\n\
+                Message-ID: <non-dc-1@example.org>\n\
+                {}\
+                Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
+                Content-Type: text/plain\n\
+                \n\
+                hi support! what is the current version?",
+                if chat_request {
+                    "Chat-Group-ID: 8ud29aridt29arid\n\
+                    Chat-Group-Name: =?utf-8?q?i_have_a_question?=\n"
+                } else {
+                    ""
+                }
+            )
+        } else {
+            format!(
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                 To: support@example.org\n\
                 From: claire@example.org\n\
                 Subject: i have a question\n\
                 Message-ID: <non-dc-1@example.org>\n\
+                {}\
                 Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
                 Content-Type: text/plain\n\
                 \n\
-                hi support! what is the current version?";
+                hi support! what is the current version?",
+                if chat_request {
+                    "Chat-Version: 1.0\n"
+                } else {
+                    ""
+                }
+            )
+        };
 
         let alice = TestContext::new_alice().await;
         alice
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
-        dc_receive_imf(&alice, claire_request, "INBOX", 1, false)
+        dc_receive_imf(&alice, claire_request.as_bytes(), "INBOX", 1, false)
             .await
             .unwrap();
 
@@ -3641,7 +3672,11 @@ YEAAAAAA!.
         let chat = Chat::load_from_db(&alice, msg.chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(get_chat_msgs(&alice, chat.id, 0, None).await.len(), 1);
-        assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 3);
+        if group_request {
+            assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 4);
+        } else {
+            assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 3);
+        }
         assert_eq!(msg.get_override_sender_name(), None);
 
         let claire = TestContext::new().await;
@@ -3650,26 +3685,32 @@ YEAAAAAA!.
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
-        claire
-            .create_chat_with_contact("", "support@example.org")
-            .await;
-        dc_receive_imf(&claire, claire_request, "INBOX", 1, false)
+        dc_receive_imf(&claire, claire_request.as_bytes(), "INBOX", 1, false)
             .await
             .unwrap();
 
-        let msg = claire.get_last_msg().await;
+        let (_, _, msg_id) = rfc724_mid_exists(&claire, "non-dc-1@example.org")
+            .await
+            .unwrap()
+            .unwrap();
+        chat::create_by_msg_id(&claire, msg_id).await.unwrap();
+        let msg = Message::load_from_db(&claire, msg_id).await.unwrap();
         assert_eq!(msg.get_subject(), "i have a question");
         assert!(msg.get_text().unwrap().contains("hi support!"));
         let chat = Chat::load_from_db(&claire, msg.chat_id).await.unwrap();
-        assert_eq!(chat.typ, Chattype::Single);
+        if group_request {
+            assert_eq!(chat.typ, Chattype::Group);
+        } else {
+            assert_eq!(chat.typ, Chattype::Single);
+        }
         assert_eq!(get_chat_msgs(&claire, chat.id, 0, None).await.len(), 1);
         assert_eq!(msg.get_override_sender_name(), None);
 
         (claire, alice)
     }
 
-    async fn check_alias_reply(reply: &[u8]) {
-        let (claire, alice) = test_alias().await;
+    async fn check_alias_reply(reply: &[u8], chat_request: bool, group_request: bool) {
+        let (claire, alice) = create_test_alias(chat_request, group_request).await;
 
         // Check that Alice gets the message in the same chat.
         let request = alice.get_last_msg().await;
@@ -3680,7 +3721,13 @@ YEAAAAAA!.
         assert_eq!(answer.get_subject(), "Re: i have a question");
         assert!(answer.get_text().unwrap().contains("the version is 1.0"));
         assert_eq!(answer.chat_id, request.chat_id);
-        assert_eq!(get_chat_contacts(&alice, answer.chat_id).await.len(), 3); // Claire, Support and Alice (Bob is not added)
+        if group_request {
+            // Claire, Support, CEO and Alice (Bob is not added)
+            assert_eq!(get_chat_contacts(&alice, answer.chat_id).await.len(), 4);
+        } else {
+            // Claire, Support and Alice
+            assert_eq!(get_chat_contacts(&alice, answer.chat_id).await.len(), 3);
+        }
         assert_eq!(
             answer.get_override_sender_name().unwrap(),
             "bob@example.net"
@@ -3695,8 +3742,6 @@ YEAAAAAA!.
         assert_eq!(answer.get_subject(), "Re: i have a question");
         assert!(answer.get_text().unwrap().contains("the version is 1.0"));
         assert_eq!(answer.chat_id, request.chat_id);
-        let chat = Chat::load_from_db(&claire, answer.chat_id).await.unwrap();
-        assert_eq!(chat.typ, Chattype::Single);
         assert_eq!(
             answer.get_override_sender_name().unwrap(),
             "bob@example.net"
@@ -3717,7 +3762,10 @@ YEAAAAAA!.
         \n\
         hi claire, the version is 1.0, cheers bob";
 
-        check_alias_reply(bob_answer).await;
+        check_alias_reply(bob_answer, true, true).await;
+        check_alias_reply(bob_answer, false, true).await;
+        check_alias_reply(bob_answer, true, false).await;
+        check_alias_reply(bob_answer, false, false).await;
     }
 
     #[async_std::test]
@@ -3738,6 +3786,9 @@ YEAAAAAA!.
                 \n\
                 hi claire, the version is 1.0, cheers bob";
 
-        check_alias_reply(bob_answer).await;
+        check_alias_reply(bob_answer, true, true).await;
+        check_alias_reply(bob_answer, false, true).await;
+        check_alias_reply(bob_answer, true, false).await;
+        check_alias_reply(bob_answer, false, false).await;
     }
 }
