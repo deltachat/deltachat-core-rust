@@ -491,7 +491,6 @@ async fn add_parts(
 
         if chat_id.is_unset() {
             // try to assign to a chat based on In-Reply-To/References:
-            // TODO also do this for outgoing messages (below)?
 
             let (new_chat_id, new_chat_id_blocked) =
                 lookup_chat_by_reply(context, &mime_parser, from_id, to_ids).await?;
@@ -541,12 +540,12 @@ async fn add_parts(
             if chat.is_protected() {
                 let s = stock_str::unknown_sender_for_chat(context).await;
                 mime_parser.repl_msg_by_error(s);
-            } else {
-                if let Some(from) = mime_parser.from.first() {
-                    let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
-                    for part in mime_parser.parts.iter_mut() {
-                        part.param.set(Param::OverrideSenderDisplayname, name);
-                    }
+            } else if let Some(from) = mime_parser.from.first() {
+                // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
+                // to the sender's name, indicating to the user that he/she is not part of the group.
+                let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
+                for part in mime_parser.parts.iter_mut() {
+                    part.param.set(Param::OverrideSenderDisplayname, name);
                 }
             }
         }
@@ -1204,8 +1203,6 @@ async fn lookup_chat_by_reply(
     // If this was a private message just to self, it was probably a private reply.
     // It should not go into the group then, but into the private chat.
 
-    // TODO if this message comes from a normal MUA AND below, we find a group that only consists of
-    // self and the sender, then it should probably go there
     let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>();
     let classical_email = mime_parser.get(HeaderDef::ChatVersion).is_none();
 
