@@ -1,4 +1,5 @@
 //! Location handling
+use std::convert::TryFrom;
 
 use anyhow::{ensure, Error};
 use async_std::prelude::*;
@@ -21,16 +22,16 @@ use crate::stock_str;
 /// Location record
 #[derive(Debug, Clone, Default)]
 pub struct Location {
-    pub location_id: i64,
+    pub location_id: u32,
     pub latitude: f64,
     pub longitude: f64,
     pub accuracy: f64,
     pub timestamp: i64,
-    pub contact_id: i64,
-    pub msg_id: i64,
+    pub contact_id: u32,
+    pub msg_id: u32,
     pub chat_id: ChatId,
     pub marker: Option<String>,
-    pub independent: i32,
+    pub independent: u32,
 }
 
 impl Location {
@@ -231,7 +232,7 @@ pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds:
                     context,
                     job::Job::new(
                         job::Action::MaybeSendLocationsEnded,
-                        chat_id.to_i64(),
+                        chat_id.to_u32(),
                         Params::new(),
                         seconds + 1,
                     ),
@@ -420,7 +421,7 @@ pub async fn delete_all(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, i64), Error> {
+pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32), Error> {
     let mut last_added_location_id = 0;
 
     let self_addr = context
@@ -470,7 +471,7 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, i64)
 
         while let Some(row) = rows.next().await {
             let row = row?;
-            let location_id: i64 = row.try_get(0)?;
+            let location_id: u32 = row.try_get(0)?;
             let latitude: f64 = row.try_get(1)?;
             let longitude: f64 = row.try_get(2)?;
             let accuracy: f64 = row.try_get(3)?;
@@ -538,7 +539,7 @@ pub async fn set_kml_sent_timestamp(
 pub async fn set_msg_location_id(
     context: &Context,
     msg_id: MsgId,
-    location_id: i64,
+    location_id: u32,
 ) -> Result<(), Error> {
     context
         .sql
@@ -555,10 +556,10 @@ pub async fn set_msg_location_id(
 pub async fn save(
     context: &Context,
     chat_id: ChatId,
-    contact_id: i64,
+    contact_id: u32,
     locations: &[Location],
     independent: bool,
-) -> Result<i64, Error> {
+) -> Result<u32, Error> {
     ensure!(!chat_id.is_special(), "Invalid chat id");
 
     let mut newest_timestamp = 0;
@@ -601,13 +602,19 @@ pub async fn save(
                 newest_timestamp = timestamp;
                 newest_location_id = context
                     .sql
-                    .get_rowid2("locations", "timestamp", timestamp, "from_id", contact_id)
+                    .get_rowid2(
+                        "locations",
+                        "timestamp",
+                        timestamp,
+                        "from_id",
+                        contact_id as i64,
+                    )
                     .await?;
             }
         }
     }
 
-    Ok(newest_location_id)
+    Ok(u32::try_from(newest_location_id).unwrap())
 }
 
 pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> job::Status {

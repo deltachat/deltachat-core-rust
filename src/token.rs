@@ -10,7 +10,7 @@ use crate::dc_tools::{dc_create_id, time};
 
 /// Token namespace
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, sqlx::Type)]
-#[repr(i32)]
+#[repr(u32)]
 pub enum Namespace {
     Unknown = 0,
     Auth = 110,

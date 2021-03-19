@@ -103,7 +103,7 @@ pub(crate) enum MailinglistType {
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
-#[repr(i32)]
+#[repr(u32)]
 pub enum SystemMessage {
     Unknown = 0,
     GroupNameChanged = 2,
@@ -1204,7 +1204,7 @@ impl MimeMessage {
     pub async fn handle_reports(
         &self,
         context: &Context,
-        from_id: i64,
+        from_id: u32,
         sent_timestamp: i64,
         parts: &[Part],
     ) {

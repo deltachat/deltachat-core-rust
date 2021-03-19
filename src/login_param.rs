@@ -7,7 +7,7 @@ use crate::provider::{get_provider_by_id, Provider};
 use crate::{context::Context, provider::Socket};
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, PartialEq, Eq)]
-#[repr(i32)]
+#[repr(u32)]
 #[strum(serialize_all = "snake_case")]
 pub enum CertificateChecks {
     /// Same as AcceptInvalidCertificates unless overridden by

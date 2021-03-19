@@ -228,7 +228,7 @@ impl ChatId {
 pub(crate) async fn stock_ephemeral_timer_changed(
     context: &Context,
     timer: Timer,
-    from_id: i64,
+    from_id: u32,
 ) -> String {
     match timer {
         Timer::Disabled => stock_str::msg_ephemeral_timer_disabled(context, from_id as u32).await,

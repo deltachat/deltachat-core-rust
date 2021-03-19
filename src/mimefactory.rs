@@ -68,7 +68,7 @@ pub struct MimeFactory<'a> {
     in_reply_to: String,
     references: String,
     req_mdn: bool,
-    last_added_location_id: i64,
+    last_added_location_id: u32,
     attach_selfavatar: bool,
 }
 
@@ -79,7 +79,7 @@ pub struct RenderedEmail {
     // pub envelope: Envelope,
     pub is_encrypted: bool,
     pub is_gossiped: bool,
-    pub last_added_location_id: i64,
+    pub last_added_location_id: u32,
 
     /// Message ID (Message in the sense of Email)
     pub rfc724_mid: String,
@@ -1140,14 +1140,14 @@ async fn build_body_file(
     // etc.
     let filename_to_send: String = match msg.viewtype {
         Viewtype::Voice => chrono::Utc
-            .timestamp(msg.timestamp_sort as i64, 0)
+            .timestamp(msg.timestamp_sort, 0)
             .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", &suffix))
             .to_string(),
         Viewtype::Image | Viewtype::Gif => format!(
             "{}.{}",
             if base_name.is_empty() {
                 chrono::Utc
-                    .timestamp(msg.timestamp_sort as i64, 0)
+                    .timestamp(msg.timestamp_sort, 0)
                     .format("image_%Y-%m-%d_%H-%M-%S")
                     .to_string()
             } else {
@@ -1158,7 +1158,7 @@ async fn build_body_file(
         Viewtype::Video => format!(
             "video_{}.{}",
             chrono::Utc
-                .timestamp(msg.timestamp_sort as i64, 0)
+                .timestamp(msg.timestamp_sort, 0)
                 .format("%Y-%m-%d_%H-%M-%S")
                 .to_string(),
             &suffix
