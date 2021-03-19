@@ -38,7 +38,7 @@ const JOB_RETRIES: u32 = 17;
 
 /// Thread IDs
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, sqlx::Type)]
-#[repr(i32)]
+#[repr(u32)]
 pub(crate) enum Thread {
     Unknown = 0,
     Imap = 100,
@@ -77,7 +77,7 @@ impl Default for Thread {
 #[derive(
     Debug, Display, Copy, Clone, PartialEq, Eq, PartialOrd, FromPrimitive, ToPrimitive, sqlx::Type,
 )]
-#[repr(i32)]
+#[repr(u32)]
 pub enum Action {
     Unknown = 0,
 
@@ -132,9 +132,9 @@ impl From<Action> for Thread {
 
 #[derive(Debug, Clone)]
 pub struct Job {
-    pub job_id: i64,
+    pub job_id: u32,
     pub action: Action,
-    pub foreign_id: i64,
+    pub foreign_id: u32,
     pub desired_timestamp: i64,
     pub added_timestamp: i64,
     pub tries: u32,
@@ -149,7 +149,7 @@ impl fmt::Display for Job {
 }
 
 impl Job {
-    pub fn new(action: Action, foreign_id: i64, param: Params, delay_seconds: i64) -> Self {
+    pub fn new(action: Action, foreign_id: u32, param: Params, delay_seconds: i64) -> Self {
         let timestamp = time();
 
         Self {
@@ -221,7 +221,7 @@ impl Job {
         context: &Context,
         recipients: Vec<async_smtp::EmailAddress>,
         message: Vec<u8>,
-        job_id: i64,
+        job_id: u32,
         smtp: &mut Smtp,
         success_cb: F,
     ) -> Status
@@ -416,8 +416,8 @@ impl Job {
     async fn get_additional_mdn_jobs(
         &self,
         context: &Context,
-        contact_id: i64,
-    ) -> sql::Result<(Vec<i64>, Vec<String>)> {
+        contact_id: u32,
+    ) -> sql::Result<(Vec<u32>, Vec<String>)> {
         // Extract message IDs from job parameters
         let mut rows = context
             .sql
@@ -434,7 +434,7 @@ impl Job {
 
         while let Some(row) = rows.next().await {
             let row = row?;
-            let job_id: i64 = row.try_get(0)?;
+            let job_id: u32 = row.try_get(0)?;
             let params_str: String = row.try_get(1)?;
             let params: Params = params_str.parse().unwrap_or_default();
             if let Some(msg_id) = params.get_msg_id() {
@@ -826,7 +826,7 @@ pub async fn kill_action(context: &Context, action: Action) -> bool {
 }
 
 /// Remove jobs with specified IDs.
-async fn kill_ids(context: &Context, job_ids: &[i64]) -> sql::Result<()> {
+async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
     let q = format!(
         "DELETE FROM jobs WHERE id IN({})",
         job_ids.iter().map(|_| "?").join(",")
@@ -1018,7 +1018,7 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
     msg.subject = rendered_msg.subject.clone();
     msg.update_subject(context).await;
 
-    let job = create(Action::SendMsgToSmtp, msg_id.to_i64(), param, 0)?;
+    let job = create(Action::SendMsgToSmtp, msg_id.to_u32(), param, 0)?;
 
     Ok(Some(job))
 }
@@ -1032,7 +1032,7 @@ async fn load_imap_deletion_job(context: &Context) -> sql::Result<Option<Job>> {
     let res = if let Some(msg_id) = load_imap_deletion_msgid(context).await? {
         Some(Job::new(
             Action::DeleteMsgOnImap,
-            msg_id.to_i64(),
+            msg_id.to_u32(),
             Params::new(),
             0,
         ))
@@ -1179,7 +1179,7 @@ fn get_backoff_time_offset(tries: u32) -> i64 {
 
 async fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
     let mut param = Params::new();
-    param.set(Param::MsgId, msg.id.to_i64().to_string());
+    param.set(Param::MsgId, msg.id.to_u32().to_string());
 
     add(context, Job::new(Action::SendMdn, msg.from_id, param, 0)).await;
 
@@ -1196,7 +1196,7 @@ pub(crate) async fn schedule_resync(context: &Context) {
 }
 
 /// Creates a job.
-pub fn create(action: Action, foreign_id: i64, param: Params, delay_seconds: i64) -> Result<Job> {
+pub fn create(action: Action, foreign_id: u32, param: Params, delay_seconds: i64) -> Result<Job> {
     ensure!(
         action != Action::Unknown,
         "Invalid action passed to job_add"

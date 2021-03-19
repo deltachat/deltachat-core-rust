@@ -138,7 +138,7 @@ pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
     Deserialize,
     sqlx::Type,
 )]
-#[repr(i32)]
+#[repr(u32)]
 pub enum Chattype {
     Undefined = 0,
     Single = 100,
@@ -152,9 +152,9 @@ impl Default for Chattype {
     }
 }
 
-pub const DC_MSG_ID_MARKER1: i64 = 1;
-pub const DC_MSG_ID_DAYMARKER: i64 = 9;
-pub const DC_MSG_ID_LAST_SPECIAL: i64 = 9;
+pub const DC_MSG_ID_MARKER1: u32 = 1;
+pub const DC_MSG_ID_DAYMARKER: u32 = 9;
+pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 
 /// string that indicates sth. is left out or truncated
 pub const DC_ELLIPSE: &str = "[...]";
@@ -187,11 +187,11 @@ pub const DC_MAX_GET_TEXT_LEN: usize = 30_000;
 /// approx. max. length returned by dc_get_msg_info()
 pub const DC_MAX_GET_INFO_LEN: usize = 100_000;
 
-pub const DC_CONTACT_ID_UNDEFINED: i64 = 0;
-pub const DC_CONTACT_ID_SELF: i64 = 1;
-pub const DC_CONTACT_ID_INFO: i64 = 2;
-pub const DC_CONTACT_ID_DEVICE: i64 = 5;
-pub const DC_CONTACT_ID_LAST_SPECIAL: i64 = 9;
+pub const DC_CONTACT_ID_UNDEFINED: u32 = 0;
+pub const DC_CONTACT_ID_SELF: u32 = 1;
+pub const DC_CONTACT_ID_INFO: u32 = 2;
+pub const DC_CONTACT_ID_DEVICE: u32 = 5;
+pub const DC_CONTACT_ID_LAST_SPECIAL: u32 = 9;
 
 // decorative address that is used for DC_CONTACT_ID_DEVICE
 // when an api that returns an email is called.
@@ -251,7 +251,7 @@ pub const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
     Deserialize,
     sqlx::Type,
 )]
-#[repr(i32)]
+#[repr(u32)]
 pub enum Viewtype {
     Unknown = 0,
 

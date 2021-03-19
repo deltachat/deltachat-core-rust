@@ -39,7 +39,7 @@ const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
 const BLOBS_BACKUP_NAME: &str = "blobs_backup";
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
-#[repr(i32)]
+#[repr(u32)]
 pub enum ImexMode {
     /// Export all private keys and all public keys of the user to the
     /// directory given as `param1`.  The default key is written to the files `public-key-default.asc`

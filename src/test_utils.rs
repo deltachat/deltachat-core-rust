@@ -241,8 +241,8 @@ impl TestContext {
                 )
                 .await
                 .and_then(|row| {
-                    let id: i64 = row.try_get(0)?;
-                    let foreign_id: i64 = row.try_get(1)?;
+                    let id: u32 = row.try_get(0)?;
+                    let foreign_id: u32 = row.try_get(1)?;
                     let param: String = row.try_get(2)?;
                     Ok((id, foreign_id, param))
                 });

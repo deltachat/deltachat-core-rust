@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use anyhow::{bail, ensure, format_err, Result};
 use async_std::prelude::*;
 use itertools::join;
@@ -34,7 +36,7 @@ use crate::stock_str;
 use crate::{contact, location};
 
 // IndexSet is like HashSet but maintains order of insertion.
-type ContactIds = indexmap::IndexSet<i64>;
+type ContactIds = indexmap::IndexSet<u32>;
 
 #[derive(Debug, PartialEq, Eq)]
 enum CreateEvent {
@@ -263,7 +265,7 @@ pub(crate) async fn dc_receive_imf_inner(
                     context,
                     job::Job::new(
                         Action::DeleteMsgOnImap,
-                        db_entry.1.to_i64(),
+                        db_entry.1.to_u32(),
                         Params::new(),
                         0,
                     ),
@@ -279,7 +281,7 @@ pub(crate) async fn dc_receive_imf_inner(
             // Move message if we don't delete it immediately.
             job::add(
                 context,
-                job::Job::new(Action::MoveMsg, insert_msg_id.to_i64(), Params::new(), 0),
+                job::Job::new(Action::MoveMsg, insert_msg_id.to_u32(), Params::new(), 0),
             )
             .await;
         } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
@@ -288,7 +290,7 @@ pub(crate) async fn dc_receive_imf_inner(
                 context,
                 job::Job::new(
                     Action::MarkseenMsgOnImap,
-                    insert_msg_id.to_i64(),
+                    insert_msg_id.to_u32(),
                     Params::new(),
                     0,
                 ),
@@ -320,7 +322,7 @@ pub async fn from_field_to_contact_id(
     context: &Context,
     from_address_list: &[SingleInfo],
     prevent_rename: bool,
-) -> Result<(i64, bool, Origin)> {
+) -> Result<(u32, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
         from_address_list,
@@ -372,7 +374,7 @@ async fn add_parts(
     to_ids: &ContactIds,
     rfc724_mid: &str,
     sent_timestamp: &mut i64,
-    from_id: i64,
+    from_id: u32,
     hidden: &mut bool,
     chat_id: &mut ChatId,
     seen: bool,
@@ -439,7 +441,7 @@ async fn add_parts(
     // - outgoing messages introduce a chat with the first to: address if they are sent by a messenger
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
     // (of course, the user can add other chats manually later)
-    let to_id: i64;
+    let to_id: u32;
 
     if incoming {
         state = if seen || fetching_existing_messages {
@@ -904,8 +906,7 @@ async fn add_parts(
                     (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
                     timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
                     bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error, ephemeral_timer, ephemeral_timestamp) \
-                    VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?);"
-            ;
+                    VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?);";
 
     for part in &mut mime_parser.parts {
         let mut txt_raw = "".to_string();
@@ -988,10 +989,13 @@ async fn add_parts(
             )
             .await?;
         let msg_id = MsgId::new(
-            context
-                .sql
-                .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
-                .await?,
+            u32::try_from(
+                context
+                    .sql
+                    .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
+                    .await?,
+            )
+            .unwrap(),
         );
 
         created_db_entries.push((*chat_id, msg_id));
@@ -1057,7 +1061,7 @@ async fn save_locations(
     context: &Context,
     mime_parser: &MimeMessage,
     chat_id: ChatId,
-    from_id: i64,
+    from_id: u32,
     insert_msg_id: MsgId,
     hidden: bool,
 ) {
@@ -1165,7 +1169,7 @@ async fn create_or_lookup_group(
     mime_parser: &mut MimeMessage,
     allow_creation: bool,
     create_blocked: Blocked,
-    from_id: i64,
+    from_id: u32,
     to_ids: &ContactIds,
 ) -> Result<(ChatId, Blocked)> {
     let mut chat_id_blocked = Blocked::Not;
@@ -1631,7 +1635,7 @@ async fn create_adhoc_group(
     context: &Context,
     mime_parser: &MimeMessage,
     create_blocked: Blocked,
-    member_ids: &[i64],
+    member_ids: &[u32],
 ) -> Result<Option<ChatId>> {
     if mime_parser.is_mailinglist_message() {
         info!(
@@ -1646,7 +1650,7 @@ async fn create_adhoc_group(
     // ad-hoc group matching the to-list or if we should and can create one
     // (we do not want to heuristically look at the likely mangled Subject)
 
-    let mut member_ids: Vec<i64> = to_ids.iter().copied().collect();
+    let mut member_ids: Vec<_> = to_ids.iter().copied().collect();
     if !member_ids.contains(&from_id) {
         member_ids.push(from_id);
     }
@@ -1760,7 +1764,7 @@ async fn create_multiuser_record(
         .get_rowid("chats", "grpid", grpid.as_ref())
         .await?;
 
-    let chat_id = ChatId::new(row_id);
+    let chat_id = ChatId::new(u32::try_from(row_id).unwrap());
     info!(
         context,
         "Created group/mailinglist '{}' grpid={} as {}",
@@ -1783,7 +1787,7 @@ async fn create_multiuser_record(
 /// This ensures that different Delta Chat clients generate the same group ID unless some of them
 /// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
 /// so having the same ID prevents group split.
-async fn create_adhoc_grp_id(context: &Context, member_ids: &[i64]) -> Result<String> {
+async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> Result<String> {
     let member_ids_str = join(member_ids.iter().map(|x| x.to_string()), ",");
     let member_cs = context
         .get_config(Config::ConfiguredAddr)
@@ -1822,7 +1826,7 @@ fn hex_hash(s: impl AsRef<str>) -> String {
 
 async fn search_chat_ids_by_contact_ids(
     context: &Context,
-    unsorted_contact_ids: &[i64],
+    unsorted_contact_ids: &[u32],
 ) -> Result<Vec<ChatId>> {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
     let mut contact_ids = Vec::with_capacity(23);
@@ -1858,7 +1862,7 @@ async fn search_chat_ids_by_contact_ids(
             while let Some(row) = rows.next().await {
                 let row = row?;
                 let chat_id: ChatId = row.try_get(0)?;
-                let contact_id: i64 = row.try_get(1)?;
+                let contact_id: u32 = row.try_get(1)?;
 
                 if chat_id != last_chat_id {
                     if matches == contact_ids.len() && mismatches == 0 {
@@ -1887,7 +1891,7 @@ async fn search_chat_ids_by_contact_ids(
 async fn check_verified_properties(
     context: &Context,
     mimeparser: &MimeMessage,
-    from_id: i64,
+    from_id: u32,
     to_ids: &ContactIds,
 ) -> Result<()> {
     let contact = Contact::load_from_db(context, from_id).await?;
@@ -2096,7 +2100,7 @@ async fn add_or_lookup_contact_by_addr(
     display_name: Option<impl AsRef<str>>,
     addr: &str,
     origin: Origin,
-) -> Result<i64> {
+) -> Result<u32> {
     if context.is_self_addr(addr).await? {
         return Ok(DC_CONTACT_ID_SELF);
     }
@@ -2111,7 +2115,7 @@ async fn add_or_lookup_contact_by_addr(
 
 fn dc_create_incoming_rfc724_mid(
     message_timestamp: i64,
-    contact_id_from: i64,
+    contact_id_from: u32,
     contact_ids_to: &ContactIds,
 ) -> String {
     /* create a deterministic rfc724_mid from input such that

@@ -1,4 +1,5 @@
 //! Contacts module
+use std::convert::TryFrom;
 
 use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_std::path::PathBuf;
@@ -48,7 +49,7 @@ pub struct Contact {
     ///   `dc_set_config` using "addr".
     ///
     /// Normal contact IDs are larger than these special ones (larger than DC_CONTACT_ID_LAST_SPECIAL).
-    pub id: i64,
+    pub id: u32,
 
     /// Contact name. It is recommended to use `Contact::get_name`,
     /// `Contact::get_display_name` or `Contact::get_name_n_addr` to access this field.
@@ -80,7 +81,7 @@ pub struct Contact {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, sqlx::Type,
 )]
-#[repr(i32)]
+#[repr(u32)]
 pub enum Origin {
     Unknown = 0,
 
@@ -174,7 +175,7 @@ pub enum VerifiedStatus {
 }
 
 impl Contact {
-    pub async fn load_from_db(context: &Context, contact_id: i64) -> crate::sql::Result<Self> {
+    pub async fn load_from_db(context: &Context, contact_id: u32) -> crate::sql::Result<Self> {
         let row = context
             .sql
             .fetch_one(
@@ -222,7 +223,7 @@ impl Contact {
     }
 
     /// Check if a contact is blocked.
-    pub async fn is_blocked_load(context: &Context, id: i64) -> bool {
+    pub async fn is_blocked_load(context: &Context, id: u32) -> bool {
         Self::load_from_db(context, id)
             .await
             .map(|contact| contact.blocked)
@@ -230,12 +231,12 @@ impl Contact {
     }
 
     /// Block the given contact.
-    pub async fn block(context: &Context, id: i64) {
+    pub async fn block(context: &Context, id: u32) {
         set_block_contact(context, id, true).await;
     }
 
     /// Unblock the given contact.
-    pub async fn unblock(context: &Context, id: i64) {
+    pub async fn unblock(context: &Context, id: u32) {
         set_block_contact(context, id, false).await;
     }
 
@@ -252,7 +253,7 @@ impl Contact {
         context: &Context,
         name: impl AsRef<str>,
         addr: impl AsRef<str>,
-    ) -> Result<i64> {
+    ) -> Result<u32> {
         let name = improve_single_line_input(name);
         ensure!(
             !addr.as_ref().is_empty(),
@@ -280,7 +281,7 @@ impl Contact {
     /// Mark messages from a contact as noticed.
     /// The contact is expected to belong to the deaddrop,
     /// therefore, DC_EVENT_MSGS_NOTICED(DC_CHAT_ID_DEADDROP) is emitted.
-    pub async fn mark_noticed(context: &Context, id: i64) {
+    pub async fn mark_noticed(context: &Context, id: u32) {
         if context
             .sql
             .execute(
@@ -306,7 +307,7 @@ impl Contact {
         context: &Context,
         addr: impl AsRef<str>,
         min_origin: Origin,
-    ) -> Result<Option<i64>> {
+    ) -> Result<Option<u32>> {
         if addr.as_ref().is_empty() {
             bail!("lookup_id_by_addr: empty address");
         }
@@ -324,7 +325,7 @@ impl Contact {
             )
                 .bind(addr_normalized)
                 .bind(DC_CONTACT_ID_LAST_SPECIAL)
-                .bind(min_origin as i64)
+                .bind(min_origin)
         ).await?.unwrap_or_default();
 
         Ok(id)
@@ -360,7 +361,7 @@ impl Contact {
         name: impl AsRef<str>,
         addr: impl AsRef<str>,
         mut origin: Origin,
-    ) -> Result<(i64, Modifier)> {
+    ) -> Result<(u32, Modifier)> {
         let mut sth_modified = Modifier::None;
 
         ensure!(
@@ -476,7 +477,7 @@ impl Contact {
                 if update_name {
                     // Update the contact name also if it is used as a group name.
                     // This is one of the few duplicated data, however, getting the chat list is easier this way.
-                    let chat_id = context.sql.query_get_value::<_, i64>(
+                    let chat_id = context.sql.query_get_value::<_, u32>(
                         sqlx::query(
                             "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)"
                         ).bind(Chattype::Single).bind(row_id)
@@ -523,7 +524,7 @@ impl Contact {
             }
         }
 
-        Ok((row_id, sth_modified))
+        Ok((u32::try_from(row_id).unwrap(), sth_modified))
     }
 
     /// Add a number of contacts.
@@ -583,7 +584,7 @@ impl Contact {
         context: &Context,
         listflags: u32,
         query: Option<impl AsRef<str>>,
-    ) -> Result<Vec<i64>> {
+    ) -> Result<Vec<u32>> {
         let self_addr = context
             .get_config(Config::ConfiguredAddr)
             .await?
@@ -734,7 +735,7 @@ impl Contact {
     }
 
     /// Get blocked contacts.
-    pub async fn get_all_blocked(context: &Context) -> Result<Vec<i64>> {
+    pub async fn get_all_blocked(context: &Context) -> Result<Vec<u32>> {
         if let Err(e) = Contact::update_blocked_mailinglist_contacts(context).await {
             warn!(
                 context,
@@ -750,8 +751,8 @@ impl Contact {
                 ).bind(DC_CONTACT_ID_LAST_SPECIAL)
             )
             .await?
-            .map(|row| row?.try_get::<i64, _>(0))
-            .collect::<sqlx::Result<Vec<i64>>>()
+            .map(|row| row?.try_get::<u32, _>(0))
+            .collect::<sqlx::Result<Vec<_>>>()
             .await?;
 
         Ok(list)
@@ -762,7 +763,7 @@ impl Contact {
     /// This function returns a string explaining the encryption state
     /// of the contact and if the connection is encrypted the
     /// fingerprints of the keys involved.
-    pub async fn get_encrinfo(context: &Context, contact_id: i64) -> Result<String> {
+    pub async fn get_encrinfo(context: &Context, contact_id: u32) -> Result<String> {
         ensure!(
             contact_id > DC_CONTACT_ID_LAST_SPECIAL,
             "Can not provide encryption info for special contact"
@@ -831,7 +832,7 @@ impl Contact {
     /// possible as the contact is in use. In this case, the contact can be blocked.
     ///
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
-    pub async fn delete(context: &Context, contact_id: i64) -> Result<()> {
+    pub async fn delete(context: &Context, contact_id: u32) -> Result<()> {
         ensure!(
             contact_id > DC_CONTACT_ID_LAST_SPECIAL,
             "Can not delete special contact"
@@ -887,7 +888,7 @@ impl Contact {
     /// For contact DC_CONTACT_ID_SELF (1), the function returns sth.
     /// like "Me" in the selected language and the email address
     /// defined by dc_set_config().
-    pub async fn get_by_id(context: &Context, contact_id: i64) -> Result<Contact> {
+    pub async fn get_by_id(context: &Context, contact_id: u32) -> Result<Contact> {
         let contact = Contact::load_from_db(context, contact_id).await?;
 
         Ok(contact)
@@ -920,7 +921,7 @@ impl Contact {
     }
 
     /// Get the ID of the contact.
-    pub fn get_id(&self) -> i64 {
+    pub fn get_id(&self) -> u32 {
         self.id
     }
 
@@ -1058,7 +1059,7 @@ impl Contact {
     pub async fn addr_equals_contact(
         context: &Context,
         addr: impl AsRef<str>,
-        contact_id: i64,
+        contact_id: u32,
     ) -> bool {
         if addr.as_ref().is_empty() {
             return false;
@@ -1091,27 +1092,25 @@ impl Contact {
         Ok(count)
     }
 
-    pub async fn real_exists_by_id(context: &Context, contact_id: i64) -> bool {
+    pub async fn real_exists_by_id(context: &Context, contact_id: u32) -> bool {
         if !context.sql.is_open().await || contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
             return false;
         }
 
         context
             .sql
-            .exists(
-                sqlx::query("SELECT COUNT(*) FROM contacts WHERE id=?;").bind(contact_id as i32),
-            )
+            .exists(sqlx::query("SELECT COUNT(*) FROM contacts WHERE id=?;").bind(contact_id))
             .await
             .unwrap_or_default()
     }
 
-    pub async fn scaleup_origin_by_id(context: &Context, contact_id: i64, origin: Origin) -> bool {
+    pub async fn scaleup_origin_by_id(context: &Context, contact_id: u32, origin: Origin) -> bool {
         context
             .sql
             .execute(
                 sqlx::query("UPDATE contacts SET origin=? WHERE id=? AND origin<?;")
                     .bind(origin)
-                    .bind(contact_id as i32)
+                    .bind(contact_id)
                     .bind(origin),
             )
             .await
@@ -1156,7 +1155,7 @@ fn sanitize_name_and_addr(name: impl AsRef<str>, addr: impl AsRef<str>) -> (Stri
     }
 }
 
-async fn set_block_contact(context: &Context, contact_id: i64, new_blocking: bool) {
+async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return;
     }
@@ -1220,7 +1219,7 @@ async fn set_block_contact(context: &Context, contact_id: i64, new_blocking: boo
 /// this typically happens if we see message with our own profile image, sent from another device.
 pub(crate) async fn set_profile_image(
     context: &Context,
-    contact_id: i64,
+    contact_id: u32,
     profile_image: &AvatarAction,
     was_encrypted: bool,
 ) -> Result<()> {

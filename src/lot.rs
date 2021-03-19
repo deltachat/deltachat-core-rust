@@ -13,7 +13,7 @@ pub struct Lot {
     pub(crate) text2: Option<String>,
     pub(crate) timestamp: i64,
     pub(crate) state: LotState,
-    pub(crate) id: i64,
+    pub(crate) id: u32,
     pub(crate) fingerprint: Option<Fingerprint>,
     pub(crate) invitenumber: Option<String>,
     pub(crate) auth: Option<String>,
@@ -55,7 +55,7 @@ impl Lot {
         self.state
     }
 
-    pub fn get_id(&self) -> i64 {
+    pub fn get_id(&self) -> u32 {
         self.id
     }
 
@@ -64,8 +64,8 @@ impl Lot {
     }
 }
 
-#[repr(i32)]
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[repr(u32)]
 pub enum LotState {
     // Default
     Undefined = 0,

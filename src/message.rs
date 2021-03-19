@@ -55,11 +55,11 @@ const SUMMARY_CHARACTERS: usize = 160;
     sqlx::Type,
 )]
 #[sqlx(transparent)]
-pub struct MsgId(i64);
+pub struct MsgId(u32);
 
 impl MsgId {
     /// Create a new [MsgId].
-    pub fn new(id: i64) -> MsgId {
+    pub fn new(id: u32) -> MsgId {
         MsgId(id)
     }
 
@@ -218,7 +218,7 @@ impl MsgId {
     ///
     /// Avoid using this, eventually types should be cleaned up enough
     /// that it is no longer necessary.
-    pub fn to_i64(self) -> i64 {
+    pub fn to_u32(self) -> u32 {
         self.0
     }
 }
@@ -266,8 +266,8 @@ impl Default for MessengerMessage {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Message {
     pub(crate) id: MsgId,
-    pub(crate) from_id: i64,
-    pub(crate) to_id: i64,
+    pub(crate) from_id: u32,
+    pub(crate) to_id: u32,
     pub(crate) chat_id: ChatId,
     pub(crate) viewtype: Viewtype,
     pub(crate) state: MessageState,
@@ -481,7 +481,7 @@ impl Message {
         self.id
     }
 
-    pub fn get_from_id(&self) -> i64 {
+    pub fn get_from_id(&self) -> u32 {
         self.from_id
     }
 
@@ -941,7 +941,7 @@ pub enum ContactRequestDecision {
     Deserialize,
     sqlx::Type,
 )]
-#[repr(i32)]
+#[repr(u32)]
 pub enum MessageState {
     Undefined = 0,
 
@@ -1241,8 +1241,8 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String, Er
         .map(|rows| {
             rows.map(|row| -> sqlx::Result<_> {
                 let row = row?;
-                let contact_id: i64 = row.try_get(0)?;
-                let ts: i64 = row.try_get(1)?;
+                let contact_id = row.try_get(0)?;
+                let ts = row.try_get(1)?;
                 Ok((contact_id, ts))
             })
         })
@@ -1415,7 +1415,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
         }
         job::add(
             context,
-            job::Job::new(Action::DeleteMsgOnImap, msg_id.to_i64(), Params::new(), 0),
+            job::Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), Params::new(), 0),
         )
         .await;
     }
@@ -1434,7 +1434,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     }
 }
 
-async fn delete_poi_location(context: &Context, location_id: i64) -> bool {
+async fn delete_poi_location(context: &Context, location_id: u32) -> bool {
     context
         .sql
         .execute(
@@ -1500,7 +1500,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
 
                 job::add(
                     context,
-                    job::Job::new(Action::MarkseenMsgOnImap, id.to_i64(), Params::new(), 0),
+                    job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
                 )
                 .await;
                 updated_chat_ids.insert(curr_chat_id, true);
@@ -1661,7 +1661,7 @@ pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl
 /// returns Some if an event should be send
 pub async fn handle_mdn(
     context: &Context,
-    from_id: i64,
+    from_id: u32,
     rfc724_mid: &str,
     timestamp_sent: i64,
 ) -> anyhow::Result<Option<(ChatId, MsgId)>> {
@@ -1973,7 +1973,7 @@ pub(crate) async fn rfc724_mid_exists(
         .await?;
     if let Some(row) = row {
         let server_folder = row.try_get::<Option<String>, _>(0)?.unwrap_or_default();
-        let server_uid = row.try_get::<i64, _>(1)? as u32;
+        let server_uid = row.try_get::<u32, _>(1)?;
         let msg_id: MsgId = row.try_get(2)?;
 
         Ok(Some((server_folder, server_uid, msg_id)))

@@ -401,7 +401,7 @@ async fn send_handshake_msg(
     Ok(())
 }
 
-async fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> Result<i64, Error> {
+async fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> Result<u32, Error> {
     if let [contact_id] = chat::get_chat_contacts(context, contact_chat_id).await?[..] {
         Ok(contact_id)
     } else {
@@ -449,7 +449,7 @@ pub(crate) enum HandshakeError {
     NotSecureJoinMsg,
     #[error("Failed to look up or create chat for contact #{contact_id}")]
     NoChat {
-        contact_id: i64,
+        contact_id: u32,
         #[source]
         cause: Error,
     },
@@ -508,7 +508,7 @@ pub(crate) enum HandshakeMessage {
 pub(crate) async fn handle_securejoin_handshake(
     context: &Context,
     mime_message: &MimeMessage,
-    contact_id: i64,
+    contact_id: u32,
 ) -> Result<HandshakeMessage, HandshakeError> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return Err(Error::msg("Can not be called with special contact ID").into());
@@ -808,7 +808,7 @@ pub(crate) async fn handle_securejoin_handshake(
 pub(crate) async fn observe_securejoin_on_other_device(
     context: &Context,
     mime_message: &MimeMessage,
-    contact_id: i64,
+    contact_id: u32,
 ) -> Result<HandshakeMessage, HandshakeError> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return Err(Error::msg("Can not be called with special contact ID"));
@@ -888,7 +888,7 @@ async fn secure_connection_established(
     context: &Context,
     contact_chat_id: ChatId,
 ) -> Result<(), Error> {
-    let contact_id: i64 = chat_id_2_contact_id(context, contact_chat_id).await?;
+    let contact_id = chat_id_2_contact_id(context, contact_chat_id).await?;
     let contact = Contact::get_by_id(context, contact_id).await;
 
     let addr = if let Ok(ref contact) = contact {

@@ -31,7 +31,7 @@ impl Smtp {
         context: &Context,
         recipients: Vec<EmailAddress>,
         message: Vec<u8>,
-        job_id: i64,
+        job_id: u32,
     ) -> Result<()> {
         let message_len_bytes = message.len();
 
