@@ -1211,6 +1211,23 @@ async fn lookup_chat_by_reply(
             let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
             let chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await;
 
+            if let Some(msg_grpid) = try_getting_grpid(mime_parser) {
+                if msg_grpid == parent_chat.grpid {
+                    // This message will be assigned to this chat, anyway.
+                    // But if we assign it now, create_or_lookup_group() will not be called
+                    // and group commands will not be executed.
+                    return Ok((ChatId::new(0), Blocked::Not));
+                }
+            }
+
+            if parent.error.is_some() {
+                // If the parent msg is undecipherable, then it may have been assigned to the wrong chat
+                // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
+                // We don't have any way of finding out whether a msg is undecipherable, so we check for
+                // error.is_some() instead.
+                return Ok((ChatId::new(0), Blocked::Not));
+            }
+
             // Usually we don't want to show private messages in the parent chat, but in the
             // 1:1 chat with the sender.
             // This is to make sure that private replies are shown in the correct chat.
@@ -1224,6 +1241,12 @@ async fn lookup_chat_by_reply(
                     && chat_contacts.contains(&DC_CONTACT_ID_SELF)
                     && chat_contacts.contains(&from_id))
             {
+                info!(
+                    context,
+                    "Assigning message to {} as it's a reply to {}",
+                    parent_chat.id,
+                    parent.rfc724_mid
+                );
                 return Ok((parent_chat.id, parent_chat.blocked));
             }
         }
