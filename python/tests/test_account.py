@@ -2187,9 +2187,25 @@ class TestOnlineAccount:
         chat12 = acfactory.get_accepted_chat(ac1, ac2)
         ac1.set_config("selfstatus", "New status")
         chat12.send_text("hi")
-        msg = ac2._evtracker.wait_next_incoming_message()
-        assert msg.text == "hi"
-        assert msg.get_sender_contact().status == "New status"
+        msg_received = ac2._evtracker.wait_next_incoming_message()
+        assert msg_received.text == "hi"
+        assert msg_received.get_sender_contact().status == "New status"
+
+        # Send a reply from ac2 to ac1 so ac1 can send a read receipt.
+        reply_msg = msg_received.chat.send_text("reply")
+        reply_msg_received = ac1._evtracker.wait_next_incoming_message()
+        assert reply_msg_received.text == "reply"
+
+        # Send read receipt from ac1 to ac2.
+        # It does not contain the signature.
+        ac1.mark_seen_messages([reply_msg_received])
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSG_READ")
+        assert ev.data1 == reply_msg.chat.id
+        assert ev.data2 == reply_msg.id
+        assert reply_msg.is_out_mdn_received()
+
+        # Test that the status is not cleared as a result of receiving a read receipt.
+        assert msg_received.get_sender_contact().status == "New status"
 
         ac1.set_config("selfstatus", "")
         chat12.send_text("hello")
