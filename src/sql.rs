@@ -742,7 +742,7 @@ async fn open(
         // but even if execute() would handle errors more gracefully, we should continue on errors -
         // systems might not be able to handle WAL, in which case the standard-journal is used.
         // that may be not optimal, but better than not working at all :)
-        sql.execute("PRAGMA journal_mode=WAL;", paramsv![])
+        sql.execute("PRAGMA journal_mode=DELETE;", paramsv![])
             .await
             .ok();
 
