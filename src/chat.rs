@@ -458,6 +458,8 @@ impl ChatId {
             return Ok(());
         }
 
+        let msg_is_some = msg.is_some();
+
         let changed = match msg {
             None => self.maybe_delete_draft(context).await?,
             Some(msg) => self.set_draft_raw(context, msg).await?,
@@ -466,9 +468,13 @@ impl ChatId {
         if changed {
             context.emit_event(EventType::MsgsChanged {
                 chat_id: self,
-                msg_id: match self.get_draft_msg_id(context).await {
-                    Some(msg_id) => msg_id,
-                    None => MsgId::new(0),
+                msg_id: if msg_is_some {
+                    match self.get_draft_msg_id(context).await {
+                        Some(msg_id) => msg_id,
+                        None => MsgId::new(0),
+                    }
+                } else {
+                    MsgId::new(0)
                 },
             });
         }
