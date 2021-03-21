@@ -1197,6 +1197,7 @@ dependencies = [
  "native-tls",
  "num-derive",
  "num-traits",
+ "num_cpus",
  "once_cell",
  "percent-encoding",
  "pgp",
