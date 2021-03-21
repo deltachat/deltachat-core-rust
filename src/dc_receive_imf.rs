@@ -237,14 +237,18 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     // Always update the status, even if there is no footer, to allow removing the status.
-    if let Err(err) = contact::set_status(
-        context,
-        from_id,
-        mime_parser.footer.clone().unwrap_or_default(),
-    )
-    .await
-    {
-        warn!(context, "cannot update contact status: {}", err);
+    //
+    // Ignore MDNs though, as they never contain the signature even if user has set it.
+    if mime_parser.mdn_reports.is_empty() {
+        if let Err(err) = contact::set_status(
+            context,
+            from_id,
+            mime_parser.footer.clone().unwrap_or_default(),
+        )
+        .await
+        {
+            warn!(context, "cannot update contact status: {}", err);
+        }
     }
 
     // Get user-configured server deletion
