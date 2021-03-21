@@ -325,10 +325,10 @@ trait StockStringMods: AsRef<str> + Sized {
     {
         Box::pin(async move {
             let message = self.as_ref().trim_end_matches('.');
-            match contact_id as i64 {
+            match contact_id {
                 DC_CONTACT_ID_SELF => msg_action_by_me(context, message).await,
                 _ => {
-                    let displayname = Contact::get_by_id(context, contact_id as i64)
+                    let displayname = Contact::get_by_id(context, contact_id)
                         .await
                         .map(|contact| contact.get_name_n_addr())
                         .unwrap_or_else(|_| contact_id.to_string());

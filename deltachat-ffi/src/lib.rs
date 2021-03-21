@@ -1011,6 +1011,7 @@ pub unsafe extern "C" fn dc_get_chat_media(
                 or_msg_type3,
             )
             .await
+            .unwrap_or_log_default(ctx, "Failed get_chat_media")
             .into(),
         ))
     })
@@ -1052,7 +1053,7 @@ pub unsafe extern "C" fn dc_get_next_media(
             or_msg_type3,
         )
         .await
-        .map(|msg_id| msg_id.to_u32())
+        .map(|msg_id| msg_id.map(|id| id.to_u32()).unwrap_or_default())
         .unwrap_or(0)
     })
 }
@@ -1145,7 +1146,11 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
     let ctx = &*context;
 
     block_on(async move {
-        let arr = dc_array_t::from(chat::get_chat_contacts(&ctx, ChatId::new(chat_id)).await);
+        let arr = dc_array_t::from(
+            chat::get_chat_contacts(&ctx, ChatId::new(chat_id))
+                .await
+                .unwrap_or_log_default(ctx, "Failed get_chat_contacts"),
+        );
         Box::into_raw(Box::new(arr))
     })
 }
@@ -1171,6 +1176,7 @@ pub unsafe extern "C" fn dc_search_msgs(
         let arr = dc_array_t::from(
             ctx.search_msgs(chat_id, to_string_lossy(query))
                 .await
+                .unwrap_or_log_default(ctx, "Failed search_msgs")
                 .iter()
                 .map(|msg_id| msg_id.to_u32())
                 .collect::<Vec<u32>>(),
@@ -1284,7 +1290,8 @@ pub unsafe extern "C" fn dc_set_chat_name(
     chat_id: u32,
     name: *const libc::c_char,
 ) -> libc::c_int {
-    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 || name.is_null() {
+    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL.to_u32() || name.is_null()
+    {
         eprintln!("ignoring careless call to dc_set_chat_name()");
         return 0;
     }
@@ -1304,7 +1311,7 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
     chat_id: u32,
     image: *const libc::c_char,
 ) -> libc::c_int {
-    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 {
+    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL.to_u32() {
         eprintln!("ignoring careless call to dc_set_chat_profile_image()");
         return 0;
     }
@@ -1448,7 +1455,9 @@ pub unsafe extern "C" fn dc_get_msg_html(
     }
     let ctx = &*context;
 
-    block_on(MsgId::new(msg_id).get_html(&ctx)).strdup()
+    block_on(MsgId::new(msg_id).get_html(&ctx))
+        .unwrap_or_log_default(ctx, "Failed get_msg_html")
+        .strdup()
 }
 
 #[no_mangle]
@@ -1497,7 +1506,7 @@ pub unsafe extern "C" fn dc_forward_msgs(
     if context.is_null()
         || msg_ids.is_null()
         || msg_cnt <= 0
-        || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32
+        || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL.to_u32()
     {
         eprintln!("ignoring careless call to dc_forward_msgs()");
         return;
@@ -1597,6 +1606,7 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
         Contact::lookup_id_by_addr(&ctx, to_string_lossy(addr), Origin::IncomingReplyTo)
             .await
             .unwrap_or_log_default(ctx, "failed to lookup id")
+            .unwrap_or(0)
     })
 }
 
@@ -1956,7 +1966,7 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
     chat_id: u32,
     seconds: libc::c_int,
 ) {
-    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 || seconds < 0 {
+    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL.to_u32() || seconds < 0 {
         eprintln!("ignoring careless call to dc_send_locations_to_chat()");
         return;
     }
@@ -2036,7 +2046,8 @@ pub unsafe extern "C" fn dc_get_locations(
             timestamp_begin as i64,
             timestamp_end as i64,
         )
-        .await;
+        .await
+        .unwrap_or_log_default(ctx, "Failed get_locations");
         Box::into_raw(Box::new(dc_array_t::from(res)))
     })
 }
@@ -2436,7 +2447,7 @@ pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
     let ffi_chat = &*chat;
     let ctx = &*ffi_chat.context;
 
-    block_on(ffi_chat.chat.get_color(&ctx))
+    block_on(ffi_chat.chat.get_color(&ctx)).unwrap_or_log_default(ctx, "Failed get_color")
 }
 
 #[no_mangle]

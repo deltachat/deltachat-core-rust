@@ -191,7 +191,7 @@ impl BobState {
         let chat_id = chat::create_by_contact_id(context, invite.contact_id())
             .await
             .map_err(JoinError::UnknownContact)?;
-        if fingerprint_equals_sender(context, invite.fingerprint(), chat_id).await {
+        if fingerprint_equals_sender(context, invite.fingerprint(), chat_id).await? {
             // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
             info!(context, "Taking securejoin protocol shortcut");
             let state = Self {
@@ -300,7 +300,7 @@ impl BobState {
             self.next = SecureJoinStep::Terminated;
             return Ok(Some(BobHandshakeStage::Terminated(reason)));
         }
-        if !fingerprint_equals_sender(context, self.invite.fingerprint(), self.chat_id).await {
+        if !fingerprint_equals_sender(context, self.invite.fingerprint(), self.chat_id).await? {
             self.next = SecureJoinStep::Terminated;
             return Ok(Some(BobHandshakeStage::Terminated("Fingerprint mismatch")));
         }
@@ -358,12 +358,8 @@ impl BobState {
             )));
         }
         mark_peer_as_verified(context, self.invite.fingerprint()).await?;
-        Contact::scaleup_origin_by_id(
-            context,
-            self.invite.contact_id() as i64,
-            Origin::SecurejoinJoined,
-        )
-        .await;
+        Contact::scaleup_origin_by_id(context, self.invite.contact_id(), Origin::SecurejoinJoined)
+            .await;
         emit_event!(context, EventType::ContactsChanged(None));
 
         if let QrInvite::Group { .. } = self.invite {

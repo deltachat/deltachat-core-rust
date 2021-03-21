@@ -8,9 +8,7 @@ use std::path::Path;
 use std::pin::Pin;
 use std::time::Duration;
 
-use anyhow::format_err;
-use anyhow::Context as _;
-use sqlx::{pool::PoolOptions, sqlite::*, Done, Execute, Executor, Row};
+use sqlx::{pool::PoolOptions, sqlite::*, Execute, Executor, Row};
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
 use crate::config::Config;
@@ -115,7 +113,8 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             // this should be done before updates that use high-level objects that
             // rely themselves on the low-level structure.
 
-            let (recalc_fingerprints, update_icons) = migrations::run(context, &self).await?;
+            let (recalc_fingerprints, update_icons, disable_server_delete) =
+                migrations::run(context, &self).await?;
 
             // (2) updates that require high-level objects
             // the structure is complete now and all objects are usable
@@ -131,12 +130,25 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                         peerstate.recalc_fingerprint();
                         peerstate.save_to_db(&self, false).await?;
                     }
->>>>>>> b22a152b (remove rusqlite and fixup examples)
                 }
             }
+
             if update_icons {
                 update_saved_messages_icon(context).await?;
                 update_device_icon(context).await?;
+            }
+
+            if disable_server_delete {
+                // We now always watch all folders and delete messages there if delete_server is enabled.
+                // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
+                if context.get_config_delete_server_after().await?.is_some() {
+                    let mut msg = Message::new(Viewtype::Text);
+                    msg.text = Some(stock_str::delete_server_turned_off(context).await);
+                    add_device_msg(context, None, Some(&mut msg)).await?;
+                    context
+                        .set_config(Config::DeleteServerAfter, Some("0"))
+                        .await?;
+                }
             }
         }
 
@@ -296,23 +308,21 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         table_name: impl AsRef<str>,
         col_name: impl AsRef<str>,
     ) -> Result<bool> {
-        let table_name = table_name.as_ref().to_string();
-        let col_name = col_name.as_ref().to_string();
-        self.with_conn(move |conn| {
-            let mut exists = false;
-            // `PRAGMA table_info` returns one row per column,
-            // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
-            conn.pragma(None, "table_info", &table_name, |row| {
-                let curr_name: String = row.get(1)?;
-                if col_name == curr_name {
-                    exists = true;
-                }
-                Ok(())
-            })?;
+        let q = format!("PRAGMA table_info(\"{}\")", table_name.as_ref());
+        let lock = self.sql.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
-            Ok(exists)
-        })
-        .await
+        let mut rows = pool.fetch(sqlx::query(&q));
+        let first_row = rows.next().await;
+        if let Some(row) = first_row {
+            let curr_name: String = row?.try_get(1)?;
+
+            if col_name.as_ref() == curr_name {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 
     /// Executes a query which is expected to return one row and one

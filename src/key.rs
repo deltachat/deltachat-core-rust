@@ -42,6 +42,8 @@ pub enum Error {
     InvalidConfiguredAddr(#[from] InvalidEmailError),
     #[error("no data provided")]
     Empty,
+    #[error("db: {}", _0)]
+    Sql(#[from] sqlx::Error),
     #[error("{0}")]
     Other(#[from] anyhow::Error),
 }
@@ -131,7 +133,7 @@ impl DcKey for SignedPublicKey {
             )
             .await?
         {
-            Some(row) => Self::from_slice(row.try_get(0).map_err(crate::error::Error::from)?),
+            Some(row) => Self::from_slice(row.try_get(0)?),
             None => {
                 let keypair = generate_keypair(context).await?;
                 Ok(keypair.public)
@@ -173,7 +175,7 @@ impl DcKey for SignedSecretKey {
             )
             .await?
         {
-            Some(row) => Self::from_slice(row.try_get(0).map_err(crate::error::Error::from)?),
+            Some(row) => Self::from_slice(row.try_get(0)?),
             None => {
                 let keypair = generate_keypair(context).await?;
                 Ok(keypair.secret)
@@ -241,12 +243,8 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     {
         Some(row) => Ok(KeyPair {
             addr,
-            public: SignedPublicKey::from_slice(
-                row.try_get(0).map_err(crate::error::Error::from)?,
-            )?,
-            secret: SignedSecretKey::from_slice(
-                row.try_get(1).map_err(crate::error::Error::from)?,
-            )?,
+            public: SignedPublicKey::from_slice(row.try_get(0)?)?,
+            secret: SignedSecretKey::from_slice(row.try_get(1)?)?,
         }),
         None => {
             let start = std::time::SystemTime::now();

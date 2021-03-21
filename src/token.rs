@@ -71,7 +71,7 @@ pub async fn lookup(
                 .query_get_value(
                     sqlx::query("SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;")
                         .bind(namespace)
-                        .bind(foreign_id),
+                        .bind(chat_id),
                 )
                 .await?
         }

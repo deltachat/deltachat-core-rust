@@ -1753,10 +1753,7 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
 async fn get_uid_next(context: &Context, folder: &str) -> Result<u32> {
     Ok(context
         .sql
-        .query_get_value(
-            "SELECT uid_next FROM imap_sync WHERE folder=?;",
-            paramsv![folder],
-        )
+        .query_get_value(sqlx::query("SELECT uid_next FROM imap_sync WHERE folder=?;").bind(folder))
         .await?
         .unwrap_or(0))
 }
@@ -1787,8 +1784,7 @@ async fn get_uidvalidity(context: &Context, folder: &str) -> Result<u32> {
     Ok(context
         .sql
         .query_get_value(
-            "SELECT uidvalidity FROM imap_sync WHERE folder=?;",
-            paramsv![folder],
+            sqlx::query("SELECT uidvalidity FROM imap_sync WHERE folder=?;").bind(folder),
         )
         .await?
         .unwrap_or(0))

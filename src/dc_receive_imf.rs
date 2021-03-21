@@ -1642,53 +1642,6 @@ async fn create_adhoc_group(
         return Ok(None);
     }
 
-    // if we're here, no grpid was found, check if there is an existing
-    // ad-hoc group matching the to-list or if we should and can create one
-    // (we do not want to heuristically look at the likely mangled Subject)
-
-    let mut member_ids: Vec<_> = to_ids.iter().copied().collect();
-    if !member_ids.contains(&from_id) {
-        member_ids.push(from_id);
-    }
-    if !member_ids.contains(&DC_CONTACT_ID_SELF) {
-        member_ids.push(DC_CONTACT_ID_SELF);
-    }
-
-    if member_ids.len() < 3 {
-        info!(context, "not creating ad-hoc group: too few contacts");
-        return Ok((ChatId::new(0), Blocked::Not));
-    }
-
-    let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids).await?;
-    if !chat_ids.is_empty() {
-        let chat_ids_str = join(chat_ids.iter().map(|x| x.to_string()), ",");
-        let q = format!(
-            "SELECT c.id, c.blocked
-               FROM chats c
-               LEFT JOIN msgs m
-                      ON m.chat_id=c.id
-               WHERE c.id IN({})
-               ORDER BY m.timestamp DESC,
-                        m.id DESC
-               LIMIT 1;",
-            chat_ids_str
-        );
-        let row = context.sql.fetch_optional(sqlx::query(&q)).await?;
-
-        if let Some(row) = row {
-            // success, chat found
-            return Ok((
-                row.try_get(0)?,
-                row.try_get::<Option<Blocked>, _>(1)?.unwrap_or_default(),
-            ));
-        }
-    }
-
-    if !allow_creation {
-        info!(context, "creating ad-hoc group prevented from caller");
-        return Ok((ChatId::new(0), Blocked::Not));
-    }
-
     if mime_parser.decrypting_failed {
         // Do not create a new ad-hoc group if the message cannot be
         // decrypted.
@@ -1818,70 +1771,6 @@ fn hex_hash(s: impl AsRef<str>) -> String {
     let bytes = s.as_ref().as_bytes();
     let result = Sha256::digest(bytes);
     hex::encode(&result[..8])
-}
-
-async fn search_chat_ids_by_contact_ids(
-    context: &Context,
-    unsorted_contact_ids: &[u32],
-) -> Result<Vec<ChatId>> {
-    /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
-    let mut contact_ids = Vec::with_capacity(23);
-    let mut chat_ids = Vec::with_capacity(23);
-
-    /* copy array, remove duplicates and SELF, sort by ID */
-    if !unsorted_contact_ids.is_empty() {
-        for &curr_id in unsorted_contact_ids {
-            if curr_id != 1 && !contact_ids.contains(&curr_id) {
-                contact_ids.push(curr_id);
-            }
-        }
-        if !contact_ids.is_empty() {
-            contact_ids.sort_unstable();
-            let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
-
-            let q = format!(
-                    "SELECT DISTINCT cc.chat_id, cc.contact_id
-                       FROM chats_contacts cc
-                       LEFT JOIN chats c ON c.id=cc.chat_id
-                      WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))
-                        AND c.type=120
-                        AND cc.contact_id!=1
-                      ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
-                    contact_ids_str
-                );
-
-            let mut rows = context.sql.fetch(sqlx::query(&q)).await?;
-            let mut last_chat_id = ChatId::new(0);
-            let mut matches = 0;
-            let mut mismatches = 0;
-
-            while let Some(row) = rows.next().await {
-                let row = row?;
-                let chat_id: ChatId = row.try_get(0)?;
-                let contact_id: u32 = row.try_get(1)?;
-
-                if chat_id != last_chat_id {
-                    if matches == contact_ids.len() && mismatches == 0 {
-                        chat_ids.push(last_chat_id);
-                    }
-                    last_chat_id = chat_id;
-                    matches = 0;
-                    mismatches = 0;
-                }
-                if contact_ids.get(matches) == Some(&contact_id) {
-                    matches += 1;
-                } else {
-                    mismatches += 1;
-                }
-            }
-
-            if matches == contact_ids.len() && mismatches == 0 {
-                chat_ids.push(last_chat_id);
-            }
-        }
-    }
-
-    Ok(chat_ids)
 }
 
 async fn check_verified_properties(
@@ -2891,7 +2780,13 @@ mod tests {
         assert!(chat.is_mailing_list());
         assert_eq!(chat.can_send(), false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
-        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await.len(), 1);
+        assert_eq!(
+            chat::get_chat_contacts(&t.ctx, chat_id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
 
         dc_receive_imf(&t.ctx, GH_MAILINGLIST2, "INBOX", 1, false)
             .await
@@ -2963,7 +2858,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_mailing_list_decide_block() {
-        let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
+        let deaddrop = DC_CHAT_ID_DEADDROP;
         let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
@@ -3004,7 +2899,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_mailing_list_decide_block_then_unblock() {
-        let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
+        let deaddrop = DC_CHAT_ID_DEADDROP;
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3041,7 +2936,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_mailing_list_decide_not_now() {
-        let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
+        let deaddrop = DC_CHAT_ID_DEADDROP;
         let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
@@ -3078,7 +2973,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_mailing_list_decide_accept() {
-        let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
+        let deaddrop = DC_CHAT_ID_DEADDROP;
         let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
@@ -3265,7 +3160,7 @@ mod tests {
     async fn test_mailing_list_with_mimepart_footer() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
-        let deaddrop = ChatId::new(DC_CHAT_ID_DEADDROP);
+        let deaddrop = DC_CHAT_ID_DEADDROP;
         assert_eq!(get_chat_msgs(&t, deaddrop, 0, None).await.unwrap().len(), 0);
 
         // the mailing list message contains two top-level texts.

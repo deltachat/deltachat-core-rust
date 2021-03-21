@@ -1,7 +1,6 @@
 //! # Chat module
 
 use std::convert::TryFrom;
-use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
@@ -660,7 +659,7 @@ impl ChatId {
         let mut ret = String::new();
 
         for contact_id in get_chat_contacts(context, self)
-            .await
+            .await?
             .iter()
             .filter(|&contact_id| *contact_id > DC_CONTACT_ID_LAST_SPECIAL)
         {
@@ -792,13 +791,6 @@ impl Chat {
             } else if chat.param.exists(Param::Devicetalk) {
                 chat.name = stock_str::device_messages(context).await;
             }
-        }
-        chat.name = chat_name;
-
-        if chat.param.exists(Param::Selftalk) {
-            chat.name = context.stock_str(StockMessage::SavedMessages).await.into();
-        } else if chat.param.exists(Param::Devicetalk) {
-            chat.name = context.stock_str(StockMessage::DeviceMessages).await.into();
         }
 
         Ok(chat)
@@ -1887,7 +1879,7 @@ pub async fn get_chat_msgs(
         } else {
             1i32
         })
-    } else if (flags & DC_GCM_INFO_ONLY) {
+    } else if (flags & DC_GCM_INFO_ONLY) == 1 {
         sqlx::query(
         // GLOB is used here instead of LIKE becase it is case-sensitive
                 "SELECT m.id AS id, m.timestamp AS timestamp, m.param AS param, m.from_id AS from_id, m.to_id AS to_id
@@ -2315,19 +2307,6 @@ pub(crate) async fn add_contact_to_chat_ex(
     }
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(true)
-}
-
-async fn real_group_exists(context: &Context, chat_id: ChatId) -> bool {
-    // check if a group or a verified group exists under the given ID
-    if !context.sql.is_open().await || chat_id.is_special() {
-        return false;
-    }
-
-    context
-        .sql
-        .exists(sqlx::query("SELECT COUNT(*) FROM chats WHERE id=? AND type=120;").bind(chat_id))
-        .await
-        .unwrap_or_default()
 }
 
 pub(crate) async fn reset_gossiped_timestamp(
@@ -2759,7 +2738,7 @@ pub async fn forward_msgs(
             // by not marking own forwarded messages as such,
             // however, this turned out to be to confusing and unclear.
             msg.param
-                .set_int(Param::Forwarded, src_msg_id.to_i64() as i32);
+                .set_int(Param::Forwarded, src_msg_id.to_u32() as i32);
 
             msg.param.remove(Param::GuaranteeE2ee);
             msg.param.remove(Param::ForcePlaintext);
@@ -3127,21 +3106,21 @@ mod tests {
         let chat_id = create_by_contact_id(&ctx, bob).await.unwrap();
         let chat = Chat::load_from_db(&ctx, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Single);
-        assert_eq!(get_chat_contacts(&ctx, chat.id).await.len(), 1);
+        assert_eq!(get_chat_contacts(&ctx, chat.id).await.unwrap().len(), 1);
 
         // adding or removing contacts from one-to-one-chats result in an error
         let claire = Contact::create(&ctx, "", "claire@foo.de").await.unwrap();
         let added = add_contact_to_chat_ex(&ctx, chat.id, claire, false).await;
         assert!(added.is_err());
-        assert_eq!(get_chat_contacts(&ctx, chat.id).await.len(), 1);
+        assert_eq!(get_chat_contacts(&ctx, chat.id).await.unwrap().len(), 1);
 
         let removed = remove_contact_from_chat(&ctx, chat.id, claire).await;
         assert!(removed.is_err());
-        assert_eq!(get_chat_contacts(&ctx, chat.id).await.len(), 1);
+        assert_eq!(get_chat_contacts(&ctx, chat.id).await.unwrap().len(), 1);
 
         let removed = remove_contact_from_chat(&ctx, chat.id, DC_CONTACT_ID_SELF).await;
         assert!(removed.is_err());
-        assert_eq!(get_chat_contacts(&ctx, chat.id).await.len(), 1);
+        assert_eq!(get_chat_contacts(&ctx, chat.id).await.unwrap().len(), 1);
     }
 
     #[async_std::test]
@@ -3828,7 +3807,13 @@ mod tests {
             .unwrap();
         let alice_chat = Chat::load_from_db(&alice, alice_chat_id).await.unwrap();
         add_contact_to_chat(&alice, alice_chat_id, contact_id).await;
-        assert_eq!(get_chat_contacts(&alice, alice_chat_id).await.len(), 2);
+        assert_eq!(
+            get_chat_contacts(&alice, alice_chat_id)
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
         send_text_msg(&alice, alice_chat_id, "hi!".to_string())
             .await
             .ok();
