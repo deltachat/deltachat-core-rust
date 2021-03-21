@@ -386,16 +386,6 @@ UPDATE chats SET protected=1, type=120 WHERE type=130;"#,
         .await?;
     }
 
-    if dbversion < 69 {
-        info!(context, "[migration] v69");
-        sql.execute("ALTER TABLE chats ADD COLUMN protected INTEGER DEFAULT 0;")
-            .await?;
-        sql.execute(
-            "UPDATE chats SET protected=1, type=120 WHERE type=130;", // 120=group, 130=old verified group
-        )
-        .await?;
-        sql.set_raw_config_int("dbversion", 69).await?;
-    }
     if dbversion < 71 {
         info!(context, "[migration] v71");
         if let Some(addr) = context.get_config(Config::ConfiguredAddr).await? {
@@ -411,22 +401,26 @@ UPDATE chats SET protected=1, type=120 WHERE type=130;"#,
             }
         }
 
-        sql.set_raw_config_int("dbversion", 71).await?;
+        sql.set_db_version(71).await?;
     }
     if dbversion < 72 {
         info!(context, "[migration] v72");
         if !sql.col_exists("msgs", "mime_modified").await? {
-            sql.execute("ALTER TABLE msgs ADD COLUMN mime_modified INTEGER DEFAULT 0;")
-                .await?;
+            sql.execute_migration(
+                r#"
+ALTER TABLE msgs ADD COLUMN mime_modified INTEGER DEFAULT 0;"#,
+                72,
+            )
+            .await?;
         }
-        sql.set_raw_config_int("dbversion", 72).await?;
     }
     if dbversion < 73 {
         use Config::*;
         info!(context, "[migration] v73");
         sql.execute(
-                "CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"
-            )
+            r#"
+CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"#,
+        )
             .await?;
         for c in &[
             ConfiguredInboxFolder,
@@ -454,25 +448,25 @@ UPDATE chats SET protected=1, type=120 WHERE type=130;"#,
                 }
             }
         }
-        sql.set_raw_config_int("dbversion", 73).await?;
+        sql.set_db_version(73).await?;
     }
     if dbversion < 74 {
         info!(context, "[migration] v74");
-        sql.execute("UPDATE contacts SET name='' WHERE name=authname")
+        sql.execute_migration("UPDATE contacts SET name='' WHERE name=authname", 74)
             .await?;
-        sql.set_raw_config_int("dbversion", 74).await?;
     }
     if dbversion < 75 {
         info!(context, "[migration] v75");
-        sql.execute("ALTER TABLE contacts ADD COLUMN status TEXT DEFAULT '';")
-            .await?;
-        sql.set_raw_config_int("dbversion", 75).await?;
+        sql.execute_migration(
+            "ALTER TABLE contacts ADD COLUMN status TEXT DEFAULT '';",
+            74,
+        )
+        .await?;
     }
     if dbversion < 76 {
         info!(context, "[migration] v76");
-        sql.execute("ALTER TABLE msgs ADD COLUMN subject TEXT DEFAULT '';")
+        sql.execute_migration("ALTER TABLE msgs ADD COLUMN subject TEXT DEFAULT '';", 76)
             .await?;
-        sql.set_raw_config_int("dbversion", 76).await?;
     }
 
     Ok((recalc_fingerprints, update_icons, disable_server_delete))
@@ -500,6 +494,7 @@ impl Sql {
                     .bind(VERSION_CFG)
                     .execute(&mut *conn)
                     .await?;
+
                 Ok(())
             })
         })

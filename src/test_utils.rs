@@ -97,7 +97,7 @@ impl TestContext {
         }
         let ctx = Context::new("FakeOS".into(), dbfile.into(), id)
             .await
-            .unwrap();
+            .expect("failed to create context");
 
         let events = ctx.get_event_emitter();
 

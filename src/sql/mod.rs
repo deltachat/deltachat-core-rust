@@ -27,15 +27,22 @@ mod migrations;
 pub use self::error::*;
 
 /// A wrapper around the underlying Sqlite3 object.
+///
+/// We maintain two different pools to sqlite, on for reading, one for writing.
+/// This can go away once https://github.com/launchbadge/sqlx/issues/459 is implemented.
 #[derive(Debug)]
 pub struct Sql {
-    sql: RwLock<Option<SqlitePool>>,
+    /// Writer pool, must only have 1 connection in it.
+    writer: RwLock<Option<SqlitePool>>,
+    /// Reader pool, maintains multiple connections for reading data.
+    reader: RwLock<Option<SqlitePool>>,
 }
 
 impl Default for Sql {
     fn default() -> Self {
         Self {
-            sql: RwLock::new(None),
+            writer: RwLock::new(None),
+            reader: RwLock::new(None),
         }
     }
 }
@@ -53,12 +60,16 @@ impl Sql {
 
     /// Checks if there is currently a connection to the underlying Sqlite database.
     pub async fn is_open(&self) -> bool {
-        self.sql.read().await.is_some()
+        // in read only mode the writer does not exists
+        self.reader.read().await.is_some()
     }
 
     /// Closes all underlying Sqlite connections.
     pub async fn close(&self) {
-        if let Some(sql) = self.sql.write().await.take() {
+        if let Some(sql) = self.writer.write().await.take() {
+            sql.close().await;
+        }
+        if let Some(sql) = self.reader.write().await.take() {
             sql.close().await;
         }
     }
@@ -71,7 +82,7 @@ impl Sql {
         dbfile: T,
         readonly: bool,
     ) -> anyhow::Result<()> {
-        dbg!(dbfile.as_ref());
+        dbg!(dbfile.as_ref(), readonly);
         if self.is_open().await {
             error!(
                 context,
@@ -81,18 +92,52 @@ impl Sql {
             return Err(Error::SqlAlreadyOpen.into());
         }
 
+        // Open write pool
+        if !readonly {
+            let config = SqliteConnectOptions::new()
+                .journal_mode(SqliteJournalMode::Wal)
+                .filename(dbfile.as_ref())
+                .read_only(false)
+                .busy_timeout(Duration::from_secs(10))
+                .create_if_missing(true)
+                .synchronous(SqliteSynchronous::Normal);
+
+            let writer_pool = PoolOptions::<Sqlite>::new()
+                .max_connections(1)
+                .after_connect(|conn| {
+                    Box::pin(async move {
+                        let q = r#"
+PRAGMA secure_delete=on;
+PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+"#;
+
+                        conn.execute_many(sqlx::query(&q))
+                            .collect::<std::result::Result<Vec<_>, _>>()
+                            .await?;
+                        Ok(())
+                    })
+                })
+                .connect_with(config)
+                .await?;
+            {
+                *self.writer.write().await = Some(writer_pool);
+            }
+        }
+
+        // Open read pool
+
         let config = SqliteConnectOptions::new()
             .journal_mode(SqliteJournalMode::Wal)
             .filename(dbfile.as_ref())
-            .read_only(readonly)
+            .read_only(true)
             .busy_timeout(Duration::from_secs(10))
-            .create_if_missing(!readonly);
+            .synchronous(SqliteSynchronous::Normal);
 
-        let pool = PoolOptions::<Sqlite>::new()
+        let reader_pool = PoolOptions::<Sqlite>::new()
+            .max_connections(num_cpus::get() as u32)
             .after_connect(|conn| {
                 Box::pin(async move {
                     let q = r#"
-PRAGMA secure_delete=on;
 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
 "#;
 
@@ -105,7 +150,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             .connect_with(config)
             .await?;
         {
-            *self.sql.write().await = Some(pool);
+            *self.reader.write().await = Some(reader_pool);
         }
 
         if !readonly {
@@ -116,6 +161,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             let (recalc_fingerprints, update_icons, disable_server_delete) =
                 migrations::run(context, &self).await?;
 
+            dbg!("MIGRATION - DONE", dbfile.as_ref());
             // (2) updates that require high-level objects
             // the structure is complete now and all objects are usable
 
@@ -163,7 +209,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         'q: 'e,
         E: 'q + Execute<'q, Sqlite>,
     {
-        let lock = self.sql.read().await;
+        let lock = self.writer.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let rows = pool.execute(query).await?;
@@ -176,7 +222,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         'q: 'e,
         E: 'q + Execute<'q, Sqlite>,
     {
-        let lock = self.sql.read().await;
+        let lock = self.writer.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         pool.execute_many(query)
@@ -194,7 +240,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         'q: 'e,
         E: 'q + Execute<'q, Sqlite>,
     {
-        let lock = self.sql.read().await;
+        let lock = self.reader.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let rows = pool.fetch(query);
@@ -207,7 +253,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         'q: 'e,
         E: 'q + Execute<'q, Sqlite>,
     {
-        let lock = self.sql.read().await;
+        let lock = self.reader.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let row = pool.fetch_one(query).await?;
@@ -223,7 +269,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         'q: 'e,
         E: 'q + Execute<'q, Sqlite>,
     {
-        let lock = self.sql.read().await;
+        let lock = self.reader.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let row = pool.fetch_optional(query).await?;
@@ -269,7 +315,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             + Sync,
         R: Send,
     {
-        let lock = self.sql.read().await;
+        let lock = self.writer.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let mut transaction = pool.begin().await?;
@@ -293,7 +339,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
         let q = format!("PRAGMA table_info(\"{}\")", name.as_ref());
 
-        let lock = self.sql.read().await;
+        let lock = self.reader.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let mut rows = pool.fetch(sqlx::query(&q));
@@ -309,14 +355,17 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         col_name: impl AsRef<str>,
     ) -> Result<bool> {
         let q = format!("PRAGMA table_info(\"{}\")", table_name.as_ref());
-        let lock = self.sql.read().await;
+        let lock = self.reader.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let mut rows = pool.fetch(sqlx::query(&q));
-        let first_row = rows.next().await;
-        if let Some(row) = first_row {
-            let curr_name: String = row?.try_get(1)?;
+        while let Some(row) = rows.next().await {
+            let row = row?;
 
+            // `PRAGMA table_info` returns one row per column,
+            // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
+
+            let curr_name: &str = row.try_get(1)?;
             if col_name.as_ref() == curr_name {
                 return Ok(true);
             }
