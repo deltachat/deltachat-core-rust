@@ -76,7 +76,6 @@ use crate::events::EventType;
 use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::sql;
-use crate::stock::StockMessage;
 use crate::stock_str;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
@@ -766,7 +765,7 @@ mod tests {
             assert!(msg.text.is_none_or_empty(), msg.text);
             let rawtxt: Option<String> = t
                 .sql
-                .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
+                .query_get_value(sqlx::query("SELECT txt_raw FROM msgs WHERE id=?;").bind(msg_id))
                 .await
                 .unwrap();
             assert!(rawtxt.is_none_or_empty(), rawtxt);

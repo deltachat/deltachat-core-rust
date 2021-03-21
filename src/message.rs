@@ -2527,6 +2527,7 @@ mod tests {
         let chat = alice.create_chat(&bob).await;
         let contact_id = *chat::get_chat_contacts(&alice, chat.id)
             .await
+            .unwrap()
             .first()
             .unwrap();
         let contact = Contact::load_from_db(&alice, contact_id).await.unwrap();
@@ -2546,6 +2547,7 @@ mod tests {
         let chat = bob.create_chat(&alice).await;
         let contact_id = *chat::get_chat_contacts(&bob, chat.id)
             .await
+            .unwrap()
             .first()
             .unwrap();
         let contact = Contact::load_from_db(&bob, contact_id).await.unwrap();

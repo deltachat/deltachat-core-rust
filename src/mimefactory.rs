@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 
-use anyhow::Context as _;
 use anyhow::{bail, ensure, format_err, Error};
 use async_std::prelude::*;
 use chrono::TimeZone;
@@ -152,11 +151,6 @@ impl<'a> MimeFactory<'a> {
             render_rfc724_mid_list(row.try_get(0)?),
             render_rfc724_mid_list(row.try_get(1)?),
         );
-
-        let default_str = context
-            .stock_str(StockMessage::StatusLine)
-            .await
-            .context("Can't get mime_in_reply_to, mime_references")?;
 
         let default_str = stock_str::status_line(context).await;
         let factory = MimeFactory {

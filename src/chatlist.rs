@@ -97,7 +97,7 @@ impl Chatlist {
         context: &Context,
         listflags: usize,
         query: Option<&str>,
-        query_contact_id: Option<i64>,
+        query_contact_id: Option<u32>,
     ) -> Result<Self> {
         let flag_archived_only = 0 != listflags & DC_GCL_ARCHIVED_ONLY;
         let flag_for_forwarding = 0 != listflags & DC_GCL_FOR_FORWARDING;

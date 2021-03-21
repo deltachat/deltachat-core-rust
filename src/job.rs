@@ -1282,8 +1282,6 @@ pub(crate) async fn load_next(
         sleep(Duration::from_millis(500)).await;
     }
 
-    let query;
-    let params;
     let t = time();
     let thread_i = thread as i64;
 

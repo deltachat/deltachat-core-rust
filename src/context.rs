@@ -6,13 +6,13 @@ use std::ops::Deref;
 use std::time::{Instant, SystemTime};
 
 use anyhow::{bail, ensure, Result};
+use async_std::prelude::*;
 use async_std::{
     channel::{self, Receiver, Sender},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
     task,
 };
-use async_std::prelude::*;
 use sqlx::Row;
 
 use crate::chat::{get_chat_cnt, ChatId};
@@ -415,7 +415,6 @@ impl Context {
         Ok(res)
     }
 
-
     /// Get a list of fresh, unmuted messages in any chat but deaddrop.
     ///
     /// The list starts with the most recent message
@@ -423,8 +422,6 @@ impl Context {
     /// Moreover, the number of returned messages
     /// can be used for a badge counter on the app icon.
     pub async fn get_fresh_msgs(&self) -> Result<Vec<MsgId>> {
-        let show_deaddrop: i32 = 0;
-
         let list = self
             .sql
             .fetch(
@@ -442,18 +439,26 @@ impl Context {
                     "   AND c.blocked=0",
                     "   AND NOT(c.muted_until=-1 OR c.muted_until>?)",
                     " ORDER BY m.timestamp DESC,m.id DESC;"
-
-                ).bind(MessageState::InFresh).bind(time())
+                ))
+                .bind(MessageState::InFresh)
+                .bind(time()),
             )
+            .await?
+            .map(|row| row?.try_get("id"))
+            .collect::<sqlx::Result<_>>()
             .await?;
-        Ok(ret)
+        Ok(list)
     }
 
     /// Searches for messages containing the query string.
     ///
     /// If `chat_id` is provided this searches only for messages in this chat, if `chat_id`
     /// is `None` this searches messages from all chats.
-    pub async fn search_msgs(&self, chat_id: Option<ChatId>, query: impl AsRef<str>) -> Result<Vec<MsgId>> {
+    pub async fn search_msgs(
+        &self,
+        chat_id: Option<ChatId>,
+        query: impl AsRef<str>,
+    ) -> Result<Vec<MsgId>> {
         let real_query = query.as_ref().trim();
         if real_query.is_empty() {
             return Ok(Vec::new());
@@ -462,11 +467,10 @@ impl Context {
         let str_like_beg = format!("{}%", real_query);
 
         let list = if let Some(chat_id) = chat_id {
-            self
-                .sql
+            self.sql
                 .fetch(
                     sqlx::query(
-                "SELECT m.id AS id, m.timestamp AS timestamp
+                        "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -474,22 +478,25 @@ impl Context {
                    AND m.hidden=0
                    AND ct.blocked=0
                    AND (txt LIKE ? OR ct.name LIKE ?)
-                 ORDER BY m.timestamp,m.id;"
+                 ORDER BY m.timestamp,m.id;",
                     )
-                        .bind(chat_id)
-                        .bind(str_like_in_text)
-                        .bind(str_like_beg),
+                    .bind(chat_id)
+                    .bind(str_like_in_text)
+                    .bind(str_like_beg),
                 )
                 .await?
-                .map(|row| row?.try_get("id"))
-                .collect::<sqlx::Result<_>>()
+                .map(|row| {
+                    let row = row?;
+                    let id = row.try_get::<MsgId, _>("id")?;
+                    Ok(id)
+                })
+                .collect::<sqlx::Result<Vec<MsgId>>>()
                 .await?
         } else {
-            self
-                .sql
+            self.sql
                 .fetch(
                     sqlx::query(
-                "SELECT m.id AS id, m.timestamp AS timestamp
+                        "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -500,12 +507,19 @@ impl Context {
                    AND c.blocked=0
                    AND ct.blocked=0
                    AND (m.txt LIKE ? OR ct.name LIKE ?)
-                 ORDER BY m.timestamp DESC,m.id DESC;"
+                 ORDER BY m.timestamp DESC,m.id DESC;",
                     )
-                        .bind(str_like_in_text)
-                        .bind(str_like_beg)
-            )
-            .await?
+                    .bind(str_like_in_text)
+                    .bind(str_like_beg),
+                )
+                .await?
+                .map(|row| {
+                    let row = row?;
+                    let id = row.try_get::<MsgId, _>("id")?;
+                    Ok(id)
+                })
+                .collect::<sqlx::Result<Vec<MsgId>>>()
+                .await?
         };
 
         Ok(list)
@@ -608,7 +622,7 @@ mod tests {
     }
 
     async fn receive_msg(t: &TestContext, chat: &Chat) {
-        let members = get_chat_contacts(t, chat.id).await;
+        let members = get_chat_contacts(t, chat.id).await.unwrap();
         let contact = Contact::load_from_db(t, *members.first().unwrap())
             .await
             .unwrap();
@@ -714,8 +728,9 @@ mod tests {
         // we need to modify the database directly
         t.sql
             .execute(
-                "UPDATE chats SET muted_until=? WHERE id=?;",
-                paramsv![time() - 3600, bob.id],
+                sqlx::query("UPDATE chats SET muted_until=? WHERE id=?;")
+                    .bind(time() - 3600)
+                    .bind(bob.id),
             )
             .await
             .unwrap();
@@ -732,10 +747,7 @@ mod tests {
         // to test get_fresh_msgs() with invalid mute_until (everything < -1),
         // that results in "muted forever" by definition.
         t.sql
-            .execute(
-                "UPDATE chats SET muted_until=-2 WHERE id=?;",
-                paramsv![bob.id],
-            )
+            .execute(sqlx::query("UPDATE chats SET muted_until=-2 WHERE id=?;").bind(bob.id))
             .await
             .unwrap();
         let bob = Chat::load_from_db(&t, bob.id).await.unwrap();

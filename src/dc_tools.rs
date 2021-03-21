@@ -632,13 +632,6 @@ impl FromStr for EmailAddress {
     }
 }
 
-/// Utility to check if a in the binary represantion of listflags
-/// the bit at position bitindex is 1.
-pub(crate) fn listflags_has(listflags: u32, bitindex: usize) -> bool {
-    let listflags = listflags as usize;
-    (listflags & bitindex) == bitindex
-}
-
 /// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
 pub(crate) fn improve_single_line_input(input: impl AsRef<str>) -> String {
     input

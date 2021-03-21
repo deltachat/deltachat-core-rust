@@ -272,7 +272,7 @@ pub enum JoinError {
     #[error("Ongoing sender dropped (this is a bug)")]
     OngoingSenderDropped,
     #[error("Other")]
-    Other(#[from] crate::error::Error),
+    Other(#[from] anyhow::Error),
 }
 
 /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
@@ -441,30 +441,6 @@ async fn fingerprint_equals_sender(
     Ok(false)
 }
 
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum HandshakeError {
-    #[error("Can not be called with special contact ID")]
-    SpecialContactId,
-    #[error("Not a Secure-Join message")]
-    NotSecureJoinMsg,
-    #[error("Failed to look up or create chat for contact #{contact_id}")]
-    NoChat {
-        contact_id: u32,
-        #[source]
-        cause: Error,
-    },
-    #[error("Chat for group {group} not found")]
-    ChatNotFound { group: String },
-    #[error("No configured self address found")]
-    NoSelfAddr,
-    #[error("Failed to send message")]
-    MsgSendFailed(#[from] SendMsgError),
-    #[error("Failed to parse fingerprint")]
-    BadFingerprint(#[from] crate::key::FingerprintError),
-    #[error("{}", _0)]
-    Other(#[from] anyhow::Error),
-}
-
 /// What to do with a Secure-Join handshake message after it was handled.
 ///
 /// This status is returned to [`dc_receive_imf`] which will use it to decide what to do
@@ -509,7 +485,7 @@ pub(crate) async fn handle_securejoin_handshake(
     context: &Context,
     mime_message: &MimeMessage,
     contact_id: u32,
-) -> Result<HandshakeMessage, HandshakeError> {
+) -> Result<HandshakeMessage> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return Err(Error::msg("Can not be called with special contact ID").into());
     }
@@ -587,11 +563,11 @@ pub(crate) async fn handle_securejoin_handshake(
                 Some(mut bobstate) => match bobstate.handle_message(context, mime_message).await {
                     Some(BobHandshakeStage::Terminated(why)) => {
                         could_not_establish_secure_connection(context, bobstate.chat_id(), why)
-                            .await;
+                            .await?;
                         Ok(HandshakeMessage::Done)
                     }
                     Some(_stage) => {
-                        joiner_progress!(context, bobstate.invite().contact_id() as i64, 400);
+                        joiner_progress!(context, bobstate.invite().contact_id(), 400);
                         Ok(HandshakeMessage::Done)
                     }
                     None => Ok(HandshakeMessage::Ignore),
@@ -729,12 +705,12 @@ pub(crate) async fn handle_securejoin_handshake(
                 Some(mut bobstate) => match bobstate.handle_message(context, mime_message).await {
                     Some(BobHandshakeStage::Terminated(why)) => {
                         could_not_establish_secure_connection(context, bobstate.chat_id(), why)
-                            .await;
+                            .await?;
                         Ok(HandshakeMessage::Done)
                     }
                     Some(BobHandshakeStage::Completed) => {
                         // Can only be BobHandshakeStage::Completed
-                        secure_connection_established(context, bobstate.chat_id()).await;
+                        secure_connection_established(context, bobstate.chat_id()).await?;
                         Ok(retval)
                     }
                     Some(_) => {
@@ -809,7 +785,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
     context: &Context,
     mime_message: &MimeMessage,
     contact_id: u32,
-) -> Result<HandshakeMessage, HandshakeError> {
+) -> Result<HandshakeMessage> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return Err(Error::msg("Can not be called with special contact ID"));
     }

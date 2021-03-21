@@ -4,7 +4,7 @@
     clippy::all,
     clippy::indexing_slicing,
     clippy::wildcard_imports,
-    clippy::needless_borrow
+    clippy::needless_borrow,
     unsafe_code
 )]
 #![allow(clippy::match_bool, clippy::eval_order_dependence)]

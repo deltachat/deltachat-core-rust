@@ -1,7 +1,7 @@
 //! Contacts module
 use std::convert::TryFrom;
 
-use anyhow::{bail, ensure, format_err, Context as _, Result};
+use anyhow::{bail, ensure, format_err, Result};
 use async_std::path::PathBuf;
 use async_std::prelude::*;
 use itertools::Itertools;
@@ -196,7 +196,7 @@ impl Contact {
             blocked: row.try_get::<Option<i32>, _>(3)?.unwrap_or_default() != 0,
             origin: row.try_get(2)?,
             param: row.try_get::<String, _>(5)?.parse().unwrap_or_default(),
-            status: row.try_get(6)?.unwrap_or_default(),
+            status: row.try_get::<Option<String>, _>(6)?.unwrap_or_default(),
         };
 
         if contact_id == DC_CONTACT_ID_SELF {
@@ -426,7 +426,10 @@ impl Contact {
         let mut row_id = 0;
 
         if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context.sql.fetch_one(
-                sqlx::query("SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;").bind(addr.to_string())).await.and_then(
+                sqlx::query(
+                    "SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;"
+                )
+                .bind(addr.to_string())).await.and_then(
             |row| {
                 let row_id = row.try_get(0)?;
                 let row_name: String = row.try_get(1)?;
@@ -436,8 +439,7 @@ impl Contact {
 
                 Ok((row_id, row_name, row_addr, row_origin, row_authname))
             },
-        )
-        .await {
+        ) {
             let update_name = manual && name != row_name;
             let update_authname =
                 !manual && name != row_authname && !name.is_empty() &&
@@ -686,22 +688,23 @@ impl Contact {
     // from the users perspective,
     // there is not much difference in an email- and a mailinglist-address)
     async fn update_blocked_mailinglist_contacts(context: &Context) -> Result<()> {
-        let blocked_mailinglists = context
+        let mut rows = context
             .sql
-            .query_map(
-                "SELECT name, grpid FROM chats WHERE type=? AND blocked=?;",
-                paramsv![Chattype::Mailinglist, Blocked::Manually],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-                |rows| {
-                    rows.collect::<std::result::Result<Vec<_>, _>>()
-                        .map_err(Into::into)
-                },
+            .fetch(
+                sqlx::query("SELECT name, grpid FROM chats WHERE type=? AND blocked=?;")
+                    .bind(Chattype::Mailinglist)
+                    .bind(Blocked::Manually),
             )
             .await?;
-        for (name, grpid) in blocked_mailinglists {
+
+        while let Some(row) = rows.next().await {
+            let row = row?;
+            let name = row.try_get::<String, _>(0)?;
+            let grpid = row.try_get::<String, _>(0)?;
+
             if !context
                 .sql
-                .exists("SELECT id FROM contacts WHERE addr=?;", paramsv![grpid])
+                .exists(sqlx::query("SELECT id FROM contacts WHERE addr=?;").bind(&grpid))
                 .await?
             {
                 context
@@ -1261,12 +1264,12 @@ pub(crate) async fn set_profile_image(
 
 /// Sets contact status.
 pub(crate) async fn set_status(context: &Context, contact_id: u32, status: String) -> Result<()> {
-    let mut contact = Contact::load_from_db(context, contact_id as i64).await?;
+    let mut contact = Contact::load_from_db(context, contact_id).await?;
 
     if contact.status != status {
         contact.status = status;
         contact.update_status(context).await?;
-        context.emit_event(EventType::ContactsChanged(Some(contact_id as i64)));
+        context.emit_event(EventType::ContactsChanged(Some(contact_id)));
     }
     Ok(())
 }

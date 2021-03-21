@@ -139,7 +139,7 @@ impl Peerstate {
         }
     }
 
-    pub async fn from_addr(context: &'a Context, addr: &str) -> Result<Option<Peerstate>> {
+    pub async fn from_addr(context: &Context, addr: &str) -> Result<Option<Peerstate>> {
         let query = sqlx::query(
             "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
@@ -173,7 +173,7 @@ impl Peerstate {
         Self::from_stmt(context, query).await
     }
 
-    async fn from_stmt<'e, 'q, E>(context: &'a Context, query: E) -> Result<Option<Peerstate<'a>>>
+    async fn from_stmt<'e, 'q, E>(context: &Context, query: E) -> Result<Option<Peerstate>>
     where
         'q: 'e,
         E: 'q + sqlx::Execute<'q, sqlx::Sqlite>,
@@ -185,7 +185,6 @@ impl Peerstate {
             //   gossip_key_fingerprint, verified_key, verified_key_fingerprint
 
             let peerstate = Peerstate {
-                context,
                 addr: row.try_get(0)?,
                 last_seen: row.try_get(1)?,
                 last_seen_autocrypt: row.try_get(2)?,

@@ -247,7 +247,7 @@ impl MsgId {
     pub async fn get_html(self, context: &Context) -> Result<Option<String>> {
         let rawmime: Option<String> = context
             .sql
-            .query_get_value("SELECT mime_headers FROM msgs WHERE id=?;", paramsv![self])
+            .query_get_value(sqlx::query("SELECT mime_headers FROM msgs WHERE id=?;").bind(self))
             .await?;
 
         if let Some(rawmime) = rawmime {

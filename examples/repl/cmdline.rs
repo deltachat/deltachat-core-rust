@@ -262,7 +262,7 @@ async fn log_contactlist(context: &Context, contacts: &[u32]) {
     for contact_id in contacts {
         let line;
         let mut line2 = "".to_string();
-        if let Ok(contact) = Contact::get_by_id(context, *contact_id).await {
+        if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
             let name = contact.get_display_name();
             let addr = contact.get_addr();
             let verified_state = contact.is_verified(context).await;
@@ -299,7 +299,7 @@ async fn log_contactlist(context: &Context, contacts: &[u32]) {
                 );
             }
 
-            println!("Contact#{}: {}{}", *contact_id, line, line2);
+            println!("Contact#{}: {}{}", contact_id, line, line2);
         }
     }
 }
@@ -664,8 +664,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "createchat" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            let contact_id: libc::c_int = arg1.parse()?;
-            let chat_id = chat::create_by_contact_id(&context, contact_id as i64).await?;
+            let contact_id: u32 = arg1.parse()?;
+            let chat_id = chat::create_by_contact_id(&context, contact_id).await?;
 
             println!("Single#{} created successfully.", chat_id,);
         }
@@ -716,7 +716,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "No chat selected");
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
-            let contact_id_0: i64 = arg1.parse()?;
+            let contact_id_0: u32 = arg1.parse()?;
             if chat::add_contact_to_chat(
                 &context,
                 sel_chat.as_ref().unwrap().get_id(),
@@ -732,7 +732,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "removemember" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            let contact_id_1: i64 = arg1.parse()?;
+            let contact_id_1: u32 = arg1.parse()?;
             chat::remove_contact_from_chat(
                 &context,
                 sel_chat.as_ref().unwrap().get_id(),
@@ -1021,7 +1021,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let file = dirs::home_dir()
                 .unwrap_or_default()
                 .join(format!("msg-{}.html", id.to_u32()));
-            let html = id.get_html(&context).await.unwrap_or_default();
+            let html = id.get_html(&context).await?.unwrap_or_default();
             fs::write(&file, html)?;
             println!("HTML written to: {:#?}", file);
         }
@@ -1081,7 +1081,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "contactinfo" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
-            let contact_id = arg1.parse()?;
+            let contact_id: u32 = arg1.parse()?;
             let contact = Contact::get_by_id(&context, contact_id).await?;
             let name_n_addr = contact.get_name_n_addr();
 
