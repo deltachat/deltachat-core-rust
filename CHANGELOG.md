@@ -1,22 +1,23 @@
 # Changelog 
 
-## UNRELEASED
+## 1.51.0
 
-- breaking change: You have to call dc_stop_io()/dc_start_io() before/after EXPORT_BACKUP:
-  fix race condition and db corruption when a message was received during backup #2253
+- breaking change: You have to call `dc_stop_io()`/`dc_start_io()`
+  before/after `dc_imex(DC_IMEX_EXPORT_BACKUP)`:
+  fix race condition and db corruption
+  when a message was received during backup #2253
 
-- save subject for messages:
-  new api `dc_msg_get_subject()`,
-  when quoting, use the subject of the quoted message as the new subject, instead of the
-  last subject in the chat
+- save subject for messages: new api `dc_msg_get_subject()`,
+  when quoting, use the subject of the quoted message as the new subject,
+  instead of the last subject in the chat #2274 #2283
 
 - new apis to get full or html message,
-  `dc_msg_has_html()` and `dc_get_msg_html()` #2125 #2151
+  `dc_msg_has_html()` and `dc_get_msg_html()` #2125 #2151 #2264 #2279
 
 - new chat type and apis for the new mailing list support,
   `DC_CHAT_TYPE_MAILINGLIST`, `dc_msg_get_real_chat_id()`,
   `dc_msg_get_override_sender_name()` #1964 #2181 #2185 #2195 #2211 #2210 #2240
-  #2243
+  #2241 #2243 #2258 #2259 #2261 #2267 #2270 #2272 #2290
 
 - new api `dc_decide_on_contact_request()`,
   deprecated `dc_create_chat_by_msg_id()` and `dc_marknoticed_contact()` #1964
@@ -25,7 +26,7 @@
 
 - new api `dc_get_chat_encrinfo()` #2186
 
-- new api `dc_contact_get_status()`, returning the recent footer #2218
+- new api `dc_contact_get_status()`, returning the recent footer #2218 #2307
 
 - improve contact name update rules,
   add api `dc_contact_get_auth_name()` #2206 #2212 #2225
@@ -37,6 +38,9 @@
 - api removed: `dc_is_io_running()` #2139
 
 - api removed: `dc_contact_get_first_name()` #2165 #2171
+
+- improve compatibility with providers changing the Message-ID
+  (as Outlook.com) #2250 #2265
 
 - implement Consistent Color Generation (XEP-0392),
   that results in contact colors be be changed #2228 #2229 #2239
@@ -72,7 +76,7 @@
 
 - enable strict TLS for known providers by default #2121
 
-- improve and harden secure join #2154 #2161
+- improve and harden secure join #2154 #2161 #2251
 
 - update `dc_get_info()` to return more information #2156
 
@@ -100,9 +104,23 @@
 
 - fix parsing quoted encoded words in From: header #2193 #2204
 
-- fix ci #2217 #2226
+- fix import/export race condition #2250
+
+- fix: exclude muted chats from notified-list #2269 #2275
+
+- fix: update uid_next if the server rewind it #2288
+
+- fix: return error on fingerprint mismatch on qr-scan #2295
+
+- fix ci #2217 #2226 #2244 #2245 #2249 #2277 #2286
 
 - try harder on backup opening #2148
+
+- trash messages more thoroughly #2273
+
+- nicer logging #2284
+
+- add CMakeLists.txt #2260
 
 - switch to rust 1.50, update toolchains, deps #2150 #2155 #2165 #2107 #2262 #2271
 
@@ -111,7 +129,9 @@
 - improve documentation #2143 #2160 #2175 #2146
 
 - refactorings #2110 #2136 #2135 #2168 #2178 #2189 #2190 #2198 #2197 #2201 #2196
-  #2200 #2230
+  #2200 #2230 #2262 #2203
+
+- update provider-database #2299
 
 
 ## 1.50.0
