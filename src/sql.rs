@@ -721,7 +721,7 @@ async fn open(
                  PRAGMA busy_timeout = {};
                  PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                  ",
-                Duration::from_secs(10).as_millis()
+                Duration::from_secs(180).as_millis()
             ))?;
             Ok(())
         });
