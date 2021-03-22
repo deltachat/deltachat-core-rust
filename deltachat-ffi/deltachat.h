@@ -5635,6 +5635,11 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced by the number of weeks (always >1) the timer is set to.
 #define DC_STR_EPHEMERAL_WEEKS            96
 
+/// "Forwarded"
+///
+/// Used in message summary text for notifications and chatlist.
+#define DC_STR_FORWARDED                  97
+
 /**
  * @}
  */

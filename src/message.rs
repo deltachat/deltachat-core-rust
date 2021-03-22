@@ -644,6 +644,7 @@ impl Message {
         get_summarytext_by_raw(
             self.viewtype,
             self.text.as_ref(),
+            self.is_forwarded(),
             &self.param,
             approx_characters,
             context,
@@ -1133,6 +1134,7 @@ impl Lot {
         let mut text2 = get_summarytext_by_raw(
             msg.viewtype,
             msg.text.as_ref(),
+            msg.is_forwarded(),
             &msg.param,
             SUMMARY_CHARACTERS,
             context,
@@ -1582,6 +1584,7 @@ pub async fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageSt
 pub async fn get_summarytext_by_raw(
     viewtype: Viewtype,
     text: Option<impl AsRef<str>>,
+    was_forwarded: bool,
     param: &Params,
     approx_characters: usize,
     context: &Context,
@@ -1632,7 +1635,7 @@ pub async fn get_summarytext_by_raw(
         return prefix;
     }
 
-    let summary = if let Some(text) = text {
+    let summary_content = if let Some(text) = text {
         if text.as_ref().is_empty() {
             prefix
         } else if prefix.is_empty() {
@@ -1643,6 +1646,17 @@ pub async fn get_summarytext_by_raw(
         }
     } else {
         prefix
+    };
+
+    let summary = if was_forwarded {
+        let tmp = format!(
+            "{}: {}",
+            stock_str::forwarded(context).await,
+            summary_content
+        );
+        dc_truncate(&tmp, approx_characters).to_string()
+    } else {
+        summary_content
     };
 
     summary.split_whitespace().join(" ")
@@ -2320,73 +2334,186 @@ mod tests {
         some_file.set(Param::File, "foo.bar");
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Text, some_text.as_ref(), &Params::new(), 50, ctx)
-                .await,
+            get_summarytext_by_raw(
+                Viewtype::Text,
+                some_text.as_ref(),
+                false,
+                &Params::new(),
+                50,
+                ctx
+            )
+            .await,
             "bla bla" // for simple text, the type is not added to the summary
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Image, no_text.as_ref(), &some_file, 50, ctx).await,
+            get_summarytext_by_raw(
+                Viewtype::Image,
+                no_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx
+            )
+            .await,
             "Image" // file names are not added for images
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Video, no_text.as_ref(), &some_file, 50, ctx).await,
+            get_summarytext_by_raw(
+                Viewtype::Video,
+                no_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx
+            )
+            .await,
             "Video" // file names are not added for videos
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Gif, no_text.as_ref(), &some_file, 50, ctx,).await,
+            get_summarytext_by_raw(Viewtype::Gif, no_text.as_ref(), false, &some_file, 50, ctx,)
+                .await,
             "GIF" // file names are not added for GIFs
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Sticker, no_text.as_ref(), &some_file, 50, ctx,).await,
+            get_summarytext_by_raw(
+                Viewtype::Sticker,
+                no_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx,
+            )
+            .await,
             "Sticker" // file names are not added for stickers
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Voice, empty_text.as_ref(), &some_file, 50, ctx,)
-                .await,
+            get_summarytext_by_raw(
+                Viewtype::Voice,
+                empty_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx,
+            )
+            .await,
             "Voice message" // file names are not added for voice messages, empty text is skipped
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Voice, no_text.as_ref(), &some_file, 50, ctx).await,
+            get_summarytext_by_raw(
+                Viewtype::Voice,
+                no_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx
+            )
+            .await,
             "Voice message" // file names are not added for voice messages
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Voice, some_text.as_ref(), &some_file, 50, ctx).await,
+            get_summarytext_by_raw(
+                Viewtype::Voice,
+                some_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx
+            )
+            .await,
             "Voice message \u{2013} bla bla" // `\u{2013}` explicitly checks for "EN DASH"
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Audio, no_text.as_ref(), &some_file, 50, ctx).await,
+            get_summarytext_by_raw(
+                Viewtype::Audio,
+                no_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx
+            )
+            .await,
             "Audio \u{2013} foo.bar" // file name is added for audio
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Audio, empty_text.as_ref(), &some_file, 50, ctx,)
-                .await,
+            get_summarytext_by_raw(
+                Viewtype::Audio,
+                empty_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx,
+            )
+            .await,
             "Audio \u{2013} foo.bar" // file name is added for audio, empty text is not added
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Audio, some_text.as_ref(), &some_file, 50, ctx).await,
+            get_summarytext_by_raw(
+                Viewtype::Audio,
+                some_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx
+            )
+            .await,
             "Audio \u{2013} foo.bar \u{2013} bla bla" // file name and text added for audio
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::File, some_text.as_ref(), &some_file, 50, ctx).await,
+            get_summarytext_by_raw(
+                Viewtype::File,
+                some_text.as_ref(),
+                false,
+                &some_file,
+                50,
+                ctx
+            )
+            .await,
             "File \u{2013} foo.bar \u{2013} bla bla" // file name is added for files
+        );
+
+        // Forwarded
+        assert_eq!(
+            get_summarytext_by_raw(
+                Viewtype::Text,
+                some_text.as_ref(),
+                true,
+                &Params::new(),
+                50,
+                ctx
+            )
+            .await,
+            "Forwarded: bla bla" // for simple text, the type is not added to the summary
+        );
+        assert_eq!(
+            get_summarytext_by_raw(
+                Viewtype::File,
+                some_text.as_ref(),
+                true,
+                &some_file,
+                50,
+                ctx
+            )
+            .await,
+            "Forwarded: File \u{2013} foo.bar \u{2013} bla bla"
         );
 
         let mut asm_file = Params::new();
         asm_file.set(Param::File, "foo.bar");
         asm_file.set_cmd(SystemMessage::AutocryptSetupMessage);
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), &asm_file, 50, ctx).await,
+            get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), false, &asm_file, 50, ctx)
+                .await,
             "Autocrypt Setup Message" // file name is not added for autocrypt setup messages
         );
     }

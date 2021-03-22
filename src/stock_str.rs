@@ -262,6 +262,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Message deletion timer is set to %1$s weeks."))]
     MsgEphemeralTimerWeeks = 96,
+
+    #[strum(props(fallback = "Forwarded"))]
+    Forwarded = 97,
 }
 
 impl StockMessage {
@@ -854,6 +857,11 @@ pub(crate) async fn msg_ephemeral_timer_weeks(
         .replace1(weeks)
         .action_by_contact(context, by_contact)
         .await
+}
+
+/// Stock string: `Forwarded`.
+pub(crate) async fn forwarded(context: &Context) -> String {
+    translated(context, StockMessage::Forwarded).await
 }
 
 impl Context {
