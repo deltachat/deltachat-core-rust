@@ -14,7 +14,6 @@ use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
-use crate::chat;
 use crate::config::Config;
 use crate::constants::{
     Chattype, ShowEmails, Viewtype, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
@@ -36,6 +35,7 @@ use crate::param::Params;
 use crate::provider::Socket;
 use crate::scheduler::InterruptInfo;
 use crate::stock_str;
+use crate::{chat, constants::Blocked};
 
 mod client;
 mod idle;
@@ -1619,11 +1619,12 @@ pub(crate) async fn prefetch_should_download(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
     show_emails: ShowEmails,
+    server_folder: &str,
 ) -> Result<bool> {
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
     let parent = get_prefetch_parent_message(context, headers).await?;
     let is_reply_to_chat_message = parent.is_some();
-    if let Some(parent) = parent {
+    if let Some(parent) = &parent {
         let chat = chat::Chat::load_from_db(context, parent.get_chat_id()).await?;
         if chat.typ == Chattype::Group {
             // This might be a group command, like removing a group member.
@@ -1669,7 +1670,26 @@ pub(crate) async fn prefetch_should_download(
             }
             ShowEmails::All => true,
         };
-    let should_download = (show && !blocked_contact) || maybe_ndn;
+
+    let unblocked_parent = if let Some(parent) = parent {
+        parent.chat_blocked == Blocked::Not
+    } else {
+        false
+    };
+    let spam = (!is_chat_message)
+        && (!unblocked_parent)
+        && (!accepted_contact)
+        && context.is_spam_folder(server_folder).await?;
+    warn!(
+        context,
+        "dbg {} {} {} {}",
+        is_chat_message,
+        unblocked_parent,
+        accepted_contact,
+        context.is_spam_folder(server_folder).await?
+    );
+
+    let should_download = (show && !blocked_contact && !spam) || maybe_ndn;
     Ok(should_download)
 }
 
@@ -1701,7 +1721,7 @@ async fn message_needs_processing(
     // we do not know the message-id
     // or the message-id is missing (in this case, we create one in the further process)
     // or some other error happened
-    let show = match prefetch_should_download(context, headers, show_emails).await {
+    let show = match prefetch_should_download(context, headers, show_emails, folder).await {
         Ok(show) => show,
         Err(err) => {
             warn!(context, "prefetch_should_download error: {}", err);
@@ -1970,5 +1990,81 @@ mod tests {
                 .iter()
                 .any(|set| set.split(',').any(|n| n.parse::<u32>().unwrap() == *number)));
         }
+    }
+
+    #[async_std::test]
+    async fn test_dont_download_spam() {
+        async fn should_download(t: &TestContext, raw: &[u8], server_folder: &str) -> bool {
+            let headers = mailparse::parse_mail(raw).unwrap().headers;
+            prefetch_should_download(&t, &headers, ShowEmails::All, server_folder)
+                .await
+                .unwrap()
+        }
+
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ConfiguredSpamFolder, Some("Spam"))
+            .await
+            .unwrap();
+
+        assert!(
+            should_download(
+                &t,
+                b"Message-Id: abcd1@exmaple.com\n\
+                From: bob@example.org\n\
+                Chat-Version: 1.0\n\
+                ",
+                "Inbox"
+            )
+            .await,
+        );
+
+        assert!(
+            should_download(
+                &t,
+                b"Message-Id: abcd2@exmaple.com\n\
+                From: bob@example.org\n\
+                ",
+                "Inbox"
+            )
+            .await,
+        );
+
+        assert!(
+            should_download(
+                &t,
+                b"Message-Id: abcd3@exmaple.com\n\
+                From: bob@example.org\n\
+                Chat-Version: 1.0\n\
+                ",
+                "Spam"
+            )
+            .await,
+        );
+
+        assert!(
+            // Note the `!`:
+            !should_download(
+                &t,
+                b"Message-Id: abcd4@exmaple.com\n\
+                From: bob@example.org\n\
+                ",
+                "Spam"
+            )
+            .await,
+        );
+
+        crate::contact::Contact::create(&t, "", "bob@example.org")
+            .await
+            .unwrap();
+        assert!(
+            should_download(
+                &t,
+                b"Message-Id: abcd4@exmaple.com\n\
+                From: bob@example.org\n\
+                ",
+                "Spam"
+            )
+            .await,
+        );
     }
 }

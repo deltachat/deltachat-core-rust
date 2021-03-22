@@ -2665,7 +2665,7 @@ mod tests {
         // Check that the ndn would be downloaded:
         let headers = mailparse::parse_mail(raw_ndn).unwrap().headers;
         assert!(
-            crate::imap::prefetch_should_download(&t, &headers, ShowEmails::Off)
+            crate::imap::prefetch_should_download(&t, &headers, ShowEmails::Off, "Inbox")
                 .await
                 .unwrap()
         );
