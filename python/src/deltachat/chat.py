@@ -196,7 +196,7 @@ class Chat(object):
         :raises ValueError: if message can not be sent.
 
         :returns: a :class:`deltachat.message.Message` instance as
-           sent out.  This is the same object as was passed in, which
+           sent out.  This is the same object that was passed in, which
            has been modified with the new state of the core.
         """
         if msg.is_out_preparing():
