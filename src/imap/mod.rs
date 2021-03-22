@@ -1680,14 +1680,6 @@ pub(crate) async fn prefetch_should_download(
         && (!unblocked_parent)
         && (!accepted_contact)
         && context.is_spam_folder(server_folder).await?;
-    warn!(
-        context,
-        "dbg {} {} {} {}",
-        is_chat_message,
-        unblocked_parent,
-        accepted_contact,
-        context.is_spam_folder(server_folder).await?
-    );
 
     let should_download = (show && !blocked_contact && !spam) || maybe_ndn;
     Ok(should_download)
