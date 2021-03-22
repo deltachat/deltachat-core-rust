@@ -208,6 +208,7 @@ class Chat(object):
             raise ValueError("message could not be sent")
         # modify message in place to avoid bad state for the caller
         msg._dc_msg = Message.from_db(self.account, sent_id)._dc_msg
+        msg.id = sent_id
         return msg
 
     def send_text(self, text):
