@@ -1,3 +1,10 @@
+1.51.0
+------
+
+- adapt python bindings and APIs to core51 release 
+  (see CHANGELOG of https://github.com/deltachat/deltachat-core-rust/blob/1.51.0/CHANGELOG.md#1510
+  for more details on all core changes) 
+
 1.44.0
 ------
 
