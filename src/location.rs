@@ -262,7 +262,7 @@ pub async fn is_sending_locations_to_chat(context: &Context, chat_id: Option<Cha
         Some(chat_id) => context
             .sql
             .exists(
-                sqlx::query("SELECT id  FROM chats  WHERE id=?  AND locations_send_until>?;")
+                sqlx::query("SELECT COUNT(id) FROM chats  WHERE id=?  AND locations_send_until>?;")
                     .bind(chat_id)
                     .bind(time()),
             )
@@ -271,7 +271,8 @@ pub async fn is_sending_locations_to_chat(context: &Context, chat_id: Option<Cha
         None => context
             .sql
             .exists(
-                sqlx::query("SELECT id  FROM chats  WHERE locations_send_until>?;").bind(time()),
+                sqlx::query("SELECT COUNT(id) FROM chats  WHERE locations_send_until>?;")
+                    .bind(time()),
             )
             .await
             .unwrap_or_default(),
