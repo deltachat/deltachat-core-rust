@@ -902,11 +902,25 @@ async fn add_parts(
         None
     };
 
-    let stmt = "INSERT INTO msgs \
-                    (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
-                    timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-                    bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error, ephemeral_timer, ephemeral_timestamp) \
-                    VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?);";
+    let stmt = r#"
+INSERT INTO msgs
+  (
+    rfc724_mid, server_folder, server_uid, chat_id, 
+    from_id, to_id, timestamp, timestamp_sent, 
+    timestamp_rcvd, type, state, msgrmsg, 
+    txt, txt_raw, param, bytes, hidden, 
+    mime_headers, mime_in_reply_to, mime_references, 
+    error, ephemeral_timer, ephemeral_timestamp
+  )
+  VALUES (
+    ?, ?, ?, ?, 
+    ?, ?, ?, ?, 
+    ?, ?, ?, ?, 
+    ?, ?, ?, ?, 
+    ?, ?, ?, ?, 
+    ?, ?, ?
+  );
+"#;
 
     for part in &mut mime_parser.parts {
         let mut txt_raw = "".to_string();
@@ -957,8 +971,8 @@ async fn add_parts(
                     .bind(server_folder)
                     .bind(server_uid as i32)
                     .bind(*chat_id)
-                    .bind(from_id as i32)
-                    .bind(to_id as i32)
+                    .bind(if trash { 0 } else { from_id as i32 })
+                    .bind(if trash { 0 } else { to_id as i32 })
                     .bind(sort_timestamp)
                     .bind(*sent_timestamp)
                     .bind(rcvd_timestamp)
@@ -983,6 +997,7 @@ async fn add_parts(
                     })
                     .bind(&mime_in_reply_to)
                     .bind(&mime_references)
+                    .bind(&mime_modified)
                     .bind(part.error.take().unwrap_or_default())
                     .bind(ephemeral_timer)
                     .bind(ephemeral_timestamp),

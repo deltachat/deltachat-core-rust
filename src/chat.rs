@@ -1146,6 +1146,7 @@ impl Chat {
                 .bind(msg.state)
                 .bind(msg.text.as_ref().cloned().unwrap_or_default())
                 .bind(&msg.subject)
+                .bind(msg.param.to_string())
                 .bind(msg.hidden)
                 .bind(msg.in_reply_to.as_deref().unwrap_or_default())
                 .bind(new_references)
@@ -3792,6 +3793,7 @@ mod tests {
         // Alice creates a group with Bob, sends a message to bob
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
+
         alice
             .set_config(Config::ShowEmails, Some("2"))
             .await
@@ -3806,6 +3808,8 @@ mod tests {
             .await
             .unwrap();
         let alice_chat = Chat::load_from_db(&alice, alice_chat_id).await.unwrap();
+
+        println!("----- add_contact_to_chat");
         add_contact_to_chat(&alice, alice_chat_id, contact_id).await;
         assert_eq!(
             get_chat_contacts(&alice, alice_chat_id)
@@ -3814,9 +3818,11 @@ mod tests {
                 .len(),
             2
         );
+        println!("----- send_text_msg");
         send_text_msg(&alice, alice_chat_id, "hi!".to_string())
             .await
             .ok();
+        println!("----- get_chat_msgs");
         assert_eq!(
             get_chat_msgs(&alice, alice_chat_id, 0, None)
                 .await
@@ -3825,6 +3831,7 @@ mod tests {
             1
         );
 
+        println!("----- pop_sent_msg");
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
         let msg = alice.pop_sent_msg().await.payload();
         assert_eq!(msg.match_indices("Gr.").count(), 2);
@@ -3837,9 +3844,11 @@ mod tests {
             .unwrap();
         let msg = bob.get_last_msg().await;
 
+        println!("load from dbb");
         let bob_chat = Chat::load_from_db(&bob, msg.chat_id).await.unwrap();
         assert_eq!(bob_chat.grpid, alice_chat.grpid);
 
+        println!("chat loaded");
         // Bob answers - simulate a normal MUA by not setting `Chat-*`-headers;
         // moreover, Bob's SMTP-server also replaces the `Message-ID:`-header
         send_text_msg(&bob, bob_chat.id, "ho!".to_string())
@@ -3850,10 +3859,12 @@ mod tests {
         let msg = msg.replace("Chat-", "XXXX-");
         assert_eq!(msg.match_indices("Chat-").count(), 0);
 
+        println!("last receive start");
         // Alice receives this message - she can still detect the group by the `References:`-header
         dc_receive_imf(&alice, msg.as_bytes(), "INBOX", 2, false)
             .await
             .unwrap();
+        println!("----- last receie if");
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.chat_id, alice_chat_id);
         assert_eq!(msg.text, Some("ho!".to_string()));

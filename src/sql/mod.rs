@@ -1,13 +1,13 @@
 //! # SQLite wrapper
 
-use async_std::prelude::*;
-use async_std::sync::RwLock;
-
 use std::collections::HashSet;
 use std::path::Path;
 use std::pin::Pin;
 use std::time::Duration;
 
+use anyhow::Context as _;
+use async_std::prelude::*;
+use async_std::sync::RwLock;
 use sqlx::{pool::PoolOptions, sqlite::*, Execute, Executor, Row};
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
@@ -433,10 +433,14 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         if !self.is_open().await || key.as_ref().is_empty() {
             return Err(Error::SqlNoConnection);
         }
-        self.query_get_value(
-            sqlx::query("SELECT value FROM config WHERE keyname=?;").bind(key.as_ref()),
-        )
-        .await
+        let value = self
+            .query_get_value(
+                sqlx::query("SELECT value FROM config WHERE keyname=?;").bind(key.as_ref()),
+            )
+            .await
+            .context(format!("failed to fetch raw config: {}", key.as_ref()))?;
+
+        Ok(value)
     }
 
     pub async fn set_raw_config_int(&self, key: impl AsRef<str>, value: i32) -> Result<()> {
