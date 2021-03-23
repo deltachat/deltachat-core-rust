@@ -705,7 +705,7 @@ impl Contact {
 
             if !context
                 .sql
-                .exists(sqlx::query("SELECT id FROM contacts WHERE addr=?;").bind(&grpid))
+                .exists(sqlx::query("SELECT COUNT(id) FROM contacts WHERE addr=?;").bind(&grpid))
                 .await?
             {
                 context
