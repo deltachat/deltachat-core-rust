@@ -366,11 +366,7 @@ impl Message {
         msg.timestamp_sent = row.try_get("timestamp_sent")?;
         msg.timestamp_rcvd = row.try_get("timestamp_rcvd")?;
         msg.ephemeral_timer = row.try_get("ephemeral_timer")?;
-        dbg!(row.try_get::<Option<String>, _>("ephemeral_timestamp"));
-        msg.ephemeral_timestamp = row
-            .try_get::<Option<i64>, _>("ephemeral_timestamp")?
-            .unwrap_or_default();
-
+        msg.ephemeral_timestamp = row.try_get("ephemeral_timestamp")?;
         msg.viewtype = row.try_get("type")?;
         msg.state = row.try_get("state")?;
         let error: String = row.try_get("error")?;
