@@ -61,7 +61,7 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use anyhow::{ensure, Error};
+use anyhow::{ensure, Context as _, Error};
 use async_std::task;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -327,20 +327,30 @@ impl MsgId {
 /// because it is also called when chatlist is reloaded, and emitting
 /// MsgsChanged there will cause infinite reload loop.
 pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, Error> {
-    let mut updated = context.sql.execute(sqlx::query(
-            // If you change which information is removed here, also change MsgId::trash() and
-            // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
-            "UPDATE msgs \
-             SET chat_id=?, txt='', subject='', txt_raw='', mime_headers='', from_id=0, to_id=0, param='' \
-             WHERE \
-             ephemeral_timestamp != 0 \
-             AND ephemeral_timestamp <= ? \
-             AND chat_id != ?",
+    let mut updated = context
+        .sql
+        .execute(
+            sqlx::query(
+                // If you change which information is removed here, also change MsgId::trash() and
+                // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
+                r#"
+UPDATE msgs
+SET 
+  chat_id=?, txt='', subject='', txt_raw='', 
+  mime_headers='', from_id=0, to_id=0, param=''
+WHERE
+  ephemeral_timestamp != 0
+  AND ephemeral_timestamp <= ?
+  AND chat_id != ?
+"#,
             )
             .bind(DC_CHAT_ID_TRASH)
             .bind(time())
-            .bind(DC_CHAT_ID_TRASH)
-    ).await? > 0;
+            .bind(DC_CHAT_ID_TRASH),
+        )
+        .await
+        .context("update failed")?
+        > 0;
 
     if let Some(delete_device_after) = context.get_config_delete_device_after().await? {
         let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
@@ -375,7 +385,8 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, E
                 .bind(self_chat_id)
                 .bind(device_chat_id),
             )
-            .await?;
+            .await
+            .context("deleted update failed")?;
 
         updated |= rows_modified > 0;
     }
@@ -399,12 +410,14 @@ pub async fn schedule_ephemeral_task(context: &Context) {
         .sql
         .query_get_value(
             sqlx::query(
-                "SELECT ephemeral_timestamp \
-         FROM msgs \
-         WHERE ephemeral_timestamp != 0 \
-           AND chat_id != ? \
-         ORDER BY ephemeral_timestamp ASC \
-         LIMIT 1",
+                r#"
+    SELECT ephemeral_timestamp
+    FROM msgs
+    WHERE ephemeral_timestamp != 0
+      AND chat_id != ?
+    ORDER BY ephemeral_timestamp ASC
+    LIMIT 1;
+    "#,
             )
             .bind(DC_CHAT_ID_TRASH), // Trash contains already deleted messages, skip them
         )

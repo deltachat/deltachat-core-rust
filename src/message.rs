@@ -167,14 +167,27 @@ impl MsgId {
     /// 2. be able to delete the message on the server if we want to
     pub async fn trash(self, context: &Context) -> crate::sql::Result<()> {
         let chat_id = DC_CHAT_ID_TRASH;
-        context.sql.execute(
-            sqlx::query(
-                // If you change which information is removed here, also change delete_expired_messages() and
-                // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
-                "UPDATE msgs SET chat_id=?, txt='', subject='', txt_raw='', mime_headers='', from_id=0, to_id=0, param='' WHERE id=?")
+        context
+            .sql
+            .execute(
+                sqlx::query(
+                    // If you change which information is removed here, also change delete_expired_messages() and
+                    // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
+                    r#"
+UPDATE msgs 
+SET 
+  chat_id=?, txt='', 
+  subject='', txt_raw='', 
+  mime_headers='', 
+  from_id=0, to_id=0, 
+  param='' 
+WHERE id=?;
+"#,
+                )
                 .bind(chat_id)
-                .bind(self)
-        ).await?;
+                .bind(self),
+            )
+            .await?;
 
         Ok(())
     }
@@ -345,7 +358,7 @@ impl Message {
         msg.rfc724_mid = row.try_get("rfc724mid")?;
         msg.in_reply_to = row.try_get("mime_in_reply_to")?;
         msg.server_folder = row.try_get("server_folder")?;
-        msg.server_uid = row.try_get::<i64, _>("server_uid")? as u32;
+        msg.server_uid = row.try_get("server_uid")?;
         msg.chat_id = row.try_get("chat_id")?;
         msg.from_id = row.try_get("from_id")?;
         msg.to_id = row.try_get("to_id")?;
@@ -353,7 +366,11 @@ impl Message {
         msg.timestamp_sent = row.try_get("timestamp_sent")?;
         msg.timestamp_rcvd = row.try_get("timestamp_rcvd")?;
         msg.ephemeral_timer = row.try_get("ephemeral_timer")?;
-        msg.ephemeral_timestamp = row.try_get("ephemeral_timestamp")?;
+        dbg!(row.try_get::<Option<String>, _>("ephemeral_timestamp"));
+        msg.ephemeral_timestamp = row
+            .try_get::<Option<i64>, _>("ephemeral_timestamp")?
+            .unwrap_or_default();
+
         msg.viewtype = row.try_get("type")?;
         msg.state = row.try_get("state")?;
         let error: String = row.try_get("error")?;
