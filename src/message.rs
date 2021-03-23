@@ -353,25 +353,39 @@ impl Message {
             )
             .await?;
 
-        let mut msg = Message::default();
-        msg.id = row.try_get("id")?;
-        msg.rfc724_mid = row.try_get("rfc724mid")?;
-        msg.in_reply_to = row.try_get("mime_in_reply_to")?;
-        msg.server_folder = row.try_get("server_folder")?;
-        msg.server_uid = row.try_get("server_uid")?;
-        msg.chat_id = row.try_get("chat_id")?;
-        msg.from_id = row.try_get("from_id")?;
-        msg.to_id = row.try_get("to_id")?;
-        msg.timestamp_sort = row.try_get("timestamp")?;
-        msg.timestamp_sent = row.try_get("timestamp_sent")?;
-        msg.timestamp_rcvd = row.try_get("timestamp_rcvd")?;
-        msg.ephemeral_timer = row.try_get("ephemeral_timer")?;
-        msg.ephemeral_timestamp = row.try_get("ephemeral_timestamp")?;
-        msg.viewtype = row.try_get("type")?;
-        msg.state = row.try_get("state")?;
-        let error: String = row.try_get("error")?;
-        msg.error = Some(error).filter(|error| !error.is_empty());
-        msg.is_dc_message = row.try_get("msgrmsg")?;
+        let mut msg = Message {
+            id: row.try_get("id")?,
+            rfc724_mid: row.try_get("rfc724mid")?,
+            in_reply_to: row.try_get("mime_in_reply_to")?,
+            server_folder: row.try_get("server_folder")?,
+            server_uid: row.try_get("server_uid")?,
+            chat_id: row.try_get("chat_id")?,
+            from_id: row.try_get("from_id")?,
+            to_id: row.try_get("to_id")?,
+            timestamp_sort: row.try_get("timestamp")?,
+            timestamp_sent: row.try_get("timestamp_sent")?,
+            timestamp_rcvd: row.try_get("timestamp_rcvd")?,
+            ephemeral_timer: row.try_get("ephemeral_timer")?,
+            ephemeral_timestamp: row.try_get("ephemeral_timestamp")?,
+            viewtype: row.try_get("type")?,
+            state: row.try_get("state")?,
+            error: row
+                .try_get::<Option<String>, _>("error")?
+                .filter(|e| !e.is_empty()),
+            is_dc_message: row.try_get("msgrmsg")?,
+            mime_modified: row.try_get("mime_modified")?,
+            subject: row.try_get("subject")?,
+            param: row
+                .try_get::<String, _>("param")?
+                .parse()
+                .unwrap_or_default(),
+            hidden: row.try_get("hidden")?,
+            location_id: row.try_get("location")?,
+            chat_blocked: row
+                .try_get::<Option<Blocked>, _>("blocked")?
+                .unwrap_or_default(),
+            text: None,
+        };
 
         let text;
         if let Ok(Some(buf)) = row.try_get::<Option<&[u8]>, _>("txt") {
@@ -392,16 +406,6 @@ impl Message {
             text = "".to_string();
         }
         msg.text = Some(text);
-
-        msg.param = row
-            .try_get::<String, _>("param")?
-            .parse()
-            .unwrap_or_default();
-        msg.hidden = row.try_get("hidden")?;
-        msg.location_id = row.try_get("location")?;
-        msg.chat_blocked = row
-            .try_get::<Option<Blocked>, _>("blocked")?
-            .unwrap_or_default();
 
         Ok(msg)
     }
