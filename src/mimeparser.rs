@@ -2745,6 +2745,18 @@ On 2020-10-25, Bob wrote:
     }
 
     #[async_std::test]
+    async fn test_allinkl_blockquote() {
+        let t = TestContext::new().await;
+        let raw = include_bytes!("../test-data/message/allinkl-quote.eml");
+        let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
+        assert!(mimeparser.parts[0].msg.starts_with("It's 1.0."));
+        assert_eq!(
+            mimeparser.parts[0].param.get(Param::Quote).unwrap(),
+            "What's the version?"
+        );
+    }
+
+    #[async_std::test]
     async fn test_add_subj_to_multimedia_msg() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
