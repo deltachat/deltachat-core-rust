@@ -898,26 +898,6 @@ async fn add_parts(
         None
     };
 
-    let stmt = r#"
-INSERT INTO msgs
-  (
-    rfc724_mid, server_folder, server_uid, chat_id, 
-    from_id, to_id, timestamp, timestamp_sent, 
-    timestamp_rcvd, type, state, msgrmsg, 
-    txt, txt_raw, param, bytes, hidden, 
-    mime_headers, mime_in_reply_to, mime_references, 
-    error, ephemeral_timer, ephemeral_timestamp
-  )
-  VALUES (
-    ?, ?, ?, ?, 
-    ?, ?, ?, ?, 
-    ?, ?, ?, ?, 
-    ?, ?, ?, ?, 
-    ?, ?, ?, ?, 
-    ?, ?, ?
-  );
-"#;
-
     for part in &mut mime_parser.parts {
         let mut txt_raw = "".to_string();
 
@@ -962,41 +942,63 @@ INSERT INTO msgs
         context
             .sql
             .execute(
-                sqlx::query(stmt)
-                    .bind(rfc724_mid)
-                    .bind(server_folder)
-                    .bind(server_uid as i32)
-                    .bind(*chat_id)
-                    .bind(if trash { 0 } else { from_id as i32 })
-                    .bind(if trash { 0 } else { to_id as i32 })
-                    .bind(sort_timestamp)
-                    .bind(*sent_timestamp)
-                    .bind(rcvd_timestamp)
-                    .bind(part.typ)
-                    .bind(state)
-                    .bind(is_dc_message)
-                    .bind(if trash { "" } else { &part.msg })
-                    .bind(if trash { "" } else { &subject })
-                    // txt_raw might contain invalid utf8
-                    .bind(if trash { "" } else { &txt_raw })
-                    .bind(if trash {
-                        "".to_string()
-                    } else {
-                        part.param.to_string()
-                    })
-                    .bind(part.bytes as i64)
-                    .bind(*hidden)
-                    .bind(if (save_mime_headers || mime_modified) && !trash {
-                        mime_headers.clone()
-                    } else {
-                        None
-                    })
-                    .bind(&mime_in_reply_to)
-                    .bind(&mime_references)
-                    .bind(&mime_modified)
-                    .bind(part.error.take().unwrap_or_default())
-                    .bind(ephemeral_timer)
-                    .bind(ephemeral_timestamp),
+                sqlx::query(
+                    r#"
+INSERT INTO msgs
+  (
+    rfc724_mid, server_folder, server_uid, chat_id, 
+    from_id, to_id, timestamp, timestamp_sent, 
+    timestamp_rcvd, type, state, msgrmsg, 
+    txt, subject, txt_raw, param, 
+    bytes, hidden, mime_headers, mime_in_reply_to,
+    mime_references, mime_modified, error, ephemeral_timer,
+    ephemeral_timestamp
+  )
+  VALUES (
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?
+  );
+"#,
+                )
+                .bind(rfc724_mid)
+                .bind(server_folder)
+                .bind(server_uid as i32)
+                .bind(*chat_id)
+                .bind(if trash { 0 } else { from_id as i32 })
+                .bind(if trash { 0 } else { to_id as i32 })
+                .bind(sort_timestamp)
+                .bind(*sent_timestamp)
+                .bind(rcvd_timestamp)
+                .bind(part.typ)
+                .bind(state)
+                .bind(is_dc_message)
+                .bind(if trash { "" } else { &part.msg })
+                .bind(if trash { "" } else { &subject })
+                // txt_raw might contain invalid utf8
+                .bind(if trash { "" } else { &txt_raw })
+                .bind(if trash {
+                    "".to_string()
+                } else {
+                    part.param.to_string()
+                })
+                .bind(part.bytes as i64)
+                .bind(*hidden)
+                .bind(if (save_mime_headers || mime_modified) && !trash {
+                    mime_headers.clone()
+                } else {
+                    None
+                })
+                .bind(&mime_in_reply_to)
+                .bind(&mime_references)
+                .bind(&mime_modified)
+                .bind(part.error.take().unwrap_or_default())
+                .bind(ephemeral_timer)
+                .bind(ephemeral_timestamp),
             )
             .await?;
         let msg_id = MsgId::new(

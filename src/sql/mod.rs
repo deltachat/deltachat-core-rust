@@ -82,7 +82,7 @@ impl Sql {
         dbfile: T,
         readonly: bool,
     ) -> anyhow::Result<()> {
-        dbg!(dbfile.as_ref(), readonly);
+        dbg!(dbfile.as_ref());
         if self.is_open().await {
             error!(
                 context,
@@ -161,7 +161,6 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             let (recalc_fingerprints, update_icons, disable_server_delete) =
                 migrations::run(context, &self).await?;
 
-            dbg!("MIGRATION - DONE", dbfile.as_ref());
             // (2) updates that require high-level objects
             // the structure is complete now and all objects are usable
 
