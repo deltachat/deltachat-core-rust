@@ -232,6 +232,7 @@ impl Contact {
 
     /// Block the given contact.
     pub async fn block(context: &Context, id: u32) {
+        dbg!(id);
         set_block_contact(context, id, true).await;
     }
 
@@ -700,7 +701,7 @@ impl Contact {
         while let Some(row) = rows.next().await {
             let row = row?;
             let name = row.try_get::<String, _>(0)?;
-            let grpid = row.try_get::<String, _>(0)?;
+            let grpid = row.try_get::<String, _>(1)?;
 
             if !context
                 .sql
@@ -1159,18 +1160,19 @@ fn sanitize_name_and_addr(name: impl AsRef<str>, addr: impl AsRef<str>) -> (Stri
 }
 
 async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
+    dbg!(contact_id);
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return;
     }
 
-    if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-        if contact.blocked != new_blocking
+    if let Ok(contact) = Contact::load_from_db(context, dbg!(contact_id)).await {
+        if dbg!(contact.blocked) != dbg!(new_blocking)
             && context
                 .sql
                 .execute(
                     sqlx::query("UPDATE contacts SET blocked=? WHERE id=?;")
                         .bind(new_blocking as i32)
-                        .bind(contact_id as i32),
+                        .bind(contact_id),
                 )
                 .await
                 .is_ok()
@@ -1184,15 +1186,17 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
                 .sql
                 .execute(
                     sqlx::query(
-                        "UPDATE chats \
-                     SET blocked=? \
-                     WHERE type=? AND id IN ( \
-                       SELECT chat_id FROM chats_contacts WHERE contact_id=?\
-                     );",
+                        r#"
+UPDATE chats
+SET blocked=?
+WHERE type=? AND id IN (
+  SELECT chat_id FROM chats_contacts WHERE contact_id=?
+);
+"#,
                     )
                     .bind(new_blocking)
                     .bind(100)
-                    .bind(contact_id as i32),
+                    .bind(contact_id),
                 )
                 .await
                 .is_ok()
