@@ -12,8 +12,9 @@ WHEELHOUSEDIR=${2:?directory with pre-built wheels}
 DOXYDOCDIR=${3:?directory where doxygen docs to be found}
 SSHTARGET=ci@b1.delta.chat
 
-    
-export BRANCH=${CIRCLE_BRANCH:?specify branch for uploading purposes}
+
+# if CIRCLE_BRANCH is not set we are called for a tag with empty CIRCLE_BRANCH variable. 
+export BRANCH=${CIRCLE_BRANCH:master}
 
 export BUILDDIR=ci_builds/$REPONAME/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}/wheelhouse
 
