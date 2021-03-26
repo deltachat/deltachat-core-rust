@@ -328,4 +328,8 @@ pub enum EventType {
     ///     (Bob has verified alice and waits until Alice does the same for him)
     #[strum(props(id = "2061"))]
     SecurejoinJoinerProgress { contact_id: u32, progress: usize },
+
+    /// TODO document
+    #[strum(props(id = "2062"))]
+    ConnectivityChanged(crate::scheduler::Connectivity),
 }

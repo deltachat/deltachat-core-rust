@@ -14,8 +14,6 @@ use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
-use crate::chat;
-use crate::config::Config;
 use crate::constants::{
     Chattype, ShowEmails, Viewtype, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
     DC_LP_AUTH_OAUTH2,
@@ -36,6 +34,8 @@ use crate::param::Params;
 use crate::provider::Socket;
 use crate::scheduler::InterruptInfo;
 use crate::stock_str;
+use crate::{chat, scheduler::Connectivity};
+use crate::{config::Config, scheduler::ConnectivityStore};
 
 mod client;
 mod idle;
@@ -92,6 +92,7 @@ pub struct Imap {
     interrupt: Option<stop_token::StopSource>,
     should_reconnect: bool,
     login_failed_once: bool,
+    pub(crate) connectivity: ConnectivityStore,
 }
 
 #[derive(Debug)]
@@ -161,6 +162,7 @@ impl Imap {
             interrupt: Default::default(),
             should_reconnect: Default::default(),
             login_failed_once: Default::default(),
+            connectivity: ConnectivityStore::new(),
         }
     }
 
@@ -173,6 +175,7 @@ impl Imap {
     }
 
     pub fn trigger_reconnect(&mut self) {
+        // async_std::task::spawn(self.connectivity.set_connecting(ctx)); // TODO
         self.should_reconnect = true;
     }
 
@@ -300,7 +303,11 @@ impl Imap {
     async fn setup_handle(&mut self, context: &Context) -> Result<()> {
         let res = self.try_setup_handle(context).await;
         if let Err(ref err) = res {
-            emit_event!(context, EventType::ErrorNetwork(err.to_string()));
+            self.connectivity.set_err(context, err).await;
+            // context.emit_event(EventType::ConnectivityChanged(
+            //     crate::scheduler::Connectivity::Error,
+            // ));
+            //emit_event!(context, EventType::ErrorNetwork(err.to_string()));
         }
         res
     }
@@ -336,6 +343,15 @@ impl Imap {
     ///
     /// Emits network error if connection fails.
     pub async fn connect_configured(&mut self, context: &Context) -> Result<()> {
+        self.connectivity.set_connecting(context).await;
+        let res = self.connect_configured_inner(context).await;
+        if let Err(e) = &res {
+            self.connectivity.set_err(context, e).await;
+        }
+        res
+    }
+
+    pub async fn connect_configured_inner(&mut self, context: &Context) -> Result<()> {
         if self.is_connected() && !self.should_reconnect() {
             return Ok(());
         }
@@ -459,6 +475,7 @@ impl Imap {
             bail!("IMAP operation attempted while it is torn down");
         }
         self.setup_handle(context).await?;
+        self.connectivity.set_fetching(context).await;
 
         while self
             .fetch_new_messages(context, &watch_folder, false)

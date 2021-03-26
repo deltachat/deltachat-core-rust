@@ -5403,13 +5403,6 @@ void dc_event_unref(dc_event_t* event);
 /// - %1$s will be replaced by the failing login name
 #define DC_STR_CANNOT_LOGIN               60
 
-/// "Could not connect to %1$s: %2$s"
-///
-/// Used in error strings.
-/// - %1$s will be replaced by the failing server
-/// - %2$s by a the error message as returned from the server
-#define DC_STR_SERVER_RESPONSE            61
-
 /// "%1$s by %2$s"
 ///
 /// Used to concretize actions,

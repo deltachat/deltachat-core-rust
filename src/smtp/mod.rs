@@ -8,12 +8,11 @@ use async_smtp::smtp::client::net::ClientTlsParameters;
 use async_smtp::{error, smtp, EmailAddress};
 
 use crate::constants::DC_LP_AUTH_OAUTH2;
-use crate::context::Context;
 use crate::events::EventType;
 use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::provider::Socket;
-use crate::stock_str;
+use crate::{context::Context, scheduler::ConnectivityStore};
 
 /// SMTP write and read timeout in seconds.
 const SMTP_TIMEOUT: u64 = 30;
@@ -44,7 +43,6 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Default)]
 pub(crate) struct Smtp {
     transport: Option<smtp::SmtpTransport>,
 
@@ -55,12 +53,19 @@ pub(crate) struct Smtp {
     /// (eg connect or send succeeded). On initialization and disconnect
     /// it is set to None.
     last_success: Option<SystemTime>,
+
+    pub(crate) connectivity: ConnectivityStore,
 }
 
 impl Smtp {
     /// Create a new Smtp instances.
     pub fn new() -> Self {
-        Default::default()
+        Self {
+            transport: None,
+            from: None,
+            last_success: None,
+            connectivity: ConnectivityStore::new(),
+        }
     }
 
     /// Disconnect the SMTP transport and drop it entirely.
@@ -99,6 +104,7 @@ impl Smtp {
             return Ok(());
         }
 
+        self.connectivity.set_connecting(context).await;
         let lp = LoginParam::from_database(context, "configured_").await?;
         let res = self
             .connect(
@@ -109,16 +115,18 @@ impl Smtp {
                 lp.provider.map_or(false, |provider| provider.strict_tls),
             )
             .await;
-        if let Err(ref err) = res {
-            let message = stock_str::server_response(
-                context,
-                format!("SMTP {}:{}", lp.smtp.server, lp.smtp.port),
-                err.to_string(),
-            )
-            .await;
 
-            context.emit_event(EventType::ErrorNetwork(message));
-        };
+        match &res {
+            Err(e) => self.connectivity.set_err(context, e).await,
+            Ok(_) => self.connectivity.set_connected(context).await,
+        }
+        // if let Err(ref err) = res {
+        //     //context.emit_event(EventType::ErrorNetwork(message));
+        //     // context.emit_event(EventType::ConnectivityChanged(
+        //     //     crate::scheduler::Connectivity::Error,
+        //     // ));
+        //     self.connectivity.set_err(context, err).await;
+        // };
         res
     }
 
