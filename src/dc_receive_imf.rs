@@ -1214,7 +1214,7 @@ async fn lookup_chat_by_reply(
             if let Some(msg_grpid) = try_getting_grpid(mime_parser) {
                 if msg_grpid == parent_chat.grpid {
                     // This message will be assigned to this chat, anyway.
-                    // But if we assign it now, create_or_lookup_group() will not be called
+                    // But if we assigned it now, create_or_lookup_group() will not be called
                     // and group commands will not be executed.
                     return Ok((ChatId::new(0), Blocked::Not));
                 }
@@ -1225,6 +1225,10 @@ async fn lookup_chat_by_reply(
                 // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
                 // We don't have any way of finding out whether a msg is undecipherable, so we check for
                 // error.is_some() instead.
+                return Ok((ChatId::new(0), Blocked::Not));
+            }
+
+            if parent_chat.id == ChatId::new(DC_CHAT_ID_TRASH) {
                 return Ok((ChatId::new(0), Blocked::Not));
             }
 
@@ -3810,5 +3814,58 @@ YEAAAAAA!.
         check_alias_reply(bob_answer, false, true).await;
         check_alias_reply(bob_answer, true, false).await;
         check_alias_reply(bob_answer, false, false).await;
+    }
+
+    #[async_std::test]
+    async fn test_dont_assign_to_trash_by_parent() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+        println!("\n========= Receive a message ==========");
+        dc_receive_imf(
+            &t,
+            b"From: Nu Bar <nu@bar.org>\n\
+            To: alice@example.com, bob@example.org\n\
+            Subject: Hi\n\
+            Message-ID: <4444@example.org>\n\
+            \n\
+            hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let chat_id = chat::create_by_msg_id(&t, t.get_last_msg().await.id)
+            .await
+            .unwrap();
+        let msg = get_chat_msg(&t, chat_id, 0, 1).await; // Make sure that the message is actually in the chat
+        assert!(!msg.chat_id.is_special());
+        assert_eq!(msg.text.unwrap(), "Hi – hello");
+
+        println!("\n========= Delete the message ==========");
+        msg.id.trash(&t).await.unwrap();
+
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+        assert_eq!(msgs.len(), 0);
+
+        println!("\n========= Receive a message that is a reply to the deleted message ==========");
+        dc_receive_imf(
+            &t,
+            b"From: Nu Bar <nu@bar.org>\n\
+            To: alice@example.com, bob@example.org\n\
+            Subject: Re: Hi\n\
+            Message-ID: <5555@example.org>\n\
+            In-Reply-To: <4444@example.org\n\
+            \n\
+            Reply\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = get_chat_msg(&t, chat_id, 0, 1).await;
+        assert!(!msg.chat_id.is_special());
+        assert_eq!(msg.text.unwrap(), "Reply");
     }
 }
