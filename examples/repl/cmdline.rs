@@ -254,15 +254,10 @@ async fn log_msglist(context: &Context, msglist: &[MsgId]) -> Result<(), Error> 
 }
 
 async fn log_contactlist(context: &Context, contacts: &[u32]) {
-    let mut contacts = contacts.to_vec();
-    if !contacts.contains(&1) {
-        contacts.push(1);
-    }
-
     for contact_id in contacts {
         let line;
         let mut line2 = "".to_string();
-        if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
+        if let Ok(contact) = Contact::get_by_id(context, *contact_id).await {
             let name = contact.get_display_name();
             let addr = contact.get_addr();
             let verified_state = contact.is_verified(context).await;
@@ -292,14 +287,14 @@ async fn log_contactlist(context: &Context, contacts: &[u32]) {
             let peerstate = Peerstate::from_addr(context, &addr)
                 .await
                 .expect("peerstate error");
-            if peerstate.is_some() && contact_id != 1 {
+            if peerstate.is_some() && *contact_id != 1 {
                 line2 = format!(
                     ", prefer-encrypt={}",
                     peerstate.as_ref().unwrap().prefer_encrypt
                 );
             }
 
-            println!("Contact#{}: {}{}", contact_id, line, line2);
+            println!("Contact#{}: {}{}", *contact_id, line, line2);
         }
     }
 }
