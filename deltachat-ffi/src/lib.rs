@@ -232,19 +232,22 @@ pub unsafe extern "C" fn dc_get_info(context: *const dc_context_t) -> *mut libc:
     }
     let ctx = &*context;
     block_on(async move {
-        let info = ctx.get_info().await.log_err(ctx, "failed to get info").ok();
-        render_info(info).unwrap_or_default().strdup()
+        match ctx.get_info().await {
+            Ok(info) => render_info(info).unwrap_or_default().strdup(),
+            Err(err) => {
+                warn!(ctx, "failed to get info: {}", err);
+                "".strdup()
+            }
+        }
     })
 }
 
 fn render_info(
-    info: Option<BTreeMap<&'static str, String>>,
+    info: BTreeMap<&'static str, String>,
 ) -> std::result::Result<String, std::fmt::Error> {
     let mut res = String::new();
-    if let Some(info) = info {
-        for (key, value) in &info {
-            writeln!(&mut res, "{}={}", key, value)?;
-        }
+    for (key, value) in &info {
+        writeln!(&mut res, "{}={}", key, value)?;
     }
 
     Ok(res)
