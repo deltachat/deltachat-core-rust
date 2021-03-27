@@ -1880,7 +1880,7 @@ pub async fn get_chat_msgs(
         } else {
             1i32
         })
-    } else if (flags & DC_GCM_INFO_ONLY) == 1 {
+    } else if (flags & DC_GCM_INFO_ONLY) != 0 {
         sqlx::query(
         // GLOB is used here instead of LIKE becase it is case-sensitive
                 "SELECT m.id AS id, m.timestamp AS timestamp, m.param AS param, m.from_id AS from_id, m.to_id AS to_id
