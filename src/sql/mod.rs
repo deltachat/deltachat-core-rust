@@ -8,7 +8,11 @@ use std::time::Duration;
 use anyhow::Context as _;
 use async_std::prelude::*;
 use async_std::sync::RwLock;
-use sqlx::{pool::PoolOptions, sqlite::*, Execute, Executor, Row};
+use sqlx::{
+    pool::PoolOptions,
+    sqlite::{Sqlite, SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous},
+    Execute, Executor, Row,
+};
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
 use crate::config::Config;
@@ -111,7 +115,7 @@ PRAGMA secure_delete=on;
 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
 "#;
 
-                        conn.execute_many(sqlx::query(&q))
+                        conn.execute_many(sqlx::query(q))
                             .collect::<std::result::Result<Vec<_>, _>>()
                             .await?;
                         Ok(())
@@ -141,7 +145,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
 "#;
 
-                    conn.execute_many(sqlx::query(&q))
+                    conn.execute_many(sqlx::query(q))
                         .collect::<std::result::Result<Vec<_>, _>>()
                         .await?;
                     Ok(())
@@ -159,7 +163,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             // rely themselves on the low-level structure.
 
             let (recalc_fingerprints, update_icons, disable_server_delete) =
-                migrations::run(context, &self).await?;
+                migrations::run(context, self).await?;
 
             // (2) updates that require high-level objects
             // the structure is complete now and all objects are usable
@@ -173,7 +177,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                     let addr = row.try_get(0)?;
                     if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
                         peerstate.recalc_fingerprint();
-                        peerstate.save_to_db(&self, false).await?;
+                        peerstate.save_to_db(self, false).await?;
                     }
                 }
             }
@@ -399,7 +403,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         }
 
         let key = key.as_ref();
-        if let Some(ref value) = value {
+        if let Some(value) = value {
             let exists = self
                 .exists(sqlx::query("SELECT COUNT(*) FROM config WHERE keyname=?;").bind(key))
                 .await?;

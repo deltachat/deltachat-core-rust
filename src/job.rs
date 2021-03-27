@@ -330,7 +330,7 @@ impl Job {
                 // Local error, job is invalid, do not retry.
                 smtp.disconnect().await;
                 warn!(context, "unable to load job: {}", err);
-                Status::Finished(Err(err.into()))
+                Status::Finished(Err(err))
             }
             Ok(()) => {
                 job_try!(success_cb().await);
