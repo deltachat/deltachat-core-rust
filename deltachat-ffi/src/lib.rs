@@ -156,7 +156,14 @@ pub unsafe extern "C" fn dc_get_config(
     }
     let ctx = &*context;
     match config::Config::from_str(&to_string_lossy(key)) {
-        Ok(key) => block_on(async move { ctx.get_config(key).await.unwrap_or_default().strdup() }),
+        Ok(key) => block_on(async move {
+            ctx.get_config(key)
+                .await
+                .log_err(ctx, "Can't get config")
+                .unwrap_or_default()
+                .unwrap_or_default()
+                .strdup()
+        }),
         Err(_) => {
             warn!(ctx, "dc_get_config(): invalid key");
             "".strdup()
