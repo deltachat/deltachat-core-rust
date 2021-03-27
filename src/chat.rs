@@ -1064,7 +1064,6 @@ impl Chat {
 
         // add independent location to database
 
-        // 1=DC_CONTACT_ID_SELF
         if msg.param.exists(Param::SetLatitude)
             && context
                 .sql
