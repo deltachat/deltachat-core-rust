@@ -775,13 +775,13 @@ mod tests {
         if let Ok(msg) = Message::load_from_db(t, msg_id).await {
             assert_eq!(msg.from_id, 0);
             assert_eq!(msg.to_id, 0);
-            assert!(msg.text.is_none_or_empty(), msg.text);
+            assert!(msg.text.is_none_or_empty(), "{:?}", msg.text);
             let rawtxt: Option<String> = t
                 .sql
                 .query_get_value(sqlx::query("SELECT txt_raw FROM msgs WHERE id=?;").bind(msg_id))
                 .await
                 .unwrap();
-            assert!(rawtxt.is_none_or_empty(), rawtxt);
+            assert!(rawtxt.is_none_or_empty(), "{:?}", rawtxt);
         }
     }
 }

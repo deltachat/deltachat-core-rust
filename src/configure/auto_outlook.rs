@@ -169,8 +169,8 @@ fn protocols_to_serverparams(protocols: Vec<ProtocolTag>) -> Vec<ServerParams> {
         .filter_map(|protocol| {
             Some(ServerParams {
                 protocol: match protocol.typ.to_lowercase().as_ref() {
-                    "imap" => Some(Protocol::IMAP),
-                    "smtp" => Some(Protocol::SMTP),
+                    "imap" => Some(Protocol::Imap),
+                    "smtp" => Some(Protocol::Smtp),
                     _ => None,
                 }?,
                 socket: match protocol.ssl {

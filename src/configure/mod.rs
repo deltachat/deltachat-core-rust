@@ -220,7 +220,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         if let Some(provider) = provider::get_provider_info(&param_domain).await {
             param.provider = Some(provider);
             match provider.status {
-                provider::Status::OK | provider::Status::PREPARATION => {
+                provider::Status::Ok | provider::Status::Preparation => {
                     if provider.server.is_empty() {
                         info!(ctx, "offline autoconfig found, but no servers defined");
                         param_autoconfig = None;
@@ -235,8 +235,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                                 hostname: s.hostname.to_string(),
                                 port: s.port,
                                 username: match s.username_pattern {
-                                    UsernamePattern::EMAIL => param.addr.to_string(),
-                                    UsernamePattern::EMAILLOCALPART => {
+                                    UsernamePattern::Email => param.addr.to_string(),
+                                    UsernamePattern::Emaillocalpart => {
                                         if let Some(at) = param.addr.find('@') {
                                             param.addr.split_at(at).0.to_string()
                                         } else {
@@ -250,7 +250,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                         param_autoconfig = Some(servers)
                     }
                 }
-                provider::Status::BROKEN => {
+                provider::Status::Broken => {
                     info!(ctx, "offline autoconfig found, provider is broken");
                     param_autoconfig = None;
                 }
@@ -269,10 +269,10 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let mut servers = param_autoconfig.unwrap_or_default();
     if !servers
         .iter()
-        .any(|server| server.protocol == Protocol::IMAP)
+        .any(|server| server.protocol == Protocol::Imap)
     {
         servers.push(ServerParams {
-            protocol: Protocol::IMAP,
+            protocol: Protocol::Imap,
             hostname: param.imap.server.clone(),
             port: param.imap.port,
             socket: param.imap.security,
@@ -281,10 +281,10 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     }
     if !servers
         .iter()
-        .any(|server| server.protocol == Protocol::SMTP)
+        .any(|server| server.protocol == Protocol::Smtp)
     {
         servers.push(ServerParams {
-            protocol: Protocol::SMTP,
+            protocol: Protocol::Smtp,
             hostname: param.smtp.server.clone(),
             port: param.smtp.port,
             socket: param.smtp.security,
@@ -303,7 +303,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let smtp_addr = param.addr.clone();
     let smtp_servers: Vec<ServerParams> = servers
         .iter()
-        .filter(|params| params.protocol == Protocol::SMTP)
+        .filter(|params| params.protocol == Protocol::Smtp)
         .cloned()
         .collect();
     let provider_strict_tls = param.provider.map_or(false, |provider| provider.strict_tls);
@@ -351,7 +351,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let mut imap_configured = false;
     let imap_servers: Vec<&ServerParams> = servers
         .iter()
-        .filter(|params| params.protocol == Protocol::IMAP)
+        .filter(|params| params.protocol == Protocol::Imap)
         .collect();
     let imap_servers_count = imap_servers.len();
     let mut errors = Vec::new();

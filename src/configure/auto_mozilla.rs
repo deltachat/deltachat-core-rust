@@ -115,8 +115,8 @@ fn parse_server<B: BufRead>(
                     MozConfigTag::Username => username = Some(val),
                     MozConfigTag::Sockettype => {
                         sockettype = match val.to_lowercase().as_ref() {
-                            "ssl" => Socket::SSL,
-                            "starttls" => Socket::STARTTLS,
+                            "ssl" => Socket::Ssl,
+                            "starttls" => Socket::Starttls,
                             "plain" => Socket::Plain,
                             _ => Socket::Automatic,
                         }
@@ -233,8 +233,8 @@ fn parse_serverparams(in_emailaddr: &str, xml_raw: &str) -> Result<Vec<ServerPar
         .chain(moz_ac.outgoing_servers.into_iter())
         .filter_map(|server| {
             let protocol = match server.typ.as_ref() {
-                "imap" => Some(Protocol::IMAP),
-                "smtp" => Some(Protocol::SMTP),
+                "imap" => Some(Protocol::Imap),
+                "smtp" => Some(Protocol::Smtp),
                 _ => None,
             };
             Some(ServerParams {
@@ -276,10 +276,10 @@ mod tests {
     fn test_parse_outlook_autoconfig() {
         let xml_raw = include_str!("../../test-data/autoconfig/outlook.com.xml");
         let res = parse_serverparams("example@outlook.com", xml_raw).expect("XML parsing failed");
-        assert_eq!(res[0].protocol, Protocol::IMAP);
+        assert_eq!(res[0].protocol, Protocol::Imap);
         assert_eq!(res[0].hostname, "outlook.office365.com");
         assert_eq!(res[0].port, 993);
-        assert_eq!(res[1].protocol, Protocol::SMTP);
+        assert_eq!(res[1].protocol, Protocol::Smtp);
         assert_eq!(res[1].hostname, "smtp.office365.com");
         assert_eq!(res[1].port, 587);
     }
@@ -295,25 +295,25 @@ mod tests {
         assert_eq!(res.incoming_servers[0].typ, "imap");
         assert_eq!(res.incoming_servers[0].hostname, "mail.lakenet.ch");
         assert_eq!(res.incoming_servers[0].port, 993);
-        assert_eq!(res.incoming_servers[0].sockettype, Socket::SSL);
+        assert_eq!(res.incoming_servers[0].sockettype, Socket::Ssl);
         assert_eq!(res.incoming_servers[0].username, "example@lakenet.ch");
 
         assert_eq!(res.incoming_servers[1].typ, "imap");
         assert_eq!(res.incoming_servers[1].hostname, "mail.lakenet.ch");
         assert_eq!(res.incoming_servers[1].port, 143);
-        assert_eq!(res.incoming_servers[1].sockettype, Socket::STARTTLS);
+        assert_eq!(res.incoming_servers[1].sockettype, Socket::Starttls);
         assert_eq!(res.incoming_servers[1].username, "example@lakenet.ch");
 
         assert_eq!(res.incoming_servers[2].typ, "pop3");
         assert_eq!(res.incoming_servers[2].hostname, "mail.lakenet.ch");
         assert_eq!(res.incoming_servers[2].port, 995);
-        assert_eq!(res.incoming_servers[2].sockettype, Socket::SSL);
+        assert_eq!(res.incoming_servers[2].sockettype, Socket::Ssl);
         assert_eq!(res.incoming_servers[2].username, "example@lakenet.ch");
 
         assert_eq!(res.incoming_servers[3].typ, "pop3");
         assert_eq!(res.incoming_servers[3].hostname, "mail.lakenet.ch");
         assert_eq!(res.incoming_servers[3].port, 110);
-        assert_eq!(res.incoming_servers[3].sockettype, Socket::STARTTLS);
+        assert_eq!(res.incoming_servers[3].sockettype, Socket::Starttls);
         assert_eq!(res.incoming_servers[3].username, "example@lakenet.ch");
 
         assert_eq!(res.outgoing_servers.len(), 1);
@@ -321,7 +321,7 @@ mod tests {
         assert_eq!(res.outgoing_servers[0].typ, "smtp");
         assert_eq!(res.outgoing_servers[0].hostname, "mail.lakenet.ch");
         assert_eq!(res.outgoing_servers[0].port, 587);
-        assert_eq!(res.outgoing_servers[0].sockettype, Socket::STARTTLS);
+        assert_eq!(res.outgoing_servers[0].sockettype, Socket::Starttls);
         assert_eq!(res.outgoing_servers[0].username, "example@lakenet.ch");
     }
 }
