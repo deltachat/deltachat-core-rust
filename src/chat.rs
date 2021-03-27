@@ -521,17 +521,28 @@ impl ChatId {
         context
             .sql
             .execute(
-                sqlx::query("INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to)
-         VALUES (?,?,?, ?,?,?,?,?,?);").bind(
-                    self).bind(
-                    DC_CONTACT_ID_SELF as i32).bind(
-                    time()).bind(
-                    msg.viewtype).bind(
-                    MessageState::OutDraft).bind(
-                    msg.text.as_deref().unwrap_or("")).bind(
-                    msg.param.to_string()).bind(
-                    1i32).bind(
-                    msg.in_reply_to.as_deref().unwrap_or_default())
+                sqlx::query(
+                    "INSERT INTO msgs (
+                     chat_id,
+                     from_id,
+                     timestamp,
+                     type,
+                     state,
+                     txt,
+                     param,
+                     hidden,
+                     mime_in_reply_to)
+                     VALUES (?,?,?,?,?,?,?,?,?);",
+                )
+                .bind(self)
+                .bind(DC_CONTACT_ID_SELF as i32)
+                .bind(time())
+                .bind(msg.viewtype)
+                .bind(MessageState::OutDraft)
+                .bind(msg.text.as_deref().unwrap_or(""))
+                .bind(msg.param.to_string())
+                .bind(1i32)
+                .bind(msg.in_reply_to.as_deref().unwrap_or_default()),
             )
             .await?;
         Ok(())
