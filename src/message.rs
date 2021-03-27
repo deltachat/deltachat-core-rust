@@ -632,11 +632,9 @@ impl Message {
     // - We can't make a param `SenderDisplayname` for messages as sometimes the display name of a contact changes, and we want to show
     //   the same display name over all messages from the same sender.
     pub fn get_override_sender_name(&self) -> Option<String> {
-        if let Some(name) = self.param.get(Param::OverrideSenderDisplayname) {
-            Some(name.to_string())
-        } else {
-            None
-        }
+        self.param
+            .get(Param::OverrideSenderDisplayname)
+            .map(|name| name.to_string())
     }
 
     // Exposing this function over the ffi instead of get_override_sender_name() would mean that at least Android Java code has

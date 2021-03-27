@@ -3603,6 +3603,7 @@ pub unsafe extern "C" fn dc_provider_get_status(provider: *const dc_provider_t) 
 }
 
 #[no_mangle]
+#[allow(clippy::needless_return)]
 pub unsafe extern "C" fn dc_provider_unref(provider: *mut dc_provider_t) {
     if provider.is_null() {
         eprintln!("ignoring careless call to dc_provider_unref()");

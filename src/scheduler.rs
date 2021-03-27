@@ -553,9 +553,9 @@ impl SmtpConnectionState {
         };
 
         let state = ConnectionState {
-            idle_interrupt_sender,
             shutdown_receiver,
             stop_sender,
+            idle_interrupt_sender,
         };
 
         let conn = SmtpConnectionState { state };
@@ -600,9 +600,9 @@ impl ImapConnectionState {
         };
 
         let state = ConnectionState {
-            idle_interrupt_sender,
             shutdown_receiver,
             stop_sender,
+            idle_interrupt_sender,
         };
 
         let conn = ImapConnectionState { state };

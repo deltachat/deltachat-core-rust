@@ -544,9 +544,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
             to_save: Some(ToSave::All),
             fingerprint_changed: false,
         };
-        let mut peerstates = Vec::new();
-        peerstates.push((Some(peerstate), addr));
-        peerstates
+        vec![(Some(peerstate), addr)]
     }
 
     #[async_std::test]
@@ -571,8 +569,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         assert!(encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with missing peerstate
-        let mut ps = Vec::new();
-        ps.push((None, "bob@foo.bar"));
+        let ps = vec![(None, "bob@foo.bar")];
         assert!(encrypt_helper.should_encrypt(&t, true, &ps).is_err());
         assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
     }

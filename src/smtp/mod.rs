@@ -192,7 +192,7 @@ impl Smtp {
 
         let security = match lp.security {
             Socket::Plain => smtp::ClientSecurity::None,
-            Socket::STARTTLS => smtp::ClientSecurity::Required(tls_parameters),
+            Socket::Starttls => smtp::ClientSecurity::Required(tls_parameters),
             _ => smtp::ClientSecurity::Wrapper(tls_parameters),
         };
 

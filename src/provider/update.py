@@ -103,8 +103,8 @@ def process_data(data, file):
             if username_pattern != "EMAIL" and username_pattern != "EMAILLOCALPART":
                 raise TypeError("bad username pattern")
 
-            server += ("        Server { protocol: " + protocol + ", socket: " + socket + ", hostname: \""
-            + hostname + "\", port: " + str(port) + ", username_pattern: " + username_pattern + " },\n")
+            server += ("        Server { protocol: " + protocol.capitalize() + ", socket: " + socket.capitalize() + ", hostname: \""
+            + hostname + "\", port: " + str(port) + ", username_pattern: " + username_pattern.capitalize() + " },\n")
 
     config_defaults = process_config_defaults(data)
 
@@ -123,7 +123,7 @@ def process_data(data, file):
     if (not has_imap and not has_smtp) or (has_imap and has_smtp):
         provider += "static " + file2varname(file) + ": Lazy<Provider> = Lazy::new(|| Provider {\n"
         provider += "    id: \"" + file2id(file) + "\",\n"
-        provider += "    status: Status::" + status + ",\n"
+        provider += "    status: Status::" + status.capitalize() + ",\n"
         provider += "    before_login_hint: \"" + before_login_hint + "\",\n"
         provider += "    after_login_hint: \"" + after_login_hint + "\",\n"
         provider += "    overview_page: \"" + file2url(file) + "\",\n"

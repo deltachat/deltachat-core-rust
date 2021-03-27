@@ -194,7 +194,7 @@ impl Imap {
 
         let oauth2 = self.config.oauth2;
 
-        let connection_res: ImapResult<Client> = if self.config.lp.security == Socket::STARTTLS
+        let connection_res: ImapResult<Client> = if self.config.lp.security == Socket::Starttls
             || self.config.lp.security == Socket::Plain
         {
             let config = &mut self.config;
@@ -203,7 +203,7 @@ impl Imap {
 
             match Client::connect_insecure((imap_server, imap_port)).await {
                 Ok(client) => {
-                    if config.lp.security == Socket::STARTTLS {
+                    if config.lp.security == Socket::Starttls {
                         client.secure(imap_server, config.strict_tls).await
                     } else {
                         Ok(client)

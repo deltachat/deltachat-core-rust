@@ -27,11 +27,11 @@ const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
 
 // Make it easy to convert errors into the final `Lot`.
-impl Into<Lot> for Error {
-    fn into(self) -> Lot {
-        let mut l = Lot::new();
+impl From<Error> for Lot {
+    fn from(error: Error) -> Self {
+        let mut l = Self::new();
         l.state = LotState::QrError;
-        l.text1 = Some(self.to_string());
+        l.text1 = Some(error.to_string());
 
         l
     }

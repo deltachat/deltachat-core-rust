@@ -804,7 +804,7 @@ mod test {
                     "File {} was almost deleted, only reason it was kept is that it was created recently (as the tests don't run for a long time)",
                     s
                 ),
-                EventType::Error(s) => panic!(s),
+                EventType::Error(s) => panic!("{}", s),
                 _ => {}
             }
         })

@@ -873,7 +873,8 @@ mod tests {
             {
                 assert!(
                     info.contains_key(&*key),
-                    format!("'{}' missing in get_info() output", key)
+                    "'{}' missing in get_info() output",
+                    key
                 );
             }
         }

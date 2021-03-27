@@ -500,7 +500,7 @@ impl Drop for TestContext {
     fn drop(&mut self) {
         if !thread::panicking() {
             if let Ok(p) = self.poison_receiver.try_recv() {
-                panic!(p);
+                panic!("{}", p);
             }
         }
     }

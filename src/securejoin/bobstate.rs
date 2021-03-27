@@ -60,14 +60,11 @@ pub struct BobStateHandle<'a> {
 impl<'a> BobStateHandle<'a> {
     /// Creates a new instance, upholding the guarantee that [`BobState`] must exist.
     pub fn from_guard(mut guard: MutexGuard<'a, Option<BobState>>) -> Option<Self> {
-        match guard.take() {
-            Some(bobstate) => Some(Self {
-                guard,
-                bobstate,
-                clear_state_on_drop: false,
-            }),
-            None => None,
-        }
+        guard.take().map(|bobstate| Self {
+            guard,
+            bobstate,
+            clear_state_on_drop: false,
+        })
     }
 
     /// Returns the [`ChatId`] of the 1:1 chat with the inviter (Alice).
