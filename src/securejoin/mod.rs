@@ -487,7 +487,7 @@ pub(crate) async fn handle_securejoin_handshake(
     contact_id: u32,
 ) -> Result<HandshakeMessage> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
-        return Err(Error::msg("Can not be called with special contact ID").into());
+        return Err(Error::msg("Can not be called with special contact ID"));
     }
     let step = mime_message
         .get(HeaderDef::SecureJoin)
@@ -670,8 +670,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     Err(err) => {
                         error!(context, "Chat {} not found: {}", &field_grpid, err);
                         return Err(Error::new(err)
-                            .context(format!("Chat for group {} not found", &field_grpid))
-                            .into());
+                            .context(format!("Chat for group {} not found", &field_grpid)));
                     }
                 }
             } else {
@@ -747,8 +746,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     if let Err(err) = chat::get_chat_id_by_grpid(context, &field_grpid).await {
                         warn!(context, "Failed to lookup chat_id from grpid: {}", err);
                         return Err(Error::new(err)
-                            .context(format!("Chat for group {} not found", &field_grpid))
-                            .into());
+                            .context(format!("Chat for group {} not found", &field_grpid)));
                     }
                 }
                 Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device

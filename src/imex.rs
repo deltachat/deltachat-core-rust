@@ -643,7 +643,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
         }
 
         let path_filename = context.get_blobdir().join(file_name);
-        dc_write_file(context, &path_filename, &file_blob).await?;
+        dc_write_file(context, &path_filename, file_blob).await?;
     }
 
     if all_files_extracted {

@@ -334,7 +334,7 @@ impl Params {
     pub fn get_msg_id(&self) -> Option<MsgId> {
         self.get(Param::MsgId)
             .and_then(|x| x.parse().ok())
-            .map(|id| MsgId::new(id))
+            .map(MsgId::new)
     }
 
     /// Set the given paramter to the passed in `i32`.

@@ -150,7 +150,7 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
                 ctx,
                 "Can not fetch inbox folder, failed to get config: {:?}", err
             );
-            connection.fake_idle(&ctx, None).await;
+            connection.fake_idle(ctx, None).await;
         }
     }
 }
@@ -202,7 +202,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 ctx,
                 "Can not watch {} folder, failed to retrieve config: {:?}", folder, err
             );
-            connection.fake_idle(&ctx, None).await
+            connection.fake_idle(ctx, None).await
         }
     }
 }
