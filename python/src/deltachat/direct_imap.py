@@ -48,7 +48,7 @@ def dc_account_extra_configure(account):
     except Exception as e:
         # Uncaught exceptions here would lead to a timeout without any note written to the log
         account.log("=============================== CAN'T RESET ACCOUNT: ===============================")
-        account.log("===================", e, "===================")
+        account.log("=================== " + e + " ===================")
 
 
 @deltachat.global_hookimpl
@@ -171,21 +171,6 @@ class DirectImap:
 
     def get_unread_cnt(self):
         return len(self.get_unread_messages())
-
-    def dump_account_info(self, logfile):
-        def log(*args, **kwargs):
-            kwargs["file"] = logfile
-            print(*args, **kwargs)
-
-        cursor = 0
-        for name, val in self.account.get_info().items():
-            entry = "{}={}".format(name.upper(), val)
-            if cursor + len(entry) > 80:
-                log("")
-                cursor = 0
-            log(entry, end=" ")
-            cursor += len(entry) + 1
-        log("")
 
     def dump_imap_structures(self, dir, logfile):
         assert not self._idling
