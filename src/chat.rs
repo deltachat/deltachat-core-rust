@@ -275,7 +275,7 @@ impl ChatId {
         promote: bool,
         from_id: u32,
     ) -> Result<(), Error> {
-        let msg_text = context.stock_protection_msg(protect, from_id as u32).await;
+        let msg_text = context.stock_protection_msg(protect, from_id).await;
         let cmd = match protect {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
             ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
