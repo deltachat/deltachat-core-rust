@@ -241,7 +241,7 @@ pub(crate) fn to_opt_string_lossy(s: *const libc::c_char) -> Option<String> {
 /// [OsStrExt::to_c_string] requires valid Unicode on Windows, this
 /// requires that the pointer contains valid UTF-8 on Windows.
 ///
-/// Because this returns a reference the [Path] silce can not outlive
+/// Because this returns a reference the [Path] slice can not outlive
 /// the original pointer.
 ///
 /// [Path]: std::path::Path
