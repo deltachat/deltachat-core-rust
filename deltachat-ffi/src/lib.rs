@@ -903,7 +903,7 @@ pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context_t, chat_id: u32
         ChatId::new(chat_id)
             .get_msg_cnt(&ctx)
             .await
-            .unwrap_or_log_default(ctx, "faeild to get msg count") as libc::c_int
+            .unwrap_or_log_default(ctx, "failed to get msg count") as libc::c_int
     })
 }
 
