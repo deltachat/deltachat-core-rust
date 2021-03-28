@@ -2172,13 +2172,20 @@ pub async fn create_group_chat(
     let draft_txt = stock_str::new_group_draft(context, &chat_name).await;
     let grpid = dc_create_id();
 
-    context.sql.execute(
-        sqlx::query("INSERT INTO chats (type, name, grpid, param, created_timestamp) VALUES(?, ?, ?, \'U=1\', ?);")
-            .bind(Chattype::Group).bind(
-            chat_name).bind(
-            &grpid).bind(
-            time())
-    ).await?;
+    context
+        .sql
+        .execute(
+            sqlx::query(
+                "INSERT INTO chats
+            (type, name, grpid, param, created_timestamp)
+            VALUES(?, ?, ?, \'U=1\', ?);",
+            )
+            .bind(Chattype::Group)
+            .bind(chat_name)
+            .bind(&grpid)
+            .bind(time()),
+        )
+        .await?;
 
     let row_id = context.sql.get_rowid("chats", "grpid", grpid).await?;
 
