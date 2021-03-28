@@ -1226,7 +1226,7 @@ WHERE type=? AND id IN (
 "#,
                     )
                     .bind(new_blocking)
-                    .bind(100)
+                    .bind(Chattype::Single)
                     .bind(contact_id),
                 )
                 .await
