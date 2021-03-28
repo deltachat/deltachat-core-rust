@@ -2941,21 +2941,39 @@ pub async fn add_device_msg_with_importance(
             }
         }
 
-        context.sql.execute(
-            sqlx::query("INSERT INTO msgs (chat_id,from_id,to_id, timestamp,timestamp_sent,timestamp_rcvd,type,state, txt,param,rfc724_mid) \
-             VALUES (?,?,?, ?,?,?,?,?, ?,?,?);").bind(
-                chat_id).bind(
-                DC_CONTACT_ID_DEVICE as i32).bind(
-                DC_CONTACT_ID_SELF as i32).bind(
-                timestamp_sort).bind(
-                timestamp_sent).bind(
-                timestamp_sent).bind( // timestamp_sent equals timestamp_rcvd
-                msg.viewtype).bind(
-                MessageState::InFresh).bind(
-                msg.text.as_ref().cloned().unwrap_or_default()).bind(
-                msg.param.to_string()).bind(
-                &rfc724_mid)
-        ).await?;
+        context
+            .sql
+            .execute(
+                sqlx::query(
+                    "INSERT INTO msgs (
+            chat_id,
+            from_id,
+            to_id,
+            timestamp,
+            timestamp_sent,
+            timestamp_rcvd,
+            type,state,
+            txt,
+            param,
+            rfc724_mid)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?);",
+                )
+                .bind(chat_id)
+                .bind(DC_CONTACT_ID_DEVICE as i32)
+                .bind(DC_CONTACT_ID_SELF as i32)
+                .bind(timestamp_sort)
+                .bind(timestamp_sent)
+                .bind(timestamp_sent)
+                .bind(
+                    // timestamp_sent equals timestamp_rcvd
+                    msg.viewtype,
+                )
+                .bind(MessageState::InFresh)
+                .bind(msg.text.as_ref().cloned().unwrap_or_default())
+                .bind(msg.param.to_string())
+                .bind(&rfc724_mid),
+            )
+            .await?;
 
         let row_id = context
             .sql
