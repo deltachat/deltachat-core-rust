@@ -1,6 +1,7 @@
 //! # Chat module
 
 use std::convert::TryFrom;
+use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
@@ -1940,6 +1941,26 @@ pub async fn get_chat_msgs(
 
     while let Some(row) = rows.next().await {
         let row = row?;
+        if (flags & DC_GCM_INFO_ONLY) != 0 {
+            // is_info logic taken from Message.is_info()
+            let params = row.try_get::<String, _>("param")?;
+            let from_id = row.try_get::<u32, _>("from_id")?;
+            let to_id = row.try_get::<u32, _>("to_id")?;
+            let is_info_msg: bool = from_id == DC_CONTACT_ID_INFO
+                || to_id == DC_CONTACT_ID_INFO
+                || match Params::from_str(&params) {
+                    Ok(p) => {
+                        let cmd = p.get_cmd();
+                        cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
+                    }
+                    _ => false,
+                };
+
+            if !is_info_msg {
+                continue;
+            }
+        }
+
         let curr_id = row.try_get::<MsgId, _>("id")?;
         let ts = row.try_get::<i64, _>("timestamp")?;
         if let Some(marker_id) = marker1before {
