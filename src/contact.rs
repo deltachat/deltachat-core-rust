@@ -697,7 +697,7 @@ impl Contact {
                     )
                     .bind(self_addr)
                     .bind(DC_CONTACT_ID_LAST_SPECIAL)
-                    .bind(0x100),
+                    .bind(Origin::IncomingReplyTo),
                 )
                 .await?
                 .map(|row| row?.try_get(0));
