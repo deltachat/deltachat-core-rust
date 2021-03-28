@@ -563,7 +563,6 @@ pub async fn save(
             accuracy,
             ..
         } = location;
-        // let (loc_id, ts) =
         let exists = context
             .sql
             .exists(sqlx::query(stmt_test).bind(timestamp).bind(contact_id))
