@@ -1483,26 +1483,41 @@ pub(crate) async fn create_or_lookup_by_contact_id(
 
     context
         .sql
-        .transaction(move |conn| Box::pin(async move {
-            sqlx::query(
-                "INSERT INTO chats (type, name, param, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?)"
-            )
+        .transaction(move |conn| {
+            Box::pin(async move {
+                sqlx::query(
+                    "INSERT INTO chats (
+                    type,
+                    name,
+                    param,
+                    blocked,
+                    created_timestamp
+                    )
+                    VALUES(?, ?, ?, ?, ?)",
+                )
                 .bind(Chattype::Single)
                 .bind(chat_name)
                 .bind(match contact_id {
-                        DC_CONTACT_ID_SELF => "K=1".to_string(), // K = Param::Selftalk
-                        DC_CONTACT_ID_DEVICE => "D=1".to_string(), // D = Param::Devicetalk
-                        _ => "".to_string(),
-                    })
+                    DC_CONTACT_ID_SELF => "K=1".to_string(), // K = Param::Selftalk
+                    DC_CONTACT_ID_DEVICE => "D=1".to_string(), // D = Param::Devicetalk
+                    _ => "".to_string(),
+                })
                 .bind(create_blocked)
-            .bind(time())
-            .execute(&mut *conn).await?;
+                .bind(time())
+                .execute(&mut *conn)
+                .await?;
 
-            sqlx::query(
-                "INSERT INTO chats_contacts (chat_id, contact_id) VALUES((SELECT last_insert_rowid()), ?)"
-            ).bind(contact_id).execute(&mut *conn).await?;
-            Ok(())
-        }))
+                sqlx::query(
+                    "INSERT INTO chats_contacts
+                     (chat_id, contact_id)
+                     VALUES((SELECT last_insert_rowid()), ?)",
+                )
+                .bind(contact_id)
+                .execute(&mut *conn)
+                .await?;
+                Ok(())
+            })
+        })
         .await?;
 
     if contact_id == DC_CONTACT_ID_SELF {
