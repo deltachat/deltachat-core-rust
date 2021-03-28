@@ -436,31 +436,50 @@ impl Peerstate {
         if self.to_save == Some(ToSave::All) || create {
             sql.execute(
                 (if create {
-                    sqlx::query("INSERT INTO acpeerstates (last_seen, last_seen_autocrypt, prefer_encrypted, \
-                 public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                 verified_key, verified_key_fingerprint, addr \
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+                    sqlx::query(
+                        "INSERT INTO acpeerstates ( \
+                         last_seen, \
+                         last_seen_autocrypt, \
+                         prefer_encrypted, \
+                         public_key, \
+                         gossip_timestamp, \
+                         gossip_key, \
+                         public_key_fingerprint, \
+                         gossip_key_fingerprint, \
+                         verified_key, \
+                         verified_key_fingerprint, \
+                         addr \
+                         ) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    )
                 } else {
                     sqlx::query(
                         "UPDATE acpeerstates \
-                 SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
-                 public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
-                 verified_key=?, verified_key_fingerprint=? \
-                 WHERE addr=?")
-                }).bind(
-                    self.last_seen).bind(
-                    self.last_seen_autocrypt).bind(
-                    self.prefer_encrypt as i64).bind(
-                    self.public_key.as_ref().map(|k| k.to_bytes())).bind(
-                    self.gossip_timestamp).bind(
-                    self.gossip_key.as_ref().map(|k| k.to_bytes())).bind(
-                    self.public_key_fingerprint.as_ref().map(|fp| fp.hex())).bind(
-                    self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex())).bind(
-                    self.verified_key.as_ref().map(|k| k.to_bytes())).bind(
-                    self.verified_key_fingerprint.as_ref().map(|fp| fp.hex())).bind(
-                    &self.addr)
-
-            ).await?;
+                 SET last_seen=?, \
+                 last_seen_autocrypt=?, \
+                 prefer_encrypted=?, \
+                 public_key=?, \
+                 gossip_timestamp=?, \
+                 gossip_key=?, \
+                 public_key_fingerprint=?, \
+                 gossip_key_fingerprint=?, \
+                 verified_key=?, \
+                 verified_key_fingerprint=? \
+                 WHERE addr=?",
+                    )
+                })
+                .bind(self.last_seen)
+                .bind(self.last_seen_autocrypt)
+                .bind(self.prefer_encrypt as i64)
+                .bind(self.public_key.as_ref().map(|k| k.to_bytes()))
+                .bind(self.gossip_timestamp)
+                .bind(self.gossip_key.as_ref().map(|k| k.to_bytes()))
+                .bind(self.public_key_fingerprint.as_ref().map(|fp| fp.hex()))
+                .bind(self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()))
+                .bind(self.verified_key.as_ref().map(|k| k.to_bytes()))
+                .bind(self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()))
+                .bind(&self.addr),
+            )
+            .await?;
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql.execute(
                 sqlx::query("UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
