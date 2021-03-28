@@ -2612,11 +2612,11 @@ pub(crate) async fn is_group_explicitly_left(
     context: &Context,
     grpid: impl AsRef<str>,
 ) -> Result<bool, Error> {
-    let count = context
+    let exists = context
         .sql
-        .count(sqlx::query("SELECT COUNT(*) FROM leftgrps WHERE grpid=?;").bind(grpid.as_ref()))
+        .exists(sqlx::query("SELECT COUNT(*) FROM leftgrps WHERE grpid=?;").bind(grpid.as_ref()))
         .await?;
-    Ok(count > 0)
+    Ok(exists)
 }
 
 pub async fn set_chat_name(
