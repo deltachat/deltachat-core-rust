@@ -432,12 +432,17 @@ impl Contact {
         let mut update_addr = false;
         let mut row_id = 0;
 
-        if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context.sql.fetch_one(
+        if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context
+            .sql
+            .fetch_one(
                 sqlx::query(
-                    "SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;"
+                    "SELECT id, name, addr, origin, authname \
+                    FROM contacts WHERE addr=? COLLATE NOCASE;",
                 )
-                .bind(addr.to_string())).await.and_then(
-            |row| {
+                .bind(addr.to_string()),
+            )
+            .await
+            .and_then(|row| {
                 let row_id = row.try_get(0)?;
                 let row_name: String = row.try_get(1)?;
                 let row_addr: String = row.try_get(2)?;
@@ -445,12 +450,15 @@ impl Contact {
                 let row_authname: String = row.try_get(4)?;
 
                 Ok((row_id, row_name, row_addr, row_origin, row_authname))
-            },
-        ) {
+            })
+        {
             let update_name = manual && name != row_name;
-            let update_authname =
-                !manual && name != row_authname && !name.is_empty() &&
-                (origin >= row_origin || origin == Origin::IncomingUnknownFrom || row_authname.is_empty());
+            let update_authname = !manual
+                && name != row_authname
+                && !name.is_empty()
+                && (origin >= row_origin
+                    || origin == Origin::IncomingUnknownFrom
+                    || row_authname.is_empty());
             row_id = id;
             if origin as i32 >= row_origin as i32 && addr != row_addr {
                 update_addr = true;
@@ -462,26 +470,28 @@ impl Contact {
                     row_name
                 };
 
-                context
-                    .sql
-                    .execute(
-                        sqlx::query("UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;").bind(
-                            &new_name).bind(
-                            if update_addr { addr.to_string() } else { row_addr }).bind(
-                            if origin > row_origin {
-                                origin
-                            } else {
-                                row_origin
-                            }).bind(
-                            if update_authname {
-                                name.to_string()
-                            } else {
-                                row_authname
-                            }).bind(
-                            row_id)
-                    )
-                    .await
-                    .ok();
+                let query = sqlx::query(
+                    "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
+                )
+                .bind(&new_name)
+                .bind(if update_addr {
+                    addr.to_string()
+                } else {
+                    row_addr
+                })
+                .bind(if origin > row_origin {
+                    origin
+                } else {
+                    row_origin
+                })
+                .bind(if update_authname {
+                    name.to_string()
+                } else {
+                    row_authname
+                })
+                .bind(row_id);
+
+                context.sql.execute(query).await.ok();
 
                 if update_name {
                     // Update the contact name also if it is used as a group name.
@@ -492,12 +502,22 @@ impl Contact {
                         ).bind(Chattype::Single).bind(row_id)
                     ).await?;
                     if let Some(chat_id) = chat_id {
-                        match context.sql.execute(
-                            sqlx::query("UPDATE chats SET name=? WHERE id=? AND name!=?1").bind(&new_name).bind(chat_id)).await {
+                        match context
+                            .sql
+                            .execute(
+                                sqlx::query("UPDATE chats SET name=? WHERE id=? AND name!=?1")
+                                    .bind(&new_name)
+                                    .bind(chat_id),
+                            )
+                            .await
+                        {
                             Err(err) => warn!(context, "Can't update chat name: {}", err),
-                            Ok(count) => if count > 0 {
-                                // Chat name updated
-                                context.emit_event(EventType::ChatModified(ChatId::new(chat_id)));
+                            Ok(count) => {
+                                if count > 0 {
+                                    // Chat name updated
+                                    context
+                                        .emit_event(EventType::ChatModified(ChatId::new(chat_id)));
+                                }
                             }
                         }
                     }
@@ -512,20 +532,25 @@ impl Contact {
                 .sql
                 .execute(
                     sqlx::query(
-                        "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);"
+                        "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);",
                     )
-                        .bind(if update_name { name.to_string() } else { "".to_string() })
-                        .bind(&addr)
-                        .bind(origin)
-                        .bind(if update_authname { name.to_string() } else { "".to_string() })
+                    .bind(if update_name {
+                        name.to_string()
+                    } else {
+                        "".to_string()
+                    })
+                    .bind(&addr)
+                    .bind(origin)
+                    .bind(if update_authname {
+                        name.to_string()
+                    } else {
+                        "".to_string()
+                    }),
                 )
                 .await
                 .is_ok()
             {
-                row_id = context
-                    .sql
-                    .get_rowid("contacts", "addr", &addr)
-                    .await?;
+                row_id = context.sql.get_rowid("contacts", "addr", &addr).await?;
                 sth_modified = Modifier::Created;
                 info!(context, "added contact id={} addr={}", row_id, &addr);
             } else {
