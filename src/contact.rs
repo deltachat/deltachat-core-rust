@@ -320,14 +320,20 @@ impl Contact {
                 return Ok(Some(DC_CONTACT_ID_SELF));
             }
         }
-        let id = context.sql.query_get_value(
-            sqlx::query(
-                "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;"
-            )
+        let id = context
+            .sql
+            .query_get_value(
+                sqlx::query(
+                    "SELECT id FROM contacts \
+                WHERE addr=?1 COLLATE NOCASE \
+                AND id>?2 AND origin>=?3 AND blocked=0;",
+                )
                 .bind(addr_normalized)
                 .bind(DC_CONTACT_ID_LAST_SPECIAL)
-                .bind(min_origin)
-        ).await?.unwrap_or_default();
+                .bind(min_origin),
+            )
+            .await?
+            .unwrap_or_default();
 
         Ok(id)
     }
