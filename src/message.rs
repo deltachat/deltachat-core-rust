@@ -353,7 +353,26 @@ impl Message {
             )
             .await?;
 
-        let mut msg = Message {
+        let text;
+        if let Ok(Some(buf)) = row.try_get::<Option<&[u8]>, _>("txt") {
+            if let Ok(t) = String::from_utf8(buf.to_vec()) {
+                text = t;
+            } else {
+                warn!(
+                    context,
+                    concat!(
+                        "dc_msg_load_from_db: could not get ",
+                        "text column as non-lossy utf8 id {}"
+                    ),
+                    id
+                );
+                text = String::from_utf8_lossy(buf).into_owned();
+            }
+        } else {
+            text = "".to_string();
+        }
+
+        let msg = Message {
             id: row.try_get("id")?,
             rfc724_mid: row.try_get("rfc724mid")?,
             in_reply_to: row.try_get("mime_in_reply_to")?,
@@ -384,29 +403,8 @@ impl Message {
             chat_blocked: row
                 .try_get::<Option<Blocked>, _>("blocked")?
                 .unwrap_or_default(),
-            text: None,
+            text: Some(text),
         };
-
-        let text;
-        if let Ok(Some(buf)) = row.try_get::<Option<&[u8]>, _>("txt") {
-            if let Ok(t) = String::from_utf8(buf.to_vec()) {
-                text = t;
-            } else {
-                warn!(
-                    context,
-                    concat!(
-                        "dc_msg_load_from_db: could not get ",
-                        "text column as non-lossy utf8 id {}"
-                    ),
-                    id
-                );
-                text = String::from_utf8_lossy(buf).into_owned();
-            }
-        } else {
-            text = "".to_string();
-        }
-        msg.text = Some(text);
-
         Ok(msg)
     }
 
