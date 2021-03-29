@@ -47,8 +47,9 @@ def dc_account_extra_configure(account):
 
     except Exception as e:
         # Uncaught exceptions here would lead to a timeout without any note written to the log
-        account.log("=============================== CAN'T RESET ACCOUNT: ===============================")
-        account.log("=================== " + e + " ===================")
+        # start with DC_EVENT_WARNING so that the line is printed in yellow and won't be overlooked when reading
+        account.log("DC_EVENT_WARNING =================== DIRECT_IMAP CAN'T RESET ACCOUNT: ===================")
+        account.log("DC_EVENT_WARNING =================== " + str(e) + " ===================")
 
 
 @deltachat.global_hookimpl
