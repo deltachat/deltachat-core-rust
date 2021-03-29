@@ -1,0 +1,36 @@
+Return-Path: <alice@example.com>
+Delivered-To: bob@example.org
+Date: Mon, 29 Mar 2021 11:30:57 +0000
+To: Bob <bob@example.org>
+From: Alice <alice@example.com>
+Reply-To: Alice <alice@example.com>
+Subject: ...
+Message-ID: <Mr.AkmaxDNOYj0.oNPtoFR8EHC@example.com>
+In-Reply-To: <Mr.Y1EWG9-FLhN.KUZ4cu74MYR@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+ boundary="b1_01FB8kHjERilpSep0FbmgBMNYR3TvWQ30jPthW5L0"
+
+This is a multi-part message in MIME format.
+
+--b1_01FB8kHjERilpSep0FbmgBMNYR3TvWQ30jPthW5L0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Empty Message
+--b1_01FB8kHjERilpSep0FbmgBMNYR3TvWQ30jPthW5L0
+Content-Type: application/pgp-encrypted; name=attachment.pgp
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename=attachment.pgp
+
+VmVyc2lvbjogMQ0KDQo=
+
+--b1_01FB8kHjERilpSep0FbmgBMNYR3TvWQ30jPthW5L0
+Content-Type: application/octet-stream; name=encrypted.asc
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename=encrypted.asc
+
+UEdQIFBBWUxPQUQgV0FTIEhFUkUK
+
+--b1_01FB8kHjERilpSep0FbmgBMNYR3TvWQ30jPthW5L0--
+

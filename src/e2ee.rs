@@ -209,29 +209,58 @@ pub async fn try_decrypt(
     Ok((out_mail, signatures))
 }
 
-/// Returns a reference to the encrypted payload and validates the autocrypt structure.
-fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Result<&'a ParsedMail<'b>> {
-    ensure!(
-        mail.ctype.mimetype == "multipart/encrypted",
-        "Not a multipart/encrypted message: {}",
-        mail.ctype.mimetype
-    );
+/// Returns a reference to the encrypted payload of a valid PGP/MIME message.
+///
+/// Returns `None` if the message is not a valid PGP/MIME message.
+fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail<'b>> {
+    if mail.ctype.mimetype != "multipart/encrypted" {
+        return None;
+    }
     if let [first_part, second_part] = &mail.subparts[..] {
-        ensure!(
-            first_part.ctype.mimetype == "application/pgp-encrypted",
-            "Invalid Autocrypt Level 1 version part: {:?}",
-            first_part.ctype,
-        );
-
-        ensure!(
-            second_part.ctype.mimetype == "application/octet-stream",
-            "Invalid Autocrypt Level 1 encrypted part: {:?}",
-            second_part.ctype
-        );
-
-        Ok(second_part)
+        if first_part.ctype.mimetype == "application/pgp-encrypted"
+            && second_part.ctype.mimetype == "application/octet-stream"
+        {
+            Some(second_part)
+        } else {
+            None
+        }
     } else {
-        bail!("Invalid Autocrypt Level 1 Mime Parts")
+        None
+    }
+}
+
+/// Returns a reference to the encrypted payload of a ["Mixed
+/// Up"][pgpmime-message-mangling] message.
+///
+/// According to [RFC 3156] encrypted messages should have
+/// `multipart/encrypted` MIME type and two parts, but Microsoft
+/// Exchange and ProtonMail IMAP/SMTP Bridge are known to mangle this
+/// structure by changing the type to `multipart/mixed` and prepending
+/// an empty part at the start.
+///
+/// ProtonMail IMAP/SMTP Bridge prepends a part literally saying
+/// "Empty Message", so we don't check its contents at all, checking
+/// only for `text/plain` type.
+///
+/// Returns `None` if the message is not a "Mixed Up" message.
+///
+/// [RFC 3156]: https://www.rfc-editor.org/info/rfc3156
+/// [pgpmime-message-mangling]: https://tools.ietf.org/id/draft-dkg-openpgp-pgpmime-message-mangling-00.html
+fn get_mixed_up_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail<'b>> {
+    if mail.ctype.mimetype != "multipart/mixed" {
+        return None;
+    }
+    if let [first_part, second_part, third_part] = &mail.subparts[..] {
+        if first_part.ctype.mimetype == "text/plain"
+            && second_part.ctype.mimetype == "application/pgp-encrypted"
+            && third_part.ctype.mimetype == "application/octet-stream"
+        {
+            Some(third_part)
+        } else {
+            None
+        }
+    } else {
+        None
     }
 }
 
@@ -242,12 +271,12 @@ async fn decrypt_if_autocrypt_message(
     public_keyring_for_validate: Keyring<SignedPublicKey>,
     ret_valid_signatures: &mut HashSet<Fingerprint>,
 ) -> Result<Option<Vec<u8>>> {
-    let encrypted_data_part = match get_autocrypt_mime(mail) {
-        Err(_) => {
+    let encrypted_data_part = match get_autocrypt_mime(mail).or_else(|| get_mixed_up_mime(mail)) {
+        None => {
             // not an autocrypt mime message, abort and ignore
             return Ok(None);
         }
-        Ok(res) => res,
+        Some(res) => res,
     };
     info!(context, "Detected Autocrypt-mime message");
 
@@ -546,5 +575,28 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         ps.push((None, "bob@foo.bar"));
         assert!(encrypt_helper.should_encrypt(&t, true, &ps).is_err());
         assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+    }
+
+    #[test]
+    fn test_mixed_up_mime() -> Result<()> {
+        // "Mixed Up" mail as received when sending an encrypted
+        // message using Delta Chat Desktop via ProtonMail IMAP/SMTP
+        // Bridge.
+        let mixed_up_mime = include_bytes!("../test-data/message/protonmail-mixed-up.eml");
+        let mail = mailparse::parse_mail(mixed_up_mime)?;
+        assert!(get_autocrypt_mime(&mail).is_none());
+        assert!(get_mixed_up_mime(&mail).is_some());
+
+        // Same "Mixed Up" mail repaired by Thunderbird 78.9.0.
+        //
+        // It added `X-Enigmail-Info: Fixed broken PGP/MIME message`
+        // header although the repairing is done by the built-in
+        // OpenPGP support, not Enigmail.
+        let repaired_mime = include_bytes!("../test-data/message/protonmail-repaired.eml");
+        let mail = mailparse::parse_mail(repaired_mime)?;
+        assert!(get_autocrypt_mime(&mail).is_some());
+        assert!(get_mixed_up_mime(&mail).is_none());
+
+        Ok(())
     }
 }
