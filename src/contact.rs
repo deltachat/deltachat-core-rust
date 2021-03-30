@@ -505,9 +505,10 @@ impl Contact {
                         match context
                             .sql
                             .execute(
-                                sqlx::query("UPDATE chats SET name=? WHERE id=? AND name!=?1")
+                                sqlx::query("UPDATE chats SET name=?1 WHERE id=?2 AND name!=?3")
                                     .bind(&new_name)
-                                    .bind(chat_id),
+                                    .bind(chat_id)
+                                    .bind(&new_name),
                             )
                             .await
                         {
