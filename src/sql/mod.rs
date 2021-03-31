@@ -348,9 +348,16 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let mut rows = pool.fetch(sqlx::query(&q));
-        let first_row = rows.next().await;
-
-        Ok(first_row.is_some() && first_row.unwrap().is_ok())
+        if let Some(first_row) = rows.next().await {
+            while rows.next().await.is_some() {
+                // Drain the stream.
+                //
+                // Otherwise reader connection is left in the broken state.
+            }
+            Ok(first_row.is_ok())
+        } else {
+            Ok(false)
+        }
     }
 
     /// Check if a column exists in a given table.
