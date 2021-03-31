@@ -133,7 +133,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
         let config = SqliteConnectOptions::new()
             .journal_mode(SqliteJournalMode::Wal)
             .filename(dbfile.as_ref())
-            .read_only(true)
+            .read_only(false)
             .busy_timeout(Duration::from_secs(10))
             .synchronous(SqliteSynchronous::Normal);
 
@@ -143,6 +143,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                 Box::pin(async move {
                     let q = r#"
 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+PRAGMA query_only=1;
 "#;
 
                     conn.execute_many(sqlx::query(q))
