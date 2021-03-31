@@ -78,58 +78,35 @@ impl Sql {
         }
     }
 
-    /// Opens the provided database and runs any necessary migrations.
-    /// If a database is already open, this will return an error.
-    pub async fn open<T: AsRef<Path>>(
-        &self,
-        context: &Context,
-        dbfile: T,
-        readonly: bool,
-    ) -> anyhow::Result<()> {
-        dbg!(dbfile.as_ref());
-        if self.is_open().await {
-            error!(
-                context,
-                "Cannot open, database \"{:?}\" already opened.",
-                dbfile.as_ref(),
-            );
-            return Err(Error::SqlAlreadyOpen.into());
-        }
+    async fn new_writer_pool(dbfile: impl AsRef<Path>) -> sqlx::Result<SqlitePool> {
+        let config = SqliteConnectOptions::new()
+            .journal_mode(SqliteJournalMode::Wal)
+            .filename(dbfile.as_ref())
+            .read_only(false)
+            .busy_timeout(Duration::from_secs(10))
+            .create_if_missing(true)
+            .synchronous(SqliteSynchronous::Normal);
 
-        // Open write pool
-        if !readonly {
-            let config = SqliteConnectOptions::new()
-                .journal_mode(SqliteJournalMode::Wal)
-                .filename(dbfile.as_ref())
-                .read_only(false)
-                .busy_timeout(Duration::from_secs(10))
-                .create_if_missing(true)
-                .synchronous(SqliteSynchronous::Normal);
-
-            let writer_pool = PoolOptions::<Sqlite>::new()
-                .max_connections(1)
-                .after_connect(|conn| {
-                    Box::pin(async move {
-                        let q = r#"
+        PoolOptions::<Sqlite>::new()
+            .max_connections(1)
+            .after_connect(|conn| {
+                Box::pin(async move {
+                    let q = r#"
 PRAGMA secure_delete=on;
 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
 "#;
 
-                        conn.execute_many(sqlx::query(q))
-                            .collect::<std::result::Result<Vec<_>, _>>()
-                            .await?;
-                        Ok(())
-                    })
+                    conn.execute_many(sqlx::query(q))
+                        .collect::<std::result::Result<Vec<_>, _>>()
+                        .await?;
+                    Ok(())
                 })
-                .connect_with(config)
-                .await?;
-            {
-                *self.writer.write().await = Some(writer_pool);
-            }
-        }
+            })
+            .connect_with(config)
+            .await
+    }
 
-        // Open read pool
-
+    async fn new_reader_pool(dbfile: impl AsRef<Path>) -> sqlx::Result<SqlitePool> {
         let config = SqliteConnectOptions::new()
             .journal_mode(SqliteJournalMode::Wal)
             .filename(dbfile.as_ref())
@@ -137,7 +114,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             .busy_timeout(Duration::from_secs(10))
             .synchronous(SqliteSynchronous::Normal);
 
-        let reader_pool = PoolOptions::<Sqlite>::new()
+        PoolOptions::<Sqlite>::new()
             .max_connections(num_cpus::get() as u32)
             .after_connect(|conn| {
                 Box::pin(async move {
@@ -153,10 +130,34 @@ PRAGMA query_only=1;
                 })
             })
             .connect_with(config)
-            .await?;
-        {
-            *self.reader.write().await = Some(reader_pool);
+            .await
+    }
+
+    /// Opens the provided database and runs any necessary migrations.
+    /// If a database is already open, this will return an error.
+    pub async fn open(
+        &self,
+        context: &Context,
+        dbfile: impl AsRef<Path>,
+        readonly: bool,
+    ) -> anyhow::Result<()> {
+        dbg!(dbfile.as_ref());
+        if self.is_open().await {
+            error!(
+                context,
+                "Cannot open, database \"{:?}\" already opened.",
+                dbfile.as_ref(),
+            );
+            return Err(Error::SqlAlreadyOpen.into());
         }
+
+        // Open write pool
+        if !readonly {
+            *self.writer.write().await = Some(Self::new_writer_pool(&dbfile).await?);
+        }
+
+        // Open read pool
+        *self.reader.write().await = Some(Self::new_reader_pool(&dbfile).await?);
 
         if !readonly {
             // (1) update low-level database structure.
