@@ -371,6 +371,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let mut rows = pool.fetch(sqlx::query(&q));
+        let mut exists = false;
         while let Some(row) = rows.next().await {
             let row = row?;
 
@@ -379,11 +380,12 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
 
             let curr_name: &str = row.try_get(1)?;
             if col_name.as_ref() == curr_name {
-                return Ok(true);
+                // Do not exit early. We must drain the `rows` stream.
+                exists = true;
             }
         }
 
-        Ok(false)
+        return Ok(exists);
     }
 
     /// Executes a query which is expected to return one row and one
