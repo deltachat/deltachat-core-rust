@@ -106,11 +106,11 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             .await
     }
 
-    async fn new_reader_pool(dbfile: impl AsRef<Path>) -> sqlx::Result<SqlitePool> {
+    async fn new_reader_pool(dbfile: impl AsRef<Path>, readonly: bool) -> sqlx::Result<SqlitePool> {
         let config = SqliteConnectOptions::new()
             .journal_mode(SqliteJournalMode::Wal)
             .filename(dbfile.as_ref())
-            .read_only(false)
+            .read_only(readonly)
             .busy_timeout(Duration::from_secs(10))
             .synchronous(SqliteSynchronous::Normal);
 
@@ -120,7 +120,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                 Box::pin(async move {
                     let q = r#"
 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
-PRAGMA query_only=1;
+PRAGMA query_only=1; -- Protect against writes even in read-write mode
 "#;
 
                     conn.execute_many(sqlx::query(q))
@@ -157,7 +157,7 @@ PRAGMA query_only=1;
         }
 
         // Open read pool
-        *self.reader.write().await = Some(Self::new_reader_pool(&dbfile).await?);
+        *self.reader.write().await = Some(Self::new_reader_pool(&dbfile, readonly).await?);
 
         if !readonly {
             // (1) update low-level database structure.
