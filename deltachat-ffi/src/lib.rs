@@ -1482,11 +1482,14 @@ pub unsafe extern "C" fn dc_get_mime_headers(
     let ctx = &*context;
 
     block_on(async move {
-        message::get_mime_headers(&ctx, MsgId::new(msg_id))
+        let mime = message::get_mime_headers(&ctx, MsgId::new(msg_id))
             .await
             .unwrap_or_log_default(ctx, "failed to get mime headers")
-            .map(|s| s.strdup())
-            .unwrap_or_else(ptr::null_mut)
+            .unwrap_or_else(|| "".to_string());
+        if mime.is_empty() {
+            return ptr::null_mut();
+        }
+        mime.strdup()
     })
 }
 
