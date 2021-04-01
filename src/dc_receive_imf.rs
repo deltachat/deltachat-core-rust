@@ -893,7 +893,7 @@ async fn add_parts(
     let mut save_mime_modified = mime_parser.is_mime_modified;
 
     let mime_headers = if save_mime_headers || save_mime_modified {
-        if mime_parser.was_encrypted() {
+        if mime_parser.was_encrypted() && !mime_parser.decoded_data.is_empty() {
             Some(String::from_utf8_lossy(&mime_parser.decoded_data).to_string())
         } else {
             Some(String::from_utf8_lossy(imf_raw).to_string())
