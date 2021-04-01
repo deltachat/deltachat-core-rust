@@ -3533,4 +3533,70 @@ YEAAAAAA!.
         assert_eq!(chat.typ, Chattype::Single);
         assert_eq!(msg.get_text().unwrap(), "private reply");
     }
+
+    #[async_std::test]
+    async fn test_save_mime_headers_off() {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat_alice = alice.create_chat(&bob).await;
+        chat::send_text_msg(&alice, chat_alice.id, "hi!".to_string())
+            .await
+            .ok();
+
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+        let msg = bob.get_last_msg().await;
+        assert_eq!(msg.get_text(), Some("hi!".to_string()));
+        assert!(!msg.get_showpadlock());
+        let mime = message::get_mime_headers(&bob, msg.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(mime.is_empty())
+    }
+
+    #[async_std::test]
+    async fn test_save_mime_headers_on() {
+        let alice = TestContext::new_alice().await;
+        alice
+            .set_config_bool(Config::SaveMimeHeaders, true)
+            .await
+            .unwrap();
+        let bob = TestContext::new_bob().await;
+        bob.set_config_bool(Config::SaveMimeHeaders, true)
+            .await
+            .unwrap();
+
+        // alice sends a message to bob, bob sees full mime
+        let chat_alice = alice.create_chat(&bob).await;
+        chat::send_text_msg(&alice, chat_alice.id, "hi!".to_string())
+            .await
+            .ok();
+
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+        let msg = bob.get_last_msg().await;
+        assert_eq!(msg.get_text(), Some("hi!".to_string()));
+        assert!(!msg.get_showpadlock());
+        let mime = message::get_mime_headers(&bob, msg.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(mime.contains("Received:"));
+        assert!(mime.contains("From:"));
+
+        // another one, from bob to alice, that gets encrypted
+        let chat_bob = bob.create_chat(&alice).await;
+        chat::send_text_msg(&bob, chat_bob.id, "ho!".to_string())
+            .await
+            .ok();
+        alice.recv_msg(&bob.pop_sent_msg().await).await;
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_text(), Some("ho!".to_string()));
+        assert!(msg.get_showpadlock());
+        let mime = message::get_mime_headers(&alice, msg.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(mime.contains("Received:"));
+        assert!(mime.contains("From:"));
+    }
 }
