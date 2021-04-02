@@ -143,7 +143,6 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
         dbfile: impl AsRef<Path>,
         readonly: bool,
     ) -> anyhow::Result<()> {
-        dbfile.as_ref();
         if self.is_open().await {
             error!(
                 context,
