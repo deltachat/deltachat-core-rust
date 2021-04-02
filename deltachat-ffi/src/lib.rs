@@ -1485,7 +1485,7 @@ pub unsafe extern "C" fn dc_get_mime_headers(
         let mime = message::get_mime_headers(&ctx, MsgId::new(msg_id))
             .await
             .unwrap_or_log_default(ctx, "failed to get mime headers")
-            .unwrap_or_else(|| "".to_string());
+            .unwrap_or_else(|| String::new());
         if mime.is_empty() {
             return ptr::null_mut();
         }
