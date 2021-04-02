@@ -232,7 +232,6 @@ impl Contact {
 
     /// Block the given contact.
     pub async fn block(context: &Context, id: u32) {
-        dbg!(id);
         set_block_contact(context, id, true).await;
     }
 
@@ -1192,13 +1191,12 @@ fn sanitize_name_and_addr(name: impl AsRef<str>, addr: impl AsRef<str>) -> (Stri
 }
 
 async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
-    dbg!(contact_id);
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return;
     }
 
-    if let Ok(contact) = Contact::load_from_db(context, dbg!(contact_id)).await {
-        if dbg!(contact.blocked) != dbg!(new_blocking)
+    if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
+        if contact.blocked != new_blocking
             && context
                 .sql
                 .execute(

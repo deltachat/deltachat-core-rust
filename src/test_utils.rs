@@ -329,9 +329,9 @@ impl TestContext {
         // The chatlist describes what you see when you open DC, a list of chats and in each of them
         // the first words of the last message. To get the last message overall, we look at the chat at the top of the
         // list, which has the index 0.
-        dbg!(&chats);
+        &chats;
         let msg_id = chats.get_msg_id(0).unwrap();
-        Message::load_from_db(&self.ctx, dbg!(msg_id))
+        Message::load_from_db(&self.ctx, msg_id)
             .await
             .expect("failed to load msg")
     }
