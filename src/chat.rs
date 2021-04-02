@@ -3070,7 +3070,7 @@ pub(crate) async fn add_info_msg_with_cmd(
         .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
         .await
         .unwrap_or_default();
-    let msg_id = MsgId::new(u32::try_from(row_id).unwrap());
+    let msg_id = MsgId::new(u32::try_from(row_id)?);
     context.emit_event(EventType::MsgsChanged { chat_id, msg_id });
     Ok(msg_id)
 }
