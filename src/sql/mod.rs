@@ -85,6 +85,7 @@ impl Sql {
             .read_only(false)
             .busy_timeout(Duration::from_secs(10))
             .create_if_missing(true)
+            .statement_cache_capacity(0) // XXX workaround for https://github.com/launchbadge/sqlx/issues/1147
             .synchronous(SqliteSynchronous::Normal);
 
         PoolOptions::<Sqlite>::new()
@@ -112,6 +113,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             .filename(dbfile.as_ref())
             .read_only(readonly)
             .busy_timeout(Duration::from_secs(10))
+            .statement_cache_capacity(0) // XXX workaround for https://github.com/launchbadge/sqlx/issues/1147
             .synchronous(SqliteSynchronous::Normal);
 
         PoolOptions::<Sqlite>::new()
@@ -349,11 +351,6 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
 
         let mut rows = pool.fetch(sqlx::query(&q));
         if let Some(first_row) = rows.next().await {
-            while rows.next().await.is_some() {
-                // Drain the stream.
-                //
-                // Otherwise reader connection is left in the broken state.
-            }
             Ok(first_row.is_ok())
         } else {
             Ok(false)
@@ -371,7 +368,6 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let mut rows = pool.fetch(sqlx::query(&q));
-        let mut exists = false;
         while let Some(row) = rows.next().await {
             let row = row?;
 
@@ -380,12 +376,11 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
 
             let curr_name: &str = row.try_get(1)?;
             if col_name.as_ref() == curr_name {
-                // Do not exit early. We must drain the `rows` stream.
-                exists = true;
+                return Ok(true);
             }
         }
 
-        return Ok(exists);
+        Ok(false)
     }
 
     /// Executes a query which is expected to return one row and one
@@ -827,10 +822,16 @@ mod test {
 
     /// Regression test.
     ///
-    /// Previously the code checking for existence of `config` table checked it with `PRAGMA
-    /// table_info("config")` but did not drain `SqlitePool.fetch` result, only using the first
-    /// row returned. As a result, reader connection was left in the broken state after reopening
-    /// the database, when `config` table existed and `PRAGMA` returned non-empty result.
+    /// Previously the code checking for existence of `config` table
+    /// checked it with `PRAGMA table_info("config")` but did not
+    /// drain `SqlitePool.fetch` result, only using the first row
+    /// returned. As a result, prepared statement for `PRAGMA` was not
+    /// finalized early enough, leaving reader connection in a broken
+    /// state after reopening the database, when `config` table
+    /// existed and `PRAGMA` returned non-empty result.
+    ///
+    /// Statements were not finalized due to a bug in sqlx:
+    /// https://github.com/launchbadge/sqlx/issues/1147
     #[async_std::test]
     async fn test_db_reopen() -> Result<()> {
         use tempfile::tempdir;
