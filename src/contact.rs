@@ -559,7 +559,7 @@ impl Contact {
             }
         }
 
-        Ok((u32::try_from(row_id).unwrap(), sth_modified))
+        Ok((u32::try_from(row_id)?, sth_modified))
     }
 
     /// Add a number of contacts.

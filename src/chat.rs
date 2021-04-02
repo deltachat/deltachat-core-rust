@@ -1,6 +1,7 @@
 //! # Chat module
 
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
@@ -1182,7 +1183,7 @@ impl Chat {
         }
         schedule_ephemeral_task(context).await;
 
-        Ok(MsgId::new(u32::try_from(msg_id).unwrap()))
+        Ok(MsgId::new(u32::try_from(msg_id)?))
     }
 }
 
@@ -2189,7 +2190,7 @@ pub async fn create_group_chat(
 
     let row_id = context.sql.get_rowid("chats", "grpid", grpid).await?;
 
-    let chat_id = ChatId::new(u32::try_from(row_id).unwrap());
+    let chat_id = ChatId::new(u32::try_from(row_id)?);
     if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await {
         let mut draft_msg = Message::new(Viewtype::Text);
         draft_msg.set_text(Some(draft_txt));
@@ -2469,8 +2470,9 @@ impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for MuteDuration {
             MuteDuration::Forever => -1,
             MuteDuration::Until(when) => when
                 .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64,
+                .ok()
+                .and_then(|d| d.as_secs().try_into().ok())
+                .unwrap_or(0),
         };
 
         args.push(sqlx::sqlite::SqliteArgumentValue::Int64(duration));
@@ -2979,7 +2981,7 @@ pub async fn add_device_msg_with_importance(
             .sql
             .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
             .await?;
-        msg_id = MsgId::new(u32::try_from(row_id).unwrap());
+        msg_id = MsgId::new(u32::try_from(row_id)?);
     }
 
     if let Some(label) = label {
