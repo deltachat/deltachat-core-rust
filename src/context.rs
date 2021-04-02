@@ -93,6 +93,7 @@ pub fn get_info() -> BTreeMap<&'static str, String> {
     res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
     res.insert("sqlite_version", crate::sql::version().to_string());
     res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
+    res.insert("num_cpus", num_cpus::get().to_string());
     res.insert("level", "awesome".into());
     res
 }

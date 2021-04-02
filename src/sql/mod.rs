@@ -115,7 +115,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             .synchronous(SqliteSynchronous::Normal);
 
         PoolOptions::<Sqlite>::new()
-            .max_connections(num_cpus::get() as u32)
+            .max_connections(10)
             .after_connect(|conn| {
                 Box::pin(async move {
                     let q = r#"
