@@ -1220,7 +1220,7 @@ impl MimeMessage {
                     }
                     Ok(None) => {}
                     Err(err) => {
-                        warn!(context, "failed to handle_mdn: {:?}", err);
+                        warn!(context, "failed to handle_mdn: {:#}", err);
                     }
                 }
             }
