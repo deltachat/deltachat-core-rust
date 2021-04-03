@@ -83,7 +83,7 @@ impl Sql {
             .journal_mode(SqliteJournalMode::Wal)
             .filename(dbfile.as_ref())
             .read_only(false)
-            .busy_timeout(Duration::from_secs(10))
+            .busy_timeout(Duration::from_secs(100))
             .create_if_missing(true)
             .statement_cache_capacity(0) // XXX workaround for https://github.com/launchbadge/sqlx/issues/1147
             .synchronous(SqliteSynchronous::Normal);
@@ -112,7 +112,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             .journal_mode(SqliteJournalMode::Wal)
             .filename(dbfile.as_ref())
             .read_only(readonly)
-            .busy_timeout(Duration::from_secs(10))
+            .busy_timeout(Duration::from_secs(100))
             .statement_cache_capacity(0) // XXX workaround for https://github.com/launchbadge/sqlx/issues/1147
             .synchronous(SqliteSynchronous::Normal);
 
