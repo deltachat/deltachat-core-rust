@@ -1410,11 +1410,20 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
     Some(info)
 }
 
-pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Option<String>, Error> {
+/// Get the raw mime-headers of the given message.
+/// Raw headers are saved for incoming messages
+/// only if `dc_set_config(context, "save_mime_headers", "1")`
+/// was called before.
+///
+/// Returns an empty string if there are no headers saved for the given message,
+/// e.g. because of save_mime_headers is not set
+/// or the message is not incoming.
+pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<String, Error> {
     let headers = context
         .sql
         .query_get_value(sqlx::query("SELECT mime_headers FROM msgs WHERE id=?;").bind(msg_id))
-        .await?;
+        .await?
+        .unwrap_or_default();
     Ok(headers)
 }
 

@@ -13,12 +13,12 @@ use std::pin::Pin;
 use anyhow::Result;
 use lettre_email::mime::{self, Mime};
 
-use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::parse_message_id;
 use crate::param::Param::SendHtml;
 use crate::plaintext::PlainText;
+use crate::{context::Context, message};
 use lettre_email::PartBuilder;
 use mailparse::ParsedContentType;
 
@@ -245,23 +245,15 @@ impl MsgId {
     /// (we do not save raw mime unconditionally in the database to save space).
     /// The corresponding ffi-function is `dc_get_msg_html()`.
     pub async fn get_html(self, context: &Context) -> Result<Option<String>> {
-        let rawmime: Option<String> = context
-            .sql
-            .query_get_value(sqlx::query("SELECT mime_headers FROM msgs WHERE id=?;").bind(self))
-            .await?;
+        let rawmime = message::get_mime_headers(context, self).await?;
 
-        if let Some(rawmime) = rawmime {
-            if !rawmime.is_empty() {
-                match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
-                    Err(err) => {
-                        warn!(context, "get_html: parser error: {}", err);
-                        Ok(None)
-                    }
-                    Ok(parser) => Ok(Some(parser.html)),
+        if !rawmime.is_empty() {
+            match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
+                Err(err) => {
+                    warn!(context, "get_html: parser error: {}", err);
+                    Ok(None)
                 }
-            } else {
-                warn!(context, "get_html: empty mime for {}", self);
-                Ok(None)
+                Ok(parser) => Ok(Some(parser.html)),
             }
         } else {
             warn!(context, "get_html: no mime for {}", self);

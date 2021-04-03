@@ -894,12 +894,12 @@ async fn add_parts(
 
     let mime_headers = if save_mime_headers || save_mime_modified {
         if mime_parser.was_encrypted() && !mime_parser.decoded_data.is_empty() {
-            Some(String::from_utf8_lossy(&mime_parser.decoded_data).to_string())
+            String::from_utf8_lossy(&mime_parser.decoded_data)
         } else {
-            Some(String::from_utf8_lossy(imf_raw).to_string())
+            String::from_utf8_lossy(imf_raw)
         }
     } else {
-        None
+        "".into()
     };
 
     for part in &mut mime_parser.parts {
@@ -993,9 +993,9 @@ INSERT INTO msgs
                 .bind(part.bytes as i64)
                 .bind(*hidden)
                 .bind(if (save_mime_headers || mime_modified) && !trash {
-                    mime_headers.clone()
+                    mime_headers.to_string()
                 } else {
-                    None
+                    "".to_string()
                 })
                 .bind(&mime_in_reply_to)
                 .bind(&mime_references)
@@ -3545,7 +3545,7 @@ YEAAAAAA!.
         let msg = bob.get_last_msg().await;
         assert_eq!(msg.get_text(), Some("hi!".to_string()));
         assert!(!msg.get_showpadlock());
-        let mime = message::get_mime_headers(&bob, msg.id).await?.unwrap();
+        let mime = message::get_mime_headers(&bob, msg.id).await?;
         assert!(mime.is_empty());
         Ok(())
     }
@@ -3565,7 +3565,7 @@ YEAAAAAA!.
         let msg = bob.get_last_msg().await;
         assert_eq!(msg.get_text(), Some("hi!".to_string()));
         assert!(!msg.get_showpadlock());
-        let mime = message::get_mime_headers(&bob, msg.id).await?.unwrap();
+        let mime = message::get_mime_headers(&bob, msg.id).await?;
         assert!(mime.contains("Received:"));
         assert!(mime.contains("From:"));
 
@@ -3576,7 +3576,7 @@ YEAAAAAA!.
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.get_text(), Some("ho!".to_string()));
         assert!(msg.get_showpadlock());
-        let mime = message::get_mime_headers(&alice, msg.id).await?.unwrap();
+        let mime = message::get_mime_headers(&alice, msg.id).await?;
         assert!(mime.contains("Received:"));
         assert!(mime.contains("From:"));
         Ok(())

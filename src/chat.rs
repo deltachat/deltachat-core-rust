@@ -1163,7 +1163,7 @@ impl Chat {
                 .bind(msg.in_reply_to.as_deref().unwrap_or_default())
                 .bind(new_references)
                 .bind(new_mime_headers.is_some())
-                .bind(new_mime_headers)
+                .bind(new_mime_headers.unwrap_or_default())
                 .bind(location_id as i32)
                 .bind(ephemeral_timer)
                 .bind(ephemeral_timestamp),
