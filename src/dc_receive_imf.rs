@@ -3695,11 +3695,14 @@ YEAAAAAA!.
         assert!(msg.get_text().unwrap().contains("hi support!"));
         let chat = Chat::load_from_db(&alice, msg.chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
-        assert_eq!(get_chat_msgs(&alice, chat.id, 0, None).await.len(), 1);
+        assert_eq!(
+            get_chat_msgs(&alice, chat.id, 0, None).await.unwrap().len(),
+            1
+        );
         if group_request {
-            assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 4);
+            assert_eq!(get_chat_contacts(&alice, chat.id).await.unwrap().len(), 4);
         } else {
-            assert_eq!(get_chat_contacts(&alice, chat.id).await.len(), 3);
+            assert_eq!(get_chat_contacts(&alice, chat.id).await.unwrap().len(), 3);
         }
         assert_eq!(msg.get_override_sender_name(), None);
 
