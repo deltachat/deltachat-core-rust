@@ -262,6 +262,7 @@ pub(crate) async fn dc_receive_imf_inner(
     if !created_db_entries.is_empty() {
         if needs_delete_job || delete_server_after == Some(0) {
             for db_entry in &created_db_entries {
+                info!(context, "verbose: adding job after receive");
                 job::add(
                     context,
                     job::Job::new(
