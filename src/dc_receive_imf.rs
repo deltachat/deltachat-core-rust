@@ -25,6 +25,7 @@ use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
+use crate::log::LogExt;
 use crate::message::{self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::{
     parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
@@ -1067,13 +1068,7 @@ INSERT INTO msgs
     if !is_mdn {
         update_last_subject(context, *chat_id, mime_parser)
             .await
-            .unwrap_or_else(|e| {
-                warn!(
-                    context,
-                    "Could not update LastSubject of chat: {}",
-                    e.to_string()
-                )
-            });
+            .ok_or_log_msg(context, "Could not update LastSubject of chat");
     }
 
     Ok(())
