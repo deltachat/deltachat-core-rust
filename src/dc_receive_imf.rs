@@ -3590,8 +3590,8 @@ YEAAAAAA!.
     }
 
     #[async_std::test]
-    async fn test_dont_download_spam() {
-        async fn should_download(
+    async fn test_dont_show_spam() {
+        async fn is_shown(
             t: &TestContext,
             raw: &[u8],
             server_folder: &str,
@@ -3612,7 +3612,7 @@ YEAAAAAA!.
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
         assert!(
-            should_download(
+            is_shown(
                 &t,
                 b"Message-Id: abcd1@exmaple.com\n\
                 From: bob@example.org\n\
@@ -3624,7 +3624,7 @@ YEAAAAAA!.
         );
 
         assert!(
-            should_download(
+            is_shown(
                 &t,
                 b"Message-Id: abcd2@exmaple.com\n\
                 From: bob@example.org\n",
@@ -3635,7 +3635,7 @@ YEAAAAAA!.
         );
 
         assert!(
-            should_download(
+            is_shown(
                 &t,
                 b"Message-Id: abcd3@exmaple.com\n\
                 From: bob@example.org\n\
@@ -3648,7 +3648,7 @@ YEAAAAAA!.
 
         assert!(
             // Note the `!`:
-            !should_download(
+            !is_shown(
                 &t,
                 b"Message-Id: abcd4@exmaple.com\n\
                 From: bob@example.org\n",
@@ -3660,7 +3660,7 @@ YEAAAAAA!.
 
         Contact::create(&t, "", "bob@example.org").await.unwrap();
         assert!(
-            should_download(
+            is_shown(
                 &t,
                 b"Message-Id: abcd4@exmaple.com\n\
                 From: bob@example.org\n",
