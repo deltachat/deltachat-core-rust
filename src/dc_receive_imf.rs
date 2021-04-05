@@ -3877,8 +3877,8 @@ YEAAAAAA!.
         )
         .await
         .unwrap();
-        let msg = get_chat_msg(&t, chat_id, 0, 1).await;
-        assert!(!msg.chat_id.is_special());
+        let msg = t.get_last_msg().await;
+        assert!(!msg.chat_id.is_special()); // Esp. check that the chat_id is not TRASH
         assert_eq!(msg.text.unwrap(), "Reply");
     }
 }
