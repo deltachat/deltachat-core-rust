@@ -20,7 +20,7 @@ MIME-Version: 1.0
 Date: Tue, 24 Nov 2020 09:34:48 +0000
 Chat-Version: 1.0
 Autocrypt-Setup-Message: v1
-Message-ID: <Mr._G2UTiTkgfk.HWf5RnFC2xy@testrun.org>
+Message-ID: <abc@example.com>
 To: <alice@example.com>
 From:  <alice@example.com>
 Content-Type: multipart/mixed; boundary="dKhu3bbmBniQsT8W8w58YRCCiBK2YY"

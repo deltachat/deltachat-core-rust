@@ -114,7 +114,9 @@ impl MsgId {
         let msg = Message::load_from_db(context, self).await?;
 
         if context.is_spam_folder(folder).await? {
-            return if msg.chat_blocked == Blocked::Not {
+            let msg_unblocked = msg.chat_id != DC_CHAT_ID_TRASH && msg.chat_blocked == Blocked::Not;
+
+            return if msg_unblocked {
                 if self.needs_move_to_mvbox(context, &msg).await? {
                     Ok(Some(ConfiguredMvboxFolder))
                 } else {
@@ -2217,7 +2219,7 @@ mod tests {
                     "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     {}\
                     Subject: foo\n\
-                    Message-ID: <aehtri@example.com>\n\
+                    Message-ID: <abc@example.com>\n\
                     {}\
                     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                     \n\
@@ -2238,8 +2240,10 @@ mod tests {
         .await
         .unwrap();
 
-        let msg = t.get_last_msg().await;
-        let actual = if let Some(config) = msg.id.needs_move(&t.ctx, folder).await.unwrap() {
+        let exists = rfc724_mid_exists(&t, "abc@example.com").await.unwrap();
+        let (folder_1, _, msg_id) = exists.unwrap();
+        assert_eq!(folder, folder_1);
+        let actual = if let Some(config) = msg_id.needs_move(&t.ctx, folder).await.unwrap() {
             t.ctx.get_config(config).await.unwrap()
         } else {
             None
@@ -2249,7 +2253,7 @@ mod tests {
         } else {
             Some(expected_destination)
         };
-        assert_eq!(expected, actual.as_deref(), "For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}: expected {:?} , got {:?}",
+        assert_eq!(expected, actual.as_deref(), "For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}: expected {:?}, got {:?}",
                                                      folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage, expected, actual);
     }
 
