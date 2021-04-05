@@ -21,8 +21,8 @@ class Message(object):
         assert isinstance(dc_msg, ffi.CData)
         assert dc_msg != ffi.NULL
         self._dc_msg = dc_msg
-        self.id = lib.dc_msg_get_id(dc_msg)
-        assert self.id is not None and self.id >= 0, repr(self.id)
+        msg_id = self.id
+        assert msg_id is not None and msg_id >= 0, repr(msg_id)
 
     def __eq__(self, other):
         return self.account == other.account and self.id == other.id
@@ -71,6 +71,11 @@ class Message(object):
         ctx = self.account._dc_context
         self._dc_msg = ffi.gc(lib.dc_get_msg(ctx, self.id), lib.dc_msg_unref)
         return Chat(self.account, chat_id)
+
+    @props.with_doc
+    def id(self):
+        """id of this message. """
+        return lib.dc_msg_get_id(self._dc_msg)
 
     @props.with_doc
     def text(self):
