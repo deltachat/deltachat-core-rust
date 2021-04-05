@@ -293,7 +293,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
         let row = self.fetch_one(query).await?;
         let count: i64 = row.try_get(0)?;
 
-        Ok(usize::try_from(count).unwrap())
+        Ok(usize::try_from(count).map_err::<anyhow::Error, _>(Into::into)?)
     }
 
     /// Used for executing `SELECT COUNT` statements only. Returns `true`, if the count is at least

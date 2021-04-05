@@ -1005,15 +1005,12 @@ INSERT INTO msgs
                 .bind(ephemeral_timestamp),
             )
             .await?;
-        let msg_id = MsgId::new(
-            u32::try_from(
-                context
-                    .sql
-                    .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
-                    .await?,
-            )
-            .unwrap(),
-        );
+        let msg_id = MsgId::new(u32::try_from(
+            context
+                .sql
+                .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
+                .await?,
+        )?);
 
         created_db_entries.push((*chat_id, msg_id));
         *insert_msg_id = msg_id;
