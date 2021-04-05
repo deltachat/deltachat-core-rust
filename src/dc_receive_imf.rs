@@ -3730,7 +3730,13 @@ YEAAAAAA!.
         } else {
             assert_eq!(chat.typ, Chattype::Single);
         }
-        assert_eq!(get_chat_msgs(&claire, chat.id, 0, None).await.len(), 1);
+        assert_eq!(
+            get_chat_msgs(&claire, chat.id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
         assert_eq!(msg.get_override_sender_name(), None);
 
         (claire, alice)
@@ -3748,12 +3754,16 @@ YEAAAAAA!.
         assert_eq!(answer.get_subject(), "Re: i have a question");
         assert!(answer.get_text().unwrap().contains("the version is 1.0"));
         assert_eq!(answer.chat_id, request.chat_id);
+        let chat_contacts = get_chat_contacts(&alice, answer.chat_id)
+            .await
+            .unwrap()
+            .len();
         if group_request {
             // Claire, Support, CEO and Alice (Bob is not added)
-            assert_eq!(get_chat_contacts(&alice, answer.chat_id).await.len(), 4);
+            assert_eq!(chat_contacts, 4);
         } else {
             // Claire, Support and Alice
-            assert_eq!(get_chat_contacts(&alice, answer.chat_id).await.len(), 3);
+            assert_eq!(chat_contacts, 3);
         }
         assert_eq!(
             answer.get_override_sender_name().unwrap(),
@@ -3848,7 +3858,7 @@ YEAAAAAA!.
         println!("\n========= Delete the message ==========");
         msg.id.trash(&t).await.unwrap();
 
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 0);
 
         println!("\n========= Receive a message that is a reply to the deleted message ==========");
