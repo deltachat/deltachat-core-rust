@@ -278,7 +278,7 @@ pub(crate) async fn stock_ephemeral_timer_changed(
 
 impl MsgId {
     /// Returns ephemeral message timer value for the message.
-    pub(crate) async fn ephemeral_timer(self, context: &Context) -> crate::sql::Result<Timer> {
+    pub(crate) async fn ephemeral_timer(self, context: &Context) -> anyhow::Result<Timer> {
         let res = match context
             .sql
             .query_get_value::<_, i64>(
@@ -288,14 +288,14 @@ impl MsgId {
         {
             None | Some(0) => Timer::Disabled,
             Some(duration) => Timer::Enabled {
-                duration: u32::try_from(duration).unwrap(),
+                duration: u32::try_from(duration)?,
             },
         };
         Ok(res)
     }
 
     /// Starts ephemeral message timer for the message if it is not started yet.
-    pub(crate) async fn start_ephemeral_timer(self, context: &Context) -> crate::sql::Result<()> {
+    pub(crate) async fn start_ephemeral_timer(self, context: &Context) -> anyhow::Result<()> {
         if let Timer::Enabled { duration } = self.ephemeral_timer(context).await? {
             let ephemeral_timestamp = time() + i64::from(duration);
 

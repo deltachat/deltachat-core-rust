@@ -598,7 +598,7 @@ pub async fn save(
         }
     }
 
-    Ok(u32::try_from(newest_location_id).unwrap())
+    Ok(u32::try_from(newest_location_id)?)
 }
 
 pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> job::Status {

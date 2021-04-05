@@ -1734,7 +1734,7 @@ async fn create_multiuser_record(
         .get_rowid("chats", "grpid", grpid.as_ref())
         .await?;
 
-    let chat_id = ChatId::new(u32::try_from(row_id).unwrap());
+    let chat_id = ChatId::new(u32::try_from(row_id)?);
     info!(
         context,
         "Created group/mailinglist '{}' grpid={} as {}",
