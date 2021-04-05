@@ -1209,7 +1209,7 @@ async fn lookup_chat_by_reply(
     if (!private_message) || classical_email {
         if let Some(parent) = get_parent_message(context, mime_parser).await? {
             let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
-            let chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await;
+            let chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
 
             if let Some(msg_grpid) = try_getting_grpid(mime_parser) {
                 if msg_grpid == parent_chat.grpid {
@@ -1228,7 +1228,7 @@ async fn lookup_chat_by_reply(
                 return Ok((ChatId::new(0), Blocked::Not));
             }
 
-            if parent_chat.id == ChatId::new(DC_CHAT_ID_TRASH) {
+            if parent_chat.id == DC_CHAT_ID_TRASH {
                 return Ok((ChatId::new(0), Blocked::Not));
             }
 
