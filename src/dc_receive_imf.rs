@@ -629,6 +629,7 @@ async fn add_parts(
         }
 
         let is_spam = (chat_id_blocked == Blocked::Deaddrop)
+            && !incoming_origin.is_known()
             && (is_dc_message == MessengerMessage::No)
             && context.is_spam_folder(&server_folder).await?;
         if is_spam {
@@ -3657,7 +3658,7 @@ YEAAAAAA!.
         assert!(
             is_shown(
                 &t,
-                b"Message-Id: abcd4@exmaple.com\n\
+                b"Message-Id: abcd5@exmaple.com\n\
                 From: bob@example.org\n",
                 "Spam",
                 5
