@@ -3465,7 +3465,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.5.1"
-source = "git+https://github.com/dignifiedquire/sqlx?branch=fix-pool-time-out#30a6f04a193632f5d43c02da9dc6d0ef84e88920"
+source = "git+https://github.com/link2xt/sqlx?branch=sqlite3-reset-fetch_many#7a29ed87120231b5150386971f0639a90ab8c14f"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -3474,7 +3474,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.5.1"
-source = "git+https://github.com/dignifiedquire/sqlx?branch=fix-pool-time-out#30a6f04a193632f5d43c02da9dc6d0ef84e88920"
+source = "git+https://github.com/link2xt/sqlx?branch=sqlite3-reset-fetch_many#7a29ed87120231b5150386971f0639a90ab8c14f"
 dependencies = [
  "ahash 0.6.3",
  "atoi",
@@ -3512,7 +3512,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.5.1"
-source = "git+https://github.com/dignifiedquire/sqlx?branch=fix-pool-time-out#30a6f04a193632f5d43c02da9dc6d0ef84e88920"
+source = "git+https://github.com/link2xt/sqlx?branch=sqlite3-reset-fetch_many#7a29ed87120231b5150386971f0639a90ab8c14f"
 dependencies = [
  "dotenv",
  "either",
@@ -3530,7 +3530,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.3.0"
-source = "git+https://github.com/dignifiedquire/sqlx?branch=fix-pool-time-out#30a6f04a193632f5d43c02da9dc6d0ef84e88920"
+source = "git+https://github.com/link2xt/sqlx?branch=sqlite3-reset-fetch_many#7a29ed87120231b5150386971f0639a90ab8c14f"
 dependencies = [
  "async-native-tls",
  "async-std",
