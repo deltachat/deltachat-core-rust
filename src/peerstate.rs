@@ -5,6 +5,7 @@ use std::fmt;
 
 use anyhow::{bail, Result};
 use num_traits::FromPrimitive;
+use sqlx::Row;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat;
@@ -139,12 +140,15 @@ impl Peerstate {
     }
 
     pub async fn from_addr(context: &Context, addr: &str) -> Result<Option<Peerstate>> {
-        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
+        let query = sqlx::query(
+            "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
                      FROM acpeerstates \
-                     WHERE addr=? COLLATE NOCASE;";
-        Self::from_stmt(context, query, paramsv![addr]).await
+                     WHERE addr=? COLLATE NOCASE;",
+        )
+        .bind(addr);
+        Self::from_stmt(context, query).await
     }
 
     pub async fn from_fingerprint(
@@ -152,72 +156,75 @@ impl Peerstate {
         _sql: &Sql,
         fingerprint: &Fingerprint,
     ) -> Result<Option<Peerstate>> {
-        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
+        let fp = fingerprint.hex();
+        let query = sqlx::query(
+            "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
                      FROM acpeerstates  \
                      WHERE public_key_fingerprint=? COLLATE NOCASE \
                      OR gossip_key_fingerprint=? COLLATE NOCASE  \
-                     ORDER BY public_key_fingerprint=? DESC;";
-        let fp = fingerprint.hex();
-        Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
+                     ORDER BY public_key_fingerprint=? DESC;",
+        )
+        .bind(&fp)
+        .bind(&fp)
+        .bind(&fp);
+
+        Self::from_stmt(context, query).await
     }
 
-    async fn from_stmt(
-        context: &Context,
-        query: &str,
-        params: Vec<&dyn crate::ToSql>,
-    ) -> Result<Option<Peerstate>> {
-        let peerstate = context
-            .sql
-            .query_row_optional(query, params, |row| {
-                /* all the above queries start with this: SELECT
-                addr, last_seen, last_seen_autocrypt, prefer_encrypted,
-                public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
-                gossip_key_fingerprint, verified_key, verified_key_fingerprint
-                */
+    async fn from_stmt<'e, 'q, E>(context: &Context, query: E) -> Result<Option<Peerstate>>
+    where
+        'q: 'e,
+        E: 'q + sqlx::Execute<'q, sqlx::Sqlite>,
+    {
+        if let Some(row) = context.sql.fetch_optional(query).await? {
+            // all the above queries start with this: SELECT
+            //   addr, last_seen, last_seen_autocrypt, prefer_encrypted,
+            //   public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
+            //   gossip_key_fingerprint, verified_key, verified_key_fingerprint
 
-                let res = Peerstate {
-                    addr: row.get(0)?,
-                    last_seen: row.get(1)?,
-                    last_seen_autocrypt: row.get(2)?,
-                    prefer_encrypt: EncryptPreference::from_i32(row.get(3)?).unwrap_or_default(),
-                    public_key: row
-                        .get(4)
-                        .ok()
-                        .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
-                    public_key_fingerprint: row
-                        .get::<_, Option<String>>(7)?
-                        .map(|s| s.parse::<Fingerprint>())
-                        .transpose()
-                        .unwrap_or_default(),
-                    gossip_key: row
-                        .get(6)
-                        .ok()
-                        .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
-                    gossip_key_fingerprint: row
-                        .get::<_, Option<String>>(8)?
-                        .map(|s| s.parse::<Fingerprint>())
-                        .transpose()
-                        .unwrap_or_default(),
-                    gossip_timestamp: row.get(5)?,
-                    verified_key: row
-                        .get(9)
-                        .ok()
-                        .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
-                    verified_key_fingerprint: row
-                        .get::<_, Option<String>>(10)?
-                        .map(|s| s.parse::<Fingerprint>())
-                        .transpose()
-                        .unwrap_or_default(),
-                    to_save: None,
-                    fingerprint_changed: false,
-                };
+            let peerstate = Peerstate {
+                addr: row.try_get(0)?,
+                last_seen: row.try_get(1)?,
+                last_seen_autocrypt: row.try_get(2)?,
+                prefer_encrypt: EncryptPreference::from_i32(row.try_get(3)?).unwrap_or_default(),
+                public_key: row
+                    .try_get::<&[u8], _>(4)
+                    .ok()
+                    .and_then(|blob| SignedPublicKey::from_slice(blob).ok()),
+                public_key_fingerprint: row
+                    .try_get::<Option<String>, _>(7)?
+                    .map(|s| s.parse::<Fingerprint>())
+                    .transpose()
+                    .unwrap_or_default(),
+                gossip_key: row
+                    .try_get::<&[u8], _>(6)
+                    .ok()
+                    .and_then(|blob| SignedPublicKey::from_slice(blob).ok()),
+                gossip_key_fingerprint: row
+                    .try_get::<Option<String>, _>(8)?
+                    .map(|s| s.parse::<Fingerprint>())
+                    .transpose()
+                    .unwrap_or_default(),
+                gossip_timestamp: row.try_get(5)?,
+                verified_key: row
+                    .try_get::<&[u8], _>(9)
+                    .ok()
+                    .and_then(|blob| SignedPublicKey::from_slice(blob).ok()),
+                verified_key_fingerprint: row
+                    .try_get::<Option<String>, _>(10)?
+                    .map(|s| s.parse::<Fingerprint>())
+                    .transpose()
+                    .unwrap_or_default(),
+                to_save: None,
+                fingerprint_changed: false,
+            };
 
-                Ok(res)
-            })
-            .await?;
-        Ok(peerstate)
+            Ok(Some(peerstate))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn recalc_fingerprint(&mut self) {
@@ -266,9 +273,8 @@ impl Peerstate {
         if self.fingerprint_changed {
             if let Some(contact_id) = context
                 .sql
-                .query_get_value_result(
-                    "SELECT id FROM contacts WHERE addr=?;",
-                    paramsv![self.addr],
+                .query_get_value(
+                    sqlx::query("SELECT id FROM contacts WHERE addr=?;").bind(&self.addr),
                 )
                 .await?
             {
@@ -429,42 +435,59 @@ impl Peerstate {
     pub async fn save_to_db(&self, sql: &Sql, create: bool) -> crate::sql::Result<()> {
         if self.to_save == Some(ToSave::All) || create {
             sql.execute(
-                if create {
-                    "INSERT INTO acpeerstates (last_seen, last_seen_autocrypt, prefer_encrypted, \
-                 public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                 verified_key, verified_key_fingerprint, addr \
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)"
+                (if create {
+                    sqlx::query(
+                        "INSERT INTO acpeerstates ( \
+                         last_seen, \
+                         last_seen_autocrypt, \
+                         prefer_encrypted, \
+                         public_key, \
+                         gossip_timestamp, \
+                         gossip_key, \
+                         public_key_fingerprint, \
+                         gossip_key_fingerprint, \
+                         verified_key, \
+                         verified_key_fingerprint, \
+                         addr \
+                         ) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    )
                 } else {
-                    "UPDATE acpeerstates \
-                 SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
-                 public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
-                 verified_key=?, verified_key_fingerprint=? \
-                 WHERE addr=?"
-                },
-                paramsv![
-                self.last_seen,
-                self.last_seen_autocrypt,
-                self.prefer_encrypt as i64,
-                self.public_key.as_ref().map(|k| k.to_bytes()),
-                self.gossip_timestamp,
-                self.gossip_key.as_ref().map(|k| k.to_bytes()),
-                self.public_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                self.verified_key.as_ref().map(|k| k.to_bytes()),
-                self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                self.addr,
-                ],
-                ).await?;
+                    sqlx::query(
+                        "UPDATE acpeerstates \
+                 SET last_seen=?, \
+                 last_seen_autocrypt=?, \
+                 prefer_encrypted=?, \
+                 public_key=?, \
+                 gossip_timestamp=?, \
+                 gossip_key=?, \
+                 public_key_fingerprint=?, \
+                 gossip_key_fingerprint=?, \
+                 verified_key=?, \
+                 verified_key_fingerprint=? \
+                 WHERE addr=?",
+                    )
+                })
+                .bind(self.last_seen)
+                .bind(self.last_seen_autocrypt)
+                .bind(self.prefer_encrypt as i64)
+                .bind(self.public_key.as_ref().map(|k| k.to_bytes()))
+                .bind(self.gossip_timestamp)
+                .bind(self.gossip_key.as_ref().map(|k| k.to_bytes()))
+                .bind(self.public_key_fingerprint.as_ref().map(|fp| fp.hex()))
+                .bind(self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()))
+                .bind(self.verified_key.as_ref().map(|k| k.to_bytes()))
+                .bind(self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()))
+                .bind(&self.addr),
+            )
+            .await?;
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql.execute(
-                "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
-                 WHERE addr=?;",
-                paramsv![
-                    self.last_seen,
-                    self.last_seen_autocrypt,
-                    self.gossip_timestamp,
-                    self.addr
-                ],
+                sqlx::query("UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
+                 WHERE addr=?;").bind(
+                    self.last_seen).bind(
+                    self.last_seen_autocrypt).bind(
+                    self.gossip_timestamp).bind(
+                    &self.addr)
             )
             .await?;
         }
@@ -478,12 +501,6 @@ impl Peerstate {
         } else {
             false
         }
-    }
-}
-
-impl From<crate::key::FingerprintError> for rusqlite::Error {
-    fn from(_source: crate::key::FingerprintError) -> Self {
-        Self::InvalidColumnType(0, "Invalid fingerprint".into(), rusqlite::types::Type::Text)
     }
 }
 
@@ -619,7 +636,7 @@ mod tests {
         // can be loaded without errors.
         ctx.ctx
             .sql
-            .execute("INSERT INTO acpeerstates (addr) VALUES(?)", paramsv![addr])
+            .execute(sqlx::query("INSERT INTO acpeerstates (addr) VALUES(?)").bind(addr))
             .await
             .expect("Failed to write to the database");
 

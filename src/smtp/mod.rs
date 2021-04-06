@@ -22,25 +22,24 @@ const SMTP_TIMEOUT: u64 = 30;
 pub enum Error {
     #[error("Bad parameters")]
     BadParameters,
-
     #[error("Invalid login address {address}: {error}")]
     InvalidLoginAddress {
         address: String,
         #[source]
         error: error::Error,
     },
-
     #[error("SMTP: failed to connect: {0}")]
     ConnectionFailure(#[source] smtp::error::Error),
-
     #[error("SMTP: failed to setup connection {0:?}")]
     ConnectionSetupFailure(#[source] smtp::error::Error),
-
     #[error("SMTP: oauth2 error {address}")]
     Oauth2Error { address: String },
-
-    #[error("TLS error")]
+    #[error("TLS error {0}")]
     Tls(#[from] async_native_tls::Error),
+    #[error("Sql {0}")]
+    Sql(#[from] crate::sql::Error),
+    #[error("{0}")]
+    Other(#[from] anyhow::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -100,7 +99,7 @@ impl Smtp {
             return Ok(());
         }
 
-        let lp = LoginParam::from_database(context, "configured_").await;
+        let lp = LoginParam::from_database(context, "configured_").await?;
         let res = self
             .connect(
                 context,
@@ -164,7 +163,7 @@ impl Smtp {
         let (creds, mechanism) = if oauth2 {
             // oauth2
             let send_pw = &lp.password;
-            let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false).await;
+            let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false).await?;
             if access_token.is_none() {
                 return Err(Error::Oauth2Error {
                     address: addr.to_string(),

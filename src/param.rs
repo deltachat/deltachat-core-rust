@@ -333,7 +333,7 @@ impl Params {
 
     pub fn get_msg_id(&self) -> Option<MsgId> {
         self.get(Param::MsgId)
-            .and_then(|x| x.parse::<u32>().ok())
+            .and_then(|x| x.parse().ok())
             .map(MsgId::new)
     }
 

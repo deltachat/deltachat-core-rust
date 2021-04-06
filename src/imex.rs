@@ -10,6 +10,7 @@ use async_std::{
     prelude::*,
 };
 use rand::{thread_rng, Rng};
+use sqlx::Row;
 
 use crate::chat;
 use crate::chat::delete_and_reset_all_device_msgs;
@@ -38,7 +39,7 @@ const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
 const BLOBS_BACKUP_NAME: &str = "blobs_backup";
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
-#[repr(i32)]
+#[repr(u32)]
 pub enum ImexMode {
     /// Export all private keys and all public keys of the user to the
     /// directory given as `param1`.  The default key is written to the files `public-key-default.asc`
@@ -170,8 +171,8 @@ pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Re
                 match sql.open(context, &path, true).await {
                     Ok(_) => {
                         let curr_backup_time = sql
-                            .get_raw_config_int(context, "backup_time")
-                            .await
+                            .get_raw_config_int("backup_time")
+                            .await?
                             .unwrap_or_default();
                         if curr_backup_time > newest_backup_time {
                             newest_backup_path = Some(path);
@@ -271,7 +272,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
         bail!("Passphrase must be at least 2 chars long.");
     };
     let private_key = SignedSecretKey::load_self(context).await?;
-    let ac_headers = match context.get_config_bool(Config::E2eeEnabled).await {
+    let ac_headers = match context.get_config_bool(Config::E2eeEnabled).await? {
         false => None,
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
@@ -333,7 +334,7 @@ pub fn create_setup_code(_context: &Context) -> String {
 }
 
 async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
-    if !context.sql.get_raw_config_bool(context, "bcc_self").await {
+    if !context.sql.get_raw_config_bool("bcc_self").await? {
         let mut msg = Message::new(Viewtype::Text);
         // TODO: define this as a stockstring once the wording is settled.
         msg.text = Some(
@@ -394,7 +395,7 @@ async fn set_self_key(
             };
             context
                 .sql
-                .set_raw_config_int(context, "e2ee_enabled", e2ee_enabled)
+                .set_raw_config_int("e2ee_enabled", e2ee_enabled)
                 .await?;
         }
         None => {
@@ -404,7 +405,7 @@ async fn set_self_key(
         }
     };
 
-    let self_addr = context.get_config(Config::ConfiguredAddr).await;
+    let self_addr = context.get_config(Config::ConfiguredAddr).await?;
     ensure!(self_addr.is_some(), "Missing self addr");
     let addr = EmailAddress::new(&self_addr.unwrap_or_default())?;
     let keypair = pgp::KeyPair {
@@ -493,7 +494,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
     );
 
     ensure!(
-        !context.is_configured().await,
+        !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
     ensure!(
@@ -564,7 +565,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     );
 
     ensure!(
-        !context.is_configured().await,
+        !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
     ensure!(
@@ -594,9 +595,9 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
 
     let total_files_cnt = context
         .sql
-        .query_get_value::<isize>(context, "SELECT COUNT(*) FROM backup_blobs;", paramsv![])
-        .await
-        .unwrap_or_default() as usize;
+        .count("SELECT COUNT(*) FROM backup_blobs;")
+        .await?;
+
     info!(
         context,
         "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
@@ -606,29 +607,25 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     // consuming too much memory.
     let file_ids = context
         .sql
-        .query_map(
-            "SELECT id FROM backup_blobs ORDER BY id",
-            paramsv![],
-            |row| row.get(0),
-            |ids| {
-                ids.collect::<std::result::Result<Vec<i64>, _>>()
-                    .map_err(Into::into)
-            },
-        )
+        .fetch("SELECT id FROM backup_blobs ORDER BY id")
+        .await?
+        .map(|row| row?.try_get(0))
+        .collect::<sqlx::Result<Vec<i64>>>()
         .await?;
 
     let mut all_files_extracted = true;
     for (processed_files_cnt, file_id) in file_ids.into_iter().enumerate() {
         // Load a single blob into memory
-        let (file_name, file_blob) = context
+        let row = context
             .sql
-            .query_row(
-                "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
-                paramsv![file_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
+            .fetch_one(
+                sqlx::query("SELECT file_name, file_content FROM backup_blobs WHERE id = ?")
+                    .bind(file_id),
             )
             .await?;
 
+        let file_name: String = row.try_get(0)?;
+        let file_blob: &[u8] = row.try_get(1)?;
         if context.shall_stop_ongoing().await {
             all_files_extracted = false;
             break;
@@ -646,16 +643,13 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
         }
 
         let path_filename = context.get_blobdir().join(file_name);
-        dc_write_file(context, &path_filename, &file_blob).await?;
+        dc_write_file(context, &path_filename, file_blob).await?;
     }
 
     if all_files_extracted {
         // only delete backup_blobs if all files were successfully extracted
-        context
-            .sql
-            .execute("DROP TABLE backup_blobs;", paramsv![])
-            .await?;
-        context.sql.execute("VACUUM;", paramsv![]).await.ok();
+        context.sql.execute("DROP TABLE backup_blobs;").await?;
+        context.sql.execute("VACUUM;").await.ok();
         Ok(())
     } else {
         bail!("received stop signal");
@@ -674,13 +668,13 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     context
         .sql
-        .set_raw_config_int(context, "backup_time", now as i32)
+        .set_raw_config_int("backup_time", now as i32)
         .await?;
     sql::housekeeping(context).await.ok_or_log(context);
 
     context
         .sql
-        .execute("VACUUM;", paramsv![])
+        .execute("VACUUM;")
         .await
         .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e));
 
@@ -833,29 +827,24 @@ async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
 async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let mut export_errors = 0;
 
-    let keys = context
+    let mut keys = context
         .sql
-        .query_map(
-            "SELECT id, public_key, private_key, is_default FROM keypairs;",
-            paramsv![],
-            |row| {
-                let id = row.get(0)?;
-                let public_key_blob: Vec<u8> = row.get(1)?;
-                let public_key = SignedPublicKey::from_slice(&public_key_blob);
-                let private_key_blob: Vec<u8> = row.get(2)?;
-                let private_key = SignedSecretKey::from_slice(&private_key_blob);
-                let is_default: i32 = row.get(3)?;
+        .fetch("SELECT id, public_key, private_key, is_default FROM keypairs;")
+        .await?
+        .map(|row| -> sqlx::Result<_> {
+            let row = row?;
+            let id = row.try_get(0)?;
+            let public_key_blob: &[u8] = row.try_get(1)?;
+            let public_key = SignedPublicKey::from_slice(public_key_blob);
+            let private_key_blob: &[u8] = row.try_get(2)?;
+            let private_key = SignedSecretKey::from_slice(private_key_blob);
+            let is_default: i32 = row.try_get(3)?;
 
-                Ok((id, public_key, private_key, is_default))
-            },
-            |keys| {
-                keys.collect::<std::result::Result<Vec<_>, _>>()
-                    .map_err(Into::into)
-            },
-        )
-        .await?;
+            Ok((id, public_key, private_key, is_default))
+        });
 
-    for (id, public_key, private_key, is_default) in keys {
+    while let Some(parts) = keys.next().await {
+        let (id, public_key, private_key, is_default) = parts?;
         let id = Some(id).filter(|_| is_default != 0);
         if let Ok(key) = public_key {
             if export_key_to_asc_file(context, &dir, id, &key)

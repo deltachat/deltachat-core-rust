@@ -1,7 +1,8 @@
 //! # Constants
-use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+
+use crate::chat::ChatId;
 
 pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION").to_string());
 
@@ -14,12 +15,11 @@ pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION")
     Eq,
     FromPrimitive,
     ToPrimitive,
-    FromSql,
-    ToSql,
     Serialize,
     Deserialize,
+    sqlx::Type,
 )]
-#[repr(u8)]
+#[repr(i8)]
 pub enum Blocked {
     Not = 0,
     Manually = 1,
@@ -32,9 +32,7 @@ impl Default for Blocked {
     }
 }
 
-#[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
-)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum ShowEmails {
     Off = 0,
@@ -48,9 +46,7 @@ impl Default for ShowEmails {
     }
 }
 
-#[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
-)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum MediaQuality {
     Balanced = 0,
@@ -63,9 +59,7 @@ impl Default for MediaQuality {
     }
 }
 
-#[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
-)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum KeyGenType {
     Default = 0,
@@ -79,9 +73,7 @@ impl Default for KeyGenType {
     }
 }
 
-#[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
-)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(i8)]
 pub enum VideochatType {
     Unknown = 0,
@@ -122,15 +114,15 @@ pub const DC_RESEND_USER_AVATAR_DAYS: i64 = 14;
 pub const DC_OUTDATED_WARNING_DAYS: i64 = 365;
 
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
-pub const DC_CHAT_ID_DEADDROP: u32 = 1;
+pub const DC_CHAT_ID_DEADDROP: ChatId = ChatId::new(1);
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
-pub const DC_CHAT_ID_TRASH: u32 = 3;
+pub const DC_CHAT_ID_TRASH: ChatId = ChatId::new(3);
 /// only an indicator in a chatlist
-pub const DC_CHAT_ID_ARCHIVED_LINK: u32 = 6;
+pub const DC_CHAT_ID_ARCHIVED_LINK: ChatId = ChatId::new(6);
 /// only an indicator in a chatlist
-pub const DC_CHAT_ID_ALLDONE_HINT: u32 = 7;
+pub const DC_CHAT_ID_ALLDONE_HINT: ChatId = ChatId::new(7);
 /// larger chat IDs are "real" chats, their messages are "real" messages.
-pub const DC_CHAT_ID_LAST_SPECIAL: u32 = 9;
+pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 
 #[derive(
     Debug,
@@ -141,11 +133,10 @@ pub const DC_CHAT_ID_LAST_SPECIAL: u32 = 9;
     Eq,
     FromPrimitive,
     ToPrimitive,
-    FromSql,
-    ToSql,
     IntoStaticStr,
     Serialize,
     Deserialize,
+    sqlx::Type,
 )]
 #[repr(u32)]
 pub enum Chattype {
@@ -256,12 +247,11 @@ pub const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
     Eq,
     FromPrimitive,
     ToPrimitive,
-    FromSql,
-    ToSql,
     Serialize,
     Deserialize,
+    sqlx::Type,
 )]
-#[repr(i32)]
+#[repr(u32)]
 pub enum Viewtype {
     Unknown = 0,
 

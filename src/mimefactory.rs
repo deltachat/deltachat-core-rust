@@ -1,3 +1,11 @@
+use std::convert::TryInto;
+
+use anyhow::{bail, ensure, format_err, Error};
+use async_std::prelude::*;
+use chrono::TimeZone;
+use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
+use sqlx::Row;
+
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
@@ -20,11 +28,6 @@ use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
 use crate::stock_str;
-use anyhow::Context as _;
-use anyhow::{bail, ensure, format_err, Error};
-use chrono::TimeZone;
-use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
-use std::convert::TryInto;
 
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
@@ -92,12 +95,12 @@ impl<'a> MimeFactory<'a> {
 
         let from_addr = context
             .get_config(Config::ConfiguredAddr)
-            .await
+            .await?
             .unwrap_or_default();
 
         let config_displayname = context
             .get_config(Config::Displayname)
-            .await
+            .await?
             .unwrap_or_default();
         let (from_displayname, sender_displayname) =
             if let Some(override_name) = msg.param.get(Param::OverrideSenderDisplayname) {
@@ -112,52 +115,42 @@ impl<'a> MimeFactory<'a> {
         if chat.is_self_talk() {
             recipients.push((from_displayname.to_string(), from_addr.to_string()));
         } else {
-            context
+            let mut rows = context
                 .sql
-                .query_map(
-                    "SELECT c.authname, c.addr  \
+                .fetch(
+                    sqlx::query(
+                        "SELECT c.authname, c.addr  \
                  FROM chats_contacts cc  \
                  LEFT JOIN contacts c ON cc.contact_id=c.id  \
                  WHERE cc.chat_id=? AND cc.contact_id>9;",
-                    paramsv![msg.chat_id],
-                    |row| {
-                        let authname: String = row.get(0)?;
-                        let addr: String = row.get(1)?;
-                        Ok((authname, addr))
-                    },
-                    |rows| {
-                        for row in rows {
-                            let (authname, addr) = row?;
-                            if !recipients_contain_addr(&recipients, &addr) {
-                                recipients.push((authname, addr));
-                            }
-                        }
-                        Ok(())
-                    },
+                    )
+                    .bind(msg.chat_id),
                 )
                 .await?;
+            while let Some(row) = rows.next().await {
+                let row = row?;
+                let authname: String = row.try_get(0)?;
+                let addr: String = row.try_get(1)?;
+                if !recipients_contain_addr(&recipients, &addr) {
+                    recipients.push((authname, addr));
+                }
+            }
 
-            if !msg.is_system_message() && context.get_config_bool(Config::MdnsEnabled).await {
+            if !msg.is_system_message() && context.get_config_bool(Config::MdnsEnabled).await? {
                 req_mdn = true;
             }
         }
-        let (in_reply_to, references) = context
+        let row = context
             .sql
-            .query_row(
-                "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
-                paramsv![msg.id],
-                |row| {
-                    let in_reply_to: String = row.get(0)?;
-                    let references: String = row.get(1)?;
-
-                    Ok((
-                        render_rfc724_mid_list(&in_reply_to),
-                        render_rfc724_mid_list(&references),
-                    ))
-                },
+            .fetch_one(
+                sqlx::query("SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?")
+                    .bind(msg.id),
             )
-            .await
-            .context("Can't get mime_in_reply_to, mime_references")?;
+            .await?;
+        let (in_reply_to, references) = (
+            render_rfc724_mid_list(row.try_get(0)?),
+            render_rfc724_mid_list(row.try_get(1)?),
+        );
 
         let default_str = stock_str::status_line(context).await;
         let factory = MimeFactory {
@@ -166,7 +159,7 @@ impl<'a> MimeFactory<'a> {
             sender_displayname,
             selfstatus: context
                 .get_config(Config::Selfstatus)
-                .await
+                .await?
                 .unwrap_or(default_str),
             recipients,
             timestamp: msg.timestamp_sort,
@@ -191,16 +184,16 @@ impl<'a> MimeFactory<'a> {
         let contact = Contact::load_from_db(context, msg.from_id).await?;
         let from_addr = context
             .get_config(Config::ConfiguredAddr)
-            .await
+            .await?
             .unwrap_or_default();
         let from_displayname = context
             .get_config(Config::Displayname)
-            .await
+            .await?
             .unwrap_or_default();
         let default_str = stock_str::status_line(context).await;
         let selfstatus = context
             .get_config(Config::Selfstatus)
-            .await
+            .await?
             .unwrap_or(default_str);
         let timestamp = dc_create_smeared_timestamp(context).await;
 
@@ -232,7 +225,7 @@ impl<'a> MimeFactory<'a> {
     ) -> Result<Vec<(Option<Peerstate>, &str)>, Error> {
         let self_addr = context
             .get_config(Config::ConfiguredAddr)
-            .await
+            .await?
             .ok_or_else(|| format_err!("Not configured"))?;
 
         let mut res = Vec::new();
@@ -309,18 +302,18 @@ impl<'a> MimeFactory<'a> {
         }
     }
 
-    async fn should_do_gossip(&self, context: &Context) -> bool {
+    async fn should_do_gossip(&self, context: &Context) -> Result<bool, Error> {
         match &self.loaded {
             Loaded::Message { chat } => {
                 // beside key- and member-changes, force re-gossip every 48 hours
-                let gossiped_timestamp = chat.get_gossiped_timestamp(context).await;
+                let gossiped_timestamp = chat.get_gossiped_timestamp(context).await?;
                 if time() > gossiped_timestamp + (2 * 24 * 60 * 60) {
-                    return true;
+                    Ok(true)
+                } else {
+                    Ok(self.msg.param.get_cmd() == SystemMessage::MemberAddedToGroup)
                 }
-
-                self.msg.param.get_cmd() == SystemMessage::MemberAddedToGroup
             }
-            Loaded::MDN { .. } => false,
+            Loaded::MDN { .. } => Ok(false),
         }
     }
 
@@ -357,7 +350,7 @@ impl<'a> MimeFactory<'a> {
     async fn subject_str(&self, context: &Context) -> anyhow::Result<String> {
         let quoted_msg_subject = self.msg.quoted_message(context).await?.map(|m| m.subject);
 
-        Ok(match self.loaded {
+        let subject = match self.loaded {
             Loaded::Message { ref chat } => {
                 if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
                     return Ok(stock_str::ac_setup_msg_subject(context).await);
@@ -387,16 +380,18 @@ impl<'a> MimeFactory<'a> {
                 if let Some(last_subject) = parent_subject {
                     format!("Re: {}", remove_subject_prefix(last_subject))
                 } else {
-                    let self_name = match context.get_config(Config::Displayname).await {
+                    let self_name = match context.get_config(Config::Displayname).await? {
                         Some(name) => name,
-                        None => context.get_config(Config::Addr).await.unwrap_or_default(),
+                        None => context.get_config(Config::Addr).await?.unwrap_or_default(),
                     };
 
                     stock_str::subject_for_new_contact(context, self_name).await
                 }
             }
             Loaded::MDN { .. } => stock_str::read_rcpt(context).await,
-        })
+        };
+
+        Ok(subject)
     }
 
     pub fn recipients(&self) -> Vec<String> {
@@ -567,7 +562,7 @@ impl<'a> MimeFactory<'a> {
 
         let outer_message = if is_encrypted {
             // Add gossip headers in chats with multiple recipients
-            if peerstates.len() > 1 && self.should_do_gossip(context).await {
+            if peerstates.len() > 1 && self.should_do_gossip(context).await? {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
                     if peerstate.peek_key(min_verified).is_some() {
                         if let Some(header) = peerstate.render_gossip_header(min_verified) {
@@ -966,7 +961,9 @@ impl<'a> MimeFactory<'a> {
         // for simplificity and to avoid conversion errors, we're generating the HTML-part from the original message.
         if self.msg.has_html() {
             let html = if let Some(orig_msg_id) = self.msg.param.get_int(Param::Forwarded) {
-                MsgId::new(orig_msg_id.try_into()?).get_html(context).await
+                MsgId::new(orig_msg_id.try_into()?)
+                    .get_html(context)
+                    .await?
             } else {
                 self.msg.param.get(Param::SendHtml).map(|s| s.to_string())
             };
@@ -1009,7 +1006,7 @@ impl<'a> MimeFactory<'a> {
         }
 
         if self.attach_selfavatar {
-            match context.get_config(Config::Selfavatar).await {
+            match context.get_config(Config::Selfavatar).await? {
                 Some(path) => match build_selfavatar_file(context, &path) {
                     Ok((part, filename)) => {
                         parts.push(part);
@@ -1137,14 +1134,14 @@ async fn build_body_file(
     // etc.
     let filename_to_send: String = match msg.viewtype {
         Viewtype::Voice => chrono::Utc
-            .timestamp(msg.timestamp_sort as i64, 0)
+            .timestamp(msg.timestamp_sort, 0)
             .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", &suffix))
             .to_string(),
         Viewtype::Image | Viewtype::Gif => format!(
             "{}.{}",
             if base_name.is_empty() {
                 chrono::Utc
-                    .timestamp(msg.timestamp_sort as i64, 0)
+                    .timestamp(msg.timestamp_sort, 0)
                     .format("image_%Y-%m-%d_%H-%M-%S")
                     .to_string()
             } else {
@@ -1155,7 +1152,7 @@ async fn build_body_file(
         Viewtype::Video => format!(
             "video_{}.{}",
             chrono::Utc
-                .timestamp(msg.timestamp_sort as i64, 0)
+                .timestamp(msg.timestamp_sort, 0)
                 .format("%Y-%m-%d_%H-%M-%S")
                 .to_string(),
             &suffix

@@ -13,12 +13,12 @@ use std::pin::Pin;
 use anyhow::Result;
 use lettre_email::mime::{self, Mime};
 
-use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::parse_message_id;
 use crate::param::Param::SendHtml;
 use crate::plaintext::PlainText;
+use crate::{context::Context, message};
 use lettre_email::PartBuilder;
 use mailparse::ParsedContentType;
 
@@ -244,32 +244,20 @@ impl MsgId {
     /// this is the case at least when `Message.has_html()` returns true
     /// (we do not save raw mime unconditionally in the database to save space).
     /// The corresponding ffi-function is `dc_get_msg_html()`.
-    pub async fn get_html(self, context: &Context) -> Option<String> {
-        let rawmime: Option<String> = context
-            .sql
-            .query_get_value(
-                context,
-                "SELECT mime_headers FROM msgs WHERE id=?;",
-                paramsv![self],
-            )
-            .await;
+    pub async fn get_html(self, context: &Context) -> Result<Option<String>> {
+        let rawmime = message::get_mime_headers(context, self).await?;
 
-        if let Some(rawmime) = rawmime {
-            if !rawmime.is_empty() {
-                match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
-                    Err(err) => {
-                        warn!(context, "get_html: parser error: {}", err);
-                        None
-                    }
-                    Ok(parser) => Some(parser.html),
+        if !rawmime.is_empty() {
+            match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
+                Err(err) => {
+                    warn!(context, "get_html: parser error: {}", err);
+                    Ok(None)
                 }
-            } else {
-                warn!(context, "get_html: empty mime for {}", self);
-                None
+                Ok(parser) => Ok(Some(parser.html)),
             }
         } else {
             warn!(context, "get_html: no mime for {}", self);
-            None
+            Ok(None)
         }
     }
 }
@@ -439,7 +427,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     async fn test_get_html_empty() {
         let t = TestContext::new().await;
         let msg_id = MsgId::new_unset();
-        assert!(msg_id.get_html(&t).await.is_none())
+        assert!(msg_id.get_html(&t).await.unwrap().is_none())
     }
 
     #[async_std::test]
@@ -460,7 +448,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(!msg.is_forwarded());
         assert!(msg.get_text().unwrap().contains("this is plain"));
         assert!(msg.has_html());
-        let html = msg.get_id().get_html(&alice).await.unwrap();
+        let html = msg.get_id().get_html(&alice).await.unwrap().unwrap();
         assert!(html.contains("this is <b>html</b>"));
 
         // alice: create chat with bob and forward received html-message there
@@ -474,7 +462,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(msg.is_forwarded());
         assert!(msg.get_text().unwrap().contains("this is plain"));
         assert!(msg.has_html());
-        let html = msg.get_id().get_html(&alice).await.unwrap();
+        let html = msg.get_id().get_html(&alice).await.unwrap().unwrap();
         assert!(html.contains("this is <b>html</b>"));
 
         // bob: check that bob also got the html-part of the forwarded message
@@ -487,7 +475,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(msg.is_forwarded());
         assert!(msg.get_text().unwrap().contains("this is plain"));
         assert!(msg.has_html());
-        let html = msg.get_id().get_html(&bob).await.unwrap();
+        let html = msg.get_id().get_html(&bob).await.unwrap().unwrap();
         assert!(html.contains("this is <b>html</b>"));
     }
 
@@ -517,7 +505,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
         // receive the message on another device
         let alice = TestContext::new_alice().await;
-        assert_eq!(alice.get_config_int(Config::ShowEmails).await, 0); // set to "1" above, make sure it is another db
+        assert_eq!(alice.get_config_int(Config::ShowEmails).await.unwrap(), 0); // set to "1" above, make sure it is another db
         alice.recv_msg(&msg).await;
         let chat = alice.get_self_chat().await;
         let msg = alice.get_last_msg_in(chat.get_id()).await;
@@ -527,7 +515,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(msg.is_forwarded());
         assert!(msg.get_text().unwrap().contains("this is plain"));
         assert!(msg.has_html());
-        let html = msg.get_id().get_html(&alice).await.unwrap();
+        let html = msg.get_id().get_html(&alice).await.unwrap().unwrap();
         assert!(html.contains("this is <b>html</b>"));
     }
 
@@ -549,7 +537,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_eq!(msg.get_text(), Some("plain text".to_string()));
         assert!(!msg.is_forwarded());
         assert!(msg.mime_modified);
-        let html = msg.get_id().get_html(&alice).await.unwrap();
+        let html = msg.get_id().get_html(&alice).await.unwrap().unwrap();
         assert!(html.contains("<b>html</b> text"));
 
         // let bob receive the message
@@ -559,7 +547,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_eq!(msg.get_text(), Some("plain text".to_string()));
         assert!(!msg.is_forwarded());
         assert!(msg.mime_modified);
-        let html = msg.get_id().get_html(&bob).await.unwrap();
+        let html = msg.get_id().get_html(&bob).await.unwrap().unwrap();
         assert!(html.contains("<b>html</b> text"));
     }
 }

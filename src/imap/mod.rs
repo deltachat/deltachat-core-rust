@@ -229,7 +229,7 @@ impl Imap {
                     let addr: &str = config.addr.as_ref();
 
                     if let Some(token) =
-                        dc_get_oauth2_access_token(context, addr, imap_pw, true).await
+                        dc_get_oauth2_access_token(context, addr, imap_pw, true).await?
                     {
                         let auth = OAuth2 {
                             user: imap_user.into(),
@@ -267,7 +267,7 @@ impl Imap {
 
                 let lock = context.wrong_pw_warning_mutex.lock().await;
                 if self.login_failed_once
-                    && context.get_config_bool(Config::NotifyAboutWrongPw).await
+                    && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                 {
                     if let Err(e) = context.set_config(Config::NotifyAboutWrongPw, None).await {
                         warn!(context, "{}", e);
@@ -339,11 +339,11 @@ impl Imap {
         if self.is_connected() && !self.should_reconnect() {
             return Ok(());
         }
-        if !context.is_configured().await {
+        if !context.is_configured().await? {
             bail!("IMAP Connect without configured params");
         }
 
-        let param = LoginParam::from_database(context, "configured_").await;
+        let param = LoginParam::from_database(context, "configured_").await?;
         // the trailing underscore is correct
 
         if let Err(err) = self
@@ -521,24 +521,29 @@ impl Imap {
         // Write collected UIDs to SQLite database.
         context
             .sql
-            .with_conn(move |mut conn| {
-                let conn2 = &mut conn;
-                let tx = conn2.transaction()?;
-                tx.execute(
-                    "UPDATE msgs SET server_uid=0 WHERE server_folder=?",
-                    params![folder],
-                )?;
-                for (uid, rfc724_mid) in &msg_ids {
-                    // This may detect previously undetected moved
-                    // messages, so we update server_folder too.
-                    tx.execute(
-                        "UPDATE msgs \
-                         SET server_folder=?,server_uid=? WHERE rfc724_mid=?",
-                        params![folder, uid, rfc724_mid],
-                    )?;
-                }
-                tx.commit()?;
-                Ok(())
+            .transaction(|conn| {
+                Box::pin(async move {
+                    sqlx::query("UPDATE msgs SET server_uid=0 WHERE server_folder=?")
+                        .bind(&folder)
+                        .execute(&mut *conn)
+                        .await?;
+
+                    for (uid, rfc724_mid) in &msg_ids {
+                        // This may detect previously undetected moved
+                        // messages, so we update server_folder too.
+                        sqlx::query(
+                            "UPDATE msgs \
+                             SET server_folder=?,server_uid=? WHERE rfc724_mid=?",
+                        )
+                        .bind(&folder)
+                        .bind(uid)
+                        .bind(rfc724_mid)
+                        .execute(&mut *conn)
+                        .await?;
+                    }
+
+                    Ok(())
+                })
             })
             .await?;
         Ok(())
@@ -655,7 +660,7 @@ impl Imap {
         folder: S,
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
-        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await)
+        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
             .unwrap_or_default();
 
         let new_emails = self
@@ -754,7 +759,7 @@ impl Imap {
         let session = self.session.as_mut().unwrap();
         let self_addr = context
             .get_config(Config::ConfiguredAddr)
-            .await
+            .await?
             .ok_or_else(|| format_err!("Not configured"))?;
 
         let search_command = format!("FROM \"{}\"", self_addr);
@@ -1276,10 +1281,7 @@ impl Imap {
         context: &Context,
         create_mvbox: bool,
     ) -> Result<()> {
-        let folders_configured = context
-            .sql
-            .get_raw_config_int(context, "folders_configured")
-            .await;
+        let folders_configured = context.sql.get_raw_config_int("folders_configured").await?;
         if folders_configured.unwrap_or_default() >= DC_FOLDERS_CONFIGURED_VERSION {
             return Ok(());
         }
@@ -1407,7 +1409,7 @@ impl Imap {
             }
             context
                 .sql
-                .set_raw_config_int(context, "folders_configured", DC_FOLDERS_CONFIGURED_VERSION)
+                .set_raw_config_int("folders_configured", DC_FOLDERS_CONFIGURED_VERSION)
                 .await?;
         }
         info!(context, "FINISHED configuring IMAP-folders.");
@@ -1519,7 +1521,7 @@ async fn precheck_imf(
                 "[move] detected bcc-self {} as {}/{}", rfc724_mid, server_folder, server_uid
             );
 
-            let delete_server_after = context.get_config_delete_server_after().await;
+            let delete_server_after = context.get_config_delete_server_after().await?;
 
             if delete_server_after != Some(0) {
                 if msg_id
@@ -1729,9 +1731,15 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
     context
         .sql
         .execute(
-            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+            sqlx::query(
+                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
                 ON CONFLICT(folder) DO UPDATE SET uid_next=? WHERE folder=?;",
-            paramsv![folder, 0u32, uid_next, uid_next, folder],
+            )
+            .bind(folder)
+            .bind(0i32)
+            .bind(uid_next as i64)
+            .bind(uid_next as i64)
+            .bind(folder),
         )
         .await?;
     Ok(())
@@ -1745,10 +1753,7 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
 async fn get_uid_next(context: &Context, folder: &str) -> Result<u32> {
     Ok(context
         .sql
-        .query_get_value_result(
-            "SELECT uid_next FROM imap_sync WHERE folder=?;",
-            paramsv![folder],
-        )
+        .query_get_value(sqlx::query("SELECT uid_next FROM imap_sync WHERE folder=?;").bind(folder))
         .await?
         .unwrap_or(0))
 }
@@ -1761,9 +1766,15 @@ pub(crate) async fn set_uidvalidity(
     context
         .sql
         .execute(
-            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+            sqlx::query(
+                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
                 ON CONFLICT(folder) DO UPDATE SET uidvalidity=? WHERE folder=?;",
-            paramsv![folder, uidvalidity, 0u32, uidvalidity, folder],
+            )
+            .bind(folder)
+            .bind(uidvalidity as i32)
+            .bind(0i32)
+            .bind(uidvalidity as i32)
+            .bind(folder),
         )
         .await?;
     Ok(())
@@ -1772,26 +1783,28 @@ pub(crate) async fn set_uidvalidity(
 async fn get_uidvalidity(context: &Context, folder: &str) -> Result<u32> {
     Ok(context
         .sql
-        .query_get_value_result(
-            "SELECT uidvalidity FROM imap_sync WHERE folder=?;",
-            paramsv![folder],
+        .query_get_value(
+            sqlx::query("SELECT uidvalidity FROM imap_sync WHERE folder=?;").bind(folder),
         )
         .await?
         .unwrap_or(0))
 }
 
 /// Deprecated, use get_uid_next() and get_uidvalidity()
-pub async fn get_config_last_seen_uid<S: AsRef<str>>(context: &Context, folder: S) -> (u32, u32) {
+pub async fn get_config_last_seen_uid<S: AsRef<str>>(
+    context: &Context,
+    folder: S,
+) -> Result<(u32, u32)> {
     let key = format!("imap.mailbox.{}", folder.as_ref());
-    if let Some(entry) = context.sql.get_raw_config(context, &key).await {
+    if let Some(entry) = context.sql.get_raw_config(&key).await? {
         // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
         let mut parts = entry.split(':');
-        (
+        Ok((
             parts.next().unwrap_or_default().parse().unwrap_or(0),
             parts.next().unwrap_or_default().parse().unwrap_or(0),
-        )
+        ))
     } else {
-        (0, 0)
+        Ok((0, 0))
     }
 }
 

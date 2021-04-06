@@ -15,6 +15,7 @@ use async_std::{channel, pin::Pin};
 use async_std::{future::Future, task};
 use chat::ChatItem;
 use once_cell::sync::Lazy;
+use sqlx::Row;
 use tempfile::{tempdir, TempDir};
 
 use crate::chat::{self, Chat, ChatId};
@@ -85,6 +86,7 @@ impl TestContext {
 
     async fn new_named(name: Option<String>) -> Self {
         use rand::Rng;
+        pretty_env_logger::try_init().ok();
 
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
@@ -95,9 +97,10 @@ impl TestContext {
         }
         let ctx = Context::new("FakeOS".into(), dbfile.into(), id)
             .await
-            .unwrap();
+            .expect("failed to create context");
 
         let events = ctx.get_event_emitter();
+
         let event_sinks: Arc<RwLock<Vec<Box<EventSink>>>> = Arc::new(RwLock::new(Vec::new()));
         let sinks = Arc::clone(&event_sinks);
         let (poison_sender, poison_receiver) = channel::bounded(1);
@@ -114,6 +117,7 @@ impl TestContext {
 
             while let Some(event) = events.recv().await {
                 {
+                    log::debug!("{:?}", event);
                     let sinks = sinks.read().await;
                     for sink in sinks.iter() {
                         sink(event.clone()).await;
@@ -224,22 +228,25 @@ impl TestContext {
             let row = self
                 .ctx
                 .sql
-                .query_row(
-                    r#"
+                .fetch_one(
+                    sqlx::query(
+                        r#"
                     SELECT id, foreign_id, param
                       FROM jobs
                      WHERE action=?
                   ORDER BY desired_timestamp DESC;
                 "#,
-                    paramsv![Action::SendMsgToSmtp],
-                    |row| {
-                        let id: i64 = row.get(0)?;
-                        let foreign_id: i64 = row.get(1)?;
-                        let param: String = row.get(2)?;
-                        Ok((id, foreign_id, param))
-                    },
+                    )
+                    .bind(Action::SendMsgToSmtp),
                 )
-                .await;
+                .await
+                .and_then(|row| {
+                    let id: u32 = row.try_get(0)?;
+                    let foreign_id: u32 = row.try_get(1)?;
+                    let param: String = row.try_get(2)?;
+                    Ok((id, foreign_id, param))
+                });
+
             if let Ok(row) = row {
                 break row;
             }
@@ -249,7 +256,7 @@ impl TestContext {
                 panic!("no sent message found in jobs table");
             }
         };
-        let id = MsgId::new(foreign_id as u32);
+        let id = MsgId::new(foreign_id);
         let params = Params::from_str(&raw_params).unwrap();
         let blob_path = params
             .get_blob(Param::File, &self.ctx, false)
@@ -259,7 +266,7 @@ impl TestContext {
             .to_abs_path();
         self.ctx
             .sql
-            .execute("DELETE FROM jobs WHERE id=?;", paramsv![rowid])
+            .execute(sqlx::query("DELETE FROM jobs WHERE id=?;").bind(rowid))
             .await
             .expect("failed to remove job");
         update_msg_state(&self.ctx, id, MessageState::OutDelivered).await;
@@ -302,7 +309,9 @@ impl TestContext {
     ///
     /// Panics on errors or if the most recent message is a marker.
     pub async fn get_last_msg_in(&self, chat_id: ChatId) -> Message {
-        let msgs = chat::get_chat_msgs(&self.ctx, chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&self.ctx, chat_id, 0, None)
+            .await
+            .unwrap();
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
         } else {
@@ -313,13 +322,17 @@ impl TestContext {
 
     /// Gets the most recent message over all chats.
     pub async fn get_last_msg(&self) -> Message {
-        let chats = Chatlist::try_load(&self.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&self.ctx, 0, None, None)
+            .await
+            .expect("failed to load chatlist");
         // 0 is correct in the next line (as opposed to `chats.len() - 1`, which would be the last element):
         // The chatlist describes what you see when you open DC, a list of chats and in each of them
         // the first words of the last message. To get the last message overall, we look at the chat at the top of the
         // list, which has the index 0.
         let msg_id = chats.get_msg_id(0).unwrap();
-        Message::load_from_db(&self.ctx, msg_id).await.unwrap()
+        Message::load_from_db(&self.ctx, msg_id)
+            .await
+            .expect("failed to load msg")
     }
 
     /// Creates or returns an existing 1:1 [`Chat`] with another account.
@@ -333,8 +346,14 @@ impl TestContext {
                 .ctx
                 .get_config(Config::Displayname)
                 .await
+                .unwrap_or_default()
                 .unwrap_or_default(),
-            other.ctx.get_config(Config::ConfiguredAddr).await.unwrap(),
+            other
+                .ctx
+                .get_config(Config::ConfiguredAddr)
+                .await
+                .unwrap()
+                .unwrap(),
             Origin::ManuallyCreated,
         )
         .await
@@ -394,7 +413,7 @@ impl TestContext {
     #[allow(dead_code)]
     #[allow(clippy::clippy::indexing_slicing)]
     pub async fn print_chat(&self, chat_id: ChatId) {
-        let msglist = chat::get_chat_msgs(self, chat_id, 0x1, None).await;
+        let msglist = chat::get_chat_msgs(self, chat_id, 0x1, None).await.unwrap();
         let msglist: Vec<MsgId> = msglist
             .into_iter()
             .map(|x| match x {
@@ -405,7 +424,7 @@ impl TestContext {
             .collect();
 
         let sel_chat = Chat::load_from_db(self, chat_id).await.unwrap();
-        let members = chat::get_chat_contacts(self, sel_chat.id).await;
+        let members = chat::get_chat_contacts(self, sel_chat.id).await.unwrap();
         let subtitle = if sel_chat.is_device_talk() {
             "device-talk".to_string()
         } else if sel_chat.get_type() == Chattype::Single && !members.is_empty() {
@@ -428,7 +447,7 @@ impl TestContext {
             } else {
                 ""
             },
-            match sel_chat.get_profile_image(self).await {
+            match sel_chat.get_profile_image(self).await.unwrap() {
                 Some(icon) => match icon.to_str() {
                     Some(icon) => format!(" Icon: {}", icon),
                     _ => " Icon: Err".to_string(),
@@ -563,7 +582,7 @@ pub(crate) async fn get_chat_msg(
     index: usize,
     asserted_msgs_count: usize,
 ) -> Message {
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
     assert_eq!(msgs.len(), asserted_msgs_count);
     let msg_id = if let ChatItem::Message { msg_id } = msgs[index] {
         msg_id

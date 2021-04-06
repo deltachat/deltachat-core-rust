@@ -1,5 +1,3 @@
-use deltachat_derive::{FromSql, ToSql};
-
 use crate::key::Fingerprint;
 
 /// An object containing a set of values.
@@ -22,9 +20,7 @@ pub struct Lot {
 }
 
 #[repr(u8)]
-#[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
-)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 pub enum Meaning {
     None = 0,
     Text1Draft = 1,
@@ -68,10 +64,8 @@ impl Lot {
     }
 }
 
-#[repr(i32)]
-#[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
-)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[repr(u32)]
 pub enum LotState {
     // Default
     Undefined = 0,

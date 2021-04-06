@@ -1,6 +1,8 @@
 //! # Chat list module
 
 use anyhow::{bail, ensure, Result};
+use async_std::prelude::*;
+use sqlx::Row;
 
 use crate::chat;
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
@@ -110,17 +112,6 @@ impl Chatlist {
 
         let mut add_archived_link_item = false;
 
-        let process_row = |row: &rusqlite::Row| {
-            let chat_id: ChatId = row.get(0)?;
-            let msg_id: MsgId = row.get(1).unwrap_or_default();
-            Ok((chat_id, msg_id))
-        };
-
-        let process_rows = |rows: rusqlite::MappedRows<_>| {
-            rows.collect::<std::result::Result<Vec<_>, _>>()
-                .map_err(Into::into)
-        };
-
         let skip_id = if flag_for_forwarding {
             chat::lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
                 .await
@@ -128,6 +119,13 @@ impl Chatlist {
                 .0
         } else {
             ChatId::new(0)
+        };
+
+        let process_row = |row: sqlx::Result<sqlx::sqlite::SqliteRow>| {
+            let row = row?;
+            let chat_id: ChatId = row.try_get(0)?;
+            let msg_id: MsgId = row.try_get(1).unwrap_or_default();
+            Ok((chat_id, msg_id))
         };
 
         // select with left join and minimum:
@@ -145,10 +143,10 @@ impl Chatlist {
         // tg do the same) for the deaddrop, however, they should
         // really be hidden, however, _currently_ the deaddrop is not
         // shown at all permanent in the chatlist.
-        let mut ids = if let Some(query_contact_id) = query_contact_id {
+        let mut ids: Vec<_> = if let Some(query_contact_id) = query_contact_id {
             // show chats shared with a given contact
-            context.sql.query_map(
-                "SELECT c.id, m.id
+            context.sql.fetch(
+                sqlx::query("SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -162,11 +160,9 @@ impl Chatlist {
                    AND c.blocked=0
                    AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2)
                  GROUP BY c.id
-                 ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                paramsv![MessageState::OutDraft, query_contact_id as i32, ChatVisibility::Pinned],
-                process_row,
-                process_rows,
-            ).await?
+                 ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;"
+                ).bind(MessageState::OutDraft).bind(query_contact_id).bind(ChatVisibility::Pinned)
+            ).await?.map(process_row).collect::<sqlx::Result<_>>().await?
         } else if flag_archived_only {
             // show archived chats
             // (this includes the archived device-chat; we could skip it,
@@ -174,8 +170,9 @@ impl Chatlist {
             // and adapting the number requires larger refactorings and seems not to be worth the effort)
             context
                 .sql
-                .query_map(
-                    "SELECT c.id, m.id
+                .fetch(
+                    sqlx::query(
+                        "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -190,10 +187,12 @@ impl Chatlist {
                    AND c.archived=1
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                    paramsv![MessageState::OutDraft],
-                    process_row,
-                    process_rows,
+                    )
+                    .bind(MessageState::OutDraft),
                 )
+                .await?
+                .map(process_row)
+                .collect::<sqlx::Result<_>>()
                 .await?
         } else if let Some(query) = query {
             let query = query.trim().to_string();
@@ -208,8 +207,9 @@ impl Chatlist {
             let str_like_cmd = format!("%{}%", query);
             context
                 .sql
-                .query_map(
-                    "SELECT c.id, m.id
+                .fetch(
+                    sqlx::query(
+                        "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -224,10 +224,14 @@ impl Chatlist {
                    AND c.name LIKE ?3
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                    paramsv![MessageState::OutDraft, skip_id, str_like_cmd],
-                    process_row,
-                    process_rows,
+                    )
+                    .bind(MessageState::OutDraft)
+                    .bind(skip_id)
+                    .bind(str_like_cmd),
                 )
+                .await?
+                .map(process_row)
+                .collect::<sqlx::Result<_>>()
                 .await?
         } else {
             //  show normal chatlist
@@ -239,7 +243,8 @@ impl Chatlist {
             } else {
                 ChatId::new(0)
             };
-            let mut ids = context.sql.query_map(
+
+            let mut ids: Vec<_> = context.sql.fetch(sqlx::query(
                 "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
@@ -254,19 +259,21 @@ impl Chatlist {
                    AND c.blocked=0
                    AND NOT c.archived=?3
                  GROUP BY c.id
-                 ORDER BY c.id=?4 DESC, c.archived=?5 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                paramsv![MessageState::OutDraft, skip_id, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
-                process_row,
-                process_rows,
-            ).await?;
+                 ORDER BY c.id=?4 DESC, c.archived=?5 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;"
+            )
+              .bind(MessageState::OutDraft)
+              .bind(skip_id)
+              .bind(ChatVisibility::Archived)
+              .bind(sort_id_up)
+              .bind(ChatVisibility::Pinned)
+            ).await?.map(process_row).collect::<sqlx::Result<_>>().await?;
+
             if !flag_no_specials {
-                if let Some(last_deaddrop_fresh_msg_id) = get_last_deaddrop_fresh_msg(context).await
+                if let Some(last_deaddrop_fresh_msg_id) =
+                    get_last_deaddrop_fresh_msg(context).await?
                 {
                     if !flag_for_forwarding {
-                        ids.insert(
-                            0,
-                            (ChatId::new(DC_CHAT_ID_DEADDROP), last_deaddrop_fresh_msg_id),
-                        );
+                        ids.insert(0, (DC_CHAT_ID_DEADDROP, last_deaddrop_fresh_msg_id));
                     }
                 }
                 add_archived_link_item = true;
@@ -274,11 +281,11 @@ impl Chatlist {
             ids
         };
 
-        if add_archived_link_item && dc_get_archived_cnt(context).await > 0 {
+        if add_archived_link_item && dc_get_archived_cnt(context).await? > 0 {
             if ids.is_empty() && flag_add_alldone_hint {
-                ids.push((ChatId::new(DC_CHAT_ID_ALLDONE_HINT), MsgId::new(0)));
+                ids.push((DC_CHAT_ID_ALLDONE_HINT, MsgId::new(0)));
             }
-            ids.push((ChatId::new(DC_CHAT_ID_ARCHIVED_LINK), MsgId::new(0)));
+            ids.push((DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0)));
         }
 
         Ok(Chatlist { ids })
@@ -400,38 +407,31 @@ impl Chatlist {
 }
 
 /// Returns the number of archived chats
-pub async fn dc_get_archived_cnt(context: &Context) -> u32 {
-    context
+pub async fn dc_get_archived_cnt(context: &Context) -> Result<usize> {
+    let count = context
         .sql
-        .query_get_value(
-            context,
-            "SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;",
-            paramsv![],
-        )
-        .await
-        .unwrap_or_default()
+        .count("SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;")
+        .await?;
+    Ok(count)
 }
 
-async fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
+async fn get_last_deaddrop_fresh_msg(context: &Context) -> Result<Option<MsgId>> {
     // We have an index over the state-column, this should be
     // sufficient as there are typically only few fresh messages.
-    context
+    let id = context
         .sql
-        .query_get_value(
-            context,
-            concat!(
-                "SELECT m.id",
-                " FROM msgs m",
-                " LEFT JOIN chats c",
-                "        ON c.id=m.chat_id",
-                " WHERE m.state=10",
-                "   AND m.hidden=0",
-                "   AND c.blocked=2",
-                " ORDER BY m.timestamp DESC, m.id DESC;"
-            ),
-            paramsv![],
-        )
-        .await
+        .query_get_value(concat!(
+            "SELECT m.id",
+            " FROM msgs m",
+            " LEFT JOIN chats c",
+            "        ON c.id=m.chat_id",
+            " WHERE m.state=10",
+            "   AND m.hidden=0",
+            "   AND c.blocked=2",
+            " ORDER BY m.timestamp DESC, m.id DESC;"
+        ))
+        .await?;
+    Ok(id)
 }
 
 #[cfg(test)]
@@ -466,7 +466,7 @@ mod tests {
         // drafts are sorted to the top
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
-        chat_id2.set_draft(&t, Some(&mut msg)).await;
+        chat_id2.set_draft(&t, Some(&mut msg)).await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.get_chat_id(0), chat_id2);
 
@@ -554,7 +554,7 @@ mod tests {
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("foo:\nbar \r\n test".to_string()));
-        chat_id1.set_draft(&t, Some(&mut msg)).await;
+        chat_id1.set_draft(&t, Some(&mut msg)).await.unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         let summary = chats.get_summary(&t, 0, None).await;

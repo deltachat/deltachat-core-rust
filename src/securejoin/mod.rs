@@ -173,9 +173,16 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> O
     let invitenumber = token::lookup_or_new(context, token::Namespace::InviteNumber, group).await;
     let auth = token::lookup_or_new(context, token::Namespace::Auth, group).await;
     let self_addr = match context.get_config(Config::ConfiguredAddr).await {
-        Some(addr) => addr,
-        None => {
-            error!(context, "Not configured, cannot generate QR code.",);
+        Ok(Some(addr)) => addr,
+        Ok(None) => {
+            error!(context, "Not configured, cannot generate QR code.");
+            return None;
+        }
+        Err(err) => {
+            error!(
+                context,
+                "Unable to retrieve configuration, cannot generate QR code: {:?}", err
+            );
             return None;
         }
     };
@@ -183,6 +190,7 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> O
     let self_name = context
         .get_config(Config::Displayname)
         .await
+        .ok()?
         .unwrap_or_default();
 
     let fingerprint: Fingerprint = match get_self_fingerprint(context).await {
@@ -263,6 +271,8 @@ pub enum JoinError {
     MissingChat(#[source] sql::Error),
     #[error("Ongoing sender dropped (this is a bug)")]
     OngoingSenderDropped,
+    #[error("Other")]
+    Other(#[from] anyhow::Error),
 }
 
 /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
@@ -290,6 +300,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
 
     info!(context, "Requesting secure-join ...",);
     let qr_scan = check_qr(context, &qr).await;
+
     let invite = QrInvite::try_from(qr_scan)?;
 
     match context.bob.start_protocol(context, invite.clone()).await? {
@@ -390,11 +401,11 @@ async fn send_handshake_msg(
     Ok(())
 }
 
-async fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> u32 {
-    if let [contact_id] = chat::get_chat_contacts(context, contact_chat_id).await[..] {
-        contact_id
+async fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> Result<u32, Error> {
+    if let [contact_id] = chat::get_chat_contacts(context, contact_chat_id).await?[..] {
+        Ok(contact_id)
     } else {
-        0
+        Ok(0)
     }
 }
 
@@ -402,8 +413,8 @@ async fn fingerprint_equals_sender(
     context: &Context,
     fingerprint: &Fingerprint,
     contact_chat_id: ChatId,
-) -> bool {
-    if let [contact_id] = chat::get_chat_contacts(context, contact_chat_id).await[..] {
+) -> Result<bool, Error> {
+    if let [contact_id] = chat::get_chat_contacts(context, contact_chat_id).await?[..] {
         if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
             let peerstate = match Peerstate::from_addr(context, contact.get_addr()).await {
                 Ok(peerstate) => peerstate,
@@ -414,7 +425,7 @@ async fn fingerprint_equals_sender(
                         contact.get_addr(),
                         err
                     );
-                    return false;
+                    return Ok(false);
                 }
             };
 
@@ -422,12 +433,12 @@ async fn fingerprint_equals_sender(
                 if peerstate.public_key_fingerprint.is_some()
                     && fingerprint == peerstate.public_key_fingerprint.as_ref().unwrap()
                 {
-                    return true;
+                    return Ok(true);
                 }
             }
         }
     }
-    false
+    Ok(false)
 }
 
 /// What to do with a Secure-Join handshake message after it was handled.
@@ -552,7 +563,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 Some(mut bobstate) => match bobstate.handle_message(context, mime_message).await {
                     Some(BobHandshakeStage::Terminated(why)) => {
                         could_not_establish_secure_connection(context, bobstate.chat_id(), why)
-                            .await;
+                            .await?;
                         Ok(HandshakeMessage::Done)
                     }
                     Some(_stage) => {
@@ -581,7 +592,7 @@ pub(crate) async fn handle_securejoin_handshake(
                         contact_chat_id,
                         "Fingerprint not provided.",
                     )
-                    .await;
+                    .await?;
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
@@ -591,16 +602,16 @@ pub(crate) async fn handle_securejoin_handshake(
                     contact_chat_id,
                     "Auth not encrypted.",
                 )
-                .await;
+                .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            if !fingerprint_equals_sender(context, &fingerprint, contact_chat_id).await {
+            if !fingerprint_equals_sender(context, &fingerprint, contact_chat_id).await? {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
                     "Fingerprint mismatch on inviter-side.",
                 )
-                .await;
+                .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
             info!(context, "Fingerprint verified.",);
@@ -613,13 +624,13 @@ pub(crate) async fn handle_securejoin_handshake(
                         contact_chat_id,
                         "Auth not provided.",
                     )
-                    .await;
+                    .await?;
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
             if !token::exists(context, token::Namespace::Auth, auth_0).await {
                 could_not_establish_secure_connection(context, contact_chat_id, "Auth invalid.")
-                    .await;
+                    .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
             if mark_peer_as_verified(context, &fingerprint).await.is_err() {
@@ -628,12 +639,12 @@ pub(crate) async fn handle_securejoin_handshake(
                     contact_chat_id,
                     "Fingerprint mismatch on inviter-side.",
                 )
-                .await;
+                .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited).await;
             info!(context, "Auth verified.",);
-            secure_connection_established(context, contact_chat_id).await;
+            secure_connection_established(context, contact_chat_id).await?;
             emit_event!(context, EventType::ContactsChanged(Some(contact_id)));
             inviter_progress!(context, contact_id, 600);
             if join_vg {
@@ -693,12 +704,12 @@ pub(crate) async fn handle_securejoin_handshake(
                 Some(mut bobstate) => match bobstate.handle_message(context, mime_message).await {
                     Some(BobHandshakeStage::Terminated(why)) => {
                         could_not_establish_secure_connection(context, bobstate.chat_id(), why)
-                            .await;
+                            .await?;
                         Ok(HandshakeMessage::Done)
                     }
                     Some(BobHandshakeStage::Completed) => {
                         // Can only be BobHandshakeStage::Completed
-                        secure_connection_established(context, bobstate.chat_id()).await;
+                        secure_connection_established(context, bobstate.chat_id()).await?;
                         Ok(retval)
                     }
                     Some(_) => {
@@ -812,7 +823,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                     contact_chat_id,
                     "Message not encrypted correctly.",
                 )
-                .await;
+                .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
             let fingerprint: Fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint)
@@ -824,7 +835,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                         contact_chat_id,
                         "Fingerprint not provided, please update Delta Chat on all your devices.",
                     )
-                    .await;
+                    .await?;
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
@@ -834,7 +845,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                     contact_chat_id,
                     format!("Fingerprint mismatch on observing {}.", step).as_ref(),
                 )
-                .await;
+                .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
             Ok(if step.as_str() == "vg-member-added" {
@@ -847,8 +858,11 @@ pub(crate) async fn observe_securejoin_on_other_device(
     }
 }
 
-async fn secure_connection_established(context: &Context, contact_chat_id: ChatId) {
-    let contact_id: u32 = chat_id_2_contact_id(context, contact_chat_id).await;
+async fn secure_connection_established(
+    context: &Context,
+    contact_chat_id: ChatId,
+) -> Result<(), Error> {
+    let contact_id = chat_id_2_contact_id(context, contact_chat_id).await?;
     let contact = Contact::get_by_id(context, contact_id).await;
 
     let addr = if let Ok(ref contact) = contact {
@@ -860,14 +874,16 @@ async fn secure_connection_established(context: &Context, contact_chat_id: ChatI
     chat::add_info_msg(context, contact_chat_id, msg).await;
     emit_event!(context, EventType::ChatModified(contact_chat_id));
     info!(context, "StockMessage::ContactVerified posted to 1:1 chat");
+
+    Ok(())
 }
 
 async fn could_not_establish_secure_connection(
     context: &Context,
     contact_chat_id: ChatId,
     details: &str,
-) {
-    let contact_id = chat_id_2_contact_id(context, contact_chat_id).await;
+) -> Result<(), Error> {
+    let contact_id = chat_id_2_contact_id(context, contact_chat_id).await?;
     let contact = Contact::get_by_id(context, contact_id).await;
     let msg = stock_str::contact_not_verified(
         context,
@@ -884,6 +900,8 @@ async fn could_not_establish_secure_connection(
         context,
         "StockMessage::ContactNotVerified posted to 1:1 chat ({})", details
     );
+
+    Ok(())
 }
 
 async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> Result<(), Error> {
@@ -1061,6 +1079,7 @@ mod tests {
             let chat = alice.create_chat(&bob).await;
             let msg_id = chat::get_chat_msgs(&alice.ctx, chat.get_id(), 0x1, None)
                 .await
+                .unwrap()
                 .into_iter()
                 .filter_map(|item| match item {
                     chat::ChatItem::Message { msg_id } => Some(msg_id),
@@ -1109,6 +1128,7 @@ mod tests {
             let chat = bob.create_chat(&alice).await;
             let msg_id = chat::get_chat_msgs(&bob.ctx, chat.get_id(), 0x1, None)
                 .await
+                .unwrap()
                 .into_iter()
                 .filter_map(|item| match item {
                     chat::ChatItem::Message { msg_id } => Some(msg_id),

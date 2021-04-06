@@ -135,15 +135,25 @@ impl Accounts {
         let old_id = self.config.get_selected_account().await;
 
         // create new account
-        let account_config = self.config.new_account(&self.dir).await?;
+        let account_config = self
+            .config
+            .new_account(&self.dir)
+            .await
+            .context("failed to create new account")?;
 
         let new_dbfile = account_config.dbfile().into();
         let new_blobdir = Context::derive_blobdir(&new_dbfile);
 
         let res = {
-            fs::create_dir_all(&account_config.dir).await?;
-            fs::rename(&dbfile, &new_dbfile).await?;
-            fs::rename(&blobdir, &new_blobdir).await?;
+            fs::create_dir_all(&account_config.dir)
+                .await
+                .context("failed to create dir")?;
+            fs::rename(&dbfile, &new_dbfile)
+                .await
+                .context("failed to rename dbfile")?;
+            fs::rename(&blobdir, &new_blobdir)
+                .await
+                .context("failed to rename blobdir")?;
             Ok(())
         };
 
@@ -502,7 +512,10 @@ mod tests {
         let ctx = accounts.get_selected_account().await;
         assert_eq!(
             "me@mail.com",
-            ctx.get_config(crate::config::Config::Addr).await.unwrap()
+            ctx.get_config(crate::config::Config::Addr)
+                .await
+                .unwrap()
+                .unwrap()
         );
     }
 

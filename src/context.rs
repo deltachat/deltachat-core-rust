@@ -6,12 +6,14 @@ use std::ops::Deref;
 use std::time::{Instant, SystemTime};
 
 use anyhow::{bail, ensure, Result};
+use async_std::prelude::*;
 use async_std::{
     channel::{self, Receiver, Sender},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
     task,
 };
+use sqlx::Row;
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
@@ -89,8 +91,9 @@ pub struct RunningState {
 pub fn get_info() -> BTreeMap<&'static str, String> {
     let mut res = BTreeMap::new();
     res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
-    res.insert("sqlite_version", rusqlite::version().to_string());
+    res.insert("sqlite_version", crate::sql::version().to_string());
     res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
+    res.insert("num_cpus", num_cpus::get().to_string());
     res.insert("level", "awesome".into());
     res
 }
@@ -270,68 +273,62 @@ impl Context {
      * UI chat/message related API
      ******************************************************************************/
 
-    pub async fn get_info(&self) -> BTreeMap<&'static str, String> {
+    pub async fn get_info(&self) -> Result<BTreeMap<&'static str, String>> {
         let unset = "0";
-        let l = LoginParam::from_database(self, "").await;
-        let l2 = LoginParam::from_database(self, "configured_").await;
-        let displayname = self.get_config(Config::Displayname).await;
-        let chats = get_chat_cnt(self).await as usize;
+        let l = LoginParam::from_database(self, "").await?;
+        let l2 = LoginParam::from_database(self, "configured_").await?;
+        let displayname = self.get_config(Config::Displayname).await?;
+        let chats = get_chat_cnt(self).await? as usize;
         let real_msgs = message::get_real_msg_cnt(self).await as usize;
         let deaddrop_msgs = message::get_deaddrop_msg_cnt(self).await as usize;
-        let contacts = Contact::get_real_cnt(self).await as usize;
-        let is_configured = self.get_config_int(Config::Configured).await;
+        let contacts = Contact::get_real_cnt(self).await? as usize;
+        let is_configured = self.get_config_int(Config::Configured).await?;
         let dbversion = self
             .sql
-            .get_raw_config_int(self, "dbversion")
-            .await
+            .get_raw_config_int("dbversion")
+            .await?
             .unwrap_or_default();
         let journal_mode = self
             .sql
-            .query_get_value(self, "PRAGMA journal_mode;", paramsv![])
-            .await
+            .query_get_value("PRAGMA journal_mode;")
+            .await?
             .unwrap_or_else(|| "unknown".to_string());
-        let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await;
-        let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await;
-        let bcc_self = self.get_config_int(Config::BccSelf).await;
+        let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await?;
+        let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await?;
+        let bcc_self = self.get_config_int(Config::BccSelf).await?;
 
-        let prv_key_cnt: Option<isize> = self
-            .sql
-            .query_get_value(self, "SELECT COUNT(*) FROM keypairs;", paramsv![])
-            .await;
+        let prv_key_cnt = self.sql.count("SELECT COUNT(*) FROM keypairs;").await?;
 
-        let pub_key_cnt: Option<isize> = self
-            .sql
-            .query_get_value(self, "SELECT COUNT(*) FROM acpeerstates;", paramsv![])
-            .await;
+        let pub_key_cnt = self.sql.count("SELECT COUNT(*) FROM acpeerstates;").await?;
         let fingerprint_str = match SignedPublicKey::load_self(self).await {
             Ok(key) => key.fingerprint().hex(),
             Err(err) => format!("<key failure: {}>", err),
         };
 
-        let inbox_watch = self.get_config_int(Config::InboxWatch).await;
-        let sentbox_watch = self.get_config_int(Config::SentboxWatch).await;
-        let mvbox_watch = self.get_config_int(Config::MvboxWatch).await;
-        let mvbox_move = self.get_config_int(Config::MvboxMove).await;
-        let sentbox_move = self.get_config_int(Config::SentboxMove).await;
+        let inbox_watch = self.get_config_int(Config::InboxWatch).await?;
+        let sentbox_watch = self.get_config_int(Config::SentboxWatch).await?;
+        let mvbox_watch = self.get_config_int(Config::MvboxWatch).await?;
+        let mvbox_move = self.get_config_int(Config::MvboxMove).await?;
+        let sentbox_move = self.get_config_int(Config::SentboxMove).await?;
         let folders_configured = self
             .sql
-            .get_raw_config_int(self, "folders_configured")
-            .await
+            .get_raw_config_int("folders_configured")
+            .await?
             .unwrap_or_default();
 
         let configured_sentbox_folder = self
             .get_config(Config::ConfiguredSentboxFolder)
-            .await
+            .await?
             .unwrap_or_else(|| "<unset>".to_string());
         let configured_mvbox_folder = self
             .get_config(Config::ConfiguredMvboxFolder)
-            .await
+            .await?
             .unwrap_or_else(|| "<unset>".to_string());
 
         let mut res = get_info();
 
         // insert values
-        res.insert("bot", self.get_config_int(Config::Bot).await.to_string());
+        res.insert("bot", self.get_config_int(Config::Bot).await?.to_string());
         res.insert("number_of_chats", chats.to_string());
         res.insert("number_of_chat_messages", real_msgs.to_string());
         res.insert("messages_in_contact_requests", deaddrop_msgs.to_string());
@@ -344,7 +341,7 @@ impl Context {
         res.insert(
             "selfavatar",
             self.get_config(Config::Selfavatar)
-                .await
+                .await?
                 .unwrap_or_else(|| "<unset>".to_string()),
         );
         res.insert("is_configured", is_configured.to_string());
@@ -353,12 +350,12 @@ impl Context {
         res.insert(
             "fetch_existing_msgs",
             self.get_config_int(Config::FetchExistingMsgs)
-                .await
+                .await?
                 .to_string(),
         );
         res.insert(
             "show_emails",
-            self.get_config_int(Config::ShowEmails).await.to_string(),
+            self.get_config_int(Config::ShowEmails).await?.to_string(),
         );
         res.insert("inbox_watch", inbox_watch.to_string());
         res.insert("sentbox_watch", sentbox_watch.to_string());
@@ -372,57 +369,51 @@ impl Context {
         res.insert("e2ee_enabled", e2ee_enabled.to_string());
         res.insert(
             "key_gen_type",
-            self.get_config_int(Config::KeyGenType).await.to_string(),
+            self.get_config_int(Config::KeyGenType).await?.to_string(),
         );
         res.insert("bcc_self", bcc_self.to_string());
-        res.insert(
-            "private_key_count",
-            prv_key_cnt.unwrap_or_default().to_string(),
-        );
-        res.insert(
-            "public_key_count",
-            pub_key_cnt.unwrap_or_default().to_string(),
-        );
+        res.insert("private_key_count", prv_key_cnt.to_string());
+        res.insert("public_key_count", pub_key_cnt.to_string());
         res.insert("fingerprint", fingerprint_str);
         res.insert(
             "webrtc_instance",
             self.get_config(Config::WebrtcInstance)
-                .await
+                .await?
                 .unwrap_or_else(|| "<unset>".to_string()),
         );
         res.insert(
             "media_quality",
-            self.get_config_int(Config::MediaQuality).await.to_string(),
+            self.get_config_int(Config::MediaQuality).await?.to_string(),
         );
         res.insert(
             "delete_device_after",
             self.get_config_int(Config::DeleteDeviceAfter)
-                .await
+                .await?
                 .to_string(),
         );
         res.insert(
             "delete_server_after",
             self.get_config_int(Config::DeleteServerAfter)
-                .await
+                .await?
                 .to_string(),
         );
         res.insert(
             "last_housekeeping",
             self.get_config_int(Config::LastHousekeeping)
-                .await
+                .await?
                 .to_string(),
         );
         res.insert(
             "scan_all_folders_debounce_secs",
             self.get_config_int(Config::ScanAllFoldersDebounceSecs)
-                .await
+                .await?
                 .to_string(),
         );
 
         let elapsed = self.creation_time.elapsed();
         res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));
 
-        res
+        Ok(res)
     }
 
     /// Get a list of fresh, unmuted messages in any chat but deaddrop.
@@ -432,10 +423,10 @@ impl Context {
     /// Moreover, the number of returned messages
     /// can be used for a badge counter on the app icon.
     pub async fn get_fresh_msgs(&self) -> Result<Vec<MsgId>> {
-        let ret = self
+        let list = self
             .sql
-            .query_map(
-                concat!(
+            .fetch(
+                sqlx::query(concat!(
                     "SELECT m.id",
                     " FROM msgs m",
                     " LEFT JOIN contacts ct",
@@ -449,51 +440,38 @@ impl Context {
                     "   AND c.blocked=0",
                     "   AND NOT(c.muted_until=-1 OR c.muted_until>?)",
                     " ORDER BY m.timestamp DESC,m.id DESC;"
-                ),
-                paramsv![MessageState::InFresh, time()],
-                |row| row.get::<_, MsgId>(0),
-                |rows| {
-                    let mut ret = Vec::new();
-                    for row in rows {
-                        ret.push(row?);
-                    }
-                    Ok(ret)
-                },
+                ))
+                .bind(MessageState::InFresh)
+                .bind(time()),
             )
+            .await?
+            .map(|row| row?.try_get("id"))
+            .collect::<sqlx::Result<_>>()
             .await?;
-        Ok(ret)
+        Ok(list)
     }
 
     /// Searches for messages containing the query string.
     ///
     /// If `chat_id` is provided this searches only for messages in this chat, if `chat_id`
     /// is `None` this searches messages from all chats.
-    pub async fn search_msgs(&self, chat_id: Option<ChatId>, query: impl AsRef<str>) -> Vec<MsgId> {
+    pub async fn search_msgs(
+        &self,
+        chat_id: Option<ChatId>,
+        query: impl AsRef<str>,
+    ) -> Result<Vec<MsgId>> {
         let real_query = query.as_ref().trim();
         if real_query.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let str_like_in_text = format!("%{}%", real_query);
         let str_like_beg = format!("{}%", real_query);
 
-        let do_query = |query, params| {
-            self.sql.query_map(
-                query,
-                params,
-                |row| row.get::<_, MsgId>("id"),
-                |rows| {
-                    let mut ret = Vec::new();
-                    for id in rows {
-                        ret.push(id?);
-                    }
-                    Ok(ret)
-                },
-            )
-        };
-
-        if let Some(chat_id) = chat_id {
-            do_query(
-                "SELECT m.id AS id, m.timestamp AS timestamp
+        let list = if let Some(chat_id) = chat_id {
+            self.sql
+                .fetch(
+                    sqlx::query(
+                        "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -502,13 +480,24 @@ impl Context {
                    AND ct.blocked=0
                    AND (txt LIKE ? OR ct.name LIKE ?)
                  ORDER BY m.timestamp,m.id;",
-                paramsv![chat_id, str_like_in_text, str_like_beg],
-            )
-            .await
-            .unwrap_or_default()
+                    )
+                    .bind(chat_id)
+                    .bind(str_like_in_text)
+                    .bind(str_like_beg),
+                )
+                .await?
+                .map(|row| {
+                    let row = row?;
+                    let id = row.try_get::<MsgId, _>("id")?;
+                    Ok(id)
+                })
+                .collect::<sqlx::Result<Vec<MsgId>>>()
+                .await?
         } else {
-            do_query(
-                "SELECT m.id AS id, m.timestamp AS timestamp
+            self.sql
+                .fetch(
+                    sqlx::query(
+                        "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -520,31 +509,45 @@ impl Context {
                    AND ct.blocked=0
                    AND (m.txt LIKE ? OR ct.name LIKE ?)
                  ORDER BY m.timestamp DESC,m.id DESC;",
-                paramsv![str_like_in_text, str_like_beg],
-            )
-            .await
-            .unwrap_or_default()
-        }
+                    )
+                    .bind(str_like_in_text)
+                    .bind(str_like_beg),
+                )
+                .await?
+                .map(|row| {
+                    let row = row?;
+                    let id = row.try_get::<MsgId, _>("id")?;
+                    Ok(id)
+                })
+                .collect::<sqlx::Result<Vec<MsgId>>>()
+                .await?
+        };
+
+        Ok(list)
     }
 
-    pub async fn is_inbox(&self, folder_name: impl AsRef<str>) -> bool {
-        self.get_config(Config::ConfiguredInboxFolder).await
-            == Some(folder_name.as_ref().to_string())
+    pub async fn is_inbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+        let inbox = self.get_config(Config::ConfiguredInboxFolder).await?;
+        Ok(inbox == Some(folder_name.as_ref().to_string()))
     }
 
-    pub async fn is_sentbox(&self, folder_name: impl AsRef<str>) -> bool {
-        self.get_config(Config::ConfiguredSentboxFolder).await
-            == Some(folder_name.as_ref().to_string())
+    pub async fn is_sentbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+        let sentbox = self.get_config(Config::ConfiguredSentboxFolder).await?;
+
+        Ok(sentbox == Some(folder_name.as_ref().to_string()))
     }
 
-    pub async fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
-        self.get_config(Config::ConfiguredMvboxFolder).await
-            == Some(folder_name.as_ref().to_string())
+    pub async fn is_mvbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+        let mvbox = self.get_config(Config::ConfiguredMvboxFolder).await?;
+
+        Ok(mvbox == Some(folder_name.as_ref().to_string()))
     }
 
-    pub async fn is_spam_folder(&self, folder_name: impl AsRef<str>) -> bool {
-        self.get_config(Config::ConfiguredSpamFolder).await
-            == Some(folder_name.as_ref().to_string())
+    pub async fn is_spam_folder(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+        let is_spam = self.get_config(Config::ConfiguredSpamFolder).await?
+            == Some(folder_name.as_ref().to_string());
+
+        Ok(is_spam)
     }
 
     pub fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {
@@ -620,7 +623,7 @@ mod tests {
     }
 
     async fn receive_msg(t: &TestContext, chat: &Chat) {
-        let members = get_chat_contacts(t, chat.id).await;
+        let members = get_chat_contacts(t, chat.id).await.unwrap();
         let contact = Contact::load_from_db(t, *members.first().unwrap())
             .await
             .unwrap();
@@ -651,43 +654,49 @@ mod tests {
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 0);
 
         receive_msg(&t, &bob).await;
-        assert_eq!(get_chat_msgs(&t, bob.id, 0, None).await.len(), 1);
-        assert_eq!(bob.id.get_fresh_msg_cnt(&t).await, 1);
+        assert_eq!(get_chat_msgs(&t, bob.id, 0, None).await.unwrap().len(), 1);
+        assert_eq!(bob.id.get_fresh_msg_cnt(&t).await.unwrap(), 1);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
 
         receive_msg(&t, &claire).await;
         receive_msg(&t, &claire).await;
-        assert_eq!(get_chat_msgs(&t, claire.id, 0, None).await.len(), 2);
-        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await, 2);
+        assert_eq!(
+            get_chat_msgs(&t, claire.id, 0, None).await.unwrap().len(),
+            2
+        );
+        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await.unwrap(), 2);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 3);
 
         receive_msg(&t, &dave).await;
         receive_msg(&t, &dave).await;
         receive_msg(&t, &dave).await;
-        assert_eq!(get_chat_msgs(&t, dave.id, 0, None).await.len(), 3);
-        assert_eq!(dave.id.get_fresh_msg_cnt(&t).await, 3);
+        assert_eq!(get_chat_msgs(&t, dave.id, 0, None).await.unwrap().len(), 3);
+        assert_eq!(dave.id.get_fresh_msg_cnt(&t).await.unwrap(), 3);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 6);
 
         // mute one of the chats
         set_muted(&t, claire.id, MuteDuration::Forever)
             .await
             .unwrap();
-        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await, 2);
+        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await.unwrap(), 2);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 4); // muted claires messages are no longer counted
 
         // receive more messages
         receive_msg(&t, &bob).await;
         receive_msg(&t, &claire).await;
         receive_msg(&t, &dave).await;
-        assert_eq!(get_chat_msgs(&t, claire.id, 0, None).await.len(), 3);
-        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await, 3);
+        assert_eq!(
+            get_chat_msgs(&t, claire.id, 0, None).await.unwrap().len(),
+            3
+        );
+        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await.unwrap(), 3);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 6); // muted claire is not counted
 
         // unmute claire again
         set_muted(&t, claire.id, MuteDuration::NotMuted)
             .await
             .unwrap();
-        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await, 3);
+        assert_eq!(claire.id.get_fresh_msg_cnt(&t).await.unwrap(), 3);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 9); // claire is counted again
     }
 
@@ -696,7 +705,7 @@ mod tests {
         let t = TestContext::new_alice().await;
         let bob = t.create_chat_with_contact("", "bob@g.it").await;
         receive_msg(&t, &bob).await;
-        assert_eq!(get_chat_msgs(&t, bob.id, 0, None).await.len(), 1);
+        assert_eq!(get_chat_msgs(&t, bob.id, 0, None).await.unwrap().len(), 1);
 
         // chat is unmuted by default, here and in the following assert(),
         // we check mainly that the SQL-statements in is_muted() and get_fresh_msgs()
@@ -720,8 +729,9 @@ mod tests {
         // we need to modify the database directly
         t.sql
             .execute(
-                "UPDATE chats SET muted_until=? WHERE id=?;",
-                paramsv![time() - 3600, bob.id],
+                sqlx::query("UPDATE chats SET muted_until=? WHERE id=?;")
+                    .bind(time() - 3600)
+                    .bind(bob.id),
             )
             .await
             .unwrap();
@@ -738,10 +748,7 @@ mod tests {
         // to test get_fresh_msgs() with invalid mute_until (everything < -1),
         // that results in "muted forever" by definition.
         t.sql
-            .execute(
-                "UPDATE chats SET muted_until=-2 WHERE id=?;",
-                paramsv![bob.id],
-            )
+            .execute(sqlx::query("UPDATE chats SET muted_until=-2 WHERE id=?;").bind(bob.id))
             .await
             .unwrap();
         let bob = Chat::load_from_db(&t, bob.id).await.unwrap();
@@ -811,7 +818,7 @@ mod tests {
     async fn test_get_info() {
         let t = TestContext::new().await;
 
-        let info = t.get_info().await;
+        let info = t.get_info().await.unwrap();
         assert!(info.get("database_dir").is_some());
     }
 
@@ -851,7 +858,7 @@ mod tests {
             "smtp_certificate_checks",
         ];
         let t = TestContext::new().await;
-        let info = t.get_info().await;
+        let info = t.get_info().await.unwrap();
         for key in Config::iter() {
             let key: String = key.to_string();
             if !skip_from_get_info.contains(&&*key)

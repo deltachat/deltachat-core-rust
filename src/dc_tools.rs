@@ -632,14 +632,6 @@ impl FromStr for EmailAddress {
     }
 }
 
-impl rusqlite::types::ToSql for EmailAddress {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let val = rusqlite::types::Value::Text(self.to_string());
-        let out = rusqlite::types::ToSqlOutput::Owned(val);
-        Ok(out)
-    }
-}
-
 /// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
 pub(crate) fn improve_single_line_input(input: impl AsRef<str>) -> String {
     input
@@ -1053,7 +1045,9 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0);
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), 1);
 
         // the message should be added only once a day - test that an hour later and nearly a day later
@@ -1063,7 +1057,9 @@ mod tests {
             get_provider_update_timestamp(),
         )
         .await;
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), 1);
 
         maybe_warn_on_bad_time(
@@ -1072,7 +1068,9 @@ mod tests {
             get_provider_update_timestamp(),
         )
         .await;
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), 1);
 
         // next day, there should be another device message
@@ -1085,7 +1083,9 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert_eq!(device_chat_id, chats.get_chat_id(0));
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), 2);
     }
 
@@ -1115,7 +1115,9 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0);
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), 1);
 
         // do not repeat the warning every day ...
@@ -1135,7 +1137,9 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0);
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
+            .await
+            .unwrap();
         let test_len = msgs.len();
         assert!(test_len == 1 || test_len == 2);
 
@@ -1150,7 +1154,9 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0);
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None).await;
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
+            .await
+            .unwrap();
         assert_eq!(msgs.len(), test_len + 1);
     }
 }

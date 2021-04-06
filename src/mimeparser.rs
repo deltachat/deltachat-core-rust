@@ -4,7 +4,6 @@ use std::pin::Pin;
 
 use anyhow::{bail, Result};
 use charset::Charset;
-use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
@@ -103,10 +102,8 @@ pub(crate) enum MailinglistType {
     None,
 }
 
-#[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
-)]
-#[repr(i32)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[repr(u32)]
 pub enum SystemMessage {
     Unknown = 0,
     GroupNameChanged = 2,
@@ -1215,10 +1212,16 @@ impl MimeMessage {
             for original_message_id in
                 std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
             {
-                if let Some((chat_id, msg_id)) =
-                    message::handle_mdn(context, from_id, original_message_id, sent_timestamp).await
+                match message::handle_mdn(context, from_id, original_message_id, sent_timestamp)
+                    .await
                 {
-                    context.emit_event(EventType::MsgRead { chat_id, msg_id });
+                    Ok(Some((chat_id, msg_id))) => {
+                        context.emit_event(EventType::MsgRead { chat_id, msg_id });
+                    }
+                    Ok(None) => {}
+                    Err(err) => {
+                        warn!(context, "failed to handle_mdn: {:#}", err);
+                    }
                 }
             }
         }
@@ -1245,9 +1248,8 @@ impl MimeMessage {
         {
             context
                 .sql
-                .query_get_value_result(
-                    "SELECT timestamp FROM msgs WHERE rfc724_mid=?",
-                    paramsv![field],
+                .query_get_value(
+                    sqlx::query("SELECT timestamp FROM msgs WHERE rfc724_mid=?").bind(field),
                 )
                 .await?
         } else {
@@ -1918,8 +1920,9 @@ mod tests {
             .ctx
             .sql
             .execute(
-                "INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)",
-                paramsv!["Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp],
+                sqlx::query("INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)")
+                    .bind("Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org")
+                    .bind(timestamp),
             )
             .await
             .expect("Failed to write to the database");

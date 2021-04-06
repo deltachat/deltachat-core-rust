@@ -898,15 +898,15 @@ impl Context {
     }
 
     pub(crate) async fn update_device_chats(&self) -> Result<(), Error> {
-        if self.get_config_bool(Config::Bot).await {
+        if self.get_config_bool(Config::Bot).await? {
             return Ok(());
         }
 
         // create saved-messages chat; we do this only once, if the user has deleted the chat,
         // he can recreate it manually (make sure we do not re-add it when configure() was called a second time)
-        if !self.sql.get_raw_config_bool(self, "self-chat-added").await {
+        if !self.sql.get_raw_config_bool("self-chat-added").await? {
             self.sql
-                .set_raw_config_bool(self, "self-chat-added", true)
+                .set_raw_config_bool("self-chat-added", true)
                 .await?;
             chat::create_by_contact_id(self, DC_CONTACT_ID_SELF).await?;
         }
@@ -1061,10 +1061,16 @@ mod tests {
         };
 
         // delete self-talk first; this adds a message to device-chat about how self-talk can be restored
-        let device_chat_msgs_before = chat::get_chat_msgs(&t, device_chat_id, 0, None).await.len();
+        let device_chat_msgs_before = chat::get_chat_msgs(&t, device_chat_id, 0, None)
+            .await
+            .unwrap()
+            .len();
         self_talk_id.delete(&t).await.ok();
         assert_eq!(
-            chat::get_chat_msgs(&t, device_chat_id, 0, None).await.len(),
+            chat::get_chat_msgs(&t, device_chat_id, 0, None)
+                .await
+                .unwrap()
+                .len(),
             device_chat_msgs_before + 1
         );
 
