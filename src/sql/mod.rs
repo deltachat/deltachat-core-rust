@@ -85,7 +85,6 @@ impl Sql {
             .read_only(false)
             .busy_timeout(Duration::from_secs(100))
             .create_if_missing(true)
-            .statement_cache_capacity(0) // XXX workaround for https://github.com/launchbadge/sqlx/issues/1147
             .synchronous(SqliteSynchronous::Normal);
 
         PoolOptions::<Sqlite>::new()
