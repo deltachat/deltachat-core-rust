@@ -469,7 +469,7 @@ impl ChatId {
             context.emit_event(EventType::MsgsChanged {
                 chat_id: self,
                 msg_id: if msg_is_some {
-                    match self.get_draft_msg_id(context).await {
+                    match self.get_draft_msg_id(context).await? {
                         Some(msg_id) => msg_id,
                         None => MsgId::new(0),
                     }
