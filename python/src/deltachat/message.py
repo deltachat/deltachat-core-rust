@@ -365,6 +365,7 @@ _view_type_mapping = {
     'audio': const.DC_MSG_AUDIO,
     'video': const.DC_MSG_VIDEO,
     'file': const.DC_MSG_FILE,
+    'sticker': const.DC_MSG_STICKER,
 }
 
 
