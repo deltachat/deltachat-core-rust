@@ -359,21 +359,21 @@ class Message(object):
 # some code for handling DC_MSG_* view types
 
 _view_type_mapping = {
-    const.DC_MSG_TEXT: 'text',
-    const.DC_MSG_IMAGE: 'image',
-    const.DC_MSG_GIF: 'gif',
-    const.DC_MSG_AUDIO: 'audio',
-    const.DC_MSG_VIDEO: 'video',
-    const.DC_MSG_FILE: 'file'
+    'text': const.DC_MSG_TEXT,
+    'image': const.DC_MSG_IMAGE,
+    'gif': const.DC_MSG_GIF,
+    'audio': const.DC_MSG_AUDIO,
+    'video': const.DC_MSG_VIDEO,
+    'file': const.DC_MSG_FILE,
 }
 
 
 def get_viewtype_code_from_name(view_type_name):
-    for code, value in _view_type_mapping.items():
-        if value == view_type_name:
-            return code
+    code = _view_type_mapping.get(view_type_name)
+    if code is not None:
+        return code
     raise ValueError("message typecode not found for {!r}, "
-                     "available {!r}".format(view_type_name, list(_view_type_mapping.values())))
+                     "available {!r}".format(view_type_name, list(_view_type_mapping.keys())))
 
 
 #
