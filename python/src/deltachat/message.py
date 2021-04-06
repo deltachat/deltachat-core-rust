@@ -46,9 +46,13 @@ class Message(object):
     def new_empty(cls, account, view_type):
         """ create a non-persistent message.
 
-        :param: view_type is "text", "audio", "video", "file"
+        :param: view_type is the message type code or one of the strings:
+           "text", "audio", "video", "file", "sticker"
         """
-        view_type_code = get_viewtype_code_from_name(view_type)
+        if isinstance(view_type, int):
+            view_type_code = view_type
+        else:
+            view_type_code = get_viewtype_code_from_name(view_type)
         return Message(account, ffi.gc(
             lib.dc_msg_new(account._dc_context, view_type_code),
             lib.dc_msg_unref
