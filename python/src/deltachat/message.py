@@ -227,6 +227,20 @@ class Message(object):
         chat_id = lib.dc_msg_get_chat_id(self._dc_msg)
         return Chat(self.account, chat_id)
 
+    @props.with_doc
+    def override_sender_name(self):
+        """the name that should be shown over the message instead of the contact display name.
+
+        Usually used to impersonate someone else.
+        """
+        return from_dc_charpointer(
+            lib.dc_msg_get_override_sender_name(self._dc_msg))
+
+    def set_override_sender_name(self, name):
+        """set different sender name for a message. """
+        lib.dc_msg_set_override_sender_name(
+            self._dc_msg, as_dc_charpointer(name))
+
     def get_sender_chat(self):
         """return the 1:1 chat with the sender of this message.
 
