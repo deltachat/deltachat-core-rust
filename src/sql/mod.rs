@@ -112,7 +112,6 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             .filename(dbfile.as_ref())
             .read_only(readonly)
             .busy_timeout(Duration::from_secs(100))
-            .statement_cache_capacity(0) // XXX workaround for https://github.com/launchbadge/sqlx/issues/1147
             .synchronous(SqliteSynchronous::Normal);
 
         PoolOptions::<Sqlite>::new()
