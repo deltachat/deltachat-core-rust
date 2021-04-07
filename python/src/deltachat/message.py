@@ -87,6 +87,23 @@ class Message(object):
         lib.dc_msg_set_text(self._dc_msg, as_dc_charpointer(text))
 
     @props.with_doc
+    def html(self):
+        """html text of this messages (might be empty if not an html message). """
+        return from_dc_charpointer(
+            lib.dc_get_msg_html(self.account._dc_context, self.id)) or ""
+
+    def has_html(self):
+        """return True if this message has an html part, False otherwise."""
+        return lib.dc_msg_has_html(self._dc_msg)
+
+    def set_html(self, html_text):
+        """set the html part of this message.
+
+        It is possible to have text and html part at the same time.
+        """
+        lib.dc_msg_set_html(self._dc_msg, as_dc_charpointer(html_text))
+
+    @props.with_doc
     def filename(self):
         """filename if there was an attachment, otherwise empty string. """
         return from_dc_charpointer(lib.dc_msg_get_file(self._dc_msg))
