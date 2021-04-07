@@ -1,0 +1,46 @@
+Return-Path: <alice@example.org>
+Delivered-To: bob@example.org
+Received: from hq5.merlinux.eu
+	by hq5.merlinux.eu with LMTP
+	id eHU/Co4EUmBAQQAAPzvFDg
+	(envelope-from <alice@example.org>)
+	for <bob@example.org>; Wed, 17 Mar 2021 14:30:54 +0100
+Received: from dd37930.kasserver.com (dd37930.kasserver.com [85.13.154.127])
+	by hq5.merlinux.eu (Postfix) with ESMTPS id CB5D927A0071
+	for <bob@example.org>; Wed, 17 Mar 2021 14:30:53 +0100 (CET)
+Received: from dd37930.kasserver.com (dd0805.kasserver.com [85.13.161.253])
+	by dd37930.kasserver.com (Postfix) with ESMTPSA id 724E853C0979
+	for <bob@example.org>; Wed, 17 Mar 2021 14:30:53 +0100 (CET)
+MIME-Version: 1.0
+Content-Type: text/html; charset=ISO-8859-1
+Content-Transfer-Encoding: quoted-printable
+X-SenderIP: 217.80.3.233
+User-Agent: ALL-INKL Webmail 2.11
+In-Reply-To: <Mr.nru4puZrBpw.JfbybhIh75A@testrun.org>
+References: <Mr.nru4puZrBpw.JfbybhIh75A@testrun.org><Mr.nru4puZrBpw.JfbybhIh75A@testrun.org>
+Subject: Re: Message from Hocuri
+From: alice@example.org
+To: bob@example.org
+Message-Id: <20210317133053.724E853C0979@dd37930.kasserver.com>
+Date: Wed, 17 Mar 2021 14:30:53 +0100 (CET)
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www=
+=2Ew3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html lang=3D"de" xml:lang=
+=3D"en" xmlns=3D"http://www.w3.org/1999/xhtml"><head><meta http-equiv=3D"Co=
+ntent-Type" content=3D"text/html; charset=3DISO-8859-1" /><title></title><s=
+tyle type=3D"text/css">html,body{background-color:#fff;color:#333;line-heig=
+ht:1.4;font-family:sans-serif,Arial,Verdana,Trebuchet MS;}</style></head><b=
+ody><p>It's 1.0.</p>
+<div ></div>
+<p>Hocuri schrieb am 17.03.2021 14:25 (GMT +01:00):</p>
+<blockquote cite=3D"mid:Mr.nru4puZrBpw.JfbybhIh75A@testrun.org">
+<pre>What's the version?
+
+--=20
+Sent with my Delta Chat Messenger: <a href=3D"https://delta.chat" target=3D=
+"_blank" rel=3D"nofollow noopener" title=3D"https://delta.chat">https://del=
+ta.chat</a>
+
+
+</pre>
+</blockquote></body></html>
