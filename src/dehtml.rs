@@ -23,7 +23,8 @@ struct Dehtml {
     /// Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
     /// If this is > `0`, then we are inside a `<div name="quoted-content">`.
     divs_since_quoted_content_div: u32,
-    /// All-Inkl just puts the quote into `<blockquote> </blockquote>`.
+    /// All-Inkl just puts the quote into `<blockquote> </blockquote>`. This count is
+    /// increased at each `<blockquote>` and decreased at each `</blockquote>`.
     blockquotes_since_blockquote: u32,
 }
 

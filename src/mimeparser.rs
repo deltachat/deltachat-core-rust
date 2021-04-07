@@ -2746,6 +2746,7 @@ On 2020-10-25, Bob wrote:
 
     #[async_std::test]
     async fn test_allinkl_blockquote() {
+        // all-inkl.com puts quotes into `<blockquote> </blockquote>`.
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/allinkl-quote.eml");
         let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
