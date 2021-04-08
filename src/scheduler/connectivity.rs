@@ -7,20 +7,20 @@ use crate::events::EventType;
 use crate::{config::Config, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd, Ord, Display)]
-pub enum Connectivity {
-    Error(String),
-    Connecting,
-    Fetching,
-    Connected,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 // TODO maybe I come up with a better name than "basic"
 pub enum BasicConnectivity {
     NotConnected = 0,
     Connecting = 1,
     Connected = 2,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
+pub enum Connectivity {
+    Error(String),
+    Connecting,
+    Fetching,
+    Connected,
 }
 
 impl Connectivity {
@@ -30,6 +30,15 @@ impl Connectivity {
             Connectivity::Connecting => BasicConnectivity::Connecting,
             Connectivity::Fetching => BasicConnectivity::Connected,
             Connectivity::Connected => BasicConnectivity::Connected,
+        }
+    }
+
+    pub fn to_string(&self, _context: &Context) -> String {
+        match self {
+            Connectivity::Error(e) => format!("Error: {}", e),
+            Connectivity::Connecting => "Connecting…".to_string(),
+            Connectivity::Fetching => "Getting new messages…".to_string(),
+            Connectivity::Connected => "Connected".to_string(),
         }
     }
 }
@@ -133,71 +142,66 @@ impl Context {
         //     .min()
         //     .unwrap_or(BasicConnectivity::NotConnected)
     }
-}
-pub async fn get_connectivity_html(context: &Context) -> String {
-    let mut ret =
+
+    pub async fn get_connectivity_html(&self) -> String {
+        let mut ret =
             "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
 
-    ret += &format!(
-        "<h1>Connectivity: {:?}</h1>",
-        context.get_connectivity().await
-    );
+        match &*self.scheduler.read().await {
+            Scheduler::Running {
+                inbox,
+                mvbox,
+                sentbox,
+                smtp,
+                ..
+            } => {
+                // TODO when merging https://github.com/deltachat/deltachat-core-rust/pull/2289/, there will be a duplicate of this
+                // in resync_folders()
 
-    match &*context.scheduler.read().await {
-        Scheduler::Running {
-            inbox,
-            mvbox,
-            sentbox,
-            smtp,
-            ..
-        } => {
-            // TODO when merging https://github.com/deltachat/deltachat-core-rust/pull/2289/, there will be a duplicate of this
-            // in resync_folders()
+                let folders_states = &[
+                    (
+                        Config::ConfiguredInboxFolder,
+                        Config::InboxWatch,
+                        &inbox.state,
+                    ),
+                    (
+                        Config::ConfiguredMvboxFolder,
+                        Config::MvboxWatch,
+                        &mvbox.state,
+                    ),
+                    (
+                        Config::ConfiguredSentboxFolder,
+                        Config::SentboxWatch,
+                        &sentbox.state,
+                    ),
+                ];
 
-            let folders_states = &[
-                (
-                    Config::ConfiguredInboxFolder,
-                    Config::InboxWatch,
-                    &inbox.state,
-                ),
-                (
-                    Config::ConfiguredMvboxFolder,
-                    Config::MvboxWatch,
-                    &mvbox.state,
-                ),
-                (
-                    Config::ConfiguredSentboxFolder,
-                    Config::SentboxWatch,
-                    &sentbox.state,
-                ),
-            ];
+                ret += "<div><h3>Receiving messages:</h3><ul>";
+                for (folder, watch, state) in folders_states {
+                    let w = self.get_config(*watch).await.ok_or_log(self);
 
-            ret += "<ul>";
-            for (folder, watch, state) in folders_states {
-                let w = context.get_config(*watch).await.ok_or_log(context);
+                    if w.flatten() == Some("1".to_string()) {
+                        let f = self.get_config(*folder).await.ok_or_log(self);
 
-                if w.flatten() == Some("1".to_string()) {
-                    let f = context.get_config(*folder).await.ok_or_log(context);
-
-                    if let Some(foldername) = f.flatten() {
-                        ret += "<li><b>Folder &quot;";
-                        ret += &foldername;
-                        ret += "&quot;:</b> ";
-                        ret += &state.connectivity.get().await.to_string();
-                        ret += "</li>";
+                        if let Some(foldername) = f.flatten() {
+                            ret += "<li><b>&quot;";
+                            ret += &foldername;
+                            ret += "&quot;:</b> ";
+                            ret += &state.connectivity.get().await.to_string(self);
+                            ret += "</li>";
+                        }
                     }
                 }
+                ret += "</ul></div>";
+
+                ret += "<h3>Sending messages:</h3><ul style=\"list-style-type: none;\"><li>";
+                ret += &smtp.state.connectivity.get().await.to_string(self);
+                ret += "</li></ul>";
             }
-
-            ret += "<li><b>Sending messages:</b> ";
-            ret += &smtp.state.connectivity.get().await.to_string();
-            ret += "</li>";
-
-            ret += "</ul>";
+            Scheduler::Stopped => {}
         }
-        Scheduler::Stopped => {}
-    }
 
-    ret += "</body></html>\n";
-    ret
+        ret += "</body></html>\n";
+        ret
+    }
 }

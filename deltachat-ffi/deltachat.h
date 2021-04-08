@@ -461,6 +461,12 @@ char*           dc_get_info                  (const dc_context_t* context);
 char*           dc_get_oauth2_url            (dc_context_t* context, const char* addr, const char* redirect_uri);
 
 
+int             dc_get_connectivity          (dc_context_t* context);
+
+
+char*           dc_get_connectivity_html     (dc_context_t* context);
+
+
 // connect
 
 /**
