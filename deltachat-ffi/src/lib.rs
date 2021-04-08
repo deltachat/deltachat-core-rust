@@ -260,7 +260,7 @@ pub unsafe extern "C" fn dc_get_connectivity(context: *const dc_context_t) -> li
         return 0;
     }
     let ctx = &*context;
-    block_on(async move { ctx.get_connectivity().await.to_u32() as libc::c_int })
+    block_on(async move { ctx.get_connectivity().await as u32 as libc::c_int })
 }
 
 #[no_mangle]
@@ -376,6 +376,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::Warning(_)
         | EventType::Error(_)
         | EventType::ErrorNetwork(_)
+        | EventType::ConnectivityChanged
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
@@ -395,7 +396,6 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         EventType::ImexFileWritten(_) => 0,
         EventType::SecurejoinInviterProgress { contact_id, .. }
         | EventType::SecurejoinJoinerProgress { contact_id, .. } => *contact_id as libc::c_int,
-        EventType::ConnectivityChanged(connectivity) => connectivity.to_u32() as libc::c_int,
     }
 }
 
@@ -427,7 +427,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ImexProgress(_)
         | EventType::ImexFileWritten(_)
         | EventType::MsgsNoticed(_)
-        | EventType::ConnectivityChanged(_)
+        | EventType::ConnectivityChanged
         | EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
@@ -477,7 +477,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::ImexProgress(_)
         | EventType::SecurejoinInviterProgress { .. }
         | EventType::SecurejoinJoinerProgress { .. }
-        | EventType::ConnectivityChanged(_)
+        | EventType::ConnectivityChanged
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {

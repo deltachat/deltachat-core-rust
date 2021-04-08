@@ -331,5 +331,5 @@ pub enum EventType {
 
     /// TODO document
     #[strum(props(id = "2062"))]
-    ConnectivityChanged(crate::scheduler::Connectivity),
+    ConnectivityChanged,
 }

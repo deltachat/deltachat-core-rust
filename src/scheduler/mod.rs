@@ -1,20 +1,21 @@
-use core::fmt;
-use std::{ops::Deref, sync::Arc};
-
+use async_std::prelude::*;
 use async_std::{
     channel::{self, Receiver, Sender},
     task,
 };
-use async_std::{prelude::*, sync::Mutex};
 
 use crate::config::Config;
 use crate::context::Context;
 use crate::dc_tools::maybe_add_time_based_warnings;
-use crate::events::EventType;
+
 use crate::imap::Imap;
 use crate::job::{self, Thread};
 use crate::message::MsgId;
 use crate::smtp::Smtp;
+
+use self::connectivity::ConnectivityStore;
+
+pub(crate) mod connectivity;
 
 pub(crate) struct StopToken;
 
@@ -35,74 +36,6 @@ pub(crate) enum Scheduler {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
-pub enum Connectivity {
-    Error(String),
-    NotConnected,
-    Connecting,
-    Fetching,
-    Connected,
-}
-
-impl Connectivity {
-    pub fn to_u32(&self) -> u32 {
-        match self {
-            Connectivity::Error(_) => 1,
-            Connectivity::NotConnected => 2,
-            Connectivity::Connecting => 3,
-            Connectivity::Fetching => 4,
-            Connectivity::Connected => 5,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct ConnectivityStore(Arc<Mutex<Connectivity>>);
-
-impl ConnectivityStore {
-    pub(crate) fn new() -> Self {
-        ConnectivityStore(Arc::new(Mutex::new(Connectivity::NotConnected)))
-    }
-
-    pub(crate) async fn set(&self, context: &Context, v: Connectivity) {
-        {
-            *self.0.lock().await = v;
-        }
-        context.emit_event(EventType::ConnectivityChanged(Connectivity::Connected));
-        // TODO that's the wrong connectivity
-    }
-
-    pub(crate) async fn set_err(&self, context: &Context, e: impl ToString) {
-        self.set(context, Connectivity::Error(e.to_string())).await;
-    }
-    pub(crate) async fn set_not_connected(&self, context: &Context) {
-        self.set(context, Connectivity::NotConnected).await;
-    }
-    pub(crate) async fn set_connecting(&self, context: &Context) {
-        self.set(context, Connectivity::Connecting).await;
-    }
-    pub(crate) async fn set_fetching(&self, context: &Context) {
-        self.set(context, Connectivity::Fetching).await;
-    }
-    pub(crate) async fn set_connected(&self, context: &Context) {
-        self.set(context, Connectivity::Connected).await;
-    }
-
-    pub(crate) async fn get(&self) -> Connectivity {
-        self.0.lock().await.deref().clone()
-    }
-}
-
-impl fmt::Debug for ConnectivityStore {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(guard) = self.0.try_lock() {
-            write!(f, "ConnectivityStore {:?}", &*guard)
-        } else {
-            write!(f, "ConnectivityStore [LOCKED]")
-        }
-    }
-}
-
 impl Context {
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
@@ -115,29 +48,6 @@ impl Context {
 
     pub(crate) async fn interrupt_smtp(&self, info: InterruptInfo) {
         self.scheduler.read().await.interrupt_smtp(info).await;
-    }
-
-    pub async fn get_connectivity(&self) -> Connectivity {
-        match &*self.scheduler.read().await {
-            Scheduler::Running {
-                inbox,
-                mvbox,
-                sentbox,
-                ..
-            } => {
-                let states = [&inbox.state, &mvbox.state, &sentbox.state]; // TODO add smtp.state again
-                let mut connectivities = Vec::new();
-                for s in &states {
-                    // TODO possible deadlock? Maybe first collect connectivities, then drop readguard, then call get(), which locks mutexes?
-                    connectivities.push(s.connectivity.get().await);
-                }
-                let res = connectivities.clone().into_iter().min().unwrap();
-                info!(self, "Connectivities: {:?} {:?}", res, connectivities);
-                res
-                // connectivities.into_iter().min().unwrap()
-            }
-            Scheduler::Stopped => Connectivity::NotConnected,
-        }
     }
 }
 

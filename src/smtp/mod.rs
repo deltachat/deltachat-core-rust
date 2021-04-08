@@ -12,7 +12,7 @@ use crate::events::EventType;
 use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::provider::Socket;
-use crate::{context::Context, scheduler::ConnectivityStore};
+use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
 
 /// SMTP write and read timeout in seconds.
 const SMTP_TIMEOUT: u64 = 30;

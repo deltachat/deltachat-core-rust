@@ -14,6 +14,7 @@ use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
+use crate::chat;
 use crate::constants::{
     Chattype, ShowEmails, Viewtype, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
     DC_LP_AUTH_OAUTH2,
@@ -34,8 +35,7 @@ use crate::param::Params;
 use crate::provider::Socket;
 use crate::scheduler::InterruptInfo;
 use crate::stock_str;
-use crate::{chat, scheduler::Connectivity};
-use crate::{config::Config, scheduler::ConnectivityStore};
+use crate::{config::Config, scheduler::connectivity::ConnectivityStore};
 
 mod client;
 mod idle;
