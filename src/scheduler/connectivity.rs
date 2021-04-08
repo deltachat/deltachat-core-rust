@@ -18,6 +18,7 @@ pub enum BasicConnectivity {
 #[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 pub enum Connectivity {
     Error(String),
+    Uninitialized,
     Connecting,
     Fetching,
     Connected,
@@ -27,6 +28,7 @@ impl Connectivity {
     pub fn to_basic(&self) -> BasicConnectivity {
         match self {
             Connectivity::Error(_) => BasicConnectivity::NotConnected,
+            Connectivity::Uninitialized => BasicConnectivity::NotConnected,
             Connectivity::Connecting => BasicConnectivity::Connecting,
             Connectivity::Fetching => BasicConnectivity::Connected,
             Connectivity::Connected => BasicConnectivity::Connected,
@@ -36,6 +38,7 @@ impl Connectivity {
     pub fn to_string(&self, _context: &Context) -> String {
         match self {
             Connectivity::Error(e) => format!("Error: {}", e),
+            Connectivity::Uninitialized => "(Not started)".to_string(),
             Connectivity::Connecting => "Connecting…".to_string(),
             Connectivity::Fetching => "Getting new messages…".to_string(),
             Connectivity::Connected => "Connected".to_string(),
@@ -48,9 +51,7 @@ pub struct ConnectivityStore(Arc<Mutex<Connectivity>>);
 
 impl ConnectivityStore {
     pub(crate) fn new() -> Self {
-        ConnectivityStore(Arc::new(Mutex::new(Connectivity::Error(
-            "Not started".to_string(),
-        ))))
+        ConnectivityStore(Arc::new(Mutex::new(Connectivity::Uninitialized)))
     }
 
     pub(crate) async fn set(&self, context: &Context, v: Connectivity) {

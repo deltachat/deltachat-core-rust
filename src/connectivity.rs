@@ -43,9 +43,7 @@ pub struct ConnectivityStore(Arc<Mutex<Connectivity>>);
 
 impl ConnectivityStore {
     pub(crate) fn new() -> Self {
-        ConnectivityStore(Arc::new(Mutex::new(Connectivity::Error(
-            "Not started".to_string(),
-        ))))
+        ConnectivityStore(Arc::new(Mutex::new(Connectivity::Uninitialized)))
     }
 
     pub(crate) async fn set(&self, context: &Context, v: Connectivity) {
