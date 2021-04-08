@@ -3465,7 +3465,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.5.1"
-source = "git+https://github.com/link2xt/sqlx?branch=sqlite3-reset-fetch_many#7a29ed87120231b5150386971f0639a90ab8c14f"
+source = "git+https://github.com/deltachat/sqlx?branch=master#758209c4639b8e20948813e082445de595d26a46"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -3474,7 +3474,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.5.1"
-source = "git+https://github.com/link2xt/sqlx?branch=sqlite3-reset-fetch_many#7a29ed87120231b5150386971f0639a90ab8c14f"
+source = "git+https://github.com/deltachat/sqlx?branch=master#758209c4639b8e20948813e082445de595d26a46"
 dependencies = [
  "ahash 0.6.3",
  "atoi",
@@ -3512,7 +3512,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.5.1"
-source = "git+https://github.com/link2xt/sqlx?branch=sqlite3-reset-fetch_many#7a29ed87120231b5150386971f0639a90ab8c14f"
+source = "git+https://github.com/deltachat/sqlx?branch=master#758209c4639b8e20948813e082445de595d26a46"
 dependencies = [
  "dotenv",
  "either",
@@ -3530,7 +3530,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.3.0"
-source = "git+https://github.com/link2xt/sqlx?branch=sqlite3-reset-fetch_many#7a29ed87120231b5150386971f0639a90ab8c14f"
+source = "git+https://github.com/deltachat/sqlx?branch=master#758209c4639b8e20948813e082445de595d26a46"
 dependencies = [
  "async-native-tls",
  "async-std",
