@@ -20,7 +20,7 @@ pub enum Connectivity {
     Error(String),
     Uninitialized,
     Connecting,
-    Fetching,
+    Working,
     Connected,
 }
 
@@ -30,18 +30,34 @@ impl Connectivity {
             Connectivity::Error(_) => BasicConnectivity::NotConnected,
             Connectivity::Uninitialized => BasicConnectivity::NotConnected,
             Connectivity::Connecting => BasicConnectivity::Connecting,
-            Connectivity::Fetching => BasicConnectivity::Connected,
+            Connectivity::Working => BasicConnectivity::Connected,
             Connectivity::Connected => BasicConnectivity::Connected,
         }
     }
 
-    pub fn to_string(&self, _context: &Context) -> String {
+    pub fn to_string_imap(&self, _context: &Context) -> String {
         match self {
-            Connectivity::Error(e) => format!("Error: {}", e),
-            Connectivity::Uninitialized => "(Not started)".to_string(),
-            Connectivity::Connecting => "Connecting…".to_string(),
-            Connectivity::Fetching => "Getting new messages…".to_string(),
-            Connectivity::Connected => "Connected".to_string(),
+            Connectivity::Error(e) => format!("🔴 Error: {}", e),
+            Connectivity::Uninitialized => "🔴 Not started".to_string(),
+            Connectivity::Connecting => "🟡 Connecting…".to_string(),
+            Connectivity::Working => "⬇️ Getting new messages…".to_string(),
+            Connectivity::Connected => "🟢 Connected".to_string(),
+        }
+    }
+
+    pub fn to_string_smtp(&self, _context: &Context) -> String {
+        match self {
+            Connectivity::Error(e) => format!("🔴 Error: {}", e),
+            Connectivity::Uninitialized => {
+                "(You did not try to send a message recently)".to_string()
+            }
+            Connectivity::Connecting => "🟡 Connecting…".to_string(),
+            Connectivity::Working => "⬆️ Sending…".to_string(),
+
+            // We don't know any more than that the last message was sent successfully;
+            // since sending the last message, connectivity could have changed, which we don't notice
+            // until another message is sent
+            Connectivity::Connected => "🟢 Your last message was sent successfully".to_string(),
         }
     }
 }
@@ -67,8 +83,8 @@ impl ConnectivityStore {
     pub(crate) async fn set_connecting(&self, context: &Context) {
         self.set(context, Connectivity::Connecting).await;
     }
-    pub(crate) async fn set_fetching(&self, context: &Context) {
-        self.set(context, Connectivity::Fetching).await;
+    pub(crate) async fn set_working(&self, context: &Context) {
+        self.set(context, Connectivity::Working).await;
     }
     pub(crate) async fn set_connected(&self, context: &Context) {
         self.set(context, Connectivity::Connected).await;
@@ -177,7 +193,7 @@ impl Context {
                     ),
                 ];
 
-                ret += "<div><h3>Receiving messages:</h3><ul>";
+                ret += "<div><h3>Incoming messages:</h3><ul>";
                 for (folder, watch, state) in folders_states {
                     let w = self.get_config(*watch).await.ok_or_log(self);
 
@@ -188,15 +204,15 @@ impl Context {
                             ret += "<li><b>&quot;";
                             ret += &foldername;
                             ret += "&quot;:</b> ";
-                            ret += &state.connectivity.get().await.to_string(self);
+                            ret += &state.connectivity.get().await.to_string_imap(self);
                             ret += "</li>";
                         }
                     }
                 }
                 ret += "</ul></div>";
 
-                ret += "<h3>Sending messages:</h3><ul style=\"list-style-type: none;\"><li>";
-                ret += &smtp.state.connectivity.get().await.to_string(self);
+                ret += "<h3>Outgoing messages:</h3><ul style=\"list-style-type: none;\"><li>";
+                ret += &smtp.state.connectivity.get().await.to_string_smtp(self);
                 ret += "</li></ul>";
             }
             Scheduler::Stopped => {}

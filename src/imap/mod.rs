@@ -475,7 +475,7 @@ impl Imap {
             bail!("IMAP operation attempted while it is torn down");
         }
         self.setup_handle(context).await?;
-        self.connectivity.set_fetching(context).await;
+        self.connectivity.set_working(context).await;
 
         while self
             .fetch_new_messages(context, &watch_folder, false)
