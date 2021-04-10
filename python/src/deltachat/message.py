@@ -343,6 +343,10 @@ class Message(object):
         """ return True if it's a gif message. """
         return self._view_type == const.DC_MSG_GIF
 
+    def is_sticker(self):
+        """ return True if it's a sticker message. """
+        return self._view_type == const.DC_MSG_STICKER
+
     def is_audio(self):
         """ return True if it's an audio message. """
         return self._view_type == const.DC_MSG_AUDIO
