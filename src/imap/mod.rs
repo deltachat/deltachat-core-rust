@@ -1623,7 +1623,7 @@ pub(crate) async fn prefetch_should_download(
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
     let parent = get_prefetch_parent_message(context, headers).await?;
     let is_reply_to_chat_message = parent.is_some();
-    if let Some(parent) = parent {
+    if let Some(parent) = &parent {
         let chat = chat::Chat::load_from_db(context, parent.get_chat_id()).await?;
         if chat.typ == Chattype::Group {
             // This might be a group command, like removing a group member.
@@ -1669,6 +1669,7 @@ pub(crate) async fn prefetch_should_download(
             }
             ShowEmails::All => true,
         };
+
     let should_download = (show && !blocked_contact) || maybe_ndn;
     Ok(should_download)
 }

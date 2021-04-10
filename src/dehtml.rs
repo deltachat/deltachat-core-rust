@@ -23,11 +23,14 @@ struct Dehtml {
     /// Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
     /// If this is > `0`, then we are inside a `<div name="quoted-content">`.
     divs_since_quoted_content_div: u32,
+    /// All-Inkl just puts the quote into `<blockquote> </blockquote>`. This count is
+    /// increased at each `<blockquote>` and decreased at each `</blockquote>`.
+    blockquotes_since_blockquote: u32,
 }
 
 impl Dehtml {
     fn line_prefix(&self) -> &str {
-        if self.divs_since_quoted_content_div > 0 {
+        if self.divs_since_quoted_content_div > 0 || self.blockquotes_since_blockquote > 0 {
             "> "
         } else {
             ""
@@ -67,7 +70,7 @@ pub fn dehtml(buf: &str) -> Option<String> {
     None
 }
 
-pub fn dehtml_quick_xml(buf: &str) -> String {
+fn dehtml_quick_xml(buf: &str) -> String {
     let buf = buf.trim().trim_start_matches("<!doctype html>");
 
     let mut dehtml = Dehtml {
@@ -76,6 +79,7 @@ pub fn dehtml_quick_xml(buf: &str) -> String {
         last_href: None,
         divs_since_quote_div: 0,
         divs_since_quoted_content_div: 0,
+        blockquotes_since_blockquote: 0,
     };
 
     let mut reader = quick_xml::Reader::from_str(buf);
@@ -179,6 +183,7 @@ fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
                 dehtml.strbuilder += "_";
             }
         }
+        "blockquote" => pop_tag(&mut dehtml.blockquotes_since_blockquote),
         _ => {}
     }
 }
@@ -241,6 +246,7 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
                 dehtml.strbuilder += "_";
             }
         }
+        "blockquote" => dehtml.blockquotes_since_blockquote += 1,
         _ => {}
     }
 }

@@ -25,6 +25,7 @@ use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
+use crate::log::LogExt;
 use crate::message::{self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::{
     parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
@@ -653,6 +654,15 @@ async fn add_parts(
             // a new user won't find the contact request in the menu
             state = MessageState::InFresh;
         }
+
+        let is_spam = (chat_id_blocked == Blocked::Deaddrop)
+            && !incoming_origin.is_known()
+            && (is_dc_message == MessengerMessage::No)
+            && context.is_spam_folder(&server_folder).await?;
+        if is_spam {
+            *chat_id = DC_CHAT_ID_TRASH;
+            info!(context, "Message is probably spam (TRASH)");
+        }
     } else {
         // Outgoing
 
@@ -1086,13 +1096,7 @@ INSERT INTO msgs
     if !is_mdn {
         update_last_subject(context, *chat_id, mime_parser)
             .await
-            .unwrap_or_else(|e| {
-                warn!(
-                    context,
-                    "Could not update LastSubject of chat: {}",
-                    e.to_string()
-                )
-            });
+            .ok_or_log_msg(context, "Could not update LastSubject of chat");
     }
 
     Ok(())
@@ -2087,6 +2091,8 @@ fn dc_create_incoming_rfc724_mid(
 #[cfg(test)]
 mod tests {
     use chat::get_chat_contacts;
+
+    use mailparse::MailHeaderMap;
 
     use super::*;
 
@@ -3880,5 +3886,87 @@ YEAAAAAA!.
         let msg = t.get_last_msg().await;
         assert!(!msg.chat_id.is_special()); // Esp. check that the chat_id is not TRASH
         assert_eq!(msg.text.unwrap(), "Reply");
+    }
+
+    #[async_std::test]
+    async fn test_dont_show_spam() {
+        async fn is_shown(
+            t: &TestContext,
+            raw: &[u8],
+            server_folder: &str,
+            server_uid: u32,
+        ) -> bool {
+            let mail = mailparse::parse_mail(raw).unwrap();
+            dc_receive_imf(t, raw, server_folder, server_uid, false)
+                .await
+                .unwrap();
+            t.get_last_msg().await.rfc724_mid
+                == mail.get_headers().get_first_value("Message-Id").unwrap()
+        }
+
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ConfiguredSpamFolder, Some("Spam"))
+            .await
+            .unwrap();
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        assert!(
+            is_shown(
+                &t,
+                b"Message-Id: abcd1@exmaple.com\n\
+                From: bob@example.org\n\
+                Chat-Version: 1.0\n",
+                "Inbox",
+                1
+            )
+            .await,
+        );
+
+        assert!(
+            is_shown(
+                &t,
+                b"Message-Id: abcd2@exmaple.com\n\
+                From: bob@example.org\n",
+                "Inbox",
+                2
+            )
+            .await,
+        );
+
+        assert!(
+            is_shown(
+                &t,
+                b"Message-Id: abcd3@exmaple.com\n\
+                From: bob@example.org\n\
+                Chat-Version: 1.0\n",
+                "Spam",
+                3
+            )
+            .await,
+        );
+
+        assert!(
+            // Note the `!`:
+            !is_shown(
+                &t,
+                b"Message-Id: abcd4@exmaple.com\n\
+                From: bob@example.org\n",
+                "Spam",
+                4
+            )
+            .await,
+        );
+
+        Contact::create(&t, "", "bob@example.org").await.unwrap();
+        assert!(
+            is_shown(
+                &t,
+                b"Message-Id: abcd5@exmaple.com\n\
+                From: bob@example.org\n",
+                "Spam",
+                5
+            )
+            .await,
+        );
     }
 }
