@@ -314,6 +314,7 @@ mod tests {
                 "[ Foo ](https://example.com)",
             ),
             ("<b> bar </b>", "* bar *"),
+            ("<i>foo</i>", "_foo_"),
             ("<b> bar <i> foo", "* bar _ foo"),
             ("&amp; bar", "& bar"),
             // Despite missing ', this should be shown:
