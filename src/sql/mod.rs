@@ -10,8 +10,9 @@ use async_std::prelude::*;
 use async_std::sync::RwLock;
 use sqlx::{
     pool::PoolOptions,
+    query::Query,
     sqlite::{Sqlite, SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous},
-    Execute, Executor, Row,
+    Executor, IntoArguments, Row,
 };
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
@@ -171,7 +172,9 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
 
             if recalc_fingerprints {
                 info!(context, "[migration] recalc fingerprints");
-                let mut rows = self.fetch("SELECT addr FROM acpeerstates;").await?;
+                let mut rows = self
+                    .fetch(sqlx::query("SELECT addr FROM acpeerstates;"))
+                    .await?;
 
                 while let Some(row) = rows.next().await {
                     let row = row?;
@@ -208,10 +211,9 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     }
 
     /// Execute the given query, returning the number of affected rows.
-    pub async fn execute<'e, 'q, E>(&self, query: E) -> Result<u64>
+    pub async fn execute<'q, E>(&self, query: Query<'q, Sqlite, E>) -> Result<u64>
     where
-        'q: 'e,
-        E: 'q + Execute<'q, Sqlite>,
+        E: 'q + IntoArguments<'q, Sqlite>,
     {
         let lock = self.writer.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
@@ -221,10 +223,9 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     }
 
     /// Execute many queries.
-    pub async fn execute_many<'e, 'q, E>(&self, query: E) -> Result<()>
+    pub async fn execute_many<'q, E>(&self, query: Query<'q, Sqlite, E>) -> Result<()>
     where
-        'q: 'e,
-        E: 'q + Execute<'q, Sqlite>,
+        E: 'q + IntoArguments<'q, Sqlite>,
     {
         let lock = self.writer.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
@@ -236,13 +237,12 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     }
 
     /// Fetch the given query.
-    pub async fn fetch<'e, 'q, E>(
+    pub async fn fetch<'q, E>(
         &self,
-        query: E,
-    ) -> Result<impl Stream<Item = sqlx::Result<<Sqlite as sqlx::Database>::Row>> + 'e + Send>
+        query: Query<'q, Sqlite, E>,
+    ) -> Result<impl Stream<Item = sqlx::Result<<Sqlite as sqlx::Database>::Row>> + Send + 'q>
     where
-        'q: 'e,
-        E: 'q + Execute<'q, Sqlite>,
+        E: 'q + IntoArguments<'q, Sqlite>,
     {
         let lock = self.reader.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
@@ -252,10 +252,12 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     }
 
     /// Fetch exactly one row, errors if no row is found.
-    pub async fn fetch_one<'e, 'q, E>(&self, query: E) -> Result<<Sqlite as sqlx::Database>::Row>
+    pub async fn fetch_one<'q, E>(
+        &self,
+        query: Query<'q, Sqlite, E>,
+    ) -> Result<<Sqlite as sqlx::Database>::Row>
     where
-        'q: 'e,
-        E: 'q + Execute<'q, Sqlite>,
+        E: 'q + IntoArguments<'q, Sqlite>,
     {
         let lock = self.reader.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
@@ -267,11 +269,10 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     /// Fetches at most one row.
     pub async fn fetch_optional<'e, 'q, E>(
         &self,
-        query: E,
+        query: Query<'q, Sqlite, E>,
     ) -> Result<Option<<Sqlite as sqlx::Database>::Row>>
     where
-        'q: 'e,
-        E: 'q + Execute<'q, Sqlite>,
+        E: 'q + IntoArguments<'q, Sqlite>,
     {
         let lock = self.reader.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
@@ -281,10 +282,9 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     }
 
     /// Used for executing `SELECT COUNT` statements only. Returns the resulting count.
-    pub async fn count<'e, 'q, E>(&self, query: E) -> Result<usize>
+    pub async fn count<'e, 'q, E>(&self, query: Query<'q, Sqlite, E>) -> Result<usize>
     where
-        'q: 'e,
-        E: 'q + Execute<'q, Sqlite>,
+        E: 'q + IntoArguments<'q, Sqlite>,
     {
         use std::convert::TryFrom;
 
@@ -296,10 +296,9 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
 
     /// Used for executing `SELECT COUNT` statements only. Returns `true`, if the count is at least
     /// one, `false` otherwise.
-    pub async fn exists<'e, 'q, E>(&self, query: E) -> Result<bool>
+    pub async fn exists<'e, 'q, E>(&self, query: Query<'q, Sqlite, E>) -> Result<bool>
     where
-        'q: 'e,
-        E: 'q + Execute<'q, Sqlite>,
+        E: 'q + IntoArguments<'q, Sqlite>,
     {
         let count = self.count(query).await?;
         Ok(count > 0)
@@ -383,10 +382,12 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     /// Executes a query which is expected to return one row and one
     /// column. If the query does not return a value or returns SQL
     /// `NULL`, returns `Ok(None)`.
-    pub async fn query_get_value<'e, 'q, E, T>(&self, query: E) -> Result<Option<T>>
+    pub async fn query_get_value<'e, 'q, E, T>(
+        &self,
+        query: Query<'q, Sqlite, E>,
+    ) -> Result<Option<T>>
     where
-        'q: 'e,
-        E: 'q + Execute<'q, Sqlite>,
+        E: 'q + IntoArguments<'q, Sqlite>,
         T: for<'r> sqlx::Decode<'r, Sqlite> + sqlx::Type<Sqlite>,
     {
         let res = self
@@ -569,7 +570,10 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     )
     .await?;
 
-    let mut rows = context.sql.fetch("SELECT value FROM config;").await?;
+    let mut rows = context
+        .sql
+        .fetch(sqlx::query("SELECT value FROM config;"))
+        .await?;
     while let Some(row) = rows.next().await {
         let row: String = row?.try_get(0)?;
         maybe_add_file(&mut files_in_use, row);
@@ -692,7 +696,7 @@ async fn maybe_add_from_param(
     query: &str,
     param_id: Param,
 ) -> Result<()> {
-    let mut rows = sql.fetch(query).await?;
+    let mut rows = sql.fetch(sqlx::query(query)).await?;
     while let Some(row) = rows.next().await {
         let row: String = row?.try_get(0)?;
         let param: Params = row.parse().unwrap_or_default();

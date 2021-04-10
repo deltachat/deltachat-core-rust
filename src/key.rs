@@ -123,14 +123,14 @@ impl DcKey for SignedPublicKey {
     async fn load_self(context: &Context) -> Result<Self::KeyType> {
         match context
             .sql
-            .fetch_optional(
+            .fetch_optional(sqlx::query(
                 r#"
             SELECT public_key
               FROM keypairs
              WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
                AND is_default=1;
             "#,
-            )
+            ))
             .await?
         {
             Some(row) => Self::from_slice(row.try_get(0)?),
@@ -165,14 +165,14 @@ impl DcKey for SignedSecretKey {
     async fn load_self(context: &Context) -> Result<Self::KeyType> {
         match context
             .sql
-            .fetch_optional(
+            .fetch_optional(sqlx::query(
                 r#"
             SELECT private_key
               FROM keypairs
              WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
                AND is_default=1;
             "#,
-            )
+            ))
             .await?
         {
             Some(row) => Self::from_slice(row.try_get(0)?),
@@ -328,7 +328,7 @@ pub async fn store_self_keypair(
     if default == KeyPairUse::Default {
         context
             .sql
-            .execute("UPDATE keypairs SET is_default=0;")
+            .execute(sqlx::query("UPDATE keypairs SET is_default=0;"))
             .await
             .map_err(|err| SaveKeyError::new("failed to clear default", err))?;
     }
@@ -625,7 +625,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 
         let nrows = || async {
             ctx.sql
-                .count("SELECT COUNT(*) FROM keypairs;")
+                .count(sqlx::query("SELECT COUNT(*) FROM keypairs;"))
                 .await
                 .unwrap()
         };

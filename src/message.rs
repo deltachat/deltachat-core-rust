@@ -1878,11 +1878,11 @@ async fn ndn_maybe_add_info_msg(
 pub async fn get_real_msg_cnt(context: &Context) -> usize {
     match context
         .sql
-        .count(
+        .count(sqlx::query(
             "SELECT COUNT(*) \
          FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id \
          WHERE m.id>9 AND m.chat_id>9 AND c.blocked=0;",
-        )
+        ))
         .await
     {
         Ok(res) => res,
@@ -1896,11 +1896,11 @@ pub async fn get_real_msg_cnt(context: &Context) -> usize {
 pub async fn get_deaddrop_msg_cnt(context: &Context) -> usize {
     match context
         .sql
-        .count(
+        .count(sqlx::query(
             "SELECT COUNT(*) \
          FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id \
          WHERE c.blocked=2;",
-        )
+        ))
         .await
     {
         Ok(res) => res,

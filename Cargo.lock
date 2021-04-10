@@ -115,9 +115,9 @@ checksum = "739f4a8db6605981345c5654f3a85b056ce52f37a39d34da03f25bf2151ea16e"
 
 [[package]]
 name = "ahash"
-version = "0.6.3"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "796540673305a66d127804eef19ad696f1f204b8c1025aaca4958c17eab32877"
+checksum = "7f200cbb1e856866d9eade941cf3aa0c5d7dd36f74311c4273b494f4ef036957"
 dependencies = [
  "getrandom 0.2.2",
  "once_cell",
@@ -2132,9 +2132,9 @@ checksum = "c7d73b3f436185384286bd8098d17ec07c9a7d2388a6599f824d8502b529702a"
 
 [[package]]
 name = "libsqlite3-sys"
-version = "0.20.1"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64d31059f22935e6c31830db5249ba2b7ecd54fd73a9909286f0a67aa55c2fbd"
+checksum = "2f6332d94daa84478d55a6aa9dbb3b305ed6500fb0cb9400cb9e1525d0e0e188"
 dependencies = [
  "cc",
  "pkg-config",
@@ -3465,7 +3465,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.5.1"
-source = "git+https://github.com/deltachat/sqlx?branch=master#8915916c76dd578f1db445f9d6f18af480285aed"
+source = "git+https://github.com/launchbadge/sqlx?branch=master#9e8e3346970cd382a9baca1bba6462b7df4b4b63"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -3474,9 +3474,9 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.5.1"
-source = "git+https://github.com/deltachat/sqlx?branch=master#8915916c76dd578f1db445f9d6f18af480285aed"
+source = "git+https://github.com/launchbadge/sqlx?branch=master#9e8e3346970cd382a9baca1bba6462b7df4b4b63"
 dependencies = [
- "ahash 0.6.3",
+ "ahash 0.7.2",
  "atoi",
  "bitflags",
  "byteorder",
@@ -3512,7 +3512,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.5.1"
-source = "git+https://github.com/deltachat/sqlx?branch=master#8915916c76dd578f1db445f9d6f18af480285aed"
+source = "git+https://github.com/launchbadge/sqlx?branch=master#9e8e3346970cd382a9baca1bba6462b7df4b4b63"
 dependencies = [
  "dotenv",
  "either",
@@ -3530,7 +3530,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.3.0"
-source = "git+https://github.com/deltachat/sqlx?branch=master#8915916c76dd578f1db445f9d6f18af480285aed"
+source = "git+https://github.com/launchbadge/sqlx?branch=master#9e8e3346970cd382a9baca1bba6462b7df4b4b63"
 dependencies = [
  "async-native-tls",
  "async-std",

@@ -32,13 +32,17 @@ use std::time::{Duration, SystemTime};
 async fn reset_tables(context: &Context, bits: i32) {
     println!("Resetting tables ({})...", bits);
     if 0 != bits & 1 {
-        context.sql().execute("DELETE FROM jobs;").await.unwrap();
+        context
+            .sql()
+            .execute(sqlx::query("DELETE FROM jobs;"))
+            .await
+            .unwrap();
         println!("(1) Jobs reset.");
     }
     if 0 != bits & 2 {
         context
             .sql()
-            .execute("DELETE FROM acpeerstates;")
+            .execute(sqlx::query("DELETE FROM acpeerstates;"))
             .await
             .unwrap();
         println!("(2) Peerstates reset.");
@@ -46,7 +50,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 4 {
         context
             .sql()
-            .execute("DELETE FROM keypairs;")
+            .execute(sqlx::query("DELETE FROM keypairs;"))
             .await
             .unwrap();
         println!("(4) Private keypairs reset.");
@@ -54,34 +58,34 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 8 {
         context
             .sql()
-            .execute("DELETE FROM contacts WHERE id>9;")
+            .execute(sqlx::query("DELETE FROM contacts WHERE id>9;"))
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM chats WHERE id>9;")
+            .execute(sqlx::query("DELETE FROM chats WHERE id>9;"))
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM chats_contacts;")
+            .execute(sqlx::query("DELETE FROM chats_contacts;"))
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM msgs WHERE id>9;")
+            .execute(sqlx::query("DELETE FROM msgs WHERE id>9;"))
             .await
             .unwrap();
         context
             .sql()
-            .execute(
+            .execute(sqlx::query(
                 "DELETE FROM config WHERE keyname LIKE 'imap.%' OR keyname LIKE 'configured%';",
-            )
+            ))
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM leftgrps;")
+            .execute(sqlx::query("DELETE FROM leftgrps;"))
             .await
             .unwrap();
         println!("(8) Rest but server config reset.");

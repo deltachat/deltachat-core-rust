@@ -290,16 +290,22 @@ impl Context {
             .unwrap_or_default();
         let journal_mode = self
             .sql
-            .query_get_value("PRAGMA journal_mode;")
+            .query_get_value(sqlx::query("PRAGMA journal_mode;"))
             .await?
             .unwrap_or_else(|| "unknown".to_string());
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await?;
         let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await?;
         let bcc_self = self.get_config_int(Config::BccSelf).await?;
 
-        let prv_key_cnt = self.sql.count("SELECT COUNT(*) FROM keypairs;").await?;
+        let prv_key_cnt = self
+            .sql
+            .count(sqlx::query("SELECT COUNT(*) FROM keypairs;"))
+            .await?;
 
-        let pub_key_cnt = self.sql.count("SELECT COUNT(*) FROM acpeerstates;").await?;
+        let pub_key_cnt = self
+            .sql
+            .count(sqlx::query("SELECT COUNT(*) FROM acpeerstates;"))
+            .await?;
         let fingerprint_str = match SignedPublicKey::load_self(self).await {
             Ok(key) => key.fingerprint().hex(),
             Err(err) => format!("<key failure: {}>", err),
