@@ -35,12 +35,6 @@ jobs:
             - py-docs
             - wheelhouse
 
-  remote_tests_rust:
-    machine: true
-    steps:
-      - checkout
-      - run: ci_scripts/remote_tests_rust.sh
-
   remote_tests_python:
     machine: true
     steps:
@@ -61,11 +55,6 @@ workflows:
 
   test:
     jobs:
-      - remote_tests_rust:
-          filters:
-            tags:
-              only: /.*/
-
       - remote_tests_python:
           filters:
             tags:
