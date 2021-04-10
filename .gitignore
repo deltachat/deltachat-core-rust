@@ -26,3 +26,5 @@ deltachat-ffi/html
 deltachat-ffi/xml
 
 .rsynclist
+
+coverage/
