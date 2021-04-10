@@ -146,6 +146,17 @@ mod tests {
 
         let text = "> Not a quote";
         assert_eq!(format_flowed(text), " > Not a quote");
+
+        // Test space stuffing of wrapped lines
+        let text = "> This is the Autocrypt Setup Message used to transfer your key between clients.\n\
+                    >                               \n\
+                    > To decrypt and use your key, open the message in an Autocrypt-compliant client and enter the setup code presented on the generating device.";
+        let expected = "\x20> This is the Autocrypt Setup Message used to transfer your key between \r\n\
+                        clients.\r\n\
+                        \x20>\r\n\
+                        \x20> To decrypt and use your key, open the message in an Autocrypt-compliant \r\n\
+                        client and enter the setup code presented on the generating device.";
+        assert_eq!(format_flowed(text), expected);
     }
 
     #[test]
