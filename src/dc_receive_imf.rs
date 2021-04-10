@@ -489,6 +489,15 @@ async fn add_parts(
         }
 
         if chat_id.is_unset() {
+            // try to assign to a chat based on In-Reply-To/References:
+
+            let (new_chat_id, new_chat_id_blocked) =
+                lookup_chat_by_reply(context, &mime_parser, from_id, to_ids).await?;
+            *chat_id = new_chat_id;
+            chat_id_blocked = new_chat_id_blocked;
+        }
+
+        if chat_id.is_unset() {
             // try to create a group
 
             let create_blocked =
@@ -519,6 +528,24 @@ async fn add_parts(
             {
                 new_chat_id.unblock(context).await;
                 chat_id_blocked = Blocked::Not;
+            }
+        }
+
+        // In lookup_chat_by_reply() and create_or_lookup_group(), it can happen that the message is put into a chat
+        // but the From-address is not a member of this chat.
+        if !chat_id.is_unset() && !chat::is_contact_in_chat(context, *chat_id, from_id as u32).await
+        {
+            let chat = Chat::load_from_db(context, *chat_id).await?;
+            if chat.is_protected() {
+                let s = stock_str::unknown_sender_for_chat(context).await;
+                mime_parser.repl_msg_by_error(s);
+            } else if let Some(from) = mime_parser.from.first() {
+                // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
+                // to the sender's name, indicating to the user that he/she is not part of the group.
+                let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
+                for part in mime_parser.parts.iter_mut() {
+                    part.param.set(Param::OverrideSenderDisplayname, name);
+                }
             }
         }
 
@@ -1167,6 +1194,72 @@ async fn calc_sort_timestamp(
     Ok(sort_timestamp)
 }
 
+async fn lookup_chat_by_reply(
+    context: &Context,
+    mime_parser: &&mut MimeMessage,
+    from_id: u32,
+    to_ids: &ContactIds,
+) -> Result<(ChatId, Blocked)> {
+    // Try to assign message to the same chat as the parent message.
+
+    // If this was a private message just to self, it was probably a private reply.
+    // It should not go into the group then, but into the private chat.
+
+    let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>();
+    let classical_email = mime_parser.get(HeaderDef::ChatVersion).is_none();
+
+    if (!private_message) || classical_email {
+        if let Some(parent) = get_parent_message(context, mime_parser).await? {
+            let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
+            let chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
+
+            if let Some(msg_grpid) = try_getting_grpid(mime_parser) {
+                if msg_grpid == parent_chat.grpid {
+                    // This message will be assigned to this chat, anyway.
+                    // But if we assigned it now, create_or_lookup_group() will not be called
+                    // and group commands will not be executed.
+                    return Ok((ChatId::new(0), Blocked::Not));
+                }
+            }
+
+            if parent.error.is_some() {
+                // If the parent msg is undecipherable, then it may have been assigned to the wrong chat
+                // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
+                // We don't have any way of finding out whether a msg is undecipherable, so we check for
+                // error.is_some() instead.
+                return Ok((ChatId::new(0), Blocked::Not));
+            }
+
+            if parent_chat.id == DC_CHAT_ID_TRASH {
+                return Ok((ChatId::new(0), Blocked::Not));
+            }
+
+            // Usually we don't want to show private messages in the parent chat, but in the
+            // 1:1 chat with the sender.
+            // This is to make sure that private replies are shown in the correct chat.
+            //
+            // There is one exception: Classical MUA replies to two-member groups
+            // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
+            // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
+            if (!private_message)
+                || (classical_email
+                    && chat_contacts.len() == 2
+                    && chat_contacts.contains(&DC_CONTACT_ID_SELF)
+                    && chat_contacts.contains(&from_id))
+            {
+                info!(
+                    context,
+                    "Assigning message to {} as it's a reply to {}",
+                    parent_chat.id,
+                    parent.rfc724_mid
+                );
+                return Ok((parent_chat.id, parent_chat.blocked));
+            }
+        }
+    }
+    return Ok((ChatId::new(0), Blocked::Not));
+}
+
 /// This function tries to extract the group-id from the message and returns the
 /// corresponding chat_id. If the chat does not exist, it is created.
 /// If the message contains groups commands (name, profile image, changed members),
@@ -1210,27 +1303,6 @@ async fn create_or_lookup_group(
         if !member_ids.contains(&(DC_CONTACT_ID_SELF as u32)) {
             member_ids.push(DC_CONTACT_ID_SELF as u32);
         }
-
-        // Try to assign message to the same group as the parent message.
-        //
-        // We don't do this for chat messages to ensure private replies to group messages, which
-        // have In-Reply-To and quote but no Chat-Group-ID header, are assigned to 1:1 chat.
-        // Chat messages should always include explicit group ID in group messages.
-        if mime_parser.get(HeaderDef::ChatVersion).is_none() {
-            if let Some(parent) = get_parent_message(context, mime_parser).await? {
-                let chat = Chat::load_from_db(context, parent.chat_id).await?;
-
-                // Check that destination chat is a group chat.
-                // Otherwise, it could be a reply to an undecipherable
-                // group message that we previously assigned to a 1:1 chat.
-                if chat.typ == Chattype::Group {
-                    // Return immediately without attempting to execute group commands,
-                    // as this message does not contain an explicit group-id header.
-                    return Ok((chat.id, chat.blocked));
-                }
-            }
-        }
-
         if !allow_creation {
             info!(context, "creating ad-hoc group prevented from caller");
             return Ok((ChatId::new(0), Blocked::Not));
@@ -1312,16 +1384,6 @@ async fn create_or_lookup_group(
     let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
         .await
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
-    if !chat_id.is_unset() && !chat::is_contact_in_chat(context, chat_id, from_id).await {
-        // The From-address is not part of this group.
-        // It could be a new user or a DSN from a mailer-daemon.
-        // in any case we do not want to recreate the member list
-        // but still show the message as part of the chat.
-        // After all, the sender has a reference/in-reply-to that
-        // points to this chat.
-        let s = stock_str::unknown_sender_for_chat(context).await;
-        mime_parser.repl_msg_by_error(s);
-    }
 
     // check if the group does not exist but should be created
     let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid)
@@ -1415,16 +1477,6 @@ async fn create_or_lookup_group(
     }
 
     // We have a valid chat_id > DC_CHAT_ID_LAST_SPECIAL.
-    //
-    // However, it's possible that we got a non-DC message
-    // and the user hit "reply" instead of "reply-all".
-    // We heuristically detect this case and show
-    // a placeholder-system-message to warn about this
-    // and refer to "message-info" to see the message.
-    // This is similar to how we show messages arriving
-    // in verified chat using an un-verified key or cleartext.
-
-    // XXX insert code in a different PR :)
 
     // execute group commands
     if X_MrAddToGrp.is_some() {
@@ -1936,6 +1988,7 @@ async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Opt
 ///
 /// If none found, tries In-Reply-To: as a fallback for classic MUAs that don't set the
 /// References: header.
+// TODO also save first entry of References and look for this?
 async fn get_parent_message(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -2035,6 +2088,8 @@ fn dc_create_incoming_rfc724_mid(
 
 #[cfg(test)]
 mod tests {
+    use chat::get_chat_contacts;
+
     use mailparse::MailHeaderMap;
 
     use super::*;
@@ -3581,6 +3636,254 @@ YEAAAAAA!.
         assert!(mime.contains("Received:"));
         assert!(mime.contains("From:"));
         Ok(())
+    }
+
+    async fn create_test_alias(
+        chat_request: bool,
+        group_request: bool,
+    ) -> (TestContext, TestContext) {
+        // Claire, a customer, sends a support request
+        // to the alias address <support@example.org> from a classic MUA.
+        // The alias expands to the supporters Alice and Bob.
+        // Check that Alice receives the message in a group chat.
+        let claire_request = if group_request {
+            format!(
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                To: support@example.org, ceo@example.org\n\
+                From: claire@example.org\n\
+                Subject: i have a question\n\
+                Message-ID: <non-dc-1@example.org>\n\
+                {}\
+                Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
+                Content-Type: text/plain\n\
+                \n\
+                hi support! what is the current version?",
+                if chat_request {
+                    "Chat-Group-ID: 8ud29aridt29arid\n\
+                    Chat-Group-Name: =?utf-8?q?i_have_a_question?=\n"
+                } else {
+                    ""
+                }
+            )
+        } else {
+            format!(
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                To: support@example.org\n\
+                From: claire@example.org\n\
+                Subject: i have a question\n\
+                Message-ID: <non-dc-1@example.org>\n\
+                {}\
+                Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
+                Content-Type: text/plain\n\
+                \n\
+                hi support! what is the current version?",
+                if chat_request {
+                    "Chat-Version: 1.0\n"
+                } else {
+                    ""
+                }
+            )
+        };
+
+        let alice = TestContext::new_alice().await;
+        alice
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+        dc_receive_imf(&alice, claire_request.as_bytes(), "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_subject(), "i have a question");
+        assert!(msg.get_text().unwrap().contains("hi support!"));
+        let chat = Chat::load_from_db(&alice, msg.chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Group);
+        assert_eq!(
+            get_chat_msgs(&alice, chat.id, 0, None).await.unwrap().len(),
+            1
+        );
+        if group_request {
+            assert_eq!(get_chat_contacts(&alice, chat.id).await.unwrap().len(), 4);
+        } else {
+            assert_eq!(get_chat_contacts(&alice, chat.id).await.unwrap().len(), 3);
+        }
+        assert_eq!(msg.get_override_sender_name(), None);
+
+        let claire = TestContext::new().await;
+        claire.configure_addr("claire@example.org").await;
+        claire
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+        dc_receive_imf(&claire, claire_request.as_bytes(), "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        let (_, _, msg_id) = rfc724_mid_exists(&claire, "non-dc-1@example.org")
+            .await
+            .unwrap()
+            .unwrap();
+        chat::create_by_msg_id(&claire, msg_id).await.unwrap();
+        let msg = Message::load_from_db(&claire, msg_id).await.unwrap();
+        assert_eq!(msg.get_subject(), "i have a question");
+        assert!(msg.get_text().unwrap().contains("hi support!"));
+        let chat = Chat::load_from_db(&claire, msg.chat_id).await.unwrap();
+        if group_request {
+            assert_eq!(chat.typ, Chattype::Group);
+        } else {
+            assert_eq!(chat.typ, Chattype::Single);
+        }
+        assert_eq!(
+            get_chat_msgs(&claire, chat.id, 0, None)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(msg.get_override_sender_name(), None);
+
+        (claire, alice)
+    }
+
+    async fn check_alias_reply(reply: &[u8], chat_request: bool, group_request: bool) {
+        let (claire, alice) = create_test_alias(chat_request, group_request).await;
+
+        // Check that Alice gets the message in the same chat.
+        let request = alice.get_last_msg().await;
+        dc_receive_imf(&alice, reply, "INBOX", 2, false)
+            .await
+            .unwrap();
+        let answer = alice.get_last_msg().await;
+        assert_eq!(answer.get_subject(), "Re: i have a question");
+        assert!(answer.get_text().unwrap().contains("the version is 1.0"));
+        assert_eq!(answer.chat_id, request.chat_id);
+        let chat_contacts = get_chat_contacts(&alice, answer.chat_id)
+            .await
+            .unwrap()
+            .len();
+        if group_request {
+            // Claire, Support, CEO and Alice (Bob is not added)
+            assert_eq!(chat_contacts, 4);
+        } else {
+            // Claire, Support and Alice
+            assert_eq!(chat_contacts, 3);
+        }
+        assert_eq!(
+            answer.get_override_sender_name().unwrap(),
+            "bob@example.net"
+        ); // Bob is not part of the group, so override-sender-name should be set
+
+        // Check that Claire also gets the message in the same chat.
+        let request = claire.get_last_msg().await;
+        dc_receive_imf(&claire, reply, "INBOX", 2, false)
+            .await
+            .unwrap();
+        let answer = claire.get_last_msg().await;
+        assert_eq!(answer.get_subject(), "Re: i have a question");
+        assert!(answer.get_text().unwrap().contains("the version is 1.0"));
+        assert_eq!(answer.chat_id, request.chat_id);
+        assert_eq!(
+            answer.get_override_sender_name().unwrap(),
+            "bob@example.net"
+        );
+    }
+
+    #[async_std::test]
+    async fn test_alias_support_answer_from_nondc() {
+        // Bob, the other supporter, answers with a classic MUA.
+        let bob_answer = b"To: support@example.org, claire@example.org\n\
+        From: bob@example.net\n\
+        Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
+        References: <non-dc-1@example.org>\n\
+        In-Reply-To: <non-dc-1@example.org>\n\
+        Message-ID: <non-dc-2@example.net>\n\
+        Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
+        Content-Type: text/plain\n\
+        \n\
+        hi claire, the version is 1.0, cheers bob";
+
+        check_alias_reply(bob_answer, true, true).await;
+        check_alias_reply(bob_answer, false, true).await;
+        check_alias_reply(bob_answer, true, false).await;
+        check_alias_reply(bob_answer, false, false).await;
+    }
+
+    #[async_std::test]
+    async fn test_alias_answer_from_dc() {
+        // Bob, the other supporter, answers with Delta Chat.
+        let bob_answer = b"To: support@example.org, claire@example.org\n\
+                From: bob@example.net\n\
+                Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
+                References: <Gr.af9e810c9b592927.gNm8dVdkZsH@example.net>\n\
+                In-Reply-To: <non-dc-1@example.org>\n\
+                Message-ID: <Gr.af9e810c9b592927.gNm8dVdkZsH@example.net>\n\
+                Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
+                Chat-Version: 1.0\n\
+                Chat-Group-ID: af9e810c9b592927\n\
+                Chat-Group-Name: =?utf-8?q?i_have_a_question?=\n\
+                Chat-Disposition-Notification-To: bob@example.net\n\
+                Content-Type: text/plain\n\
+                \n\
+                hi claire, the version is 1.0, cheers bob";
+
+        check_alias_reply(bob_answer, true, true).await;
+        check_alias_reply(bob_answer, false, true).await;
+        check_alias_reply(bob_answer, true, false).await;
+        check_alias_reply(bob_answer, false, false).await;
+    }
+
+    #[async_std::test]
+    async fn test_dont_assign_to_trash_by_parent() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+        println!("\n========= Receive a message ==========");
+        dc_receive_imf(
+            &t,
+            b"From: Nu Bar <nu@bar.org>\n\
+            To: alice@example.com, bob@example.org\n\
+            Subject: Hi\n\
+            Message-ID: <4444@example.org>\n\
+            \n\
+            hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+        let chat_id = chat::create_by_msg_id(&t, t.get_last_msg().await.id)
+            .await
+            .unwrap();
+        let msg = get_chat_msg(&t, chat_id, 0, 1).await; // Make sure that the message is actually in the chat
+        assert!(!msg.chat_id.is_special());
+        assert_eq!(msg.text.unwrap(), "Hi – hello");
+
+        println!("\n========= Delete the message ==========");
+        msg.id.trash(&t).await.unwrap();
+
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
+        assert_eq!(msgs.len(), 0);
+
+        println!("\n========= Receive a message that is a reply to the deleted message ==========");
+        dc_receive_imf(
+            &t,
+            b"From: Nu Bar <nu@bar.org>\n\
+            To: alice@example.com, bob@example.org\n\
+            Subject: Re: Hi\n\
+            Message-ID: <5555@example.org>\n\
+            In-Reply-To: <4444@example.org\n\
+            \n\
+            Reply\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        assert!(!msg.chat_id.is_special()); // Esp. check that the chat_id is not TRASH
+        assert_eq!(msg.text.unwrap(), "Reply");
     }
 
     #[async_std::test]
