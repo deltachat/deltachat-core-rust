@@ -3560,7 +3560,7 @@ char*           dc_msg_get_summarytext        (const dc_msg_t* msg, int approx_c
  * Bob <bob@delta.chat>, and Bob replies.
  * 
  * Then, Bob's reply is shown in our 1:1 chat with support@delta.chat and the override-sender-name is
- * set to `Bob`. The UI should show the sender name as `~Bob` and view the avatar, just
+ * set to `Bob`. The UI should show the sender name as `~Bob` and show the avatar, just
  * as in group messages. If the user then taps on the avatar, they can see that this message
  * comes from bob@delta.chat.
  * 
