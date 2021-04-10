@@ -1441,7 +1441,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
         }
         info!(context, "verbose delete_msgs()");
         let mut params = Params::new();
-        params.set(Param::Arg, "comment: verbose delete_msgs()");
+        params.set(Param::Arg, "comment: verbose (issue 2335) delete_msgs()");
         job::add(
             context,
             job::Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), params, 0),
