@@ -263,16 +263,11 @@ pub(crate) async fn dc_receive_imf_inner(
         if needs_delete_job || delete_server_after == Some(0) {
             for db_entry in &created_db_entries {
                 info!(context, "verbose: adding job after receive");
-                let mut params = Params::new()
+                let mut params = Params::new();
                 params.set(Param::Arg, "comment: verbose dc_receive_imf()");
                 job::add(
                     context,
-                    job::Job::new(
-                        Action::DeleteMsgOnImap,
-                        db_entry.1.to_u32(),
-                        params,
-                        0,
-                    ),
+                    job::Job::new(Action::DeleteMsgOnImap, db_entry.1.to_u32(), params, 0),
                 )
                 .await;
             }
