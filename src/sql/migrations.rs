@@ -417,9 +417,9 @@ ALTER TABLE msgs ADD COLUMN mime_modified INTEGER DEFAULT 0;"#,
     if dbversion < 73 {
         use Config::*;
         info!(context, "[migration] v73");
-        sql.execute(
+        sql.execute(sqlx::query(
             r#"
-CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"#,
+CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"#),
         )
             .await?;
         for c in &[
