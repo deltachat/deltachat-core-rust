@@ -1439,9 +1439,12 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
         if let Err(err) = msg_id.trash(context).await {
             error!(context, "Unable to trash message {}: {}", msg_id, err);
         }
+        info!(context, "verbose delete_msgs()");
+        let mut params = Params::new();
+        params.set(Param::Arg, "comment: verbose (issue 2335) delete_msgs()");
         job::add(
             context,
-            job::Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), Params::new(), 0),
+            job::Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), params, 0),
         )
         .await;
     }
