@@ -35,12 +35,6 @@ jobs:
             - py-docs
             - wheelhouse
 
-  remote_tests_python:
-    machine: true
-    steps:
-      - checkout
-      - run: ci_scripts/remote_tests_python.sh
-
   upload_docs_wheels:
     machine: true
     steps:
@@ -55,11 +49,6 @@ workflows:
 
   test:
     jobs:
-      - remote_tests_python:
-          filters:
-            tags:
-              only: /.*/
-
       - remote_python_packaging:
           filters:
             branches:
