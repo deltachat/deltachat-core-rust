@@ -29,7 +29,6 @@ ssh $SSHTARGET <<_HERE
     export RUSTC_WRAPPER=\`which sccache\`
     cd $BUILDDIR
     export TARGET=release
-    export DCC_PY_LIVECONFIG=$DCC_PY_LIVECONFIG
     export DCC_NEW_TMP_EMAIL=$DCC_NEW_TMP_EMAIL
 
     #we rely on tox/virtualenv being available in the host

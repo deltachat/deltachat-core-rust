@@ -39,7 +39,6 @@ mkdir -p $TOXWORKDIR
 # XXX we may switch on some live-tests on for better ensurances 
 # Note that the independent remote_tests_python step does all kinds of
 # live-testing already. 
-unset DCC_PY_LIVECONFIG
 unset DCC_NEW_TMP_EMAIL
 tox --workdir "$TOXWORKDIR" -e py35,py36,py37,py38,auditwheels
 popd
