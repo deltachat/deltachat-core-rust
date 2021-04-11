@@ -1,11 +1,15 @@
 # Continuous Integration Scripts for Delta Chat
 
-Continuous Integration, run through CircleCI and an own build machine.
+Continuous Integration, run through [GitHub
+Actions](https://docs.github.com/actions),
+[CircleCI](https://app.circleci.com/) and an own build machine.
 
 ## Description of scripts 
 
+- `../.github/workflows` contains jobs run by GitHub Actions.
+
 - `../.circleci/config.yml` describing the build jobs that are run
-  by Circle-CI
+  by CircleCI.
 
 - `remote_tests_python.sh` rsyncs to a build machine and runs
   `run-python-test.sh` remotely on the build machine. 
