@@ -23,9 +23,6 @@ if [ $? != 0 ]; then
 fi
 
 pushd python
-if [ -e "./liveconfig" -a -z "$DCC_PY_LIVECONFIG" ]; then
-    export DCC_PY_LIVECONFIG=liveconfig
-fi
 tox "$@"
 ret=$?
 popd

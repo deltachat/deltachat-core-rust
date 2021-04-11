@@ -30,12 +30,11 @@ ssh $SSHTARGET bash -c "cat >$BUILDDIR/exec_docker_run" <<_HERE
     set +x -e
     shopt -s huponexit
     cd $BUILDDIR
-    export DCC_PY_LIVECONFIG=$DCC_PY_LIVECONFIG
     export DCC_NEW_TMP_EMAIL=$DCC_NEW_TMP_EMAIL
     set -x
 
     # run everything else inside docker 
-    docker run -e DCC_NEW_TMP_EMAIL -e DCC_PY_LIVECONFIG \
+    docker run -e DCC_NEW_TMP_EMAIL \
        --rm -it -v \$(pwd):/mnt -w /mnt \
        deltachat/coredeps ci_scripts/run_all.sh
 
