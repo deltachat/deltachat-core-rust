@@ -8,6 +8,7 @@ jobs:
       CIRCLE_BRANCH: ${{ github.ref }}
       CIRCLE_JOB: remote_tests_python
       CIRCLE_BUILD_NUM: ${{ github.run_number }}
+      DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
     steps:
       - uses: actions/checkout@v2
       - run: mkdir -m 700 -p ~/.ssh
