@@ -46,9 +46,13 @@ class Message(object):
     def new_empty(cls, account, view_type):
         """ create a non-persistent message.
 
-        :param: view_type is "text", "audio", "video", "file"
+        :param: view_type is the message type code or one of the strings:
+           "text", "audio", "video", "file", "sticker"
         """
-        view_type_code = get_viewtype_code_from_name(view_type)
+        if isinstance(view_type, int):
+            view_type_code = view_type
+        else:
+            view_type_code = get_viewtype_code_from_name(view_type)
         return Message(account, ffi.gc(
             lib.dc_msg_new(account._dc_context, view_type_code),
             lib.dc_msg_unref
@@ -339,6 +343,10 @@ class Message(object):
         """ return True if it's a gif message. """
         return self._view_type == const.DC_MSG_GIF
 
+    def is_sticker(self):
+        """ return True if it's a sticker message. """
+        return self._view_type == const.DC_MSG_STICKER
+
     def is_audio(self):
         """ return True if it's an audio message. """
         return self._view_type == const.DC_MSG_AUDIO
@@ -359,21 +367,22 @@ class Message(object):
 # some code for handling DC_MSG_* view types
 
 _view_type_mapping = {
-    const.DC_MSG_TEXT: 'text',
-    const.DC_MSG_IMAGE: 'image',
-    const.DC_MSG_GIF: 'gif',
-    const.DC_MSG_AUDIO: 'audio',
-    const.DC_MSG_VIDEO: 'video',
-    const.DC_MSG_FILE: 'file'
+    'text': const.DC_MSG_TEXT,
+    'image': const.DC_MSG_IMAGE,
+    'gif': const.DC_MSG_GIF,
+    'audio': const.DC_MSG_AUDIO,
+    'video': const.DC_MSG_VIDEO,
+    'file': const.DC_MSG_FILE,
+    'sticker': const.DC_MSG_STICKER,
 }
 
 
 def get_viewtype_code_from_name(view_type_name):
-    for code, value in _view_type_mapping.items():
-        if value == view_type_name:
-            return code
+    code = _view_type_mapping.get(view_type_name)
+    if code is not None:
+        return code
     raise ValueError("message typecode not found for {!r}, "
-                     "available {!r}".format(view_type_name, list(_view_type_mapping.values())))
+                     "available {!r}".format(view_type_name, list(_view_type_mapping.keys())))
 
 
 #
