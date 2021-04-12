@@ -254,17 +254,19 @@ class Chat(object):
         return Message.from_db(self.account, sent_id)
 
     def prepare_message(self, msg):
-        """ create a new prepared message.
+        """ prepare a message for sending.
 
         :param msg: the message to be prepared.
-        :returns: :class:`deltachat.message.Message` instance.
+        :returns: a :class:`deltachat.message.Message` instance.
+           This is the same object that was passed in, which
+           has been modified with the new state of the core.
         """
         msg_id = lib.dc_prepare_msg(self.account._dc_context, self.id, msg._dc_msg)
         if msg_id == 0:
             raise ValueError("message could not be prepared")
-        # invalidate passed in message which is not safe to use anymore
-        msg._dc_msg = msg.id = None
-        return Message.from_db(self.account, msg_id)
+        # modify message in place to avoid bad state for the caller
+        msg._dc_msg = Message.from_db(self.account, msg_id)._dc_msg
+        return msg
 
     def prepare_message_file(self, path, mime_type=None, view_type="file"):
         """ prepare a message for sending and return the resulting Message instance.
