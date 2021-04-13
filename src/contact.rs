@@ -501,13 +501,15 @@ impl Contact {
                         ).bind(Chattype::Single).bind(row_id)
                     ).await?;
                     if let Some(chat_id) = chat_id {
+                        let contact = Contact::get_by_id(context, row_id as u32).await?;
+                        let chat_name = contact.get_display_name();
                         match context
                             .sql
                             .execute(
                                 sqlx::query("UPDATE chats SET name=?1 WHERE id=?2 AND name!=?3")
-                                    .bind(&new_name)
+                                    .bind(&chat_name)
                                     .bind(chat_id)
-                                    .bind(&new_name),
+                                    .bind(&chat_name),
                             )
                             .await
                         {
