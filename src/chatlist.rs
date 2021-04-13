@@ -440,8 +440,11 @@ async fn get_last_deaddrop_fresh_msg(context: &Context) -> Result<Option<MsgId>>
 mod tests {
     use super::*;
 
-    use crate::chat::{create_group_chat, ProtectionStatus};
+    use crate::chat::{create_group_chat, get_chat_contacts, ProtectionStatus};
     use crate::constants::Viewtype;
+    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::message;
+    use crate::message::ContactRequestDecision;
     use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;
 
@@ -545,6 +548,70 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(chats.len(), 1);
+    }
+
+    #[async_std::test]
+    async fn test_search_single_chat() -> anyhow::Result<()> {
+        let t = TestContext::new_alice().await;
+
+        // receive a one-to-one-message, accept contact request
+        dc_receive_imf(
+            &t,
+            b"From: Bob Authname <bob@example.org>\n\
+                 To: alice@example.com\n\
+                 Subject: foo\n\
+                 Message-ID: <msg1234@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2021 22:37:57 +0000\n\
+                 \n\
+                 hello foo\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let chats = Chatlist::try_load(&t, 0, Some("Bob Authname"), None).await?;
+        assert_eq!(chats.len(), 0);
+
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.get_chat_id(), DC_CHAT_ID_DEADDROP);
+
+        let chat_id =
+            message::decide_on_contact_request(&t, msg.get_id(), ContactRequestDecision::StartChat)
+                .await
+                .unwrap();
+        let contacts = get_chat_contacts(&t, chat_id).await?;
+        let contact_id = *contacts.first().unwrap();
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "Bob Authname");
+
+        // check, the one-to-one-chat can be found using chatlist search query
+        let chats = Chatlist::try_load(&t, 0, Some("bob authname"), None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), chat_id);
+
+        // change the name of the contact; this also changes the name of the one-to-one-chat
+        let test_id = Contact::create(&t, "Bob Nickname", "bob@example.org").await?;
+        assert_eq!(contact_id, test_id);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "Bob Nickname");
+        let chats = Chatlist::try_load(&t, 0, Some("bob authname"), None).await?;
+        assert_eq!(chats.len(), 0);
+        let chats = Chatlist::try_load(&t, 0, Some("bob nickname"), None).await?;
+        assert_eq!(chats.len(), 1);
+
+        // revert contact to authname, this again changes the name of the one-to-one-chat
+        let test_id = Contact::create(&t, "", "bob@example.org").await?;
+        assert_eq!(contact_id, test_id);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "Bob Authname");
+        let chats = Chatlist::try_load(&t, 0, Some("bob authname"), None).await?;
+        assert_eq!(chats.len(), 1);
+        let chats = Chatlist::try_load(&t, 0, Some("bob nickname"), None).await?;
+        assert_eq!(chats.len(), 0);
+
+        Ok(())
     }
 
     #[async_std::test]
