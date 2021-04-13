@@ -304,10 +304,6 @@ impl Imap {
         let res = self.try_setup_handle(context).await;
         if let Err(ref err) = res {
             self.connectivity.set_err(context, err).await;
-            // context.emit_event(EventType::ConnectivityChanged(
-            //     crate::scheduler::Connectivity::Error,
-            // ));
-            //emit_event!(context, EventType::ErrorNetwork(err.to_string()));
         }
         res
     }

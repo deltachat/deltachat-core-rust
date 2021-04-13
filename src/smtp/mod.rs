@@ -120,13 +120,6 @@ impl Smtp {
             Err(e) => self.connectivity.set_err(context, e).await,
             Ok(_) => self.connectivity.set_connected(context).await,
         }
-        // if let Err(ref err) = res {
-        //     //context.emit_event(EventType::ErrorNetwork(message));
-        //     // context.emit_event(EventType::ConnectivityChanged(
-        //     //     crate::scheduler::Connectivity::Error,
-        //     // ));
-        //     self.connectivity.set_err(context, err).await;
-        // };
         res
     }
 

@@ -149,14 +149,12 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
         Ok(None) => {
             info!(ctx, "Can not fetch inbox folder, not set");
             connection.connectivity.set_connected(ctx).await;
-            // connection.fake_idle(ctx, None).await; // TODO This fn is called inbetween jobs and we sure don't want to interupt this by fake_idle?
         }
         Err(err) => {
             warn!(
                 ctx,
                 "Can not fetch inbox folder, failed to get config: {:?}", err
             );
-            connection.fake_idle(ctx, None).await;
         }
     }
 }

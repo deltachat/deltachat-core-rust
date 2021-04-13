@@ -19,7 +19,7 @@ pub enum DetailedConnectivity {
     Error(String),
     Uninitialized,
     Connecting,
-    Working,
+    Working, // Fetching or sending messages
     Connected,
 }
 
@@ -92,7 +92,7 @@ impl ConnectivityStore {
         self.set(context, DetailedConnectivity::Connected).await;
     }
 
-    pub(crate) async fn get(&self) -> DetailedConnectivity {
+    pub(crate) async fn get_detailed(&self) -> DetailedConnectivity {
         self.0.lock().await.deref().clone()
     }
     pub(crate) async fn get_basic(&self) -> Connectivity {
@@ -129,15 +129,16 @@ impl Context {
                 sentbox,
                 ..
             } => {
-                let states = [&inbox.state, &mvbox.state, &sentbox.state]; // TODO add smtp.state again
+                let states = [&inbox.state, &mvbox.state, &sentbox.state];
                 let mut connectivities = Vec::new();
                 for s in &states {
-                    // TODO get_basic() locks a mutex, and above we called `scheduler.read()`. This means
+                    // TODO/QUESTION get_basic() locks a mutex, and above we called `scheduler.read()`. This means
                     // that we will be holding two locks, which sounds like a great opportunity for
                     // a deadlock.
                     // Below, I wrote another possible version of this code which first clones all the ConnectivityStore's
                     // (which are Arc's under the hood), then releases the scheduler-read-lock and only then
                     // calls `get_basic()`. Would this be better?
+                    // Same goes for get_connectivity_html().
 
                     connectivities.push(s.connectivity.get_basic().await);
                 }
@@ -193,9 +194,6 @@ impl Context {
                 smtp,
                 ..
             } => {
-                // TODO when merging https://github.com/deltachat/deltachat-core-rust/pull/2289/, there will be a duplicate of this
-                // in resync_folders()
-
                 let folders_states = &[
                     (
                         Config::ConfiguredInboxFolder,
@@ -225,7 +223,7 @@ impl Context {
                             ret += "<li><b>&quot;";
                             ret += &foldername;
                             ret += "&quot;:</b> ";
-                            ret += &state.connectivity.get().await.to_string_imap(self);
+                            ret += &state.connectivity.get_detailed().await.to_string_imap(self);
                             ret += "</li>";
                         }
                     }
@@ -233,7 +231,12 @@ impl Context {
                 ret += "</ul></div>";
 
                 ret += "<h3>Outgoing messages:</h3><ul style=\"list-style-type: none;\"><li>";
-                ret += &smtp.state.connectivity.get().await.to_string_smtp(self);
+                ret += &smtp
+                    .state
+                    .connectivity
+                    .get_detailed()
+                    .await
+                    .to_string_smtp(self);
                 ret += "</li></ul>";
             }
             Scheduler::Stopped => {}
