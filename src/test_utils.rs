@@ -607,7 +607,6 @@ fn receive_event(event: Event) {
         EventType::SmtpMessageSent(msg) => format!("[SMTP_MESSAGE_SENT] {}", msg),
         EventType::Warning(msg) => format!("WARN: {}", yellow.paint(msg)),
         EventType::Error(msg) => format!("ERROR: {}", red.paint(msg)),
-        EventType::ErrorNetwork(msg) => format!("{}", red.paint(format!("[NETWORK] msg={}", msg))),
         EventType::ErrorSelfNotInGroup(msg) => {
             format!("{}", red.paint(format!("[SELF_NOT_IN_GROUP] {}", msg)))
         }

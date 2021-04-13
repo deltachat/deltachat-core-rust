@@ -19,9 +19,6 @@ fn cb(event: EventType) {
         EventType::Warning(msg) => {
             log::warn!("{}", msg);
         }
-        EventType::Error(msg) | EventType::ErrorNetwork(msg) => {
-            log::error!("{}", msg);
-        }
         event => {
             log::info!("{:?}", event);
         }

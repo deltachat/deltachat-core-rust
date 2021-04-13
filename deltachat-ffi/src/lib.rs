@@ -387,7 +387,6 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
         | EventType::Error(_)
-        | EventType::ErrorNetwork(_)
         | EventType::ConnectivityChanged
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
@@ -431,7 +430,6 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
         | EventType::Error(_)
-        | EventType::ErrorNetwork(_)
         | EventType::ErrorSelfNotInGroup(_)
         | EventType::ContactsChanged(_)
         | EventType::LocationChanged(_)
@@ -472,7 +470,6 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::DeletedBlobFile(msg)
         | EventType::Warning(msg)
         | EventType::Error(msg)
-        | EventType::ErrorNetwork(msg)
         | EventType::ErrorSelfNotInGroup(msg) => {
             let data2 = msg.to_c_string().unwrap_or_default();
             data2.into_raw()
