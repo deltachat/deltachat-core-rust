@@ -1003,12 +1003,13 @@ class TestOnlineAccount:
         lp.sec("sending text message with overridden name from ac1 to ac2")
         msg1 = Message.new_empty(ac1, "text")
         msg1.set_override_sender_name(overridden_name)
+        msg1.set_text("message1")
         msg1 = chat.send_msg(msg1)
         ac1._evtracker.wait_msg_delivered(msg1)
 
         lp.sec("wait for ac2 to receive message")
         msg2 = ac2._evtracker.wait_next_messages_changed()
-        assert msg2.text == "text"
+        assert msg2.text == "message1"
         assert msg2.get_sender_contact().name == ac1.get_config("displayname")
         assert msg2.override_sender_name == overridden_name
 
