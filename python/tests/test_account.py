@@ -818,10 +818,8 @@ class TestOnlineAccount:
 
     def test_html_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = acfactory.get_accepted_chat(ac1, ac2)
         html_text = "<p>hello HTML world</p>"
-
-        lp.sec("ac1: create chat with ac2")
-        chat = ac1.create_chat(ac2)
 
         lp.sec("ac1: prepare and send text message to ac2")
         msg1 = Message.new_empty(ac1, "text")
@@ -829,10 +827,9 @@ class TestOnlineAccount:
         msg1 = chat.send_msg(msg1)
         assert not msg1.has_html()
         assert msg1.html == ""
-        ac1._evtracker.wait_msg_delivered(msg1)
 
         lp.sec("wait for ac2 to receive message")
-        msg2 = ac2._evtracker.wait_next_messages_changed()
+        msg2 = ac2._evtracker.wait_next_incoming_message()
         assert msg2.text == "message0"
         assert not msg2.has_html()
         assert msg2.html == ""
@@ -844,10 +841,9 @@ class TestOnlineAccount:
         msg1 = chat.send_msg(msg1)
         assert msg1.has_html()
         assert html_text in msg1.html
-        ac1._evtracker.wait_msg_delivered(msg1)
 
         lp.sec("wait for ac2 to receive message")
-        msg2 = ac2._evtracker.wait_next_messages_changed()
+        msg2 = ac2._evtracker.wait_next_incoming_message()
         assert msg2.text == "message1"
         assert msg2.has_html()
         assert html_text in msg2.html
@@ -856,10 +852,9 @@ class TestOnlineAccount:
         msg1 = Message.new_empty(ac1, "text")
         msg1.set_html(html_text)
         msg1 = chat.send_msg(msg1)
-        ac1._evtracker.wait_msg_delivered(msg1)
 
         lp.sec("wait for ac2 to receive message")
-        msg2 = ac2._evtracker.wait_next_messages_changed()
+        msg2 = ac2._evtracker.wait_next_incoming_message()
         assert "<p>" not in msg2.text
         assert "Hello HTML world" in msg2.text
         assert msg2.has_html()
