@@ -537,7 +537,7 @@ struct ConnectionState {
     stop_sender: Sender<()>,
     /// Channel to interrupt idle.
     idle_interrupt_sender: Sender<InterruptInfo>,
-    /// TODO document
+    /// Mutex to pass connectivity info between IMAP/SMTP threads and the API
     connectivity: ConnectivityStore,
 }
 

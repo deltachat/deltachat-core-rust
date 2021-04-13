@@ -135,7 +135,7 @@ impl Context {
                     // TODO/QUESTION get_basic() locks a mutex, and above we called `scheduler.read()`. This means
                     // that we will be holding two locks, which sounds like a great opportunity for
                     // a deadlock.
-                    // Below, I wrote another possible version of this code which first clones all the ConnectivityStore's
+                    // Below (commented out), I wrote another possible version of this code which first clones all the ConnectivityStore's
                     // (which are Arc's under the hood), then releases the scheduler-read-lock and only then
                     // calls `get_basic()`. Would this be better?
                     // Same goes for get_connectivity_html().
