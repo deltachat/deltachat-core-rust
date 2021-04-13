@@ -1011,6 +1011,18 @@ class TestOnlineAccount:
         assert msg2.get_sender_contact().name == ac1.get_config("displayname")
         assert msg2.override_sender_name == overridden_name
 
+        lp.sec("sending normal text message from ac1 to ac2")
+        msg1 = Message.new_empty(ac1, "text")
+        msg1.set_text("message2")
+        msg1 = chat.send_msg(msg1)
+        assert not msg1.override_sender_name
+
+        lp.sec("wait for ac2 to receive message")
+        msg2 = ac2._evtracker.wait_next_incoming_message()
+        assert msg2.text == "message2"
+        assert msg2.get_sender_contact().name == ac1.get_config("displayname")
+        assert not msg2.override_sender_name
+
     @pytest.mark.parametrize("mvbox_move", [True, False])
     def test_markseen_message_and_mdn(self, acfactory, mvbox_move):
         # Please only change this test if you are very sure that it will still catch the issues it catches now.
