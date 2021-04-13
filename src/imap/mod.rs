@@ -174,8 +174,8 @@ impl Imap {
         self.should_reconnect
     }
 
-    pub fn trigger_reconnect(&mut self) {
-        // async_std::task::spawn(self.connectivity.set_connecting(ctx)); // TODO
+    pub async fn trigger_reconnect(&mut self, context: &Context) {
+        self.connectivity.set_connecting(context).await;
         self.should_reconnect = true;
     }
 
@@ -289,7 +289,7 @@ impl Imap {
                     self.login_failed_once = true;
                 }
 
-                self.trigger_reconnect();
+                self.trigger_reconnect(context).await;
                 Err(format_err!("{}\n\n{}", message, err))
             }
         }
@@ -901,7 +901,7 @@ impl Imap {
 
         if self.session.is_none() {
             // we could not get a valid imap session, this should be retried
-            self.trigger_reconnect();
+            self.trigger_reconnect(context).await;
             warn!(context, "Could not get IMAP session");
             return (None, server_uids.len());
         }

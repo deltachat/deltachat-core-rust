@@ -181,7 +181,7 @@ impl Imap {
                         }
                         Err(err) => {
                             error!(context, "could not fetch from folder: {:#}", err);
-                            self.trigger_reconnect()
+                            self.trigger_reconnect(context).await;
                         }
                     }
                 }

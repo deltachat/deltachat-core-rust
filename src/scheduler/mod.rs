@@ -142,7 +142,7 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
 
             // fetch
             if let Err(err) = connection.fetch(ctx, &watch_folder).await {
-                connection.trigger_reconnect();
+                connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
             }
         }
@@ -172,7 +172,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
 
             // fetch
             if let Err(err) = connection.fetch(ctx, &watch_folder).await {
-                connection.trigger_reconnect();
+                connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
                 connection.connectivity.set_connecting(ctx).await;
                 return InterruptInfo::new(false, None); // TODO probably?
@@ -195,7 +195,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                     Ok(v) => v,
                     Err(err) => {
                         connection.connectivity.set_connecting(ctx).await;
-                        connection.trigger_reconnect();
+                        connection.trigger_reconnect(ctx).await;
                         warn!(ctx, "{}", err);
                         InterruptInfo::new(false, None)
                     }
