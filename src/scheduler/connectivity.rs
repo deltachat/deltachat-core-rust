@@ -8,15 +8,14 @@ use crate::{config::Config, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
-// TODO maybe I come up with a better name than "basic"
-pub enum BasicConnectivity {
+pub enum Connectivity {
     NotConnected = 0,
     Connecting = 1,
     Connected = 2,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
-pub enum Connectivity {
+pub enum DetailedConnectivity {
     Error(String),
     Uninitialized,
     Connecting,
@@ -24,53 +23,55 @@ pub enum Connectivity {
     Connected,
 }
 
-impl Connectivity {
-    pub fn to_basic(&self) -> BasicConnectivity {
+impl DetailedConnectivity {
+    pub fn to_basic(&self) -> Connectivity {
         match self {
-            Connectivity::Error(_) => BasicConnectivity::NotConnected,
-            Connectivity::Uninitialized => BasicConnectivity::NotConnected,
-            Connectivity::Connecting => BasicConnectivity::Connecting,
-            Connectivity::Working => BasicConnectivity::Connected,
-            Connectivity::Connected => BasicConnectivity::Connected,
+            DetailedConnectivity::Error(_) => Connectivity::NotConnected,
+            DetailedConnectivity::Uninitialized => Connectivity::NotConnected,
+            DetailedConnectivity::Connecting => Connectivity::Connecting,
+            DetailedConnectivity::Working => Connectivity::Connected,
+            DetailedConnectivity::Connected => Connectivity::Connected,
         }
     }
 
     pub fn to_string_imap(&self, _context: &Context) -> String {
         match self {
-            Connectivity::Error(e) => format!("🔴 Error: {}", e),
-            Connectivity::Uninitialized => "🔴 Not started".to_string(),
-            Connectivity::Connecting => "🟡 Connecting…".to_string(),
-            Connectivity::Working => "⬇️ Getting new messages…".to_string(),
-            Connectivity::Connected => "🟢 Connected".to_string(),
+            DetailedConnectivity::Error(e) => format!("🔴 Error: {}", e),
+            DetailedConnectivity::Uninitialized => "🔴 Not started".to_string(),
+            DetailedConnectivity::Connecting => "🟡 Connecting…".to_string(),
+            DetailedConnectivity::Working => "⬇️ Getting new messages…".to_string(),
+            DetailedConnectivity::Connected => "🟢 Connected".to_string(),
         }
     }
 
     pub fn to_string_smtp(&self, _context: &Context) -> String {
         match self {
-            Connectivity::Error(e) => format!("🔴 Error: {}", e),
-            Connectivity::Uninitialized => {
+            DetailedConnectivity::Error(e) => format!("🔴 Error: {}", e),
+            DetailedConnectivity::Uninitialized => {
                 "(You did not try to send a message recently)".to_string()
             }
-            Connectivity::Connecting => "🟡 Connecting…".to_string(),
-            Connectivity::Working => "⬆️ Sending…".to_string(),
+            DetailedConnectivity::Connecting => "🟡 Connecting…".to_string(),
+            DetailedConnectivity::Working => "⬆️ Sending…".to_string(),
 
             // We don't know any more than that the last message was sent successfully;
             // since sending the last message, connectivity could have changed, which we don't notice
             // until another message is sent
-            Connectivity::Connected => "🟢 Your last message was sent successfully".to_string(),
+            DetailedConnectivity::Connected => {
+                "🟢 Your last message was sent successfully".to_string()
+            }
         }
     }
 }
 
 #[derive(Clone)]
-pub struct ConnectivityStore(Arc<Mutex<Connectivity>>);
+pub struct ConnectivityStore(Arc<Mutex<DetailedConnectivity>>);
 
 impl ConnectivityStore {
     pub(crate) fn new() -> Self {
-        ConnectivityStore(Arc::new(Mutex::new(Connectivity::Uninitialized)))
+        ConnectivityStore(Arc::new(Mutex::new(DetailedConnectivity::Uninitialized)))
     }
 
-    pub(crate) async fn set(&self, context: &Context, v: Connectivity) {
+    pub(crate) async fn set(&self, context: &Context, v: DetailedConnectivity) {
         {
             *self.0.lock().await = v;
         }
@@ -78,22 +79,23 @@ impl ConnectivityStore {
     }
 
     pub(crate) async fn set_err(&self, context: &Context, e: impl ToString) {
-        self.set(context, Connectivity::Error(e.to_string())).await;
+        self.set(context, DetailedConnectivity::Error(e.to_string()))
+            .await;
     }
     pub(crate) async fn set_connecting(&self, context: &Context) {
-        self.set(context, Connectivity::Connecting).await;
+        self.set(context, DetailedConnectivity::Connecting).await;
     }
     pub(crate) async fn set_working(&self, context: &Context) {
-        self.set(context, Connectivity::Working).await;
+        self.set(context, DetailedConnectivity::Working).await;
     }
     pub(crate) async fn set_connected(&self, context: &Context) {
-        self.set(context, Connectivity::Connected).await;
+        self.set(context, DetailedConnectivity::Connected).await;
     }
 
-    pub(crate) async fn get(&self) -> Connectivity {
+    pub(crate) async fn get(&self) -> DetailedConnectivity {
         self.0.lock().await.deref().clone()
     }
-    pub(crate) async fn get_basic(&self) -> BasicConnectivity {
+    pub(crate) async fn get_basic(&self) -> Connectivity {
         self.0.lock().await.to_basic()
     }
 }
@@ -119,7 +121,7 @@ impl Context {
     /// e.g. in the title of the main screen.
     ///
     /// If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
-    pub async fn get_connectivity(&self) -> BasicConnectivity {
+    pub async fn get_connectivity(&self) -> Connectivity {
         match &*self.scheduler.read().await {
             Scheduler::Running {
                 inbox,
@@ -142,9 +144,9 @@ impl Context {
                 connectivities
                     .into_iter()
                     .min()
-                    .unwrap_or(BasicConnectivity::NotConnected)
+                    .unwrap_or(Connectivity::NotConnected)
             }
-            Scheduler::Stopped => BasicConnectivity::NotConnected,
+            Scheduler::Stopped => Connectivity::NotConnected,
         }
         // let mut stores = Vec::new();
         // match &*self.scheduler.read().await {
