@@ -114,7 +114,9 @@ impl MsgId {
         let msg = Message::load_from_db(context, self).await?;
 
         if context.is_spam_folder(folder).await? {
-            return if msg.chat_blocked == Blocked::Not {
+            let msg_unblocked = msg.chat_id != DC_CHAT_ID_TRASH && msg.chat_blocked == Blocked::Not;
+
+            return if msg_unblocked {
                 if self.needs_move_to_mvbox(context, &msg).await? {
                     Ok(Some(ConfiguredMvboxFolder))
                 } else {
@@ -630,11 +632,9 @@ impl Message {
     // - We can't make a param `SenderDisplayname` for messages as sometimes the display name of a contact changes, and we want to show
     //   the same display name over all messages from the same sender.
     pub fn get_override_sender_name(&self) -> Option<String> {
-        if let Some(name) = self.param.get(Param::OverrideSenderDisplayname) {
-            Some(name.to_string())
-        } else {
-            None
-        }
+        self.param
+            .get(Param::OverrideSenderDisplayname)
+            .map(|name| name.to_string())
     }
 
     // Exposing this function over the ffi instead of get_override_sender_name() would mean that at least Android Java code has
@@ -1437,9 +1437,12 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
         if let Err(err) = msg_id.trash(context).await {
             error!(context, "Unable to trash message {}: {}", msg_id, err);
         }
+        info!(context, "verbose delete_msgs()");
+        let mut params = Params::new();
+        params.set(Param::Arg, "comment: verbose (issue 2335) delete_msgs()");
         job::add(
             context,
-            job::Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), Params::new(), 0),
+            job::Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), params, 0),
         )
         .await;
     }
@@ -1873,11 +1876,11 @@ async fn ndn_maybe_add_info_msg(
 pub async fn get_real_msg_cnt(context: &Context) -> usize {
     match context
         .sql
-        .count(
+        .count(sqlx::query(
             "SELECT COUNT(*) \
          FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id \
          WHERE m.id>9 AND m.chat_id>9 AND c.blocked=0;",
-        )
+        ))
         .await
     {
         Ok(res) => res,
@@ -1891,11 +1894,11 @@ pub async fn get_real_msg_cnt(context: &Context) -> usize {
 pub async fn get_deaddrop_msg_cnt(context: &Context) -> usize {
     match context
         .sql
-        .count(
+        .count(sqlx::query(
             "SELECT COUNT(*) \
          FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id \
          WHERE c.blocked=2;",
-        )
+        ))
         .await
     {
         Ok(res) => res,
@@ -2217,7 +2220,7 @@ mod tests {
                     "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     {}\
                     Subject: foo\n\
-                    Message-ID: <aehtri@example.com>\n\
+                    Message-ID: <abc@example.com>\n\
                     {}\
                     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                     \n\
@@ -2238,8 +2241,10 @@ mod tests {
         .await
         .unwrap();
 
-        let msg = t.get_last_msg().await;
-        let actual = if let Some(config) = msg.id.needs_move(&t.ctx, folder).await.unwrap() {
+        let exists = rfc724_mid_exists(&t, "abc@example.com").await.unwrap();
+        let (folder_1, _, msg_id) = exists.unwrap();
+        assert_eq!(folder, folder_1);
+        let actual = if let Some(config) = msg_id.needs_move(&t.ctx, folder).await.unwrap() {
             t.ctx.get_config(config).await.unwrap()
         } else {
             None
@@ -2249,7 +2254,7 @@ mod tests {
         } else {
             Some(expected_destination)
         };
-        assert_eq!(expected, actual.as_deref(), "For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}: expected {:?} , got {:?}",
+        assert_eq!(expected, actual.as_deref(), "For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}: expected {:?}, got {:?}",
                                                      folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage, expected, actual);
     }
 

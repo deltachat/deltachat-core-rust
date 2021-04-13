@@ -577,9 +577,9 @@ impl SmtpConnectionState {
         };
 
         let state = ConnectionState {
-            idle_interrupt_sender,
             shutdown_receiver,
             stop_sender,
+            idle_interrupt_sender,
             connectivity: handlers.connection.connectivity.clone(),
         };
 
@@ -625,9 +625,9 @@ impl ImapConnectionState {
         };
 
         let state = ConnectionState {
-            idle_interrupt_sender,
             shutdown_receiver,
             stop_sender,
+            idle_interrupt_sender,
             connectivity: handlers.connection.connectivity.clone(),
         };
 

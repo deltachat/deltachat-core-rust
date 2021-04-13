@@ -49,8 +49,8 @@ impl ServerParams {
             res.push(self.clone());
 
             self.hostname = match self.protocol {
-                Protocol::IMAP => "imap.".to_string() + param_domain,
-                Protocol::SMTP => "smtp.".to_string() + param_domain,
+                Protocol::Imap => "imap.".to_string() + param_domain,
+                Protocol::Smtp => "smtp.".to_string() + param_domain,
             };
             res.push(self.clone());
 
@@ -66,13 +66,13 @@ impl ServerParams {
         // Try to infer port from socket security.
         if self.port == 0 {
             self.port = match self.socket {
-                Socket::SSL => match self.protocol {
-                    Protocol::IMAP => 993,
-                    Protocol::SMTP => 465,
+                Socket::Ssl => match self.protocol {
+                    Protocol::Imap => 993,
+                    Protocol::Smtp => 465,
                 },
-                Socket::STARTTLS | Socket::Plain => match self.protocol {
-                    Protocol::IMAP => 143,
-                    Protocol::SMTP => 587,
+                Socket::Starttls | Socket::Plain => match self.protocol {
+                    Protocol::Imap => 143,
+                    Protocol::Smtp => 587,
                 },
                 Socket::Automatic => 0,
             }
@@ -85,27 +85,27 @@ impl ServerParams {
             // Try common secure combinations.
 
             // Try STARTTLS
-            self.socket = Socket::STARTTLS;
+            self.socket = Socket::Starttls;
             self.port = match self.protocol {
-                Protocol::IMAP => 143,
-                Protocol::SMTP => 587,
+                Protocol::Imap => 143,
+                Protocol::Smtp => 587,
             };
             res.push(self.clone());
 
             // Try TLS
-            self.socket = Socket::SSL;
+            self.socket = Socket::Ssl;
             self.port = match self.protocol {
-                Protocol::IMAP => 993,
-                Protocol::SMTP => 465,
+                Protocol::Imap => 993,
+                Protocol::Smtp => 465,
             };
             res.push(self);
         } else if self.socket == Socket::Automatic {
             // Try TLS over user-provided port.
-            self.socket = Socket::SSL;
+            self.socket = Socket::Ssl;
             res.push(self.clone());
 
             // Try STARTTLS over user-provided port.
-            self.socket = Socket::STARTTLS;
+            self.socket = Socket::Starttls;
             res.push(self);
         } else {
             res.push(self);
@@ -140,10 +140,10 @@ mod tests {
     fn test_expand_param_vector() {
         let v = expand_param_vector(
             vec![ServerParams {
-                protocol: Protocol::IMAP,
+                protocol: Protocol::Imap,
                 hostname: "example.net".to_string(),
                 port: 0,
-                socket: Socket::SSL,
+                socket: Socket::Ssl,
                 username: "foobar".to_string(),
             }],
             "foobar@example.net",
@@ -153,10 +153,10 @@ mod tests {
         assert_eq!(
             v,
             vec![ServerParams {
-                protocol: Protocol::IMAP,
+                protocol: Protocol::Imap,
                 hostname: "example.net".to_string(),
                 port: 993,
-                socket: Socket::SSL,
+                socket: Socket::Ssl,
                 username: "foobar".to_string(),
             }],
         );

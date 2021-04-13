@@ -10,24 +10,24 @@ use chrono::{NaiveDateTime, NaiveTime};
 #[derive(Debug, Display, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Status {
-    OK = 1,
-    PREPARATION = 2,
-    BROKEN = 3,
+    Ok = 1,
+    Preparation = 2,
+    Broken = 3,
 }
 
 #[derive(Debug, Display, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Protocol {
-    SMTP = 1,
-    IMAP = 2,
+    Smtp = 1,
+    Imap = 2,
 }
 
 #[derive(Debug, Display, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Socket {
     Automatic = 0,
-    SSL = 1,
-    STARTTLS = 2,
+    Ssl = 1,
+    Starttls = 2,
     Plain = 3,
 }
 
@@ -40,8 +40,8 @@ impl Default for Socket {
 #[derive(Debug, PartialEq, Clone)]
 #[repr(u8)]
 pub enum UsernamePattern {
-    EMAIL = 1,
-    EMAILLOCALPART = 2,
+    Email = 1,
+    Emaillocalpart = 2,
 }
 
 #[derive(Debug, PartialEq)]
@@ -151,6 +151,8 @@ pub async fn get_provider_by_mx(domain: impl AsRef<str>) -> Option<&'static Prov
     None
 }
 
+// TODO: uncomment when clippy starts complaining about it
+//#[allow(clippy::manual_map)] // Can't use .map() because the lifetime is not propagated
 pub fn get_provider_by_id(id: &str) -> Option<&'static Provider> {
     if let Some(provider) = PROVIDER_IDS.get(id) {
         Some(provider)
@@ -181,34 +183,34 @@ mod tests {
     #[test]
     fn test_get_provider_by_domain_mixed_case() {
         let provider = get_provider_by_domain("nAUta.Cu").unwrap();
-        assert!(provider.status == Status::OK);
+        assert!(provider.status == Status::Ok);
     }
 
     #[test]
     fn test_get_provider_by_domain() {
         let addr = "nauta.cu";
         let provider = get_provider_by_domain(addr).unwrap();
-        assert!(provider.status == Status::OK);
+        assert!(provider.status == Status::Ok);
         let server = &provider.server[0];
-        assert_eq!(server.protocol, Protocol::IMAP);
-        assert_eq!(server.socket, Socket::STARTTLS);
+        assert_eq!(server.protocol, Protocol::Imap);
+        assert_eq!(server.socket, Socket::Starttls);
         assert_eq!(server.hostname, "imap.nauta.cu");
         assert_eq!(server.port, 143);
-        assert_eq!(server.username_pattern, UsernamePattern::EMAIL);
+        assert_eq!(server.username_pattern, UsernamePattern::Email);
         let server = &provider.server[1];
-        assert_eq!(server.protocol, Protocol::SMTP);
-        assert_eq!(server.socket, Socket::STARTTLS);
+        assert_eq!(server.protocol, Protocol::Smtp);
+        assert_eq!(server.socket, Socket::Starttls);
         assert_eq!(server.hostname, "smtp.nauta.cu");
         assert_eq!(server.port, 25);
-        assert_eq!(server.username_pattern, UsernamePattern::EMAIL);
+        assert_eq!(server.username_pattern, UsernamePattern::Email);
 
         let provider = get_provider_by_domain("gmail.com").unwrap();
-        assert!(provider.status == Status::PREPARATION);
+        assert!(provider.status == Status::Preparation);
         assert!(!provider.before_login_hint.is_empty());
         assert!(!provider.overview_page.is_empty());
 
         let provider = get_provider_by_domain("googlemail.com").unwrap();
-        assert!(provider.status == Status::PREPARATION);
+        assert!(provider.status == Status::Preparation);
     }
 
     #[test]

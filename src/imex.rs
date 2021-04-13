@@ -595,7 +595,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
 
     let total_files_cnt = context
         .sql
-        .count("SELECT COUNT(*) FROM backup_blobs;")
+        .count(sqlx::query("SELECT COUNT(*) FROM backup_blobs;"))
         .await?;
 
     info!(
@@ -607,7 +607,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     // consuming too much memory.
     let file_ids = context
         .sql
-        .fetch("SELECT id FROM backup_blobs ORDER BY id")
+        .fetch(sqlx::query("SELECT id FROM backup_blobs ORDER BY id"))
         .await?
         .map(|row| row?.try_get(0))
         .collect::<sqlx::Result<Vec<i64>>>()
@@ -648,8 +648,11 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
 
     if all_files_extracted {
         // only delete backup_blobs if all files were successfully extracted
-        context.sql.execute("DROP TABLE backup_blobs;").await?;
-        context.sql.execute("VACUUM;").await.ok();
+        context
+            .sql
+            .execute(sqlx::query("DROP TABLE backup_blobs;"))
+            .await?;
+        context.sql.execute(sqlx::query("VACUUM;")).await.ok();
         Ok(())
     } else {
         bail!("received stop signal");
@@ -674,7 +677,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     context
         .sql
-        .execute("VACUUM;")
+        .execute(sqlx::query("VACUUM;"))
         .await
         .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e));
 
@@ -829,7 +832,9 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
 
     let mut keys = context
         .sql
-        .fetch("SELECT id, public_key, private_key, is_default FROM keypairs;")
+        .fetch(sqlx::query(
+            "SELECT id, public_key, private_key, is_default FROM keypairs;",
+        ))
         .await?
         .map(|row| -> sqlx::Result<_> {
             let row = row?;

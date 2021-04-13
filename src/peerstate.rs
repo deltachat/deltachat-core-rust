@@ -5,7 +5,7 @@ use std::fmt;
 
 use anyhow::{bail, Result};
 use num_traits::FromPrimitive;
-use sqlx::Row;
+use sqlx::{query::Query, sqlite::Sqlite, Row};
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat;
@@ -173,10 +173,12 @@ impl Peerstate {
         Self::from_stmt(context, query).await
     }
 
-    async fn from_stmt<'e, 'q, E>(context: &Context, query: E) -> Result<Option<Peerstate>>
+    async fn from_stmt<'q, E>(
+        context: &Context,
+        query: Query<'q, Sqlite, E>,
+    ) -> Result<Option<Peerstate>>
     where
-        'q: 'e,
-        E: 'q + sqlx::Execute<'q, sqlx::Sqlite>,
+        E: 'q + sqlx::IntoArguments<'q, sqlx::Sqlite>,
     {
         if let Some(row) = context.sql.fetch_optional(query).await? {
             // all the above queries start with this: SELECT
