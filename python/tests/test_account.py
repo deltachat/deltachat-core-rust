@@ -816,6 +816,37 @@ class TestOnlineAccount:
         assert open(msg.filename).read() == content
         assert msg.filename.endswith(basename)
 
+    def test_html_message(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        html_text = "<p>hello HTML world</p>"
+
+        lp.sec("ac1: create chat with ac2")
+        chat = ac1.create_chat(ac2)
+
+        lp.sec("ac1: prepare and send HTML+text message to ac2")
+        msg1 = Message.new_empty(ac1, "text")
+        msg1.set_text("message1")
+        msg1.set_html(html_text)
+        msg1 = chat.send_msg(msg1)
+        ac1._evtracker.wait_msg_delivered(msg1)
+
+        lp.sec("wait for ac2 to receive first message")
+        msg2 = ac2._evtracker.wait_next_messages_changed()
+        assert msg2.text == "message1"
+        assert html_text in msg2.html
+
+        lp.sec("ac1: prepare and send HTML-only message to ac2")
+        msg1 = Message.new_empty(ac1, "text")
+        msg1.set_html(html_text)
+        msg1 = chat.send_msg(msg1)
+        ac1._evtracker.wait_msg_delivered(msg1)
+
+        lp.sec("wait for ac2 to receive second message")
+        msg2 = ac2._evtracker.wait_next_messages_changed()
+        assert "<p>" not in msg2.text
+        assert "Hello HTML world" in msg2.text
+        assert html_text in msg2.html
+
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True, sentbox=True)
