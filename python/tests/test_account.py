@@ -856,7 +856,7 @@ class TestOnlineAccount:
         lp.sec("wait for ac2 to receive message")
         msg2 = ac2._evtracker.wait_next_incoming_message()
         assert "<p>" not in msg2.text
-        assert "Hello HTML world" in msg2.text
+        assert "hello HTML world" in msg2.text
         assert msg2.has_html()
         assert html_text in msg2.html
 
