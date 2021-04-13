@@ -329,7 +329,10 @@ pub enum EventType {
     #[strum(props(id = "2061"))]
     SecurejoinJoinerProgress { contact_id: u32, progress: usize },
 
-    /// TODO document
+    /// The connectivity to the server changed.
+    /// This means that you should refresh the connectivity view
+    /// and possibly the connectivtiy HTML; see dc_get_connectivity() and
+    /// dc_get_connectivity_html() for details.
     #[strum(props(id = "2062"))]
     ConnectivityChanged,
 }

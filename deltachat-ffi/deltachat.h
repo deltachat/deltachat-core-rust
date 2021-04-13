@@ -461,9 +461,45 @@ char*           dc_get_info                  (const dc_context_t* context);
 char*           dc_get_oauth2_url            (dc_context_t* context, const char* addr, const char* redirect_uri);
 
 
+#define DC_CONNECTIVITY_NOT_CONNECTED        0 
+#define DC_CONNECTIVITY_CONNECTING           1
+#define DC_CONNECTIVITY_CONNECTED            2 
+
+
+/**
+ * Get the current connectivity, i.e. whether the device is connected to the IMAP server.
+ * One of:
+ * - DC_CONNECTIVITY_NOT_CONNECTED (0): Show e.g. the string "Not connected" or a red dot
+ * - DC_CONNECTIVITY_CONNECTING (1): Show e.g. the string "Connecting…" or a yellow dot
+ * - DC_CONNECTIVITY_CONNECTED (2): Show e.g. the string "Connected" or a green dot
+ *
+ * Meant as a rough overview that can be shown 
+ * e.g. in the title of the main screen.
+ *
+ * If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @return The current connectivity.
+ */
 int             dc_get_connectivity          (dc_context_t* context);
 
 
+/**
+ * Get an overview over the current connectivity, and possibly more statistics.
+ * Meant to give the user more insight about the current status than
+ * the basic connectivity info returned by dc_get_connectivity(); show this
+ * e.g., if the user taps on said basic connectivity info.
+ *
+ * If this page changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+ *
+ * This comes as an HTML from the core so that we can easily improve it
+ * and the improvement instantly reaches all UIs.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @return An HTML page with some info about the current connectivity and status.
+ */
 char*           dc_get_connectivity_html     (dc_context_t* context);
 
 
@@ -5095,6 +5131,15 @@ void dc_event_unref(dc_event_t* event);
  *     (Bob has verified alice and waits until Alice does the same for him)
  */
 #define DC_EVENT_SECUREJOIN_JOINER_PROGRESS       2061
+
+
+/**
+ * The connectivity to the server changed.
+ * This means that you should refresh the connectivity view
+ * and possibly the connectivtiy HTML; see dc_get_connectivity() and
+ * dc_get_connectivity_html() for details.
+ */
+#define DC_EVENT_CONNECTIVITY_CHANGED             2062
 
 /**
  * @}

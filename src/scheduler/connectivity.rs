@@ -109,6 +109,16 @@ impl fmt::Debug for ConnectivityStore {
 }
 
 impl Context {
+    /// Get the current connectivity, i.e. whether the device is connected to the IMAP server.
+    /// One of:
+    /// - DC_CONNECTIVITY_NOT_CONNECTED (0): Show e.g. the string "Not connected" or a red dot
+    /// - DC_CONNECTIVITY_CONNECTING (1): Show e.g. the string "Connecting…" or a yellow dot
+    /// - DC_CONNECTIVITY_CONNECTED (2): Show e.g. the string "Connected" or a green dot
+    ///
+    /// Meant as a rough overview that can be shown
+    /// e.g. in the title of the main screen.
+    ///
+    /// If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
     pub async fn get_connectivity(&self) -> BasicConnectivity {
         match &*self.scheduler.read().await {
             Scheduler::Running {
@@ -160,6 +170,15 @@ impl Context {
         //     .unwrap_or(BasicConnectivity::NotConnected)
     }
 
+    /// Get an overview over the current connectivity, and possibly more statistics.
+    /// Meant to give the user more insight about the current status than
+    /// the basic connectivity info returned by dc_get_connectivity(); show this
+    /// e.g., if the user taps on said basic connectivity info.
+    ///
+    /// If this page changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+    ///
+    /// This comes as an HTML from the core so that we can easily improve it
+    /// and the improvement instantly reaches all UIs.
     pub async fn get_connectivity_html(&self) -> String {
         let mut ret =
             "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
