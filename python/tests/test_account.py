@@ -991,6 +991,27 @@ class TestOnlineAccount:
         except queue.Empty:
             pass  # mark_seen_messages() has generated events before it returns
 
+    def test_message_override_sender_name(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        overridden_name = "someone else"
+
+        ac1.set_config("displayname", "ac1")
+
+        lp.sec("ac1: create chat with ac2")
+        chat = ac1.create_chat(ac2)
+
+        lp.sec("sending text message with overridden name from ac1 to ac2")
+        msg1 = Message.new_empty(ac1, "text")
+        msg1.set_override_sender_name(overridden_name)
+        msg1 = chat.send_msg(msg1)
+        ac1._evtracker.wait_msg_delivered(msg1)
+
+        lp.sec("wait for ac2 to receive message")
+        msg2 = ac2._evtracker.wait_next_messages_changed()
+        assert msg2.text == "text"
+        assert msg2.get_sender_contact().name == ac1.get_config("displayname")
+        assert msg2.override_sender_name == overridden_name
+
     @pytest.mark.parametrize("mvbox_move", [True, False])
     def test_markseen_message_and_mdn(self, acfactory, mvbox_move):
         # Please only change this test if you are very sure that it will still catch the issues it catches now.
