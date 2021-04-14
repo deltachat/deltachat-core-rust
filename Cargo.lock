@@ -1160,7 +1160,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.51.0"
+version = "1.52.0"
 dependencies = [
  "ansi_term 0.12.1",
  "anyhow",
@@ -1229,7 +1229,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.51.0"
+version = "1.52.0"
 dependencies = [
  "anyhow",
  "async-std",
