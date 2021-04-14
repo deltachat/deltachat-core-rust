@@ -51,7 +51,7 @@ pub enum Oauth2Authorizer {
     Gmail = 2,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Server {
     pub protocol: Protocol,
     pub socket: Socket,
@@ -60,13 +60,13 @@ pub struct Server {
     pub username_pattern: UsernamePattern,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ConfigDefault {
     pub key: Config,
     pub value: &'static str,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Provider {
     /// Unique ID, corresponding to provider database filename.
     pub id: &'static str,
