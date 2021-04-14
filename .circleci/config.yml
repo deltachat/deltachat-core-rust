@@ -53,8 +53,6 @@ workflows:
           filters:
             branches:
               only: master
-            #tags:
-            #  only: /.*/
 
       - upload_docs_wheels:
           requires:
@@ -63,12 +61,8 @@ workflows:
           filters:
             branches:
               only: master
-            tags:
-              only: /.*/
 
       - build_doxygen:
           filters:
             branches:
               only: master
-            tags:
-              only: /.*/
