@@ -392,6 +392,13 @@ mod tests {
         assert_eq!(txt.trim(), "lots of text");
     }
 
+    #[test]
+    fn test_pre_tag() {
+        let input = "<html><pre>\ntwo\nlines\n</pre></html>";
+        let txt = dehtml(input).unwrap();
+        assert_eq!(txt.trim(), "two\nlines");
+    }
+
     #[async_std::test]
     async fn test_quote_div() {
         let input = include_str!("../test-data/message/gmx-quote-body.eml");
