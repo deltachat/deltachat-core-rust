@@ -615,6 +615,72 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_search_single_chat_without_authname() -> anyhow::Result<()> {
+        let t = TestContext::new_alice().await;
+
+        // receive a one-to-one-message without authname set, accept contact request
+        dc_receive_imf(
+            &t,
+            b"From: bob@example.org\n\
+                 To: alice@example.com\n\
+                 Subject: foo\n\
+                 Message-ID: <msg5678@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2021 22:38:57 +0000\n\
+                 \n\
+                 hello foo\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let msg = t.get_last_msg().await;
+        let chat_id =
+            message::decide_on_contact_request(&t, msg.get_id(), ContactRequestDecision::StartChat)
+                .await
+                .unwrap();
+        let contacts = get_chat_contacts(&t, chat_id).await?;
+        let contact_id = *contacts.first().unwrap();
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "bob@example.org");
+
+        // check, the one-to-one-chat can be found using chatlist search query
+        let chats = Chatlist::try_load(&t, 0, Some("bob@example.org"), None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), chat_id);
+
+        // change the name of the contact; this also changes the name of the one-to-one-chat
+        let test_id = Contact::create(&t, "Bob Nickname", "bob@example.org").await?;
+        assert_eq!(contact_id, test_id);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "Bob Nickname");
+        let chats = Chatlist::try_load(&t, 0, Some("bob@example.org"), None).await?;
+        assert_eq!(chats.len(), 0); // email-addresses are searchable in contacts, not in chats
+        let chats = Chatlist::try_load(&t, 0, Some("Bob Nickname"), None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), chat_id);
+
+        // revert name change, this again changes the name of the one-to-one-chat to the email-address
+        let test_id = Contact::create(&t, "", "bob@example.org").await?;
+        assert_eq!(contact_id, test_id);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "bob@example.org");
+        let chats = Chatlist::try_load(&t, 0, Some("bob@example.org"), None).await?;
+        assert_eq!(chats.len(), 1);
+        let chats = Chatlist::try_load(&t, 0, Some("bob nickname"), None).await?;
+        assert_eq!(chats.len(), 0);
+
+        // finally, also check that a simple substring-search is working with email-addresses
+        let chats = Chatlist::try_load(&t, 0, Some("b@exa"), None).await?;
+        assert_eq!(chats.len(), 1);
+        let chats = Chatlist::try_load(&t, 0, Some("b@exac"), None).await?;
+        assert_eq!(chats.len(), 0);
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_get_summary_unwrap() {
         let t = TestContext::new().await;
         let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")
