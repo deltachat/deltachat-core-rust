@@ -30,7 +30,7 @@ impl Default for CertificateChecks {
 }
 
 /// Login parameters for a single server, either IMAP or SMTP
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct ServerLoginParam {
     pub server: String,
     pub user: String,
@@ -43,7 +43,7 @@ pub struct ServerLoginParam {
     pub certificate_checks: CertificateChecks,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct LoginParam {
     pub addr: String,
     pub imap: ServerLoginParam,
@@ -304,6 +304,8 @@ pub fn dc_build_tls(strict_tls: bool) -> async_native_tls::TlsConnector {
 mod tests {
     use super::*;
 
+    use crate::test_utils::TestContext;
+
     #[test]
     fn test_certificate_checks_display() {
         use std::string::ToString;
@@ -312,5 +314,38 @@ mod tests {
             "accept_invalid_certificates".to_string(),
             CertificateChecks::AcceptInvalidCertificates.to_string()
         );
+    }
+
+    #[async_std::test]
+    async fn test_save_load_login_param() -> anyhow::Result<()> {
+        let t = TestContext::new().await;
+
+        let param = LoginParam {
+            addr: "alice@example.com".to_string(),
+            imap: ServerLoginParam {
+                server: "imap.example.com".to_string(),
+                user: "alice".to_string(),
+                password: "foo".to_string(),
+                port: 123,
+                security: Socket::Starttls,
+                certificate_checks: CertificateChecks::Strict,
+            },
+            smtp: ServerLoginParam {
+                server: "smtp.example.com".to_string(),
+                user: "alice@example.com".to_string(),
+                password: "bar".to_string(),
+                port: 456,
+                security: Socket::Ssl,
+                certificate_checks: CertificateChecks::AcceptInvalidCertificates,
+            },
+            server_flags: 0,
+            provider: get_provider_by_id("example.com"),
+        };
+
+        param.save_to_database(&t, "foobar_").await?;
+        let loaded = LoginParam::from_database(&t, "foobar_").await?;
+
+        assert_eq!(param, loaded);
+        Ok(())
     }
 }
