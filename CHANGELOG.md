@@ -1,5 +1,29 @@
 # Changelog 
 
+## 1.52.0
+
+- database library changed from rusqlite to sqlx #2089 #2331 #2336 #2340
+
+- add alias support: UIs should check for `dc_msg_get_override_sender_name()`
+  also in single-chats now and display divergent names and avatars #2297
+
+- parse blockquote-tags for better quote detection #2313
+
+- ignore unknown classical emails from spam folder #2311
+
+- support "Mixed Up” encryption repairing #2321
+
+- fix single chat search #2344
+
+- fix nightly clippy and rustc errors #2341
+
+- update dependencies #2350
+
+- improve ci #2342
+
+- improve python bindings #2332 #2326
+
+
 ## 1.51.0
 
 - breaking change: You have to call `dc_stop_io()`/`dc_start_io()`
