@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use anyhow::{bail, ensure, format_err, Error};
+use anyhow::{bail, ensure, format_err, Result};
 use async_std::prelude::*;
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
@@ -90,7 +90,7 @@ impl<'a> MimeFactory<'a> {
         context: &Context,
         msg: &'a Message,
         attach_selfavatar: bool,
-    ) -> Result<MimeFactory<'a>, Error> {
+    ) -> Result<MimeFactory<'a>> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
 
         let from_addr = context
@@ -178,7 +178,7 @@ impl<'a> MimeFactory<'a> {
         context: &Context,
         msg: &'a Message,
         additional_msg_ids: Vec<String>,
-    ) -> Result<MimeFactory<'a>, Error> {
+    ) -> Result<MimeFactory<'a>> {
         ensure!(!msg.chat_id.is_special(), "Invalid chat id");
 
         let contact = Contact::load_from_db(context, msg.from_id).await?;
@@ -222,7 +222,7 @@ impl<'a> MimeFactory<'a> {
     async fn peerstates_for_recipients(
         &self,
         context: &Context,
-    ) -> Result<Vec<(Option<Peerstate>, &str)>, Error> {
+    ) -> Result<Vec<(Option<Peerstate>, &str)>> {
         let self_addr = context
             .get_config(Config::ConfiguredAddr)
             .await?
@@ -302,7 +302,7 @@ impl<'a> MimeFactory<'a> {
         }
     }
 
-    async fn should_do_gossip(&self, context: &Context) -> Result<bool, Error> {
+    async fn should_do_gossip(&self, context: &Context) -> Result<bool> {
         match &self.loaded {
             Loaded::Message { chat } => {
                 // beside key- and member-changes, force re-gossip every 48 hours
@@ -401,7 +401,7 @@ impl<'a> MimeFactory<'a> {
             .collect()
     }
 
-    pub async fn render(mut self, context: &Context) -> Result<RenderedEmail, Error> {
+    pub async fn render(mut self, context: &Context) -> Result<RenderedEmail> {
         // Headers that are encrypted
         // - Chat-*, except Chat-Version
         // - Secure-Join*
@@ -673,7 +673,7 @@ impl<'a> MimeFactory<'a> {
         Some(part)
     }
 
-    async fn get_location_kml_part(&mut self, context: &Context) -> Result<PartBuilder, Error> {
+    async fn get_location_kml_part(&mut self, context: &Context) -> Result<PartBuilder> {
         let (kml_content, last_added_location_id) =
             location::get_kml(context, self.msg.chat_id).await?;
         let part = PartBuilder::new()
@@ -701,7 +701,7 @@ impl<'a> MimeFactory<'a> {
         protected_headers: &mut Vec<Header>,
         unprotected_headers: &mut Vec<Header>,
         grpimage: &Option<String>,
-    ) -> Result<(PartBuilder, Vec<PartBuilder>), Error> {
+    ) -> Result<(PartBuilder, Vec<PartBuilder>)> {
         let chat = match &self.loaded {
             Loaded::Message { chat } => chat,
             Loaded::Mdn { .. } => bail!("Attempt to render MDN as a message"),
@@ -977,7 +977,7 @@ impl<'a> MimeFactory<'a> {
 
         // add attachment part
         if chat::msgtype_has_file(self.msg.viewtype) {
-            if !is_file_size_okay(context, self.msg).await {
+            if !is_file_size_okay(context, self.msg).await? {
                 bail!(
                     "Message exceeds the recommended {} MB.",
                     RECOMMENDED_FILE_SIZE / 1_000_000,
@@ -1022,7 +1022,7 @@ impl<'a> MimeFactory<'a> {
     }
 
     /// Render an MDN
-    async fn render_mdn(&mut self, context: &Context) -> Result<PartBuilder, Error> {
+    async fn render_mdn(&mut self, context: &Context) -> Result<PartBuilder> {
         // RFC 6522, this also requires the `report-type` parameter which is equal
         // to the MIME subtype of the second body part of the multipart/report
         //
@@ -1120,7 +1120,7 @@ async fn build_body_file(
     context: &Context,
     msg: &Message,
     base_name: &str,
-) -> Result<(PartBuilder, String), Error> {
+) -> Result<(PartBuilder, String)> {
     let blob = msg
         .param
         .get_blob(Param::File, context, true)
@@ -1194,7 +1194,7 @@ async fn build_body_file(
     Ok((mail, filename_to_send))
 }
 
-fn build_selfavatar_file(context: &Context, path: &str) -> Result<(PartBuilder, String), Error> {
+fn build_selfavatar_file(context: &Context, path: &str) -> Result<(PartBuilder, String)> {
     let blob = BlobObject::from_path(context, path)?;
     let filename_to_send = match blob.suffix() {
         Some(suffix) => format!("avatar.{}", suffix),
@@ -1226,13 +1226,13 @@ fn recipients_contain_addr(recipients: &[(String, String)], addr: &str) -> bool 
         .any(|(_, cur)| cur.to_lowercase() == addr_lc)
 }
 
-async fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
-    match msg.param.get_path(Param::File, context).unwrap_or(None) {
+async fn is_file_size_okay(context: &Context, msg: &Message) -> Result<bool> {
+    match msg.param.get_path(Param::File, context)? {
         Some(path) => {
             let bytes = dc_get_filebytes(context, &path).await;
-            bytes <= UPPER_LIMIT_FILE_SIZE
+            Ok(bytes <= UPPER_LIMIT_FILE_SIZE)
         }
-        None => false,
+        None => Ok(false),
     }
 }
 
