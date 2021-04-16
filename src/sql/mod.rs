@@ -32,22 +32,16 @@ mod migrations;
 pub use self::error::*;
 
 /// A wrapper around the underlying Sqlite3 object.
-///
-/// We maintain two different pools to sqlite, on for reading, one for writing.
-/// This can go away once https://github.com/launchbadge/sqlx/issues/459 is implemented.
 #[derive(Debug)]
 pub struct Sql {
-    /// Writer pool, must only have 1 connection in it.
-    writer: RwLock<Option<SqlitePool>>,
-    /// Reader pool, maintains multiple connections for reading data.
-    reader: RwLock<Option<SqlitePool>>,
+    /// Connection pool, maintains multiple connections for reading and writing data.
+    pool: RwLock<Option<SqlitePool>>,
 }
 
 impl Default for Sql {
     fn default() -> Self {
         Self {
-            writer: RwLock::new(None),
-            reader: RwLock::new(None),
+            pool: RwLock::new(None),
         }
     }
 }
@@ -66,62 +60,32 @@ impl Sql {
     /// Checks if there is currently a connection to the underlying Sqlite database.
     pub async fn is_open(&self) -> bool {
         // in read only mode the writer does not exists
-        self.reader.read().await.is_some()
+        self.pool.read().await.is_some()
     }
 
     /// Closes all underlying Sqlite connections.
     pub async fn close(&self) {
-        if let Some(sql) = self.writer.write().await.take() {
-            sql.close().await;
-        }
-        if let Some(sql) = self.reader.write().await.take() {
+        if let Some(sql) = self.pool.write().await.take() {
             sql.close().await;
         }
     }
 
-    async fn new_writer_pool(dbfile: impl AsRef<Path>) -> sqlx::Result<SqlitePool> {
+    async fn new_pool(dbfile: impl AsRef<Path>, read_only: bool) -> sqlx::Result<SqlitePool> {
         let config = SqliteConnectOptions::new()
             .journal_mode(SqliteJournalMode::Wal)
             .filename(dbfile.as_ref())
-            .read_only(false)
+            .read_only(read_only)
             .busy_timeout(Duration::from_secs(100))
             .create_if_missing(true)
             .synchronous(SqliteSynchronous::Normal);
 
         PoolOptions::<Sqlite>::new()
-            .max_connections(1)
-            .after_connect(|conn| {
+            .max_connections(10)
+            .after_connect(move |conn| {
                 Box::pin(async move {
                     let q = r#"
 PRAGMA secure_delete=on;
 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
-"#;
-
-                    conn.execute_many(sqlx::query(q))
-                        .collect::<std::result::Result<Vec<_>, _>>()
-                        .await?;
-                    Ok(())
-                })
-            })
-            .connect_with(config)
-            .await
-    }
-
-    async fn new_reader_pool(dbfile: impl AsRef<Path>, readonly: bool) -> sqlx::Result<SqlitePool> {
-        let config = SqliteConnectOptions::new()
-            .journal_mode(SqliteJournalMode::Wal)
-            .filename(dbfile.as_ref())
-            .read_only(readonly)
-            .busy_timeout(Duration::from_secs(100))
-            .synchronous(SqliteSynchronous::Normal);
-
-        PoolOptions::<Sqlite>::new()
-            .max_connections(10)
-            .after_connect(|conn| {
-                Box::pin(async move {
-                    let q = r#"
-PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
-PRAGMA query_only=1; -- Protect against writes even in read-write mode
 "#;
 
                     conn.execute_many(sqlx::query(q))
@@ -151,13 +115,8 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
             return Err(Error::SqlAlreadyOpen.into());
         }
 
-        // Open write pool
-        if !readonly {
-            *self.writer.write().await = Some(Self::new_writer_pool(&dbfile).await?);
-        }
-
-        // Open read pool
-        *self.reader.write().await = Some(Self::new_reader_pool(&dbfile, readonly).await?);
+        // Open connection pool
+        *self.pool.write().await = Some(Self::new_pool(&dbfile, readonly).await?);
 
         if !readonly {
             // (1) update low-level database structure.
@@ -215,7 +174,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     where
         E: 'q + IntoArguments<'q, Sqlite>,
     {
-        let lock = self.writer.read().await;
+        let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let rows = pool.execute(query).await?;
@@ -227,7 +186,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     where
         E: 'q + IntoArguments<'q, Sqlite>,
     {
-        let lock = self.writer.read().await;
+        let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         pool.execute_many(query)
@@ -244,7 +203,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     where
         E: 'q + IntoArguments<'q, Sqlite>,
     {
-        let lock = self.reader.read().await;
+        let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let rows = pool.fetch(query);
@@ -259,7 +218,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     where
         E: 'q + IntoArguments<'q, Sqlite>,
     {
-        let lock = self.reader.read().await;
+        let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let row = pool.fetch_one(query).await?;
@@ -274,7 +233,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     where
         E: 'q + IntoArguments<'q, Sqlite>,
     {
-        let lock = self.reader.read().await;
+        let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let row = pool.fetch_optional(query).await?;
@@ -318,7 +277,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
             + Sync,
         R: Send,
     {
-        let lock = self.writer.read().await;
+        let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let mut transaction = pool.begin().await?;
@@ -342,7 +301,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
         let q = format!("PRAGMA table_info(\"{}\")", name.as_ref());
 
-        let lock = self.reader.read().await;
+        let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let mut rows = pool.fetch(sqlx::query(&q));
@@ -360,7 +319,7 @@ PRAGMA query_only=1; -- Protect against writes even in read-write mode
         col_name: impl AsRef<str>,
     ) -> Result<bool> {
         let q = format!("PRAGMA table_info(\"{}\")", table_name.as_ref());
-        let lock = self.reader.read().await;
+        let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
         let mut rows = pool.fetch(sqlx::query(&q));
