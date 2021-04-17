@@ -107,6 +107,10 @@ harness = false
 name = "contacts"
 harness = false
 
+[[bench]]
+name = "search_msgs"
+harness = false
+
 [features]
 default = []
 internals = []
