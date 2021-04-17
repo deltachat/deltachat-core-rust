@@ -525,9 +525,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 None,
             )
             .await?;
-            let time_needed = std::time::SystemTime::now()
-                .duration_since(time_start)
-                .unwrap_or_default();
+            let time_needed = time_start.elapsed().unwrap_or_default();
 
             let cnt = chatlist.len();
             if cnt > 0 {
@@ -898,10 +896,13 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 None
             };
 
+            let time_start = std::time::SystemTime::now();
             let msglist = context.search_msgs(chat, arg1).await?;
+            let time_needed = time_start.elapsed().unwrap_or_default();
 
             log_msglist(&context, &msglist).await?;
             println!("{} messages.", msglist.len());
+            println!("{:?} to create this list", time_needed);
         }
         "draft" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
