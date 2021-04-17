@@ -660,7 +660,7 @@ fn receive_event(event: Event) {
     }
 }
 
-/// Logs and individual message to stdout.
+/// Logs an individual message to stdout.
 ///
 /// This includes a bunch of the message meta-data as well.
 async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
