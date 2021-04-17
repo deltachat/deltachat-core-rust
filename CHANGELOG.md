@@ -1,5 +1,16 @@
 # Changelog 
 
+## 1.53.0
+
+- fix sqlx performance regression #2355 2356
+
+- add a `ci_scripts/coverage.sh` #2333 #2334
+
+- refactorings and tests #2348 #2349 #2350
+
+- improve python bindings #2332 #2326
+
+
 ## 1.52.0
 
 - database library changed from rusqlite to sqlx #2089 #2331 #2336 #2340
