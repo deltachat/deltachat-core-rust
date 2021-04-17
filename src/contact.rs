@@ -530,9 +530,9 @@ impl Contact {
             let update_name = manual;
             let update_authname = !manual;
 
-            if context
+            if let Ok(new_row_id) = context
                 .sql
-                .execute(
+                .insert(
                     sqlx::query(
                         "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);",
                     )
@@ -550,9 +550,8 @@ impl Contact {
                     }),
                 )
                 .await
-                .is_ok()
             {
-                row_id = context.sql.get_rowid("contacts", "addr", &addr).await?;
+                row_id = new_row_id;
                 sth_modified = Modifier::Created;
                 info!(context, "added contact id={} addr={}", row_id, &addr);
             } else {

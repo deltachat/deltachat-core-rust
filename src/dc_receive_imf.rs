@@ -978,9 +978,9 @@ async fn add_parts(
         // also change `MsgId::trash()` and `delete_expired_messages()`
         let trash = chat_id.is_trash();
 
-        context
+        let row_id = context
             .sql
-            .execute(
+            .insert(
                 sqlx::query(
                     r#"
 INSERT INTO msgs
@@ -1040,12 +1040,7 @@ INSERT INTO msgs
                 .bind(ephemeral_timestamp),
             )
             .await?;
-        let msg_id = MsgId::new(u32::try_from(
-            context
-                .sql
-                .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
-                .await?,
-        )?);
+        let msg_id = MsgId::new(u32::try_from(row_id)?);
 
         created_db_entries.push((*chat_id, msg_id));
         *insert_msg_id = msg_id;
@@ -1769,7 +1764,8 @@ async fn create_multiuser_record(
     create_blocked: Blocked,
     create_protected: ProtectionStatus,
 ) -> Result<ChatId> {
-    context.sql.execute(
+    let row_id =
+    context.sql.insert(
         sqlx::query(
             "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);")
             .bind(chattype)
@@ -1779,11 +1775,6 @@ async fn create_multiuser_record(
             .bind(time())
             .bind(create_protected)
     ).await?;
-
-    let row_id = context
-        .sql
-        .get_rowid("chats", "grpid", grpid.as_ref())
-        .await?;
 
     let chat_id = ChatId::new(u32::try_from(row_id)?);
     info!(

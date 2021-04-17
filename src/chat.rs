@@ -958,7 +958,6 @@ impl Chat {
         timestamp: i64,
     ) -> Result<MsgId, Error> {
         let mut new_references = "".into();
-        let mut msg_id = 0;
         let mut to_id = 0;
         let mut location_id = 0;
 
@@ -1066,10 +1065,10 @@ impl Chat {
 
         // add independent location to database
 
-        if msg.param.exists(Param::SetLatitude)
-            && context
+        if msg.param.exists(Param::SetLatitude) {
+            if let Ok(row_id) = context
                 .sql
-                .execute(
+                .insert(
                     sqlx::query(
                         "INSERT INTO locations \
                      (timestamp,from_id,chat_id, latitude,longitude,independent)\
@@ -1082,18 +1081,9 @@ impl Chat {
                     .bind(msg.param.get_float(Param::SetLongitude).unwrap_or_default()),
                 )
                 .await
-                .is_ok()
-        {
-            location_id = context
-                .sql
-                .get_rowid2(
-                    "locations",
-                    "timestamp",
-                    timestamp,
-                    "from_id",
-                    DC_CONTACT_ID_SELF as i64,
-                )
-                .await?;
+            {
+                location_id = row_id;
+            }
         }
 
         let ephemeral_timer = if msg.param.get_cmd() == SystemMessage::EphemeralTimerChanged {
@@ -1123,9 +1113,9 @@ impl Chat {
 
         // add message to the database
 
-        if context
+        let msg_id = context
             .sql
-            .execute(
+            .insert(
                 sqlx::query(
                     "INSERT INTO msgs (
                         rfc724_mid,
@@ -1168,19 +1158,7 @@ impl Chat {
                 .bind(ephemeral_timer)
                 .bind(ephemeral_timestamp),
             )
-            .await
-            .is_ok()
-        {
-            msg_id = context
-                .sql
-                .get_rowid("msgs", "rfc724_mid", new_rfc724_mid)
-                .await?;
-        } else {
-            error!(
-                context,
-                "Cannot send message, cannot insert to database ({}).", self.id,
-            );
-        }
+            .await?;
         schedule_ephemeral_task(context).await;
 
         Ok(MsgId::new(u32::try_from(msg_id)?))
@@ -2173,9 +2151,9 @@ pub async fn create_group_chat(
     let draft_txt = stock_str::new_group_draft(context, &chat_name).await;
     let grpid = dc_create_id();
 
-    context
+    let row_id = context
         .sql
-        .execute(
+        .insert(
             sqlx::query(
                 "INSERT INTO chats
             (type, name, grpid, param, created_timestamp)
@@ -2187,8 +2165,6 @@ pub async fn create_group_chat(
             .bind(time()),
         )
         .await?;
-
-    let row_id = context.sql.get_rowid("chats", "grpid", grpid).await?;
 
     let chat_id = ChatId::new(u32::try_from(row_id)?);
     if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await {
@@ -2945,9 +2921,9 @@ pub async fn add_device_msg_with_importance(
             }
         }
 
-        context
+        let row_id = context
             .sql
-            .execute(
+            .insert(
                 sqlx::query(
                     "INSERT INTO msgs (
             chat_id,
@@ -2979,10 +2955,6 @@ pub async fn add_device_msg_with_importance(
             )
             .await?;
 
-        let row_id = context
-            .sql
-            .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
-            .await?;
         msg_id = MsgId::new(u32::try_from(row_id)?);
     }
 
@@ -3056,7 +3028,8 @@ pub(crate) async fn add_info_msg_with_cmd(
         param.set_cmd(cmd)
     }
 
-    context.sql.execute(
+    let row_id =
+    context.sql.insert(
         sqlx::query("INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid,ephemeral_timer, param) VALUES (?,?,?, ?,?,?, ?,?,?, ?);")
             .bind(chat_id)
             .bind(DC_CONTACT_ID_INFO as i32)
@@ -3070,11 +3043,6 @@ pub(crate) async fn add_info_msg_with_cmd(
             .bind(param.to_string())
     ).await?;
 
-    let row_id = context
-        .sql
-        .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
-        .await
-        .unwrap_or_default();
     let msg_id = MsgId::new(u32::try_from(row_id)?);
     context.emit_event(EventType::MsgsChanged { chat_id, msg_id });
     Ok(msg_id)

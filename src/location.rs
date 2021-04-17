@@ -571,9 +571,9 @@ pub async fn save(
             .exists(sqlx::query(stmt_test).bind(timestamp).bind(contact_id))
             .await?;
         if independent || !exists {
-            context
+            let row_id = context
                 .sql
-                .execute(
+                .insert(
                     sqlx::query(stmt_insert)
                         .bind(timestamp)
                         .bind(contact_id)
@@ -587,16 +587,7 @@ pub async fn save(
 
             if timestamp > newest_timestamp {
                 newest_timestamp = timestamp;
-                newest_location_id = context
-                    .sql
-                    .get_rowid2(
-                        "locations",
-                        "timestamp",
-                        timestamp,
-                        "from_id",
-                        contact_id as i64,
-                    )
-                    .await?;
+                newest_location_id = row_id;
             }
         }
     }
