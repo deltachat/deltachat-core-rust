@@ -879,16 +879,6 @@ mod tests {
         }
 
         assert!(!dc_delete_file(context, "$BLOBDIR/lkqwjelqkwlje").await);
-        if dc_file_exist!(context, "$BLOBDIR/foobar").await
-            || dc_file_exist!(context, "$BLOBDIR/dada").await
-            || dc_file_exist!(context, "$BLOBDIR/foobar.dadada").await
-            || dc_file_exist!(context, "$BLOBDIR/foobar-folder").await
-        {
-            dc_delete_file(context, "$BLOBDIR/foobar").await;
-            dc_delete_file(context, "$BLOBDIR/dada").await;
-            dc_delete_file(context, "$BLOBDIR/foobar.dadada").await;
-            dc_delete_file(context, "$BLOBDIR/foobar-folder").await;
-        }
         assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content")
             .await
             .is_ok());
