@@ -822,9 +822,7 @@ class TestOnlineAccount:
         html_text = "<p>hello HTML world</p>"
 
         lp.sec("ac1: prepare and send text message to ac2")
-        msg1 = Message.new_empty(ac1, "text")
-        msg1.set_text("message0")
-        msg1 = chat.send_msg(msg1)
+        msg1 = chat.send_text("message0")
         assert not msg1.has_html()
         assert msg1.html == ""
 
