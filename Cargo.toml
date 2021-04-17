@@ -60,7 +60,7 @@ serde = { version = "1.0", features = ["derive"] }
 sha-1 = "0.9.3"
 sha2 = "0.9.0"
 smallvec = "1.0.0"
-sqlx = { version = "0.5.2", features = ["runtime-async-std-native-tls", "sqlite"] }
+sqlx = { git = "https://github.com/deltachat/sqlx", branch = "master", features = ["runtime-async-std-native-tls", "sqlite"] }
 # keep in sync with sqlx
 libsqlite3-sys = { version = "0.22.0", default-features = false, features = [ "pkg-config", "vcpkg", "bundled" ] }
 stop-token = { version = "0.1.1", features = ["unstable"] }
