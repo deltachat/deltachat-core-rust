@@ -317,7 +317,8 @@ impl Message {
     pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message, Error> {
         ensure!(
             !id.is_special(),
-            "Can not load special message IDs from DB."
+            "Can not load special message ID {} from DB.",
+            id
         );
         let row = context
             .sql
