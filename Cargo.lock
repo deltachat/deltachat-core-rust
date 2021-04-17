@@ -3465,8 +3465,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d582b9bc04ec6c03084196efc42c2226b018e9941f03ee62bd88921d500917c0"
+source = "git+https://github.com/deltachat/sqlx?branch=master#7a3c367a94902edc92ed58914301052a0a9ac466"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -3475,8 +3474,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de52d1d473cebb2abb79c886ef6a8023e965e34c0676a99cfeac2cc7f0fde4c1"
+source = "git+https://github.com/deltachat/sqlx?branch=master#7a3c367a94902edc92ed58914301052a0a9ac466"
 dependencies = [
  "ahash 0.7.2",
  "atoi",
@@ -3514,8 +3512,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a40f0be97e704d3fbf059e7e3333c3735639146a72d586c5534c70e79da88a4"
+source = "git+https://github.com/deltachat/sqlx?branch=master#7a3c367a94902edc92ed58914301052a0a9ac466"
 dependencies = [
  "dotenv",
  "either",
@@ -3533,8 +3530,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6ae97ab05063ed515cdc23d90253213aa24dda0a288c5ec079af3d10f9771bc"
+source = "git+https://github.com/deltachat/sqlx?branch=master#7a3c367a94902edc92ed58914301052a0a9ac466"
 dependencies = [
  "async-native-tls",
  "async-std",

@@ -86,6 +86,7 @@ impl Sql {
             .read_only(false)
             .busy_timeout(Duration::from_secs(100))
             .create_if_missing(true)
+            .shared_cache(true)
             .synchronous(SqliteSynchronous::Normal);
 
         PoolOptions::<Sqlite>::new()
@@ -112,6 +113,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
             .journal_mode(SqliteJournalMode::Wal)
             .filename(dbfile.as_ref())
             .read_only(readonly)
+            .shared_cache(true)
             .busy_timeout(Duration::from_secs(100))
             .synchronous(SqliteSynchronous::Normal);
 
@@ -122,6 +124,7 @@ PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                     let q = r#"
 PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
 PRAGMA query_only=1; -- Protect against writes even in read-write mode
+PRAGMA read_uncommitted=1; -- This helps avoid "table locked" errors in shared cache mode
 "#;
 
                     conn.execute_many(sqlx::query(q))
