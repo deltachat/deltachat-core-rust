@@ -36,7 +36,7 @@ ssh $SSHTARGET bash -c "cat >$BUILDDIR/exec_docker_run" <<_HERE
     # run everything else inside docker 
     docker run -e DCC_NEW_TMP_EMAIL \
        --rm -it -v \$(pwd):/mnt -w /mnt \
-       deltachat/coredeps ci_scripts/run_all.sh
+       deltachat/coredeps scripts/run_all.sh
 
 _HERE
 

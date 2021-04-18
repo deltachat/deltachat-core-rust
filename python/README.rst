@@ -142,7 +142,7 @@ This docker image can be used to run tests and build Python wheels for all inter
 
     $ docker run -e DCC_NEW_TMP_EMAIL \
        --rm -it -v \$(pwd):/mnt -w /mnt \
-       deltachat/coredeps ci_scripts/run_all.sh
+       deltachat/coredeps scripts/run_all.sh
 
 
 Optionally build your own docker image
@@ -151,9 +151,9 @@ Optionally build your own docker image
 If you want to build your own custom docker image you can do this::
 
    $ cd deltachat-core # cd to deltachat-core checkout directory
-   $ docker build -t deltachat/coredeps ci_scripts/docker_coredeps
+   $ docker build -t deltachat/coredeps scripts/docker_coredeps
 
-This will use the ``ci_scripts/docker_coredeps/Dockerfile`` to build
+This will use the ``scripts/docker_coredeps/Dockerfile`` to build
 up docker image called ``deltachat/coredeps``.  You can afterwards
 find it with::
 
