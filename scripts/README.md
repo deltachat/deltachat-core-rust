@@ -30,8 +30,8 @@ There is experimental support for triggering a remote Python or Rust test run
 from your local checkout/branch. You will need to be authorized to login to 
 the build machine (ask your friendly sysadmin on #deltachat freenode) to type::
 
-    ci_scripts/manual_remote_tests.sh rust
-    ci_scripts/manual_remote_tests.sh python
+    scripts/manual_remote_tests.sh rust
+    scripts/manual_remote_tests.sh python
 
 This will **rsync** your current checkout to the remote build machine 
 (no need to commit before) and then run either rust or python tests. 
@@ -45,6 +45,6 @@ python tests and build wheels (binary packages for Python)
 You can build the docker images yourself locally
 to avoid the relatively large download:: 
  
-    cd ci_scripts  # where all CI things are 
+    cd scripts  # where all CI things are 
     docker build -t deltachat/coredeps docker-coredeps
     docker build -t deltachat/doxygen docker-doxygen 

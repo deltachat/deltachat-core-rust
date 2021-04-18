@@ -42,7 +42,7 @@ echo -----------------------
 # Bundle external shared libraries into the wheels
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $SSHTARGET mkdir -p $BUILDDIR 
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ci_scripts/cleanup_devpi_indices.py $SSHTARGET:$BUILDDIR 
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null scripts/cleanup_devpi_indices.py $SSHTARGET:$BUILDDIR 
 rsync -avz \
   -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
   $WHEELHOUSEDIR \

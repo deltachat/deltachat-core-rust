@@ -25,6 +25,6 @@ ssh $SSHTARGET <<_HERE
     export TARGET=x86_64-unknown-linux-gnu
     export RUSTC_WRAPPER=sccache
 
-    bash ci_scripts/run-rust-test.sh
+    bash scripts/run-rust-test.sh
 _HERE
 

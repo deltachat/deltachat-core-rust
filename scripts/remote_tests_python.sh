@@ -42,5 +42,5 @@ ssh $SSHTARGET <<_HERE
     source \$HOME/venv/bin/activate
     which python
 
-    bash ci_scripts/run-python-test.sh 
+    bash scripts/run-python-test.sh 
 _HERE

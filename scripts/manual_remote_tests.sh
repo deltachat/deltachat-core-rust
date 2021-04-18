@@ -6,4 +6,4 @@ export CIRCLE_BUILD_NUM=$USER
 export CIRCLE_BRANCH=`git branch | grep \* | cut -d ' ' -f2`
 export CIRCLE_PROJECT_REPONAME=$(basename `git rev-parse --show-toplevel`)
 
-time bash ci_scripts/$CIRCLE_JOB.sh 
+time bash scripts/$CIRCLE_JOB.sh 
