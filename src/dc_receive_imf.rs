@@ -71,11 +71,7 @@ pub(crate) async fn dc_receive_imf_inner(
     info!(
         context,
         "Receiving message {}/{}, seen={}...",
-        if !server_folder.as_ref().is_empty() {
-            server_folder.as_ref()
-        } else {
-            "?"
-        },
+        server_folder.as_ref(),
         server_uid,
         seen
     );
