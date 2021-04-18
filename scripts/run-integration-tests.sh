@@ -4,11 +4,11 @@
 # purposes.  Any arguments are passed straight to tox.  E.g. to run
 # only one environment run with:
 #
-#   ./run-integration-tests.sh -e py35
+#   scripts/run-integration-tests.sh -e py35
 #
 # To also run with `pytest -x` use:
 #
-#   ./run-integration-tests.sh -e py35 -- -x
+#   scripts/run-integration-tests.sh -e py35 -- -x
 
 export DCC_RS_DEV=$(pwd)
 export DCC_RS_TARGET=${DCC_RS_TARGET:-release}
