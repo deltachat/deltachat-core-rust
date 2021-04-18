@@ -1572,6 +1572,7 @@ class TestOnlineAccount:
         original_image_path = data.get_path("d.png")
         chat1.send_image(original_image_path)
 
+        # Add another 100KB file that ensures that the progress is smooth enough
         path = tmpdir.join("attachment.txt")
         with open(path, "w") as file:
             file.truncate(100_000)
