@@ -1572,6 +1572,12 @@ class TestOnlineAccount:
         original_image_path = data.get_path("d.png")
         chat1.send_image(original_image_path)
 
+        # Add another 100KB file that ensures that the progress is smooth enough
+        path = tmpdir.join("attachment.txt")
+        with open(path, "w") as file:
+            file.truncate(100_000)
+        chat1.send_file(path.strpath)
+
         def assert_account_is_proper(ac):
             contacts = ac.get_contacts(query="some1")
             assert len(contacts) == 1
@@ -1579,7 +1585,7 @@ class TestOnlineAccount:
             assert contact2.addr == "some1@example.org"
             chat2 = contact2.create_chat()
             messages = chat2.get_messages()
-            assert len(messages) == 2
+            assert len(messages) == 3
             assert messages[0].text == "msg1"
             assert messages[1].filemime == "image/png"
             assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
