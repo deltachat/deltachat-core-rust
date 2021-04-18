@@ -18,4 +18,4 @@ jobs:
         shell: bash
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
-      - run: ci_scripts/remote_tests_python.sh
+      - run: scripts/remote_tests_python.sh
