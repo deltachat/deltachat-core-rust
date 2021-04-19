@@ -471,7 +471,6 @@ impl Context {
             return Ok(Vec::new());
         }
         let str_like_in_text = format!("%{}%", real_query);
-        let str_like_beg = format!("{}%", real_query);
 
         let list = if let Some(chat_id) = chat_id {
             self.sql
@@ -484,12 +483,11 @@ impl Context {
                  WHERE m.chat_id=?
                    AND m.hidden=0
                    AND ct.blocked=0
-                   AND (txt LIKE ? OR ct.name LIKE ?)
+                   AND txt LIKE ?
                  ORDER BY m.timestamp,m.id;",
                     )
                     .bind(chat_id)
-                    .bind(str_like_in_text)
-                    .bind(str_like_beg),
+                    .bind(str_like_in_text),
                 )
                 .await?
                 .map(|row| {
@@ -518,11 +516,10 @@ impl Context {
                    AND m.hidden=0
                    AND c.blocked=0
                    AND ct.blocked=0
-                   AND (m.txt LIKE ? OR ct.name LIKE ?)
+                   AND m.txt LIKE ?
                  ORDER BY m.id DESC",
                     )
-                    .bind(str_like_in_text)
-                    .bind(str_like_beg),
+                    .bind(str_like_in_text),
                 )
                 .await?
                 .map(|row| {
@@ -610,9 +607,14 @@ pub fn get_version_str() -> &'static str {
 mod tests {
     use super::*;
 
-    use crate::chat::{get_chat_contacts, get_chat_msgs, set_muted, Chat, MuteDuration};
+    use crate::chat::{
+        create_by_contact_id, get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat,
+        MuteDuration,
+    };
+    use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::dc_tools::dc_create_outgoing_rfc724_mid;
+    use crate::message::Message;
     use crate::test_utils::TestContext;
     use std::time::Duration;
     use strum::IntoEnumIterator;
@@ -883,5 +885,61 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[async_std::test]
+    async fn test_search_msgs() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let self_talk = create_by_contact_id(&alice, DC_CONTACT_ID_SELF).await?;
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.org")
+            .await;
+
+        // Global search finds nothing.
+        let res = alice.search_msgs(None, "foo").await?;
+        assert!(res.is_empty());
+
+        // Search in chat with Bob finds nothing.
+        let res = alice.search_msgs(Some(chat.id), "foo").await?;
+        assert!(res.is_empty());
+
+        // Add messages to chat with Bob.
+        let mut msg1 = Message::new(Viewtype::Text);
+        msg1.set_text(Some("foobar".to_string()));
+        send_msg(&alice, chat.id, &mut msg1).await.unwrap();
+
+        let mut msg2 = Message::new(Viewtype::Text);
+        msg2.set_text(Some("barbaz".to_string()));
+        send_msg(&alice, chat.id, &mut msg2).await.unwrap();
+
+        // Global search with a part of text finds the message.
+        let res = alice.search_msgs(None, "ob").await?;
+        assert_eq!(res.len(), 1);
+
+        // Global search for "bar" matches both "foobar" and "barbaz".
+        let res = alice.search_msgs(None, "bar").await?;
+        assert_eq!(res.len(), 2);
+
+        // Message added later is returned first.
+        assert_eq!(res.get(0), Some(&msg2.id));
+        assert_eq!(res.get(1), Some(&msg1.id));
+
+        // Global search with longer text does not find any message.
+        let res = alice.search_msgs(None, "foobarbaz").await?;
+        assert!(res.is_empty());
+
+        // Search for random string finds nothing.
+        let res = alice.search_msgs(None, "abc").await?;
+        assert!(res.is_empty());
+
+        // Search in chat with Bob finds the message.
+        let res = alice.search_msgs(Some(chat.id), "foo").await?;
+        assert_eq!(res.len(), 1);
+
+        // Search in Saved Messages does not find the message.
+        let res = alice.search_msgs(Some(self_talk), "foo").await?;
+        assert!(res.is_empty());
+
+        Ok(())
     }
 }
