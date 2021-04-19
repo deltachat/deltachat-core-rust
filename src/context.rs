@@ -500,6 +500,11 @@ impl Context {
                 .collect::<sqlx::Result<Vec<MsgId>>>()
                 .await?
         } else {
+            // For performance reasons results are sorted only by `id`, that is in the order of
+            // message reception.
+            //
+            // Unlike chat view, sorting by `timestamp` is not necessary but slows down the query by
+            // ~25% according to benchmarks.
             self.sql
                 .fetch(
                     sqlx::query(
@@ -514,7 +519,7 @@ impl Context {
                    AND c.blocked=0
                    AND ct.blocked=0
                    AND (m.txt LIKE ? OR ct.name LIKE ?)
-                 ORDER BY m.timestamp DESC,m.id DESC;",
+                 ORDER BY m.id DESC",
                     )
                     .bind(str_like_in_text)
                     .bind(str_like_beg),
