@@ -1575,7 +1575,7 @@ class TestOnlineAccount:
         # Add another 100KB file that ensures that the progress is smooth enough
         path = tmpdir.join("attachment.txt")
         with open(path, "w") as file:
-            file.truncate(100_000)
+            file.truncate(100000)
         chat1.send_file(path.strpath)
 
         def assert_account_is_proper(ac):
