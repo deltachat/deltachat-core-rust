@@ -911,11 +911,11 @@ mod tests {
         // Add messages to chat with Bob.
         let mut msg1 = Message::new(Viewtype::Text);
         msg1.set_text(Some("foobar".to_string()));
-        send_msg(&alice, chat.id, &mut msg1).await.unwrap();
+        send_msg(&alice, chat.id, &mut msg1).await?;
 
         let mut msg2 = Message::new(Viewtype::Text);
         msg2.set_text(Some("barbaz".to_string()));
-        send_msg(&alice, chat.id, &mut msg2).await.unwrap();
+        send_msg(&alice, chat.id, &mut msg2).await?;
 
         // Global search with a part of text finds the message.
         let res = alice.search_msgs(None, "ob").await?;
@@ -944,6 +944,39 @@ mod tests {
         // Search in Saved Messages does not find the message.
         let res = alice.search_msgs(Some(self_talk), "foo").await?;
         assert!(res.is_empty());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_limit_search_msgs() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.org")
+            .await;
+
+        // Add 999 messages
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("foobar".to_string()));
+        for _ in 0..999 {
+            send_msg(&alice, chat.id, &mut msg).await?;
+        }
+        let res = alice.search_msgs(None, "foo").await?;
+        assert_eq!(res.len(), 999);
+
+        // Add one more message, no limit yet
+        send_msg(&alice, chat.id, &mut msg).await?;
+        let res = alice.search_msgs(None, "foo").await?;
+        assert_eq!(res.len(), 1000);
+
+        // Add one more message, that one is truncated then
+        send_msg(&alice, chat.id, &mut msg).await?;
+        let res = alice.search_msgs(None, "foo").await?;
+        assert_eq!(res.len(), 1000);
+
+        // In-chat should not be not limited
+        let res = alice.search_msgs(Some(chat.id), "foo").await?;
+        assert_eq!(res.len(), 1001);
 
         Ok(())
     }
