@@ -1272,6 +1272,12 @@ uint32_t dc_get_chat_ephemeral_timer (dc_context_t* context, uint32_t chat_id);
  * search results may just hilite the corresponding messages and present a
  * prev/next button.
  *
+ * For global search, result is limited to 1000 messages,
+ * this allows incremental search done fast.
+ * So, when getting exactly 1000 results, the result may be truncated;
+ * the UIs may display sth. as "1000+ messages found" in this case.
+ * Chat search (if a chat_id is set) is not limited.
+ *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param chat_id ID of the chat to search messages in.
