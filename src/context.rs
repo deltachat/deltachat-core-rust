@@ -503,6 +503,11 @@ impl Context {
             //
             // Unlike chat view, sorting by `timestamp` is not necessary but slows down the query by
             // ~25% according to benchmarks.
+            //
+            // To speed up incremental search, where queries for few characters usually return lots
+            // of unwanted results that are discarded moments later, we added `LIMIT 1000`.
+            // According to some tests, this limit speeds up eg. 2 character searches by factor 10.
+            // The limit is documented and UI may add a hint when getting 1000 results.
             self.sql
                 .fetch(
                     sqlx::query(
@@ -517,7 +522,7 @@ impl Context {
                    AND c.blocked=0
                    AND ct.blocked=0
                    AND m.txt LIKE ?
-                 ORDER BY m.id DESC",
+                 ORDER BY m.id DESC LIMIT 1000",
                     )
                     .bind(str_like_in_text),
                 )
