@@ -1337,6 +1337,7 @@ mod tests {
     use crate::test_utils::TestContext;
     use crate::{chatlist::Chatlist, test_utils::get_chat_msg};
 
+    use async_std::fs::File;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -1886,5 +1887,60 @@ mod tests {
         let headers = msg[0..header_end].trim();
 
         assert!(!headers.lines().any(|l| l.trim().is_empty()));
+    }
+
+    #[async_std::test]
+    async fn test_selfavatar_unencrypted() -> anyhow::Result<()> {
+        // create chat with bob, set selfavatar
+        let t = TestContext::new_alice().await;
+        let chat = t.create_chat_with_contact("bob", "bob@example.org").await;
+
+        let file = t.dir.path().join("avatar.png");
+        let bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        File::create(&file).await?.write_all(bytes).await?;
+        t.set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
+            .await?;
+
+        // send message to bob: that should get multipart/mixed because of the avatar moved to inner header;
+        // make sure, `Subject:` stays in the outer header (imf header)
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("this is the text!".to_string()));
+
+        let payload = t.send_msg(chat.id, &mut msg).await.payload();
+        let mut payload = payload.splitn(3, "\r\n\r\n");
+        let outer = payload.next().unwrap();
+        let inner = payload.next().unwrap();
+        let body = payload.next().unwrap();
+
+        assert_eq!(outer.match_indices("multipart/mixed").count(), 1);
+        assert_eq!(outer.match_indices("Subject:").count(), 1);
+        assert_eq!(outer.match_indices("Autocrypt:").count(), 1);
+        assert_eq!(outer.match_indices("Chat-User-Avatar:").count(), 0);
+
+        assert_eq!(inner.match_indices("text/plain").count(), 1);
+        assert_eq!(inner.match_indices("Chat-User-Avatar:").count(), 1);
+        assert_eq!(inner.match_indices("Subject:").count(), 0);
+
+        assert_eq!(body.match_indices("this is the text!").count(), 1);
+
+        // if another message is sent, that one must not contain the avatar
+        // and no artificial multipart/mixed nesting
+        let payload = t.send_msg(chat.id, &mut msg).await.payload();
+        let mut payload = payload.splitn(2, "\r\n\r\n");
+        let outer = payload.next().unwrap();
+        let body = payload.next().unwrap();
+
+        assert_eq!(outer.match_indices("text/plain").count(), 1);
+        assert_eq!(outer.match_indices("Subject:").count(), 1);
+        assert_eq!(outer.match_indices("Autocrypt:").count(), 1);
+        assert_eq!(outer.match_indices("multipart/mixed").count(), 0);
+        assert_eq!(outer.match_indices("Chat-User-Avatar:").count(), 0);
+
+        assert_eq!(body.match_indices("this is the text!").count(), 1);
+        assert_eq!(body.match_indices("text/plain").count(), 0);
+        assert_eq!(body.match_indices("Chat-User-Avatar:").count(), 0);
+        assert_eq!(body.match_indices("Subject:").count(), 0);
+
+        Ok(())
     }
 }
