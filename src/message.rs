@@ -2052,7 +2052,8 @@ pub async fn update_server_uid(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::ChatItem;
+    use crate::chat::{marknoticed_chat, ChatItem};
+    use crate::chatlist::Chatlist;
     use crate::constants::DC_CONTACT_ID_DEVICE;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils as test;
@@ -2608,5 +2609,141 @@ mod tests {
         // (mailing lists may also use `Sender:`-header)
         let chat = Chat::load_from_db(&bob, msg.chat_id).await.unwrap();
         assert_ne!(chat.typ, Chattype::Mailinglist);
+    }
+
+    #[async_std::test]
+    async fn test_markseen_msgs() -> anyhow::Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("this is the text!".to_string()));
+
+        // alice sends to bob,
+        // bob does not know alice yet and messages go to bob's deaddrop
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
+        bob.recv_msg(&alice.send_msg(alice_chat.id, &mut msg).await)
+            .await;
+        let msg1 = bob.get_last_msg().await;
+        bob.recv_msg(&alice.send_msg(alice_chat.id, &mut msg).await)
+            .await;
+        let msg2 = bob.get_last_msg().await;
+        assert_eq!(msg1.chat_id, msg2.chat_id);
+        assert_ne!(msg1.chat_id, DC_CHAT_ID_DEADDROP);
+        let chats = Chatlist::try_load(&bob, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
+        let msgs = chat::get_chat_msgs(&bob, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(bob.get_fresh_msgs().await?.len(), 0);
+
+        // that has no effect in deaddrop
+        markseen_msgs(&bob, vec![msg1.id, msg2.id]).await;
+
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
+        let msgs = chat::get_chat_msgs(&bob, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        assert_eq!(msgs.len(), 2);
+        let bob_chat_id =
+            decide_on_contact_request(&bob, msg2.get_id(), ContactRequestDecision::StartChat)
+                .await
+                .unwrap();
+
+        // bob sends to alice,
+        // alice knows bob and messages appear in normal chat
+        alice
+            .recv_msg(&bob.send_msg(bob_chat_id, &mut msg).await)
+            .await;
+        let msg1 = alice.get_last_msg().await;
+        alice
+            .recv_msg(&bob.send_msg(bob_chat_id, &mut msg).await)
+            .await;
+        let msg2 = alice.get_last_msg().await;
+        let chats = Chatlist::try_load(&alice, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), alice_chat.id);
+        assert_eq!(chats.get_chat_id(0), msg1.chat_id);
+        assert_eq!(chats.get_chat_id(0), msg2.chat_id);
+        assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 2);
+        assert_eq!(alice.get_fresh_msgs().await?.len(), 2);
+
+        // no message-ids, that should have no effect
+        markseen_msgs(&alice, vec![]).await;
+
+        // bad message-id, that should have no effect
+        markseen_msgs(&alice, vec![MsgId::new(123456)]).await;
+
+        assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 2);
+        assert_eq!(alice.get_fresh_msgs().await?.len(), 2);
+
+        // mark the most recent as seen
+        markseen_msgs(&alice, vec![msg2.id]).await;
+
+        assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 1);
+        assert_eq!(alice.get_fresh_msgs().await?.len(), 1);
+
+        // user scrolled up - mark both as seen
+        markseen_msgs(&alice, vec![msg1.id, msg2.id]).await;
+
+        assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 0);
+        assert_eq!(alice.get_fresh_msgs().await?.len(), 0);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_get_state() -> anyhow::Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        // check both get_state() functions,
+        // the one requiring a id and the one requiring an object
+        async fn assert_state(t: &Context, msg_id: MsgId, state: MessageState) {
+            assert_eq!(msg_id.get_state(t).await.unwrap(), state);
+            assert_eq!(
+                Message::load_from_db(t, msg_id).await.unwrap().get_state(),
+                state
+            );
+        }
+
+        // check outgoing messages states on sender side
+        let mut alice_msg = Message::new(Viewtype::Text);
+        alice_msg.set_text(Some("hi!".to_string()));
+        assert_eq!(alice_msg.get_state(), MessageState::Undefined); // message not yet in db, assert_state() won't work
+
+        alice_chat
+            .id
+            .set_draft(&alice, Some(&mut alice_msg))
+            .await?;
+        let mut alice_msg = alice_chat.id.get_draft(&alice).await?.unwrap();
+        assert_state(&alice, alice_msg.id, MessageState::OutDraft).await;
+
+        let msg_id = chat::send_msg(&alice, alice_chat.id, &mut alice_msg).await?;
+        assert_eq!(msg_id, alice_msg.id);
+        assert_state(&alice, alice_msg.id, MessageState::OutPending).await;
+
+        let payload = alice.pop_sent_msg().await;
+        assert_state(&alice, alice_msg.id, MessageState::OutDelivered).await;
+
+        update_msg_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await;
+        assert_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await;
+
+        set_msg_failed(&alice, alice_msg.id, Some("badly failed")).await;
+        assert_state(&alice, alice_msg.id, MessageState::OutFailed).await;
+
+        // check incoming message states on receiver side
+        bob.recv_msg(&payload).await;
+        let bob_msg = bob.get_last_msg().await;
+        assert_eq!(bob_chat.id, bob_msg.chat_id);
+        assert_state(&bob, bob_msg.id, MessageState::InFresh).await;
+
+        marknoticed_chat(&bob, bob_msg.chat_id).await?;
+        assert_state(&bob, bob_msg.id, MessageState::InNoticed).await;
+
+        markseen_msgs(&bob, vec![bob_msg.id]).await;
+        assert_state(&bob, bob_msg.id, MessageState::InSeen).await;
+
+        Ok(())
     }
 }
