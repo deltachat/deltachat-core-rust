@@ -635,7 +635,6 @@ impl Job {
                 // Hidden messages are similar to trashed, but are
                 // related to some chat. We also delete their
                 // database records.
-                info!(context, "verbose (issue 2335): will delete from db");
                 job_try!(msg.id.delete_from_db(context).await)
             } else {
                 // Remove server UID from the database record.
@@ -646,7 +645,6 @@ impl Job {
                 // we remove UID to reduce the number of messages
                 // pointing to the corresponding UID. Once the counter
                 // reaches zero, we will remove the message.
-                info!(context, "verbose (issue 2335): will unlink");
                 job_try!(msg.id.unlink(context).await);
             }
             Status::Finished(Ok(()))
@@ -1032,7 +1030,6 @@ pub(crate) enum Connection<'a> {
 
 async fn load_imap_deletion_job(context: &Context) -> sql::Result<Option<Job>> {
     let res = if let Some(msg_id) = load_imap_deletion_msgid(context).await? {
-        info!(context, "verbose (issue 2335): loading imap deletion job");
         Some(Job::new(
             Action::DeleteMsgOnImap,
             msg_id.to_u32(),
@@ -1142,7 +1139,7 @@ async fn perform_job_action(
 ) -> Status {
     info!(
         context,
-        "{} begin immediate try {} of job {:?} - verbose (issue 2335)", &connection, tries, job
+        "{} begin immediate try {} of job {}", &connection, tries, job
     );
 
     let try_res = match job.action {
@@ -1401,14 +1398,9 @@ LIMIT 1;
                         .unwrap_or_default()
                         .or(Some(job))
                 } else {
-                    info!(context, "verbose (issue 2335): executing job normally");
                     Some(job)
                 }
             } else if let Some(job) = load_imap_deletion_job(context).await.unwrap_or_default() {
-                info!(
-                    context,
-                    "verbose (issue 2335): loaded imap deletion job (no others queued)"
-                );
                 Some(job)
             } else {
                 load_housekeeping_job(context).await
