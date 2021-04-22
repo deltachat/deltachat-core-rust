@@ -114,8 +114,10 @@ jobs:
 
     - name: check
       uses: actions-rs/cargo@v1
+      env:
+        RUSTFLAGS: -D warnings
       with:
-        command:  check
+        command: check
         args: --all --bins --examples --tests --features repl
 
     - name: tests
