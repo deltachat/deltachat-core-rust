@@ -1505,8 +1505,7 @@ pub unsafe extern "C" fn dc_delete_msgs(
     let ctx = &*context;
     let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
 
-    block_on(message::delete_msgs(&ctx, &msg_ids));
-    info!(&ctx, "verbose (issue 2335): ffi called dc_delete_msgs()");
+    block_on(message::delete_msgs(&ctx, &msg_ids))
 }
 
 #[no_mangle]
