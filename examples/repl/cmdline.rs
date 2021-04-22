@@ -602,7 +602,10 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "Failed to select chat");
             let sel_chat = sel_chat.as_ref().unwrap();
 
+            let time_start = std::time::SystemTime::now();
             let msglist = chat::get_chat_msgs(&context, sel_chat.get_id(), 0x1, None).await?;
+            let time_needed = time_start.elapsed().unwrap_or_default();
+
             let msglist: Vec<MsgId> = msglist
                 .into_iter()
                 .map(|x| match x {
@@ -657,7 +660,15 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 "{} messages.",
                 sel_chat.get_id().get_msg_cnt(&context).await?
             );
+
+            let time_noticed_start = std::time::SystemTime::now();
             chat::marknoticed_chat(&context, sel_chat.get_id()).await?;
+            let time_noticed_needed = time_noticed_start.elapsed().unwrap_or_default();
+
+            println!(
+                "{:?} to create this list, {:?} to mark all messages as noticed.",
+                time_needed, time_noticed_needed
+            );
         }
         "createchat" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
