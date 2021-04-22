@@ -3937,4 +3937,98 @@ mod tests {
             2
         );
     }
+
+    #[async_std::test]
+    async fn test_marknoticed_chat() -> anyhow::Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat = t.create_chat_with_contact("bob", "bob@example.org").await;
+
+        dc_receive_imf(
+            &t,
+            b"From: bob@example.org\n\
+                 To: alice@example.com\n\
+                 Message-ID: <1@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Fri, 23 Apr 2021 10:00:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), chat.id);
+        assert_ne!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
+        assert_eq!(chat.id.get_fresh_msg_cnt(&t).await?, 1);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 1);
+
+        let msgs = get_chat_msgs(&t, chat.id, 0, None).await?;
+        assert_eq!(msgs.len(), 1);
+        let msg_id = match msgs.first().unwrap() {
+            ChatItem::Message { msg_id } => *msg_id,
+            _ => MsgId::new_unset(),
+        };
+        let msg = message::Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.state, MessageState::InFresh);
+
+        marknoticed_chat(&t, chat.id).await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        let msg = message::Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.state, MessageState::InNoticed);
+        assert_eq!(chat.id.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 0);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_marknoticed_deaddrop_chat() -> anyhow::Result<()> {
+        let t = TestContext::new_alice().await;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 0);
+
+        dc_receive_imf(
+            &t,
+            b"From: bob@example.org\n\
+                 To: alice@example.com\n\
+                 Message-ID: <1@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
+        let msgs = get_chat_msgs(&t, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        assert_eq!(msgs.len(), 1);
+        let msg_id = match msgs.first().unwrap() {
+            ChatItem::Message { msg_id } => *msg_id,
+            _ => MsgId::new_unset(),
+        };
+        let msg = message::Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.state, MessageState::InFresh);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 0); // deaddrop is excluded from global badge
+
+        marknoticed_chat(&t, DC_CHAT_ID_DEADDROP).await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 0);
+        let msg = message::Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.state, MessageState::InNoticed);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 0);
+
+        Ok(())
+    }
 }
