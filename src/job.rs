@@ -1118,7 +1118,7 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
             if let Err(err) = res {
                 warn!(
                     context,
-                    "{} removes job {} as it failed with error {:?}", &connection, job, err
+                    "{} removes job {} as it failed with error {:#}", &connection, job, err
                 );
             } else {
                 info!(

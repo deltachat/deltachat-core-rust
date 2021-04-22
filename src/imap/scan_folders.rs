@@ -61,14 +61,8 @@ impl Imap {
                 spam_folder = Some(folder.name().to_string());
             }
 
-            if watched_folders.contains(&foldername.to_string()) {
-                info!(
-                    context,
-                    "Not scanning folder {} as it is watched anyway", foldername
-                );
-            } else {
-                info!(context, "Scanning folder: {}", foldername);
-
+            // Don't scan folders that are watched anyway
+            if !watched_folders.contains(&foldername.to_string()) {
                 if let Err(e) = self.fetch_new_messages(context, foldername, false).await {
                     warn!(context, "Can't fetch new msgs in scanned folder: {:#}", e);
                 }
