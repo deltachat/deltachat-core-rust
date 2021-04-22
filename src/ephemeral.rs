@@ -66,7 +66,6 @@ use async_std::task;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
-use crate::chat::{lookup_by_contact_id, send_msg, ChatId};
 use crate::constants::{
     Viewtype, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF,
 };
@@ -77,6 +76,10 @@ use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::sql;
 use crate::stock_str;
+use crate::{
+    chat::{lookup_by_contact_id, send_msg, ChatId},
+    job,
+};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum Timer {
@@ -490,10 +493,12 @@ pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<O
          OR (ephemeral_timestamp != 0 AND ephemeral_timestamp <= ?) \
          ) \
          AND server_uid != 0 \
+         AND NOT id IN (SELECT foreign_id FROM jobs WHERE action = ?)
          LIMIT 1",
             )
             .bind(threshold_timestamp)
-            .bind(now),
+            .bind(now)
+            .bind(job::Action::DeleteMsgOnImap),
         )
         .await?;
 
