@@ -542,6 +542,7 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> sql::Result<()>
 
 #[cfg(test)]
 mod tests {
+    use crate::param::Params;
     use async_std::task::sleep;
 
     use super::*;
@@ -763,7 +764,31 @@ mod tests {
 
         sleep(Duration::from_millis(1100)).await;
 
+        // Check checks that the msg was deleted locally
         check_msg_was_deleted(&t, &chat, msg.sender_msg_id).await;
+
+        // Check that the msg will be deleted on the server
+        // First of all, set a server_uid so that DC thinks that it's actually possible to delete
+        t.sql
+            .execute(sqlx::query("UPDATE msgs SET server_uid=1 WHERE id=?").bind(msg.sender_msg_id))
+            .await
+            .unwrap();
+        let job = job::load_imap_deletion_job(&t).await.unwrap();
+        assert_eq!(
+            job,
+            Some(job::Job::new(
+                job::Action::DeleteMsgOnImap,
+                msg.sender_msg_id.to_u32(),
+                Params::new(),
+                0,
+            ))
+        );
+        // Let's assume that executing the job fails on first try and the job is saved to the db
+        job.unwrap().save(&t).await.unwrap();
+
+        // Make sure that we don't get yet another job when loading from db
+        let job2 = job::load_imap_deletion_job(&t).await.unwrap();
+        assert_eq!(job2, None);
     }
 
     async fn check_msg_was_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
