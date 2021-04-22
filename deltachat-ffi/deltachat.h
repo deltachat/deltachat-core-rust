@@ -1078,9 +1078,9 @@ int             dc_estimate_deletion_cnt    (dc_context_t* context, int from_ser
  * or badge counters eg. on the app-icon.
  * The list is already sorted and starts with the most recent fresh message.
  *
- * Messages belonging to muted chats are not returned,
- * as they should not be notified
- * and also a badge counters should not include messages of muted chats.
+ * Messages belonging to muted chats or to the deaddrop are not returned;
+ * these messages should not be notified
+ * and also badge counters should not include these messages.
  *
  * To get the number of fresh messages for a single chat, muted or not,
  * use dc_get_fresh_msg_cnt().
@@ -1104,7 +1104,8 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
- * @param chat_id The chat ID of which all messages should be marked as being noticed.
+ * @param chat_id The chat ID of which all messages should be marked as being noticed
+ *     (this also works for the virtual chat ID DC_CHAT_ID_DEADDROP).
  */
 void            dc_marknoticed_chat          (dc_context_t* context, uint32_t chat_id);
 

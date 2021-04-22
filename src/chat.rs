@@ -1987,7 +1987,33 @@ pub(crate) async fn marknoticed_chat_if_older_than(
 }
 
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), Error> {
+    // for the virtual deaddrop chat-id,
+    // mark all messages that will appear in the deaddrop as noticed
+    if chat_id.is_deaddrop() {
+        if context
+            .sql
+            .execute(
+                "UPDATE msgs
+                        SET state=?1
+                      WHERE state=?2
+                        AND hidden=0
+                        AND chat_id IN (SELECT id FROM chats WHERE blocked=?3);",
+                paramsv![
+                    MessageState::InNoticed,
+                    MessageState::InFresh,
+                    Blocked::Deaddrop
+                ],
+            )
+            .await?
+            > 0
+        {
+            context.emit_event(EventType::MsgsNoticed(chat_id));
+        }
+        return Ok(());
+    }
+
     // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
+    // the additional SELECT statement may speed up things as no write-blocking is needed.
     let exists = context
         .sql
         .exists(
