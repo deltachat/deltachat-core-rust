@@ -3465,7 +3465,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.5.2"
-source = "git+https://github.com/deltachat/sqlx?branch=master#7a3c367a94902edc92ed58914301052a0a9ac466"
+source = "git+https://github.com/deltachat/sqlx?branch=master#36ebc7a5f7d34efc539766a8a3693513b85bef29"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -3474,7 +3474,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.5.2"
-source = "git+https://github.com/deltachat/sqlx?branch=master#7a3c367a94902edc92ed58914301052a0a9ac466"
+source = "git+https://github.com/deltachat/sqlx?branch=master#36ebc7a5f7d34efc539766a8a3693513b85bef29"
 dependencies = [
  "ahash 0.7.2",
  "atoi",
@@ -3512,7 +3512,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.5.2"
-source = "git+https://github.com/deltachat/sqlx?branch=master#7a3c367a94902edc92ed58914301052a0a9ac466"
+source = "git+https://github.com/deltachat/sqlx?branch=master#36ebc7a5f7d34efc539766a8a3693513b85bef29"
 dependencies = [
  "dotenv",
  "either",
@@ -3530,7 +3530,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.5.2"
-source = "git+https://github.com/deltachat/sqlx?branch=master#7a3c367a94902edc92ed58914301052a0a9ac466"
+source = "git+https://github.com/deltachat/sqlx?branch=master#36ebc7a5f7d34efc539766a8a3693513b85bef29"
 dependencies = [
  "async-native-tls",
  "async-std",
