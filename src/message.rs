@@ -1545,21 +1545,18 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
             continue;
         }
 
-        if curr_blocked == Blocked::Not {
-            if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
-                update_msg_state(context, id, MessageState::InSeen).await;
-                info!(context, "Seen message {}.", id);
+        if curr_blocked == Blocked::Not
+            && (curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed)
+        {
+            update_msg_state(context, id, MessageState::InSeen).await;
+            info!(context, "Seen message {}.", id);
 
-                job::add(
-                    context,
-                    job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
-                )
-                .await;
-                updated_chat_ids.insert(curr_chat_id, true);
-            }
-        } else if curr_state == MessageState::InFresh {
-            update_msg_state(context, id, MessageState::InNoticed).await;
-            updated_chat_ids.insert(DC_CHAT_ID_DEADDROP, true);
+            job::add(
+                context,
+                job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
+            )
+            .await;
+            updated_chat_ids.insert(curr_chat_id, true);
         }
     }
 
