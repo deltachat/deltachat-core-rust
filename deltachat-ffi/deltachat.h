@@ -1594,13 +1594,22 @@ void            dc_marknoticed_contact       (dc_context_t* context, uint32_t co
 
 
 /**
- * Mark a message as _seen_, updates the IMAP state and
- * sends MDNs. If the message is not in a real chat (e.g. a contact request), the
- * message is only marked as NOTICED and no IMAP/MDNs is done.  See also
- * dc_marknoticed_chat().
+ * Mark messages as presented to the user.
+ * Typically, UIs call this function on scrolling through the chatlist,
+ * when the messages are presented at least for a little moment.
+ * The concrete action depends on the type of the chat and on the users settings
+ * (dc_msgs_presented() may be a better name therefore, but well :)
  *
- * Moreover, if messages belong to a chat with ephemeral messages enabled,
- * the ephemeral timer is started for these messages.
+ * - For normal chats, the IMAP state is updated, MDN is sent
+ *   (if dc_set_config()-options `mdns_enabled` is set)
+ *   and the internal state is changed to DC_STATE_IN_SEEN to reflect these actions.
+ *
+ * - For the deaddrop, no IMAP or MNDs is done
+ *   and the internal change is not changed therefore.
+ *   See also dc_marknoticed_chat().
+ *
+ * Moreover, timer is started for incoming ephemeral messages.
+ * This also happens for messages in the deaddrop.
  *
  * One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.
  *
