@@ -755,7 +755,7 @@ mod test {
         let t = TestContext::new().await;
 
         let avatar_src = t.dir.path().join("avatar.png");
-        let avatar_bytes = include_bytes!("../../test-data/image/avatar64x64.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
         File::create(&avatar_src)
             .await
             .unwrap()
