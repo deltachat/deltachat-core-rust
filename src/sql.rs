@@ -792,4 +792,48 @@ mod test {
         let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
     }
+
+    /// Regression test.
+    ///
+    /// Previously the code checking for existence of `config` table
+    /// checked it with `PRAGMA table_info("config")` but did not
+    /// drain `SqlitePool.fetch` result, only using the first row
+    /// returned. As a result, prepared statement for `PRAGMA` was not
+    /// finalized early enough, leaving reader connection in a broken
+    /// state after reopening the database, when `config` table
+    /// existed and `PRAGMA` returned non-empty result.
+    ///
+    /// Statements were not finalized due to a bug in sqlx:
+    /// https://github.com/launchbadge/sqlx/issues/1147
+    #[async_std::test]
+    async fn test_db_reopen() -> Result<()> {
+        use tempfile::tempdir;
+
+        // The context is used only for logging.
+        let t = TestContext::new().await;
+
+        // Create a separate empty database for testing.
+        let dir = tempdir()?;
+        let dbfile = dir.path().join("testdb.sqlite");
+        let sql = Sql::new();
+
+        // Create database with all the tables.
+        sql.open(&t, &dbfile, false).await.unwrap();
+        sql.close().await;
+
+        // Reopen the database
+        sql.open(&t, &dbfile, false).await?;
+        sql.execute(
+            "INSERT INTO config (keyname, value) VALUES (?, ?);",
+            paramsv!("foo", "bar"),
+        )
+        .await?;
+
+        let value: Option<String> = sql
+            .query_get_value("SELECT value FROM config WHERE keyname=?;", paramsv!("foo"))
+            .await?;
+        assert_eq!(value.unwrap(), "bar");
+
+        Ok(())
+    }
 }
