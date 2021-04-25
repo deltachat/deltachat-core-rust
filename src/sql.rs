@@ -124,9 +124,12 @@ impl Sql {
         *self.pool.write().await = Some(Self::new_pool(dbfile.as_ref(), readonly)?);
 
         if !readonly {
-            // journal_mode is persisted, it is sufficient to change it only for one handle.
             self.with_conn(move |conn| {
+                // journal_mode is persisted, it is sufficient to change it only for one handle.
                 conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
+
+                // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
+                conn.pragma_update(None, "synchronous", &"NORMAL".to_string())?;
                 Ok(())
             })
             .await?;
