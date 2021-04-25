@@ -64,7 +64,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::{ensure, Context as _, Error};
 use async_std::task;
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 
 use crate::constants::{
     Viewtype, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF,
@@ -124,41 +123,28 @@ impl FromStr for Timer {
     }
 }
 
-impl sqlx::Type<sqlx::Sqlite> for Timer {
-    fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
-        <i64 as sqlx::Type<_>>::type_info()
-    }
-
-    fn compatible(ty: &sqlx::sqlite::SqliteTypeInfo) -> bool {
-        <i64 as sqlx::Type<_>>::compatible(ty)
-    }
-}
-
-impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for Timer {
-    fn encode_by_ref(
-        &self,
-        args: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>,
-    ) -> sqlx::encode::IsNull {
-        args.push(sqlx::sqlite::SqliteArgumentValue::Int64(
-            self.to_u32() as i64
-        ));
-
-        sqlx::encode::IsNull::No
+impl rusqlite::types::ToSql for Timer {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        let val = rusqlite::types::Value::Integer(match self {
+            Self::Disabled => 0,
+            Self::Enabled { duration } => i64::from(*duration),
+        });
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
     }
 }
 
-impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for Timer {
-    fn decode(value: sqlx::sqlite::SqliteValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
-        let value: i64 = sqlx::Decode::decode(value)?;
-        if value == 0 {
-            Ok(Self::Disabled)
-        } else if let Ok(duration) = u32::try_from(value) {
-            Ok(Self::Enabled { duration })
-        } else {
-            Err(Box::new(sqlx::Error::Decode(Box::new(
-                crate::error::OutOfRangeError,
-            ))))
-        }
+impl rusqlite::types::FromSql for Timer {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        i64::column_result(value).and_then(|value| {
+            if value == 0 {
+                Ok(Self::Disabled)
+            } else if let Ok(duration) = u32::try_from(value) {
+                Ok(Self::Enabled { duration })
+            } else {
+                Err(rusqlite::types::FromSqlError::OutOfRange(value))
+            }
+        })
     }
 }
 
@@ -168,7 +154,8 @@ impl ChatId {
         let timer = context
             .sql
             .query_get_value(
-                sqlx::query("SELECT ephemeral_timer FROM chats WHERE id=?;").bind(self),
+                "SELECT ephemeral_timer FROM chats WHERE id=?;",
+                paramsv![self],
             )
             .await?;
         Ok(timer.unwrap_or_default())
@@ -188,13 +175,10 @@ impl ChatId {
         context
             .sql
             .execute(
-                sqlx::query(
-                    "UPDATE chats
+                "UPDATE chats
              SET ephemeral_timer=?
              WHERE id=?;",
-                )
-                .bind(timer)
-                .bind(self),
+                paramsv![timer, self],
             )
             .await?;
 
@@ -233,45 +217,44 @@ pub(crate) async fn stock_ephemeral_timer_changed(
     from_id: u32,
 ) -> String {
     match timer {
-        Timer::Disabled => stock_str::msg_ephemeral_timer_disabled(context, from_id as u32).await,
+        Timer::Disabled => stock_str::msg_ephemeral_timer_disabled(context, from_id).await,
         Timer::Enabled { duration } => match duration {
             0..=59 => {
-                stock_str::msg_ephemeral_timer_enabled(context, timer.to_string(), from_id as u32)
-                    .await
+                stock_str::msg_ephemeral_timer_enabled(context, timer.to_string(), from_id).await
             }
-            60 => stock_str::msg_ephemeral_timer_minute(context, from_id as u32).await,
+            60 => stock_str::msg_ephemeral_timer_minute(context, from_id).await,
             61..=3599 => {
                 stock_str::msg_ephemeral_timer_minutes(
                     context,
                     format!("{}", (f64::from(duration) / 6.0).round() / 10.0),
-                    from_id as u32,
+                    from_id,
                 )
                 .await
             }
-            3600 => stock_str::msg_ephemeral_timer_hour(context, from_id as u32).await,
+            3600 => stock_str::msg_ephemeral_timer_hour(context, from_id).await,
             3601..=86399 => {
                 stock_str::msg_ephemeral_timer_hours(
                     context,
                     format!("{}", (f64::from(duration) / 360.0).round() / 10.0),
-                    from_id as u32,
+                    from_id,
                 )
                 .await
             }
-            86400 => stock_str::msg_ephemeral_timer_day(context, from_id as u32).await,
+            86400 => stock_str::msg_ephemeral_timer_day(context, from_id).await,
             86401..=604_799 => {
                 stock_str::msg_ephemeral_timer_days(
                     context,
                     format!("{}", (f64::from(duration) / 8640.0).round() / 10.0),
-                    from_id as u32,
+                    from_id,
                 )
                 .await
             }
-            604_800 => stock_str::msg_ephemeral_timer_week(context, from_id as u32).await,
+            604_800 => stock_str::msg_ephemeral_timer_week(context, from_id).await,
             _ => {
                 stock_str::msg_ephemeral_timer_weeks(
                     context,
                     format!("{}", (f64::from(duration) / 60480.0).round() / 10.0),
-                    from_id as u32,
+                    from_id,
                 )
                 .await
             }
@@ -284,15 +267,14 @@ impl MsgId {
     pub(crate) async fn ephemeral_timer(self, context: &Context) -> anyhow::Result<Timer> {
         let res = match context
             .sql
-            .query_get_value::<_, i64>(
-                sqlx::query("SELECT ephemeral_timer FROM msgs WHERE id=?").bind(self),
+            .query_get_value(
+                "SELECT ephemeral_timer FROM msgs WHERE id=?",
+                paramsv![self],
             )
             .await?
         {
             None | Some(0) => Timer::Disabled,
-            Some(duration) => Timer::Enabled {
-                duration: u32::try_from(duration)?,
-            },
+            Some(duration) => Timer::Enabled { duration },
         };
         Ok(res)
     }
@@ -305,14 +287,10 @@ impl MsgId {
             context
                 .sql
                 .execute(
-                    sqlx::query(
-                        "UPDATE msgs SET ephemeral_timestamp = ? \
+                    "UPDATE msgs SET ephemeral_timestamp = ? \
                 WHERE (ephemeral_timestamp == 0 OR ephemeral_timestamp > ?) \
                 AND id = ?",
-                    )
-                    .bind(ephemeral_timestamp)
-                    .bind(ephemeral_timestamp)
-                    .bind(self),
+                    paramsv![ephemeral_timestamp, ephemeral_timestamp, self],
                 )
                 .await?;
             schedule_ephemeral_task(context).await;
@@ -333,10 +311,9 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, E
     let mut updated = context
         .sql
         .execute(
-            sqlx::query(
-                // If you change which information is removed here, also change MsgId::trash() and
-                // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
-                r#"
+            // If you change which information is removed here, also change MsgId::trash() and
+            // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
+            r#"
 UPDATE msgs
 SET 
   chat_id=?, txt='', subject='', txt_raw='', 
@@ -346,10 +323,7 @@ WHERE
   AND ephemeral_timestamp <= ?
   AND chat_id != ?
 "#,
-            )
-            .bind(DC_CHAT_ID_TRASH)
-            .bind(time())
-            .bind(DC_CHAT_ID_TRASH),
+            paramsv![DC_CHAT_ID_TRASH, time(), DC_CHAT_ID_TRASH],
         )
         .await
         .context("update failed")?
@@ -374,19 +348,19 @@ WHERE
         let rows_modified = context
             .sql
             .execute(
-                sqlx::query(
-                    "UPDATE msgs \
+                "UPDATE msgs \
              SET txt = 'DELETED', chat_id = ? \
              WHERE timestamp < ? \
              AND chat_id > ? \
              AND chat_id != ? \
              AND chat_id != ?",
-                )
-                .bind(DC_CHAT_ID_TRASH)
-                .bind(threshold_timestamp)
-                .bind(DC_CHAT_ID_LAST_SPECIAL)
-                .bind(self_chat_id)
-                .bind(device_chat_id),
+                paramsv![
+                    DC_CHAT_ID_TRASH,
+                    threshold_timestamp,
+                    DC_CHAT_ID_LAST_SPECIAL,
+                    self_chat_id,
+                    device_chat_id
+                ],
             )
             .await
             .context("deleted update failed")?;
@@ -412,8 +386,7 @@ pub async fn schedule_ephemeral_task(context: &Context) {
     let ephemeral_timestamp: Option<i64> = match context
         .sql
         .query_get_value(
-            sqlx::query(
-                r#"
+            r#"
     SELECT ephemeral_timestamp
     FROM msgs
     WHERE ephemeral_timestamp != 0
@@ -421,8 +394,7 @@ pub async fn schedule_ephemeral_task(context: &Context) {
     ORDER BY ephemeral_timestamp ASC
     LIMIT 1;
     "#,
-            )
-            .bind(DC_CHAT_ID_TRASH), // Trash contains already deleted messages, skip them
+            paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
         )
         .await
     {
@@ -475,7 +447,7 @@ pub async fn schedule_ephemeral_task(context: &Context) {
 ///
 /// It looks up the trash chat too, to find messages that are already
 /// deleted locally, but not deleted on the server.
-pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<Option<MsgId>> {
+pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> anyhow::Result<Option<MsgId>> {
     let now = time();
 
     let threshold_timestamp = match context.get_config_delete_server_after().await? {
@@ -483,11 +455,10 @@ pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<O
         Some(delete_server_after) => now - delete_server_after,
     };
 
-    let row = context
+    context
         .sql
-        .fetch_optional(
-            sqlx::query(
-                "SELECT id FROM msgs \
+        .query_row_optional(
+            "SELECT id FROM msgs \
          WHERE ( \
          timestamp < ? \
          OR (ephemeral_timestamp != 0 AND ephemeral_timestamp <= ?) \
@@ -495,19 +466,13 @@ pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<O
          AND server_uid != 0 \
          AND NOT id IN (SELECT foreign_id FROM jobs WHERE action = ?)
          LIMIT 1",
-            )
-            .bind(threshold_timestamp)
-            .bind(now)
-            .bind(job::Action::DeleteMsgOnImap),
+            paramsv![threshold_timestamp, now, job::Action::DeleteMsgOnImap],
+            |row| {
+                let msg_id: MsgId = row.get(0)?;
+                Ok(msg_id)
+            },
         )
-        .await?;
-
-    if let Some(row) = row {
-        let msg_id = row.try_get(0)?;
-        Ok(Some(msg_id))
-    } else {
-        Ok(None)
-    }
+        .await
 }
 
 /// Start ephemeral timers for seen messages if they are not started
@@ -523,17 +488,17 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> sql::Result<()>
     context
         .sql
         .execute(
-            sqlx::query(
-                "UPDATE msgs \
+            "UPDATE msgs \
     SET ephemeral_timestamp = ? + ephemeral_timer \
     WHERE ephemeral_timer > 0 \
     AND ephemeral_timestamp = 0 \
     AND state NOT IN (?, ?, ?)",
-            )
-            .bind(time())
-            .bind(MessageState::InFresh)
-            .bind(MessageState::InNoticed)
-            .bind(MessageState::OutDraft),
+            paramsv![
+                time(),
+                MessageState::InFresh,
+                MessageState::InNoticed,
+                MessageState::OutDraft
+            ],
         )
         .await?;
 
@@ -770,7 +735,10 @@ mod tests {
         // Check that the msg will be deleted on the server
         // First of all, set a server_uid so that DC thinks that it's actually possible to delete
         t.sql
-            .execute(sqlx::query("UPDATE msgs SET server_uid=1 WHERE id=?").bind(msg.sender_msg_id))
+            .execute(
+                "UPDATE msgs SET server_uid=1 WHERE id=?",
+                paramsv![msg.sender_msg_id],
+            )
             .await
             .unwrap();
         let job = job::load_imap_deletion_job(&t).await.unwrap();
@@ -808,7 +776,7 @@ mod tests {
             assert!(msg.text.is_none_or_empty(), "{:?}", msg.text);
             let rawtxt: Option<String> = t
                 .sql
-                .query_get_value(sqlx::query("SELECT txt_raw FROM msgs WHERE id=?;").bind(msg_id))
+                .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
                 .await
                 .unwrap();
             assert!(rawtxt.is_none_or_empty(), "{:?}", rawtxt);

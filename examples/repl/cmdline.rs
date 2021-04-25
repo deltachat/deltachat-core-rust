@@ -34,7 +34,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 1 {
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM jobs;"))
+            .execute("DELETE FROM jobs;", paramsv![])
             .await
             .unwrap();
         println!("(1) Jobs reset.");
@@ -42,7 +42,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 2 {
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM acpeerstates;"))
+            .execute("DELETE FROM acpeerstates;", paramsv![])
             .await
             .unwrap();
         println!("(2) Peerstates reset.");
@@ -50,7 +50,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 4 {
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM keypairs;"))
+            .execute("DELETE FROM keypairs;", paramsv![])
             .await
             .unwrap();
         println!("(4) Private keypairs reset.");
@@ -58,34 +58,35 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 8 {
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM contacts WHERE id>9;"))
+            .execute("DELETE FROM contacts WHERE id>9;", paramsv![])
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM chats WHERE id>9;"))
+            .execute("DELETE FROM chats WHERE id>9;", paramsv![])
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM chats_contacts;"))
+            .execute("DELETE FROM chats_contacts;", paramsv![])
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM msgs WHERE id>9;"))
+            .execute("DELETE FROM msgs WHERE id>9;", paramsv![])
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query(
+            .execute(
                 "DELETE FROM config WHERE keyname LIKE 'imap.%' OR keyname LIKE 'configured%';",
-            ))
+                paramsv![],
+            )
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM leftgrps;"))
+            .execute("DELETE FROM leftgrps;", paramsv![])
             .await
             .unwrap();
         println!("(8) Rest but server config reset.");
@@ -602,7 +603,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "Failed to select chat");
             let sel_chat = sel_chat.as_ref().unwrap();
 
-            let msglist = chat::get_chat_msgs(&context, sel_chat.get_id(), 0x1, None).await?;
+            let msglist =
+                chat::get_chat_msgs(&context, sel_chat.get_id(), DC_GCM_ADDDAYMARKER, None).await?;
             let msglist: Vec<MsgId> = msglist
                 .into_iter()
                 .map(|x| match x {

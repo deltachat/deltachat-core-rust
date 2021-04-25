@@ -7,11 +7,10 @@ use std::{fmt, time::Duration};
 
 use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
 use async_smtp::smtp::response::{Category, Code, Detail};
-use async_std::prelude::*;
 use async_std::task::sleep;
+use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
-use sqlx::Row;
 
 use crate::dc_tools::{dc_delete_file, dc_read_file, time};
 use crate::ephemeral::load_imap_deletion_msgid;
@@ -37,7 +36,9 @@ use crate::{scheduler::InterruptInfo, sql};
 const JOB_RETRIES: u32 = 17;
 
 /// Thread IDs
-#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, sqlx::Type)]
+#[derive(
+    Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(u32)]
 pub(crate) enum Thread {
     Unknown = 0,
@@ -75,7 +76,17 @@ impl Default for Thread {
 }
 
 #[derive(
-    Debug, Display, Copy, Clone, PartialEq, Eq, PartialOrd, FromPrimitive, ToPrimitive, sqlx::Type,
+    Debug,
+    Display,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
 )]
 #[repr(u32)]
 pub enum Action {
@@ -173,7 +184,7 @@ impl Job {
         if self.job_id != 0 {
             context
                 .sql
-                .execute(sqlx::query("DELETE FROM jobs WHERE id=?;").bind(self.job_id as i32))
+                .execute("DELETE FROM jobs WHERE id=?;", paramsv![self.job_id as i32])
                 .await?;
         }
 
@@ -192,24 +203,26 @@ impl Job {
             context
                 .sql
                 .execute(
-                    sqlx::query(
-                        "UPDATE jobs SET desired_timestamp=?, tries=?, param=? WHERE id=?;",
-                    )
-                    .bind(self.desired_timestamp)
-                    .bind(self.tries as i64)
-                    .bind(self.param.to_string())
-                    .bind(self.job_id as i32),
+                    "UPDATE jobs SET desired_timestamp=?, tries=?, param=? WHERE id=?;",
+                    paramsv![
+                        self.desired_timestamp,
+                        self.tries as i64,
+                        self.param.to_string(),
+                        self.job_id as i32,
+                    ],
                 )
                 .await?;
         } else {
             context.sql.execute(
-                sqlx::query("INSERT INTO jobs (added_timestamp, thread, action, foreign_id, param, desired_timestamp) VALUES (?,?,?,?,?,?);")
-                    .bind(self.added_timestamp)
-                    .bind(thread)
-                    .bind(self.action)
-                    .bind(self.foreign_id)
-                    .bind(self.param.to_string())
-                    .bind(self.desired_timestamp)
+                "INSERT INTO jobs (added_timestamp, thread, action, foreign_id, param, desired_timestamp) VALUES (?,?,?,?,?,?);",
+                paramsv![
+                    self.added_timestamp,
+                    thread,
+                    self.action,
+                    self.foreign_id,
+                    self.param.to_string(),
+                    self.desired_timestamp
+                ]
             ).await?;
         }
 
@@ -419,30 +432,37 @@ impl Job {
         contact_id: u32,
     ) -> sql::Result<(Vec<u32>, Vec<String>)> {
         // Extract message IDs from job parameters
-        let mut rows = context
+        let res: Vec<(u32, MsgId)> = context
             .sql
-            .fetch(
-                sqlx::query("SELECT id, param FROM jobs WHERE foreign_id=? AND id!=?")
-                    .bind(contact_id)
-                    .bind(self.job_id),
+            .query_map(
+                "SELECT id, param FROM jobs WHERE foreign_id=? AND id!=?",
+                paramsv![contact_id, self.job_id],
+                |row| {
+                    let job_id: u32 = row.get(0)?;
+                    let params_str: String = row.get(1)?;
+                    let params: Params = params_str.parse().unwrap_or_default();
+                    Ok((job_id, params))
+                },
+                |jobs| {
+                    let res = jobs
+                        .filter_map(|row| {
+                            let (job_id, params) = row.ok()?;
+                            let msg_id = params.get_msg_id()?;
+                            Some((job_id, msg_id))
+                        })
+                        .collect();
+                    Ok(res)
+                },
             )
             .await?;
 
         // Load corresponding RFC724 message IDs
         let mut job_ids = Vec::new();
         let mut rfc724_mids = Vec::new();
-
-        while let Some(row) = rows.next().await {
-            let row = row?;
-            let job_id: u32 = row.try_get(0)?;
-            let params_str: String = row.try_get(1)?;
-            let params: Params = params_str.parse().unwrap_or_default();
-            if let Some(msg_id) = params.get_msg_id() {
-                if let Ok(Message { rfc724_mid, .. }) = Message::load_from_db(context, msg_id).await
-                {
-                    job_ids.push(job_id);
-                    rfc724_mids.push(rfc724_mid);
-                }
+        for (job_id, msg_id) in res {
+            if let Ok(Message { rfc724_mid, .. }) = Message::load_from_db(context, msg_id).await {
+                job_ids.push(job_id);
+                rfc724_mids.push(rfc724_mid);
             }
         }
         Ok((job_ids, rfc724_mids))
@@ -820,7 +840,7 @@ impl Job {
 pub async fn kill_action(context: &Context, action: Action) -> bool {
     context
         .sql
-        .execute(sqlx::query("DELETE FROM jobs WHERE action=?;").bind(action))
+        .execute("DELETE FROM jobs WHERE action=?;", paramsv![action])
         .await
         .is_ok()
 }
@@ -831,18 +851,20 @@ async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
         "DELETE FROM jobs WHERE id IN({})",
         job_ids.iter().map(|_| "?").join(",")
     );
-    let mut query = sqlx::query(&q);
-    for id in job_ids {
-        query = query.bind(*id);
-    }
-    context.sql.execute(query).await?;
+    context
+        .sql
+        .execute(q, job_ids.iter().map(|i| i as &dyn crate::ToSql).collect())
+        .await?;
     Ok(())
 }
 
 pub async fn action_exists(context: &Context, action: Action) -> bool {
     context
         .sql
-        .exists(sqlx::query("SELECT COUNT(*) FROM jobs WHERE action=?;").bind(action))
+        .exists(
+            "SELECT COUNT(*) FROM jobs WHERE action=?;",
+            paramsv![action],
+        )
         .await
         .unwrap_or_default()
 }
@@ -851,7 +873,7 @@ async fn set_delivered(context: &Context, msg_id: MsgId) -> Result<()> {
     message::update_msg_state(context, msg_id, MessageState::OutDelivered).await;
     let chat_id: ChatId = context
         .sql
-        .query_get_value(sqlx::query("SELECT chat_id FROM msgs WHERE id=?").bind(msg_id))
+        .query_get_value("SELECT chat_id FROM msgs WHERE id=?", paramsv![msg_id])
         .await?
         .unwrap_or_default();
     context.emit_event(EventType::MsgDelivered { chat_id, msg_id });
@@ -1282,77 +1304,65 @@ pub(crate) async fn load_next(
         sleep(Duration::from_millis(500)).await;
     }
 
+    let query;
+    let params;
     let t = time();
+    let m;
     let thread_i = thread as i64;
 
-    let get_query = || {
-        if let Some(msg_id) = info.msg_id {
-            sqlx::query(
-                r#"
+    if let Some(msg_id) = info.msg_id {
+        query = r#"
 SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
 FROM jobs
 WHERE thread=? AND foreign_id=?
 ORDER BY action DESC, added_timestamp
 LIMIT 1;
-"#,
-            )
-            .bind(thread_i)
-            .bind(msg_id)
-        } else if !info.probe_network {
-            // processing for first-try and after backoff-timeouts:
-            // process jobs in the order they were added.
-            sqlx::query(
-                r#"
+"#;
+        m = msg_id;
+        params = paramsv![thread_i, m];
+    } else if !info.probe_network {
+        // processing for first-try and after backoff-timeouts:
+        // process jobs in the order they were added.
+        query = r#"
 SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
 FROM jobs
 WHERE thread=? AND desired_timestamp<=?
 ORDER BY action DESC, added_timestamp
 LIMIT 1;
-"#,
-            )
-            .bind(thread_i)
-            .bind(t)
-        } else {
-            // processing after call to dc_maybe_network():
-            // process _all_ pending jobs that failed before
-            // in the order of their backoff-times.
-            sqlx::query(
-                r#"
+"#;
+        params = paramsv![thread_i, t];
+    } else {
+        // processing after call to dc_maybe_network():
+        // process _all_ pending jobs that failed before
+        // in the order of their backoff-times.
+        query = r#"
 SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
 FROM jobs
 WHERE thread=? AND tries>0
 ORDER BY desired_timestamp, action DESC
 LIMIT 1;
-"#,
-            )
-            .bind(thread_i)
-        }
+"#;
+        params = paramsv![thread_i];
     };
 
     let job = loop {
         let job_res = context
             .sql
-            .fetch_optional(get_query())
-            .await
-            .and_then(|row| {
-                if let Some(row) = row {
-                    Ok(Some(Job {
-                        job_id: row.try_get("id")?,
-                        action: row.try_get("action")?,
-                        foreign_id: row.try_get("foreign_id")?,
-                        desired_timestamp: row.try_get("desired_timestamp")?,
-                        added_timestamp: row.try_get("added_timestamp")?,
-                        tries: row.try_get::<i64, _>("tries")? as u32,
-                        param: row
-                            .try_get::<String, _>("param")?
-                            .parse()
-                            .unwrap_or_default(),
-                        pending_error: None,
-                    }))
-                } else {
-                    Ok(None)
-                }
-            });
+            .query_row_optional(query, params.clone(), |row| {
+                let job = Job {
+                    job_id: row.get("id")?,
+                    action: row.get("action")?,
+                    foreign_id: row.get("foreign_id")?,
+                    desired_timestamp: row.get("desired_timestamp")?,
+                    added_timestamp: row.get("added_timestamp")?,
+                    tries: row.get("tries")?,
+                    param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
+                    pending_error: None,
+                };
+
+                Ok(job)
+            })
+            .await;
 
         match job_res {
             Ok(job) => break job,
@@ -1363,14 +1373,13 @@ LIMIT 1;
                 // TODO: improve by only doing a single query
                 match context
                     .sql
-                    .fetch_one(get_query())
+                    .query_row(query, params.clone(), |row| row.get::<_, i32>(0))
                     .await
-                    .and_then(|row| row.try_get::<i32, _>(0).map_err(Into::into))
                 {
                     Ok(id) => {
                         if let Err(err) = context
                             .sql
-                            .execute(sqlx::query("DELETE FROM jobs WHERE id=?;").bind(id))
+                            .execute("DELETE FROM jobs WHERE id=?;", paramsv![id])
                             .await
                         {
                             warn!(context, "failed to delete job {}: {:?}", id, err);
@@ -1421,17 +1430,17 @@ mod tests {
         context
             .sql
             .execute(
-                sqlx::query(
-                    "INSERT INTO jobs
+                "INSERT INTO jobs
                    (added_timestamp, thread, action, foreign_id, param, desired_timestamp)
                  VALUES (?, ?, ?, ?, ?, ?);",
-                )
-                .bind(now)
-                .bind(Thread::from(Action::MoveMsg))
-                .bind(if valid { Action::MoveMsg as i32 } else { -1 })
-                .bind(foreign_id)
-                .bind(Params::new().to_string())
-                .bind(now),
+                paramsv![
+                    now,
+                    Thread::from(Action::MoveMsg),
+                    if valid { Action::MoveMsg as i32 } else { -1 },
+                    foreign_id,
+                    Params::new().to_string(),
+                    now
+                ],
             )
             .await
             .unwrap();
@@ -1451,7 +1460,7 @@ mod tests {
         )
         .await;
         // The housekeeping job should be loaded as we didn't run housekeeping in the last day:
-        assert!(jobs.unwrap().action == Action::Housekeeping);
+        assert_eq!(jobs.unwrap().action, Action::Housekeeping);
 
         insert_job(&t, 1, true).await;
         let jobs = load_next(

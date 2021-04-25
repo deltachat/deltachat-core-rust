@@ -1,10 +1,8 @@
 use std::convert::TryInto;
 
 use anyhow::{bail, ensure, format_err, Result};
-use async_std::prelude::*;
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
-use sqlx::Row;
 
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
@@ -115,42 +113,51 @@ impl<'a> MimeFactory<'a> {
         if chat.is_self_talk() {
             recipients.push((from_displayname.to_string(), from_addr.to_string()));
         } else {
-            let mut rows = context
+            context
                 .sql
-                .fetch(
-                    sqlx::query(
-                        "SELECT c.authname, c.addr  \
+                .query_map(
+                    "SELECT c.authname, c.addr  \
                  FROM chats_contacts cc  \
                  LEFT JOIN contacts c ON cc.contact_id=c.id  \
                  WHERE cc.chat_id=? AND cc.contact_id>9;",
-                    )
-                    .bind(msg.chat_id),
+                    paramsv![msg.chat_id],
+                    |row| {
+                        let authname: String = row.get(0)?;
+                        let addr: String = row.get(1)?;
+                        Ok((authname, addr))
+                    },
+                    |rows| {
+                        for row in rows {
+                            let (authname, addr) = row?;
+                            if !recipients_contain_addr(&recipients, &addr) {
+                                recipients.push((authname, addr));
+                            }
+                        }
+                        Ok(())
+                    },
                 )
                 .await?;
-            while let Some(row) = rows.next().await {
-                let row = row?;
-                let authname: String = row.try_get(0)?;
-                let addr: String = row.try_get(1)?;
-                if !recipients_contain_addr(&recipients, &addr) {
-                    recipients.push((authname, addr));
-                }
-            }
 
             if !msg.is_system_message() && context.get_config_bool(Config::MdnsEnabled).await? {
                 req_mdn = true;
             }
         }
-        let row = context
+        let (in_reply_to, references) = context
             .sql
-            .fetch_one(
-                sqlx::query("SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?")
-                    .bind(msg.id),
+            .query_row(
+                "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
+                paramsv![msg.id],
+                |row| {
+                    let in_reply_to: String = row.get(0)?;
+                    let references: String = row.get(1)?;
+
+                    Ok((
+                        render_rfc724_mid_list(&in_reply_to),
+                        render_rfc724_mid_list(&references),
+                    ))
+                },
             )
             .await?;
-        let (in_reply_to, references) = (
-            render_rfc724_mid_list(row.try_get(0)?),
-            render_rfc724_mid_list(row.try_get(1)?),
-        );
 
         let default_str = stock_str::status_line(context).await;
         let factory = MimeFactory {

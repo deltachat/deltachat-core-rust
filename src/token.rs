@@ -4,12 +4,16 @@
 //!
 //! Tokens are used in countermitm verification protocols.
 
+use deltachat_derive::{FromSql, ToSql};
+
 use crate::chat::ChatId;
 use crate::context::Context;
 use crate::dc_tools::{dc_create_id, time};
 
 /// Token namespace
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, sqlx::Type)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+)]
 #[repr(u32)]
 pub enum Namespace {
     Unknown = 0,
@@ -32,25 +36,16 @@ pub async fn save(context: &Context, namespace: Namespace, foreign_id: Option<Ch
         Some(foreign_id) => context
             .sql
             .execute(
-                sqlx::query(
-                    "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);"
-                )
-                    .bind(namespace)
-                    .bind(foreign_id)
-                    .bind(&token)
-                    .bind(time()),
+                "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
+                paramsv![namespace, foreign_id, token, time()],
             )
             .await
             .ok(),
         None => context
             .sql
             .execute(
-                sqlx::query(
-                    "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);"
-                )
-                    .bind(namespace)
-                    .bind(&token)
-                    .bind(time()),
+                "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);",
+                paramsv![namespace, token, time()],
             )
             .await
             .ok(),
@@ -68,10 +63,9 @@ pub async fn lookup(
         Some(chat_id) => {
             context
                 .sql
-                .query_get_value(
-                    sqlx::query("SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;")
-                        .bind(namespace)
-                        .bind(chat_id),
+                .query_get_value::<String>(
+                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
+                    paramsv![namespace, chat_id],
                 )
                 .await?
         }
@@ -79,9 +73,9 @@ pub async fn lookup(
         None => {
             context
                 .sql
-                .query_get_value(
-                    sqlx::query("SELECT token FROM tokens WHERE namespc=? AND foreign_id=0;")
-                        .bind(namespace),
+                .query_get_value::<String>(
+                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=0;",
+                    paramsv![namespace],
                 )
                 .await?
         }
@@ -105,9 +99,8 @@ pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> boo
     context
         .sql
         .exists(
-            sqlx::query("SELECT COUNT(*) FROM tokens WHERE namespc=? AND token=?;")
-                .bind(namespace)
-                .bind(token),
+            "SELECT COUNT(*) FROM tokens WHERE namespc=? AND token=?;",
+            paramsv![namespace, token],
         )
         .await
         .unwrap_or_default()

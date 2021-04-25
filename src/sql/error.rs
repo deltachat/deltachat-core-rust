@@ -1,7 +1,9 @@
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Sqlx: {0:?}")]
-    Sqlx(#[from] sqlx::Error),
+    #[error("Sqlite error: {0:?}")]
+    Sql(#[from] rusqlite::Error),
+    #[error("Sqlite Connection Pool Error: {0:?}")]
+    ConnectionPool(#[from] r2d2::Error),
     #[error("Sqlite: Connection closed")]
     SqlNoConnection,
     #[error("Sqlite: Already open")]

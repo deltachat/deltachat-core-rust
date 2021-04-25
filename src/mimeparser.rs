@@ -4,6 +4,7 @@ use std::pin::Pin;
 
 use anyhow::{bail, Result};
 use charset::Charset;
+use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
@@ -102,7 +103,9 @@ pub(crate) enum MailinglistType {
     None,
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+)]
 #[repr(u32)]
 pub enum SystemMessage {
     Unknown = 0,
@@ -1249,7 +1252,8 @@ impl MimeMessage {
             context
                 .sql
                 .query_get_value(
-                    sqlx::query("SELECT timestamp FROM msgs WHERE rfc724_mid=?").bind(field),
+                    "SELECT timestamp FROM msgs WHERE rfc724_mid=?",
+                    paramsv![field],
                 )
                 .await?
         } else {
@@ -1920,9 +1924,8 @@ mod tests {
             .ctx
             .sql
             .execute(
-                sqlx::query("INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)")
-                    .bind("Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org")
-                    .bind(timestamp),
+                "INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)",
+                paramsv!["Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp],
             )
             .await
             .expect("Failed to write to the database");
