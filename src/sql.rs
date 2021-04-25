@@ -1,19 +1,15 @@
 //! # SQLite wrapper
 
+use async_std::sync::RwLock;
+
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::path::Path;
-use std::pin::Pin;
 use std::time::Duration;
 
 use anyhow::Context as _;
 use async_std::prelude::*;
-use async_std::sync::RwLock;
-use sqlx::{
-    pool::PoolOptions,
-    query::Query,
-    sqlite::{Sqlite, SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous},
-    Executor, IntoArguments, Row,
-};
+use rusqlite::OpenFlags;
 
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
 use crate::config::Config;
@@ -26,35 +22,32 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::stock_str;
 
+#[macro_export]
+macro_rules! paramsv {
+    () => {
+        Vec::new()
+    };
+    ($($param:expr),+ $(,)?) => {
+        vec![$(&$param as &dyn $crate::ToSql),+]
+    };
+}
+
 mod error;
 mod migrations;
 
 pub use self::error::*;
 
 /// A wrapper around the underlying Sqlite3 object.
-///
-/// We maintain two different pools to sqlite, on for reading, one for writing.
-/// This can go away once https://github.com/launchbadge/sqlx/issues/459 is implemented.
 #[derive(Debug)]
 pub struct Sql {
-    /// Writer pool, must only have 1 connection in it.
-    writer: RwLock<Option<SqlitePool>>,
-    /// Reader pool, maintains multiple connections for reading data.
-    reader: RwLock<Option<SqlitePool>>,
+    pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
 }
 
 impl Default for Sql {
     fn default() -> Self {
         Self {
-            writer: RwLock::new(None),
-            reader: RwLock::new(None),
+            pool: RwLock::new(None),
         }
-    }
-}
-
-impl Drop for Sql {
-    fn drop(&mut self) {
-        async_std::task::block_on(self.close());
     }
 }
 
@@ -65,76 +58,50 @@ impl Sql {
 
     /// Checks if there is currently a connection to the underlying Sqlite database.
     pub async fn is_open(&self) -> bool {
-        // in read only mode the writer does not exists
-        self.reader.read().await.is_some()
+        self.pool.read().await.is_some()
     }
 
     /// Closes all underlying Sqlite connections.
     pub async fn close(&self) {
-        if let Some(sql) = self.writer.write().await.take() {
-            sql.close().await;
-        }
-        if let Some(sql) = self.reader.write().await.take() {
-            sql.close().await;
-        }
+        let _ = self.pool.write().await.take();
+        // drop closes the connection
     }
 
-    async fn new_writer_pool(dbfile: impl AsRef<Path>) -> sqlx::Result<SqlitePool> {
-        let config = SqliteConnectOptions::new()
-            .journal_mode(SqliteJournalMode::Wal)
-            .filename(dbfile.as_ref())
-            .read_only(false)
-            .busy_timeout(Duration::from_secs(100))
-            .create_if_missing(true)
-            .shared_cache(true)
-            .synchronous(SqliteSynchronous::Normal);
+    pub fn new_pool(
+        dbfile: &Path,
+        readonly: bool,
+    ) -> anyhow::Result<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>> {
+        let mut open_flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
+        if readonly {
+            open_flags.insert(OpenFlags::SQLITE_OPEN_READ_ONLY);
+        } else {
+            open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
+            open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
+        }
 
-        PoolOptions::<Sqlite>::new()
-            .max_connections(1)
-            .after_connect(|conn| {
-                Box::pin(async move {
-                    let q = r#"
-PRAGMA secure_delete=on;
-PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
-"#;
+        // this actually creates min_idle database handles just now.
+        // therefore, with_init() must not try to modify the database as otherwise
+        // we easily get busy-errors (eg. table-creation, journal_mode etc. should be done on only one handle)
+        let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile)
+            .with_flags(open_flags)
+            .with_init(|c| {
+                c.execute_batch(&format!(
+                    "PRAGMA secure_delete=on;
+                     PRAGMA busy_timeout = {};
+                     PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+                     ",
+                    Duration::from_secs(10).as_millis()
+                ))?;
+                Ok(())
+            });
 
-                    conn.execute_many(sqlx::query(q))
-                        .collect::<std::result::Result<Vec<_>, _>>()
-                        .await?;
-                    Ok(())
-                })
-            })
-            .connect_with(config)
-            .await
-    }
-
-    async fn new_reader_pool(dbfile: impl AsRef<Path>, readonly: bool) -> sqlx::Result<SqlitePool> {
-        let config = SqliteConnectOptions::new()
-            .journal_mode(SqliteJournalMode::Wal)
-            .filename(dbfile.as_ref())
-            .read_only(readonly)
-            .shared_cache(true)
-            .busy_timeout(Duration::from_secs(100))
-            .synchronous(SqliteSynchronous::Normal);
-
-        PoolOptions::<Sqlite>::new()
-            .max_connections(10)
-            .after_connect(|conn| {
-                Box::pin(async move {
-                    let q = r#"
-PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
-PRAGMA query_only=1; -- Protect against writes even in read-write mode
-PRAGMA read_uncommitted=1; -- This helps avoid "table locked" errors in shared cache mode
-"#;
-
-                    conn.execute_many(sqlx::query(q))
-                        .collect::<std::result::Result<Vec<_>, _>>()
-                        .await?;
-                    Ok(())
-                })
-            })
-            .connect_with(config)
-            .await
+        let pool = r2d2::Pool::builder()
+            .min_idle(Some(2))
+            .max_size(10)
+            .connection_timeout(Duration::from_secs(60))
+            .build(mgr)
+            .map_err(Error::ConnectionPool)?;
+        Ok(pool)
     }
 
     /// Opens the provided database and runs any necessary migrations.
@@ -154,15 +121,16 @@ PRAGMA read_uncommitted=1; -- This helps avoid "table locked" errors in shared c
             return Err(Error::SqlAlreadyOpen.into());
         }
 
-        // Open write pool
-        if !readonly {
-            *self.writer.write().await = Some(Self::new_writer_pool(&dbfile).await?);
-        }
-
-        // Open read pool
-        *self.reader.write().await = Some(Self::new_reader_pool(&dbfile, readonly).await?);
+        *self.pool.write().await = Some(Self::new_pool(dbfile.as_ref(), readonly)?);
 
         if !readonly {
+            // journal_mode is persisted, it is sufficient to change it only for one handle.
+            self.with_conn(move |conn| {
+                conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
+                Ok(())
+            })
+            .await?;
+
             // (1) update low-level database structure.
             // this should be done before updates that use high-level objects that
             // rely themselves on the low-level structure.
@@ -175,13 +143,19 @@ PRAGMA read_uncommitted=1; -- This helps avoid "table locked" errors in shared c
 
             if recalc_fingerprints {
                 info!(context, "[migration] recalc fingerprints");
-                let mut rows = self
-                    .fetch(sqlx::query("SELECT addr FROM acpeerstates;"))
+                let addrs = self
+                    .query_map(
+                        "SELECT addr FROM acpeerstates;",
+                        paramsv![],
+                        |row| row.get::<_, String>(0),
+                        |addrs| {
+                            addrs
+                                .collect::<std::result::Result<Vec<_>, _>>()
+                                .map_err(Into::into)
+                        },
+                    )
                     .await?;
-
-                while let Some(row) = rows.next().await {
-                    let row = row?;
-                    let addr = row.try_get(0)?;
+                for addr in &addrs {
                     if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
                         peerstate.recalc_fingerprint();
                         peerstate.save_to_db(self, false).await?;
@@ -214,158 +188,161 @@ PRAGMA read_uncommitted=1; -- This helps avoid "table locked" errors in shared c
     }
 
     /// Execute the given query, returning the number of affected rows.
-    pub async fn execute<'q, E>(&self, query: Query<'q, Sqlite, E>) -> Result<u64>
-    where
-        E: 'q + IntoArguments<'q, Sqlite>,
-    {
-        let lock = self.writer.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-
-        let rows = pool.execute(query).await?;
-        Ok(rows.rows_affected())
+    pub async fn execute(
+        &self,
+        query: impl AsRef<str>,
+        params: Vec<&dyn crate::ToSql>,
+    ) -> Result<usize> {
+        let conn = self.get_conn().await?;
+        let res = conn.execute(query.as_ref(), params)?;
+        Ok(res)
     }
 
     /// Executes the given query, returning the last inserted row ID.
-    pub async fn insert<'q, E>(&self, query: Query<'q, Sqlite, E>) -> Result<i64>
-    where
-        E: 'q + IntoArguments<'q, Sqlite>,
-    {
-        let lock = self.writer.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-
-        let rows = pool.execute(query).await?;
-        Ok(rows.last_insert_rowid())
-    }
-
-    /// Execute many queries.
-    pub async fn execute_many<'q, E>(&self, query: Query<'q, Sqlite, E>) -> Result<()>
-    where
-        E: 'q + IntoArguments<'q, Sqlite>,
-    {
-        let lock = self.writer.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-
-        pool.execute_many(query)
-            .collect::<sqlx::Result<Vec<_>>>()
-            .await?;
-        Ok(())
-    }
-
-    /// Fetch the given query.
-    pub async fn fetch<'q, E>(
+    pub async fn insert(
         &self,
-        query: Query<'q, Sqlite, E>,
-    ) -> Result<impl Stream<Item = sqlx::Result<<Sqlite as sqlx::Database>::Row>> + Send + 'q>
-    where
-        E: 'q + IntoArguments<'q, Sqlite>,
-    {
-        let lock = self.reader.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-
-        let rows = pool.fetch(query);
-        Ok(rows)
+        query: impl AsRef<str>,
+        params: Vec<&dyn crate::ToSql>,
+    ) -> anyhow::Result<usize> {
+        let conn = self.get_conn().await?;
+        conn.execute(query.as_ref(), params)?;
+        Ok(usize::try_from(conn.last_insert_rowid())?)
     }
 
-    /// Fetch exactly one row, errors if no row is found.
-    pub async fn fetch_one<'q, E>(
+    /// Prepares and executes the statement and maps a function over the resulting rows.
+    /// Then executes the second function over the returned iterator and returns the
+    /// result of that function.
+    pub async fn query_map<T, F, G, H>(
         &self,
-        query: Query<'q, Sqlite, E>,
-    ) -> Result<<Sqlite as sqlx::Database>::Row>
+        sql: impl AsRef<str>,
+        params: Vec<&dyn crate::ToSql>,
+        f: F,
+        mut g: G,
+    ) -> Result<H>
     where
-        E: 'q + IntoArguments<'q, Sqlite>,
+        F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
+        G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
-        let lock = self.reader.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+        let sql = sql.as_ref();
 
-        let row = pool.fetch_one(query).await?;
-        Ok(row)
+        let conn = self.get_conn().await?;
+        let mut stmt = conn.prepare(sql)?;
+        let res = stmt.query_map(&params, f)?;
+        g(res)
     }
 
-    /// Fetches at most one row.
-    pub async fn fetch_optional<'e, 'q, E>(
+    pub async fn get_conn(
         &self,
-        query: Query<'q, Sqlite, E>,
-    ) -> Result<Option<<Sqlite as sqlx::Database>::Row>>
+    ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
+        let lock = self.pool.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+        let conn = pool.get()?;
+
+        Ok(conn)
+    }
+
+    pub async fn with_conn<G, H>(&self, g: G) -> anyhow::Result<H>
     where
-        E: 'q + IntoArguments<'q, Sqlite>,
+        H: Send + 'static,
+        G: Send
+            + 'static
+            + FnOnce(
+                r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>,
+            ) -> anyhow::Result<H>,
     {
-        let lock = self.reader.read().await;
+        let lock = self.pool.read().await;
+        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+        let conn = pool.get()?;
+
+        g(conn)
+    }
+
+    pub async fn with_conn_async<G, H, Fut>(&self, mut g: G) -> Result<H>
+    where
+        G: FnMut(r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Fut,
+        Fut: Future<Output = Result<H>> + Send,
+    {
+        let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
 
-        let row = pool.fetch_optional(query).await?;
-        Ok(row)
+        let conn = pool.get()?;
+        g(conn).await
     }
 
     /// Used for executing `SELECT COUNT` statements only. Returns the resulting count.
-    pub async fn count<'e, 'q, E>(&self, query: Query<'q, Sqlite, E>) -> Result<usize>
-    where
-        E: 'q + IntoArguments<'q, Sqlite>,
-    {
-        use std::convert::TryFrom;
-
-        let row = self.fetch_one(query).await?;
-        let count: i64 = row.try_get(0)?;
-
-        Ok(usize::try_from(count).map_err::<anyhow::Error, _>(Into::into)?)
+    pub async fn count(
+        &self,
+        query: impl AsRef<str>,
+        params: Vec<&dyn crate::ToSql>,
+    ) -> anyhow::Result<usize> {
+        let count: isize = self.query_row(query, params, |row| row.get(0)).await?;
+        Ok(usize::try_from(count)?)
     }
 
     /// Used for executing `SELECT COUNT` statements only. Returns `true`, if the count is at least
     /// one, `false` otherwise.
-    pub async fn exists<'e, 'q, E>(&self, query: Query<'q, Sqlite, E>) -> Result<bool>
-    where
-        E: 'q + IntoArguments<'q, Sqlite>,
-    {
-        let count = self.count(query).await?;
+    pub async fn exists(&self, sql: &str, params: Vec<&dyn crate::ToSql>) -> Result<bool> {
+        let count = self.count(sql, params).await?;
         Ok(count > 0)
+    }
+
+    /// Execute a query which is expected to return one row.
+    pub async fn query_row<T, F>(
+        &self,
+        query: impl AsRef<str>,
+        params: Vec<&dyn crate::ToSql>,
+        f: F,
+    ) -> Result<T>
+    where
+        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+    {
+        let conn = self.get_conn().await?;
+        let res = conn.query_row(query.as_ref(), params, f)?;
+        Ok(res)
     }
 
     /// Execute the function inside a transaction.
     ///
     /// If the function returns an error, the transaction will be rolled back. If it does not return an
     /// error, the transaction will be committed.
-    pub async fn transaction<F, R>(&self, callback: F) -> Result<R>
+    pub async fn transaction<G, H>(&self, callback: G) -> anyhow::Result<H>
     where
-        F: for<'c> FnOnce(
-                &'c mut sqlx::Transaction<'_, Sqlite>,
-            ) -> Pin<Box<dyn Future<Output = Result<R>> + 'c + Send>>
-            + 'static
-            + Send
-            + Sync,
-        R: Send,
+        H: Send + 'static,
+        G: Send + 'static + FnOnce(&mut rusqlite::Transaction<'_>) -> anyhow::Result<H>,
     {
-        let lock = self.writer.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+        self.with_conn(move |mut conn| {
+            let conn2 = &mut conn;
+            let mut transaction = conn2.transaction()?;
+            let ret = callback(&mut transaction);
 
-        let mut transaction = pool.begin().await?;
-        let ret = callback(&mut transaction).await;
-
-        match ret {
-            Ok(ret) => {
-                transaction.commit().await?;
-
-                Ok(ret)
+            match ret {
+                Ok(ret) => {
+                    transaction.commit()?;
+                    Ok(ret)
+                }
+                Err(err) => {
+                    transaction.rollback()?;
+                    Err(err)
+                }
             }
-            Err(err) => {
-                transaction.rollback().await?;
-
-                Err(err)
-            }
-        }
+        })
+        .await
     }
 
     /// Query the database if the requested table already exists.
-    pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
-        let q = format!("PRAGMA table_info(\"{}\")", name.as_ref());
+    pub async fn table_exists(&self, name: impl AsRef<str>) -> anyhow::Result<bool> {
+        let name = name.as_ref().to_string();
+        self.with_conn(move |conn| {
+            let mut exists = false;
+            conn.pragma(None, "table_info", &name, |_row| {
+                // will only be executed if the info was found
+                exists = true;
+                Ok(())
+            })?;
 
-        let lock = self.reader.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-
-        let mut rows = pool.fetch(sqlx::query(&q));
-        if let Some(first_row) = rows.next().await {
-            Ok(first_row.is_ok())
-        } else {
-            Ok(false)
-        }
+            Ok(exists)
+        })
+        .await
     }
 
     /// Check if a column exists in a given table.
@@ -373,43 +350,62 @@ PRAGMA read_uncommitted=1; -- This helps avoid "table locked" errors in shared c
         &self,
         table_name: impl AsRef<str>,
         col_name: impl AsRef<str>,
-    ) -> Result<bool> {
-        let q = format!("PRAGMA table_info(\"{}\")", table_name.as_ref());
-        let lock = self.reader.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-
-        let mut rows = pool.fetch(sqlx::query(&q));
-        while let Some(row) = rows.next().await {
-            let row = row?;
-
+    ) -> anyhow::Result<bool> {
+        let table_name = table_name.as_ref().to_string();
+        let col_name = col_name.as_ref().to_string();
+        self.with_conn(move |conn| {
+            let mut exists = false;
             // `PRAGMA table_info` returns one row per column,
             // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
+            conn.pragma(None, "table_info", &table_name, |row| {
+                let curr_name: String = row.get(1)?;
+                if col_name == curr_name {
+                    exists = true;
+                }
+                Ok(())
+            })?;
 
-            let curr_name: &str = row.try_get(1)?;
-            if col_name.as_ref() == curr_name {
-                return Ok(true);
-            }
-        }
+            Ok(exists)
+        })
+        .await
+    }
 
-        Ok(false)
+    /// Execute a query which is expected to return zero or one row.
+    pub async fn query_row_optional<T, F>(
+        &self,
+        sql: impl AsRef<str>,
+        params: Vec<&dyn crate::ToSql>,
+        f: F,
+    ) -> anyhow::Result<Option<T>>
+    where
+        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+    {
+        let res = match self.query_row(sql, params, f).await {
+            Ok(res) => Ok(Some(res)),
+            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Ok(None),
+            Err(Error::Sql(rusqlite::Error::InvalidColumnType(
+                _,
+                _,
+                rusqlite::types::Type::Null,
+            ))) => Ok(None),
+            Err(err) => Err(err),
+        }?;
+        Ok(res)
     }
 
     /// Executes a query which is expected to return one row and one
     /// column. If the query does not return a value or returns SQL
     /// `NULL`, returns `Ok(None)`.
-    pub async fn query_get_value<'e, 'q, E, T>(
+    pub async fn query_get_value<T>(
         &self,
-        query: Query<'q, Sqlite, E>,
-    ) -> Result<Option<T>>
+        query: &str,
+        params: Vec<&dyn crate::ToSql>,
+    ) -> anyhow::Result<Option<T>>
     where
-        E: 'q + IntoArguments<'q, Sqlite>,
-        T: for<'r> sqlx::Decode<'r, Sqlite> + sqlx::Type<Sqlite>,
+        T: rusqlite::types::FromSql,
     {
-        let res = self
-            .fetch_optional(query)
-            .await?
-            .map(|row| row.get::<T, _>(0));
-        Ok(res)
+        self.query_row_optional(query, params, |row| row.get::<_, T>(0))
+            .await
     }
 
     /// Set private configuration options.
@@ -424,26 +420,27 @@ PRAGMA read_uncommitted=1; -- This helps avoid "table locked" errors in shared c
         let key = key.as_ref();
         if let Some(value) = value {
             let exists = self
-                .exists(sqlx::query("SELECT COUNT(*) FROM config WHERE keyname=?;").bind(key))
+                .exists(
+                    "SELECT COUNT(*) FROM config WHERE keyname=?;",
+                    paramsv![key],
+                )
                 .await?;
 
             if exists {
                 self.execute(
-                    sqlx::query("UPDATE config SET value=? WHERE keyname=?;")
-                        .bind(value)
-                        .bind(key),
+                    "UPDATE config SET value=? WHERE keyname=?;",
+                    paramsv![(*value).to_string(), key.to_string()],
                 )
                 .await?;
             } else {
                 self.execute(
-                    sqlx::query("INSERT INTO config (keyname, value) VALUES (?, ?);")
-                        .bind(key)
-                        .bind(value),
+                    "INSERT INTO config (keyname, value) VALUES (?, ?);",
+                    paramsv![key.to_string(), (*value).to_string()],
                 )
                 .await?;
             }
         } else {
-            self.execute(sqlx::query("DELETE FROM config WHERE keyname=?;").bind(key))
+            self.execute("DELETE FROM config WHERE keyname=?;", paramsv![key])
                 .await?;
         }
 
@@ -457,7 +454,8 @@ PRAGMA read_uncommitted=1; -- This helps avoid "table locked" errors in shared c
         }
         let value = self
             .query_get_value(
-                sqlx::query("SELECT value FROM config WHERE keyname=?;").bind(key.as_ref()),
+                "SELECT value FROM config WHERE keyname=?;",
+                paramsv![key.as_ref().to_string()],
             )
             .await
             .context(format!("failed to fetch raw config: {}", key.as_ref()))?;
@@ -539,14 +537,21 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     )
     .await?;
 
-    let mut rows = context
+    context
         .sql
-        .fetch(sqlx::query("SELECT value FROM config;"))
-        .await?;
-    while let Some(row) = rows.next().await {
-        let row: String = row?.try_get(0)?;
-        maybe_add_file(&mut files_in_use, row);
-    }
+        .query_map(
+            "SELECT value FROM config;",
+            paramsv![],
+            |row| row.get::<_, String>(0),
+            |rows| {
+                for row in rows {
+                    maybe_add_file(&mut files_in_use, row?);
+                }
+                Ok(())
+            },
+        )
+        .await
+        .context("housekeeping: failed to SELECT value FROM config")?;
 
     info!(context, "{} files in use.", files_in_use.len(),);
     /* go through directory and delete unused files */
@@ -665,14 +670,22 @@ async fn maybe_add_from_param(
     query: &str,
     param_id: Param,
 ) -> Result<()> {
-    let mut rows = sql.fetch(sqlx::query(query)).await?;
-    while let Some(row) = rows.next().await {
-        let row: String = row?.try_get(0)?;
-        let param: Params = row.parse().unwrap_or_default();
-        if let Some(file) = param.get(param_id) {
-            maybe_add_file(files_in_use, file);
-        }
-    }
+    sql.query_map(
+        query,
+        paramsv![],
+        |row| row.get::<_, String>(0),
+        |rows| {
+            for row in rows {
+                let param: Params = row?.parse().unwrap_or_default();
+                if let Some(file) = param.get(param_id) {
+                    maybe_add_file(files_in_use, file);
+                }
+            }
+            Ok(())
+        },
+    )
+    .await
+    .context(format!("housekeeping: failed to add_from_param {}", query))?;
 
     Ok(())
 }
@@ -681,23 +694,13 @@ async fn maybe_add_from_param(
 /// have a server UID.
 async fn prune_tombstones(sql: &Sql) -> Result<()> {
     sql.execute(
-        sqlx::query(
-            "DELETE FROM msgs \
+        "DELETE FROM msgs \
          WHERE (chat_id = ? OR hidden) \
          AND server_uid = 0",
-        )
-        .bind(DC_CHAT_ID_TRASH),
+        paramsv![DC_CHAT_ID_TRASH],
     )
     .await?;
     Ok(())
-}
-
-/// Returns the SQLite version as a string; e.g., `"3.16.2"` for version 3.16.2.
-pub fn version() -> &'static str {
-    #[allow(unsafe_code)]
-    let cstr = unsafe { std::ffi::CStr::from_ptr(libsqlite3_sys::sqlite3_libversion()) };
-    cstr.to_str()
-        .expect("SQLite version string is not valid UTF8 ?!")
 }
 
 #[cfg(test)]
@@ -788,50 +791,5 @@ mod test {
 
         let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
-    }
-
-    /// Regression test.
-    ///
-    /// Previously the code checking for existence of `config` table
-    /// checked it with `PRAGMA table_info("config")` but did not
-    /// drain `SqlitePool.fetch` result, only using the first row
-    /// returned. As a result, prepared statement for `PRAGMA` was not
-    /// finalized early enough, leaving reader connection in a broken
-    /// state after reopening the database, when `config` table
-    /// existed and `PRAGMA` returned non-empty result.
-    ///
-    /// Statements were not finalized due to a bug in sqlx:
-    /// https://github.com/launchbadge/sqlx/issues/1147
-    #[async_std::test]
-    async fn test_db_reopen() -> Result<()> {
-        use tempfile::tempdir;
-
-        // The context is used only for logging.
-        let t = TestContext::new().await;
-
-        // Create a separate empty database for testing.
-        let dir = tempdir()?;
-        let dbfile = dir.path().join("testdb.sqlite");
-        let sql = Sql::new();
-
-        // Create database with all the tables.
-        sql.open(&t, &dbfile, false).await.unwrap();
-        sql.close().await;
-
-        // Reopen the database
-        sql.open(&t, &dbfile, false).await?;
-        sql.execute(
-            sqlx::query("INSERT INTO config (keyname, value) VALUES (?, ?);")
-                .bind("foo")
-                .bind("bar"),
-        )
-        .await?;
-
-        let value: Option<String> = sql
-            .query_get_value(sqlx::query("SELECT value FROM config WHERE keyname=?;").bind("foo"))
-            .await?;
-        assert_eq!(value.unwrap(), "bar");
-
-        Ok(())
     }
 }

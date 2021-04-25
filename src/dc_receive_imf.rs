@@ -1,14 +1,12 @@
 use std::convert::TryFrom;
 
 use anyhow::{bail, ensure, format_err, Result};
-use async_std::prelude::*;
 use itertools::join;
 use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
-use sqlx::Row;
 
 use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
@@ -915,7 +913,8 @@ async fn add_parts(
 
     let subject = mime_parser.get_subject().unwrap_or_default();
 
-    let server_folder = server_folder.as_ref();
+    let mut parts = std::mem::replace(&mut mime_parser.parts, Vec::new());
+    let server_folder = server_folder.as_ref().to_string();
     let is_system_message = mime_parser.is_system_message;
 
     // if indicated by the parser,
@@ -927,59 +926,30 @@ async fn add_parts(
 
     let mime_headers = if save_mime_headers || save_mime_modified {
         if mime_parser.was_encrypted() && !mime_parser.decoded_data.is_empty() {
-            String::from_utf8_lossy(&mime_parser.decoded_data)
+            String::from_utf8_lossy(&mime_parser.decoded_data).to_string()
         } else {
-            String::from_utf8_lossy(imf_raw)
+            String::from_utf8_lossy(imf_raw).to_string()
         }
     } else {
         "".into()
     };
 
-    for part in &mut mime_parser.parts {
-        let mut txt_raw = "".to_string();
+    let sent_timestamp = *sent_timestamp;
+    let is_hidden = *hidden;
+    let chat_id = *chat_id;
 
-        let is_location_kml =
-            location_kml_is && icnt == 1 && (part.msg == "-location-" || part.msg.is_empty());
+    // TODO: can this clone be avoided?
+    let rfc724_mid = rfc724_mid.to_string();
 
-        if is_mdn || is_location_kml {
-            *hidden = true;
-            if incoming {
-                // Set the state to InSeen so that precheck_imf() adds a markseen job after we moved the message
-                state = MessageState::InSeen;
-            }
-        }
+    let (new_parts, ids, is_hidden) = context
+        .sql
+        .with_conn(move |conn| {
+            let mut ids = Vec::with_capacity(parts.len());
+            let mut is_hidden = is_hidden;
 
-        let mime_modified = save_mime_modified && !part.msg.is_empty();
-        if mime_modified {
-            // Avoid setting mime_modified for more than one part.
-            save_mime_modified = false;
-        }
-
-        if part.typ == Viewtype::Text {
-            let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
-            txt_raw = format!("{}\n\n{}", subject, msg_raw);
-        }
-        if is_system_message != SystemMessage::Unknown {
-            part.param.set_int(Param::Cmd, is_system_message as i32);
-        }
-
-        let ephemeral_timestamp = if in_fresh {
-            0
-        } else {
-            match ephemeral_timer {
-                EphemeralTimer::Disabled => 0,
-                EphemeralTimer::Enabled { duration } => rcvd_timestamp + i64::from(duration),
-            }
-        };
-
-        // If you change which information is skipped if the message is trashed,
-        // also change `MsgId::trash()` and `delete_expired_messages()`
-        let trash = chat_id.is_trash();
-
-        let row_id = context
-            .sql
-            .insert(
-                sqlx::query(
+            for part in &mut parts {
+                let mut txt_raw = "".to_string();
+                let mut stmt = conn.prepare_cached(
                     r#"
 INSERT INTO msgs
   (
@@ -1001,52 +971,104 @@ INSERT INTO msgs
     ?
   );
 "#,
-                )
-                .bind(rfc724_mid)
-                .bind(server_folder)
-                .bind(server_uid as i32)
-                .bind(*chat_id)
-                .bind(if trash { 0 } else { from_id as i32 })
-                .bind(if trash { 0 } else { to_id as i32 })
-                .bind(sort_timestamp)
-                .bind(*sent_timestamp)
-                .bind(rcvd_timestamp)
-                .bind(part.typ)
-                .bind(state)
-                .bind(is_dc_message)
-                .bind(if trash { "" } else { &part.msg })
-                .bind(if trash { "" } else { &subject })
-                // txt_raw might contain invalid utf8
-                .bind(if trash { "" } else { &txt_raw })
-                .bind(if trash {
-                    "".to_string()
-                } else {
-                    part.param.to_string()
-                })
-                .bind(part.bytes as i64)
-                .bind(*hidden)
-                .bind(if (save_mime_headers || mime_modified) && !trash {
-                    mime_headers.to_string()
-                } else {
-                    "".to_string()
-                })
-                .bind(&mime_in_reply_to)
-                .bind(&mime_references)
-                .bind(&mime_modified)
-                .bind(part.error.take().unwrap_or_default())
-                .bind(ephemeral_timer)
-                .bind(ephemeral_timestamp),
-            )
-            .await?;
-        let msg_id = MsgId::new(u32::try_from(row_id)?);
+                )?;
 
-        created_db_entries.push((*chat_id, msg_id));
-        *insert_msg_id = msg_id;
+                let is_location_kml = location_kml_is
+                    && icnt == 1
+                    && (part.msg == "-location-" || part.msg.is_empty());
+
+                if is_mdn || is_location_kml {
+                    is_hidden = true;
+                    if incoming {
+                        state = MessageState::InSeen; // Set the state to InSeen so that precheck_imf() adds a markseen job after we moved the message
+                    }
+                }
+
+                let mime_modified = save_mime_modified && !part.msg.is_empty();
+                if mime_modified {
+                    // Avoid setting mime_modified for more than one part.
+                    save_mime_modified = false;
+                }
+
+                if part.typ == Viewtype::Text {
+                    let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
+                    txt_raw = format!("{}\n\n{}", subject, msg_raw);
+                }
+                if is_system_message != SystemMessage::Unknown {
+                    part.param.set_int(Param::Cmd, is_system_message as i32);
+                }
+
+                let ephemeral_timestamp = if in_fresh {
+                    0
+                } else {
+                    match ephemeral_timer {
+                        EphemeralTimer::Disabled => 0,
+                        EphemeralTimer::Enabled { duration } => {
+                            rcvd_timestamp + i64::from(duration)
+                        }
+                    }
+                };
+
+                // If you change which information is skipped if the message is trashed,
+                // also change `MsgId::trash()` and `delete_expired_messages()`
+                let trash = chat_id.is_trash();
+
+                stmt.execute(paramsv![
+                    rfc724_mid,
+                    server_folder,
+                    server_uid as i32,
+                    chat_id,
+                    if trash { 0 } else { from_id as i32 },
+                    if trash { 0 } else { to_id as i32 },
+                    sort_timestamp,
+                    sent_timestamp,
+                    rcvd_timestamp,
+                    part.typ,
+                    state,
+                    is_dc_message,
+                    if trash { "" } else { &part.msg },
+                    if trash { "" } else { &subject },
+                    // txt_raw might contain invalid utf8
+                    if trash { "" } else { &txt_raw },
+                    if trash {
+                        "".to_string()
+                    } else {
+                        part.param.to_string()
+                    },
+                    part.bytes as isize,
+                    is_hidden,
+                    if (save_mime_headers || mime_modified) && !trash {
+                        mime_headers.to_string()
+                    } else {
+                        "".to_string()
+                    },
+                    mime_in_reply_to,
+                    mime_references,
+                    mime_modified,
+                    part.error.take().unwrap_or_default(),
+                    ephemeral_timer,
+                    ephemeral_timestamp
+                ])?;
+                let row_id = conn.last_insert_rowid();
+
+                drop(stmt);
+                ids.push(MsgId::new(u32::try_from(row_id)?));
+            }
+            Ok((parts, ids, is_hidden))
+        })
+        .await?;
+
+    if let Some(id) = ids.iter().last() {
+        *insert_msg_id = *id;
     }
 
-    if !*hidden {
+    if !is_hidden {
         chat_id.unarchive(context).await?;
     }
+
+    *hidden = is_hidden;
+    created_db_entries.extend(ids.iter().map(|id| (chat_id, *id)));
+    mime_parser.parts = new_parts;
 
     info!(
         context,
@@ -1055,7 +1077,7 @@ INSERT INTO msgs
 
     // new outgoing message from another device marks the chat as noticed.
     if !incoming && !*hidden && !chat_id.is_special() {
-        chat::marknoticed_chat_if_older_than(context, *chat_id, sort_timestamp).await?;
+        chat::marknoticed_chat_if_older_than(context, chat_id, sort_timestamp).await?;
     }
 
     // check event to send
@@ -1085,7 +1107,7 @@ INSERT INTO msgs
         Ok(())
     }
     if !is_mdn {
-        update_last_subject(context, *chat_id, mime_parser)
+        update_last_subject(context, chat_id, mime_parser)
             .await
             .ok_or_log_msg(context, "Could not update LastSubject of chat");
     }
@@ -1167,9 +1189,8 @@ async fn calc_sort_timestamp(
         let last_msg_time: Option<i64> = context
             .sql
             .query_get_value(
-                sqlx::query("SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?")
-                    .bind(chat_id)
-                    .bind(MessageState::InFresh),
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
+                paramsv![chat_id, MessageState::InFresh],
             )
             .await?;
 
@@ -1481,9 +1502,8 @@ async fn create_or_lookup_group(
                 if context
                     .sql
                     .execute(
-                        sqlx::query("UPDATE chats SET name=? WHERE id=?;")
-                            .bind(grpname.to_string())
-                            .bind(chat_id),
+                        "UPDATE chats SET name=? WHERE id=?;",
+                        paramsv![grpname.to_string(), chat_id],
                     )
                     .await
                     .is_ok()
@@ -1520,7 +1540,10 @@ async fn create_or_lookup_group(
             // start from scratch.
             context
                 .sql
-                .execute(sqlx::query("DELETE FROM chats_contacts WHERE chat_id=?;").bind(chat_id))
+                .execute(
+                    "DELETE FROM chats_contacts WHERE chat_id=?;",
+                    paramsv![chat_id],
+                )
                 .await
                 .ok();
 
@@ -1764,14 +1787,15 @@ async fn create_multiuser_record(
 ) -> Result<ChatId> {
     let row_id =
     context.sql.insert(
-        sqlx::query(
-            "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);")
-            .bind(chattype)
-            .bind(grpname.as_ref())
-            .bind(grpid.as_ref())
-            .bind(create_blocked)
-            .bind(time())
-            .bind(create_protected)
+        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);",
+        paramsv![
+            chattype,
+            grpname.as_ref(),
+            grpid.as_ref(),
+            create_blocked,
+            time(),
+            create_protected,
+        ],
     ).await?;
 
     let chat_id = ChatId::new(u32::try_from(row_id)?);
@@ -1805,24 +1829,27 @@ async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> Result<St
         .unwrap_or_else(|| "no-self".to_string())
         .to_lowercase();
 
-    let q = format!(
-        "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
-        member_ids_str
-    );
-
-    let mut members = member_cs;
-
-    if let Ok(rows) = context.sql.fetch(sqlx::query(&q)).await {
-        let mut addrs = rows
-            .map(|row| row?.try_get::<String, _>(0))
-            .collect::<sqlx::Result<Vec<_>>>()
-            .await?;
-        addrs.sort();
-        for addr in &addrs {
-            members += ",";
-            members += &addr.to_lowercase();
-        }
-    }
+    let members = context
+        .sql
+        .query_map(
+            format!(
+                "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
+                member_ids_str
+            ),
+            paramsv![],
+            |row| row.get::<_, String>(0),
+            |rows| {
+                let mut addrs = rows.collect::<std::result::Result<Vec<_>, _>>()?;
+                addrs.sort();
+                let mut acc = member_cs.clone();
+                for addr in &addrs {
+                    acc += ",";
+                    acc += &addr.to_lowercase();
+                }
+                Ok(acc)
+            },
+        )
+        .await?;
 
     Ok(hex_hash(&members))
 }
@@ -1889,26 +1916,34 @@ async fn check_verified_properties(
     }
     let to_ids_str = join(to_ids.iter().map(|x| x.to_string()), ",");
 
-    let q = format!(
-        "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
+    let rows = context
+        .sql
+        .query_map(
+            format!(
+                "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-        to_ids_str
-    );
+                to_ids_str
+            ),
+            paramsv![],
+            |row| {
+                let to_addr: String = row.get(0)?;
+                let is_verified: i32 = row.get(1)?;
+                Ok((to_addr, is_verified != 0))
+            },
+            |rows| {
+                rows.collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(Into::into)
+            },
+        )
+        .await?;
 
-    let mut rows = context.sql.fetch(sqlx::query(&q)).await?;
-
-    while let Some(row) = rows.next().await {
-        let row = row?;
-        let to_addr: String = row.try_get(0)?;
-        let mut is_verified = row.try_get::<i32, _>(1)? != 0;
-
+    for (to_addr, mut is_verified) in rows.into_iter() {
         info!(
             context,
             "check_verified_properties: {:?} self={:?}",
             to_addr,
             context.is_self_addr(&to_addr).await
         );
-
         let peerstate = Peerstate::from_addr(context, &to_addr).await?;
 
         // mark gossiped keys (if any) as verified

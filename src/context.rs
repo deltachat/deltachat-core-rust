@@ -6,14 +6,12 @@ use std::ops::Deref;
 use std::time::{Instant, SystemTime};
 
 use anyhow::{bail, ensure, Result};
-use async_std::prelude::*;
 use async_std::{
     channel::{self, Receiver, Sender},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
     task,
 };
-use sqlx::Row;
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
@@ -91,7 +89,7 @@ pub struct RunningState {
 pub fn get_info() -> BTreeMap<&'static str, String> {
     let mut res = BTreeMap::new();
     res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
-    res.insert("sqlite_version", crate::sql::version().to_string());
+    res.insert("sqlite_version", rusqlite::version().to_string());
     res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
     res.insert("num_cpus", num_cpus::get().to_string());
     res.insert("level", "awesome".into());
@@ -290,7 +288,7 @@ impl Context {
             .unwrap_or_default();
         let journal_mode = self
             .sql
-            .query_get_value(sqlx::query("PRAGMA journal_mode;"))
+            .query_get_value("PRAGMA journal_mode;", paramsv![])
             .await?
             .unwrap_or_else(|| "unknown".to_string());
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await?;
@@ -299,12 +297,12 @@ impl Context {
 
         let prv_key_cnt = self
             .sql
-            .count(sqlx::query("SELECT COUNT(*) FROM keypairs;"))
+            .count("SELECT COUNT(*) FROM keypairs;", paramsv![])
             .await?;
 
         let pub_key_cnt = self
             .sql
-            .count(sqlx::query("SELECT COUNT(*) FROM acpeerstates;"))
+            .count("SELECT COUNT(*) FROM acpeerstates;", paramsv![])
             .await?;
         let fingerprint_str = match SignedPublicKey::load_self(self).await {
             Ok(key) => key.fingerprint().hex(),
@@ -431,8 +429,8 @@ impl Context {
     pub async fn get_fresh_msgs(&self) -> Result<Vec<MsgId>> {
         let list = self
             .sql
-            .fetch(
-                sqlx::query(concat!(
+            .query_map(
+                concat!(
                     "SELECT m.id",
                     " FROM msgs m",
                     " LEFT JOIN contacts ct",
@@ -446,13 +444,17 @@ impl Context {
                     "   AND c.blocked=0",
                     "   AND NOT(c.muted_until=-1 OR c.muted_until>?)",
                     " ORDER BY m.timestamp DESC,m.id DESC;"
-                ))
-                .bind(MessageState::InFresh)
-                .bind(time()),
+                ),
+                paramsv![MessageState::InFresh, time()],
+                |row| row.get::<_, MsgId>(0),
+                |rows| {
+                    let mut list = Vec::new();
+                    for row in rows {
+                        list.push(row?);
+                    }
+                    Ok(list)
+                },
             )
-            .await?
-            .map(|row| row?.try_get("id"))
-            .collect::<sqlx::Result<_>>()
             .await?;
         Ok(list)
     }
@@ -472,11 +474,24 @@ impl Context {
         }
         let str_like_in_text = format!("%{}%", real_query);
 
+        let do_query = |query, params| {
+            self.sql.query_map(
+                query,
+                params,
+                |row| row.get::<_, MsgId>("id"),
+                |rows| {
+                    let mut ret = Vec::new();
+                    for id in rows {
+                        ret.push(id?);
+                    }
+                    Ok(ret)
+                },
+            )
+        };
+
         let list = if let Some(chat_id) = chat_id {
-            self.sql
-                .fetch(
-                    sqlx::query(
-                        "SELECT m.id AS id, m.timestamp AS timestamp
+            do_query(
+                "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -485,18 +500,9 @@ impl Context {
                    AND ct.blocked=0
                    AND txt LIKE ?
                  ORDER BY m.timestamp,m.id;",
-                    )
-                    .bind(chat_id)
-                    .bind(str_like_in_text),
-                )
-                .await?
-                .map(|row| {
-                    let row = row?;
-                    let id = row.try_get::<MsgId, _>("id")?;
-                    Ok(id)
-                })
-                .collect::<sqlx::Result<Vec<MsgId>>>()
-                .await?
+                paramsv![chat_id, str_like_in_text],
+            )
+            .await?
         } else {
             // For performance reasons results are sorted only by `id`, that is in the order of
             // message reception.
@@ -508,10 +514,8 @@ impl Context {
             // of unwanted results that are discarded moments later, we added `LIMIT 1000`.
             // According to some tests, this limit speeds up eg. 2 character searches by factor 10.
             // The limit is documented and UI may add a hint when getting 1000 results.
-            self.sql
-                .fetch(
-                    sqlx::query(
-                        "SELECT m.id AS id, m.timestamp AS timestamp
+            do_query(
+                "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -523,17 +527,9 @@ impl Context {
                    AND ct.blocked=0
                    AND m.txt LIKE ?
                  ORDER BY m.id DESC LIMIT 1000",
-                    )
-                    .bind(str_like_in_text),
-                )
-                .await?
-                .map(|row| {
-                    let row = row?;
-                    let id = row.try_get::<MsgId, _>("id")?;
-                    Ok(id)
-                })
-                .collect::<sqlx::Result<Vec<MsgId>>>()
-                .await?
+                paramsv![str_like_in_text],
+            )
+            .await?
         };
 
         Ok(list)
@@ -747,9 +743,8 @@ mod tests {
         // we need to modify the database directly
         t.sql
             .execute(
-                sqlx::query("UPDATE chats SET muted_until=? WHERE id=?;")
-                    .bind(time() - 3600)
-                    .bind(bob.id),
+                "UPDATE chats SET muted_until=? WHERE id=?;",
+                paramsv![time() - 3600, bob.id],
             )
             .await
             .unwrap();
@@ -766,7 +761,10 @@ mod tests {
         // to test get_fresh_msgs() with invalid mute_until (everything < -1),
         // that results in "muted forever" by definition.
         t.sql
-            .execute(sqlx::query("UPDATE chats SET muted_until=-2 WHERE id=?;").bind(bob.id))
+            .execute(
+                "UPDATE chats SET muted_until=-2 WHERE id=?;",
+                paramsv![bob.id],
+            )
             .await
             .unwrap();
         let bob = Chat::load_from_db(&t, bob.id).await.unwrap();

@@ -632,6 +632,14 @@ impl FromStr for EmailAddress {
     }
 }
 
+impl rusqlite::types::ToSql for EmailAddress {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        let val = rusqlite::types::Value::Text(self.to_string());
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
+    }
+}
+
 /// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
 pub(crate) fn improve_single_line_input(input: impl AsRef<str>) -> String {
     input

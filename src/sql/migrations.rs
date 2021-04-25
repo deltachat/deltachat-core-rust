@@ -1,5 +1,3 @@
-use async_std::prelude::*;
-
 use super::{Result, Sql};
 use crate::config::Config;
 use crate::constants::ShowEmails;
@@ -19,22 +17,15 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool)> {
 
     if !sql.table_exists("config").await? {
         info!(context, "First time init: creating tables",);
-        sql.transaction(move |conn| {
-            Box::pin(async move {
-                sqlx::query(TABLES)
-                    .execute_many(&mut *conn)
-                    .await
-                    .collect::<std::result::Result<Vec<_>, _>>()
-                    .await?;
+        sql.transaction(move |transaction| {
+            transaction.execute_batch(TABLES)?;
 
-                // set raw config inside the transaction
-                sqlx::query("INSERT INTO config (keyname, value) VALUES (?, ?);")
-                    .bind(VERSION_CFG)
-                    .bind(format!("{}", dbversion_before_update))
-                    .execute(&mut *conn)
-                    .await?;
-                Ok(())
-            })
+            // set raw config inside the transaction
+            transaction.execute(
+                "INSERT INTO config (keyname, value) VALUES (?, ?);",
+                paramsv![VERSION_CFG, format!("{}", dbversion_before_update)],
+            )?;
+            Ok(())
         })
         .await?;
     } else {
@@ -417,9 +408,10 @@ ALTER TABLE msgs ADD COLUMN mime_modified INTEGER DEFAULT 0;"#,
     if dbversion < 73 {
         use Config::*;
         info!(context, "[migration] v73");
-        sql.execute(sqlx::query(
+        sql.execute(
             r#"
-CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"#),
+CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"#,
+paramsv![]
         )
             .await?;
         for c in &[
@@ -479,24 +471,16 @@ impl Sql {
     }
 
     async fn execute_migration(&self, query: &'static str, version: i32) -> Result<()> {
-        let query = sqlx::query(query);
-        self.transaction(move |conn| {
-            Box::pin(async move {
-                query
-                    .execute_many(&mut *conn)
-                    .await
-                    .collect::<std::result::Result<Vec<_>, _>>()
-                    .await?;
+        self.transaction(move |transaction| {
+            transaction.execute_batch(query)?;
 
-                // set raw config inside the transaction
-                sqlx::query("UPDATE config SET value=? WHERE keyname=?;")
-                    .bind(format!("{}", version))
-                    .bind(VERSION_CFG)
-                    .execute(&mut *conn)
-                    .await?;
+            // set raw config inside the transaction
+            transaction.execute(
+                "UPDATE config SET value=? WHERE keyname=?;",
+                paramsv![format!("{}", version), VERSION_CFG],
+            )?;
 
-                Ok(())
-            })
+            Ok(())
         })
         .await?;
 

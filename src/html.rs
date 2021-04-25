@@ -426,7 +426,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     #[async_std::test]
     async fn test_get_html_empty() {
         let t = TestContext::new().await;
-        let msg_id = MsgId::new_unset();
+        let msg_id = MsgId::new(100);
         assert!(msg_id.get_html(&t).await.unwrap().is_none())
     }
 

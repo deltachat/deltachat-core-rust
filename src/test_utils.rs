@@ -15,7 +15,6 @@ use async_std::{channel, pin::Pin};
 use async_std::{future::Future, task};
 use chat::ChatItem;
 use once_cell::sync::Lazy;
-use sqlx::Row;
 use tempfile::{tempdir, TempDir};
 
 use crate::chat::{self, Chat, ChatId};
@@ -228,25 +227,22 @@ impl TestContext {
             let row = self
                 .ctx
                 .sql
-                .fetch_one(
-                    sqlx::query(
-                        r#"
+                .query_row(
+                    r#"
                     SELECT id, foreign_id, param
                       FROM jobs
                      WHERE action=?
                   ORDER BY desired_timestamp DESC;
                 "#,
-                    )
-                    .bind(Action::SendMsgToSmtp),
+                    paramsv![Action::SendMsgToSmtp],
+                    |row| {
+                        let id: u32 = row.get(0)?;
+                        let foreign_id: u32 = row.get(1)?;
+                        let param: String = row.get(2)?;
+                        Ok((id, foreign_id, param))
+                    },
                 )
-                .await
-                .and_then(|row| {
-                    let id: u32 = row.try_get(0)?;
-                    let foreign_id: u32 = row.try_get(1)?;
-                    let param: String = row.try_get(2)?;
-                    Ok((id, foreign_id, param))
-                });
-
+                .await;
             if let Ok(row) = row {
                 break row;
             }
@@ -266,7 +262,7 @@ impl TestContext {
             .to_abs_path();
         self.ctx
             .sql
-            .execute(sqlx::query("DELETE FROM jobs WHERE id=?;").bind(rowid))
+            .execute("DELETE FROM jobs WHERE id=?;", paramsv![rowid])
             .await
             .expect("failed to remove job");
         update_msg_state(&self.ctx, id, MessageState::OutDelivered).await;
