@@ -1941,10 +1941,9 @@ pub async fn estimate_deletion_cnt(
     from_server: bool,
     seconds: i64,
 ) -> Result<usize> {
-    let self_chat_id = chat::lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
-        .await
-        .unwrap_or_default()
-        .0;
+    let self_chat_id = ChatId::lookup_by_contact(context, DC_CONTACT_ID_SELF)
+        .await?
+        .unwrap_or_default();
     let threshold_timestamp = time() - seconds;
 
     let cnt = if from_server {
@@ -2226,7 +2225,7 @@ mod tests {
             let contact_id = Contact::create(&t.ctx, "", "bob@example.net")
                 .await
                 .unwrap();
-            chat::create_by_contact_id(&t.ctx, contact_id)
+            ChatId::create_for_contact(&t.ctx, contact_id)
                 .await
                 .unwrap();
         }

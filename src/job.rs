@@ -12,25 +12,24 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
+use crate::blob::BlobObject;
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ChatItem};
+use crate::config::Config;
+use crate::constants::{Blocked, Chattype, DC_CHAT_ID_DEADDROP};
+use crate::contact::{normalize_name, Contact, Modifier, Origin};
+use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, dc_read_file, time};
 use crate::ephemeral::load_imap_deletion_msgid;
 use crate::events::EventType;
 use crate::imap::{Imap, ImapActionResult};
 use crate::location;
-use crate::message::MsgId;
-use crate::message::{self, Message, MessageState};
+use crate::log::LogExt;
+use crate::message::{self, Message, MessageState, MsgId};
 use crate::mimefactory::MimeFactory;
 use crate::param::{Param, Params};
+use crate::scheduler::InterruptInfo;
 use crate::smtp::Smtp;
-use crate::{blob::BlobObject, contact::normalize_name, contact::Modifier, contact::Origin};
-use crate::{
-    chat::{self, Chat, ChatId, ChatItem},
-    constants::DC_CHAT_ID_DEADDROP,
-};
-use crate::{config::Config, constants::Blocked};
-use crate::{constants::Chattype, contact::Contact};
-use crate::{context::Context, log::LogExt};
-use crate::{scheduler::InterruptInfo, sql};
+use crate::sql;
 
 // results in ~3 weeks for the last backoff timespan
 const JOB_RETRIES: u32 = 17;
@@ -729,10 +728,12 @@ impl Job {
                 };
                 match chat.typ {
                     Chattype::Group | Chattype::Mailinglist => {
-                        if let Ok((_1to1_chat, Blocked::Not)) =
-                            chat::lookup_by_contact_id(context, msg.from_id).await
+                        if let Ok(Some(one_to_one_chat)) =
+                            ChatIdBlocked::lookup_by_contact(context, msg.from_id).await
                         {
-                            chat.id.unblock(context).await;
+                            if one_to_one_chat.blocked == Blocked::Not {
+                                chat.id.unblock(context).await;
+                            }
                         }
                     }
                     Chattype::Single | Chattype::Undefined => {}

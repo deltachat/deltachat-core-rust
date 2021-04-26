@@ -65,19 +65,17 @@ use anyhow::{ensure, Context as _, Result};
 use async_std::task;
 use serde::{Deserialize, Serialize};
 
+use crate::chat::{send_msg, ChatId};
 use crate::constants::{
     Viewtype, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF,
 };
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::events::EventType;
+use crate::job;
 use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::stock_str;
-use crate::{
-    chat::{lookup_by_contact_id, send_msg, ChatId},
-    job,
-};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum Timer {
@@ -329,14 +327,12 @@ WHERE
         > 0;
 
     if let Some(delete_device_after) = context.get_config_delete_device_after().await? {
-        let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap_or_default()
-            .0;
-        let device_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
-            .await
-            .unwrap_or_default()
-            .0;
+        let self_chat_id = ChatId::lookup_by_contact(context, DC_CONTACT_ID_SELF)
+            .await?
+            .unwrap_or_default();
+        let device_chat_id = ChatId::lookup_by_contact(context, DC_CONTACT_ID_DEVICE)
+            .await?
+            .unwrap_or_default();
 
         let threshold_timestamp = time() - delete_device_after;
 

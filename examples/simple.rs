@@ -1,6 +1,6 @@
 use tempfile::tempdir;
 
-use deltachat::chat;
+use deltachat::chat::{self, ChatId};
 use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::contact::*;
@@ -70,7 +70,7 @@ async fn main() {
     let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com")
         .await
         .unwrap();
-    let chat_id = chat::create_by_contact_id(&ctx, contact_id).await.unwrap();
+    let chat_id = ChatId::create_for_contact(&ctx, contact_id).await.unwrap();
 
     for i in 0..1 {
         log::info!("sending message {}", i);

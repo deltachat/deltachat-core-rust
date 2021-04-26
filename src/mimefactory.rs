@@ -1348,11 +1348,11 @@ mod tests {
     use async_std::prelude::*;
 
     use crate::chat::ChatId;
+    use crate::chatlist::Chatlist;
     use crate::contact::Origin;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::mimeparser::MimeMessage;
-    use crate::test_utils::TestContext;
-    use crate::{chatlist::Chatlist, test_utils::get_chat_msg};
+    use crate::test_utils::{get_chat_msg, TestContext};
 
     use async_std::fs::File;
     use pretty_assertions::assert_eq;
@@ -1687,7 +1687,7 @@ mod tests {
                 .unwrap()
                 .0;
 
-        let chat_id = chat::create_by_contact_id(&t, contact_id).await.unwrap();
+        let chat_id = ChatId::create_for_contact(&t, contact_id).await.unwrap();
 
         let mut new_msg = Message::new(Viewtype::Text);
         new_msg.set_text(Some("Hi".to_string()));

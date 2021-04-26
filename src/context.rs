@@ -609,8 +609,7 @@ mod tests {
     use super::*;
 
     use crate::chat::{
-        create_by_contact_id, get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat,
-        MuteDuration,
+        get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, ChatId, MuteDuration,
     };
     use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
     use crate::dc_receive_imf::dc_receive_imf;
@@ -893,7 +892,7 @@ mod tests {
     #[async_std::test]
     async fn test_search_msgs() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        let self_talk = create_by_contact_id(&alice, DC_CONTACT_ID_SELF).await?;
+        let self_talk = ChatId::create_for_contact(&alice, DC_CONTACT_ID_SELF).await?;
         let chat = alice
             .create_chat_with_contact("Bob", "bob@example.org")
             .await;
