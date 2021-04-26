@@ -675,7 +675,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "createchat" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
             let contact_id: u32 = arg1.parse()?;
-            let chat_id = chat::create_by_contact_id(&context, contact_id).await?;
+            let chat_id = ChatId::create_for_contact(&context, contact_id).await?;
 
             println!("Single#{} created successfully.", chat_id,);
         }

@@ -2,7 +2,6 @@
 
 use anyhow::{bail, ensure, Result};
 
-use crate::chat;
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
     Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_DEADDROP,
@@ -110,15 +109,6 @@ impl Chatlist {
 
         let mut add_archived_link_item = false;
 
-        let skip_id = if flag_for_forwarding {
-            chat::lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
-                .await
-                .unwrap_or_default()
-                .0
-        } else {
-            ChatId::new(0)
-        };
-
         let process_row = |row: &rusqlite::Row| {
             let chat_id: ChatId = row.get(0)?;
             let msg_id: MsgId = row.get(1).unwrap_or_default();
@@ -128,6 +118,14 @@ impl Chatlist {
         let process_rows = |rows: rusqlite::MappedRows<_>| {
             rows.collect::<std::result::Result<Vec<_>, _>>()
                 .map_err(Into::into)
+        };
+
+        let skip_id = if flag_for_forwarding {
+            ChatId::lookup_by_contact(context, DC_CONTACT_ID_DEVICE)
+                .await?
+                .unwrap_or_default()
+        } else {
+            ChatId::new(0)
         };
 
         // select with left join and minimum:
@@ -232,10 +230,9 @@ impl Chatlist {
         } else {
             //  show normal chatlist
             let sort_id_up = if flag_for_forwarding {
-                chat::lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
-                    .await
+                ChatId::lookup_by_contact(context, DC_CONTACT_ID_SELF)
+                    .await?
                     .unwrap_or_default()
-                    .0
             } else {
                 ChatId::new(0)
             };

@@ -8,8 +8,7 @@ use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
 use crate::blob::BlobObject;
-use crate::chat;
-use crate::chat::ProtectionStatus;
+use crate::chat::{self, ChatId, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::{Contact, Origin};
@@ -916,7 +915,7 @@ impl Context {
             self.sql
                 .set_raw_config_bool("self-chat-added", true)
                 .await?;
-            chat::create_by_contact_id(self, DC_CONTACT_ID_SELF).await?;
+            ChatId::create_for_contact(self, DC_CONTACT_ID_SELF).await?;
         }
 
         // add welcome-messages. by the label, this is done only once,

@@ -639,7 +639,7 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
     let ctx = &*context;
 
     block_on(async move {
-        chat::create_by_contact_id(&ctx, contact_id)
+        ChatId::create_for_contact(&ctx, contact_id)
             .await
             .log_err(ctx, "Failed to create chat from contact_id")
             .map(|id| id.to_u32())
@@ -659,11 +659,12 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     let ctx = &*context;
 
     block_on(async move {
-        chat::get_by_contact_id(&ctx, contact_id)
+        ChatId::lookup_by_contact(&ctx, contact_id)
             .await
             .log_err(ctx, "Failed to get chat for contact_id")
+            .unwrap_or_default() // unwraps the Result
             .map(|id| id.to_u32())
-            .unwrap_or(0)
+            .unwrap_or(0) // unwraps the Option
     })
 }
 

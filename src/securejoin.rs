@@ -304,7 +304,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
         StartedProtocolVariant::SetupContact => {
             // for a one-to-one-chat, the chat is already known, return the chat-id,
             // the verification runs in background
-            let chat_id = chat::create_by_contact_id(context, invite.contact_id())
+            let chat_id = ChatId::create_for_contact(context, invite.contact_id())
                 .await
                 .map_err(JoinError::UnknownContact)?;
             Ok(chat_id)

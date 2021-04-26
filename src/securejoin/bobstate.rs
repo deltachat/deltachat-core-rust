@@ -185,7 +185,7 @@ impl BobState {
         context: &Context,
         invite: QrInvite,
     ) -> Result<(Self, BobHandshakeStage), JoinError> {
-        let chat_id = chat::create_by_contact_id(context, invite.contact_id())
+        let chat_id = ChatId::create_for_contact(context, invite.contact_id())
             .await
             .map_err(JoinError::UnknownContact)?;
         if fingerprint_equals_sender(context, invite.fingerprint(), chat_id).await? {

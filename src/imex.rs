@@ -3,16 +3,18 @@
 use std::any::Any;
 use std::ffi::OsStr;
 
+use ::pgp::types::KeyTrait;
 use anyhow::{bail, ensure, format_err, Context as _, Result};
-use async_std::path::{Path, PathBuf};
 use async_std::{
     fs::{self, File},
+    path::{Path, PathBuf},
     prelude::*,
 };
+use async_tar::Archive;
 use rand::{thread_rng, Rng};
 
-use crate::chat;
-use crate::chat::delete_and_reset_all_device_msgs;
+use crate::blob::BlobObject;
+use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
 use crate::config::Config;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
@@ -23,15 +25,13 @@ use crate::dc_tools::{
 use crate::e2ee;
 use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
+use crate::log::LogExt;
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock_str;
-use crate::{blob::BlobObject, log::LogExt};
-use ::pgp::types::KeyTrait;
-use async_tar::Archive;
 
 // Name of the database file in the backup.
 const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
@@ -231,7 +231,7 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     )
     .await?;
 
-    let chat_id = chat::create_by_contact_id(context, DC_CONTACT_ID_SELF).await?;
+    let chat_id = ChatId::create_for_contact(context, DC_CONTACT_ID_SELF).await?;
     msg = Message::default();
     msg.viewtype = Viewtype::File;
     msg.param.set(Param::File, setup_file_blob.as_name());

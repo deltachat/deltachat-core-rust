@@ -355,7 +355,7 @@ impl TestContext {
         .await
         .unwrap();
 
-        let chat_id = chat::create_by_contact_id(self, contact_id).await.unwrap();
+        let chat_id = ChatId::create_for_contact(self, contact_id).await.unwrap();
         Chat::load_from_db(self, chat_id).await.unwrap()
     }
 
@@ -367,13 +367,13 @@ impl TestContext {
         let contact = Contact::create(self, name, addr)
             .await
             .expect("failed to create contact");
-        let chat_id = chat::create_by_contact_id(self, contact).await.unwrap();
+        let chat_id = ChatId::create_for_contact(self, contact).await.unwrap();
         Chat::load_from_db(self, chat_id).await.unwrap()
     }
 
     /// Retrieves the "self" chat.
     pub async fn get_self_chat(&self) -> Chat {
-        let chat_id = chat::create_by_contact_id(self, DC_CONTACT_ID_SELF)
+        let chat_id = ChatId::create_for_contact(self, DC_CONTACT_ID_SELF)
             .await
             .unwrap();
         Chat::load_from_db(self, chat_id).await.unwrap()
