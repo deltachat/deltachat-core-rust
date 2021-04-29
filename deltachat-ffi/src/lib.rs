@@ -21,6 +21,7 @@ use std::ptr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
+use anyhow::Context as _;
 use async_std::task::{block_on, spawn};
 use num_traits::{FromPrimitive, ToPrimitive};
 
@@ -130,12 +131,14 @@ pub unsafe extern "C" fn dc_set_config(
         return 0;
     }
     let ctx = &*context;
-    match config::Config::from_str(&to_string_lossy(key)) {
-        // When ctx.set_config() fails it already logged the error.
-        // TODO: Context::set_config() should not log this
+    let key = to_string_lossy(key);
+    match config::Config::from_str(&key) {
         Ok(key) => block_on(async move {
-            ctx.set_config(key, to_opt_string_lossy(value).as_deref())
+            let value = to_opt_string_lossy(value);
+            ctx.set_config(key, value.as_deref())
                 .await
+                .with_context(|| format!("Can't set {} to {:?}", key, value))
+                .log_err(ctx, "dc_set_config() failed")
                 .is_ok() as libc::c_int
         }),
         Err(_) => {
