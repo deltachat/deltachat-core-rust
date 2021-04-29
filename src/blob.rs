@@ -7,6 +7,7 @@ use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use async_std::{fs, io};
 
+use anyhow::format_err;
 use anyhow::Error;
 use image::GenericImageView;
 use num_traits::FromPrimitive;
@@ -381,6 +382,7 @@ impl<'a> BlobObject<'a> {
     }
 
     pub async fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
+        // TODO can fail now!!!!
         let blob_abs = self.to_abs_path();
 
         let img_wh =
@@ -391,7 +393,9 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => WORSE_AVATAR_SIZE,
             };
 
-        self.recode_to_size(context, blob_abs, img_wh).await
+        // max_bytes is 20_000 bytes as that's the max header size of some servers
+        self.recode_to_size(context, blob_abs, img_wh, Some(20_000))
+            .await
     }
 
     pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
@@ -410,14 +414,15 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => WORSE_IMAGE_SIZE,
             };
 
-        self.recode_to_size(context, blob_abs, img_wh).await
+        self.recode_to_size(context, blob_abs, img_wh, None).await
     }
 
     async fn recode_to_size(
         &self,
         context: &Context,
         blob_abs: PathBuf,
-        img_wh: u32,
+        mut img_wh: u32,
+        max_bytes: Option<usize>,
     ) -> Result<(), BlobError> {
         let mut img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
             blobdir: context.get_blobdir().to_path_buf(),
@@ -428,10 +433,29 @@ impl<'a> BlobObject<'a> {
 
         let do_scale = img.width() > img_wh || img.height() > img_wh;
         let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
+        let exceeds_bytes = if let Some(max_bytes) = max_bytes {
+            img.as_bytes().len() > max_bytes
+        } else {
+            false
+        };
 
-        if do_scale || do_rotate {
+        if do_scale || do_rotate || exceeds_bytes {
+            // TODO
             if do_scale {
                 img = img.thumbnail(img_wh, img_wh);
+            }
+            if let Some(max_bytes) = max_bytes {
+                while img.as_bytes().len() > max_bytes {
+                    img_wh = img_wh / 2;
+                    if img_wh < 50 {
+                        return Err(format_err!(
+                            "Image witdh is 50, but size is still {}",
+                            img.as_bytes().len()
+                        )
+                        .into());
+                    }
+                    img = img.thumbnail(img_wh, img_wh);
+                }
             }
 
             if do_rotate {
