@@ -382,7 +382,6 @@ impl<'a> BlobObject<'a> {
     }
 
     pub async fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
-        // TODO can fail now!!!!
         let blob_abs = self.to_abs_path();
 
         let img_wh =
@@ -447,12 +446,11 @@ impl<'a> BlobObject<'a> {
             if let Some(max_bytes) = max_bytes {
                 while img.as_bytes().len() > max_bytes {
                     img_wh = img_wh / 2;
-                    if img_wh < 50 {
-                        return Err(format_err!(
-                            "Image witdh is 50, but size is still {}",
+                    if img_wh < 20 {
+                        Err(format_err!(
+                            "Image width is 20, but size is still {}",
                             img.as_bytes().len()
-                        )
-                        .into());
+                        ))?
                     }
                     img = img.thumbnail(img_wh, img_wh);
                 }
