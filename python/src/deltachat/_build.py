@@ -50,6 +50,7 @@ def system_build_flags():
     flags.objs = []
     flags.incs = []
     flags.extra_link_args = []
+    return flags
 
 
 def extract_functions(flags):
@@ -168,11 +169,8 @@ def extract_defines(flags):
 
 def ffibuilder():
     projdir = os.environ.get('DCC_RS_DEV')
-    if not projdir:
-        p = dn(dn(dn(dn(abspath(__file__)))))
-        projdir = os.environ["DCC_RS_DEV"] = p
-    target = os.environ.get('DCC_RS_TARGET', 'release')
     if projdir:
+        target = os.environ.get('DCC_RS_TARGET', 'release')
         flags = local_build_flags(projdir, target)
     else:
         flags = system_build_flags()
