@@ -14,6 +14,7 @@ use async_std::{fs, io};
 
 use anyhow::{bail, Error};
 use chrono::{Local, TimeZone};
+use image::DynamicImage;
 use rand::{thread_rng, Rng};
 
 use crate::chat::{add_device_msg, add_device_msg_with_importance};
@@ -680,6 +681,33 @@ pub fn remove_subject_prefix(last_subject: &str) -> String {
         .collect::<String>()
         .trim()
         .to_string()
+}
+
+struct ByteCounter {
+    count: usize,
+}
+
+impl ByteCounter {
+    fn new() -> Self {
+        ByteCounter { count: 0 }
+    }
+}
+
+impl std::io::Write for ByteCounter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.count += buf.len();
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+pub(crate) fn count_bytes(img: &DynamicImage) -> anyhow::Result<usize> {
+    let mut writer = ByteCounter::new();
+    img.write_to(&mut writer, image::ImageFormat::Jpeg)?;
+    Ok(writer.count)
 }
 
 #[cfg(test)]

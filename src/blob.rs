@@ -9,6 +9,7 @@ use async_std::{fs, io};
 
 use anyhow::format_err;
 use anyhow::Error;
+use image::DynamicImage;
 use image::GenericImageView;
 use num_traits::FromPrimitive;
 use thiserror::Error;
@@ -19,6 +20,7 @@ use crate::constants::{
     WORSE_IMAGE_SIZE,
 };
 use crate::context::Context;
+use crate::dc_tools::count_bytes;
 use crate::events::EventType;
 use crate::message;
 
@@ -430,33 +432,63 @@ impl<'a> BlobObject<'a> {
         })?;
         let orientation = self.get_exif_orientation(context);
 
-        let exceeds_width = img.width() > img_wh || img.height() > img_wh;
-        let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
-        let exceeds_bytes = if let Some(max_bytes) = max_bytes {
-            img.as_bytes().len() > max_bytes
-        } else {
-            false
-        };
-
-        if exceeds_width || do_rotate || exceeds_bytes {
-            let mut scaled_img = None;
-            if exceeds_width {
-                scaled_img = Some(img.thumbnail(img_wh, img_wh));
-            }
+        fn exceeds_bytes(
+            context: &Context,
+            img: &DynamicImage,
+            max_bytes: Option<usize>,
+        ) -> anyhow::Result<bool> {
             if let Some(max_bytes) = max_bytes {
-                while scaled_img.as_ref().unwrap_or(&img).as_bytes().len() > max_bytes {
-                    img_wh = img_wh * 2 / 3;
-                    if img_wh < 20 {
-                        Err(format_err!(
-                            "Image width is <20, but size is still {}",
-                            img.as_bytes().len()
-                        ))?
-                    }
-                    scaled_img = Some(img.thumbnail(img_wh, img_wh));
+                let size = count_bytes(img)?;
+                if size > max_bytes {
+                    info!(
+                        context,
+                        "image size {}B ({}x{}px) exceeds {}B, need to scale down",
+                        size,
+                        img.width(),
+                        img.height(),
+                        max_bytes,
+                    );
+                    return Ok(true);
                 }
             }
-            if let Some(scaled) = scaled_img {
-                img = scaled;
+            Ok(false)
+        };
+        let exceeds_width = img.width() > img_wh || img.height() > img_wh;
+
+        let do_scale = exceeds_width || exceeds_bytes(context, &img, max_bytes)?;
+        let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
+
+        if do_scale || do_rotate {
+            if do_scale {
+                if !exceeds_width {
+                    // The image is already smaller than img_wh, but exceeds max_bytes
+                    // We can directly start with trying to scale down to 2/3 of its current width
+                    img_wh = img.width() * 2 / 3 // TODO should be {max or min}(img.width(), img.height())
+                }
+
+                img = loop {
+                    let new_img = img.thumbnail(img_wh, img_wh);
+
+                    if exceeds_bytes(context, &new_img, max_bytes)? {
+                        if img_wh < 20 {
+                            return Err(format_err!(
+                                "Failed to scale image to below {}B",
+                                max_bytes.unwrap_or_default()
+                            )
+                            .into());
+                        }
+
+                        img_wh = img_wh * 2 / 3;
+                    } else {
+                        info!(
+                            context,
+                            "Final scaled-down image size: {}B ({}px)",
+                            count_bytes(&new_img)?,
+                            img_wh
+                        ); // TODO dbg (?)
+                        break new_img;
+                    }
+                }
             }
 
             if do_rotate {
@@ -768,9 +800,25 @@ mod tests {
         assert_eq!(img.width(), 1000);
         assert_eq!(img.height(), 1000);
 
-        let img = image::open(avatar_blob).unwrap();
+        let img = image::open(&avatar_blob).unwrap();
         assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
         assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
+
+        async fn file_size(path_buf: &PathBuf) -> u64 {
+            let file = File::open(path_buf).await.unwrap();
+            file.metadata().await.unwrap().len()
+        }
+
+        let blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
+
+        blob.recode_to_size(&t, blob.to_abs_path(), 1000, Some(3000))
+            .await
+            .unwrap();
+        assert!(file_size(&avatar_blob).await <= 3000);
+        assert!(file_size(&avatar_blob).await > 2000);
+        let img = image::open(&avatar_blob).unwrap();
+        assert!(img.width() > 130);
+        assert_eq!(img.width(), img.height());
     }
 
     #[async_std::test]
