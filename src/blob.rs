@@ -430,7 +430,7 @@ impl<'a> BlobObject<'a> {
         })?;
         let orientation = self.get_exif_orientation(context);
 
-        let do_scale = img.width() > img_wh || img.height() > img_wh;
+        let exceeds_width = img.width() > img_wh || img.height() > img_wh;
         let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
         let exceeds_bytes = if let Some(max_bytes) = max_bytes {
             img.as_bytes().len() > max_bytes
@@ -438,22 +438,25 @@ impl<'a> BlobObject<'a> {
             false
         };
 
-        if do_scale || do_rotate || exceeds_bytes {
-            // TODO
-            if do_scale {
-                img = img.thumbnail(img_wh, img_wh);
+        if exceeds_width || do_rotate || exceeds_bytes {
+            let mut scaled_img = None;
+            if exceeds_width {
+                scaled_img = Some(img.thumbnail(img_wh, img_wh));
             }
             if let Some(max_bytes) = max_bytes {
-                while img.as_bytes().len() > max_bytes {
-                    img_wh = img_wh / 2;
+                while scaled_img.as_ref().unwrap_or(&img).as_bytes().len() > max_bytes {
+                    img_wh = img_wh * 2 / 3;
                     if img_wh < 20 {
                         Err(format_err!(
-                            "Image width is 20, but size is still {}",
+                            "Image width is <20, but size is still {}",
                             img.as_bytes().len()
                         ))?
                     }
-                    img = img.thumbnail(img_wh, img_wh);
+                    scaled_img = Some(img.thumbnail(img_wh, img_wh));
                 }
+            }
+            if let Some(scaled) = scaled_img {
+                img = scaled;
             }
 
             if do_rotate {
