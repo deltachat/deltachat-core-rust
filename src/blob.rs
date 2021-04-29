@@ -547,6 +547,8 @@ pub enum BlobError {
 
 #[cfg(test)]
 mod tests {
+    use fs::File;
+
     use super::*;
 
     use crate::test_utils::TestContext;
@@ -739,5 +741,87 @@ mod tests {
         assert!(!stem.contains(':'));
         assert!(!stem.contains('*'));
         assert!(!stem.contains('?'));
+    }
+
+    #[async_std::test]
+    async fn test_selfavatar_outside_blobdir() {
+        let t = TestContext::new().await;
+        let avatar_src = t.dir.path().join("avatar.jpg");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        File::create(&avatar_src)
+            .await
+            .unwrap()
+            .write_all(avatar_bytes)
+            .await
+            .unwrap();
+        let avatar_blob = t.get_blobdir().join("avatar.jpg");
+        assert!(!avatar_blob.exists().await);
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(avatar_blob.exists().await);
+        assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
+        let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
+        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+
+        let img = image::open(avatar_src).unwrap();
+        assert_eq!(img.width(), 1000);
+        assert_eq!(img.height(), 1000);
+
+        let img = image::open(avatar_blob).unwrap();
+        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
+        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
+    }
+
+    #[async_std::test]
+    async fn test_selfavatar_in_blobdir() {
+        let t = TestContext::new().await;
+        let avatar_src = t.get_blobdir().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar900x900.png");
+        File::create(&avatar_src)
+            .await
+            .unwrap()
+            .write_all(avatar_bytes)
+            .await
+            .unwrap();
+
+        let img = image::open(&avatar_src).unwrap();
+        assert_eq!(img.width(), 900);
+        assert_eq!(img.height(), 900);
+
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
+            .await
+            .unwrap();
+        let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
+        assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
+
+        let img = image::open(avatar_src).unwrap();
+        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
+        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
+    }
+
+    #[async_std::test]
+    async fn test_selfavatar_copy_without_recode() {
+        let t = TestContext::new().await;
+        let avatar_src = t.dir.path().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        File::create(&avatar_src)
+            .await
+            .unwrap()
+            .write_all(avatar_bytes)
+            .await
+            .unwrap();
+        let avatar_blob = t.get_blobdir().join("avatar.png");
+        assert!(!avatar_blob.exists().await);
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(avatar_blob.exists().await);
+        assert_eq!(
+            std::fs::metadata(&avatar_blob).unwrap().len(),
+            avatar_bytes.len() as u64
+        );
+        let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
+        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
     }
 }
