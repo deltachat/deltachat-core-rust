@@ -9,8 +9,6 @@ import subprocess
 import tempfile
 import textwrap
 import types
-from os.path import abspath
-from os.path import dirname as dn
 
 import cffi
 
