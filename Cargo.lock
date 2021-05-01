@@ -1136,7 +1136,7 @@ dependencies = [
  "quick-xml",
  "r2d2",
  "r2d2_sqlite",
- "rand 0.7.3",
+ "rand 0.8.3",
  "regex",
  "rusqlite",
  "rust-hsluv",
@@ -1176,7 +1176,7 @@ dependencies = [
  "human-panic",
  "libc",
  "num-traits",
- "rand 0.7.3",
+ "rand 0.8.3",
  "serde_json",
  "thiserror",
 ]
