@@ -10,6 +10,8 @@
 
 - python: fix building of bindings against system-wide install of `libdeltachat` #2383
 
+- python: list `requests` as a requirement #2390
+
 - fix creation of many delete jobs when being offline #2372
 
 - deaddrop (contact requests) chat improvements #2373
