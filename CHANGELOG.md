@@ -14,6 +14,10 @@
 
 - deaddrop (contact requests) chat improvements #2373
 
+- add "Forwarded:" to notification and chatlist summaries #2310
+
+- place user avatar directly into `Chat-User-Avatar` header #2232
+
 - improve tests #2360 #2362 #2370 #2377
 
 - cleanup #2359 #2361 #2374 #2376 #2379
