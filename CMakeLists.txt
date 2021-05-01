@@ -8,7 +8,7 @@ add_custom_command(
 	"target/release/libdeltachat.a"
 	"target/release/libdeltachat.so"
 	"target/release/pkgconfig/deltachat.pc"
-	COMMAND PREFIX=${CMAKE_INSTALL_PREFIX} ${CARGO} build --package deltachat_ffi --release
+	COMMAND PREFIX=${CMAKE_INSTALL_PREFIX} ${CARGO} build --package deltachat_ffi --release --no-default-features
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
