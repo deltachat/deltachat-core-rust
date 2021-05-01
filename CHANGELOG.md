@@ -1,5 +1,23 @@
 # Changelog 
 
+## Unreleased
+
+- switch back from `sqlx` to `rusqlite` due to performance regressions #2380 #2381
+
+- global search performance improvement #2364 #2365 #2366
+
+- improve SQLite performance with `PRAGMA synchronous=normal` #2382
+
+- python: fix building of bindings against system-wide install of `libdeltachat` #2383
+
+- fix creation of many delete jobs when being offline #2372
+
+- deaddrop (contact requests) chat improvements #2373
+
+- improve tests #2360 #2362 #2370 #2377
+
+- cleanup #2359 #2361 #2374 #2376 #2379
+
 ## 1.53.0
 
 - fix sqlx performance regression #2355 2356
