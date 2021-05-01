@@ -5,9 +5,6 @@ jobs:
     name: Remote Python tests
     runs-on: ubuntu-latest
     env:
-      CIRCLE_BRANCH: ${{ github.ref }}
-      CIRCLE_JOB: remote_tests_python
-      CIRCLE_BUILD_NUM: ${{ github.run_number }}
       DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
     steps:
       - uses: actions/checkout@v2
@@ -18,4 +15,4 @@ jobs:
         shell: bash
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
-      - run: scripts/remote_tests_python.sh
+      - run: scripts/remote_tests_python.sh "deltachat-core/python/${{ github.ref }}/${{ github.run_number }}"

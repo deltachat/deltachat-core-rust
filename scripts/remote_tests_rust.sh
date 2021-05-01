@@ -1,20 +1,19 @@
 #!/bin/bash 
 
-export BRANCH=${CIRCLE_BRANCH:-master}
-export REPONAME=${CIRCLE_PROJECT_REPONAME:-deltachat-core-rust}
-export SSHTARGET=${SSHTARGET-ci@b1.delta.chat}
+BUILD_ID=${1:?specify build ID}
 
-export BUILDDIR=ci_builds/$REPONAME/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}
+SSHTARGET=${SSHTARGET-ci@b1.delta.chat}
+BUILDDIR=ci_builds/$BUILD_ID
 
 set -e
 
 echo "--- Copying files to $SSHTARGET:$BUILDDIR"
 
-ssh -oBatchMode=yes -oStrictHostKeyChecking=no  $SSHTARGET mkdir -p "$BUILDDIR"
-git ls-files >.rsynclist 
+ssh -oBatchMode=yes -oStrictHostKeyChecking=no $SSHTARGET mkdir -p "$BUILDDIR"
+git ls-files >.rsynclist
 rsync --delete --files-from=.rsynclist -az ./ "$SSHTARGET:$BUILDDIR"
 
-echo "--- Running $CIRCLE_JOB remotely"
+echo "--- Running Rust tests remotely"
 
 ssh $SSHTARGET <<_HERE
     set +x -e
