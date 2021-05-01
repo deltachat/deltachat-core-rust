@@ -22,7 +22,7 @@ async-smtp = { git = "https://github.com/async-email/async-smtp", rev="2275fd8d1
 async-std-resolver = "0.19.5"
 async-std = { version = "~1.8.0", features = ["unstable"] }
 async-tar = "0.3.0"
-async-trait = "0.1.31"
+async-trait = "0.1.50"
 backtrace = "0.3.33"
 base64 = "0.13"
 bitflags = "1.1.0"
