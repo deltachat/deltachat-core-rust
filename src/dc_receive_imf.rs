@@ -1929,7 +1929,7 @@ async fn check_verified_properties(
             paramsv![],
             |row| {
                 let to_addr: String = row.get(0)?;
-                let is_verified: i32 = row.get(1)?;
+                let is_verified: i32 = row.get(1).unwrap_or(0);
                 Ok((to_addr, is_verified != 0))
             },
             |rows| {

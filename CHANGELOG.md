@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- switch back from `sqlx` to `rusqlite` due to performance regressions #2380 #2381 #2385
+- switch back from `sqlx` to `rusqlite` due to performance regressions #2380 #2381 #2385 #2387
 
 - global search performance improvement #2364 #2365 #2366
 
@@ -20,7 +20,7 @@
 
 - place user avatar directly into `Chat-User-Avatar` header #2232
 
-- improve tests #2360 #2362 #2370 #2377
+- improve tests #2360 #2362 #2370 #2377 #2387
 
 - cleanup #2359 #2361 #2374 #2376 #2379 #2388
 

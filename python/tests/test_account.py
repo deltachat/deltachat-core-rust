@@ -1713,7 +1713,7 @@ class TestOnlineAccount:
         ac1._evtracker.wait_securejoin_inviter_progress(1000)
 
     def test_qr_verified_group_and_chatting(self, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
         lp.sec("ac1: create verified-group QR, ac2 scans and joins")
         chat1 = ac1.create_group_chat("hello", verified=True)
         assert chat1.is_protected()
@@ -1742,6 +1742,29 @@ class TestOnlineAccount:
         chat2.send_text("world")
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "world"
+        assert msg.is_encrypted()
+
+        lp.sec("ac1: create QR code and let ac3 scan it, starting the securejoin")
+        qr = ac1.get_setup_contact_qr()
+
+        lp.sec("ac3: start QR-code based setup contact protocol")
+        ch = ac3.qr_setup_contact(qr)
+        assert ch.id >= 10
+        ac1._evtracker.wait_securejoin_inviter_progress(1000)
+
+        lp.sec("ac1: add ac3 to verified group")
+        chat1.add_contact(ac3)
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.is_encrypted()
+        assert msg.is_system_message()
+        assert not msg.error
+
+        lp.sec("ac2: send message and let ac3 read it")
+        chat2.send_text("hi")
+        # Skip system message about added member
+        ac3._evtracker.wait_next_incoming_message()
+        msg = ac3._evtracker.wait_next_incoming_message()
+        assert msg.text == "hi"
         assert msg.is_encrypted()
 
     def test_set_get_contact_avatar(self, acfactory, data, lp):
