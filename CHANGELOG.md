@@ -12,6 +12,8 @@
 
 - fix creation of many delete jobs when being offline #2372
 
+- synchronize status between devices #2386
+
 - deaddrop (contact requests) chat improvements #2373
 
 - improve tests #2360 #2362 #2370 #2377

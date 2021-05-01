@@ -243,6 +243,8 @@ pub(crate) async fn dc_receive_imf_inner(
             context,
             from_id,
             mime_parser.footer.clone().unwrap_or_default(),
+            mime_parser.was_encrypted(),
+            mime_parser.has_chat_version(),
         )
         .await
         {

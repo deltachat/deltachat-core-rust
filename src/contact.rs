@@ -1300,13 +1300,31 @@ pub(crate) async fn set_profile_image(
 }
 
 /// Sets contact status.
-pub(crate) async fn set_status(context: &Context, contact_id: u32, status: String) -> Result<()> {
-    let mut contact = Contact::load_from_db(context, contact_id).await?;
+///
+/// For contact SELF, the status is not saved in the contact table, but as Config::Selfstatus.  This
+/// is only done if message is sent from Delta Chat and it is encrypted, to synchronize signature
+/// between Delta Chat devices.
+pub(crate) async fn set_status(
+    context: &Context,
+    contact_id: u32,
+    status: String,
+    encrypted: bool,
+    has_chat_version: bool,
+) -> Result<()> {
+    if contact_id == DC_CONTACT_ID_SELF {
+        if encrypted && has_chat_version {
+            context
+                .set_config(Config::Selfstatus, Some(&status))
+                .await?;
+        }
+    } else {
+        let mut contact = Contact::load_from_db(context, contact_id).await?;
 
-    if contact.status != status {
-        contact.status = status;
-        contact.update_status(context).await?;
-        context.emit_event(EventType::ContactsChanged(Some(contact_id)));
+        if contact.status != status {
+            contact.status = status;
+            contact.update_status(context).await?;
+            context.emit_event(EventType::ContactsChanged(Some(contact_id)));
+        }
     }
     Ok(())
 }
@@ -1397,6 +1415,7 @@ mod tests {
     use super::*;
 
     use crate::chat::send_text_msg;
+    use crate::message::Message;
     use crate::test_utils::TestContext;
 
     #[test]
@@ -1898,6 +1917,72 @@ alice@example.com:
 bob@example.net:
 CCCB 5AA9 F6E1 141C 9431
 65F1 DB18 B18C BCF7 0487"
+        );
+
+        Ok(())
+    }
+
+    /// Tests that status is synchronized when sending encrypted BCC-self messages and not
+    /// synchronized when the message is not encrypted.
+    #[async_std::test]
+    async fn test_synchronize_status() -> Result<()> {
+        // Alice has two devices.
+        let alice1 = TestContext::new_alice().await;
+        let alice2 = TestContext::new_alice().await;
+
+        // Bob has one device.
+        let bob = TestContext::new_bob().await;
+
+        let default_status = alice1.get_config(Config::Selfstatus).await?;
+
+        alice1
+            .set_config(Config::Selfstatus, Some("New status"))
+            .await?;
+        let chat = alice1
+            .create_chat_with_contact("Bob", "bob@example.net")
+            .await;
+
+        // Alice sends a message to Bob from the first device.
+        send_text_msg(&alice1, chat.id, "Hello".to_string()).await?;
+        let sent_msg = alice1.pop_sent_msg().await;
+
+        // Message is not encrypted.
+        let message = Message::load_from_db(&alice1, sent_msg.sender_msg_id).await?;
+        assert!(!message.get_showpadlock());
+
+        // Alice's second devices receives a copy of outgoing message.
+        alice2.recv_msg(&sent_msg).await;
+
+        // Bob receives message.
+        bob.recv_msg(&sent_msg).await;
+
+        // Message was not encrypted, so status is not copied.
+        assert_eq!(alice2.get_config(Config::Selfstatus).await?, default_status);
+
+        // Bob replies.
+        let chat = bob
+            .create_chat_with_contact("Alice", "alice@example.com")
+            .await;
+
+        send_text_msg(&bob, chat.id, "Reply".to_string()).await?;
+        let sent_msg = bob.pop_sent_msg().await;
+        alice1.recv_msg(&sent_msg).await;
+        alice2.recv_msg(&sent_msg).await;
+
+        // Alice sends second message.
+        send_text_msg(&alice1, chat.id, "Hello".to_string()).await?;
+        let sent_msg = alice1.pop_sent_msg().await;
+
+        // Second message is encrypted.
+        let message = Message::load_from_db(&alice1, sent_msg.sender_msg_id).await?;
+        assert!(message.get_showpadlock());
+
+        // Alice's second devices receives a copy of second outgoing message.
+        alice2.recv_msg(&sent_msg).await;
+
+        assert_eq!(
+            alice2.get_config(Config::Selfstatus).await?,
+            Some("New status".to_string())
         );
 
         Ok(())
