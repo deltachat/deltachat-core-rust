@@ -1,4 +1,4 @@
-FROM quay.io/pypa/manylinux2010_x86_64
+FROM quay.io/pypa/manylinux2014_x86_64
 
 # Configure ld.so/ldconfig and pkg-config
 RUN echo /usr/local/lib64 > /etc/ld.so.conf.d/local.conf && \
