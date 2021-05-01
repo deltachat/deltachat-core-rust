@@ -12,6 +12,8 @@
 
 - fix creation of many delete jobs when being offline #2372
 
+- synchronize status between devices #2386
+
 - deaddrop (contact requests) chat improvements #2373
 
 - add "Forwarded:" to notification and chatlist summaries #2310
