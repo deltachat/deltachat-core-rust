@@ -6,3 +6,4 @@ updates:
       interval: "daily"
     commit-message:
       prefix: "cargo"
+    open-pull-requests-limit: 10
