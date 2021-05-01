@@ -499,7 +499,7 @@ impl Contact {
                 if update_name {
                     // Update the contact name also if it is used as a group name.
                     // This is one of the few duplicated data, however, getting the chat list is easier this way.
-                    let chat_id = context.sql.query_get_value::<i32>(
+                    let chat_id: Option<i32> = context.sql.query_get_value(
                         "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
                         paramsv![Chattype::Single, isize::try_from(row_id)?]
                     ).await?;

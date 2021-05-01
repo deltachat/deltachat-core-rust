@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-- switch back from `sqlx` to `rusqlite` due to performance regressions #2380 #2381
+- switch back from `sqlx` to `rusqlite` due to performance regressions #2380 #2381 #2385
 
 - global search performance improvement #2364 #2365 #2366
 
 - improve SQLite performance with `PRAGMA synchronous=normal` #2382
 
-- python: fix building of bindings against system-wide install of `libdeltachat` #2383
+- python: fix building of bindings against system-wide install of `libdeltachat` #2383 #2385
 
 - fix creation of many delete jobs when being offline #2372
 

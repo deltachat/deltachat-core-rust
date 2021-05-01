@@ -853,7 +853,7 @@ async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
     );
     context
         .sql
-        .execute(q, job_ids.iter().map(|i| i as &dyn crate::ToSql).collect())
+        .execute(q, rusqlite::params_from_iter(job_ids))
         .await?;
     Ok(())
 }

@@ -382,7 +382,7 @@ impl Message {
                 ),
                 paramsv![id],
                 |row| {
-                    let text = match row.get_raw("txt") {
+                    let text = match row.get_ref("txt")? {
                         rusqlite::types::ValueRef::Text(buf) => {
                             match String::from_utf8(buf.to_vec()) {
                                 Ok(t) => t,

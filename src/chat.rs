@@ -441,14 +441,14 @@ impl ChatId {
     }
 
     async fn get_draft_msg_id(self, context: &Context) -> Result<Option<MsgId>, Error> {
-        context
+        let msg_id: Option<MsgId> = context
             .sql
-            .query_get_value::<MsgId>(
+            .query_get_value(
                 "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
                 paramsv![self, MessageState::OutDraft],
             )
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(msg_id)
     }
 
     pub async fn get_draft(self, context: &Context) -> Result<Option<Message>, Error> {
@@ -2371,9 +2371,9 @@ pub(crate) async fn reset_gossiped_timestamp(
 /// Get timestamp of the last gossip sent in the chat.
 /// Zero return value means that gossip was never sent.
 pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<i64, Error> {
-    let timestamp = context
+    let timestamp: Option<i64> = context
         .sql
-        .query_get_value::<i64>(
+        .query_get_value(
             "SELECT gossiped_timestamp FROM chats WHERE id=?;",
             paramsv![chat_id],
         )
@@ -2762,7 +2762,7 @@ pub async fn forward_msgs(
                     "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
                     msg_ids.iter().map(|_| "?").join(",")
                 ),
-                msg_ids.iter().map(|v| v as &dyn crate::ToSql).collect(),
+                rusqlite::params_from_iter(msg_ids),
                 |row| row.get::<_, MsgId>(0),
                 |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
             )
