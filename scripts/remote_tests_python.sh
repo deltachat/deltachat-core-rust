@@ -1,10 +1,9 @@
 #!/bin/bash 
 
-export BRANCH=${CIRCLE_BRANCH:-master}
-export REPONAME=${CIRCLE_PROJECT_REPONAME:-deltachat-core-rust}
-export SSHTARGET=${SSHTARGET-ci@b1.delta.chat}
+BUILD_ID=${1:?specify build ID}
 
-export BUILDDIR=ci_builds/$REPONAME/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}
+SSHTARGET=${SSHTARGET-ci@b1.delta.chat}
+BUILDDIR=ci_builds/$BUILD_ID
 
 echo "--- Copying files to $SSHTARGET:$BUILDDIR"
 
@@ -18,7 +17,7 @@ rsync --delete --files-from=.rsynclist -az ./ "$SSHTARGET:$BUILDDIR"
 
 set +x
 
-echo "--- Running $CIRCLE_JOB remotely"
+echo "--- Running Python tests remotely"
 
 ssh $SSHTARGET <<_HERE
     set +x -e
