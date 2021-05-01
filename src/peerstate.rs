@@ -165,7 +165,7 @@ impl Peerstate {
     async fn from_stmt(
         context: &Context,
         query: &str,
-        params: Vec<&dyn crate::ToSql>,
+        params: impl rusqlite::Params,
     ) -> Result<Option<Peerstate>> {
         let peerstate = context
             .sql

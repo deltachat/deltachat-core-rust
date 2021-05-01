@@ -25,10 +25,10 @@ use crate::stock_str;
 #[macro_export]
 macro_rules! paramsv {
     () => {
-        Vec::new()
+        rusqlite::params_from_iter(Vec::<&dyn $crate::ToSql>::new())
     };
     ($($param:expr),+ $(,)?) => {
-        vec![$(&$param as &dyn $crate::ToSql),+]
+        rusqlite::params_from_iter(vec![$(&$param as &dyn $crate::ToSql),+])
     };
 }
 
@@ -194,7 +194,7 @@ impl Sql {
     pub async fn execute(
         &self,
         query: impl AsRef<str>,
-        params: Vec<&dyn crate::ToSql>,
+        params: impl rusqlite::Params,
     ) -> Result<usize> {
         let conn = self.get_conn().await?;
         let res = conn.execute(query.as_ref(), params)?;
@@ -205,7 +205,7 @@ impl Sql {
     pub async fn insert(
         &self,
         query: impl AsRef<str>,
-        params: Vec<&dyn crate::ToSql>,
+        params: impl rusqlite::Params,
     ) -> anyhow::Result<usize> {
         let conn = self.get_conn().await?;
         conn.execute(query.as_ref(), params)?;
@@ -218,7 +218,7 @@ impl Sql {
     pub async fn query_map<T, F, G, H>(
         &self,
         sql: impl AsRef<str>,
-        params: Vec<&dyn crate::ToSql>,
+        params: impl rusqlite::Params,
         f: F,
         mut g: G,
     ) -> Result<H>
@@ -230,7 +230,7 @@ impl Sql {
 
         let conn = self.get_conn().await?;
         let mut stmt = conn.prepare(sql)?;
-        let res = stmt.query_map(&params, f)?;
+        let res = stmt.query_map(params, f)?;
         g(res)
     }
 
@@ -276,7 +276,7 @@ impl Sql {
     pub async fn count(
         &self,
         query: impl AsRef<str>,
-        params: Vec<&dyn crate::ToSql>,
+        params: impl rusqlite::Params,
     ) -> anyhow::Result<usize> {
         let count: isize = self.query_row(query, params, |row| row.get(0)).await?;
         Ok(usize::try_from(count)?)
@@ -284,7 +284,7 @@ impl Sql {
 
     /// Used for executing `SELECT COUNT` statements only. Returns `true`, if the count is at least
     /// one, `false` otherwise.
-    pub async fn exists(&self, sql: &str, params: Vec<&dyn crate::ToSql>) -> Result<bool> {
+    pub async fn exists(&self, sql: &str, params: impl rusqlite::Params) -> Result<bool> {
         let count = self.count(sql, params).await?;
         Ok(count > 0)
     }
@@ -293,7 +293,7 @@ impl Sql {
     pub async fn query_row<T, F>(
         &self,
         query: impl AsRef<str>,
-        params: Vec<&dyn crate::ToSql>,
+        params: impl rusqlite::Params,
         f: F,
     ) -> Result<T>
     where
@@ -377,7 +377,7 @@ impl Sql {
     pub async fn query_row_optional<T, F>(
         &self,
         sql: impl AsRef<str>,
-        params: Vec<&dyn crate::ToSql>,
+        params: impl rusqlite::Params,
         f: F,
     ) -> anyhow::Result<Option<T>>
     where
@@ -402,7 +402,7 @@ impl Sql {
     pub async fn query_get_value<T>(
         &self,
         query: &str,
-        params: Vec<&dyn crate::ToSql>,
+        params: impl rusqlite::Params,
     ) -> anyhow::Result<Option<T>>
     where
         T: rusqlite::types::FromSql,

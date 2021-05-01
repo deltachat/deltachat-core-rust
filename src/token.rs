@@ -63,7 +63,7 @@ pub async fn lookup(
         Some(chat_id) => {
             context
                 .sql
-                .query_get_value::<String>(
+                .query_get_value(
                     "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
                     paramsv![namespace, chat_id],
                 )
@@ -73,7 +73,7 @@ pub async fn lookup(
         None => {
             context
                 .sql
-                .query_get_value::<String>(
+                .query_get_value(
                     "SELECT token FROM tokens WHERE namespc=? AND foreign_id=0;",
                     paramsv![namespace],
                 )

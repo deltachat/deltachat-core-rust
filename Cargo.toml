@@ -52,11 +52,11 @@ percent-encoding = "2.0"
 pgp = { version = "0.7.0", default-features = false }
 pretty_env_logger = { version = "0.4.0", optional = true }
 quick-xml = "0.18.1"
-r2d2 = "0.8.5"
-r2d2_sqlite = "0.17.0"
+r2d2 = "0.8.9"
+r2d2_sqlite = "0.18.0"
 rand = "0.7.0"
 regex = "1.1.6"
-rusqlite = { version = "0.24", features = ["bundled"] }
+rusqlite = { version = "0.25", features = ["bundled"] }
 rust-hsluv = "0.1.4"
 rustyline = { version = "4.1.0", optional = true }
 sanitize-filename = "0.3.0"
