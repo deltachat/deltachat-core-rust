@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
-use anyhow::{bail, ensure, format_err, Error};
+use anyhow::{bail, ensure, format_err, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -157,11 +157,7 @@ impl ChatId {
         self == DC_CHAT_ID_ALLDONE_HINT
     }
 
-    pub async fn set_selfavatar_timestamp(
-        self,
-        context: &Context,
-        timestamp: i64,
-    ) -> Result<(), Error> {
+    pub async fn set_selfavatar_timestamp(self, context: &Context, timestamp: i64) -> Result<()> {
         context
             .sql
             .execute(
@@ -201,7 +197,7 @@ impl ChatId {
         self,
         context: &Context,
         protect: ProtectionStatus,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         ensure!(!self.is_special(), "Invalid chat-id.");
 
         let chat = Chat::load_from_db(context, self).await?;
@@ -258,7 +254,7 @@ impl ChatId {
         protect: ProtectionStatus,
         promote: bool,
         from_id: u32,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let msg_text = context.stock_protection_msg(protect, from_id).await;
         let cmd = match protect {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
@@ -281,11 +277,7 @@ impl ChatId {
     }
 
     /// Sets protection and sends or adds a message.
-    pub async fn set_protection(
-        self,
-        context: &Context,
-        protect: ProtectionStatus,
-    ) -> Result<(), Error> {
+    pub async fn set_protection(self, context: &Context, protect: ProtectionStatus) -> Result<()> {
         ensure!(!self.is_special(), "set protection: invalid chat-id.");
 
         let chat = Chat::load_from_db(context, self).await?;
@@ -300,11 +292,7 @@ impl ChatId {
     }
 
     /// Archives or unarchives a chat.
-    pub async fn set_visibility(
-        self,
-        context: &Context,
-        visibility: ChatVisibility,
-    ) -> Result<(), Error> {
+    pub async fn set_visibility(self, context: &Context, visibility: ChatVisibility) -> Result<()> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be special chat: {}",
@@ -339,7 +327,7 @@ impl ChatId {
 
     // note that unarchive() is not the same as set_visibility(Normal) -
     // eg. unarchive() does not modify pinned chats and does not send events.
-    pub async fn unarchive(self, context: &Context) -> Result<(), Error> {
+    pub async fn unarchive(self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
@@ -351,7 +339,7 @@ impl ChatId {
     }
 
     /// Deletes a chat.
-    pub async fn delete(self, context: &Context) -> Result<(), Error> {
+    pub async fn delete(self, context: &Context) -> Result<()> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be a special chat: {}",
@@ -407,11 +395,7 @@ impl ChatId {
     /// Sets draft message.
     ///
     /// Passing `None` as message just deletes the draft
-    pub async fn set_draft(
-        self,
-        context: &Context,
-        msg: Option<&mut Message>,
-    ) -> Result<(), Error> {
+    pub async fn set_draft(self, context: &Context, msg: Option<&mut Message>) -> Result<()> {
         if self.is_special() {
             return Ok(());
         }
@@ -432,7 +416,7 @@ impl ChatId {
     }
 
     /// Similar to as dc_set_draft() but does not emit an event
-    async fn set_draft_raw(self, context: &Context, msg: &mut Message) -> Result<bool, Error> {
+    async fn set_draft_raw(self, context: &Context, msg: &mut Message) -> Result<bool> {
         let deleted = self.maybe_delete_draft(context).await?;
         let set = self.do_set_draft(context, msg).await.is_ok();
 
@@ -440,7 +424,7 @@ impl ChatId {
         Ok(deleted || set)
     }
 
-    async fn get_draft_msg_id(self, context: &Context) -> Result<Option<MsgId>, Error> {
+    async fn get_draft_msg_id(self, context: &Context) -> Result<Option<MsgId>> {
         let msg_id: Option<MsgId> = context
             .sql
             .query_get_value(
@@ -451,7 +435,7 @@ impl ChatId {
         Ok(msg_id)
     }
 
-    pub async fn get_draft(self, context: &Context) -> Result<Option<Message>, Error> {
+    pub async fn get_draft(self, context: &Context) -> Result<Option<Message>> {
         if self.is_special() {
             return Ok(None);
         }
@@ -467,7 +451,7 @@ impl ChatId {
     /// Delete draft message in specified chat, if there is one.
     ///
     /// Returns `true`, if message was deleted, `false` otherwise.
-    async fn maybe_delete_draft(self, context: &Context) -> Result<bool, Error> {
+    async fn maybe_delete_draft(self, context: &Context) -> Result<bool> {
         match self.get_draft_msg_id(context).await? {
             Some(msg_id) => Ok(msg_id.delete_from_db(context).await.is_ok()),
             None => Ok(false),
@@ -477,7 +461,7 @@ impl ChatId {
     /// Set provided message as draft message for specified chat.
     ///
     /// Return true on success, false on database error.
-    async fn do_set_draft(self, context: &Context, msg: &mut Message) -> Result<(), Error> {
+    async fn do_set_draft(self, context: &Context, msg: &mut Message) -> Result<()> {
         match msg.viewtype {
             Viewtype::Unknown => bail!("Can not set draft of unknown type."),
             Viewtype::Text => {
@@ -531,7 +515,7 @@ impl ChatId {
     }
 
     /// Returns number of messages in a chat.
-    pub async fn get_msg_cnt(self, context: &Context) -> Result<usize, Error> {
+    pub async fn get_msg_cnt(self, context: &Context) -> Result<usize> {
         let count = context
             .sql
             .count("SELECT COUNT(*) FROM msgs WHERE chat_id=?", paramsv![self])
@@ -539,7 +523,7 @@ impl ChatId {
         Ok(count as usize)
     }
 
-    pub async fn get_fresh_msg_cnt(self, context: &Context) -> Result<usize, Error> {
+    pub async fn get_fresh_msg_cnt(self, context: &Context) -> Result<usize> {
         // this function is typically used to show a badge counter beside _each_ chatlist item.
         // to make this as fast as possible, esp. on older devices, we added an combined index over the rows used for querying.
         // so if you alter the query here, you may want to alter the index over `(state, hidden, chat_id)` in `sql.rs`.
@@ -564,7 +548,7 @@ impl ChatId {
         Ok(count as usize)
     }
 
-    pub(crate) async fn get_param(self, context: &Context) -> Result<Params, Error> {
+    pub(crate) async fn get_param(self, context: &Context) -> Result<Params> {
         let res: Option<String> = context
             .sql
             .query_get_value("SELECT param FROM chats WHERE id=?", paramsv![self])
@@ -575,21 +559,16 @@ impl ChatId {
     }
 
     // Returns true if chat is a saved messages chat.
-    pub async fn is_self_talk(self, context: &Context) -> Result<bool, Error> {
+    pub async fn is_self_talk(self, context: &Context) -> Result<bool> {
         Ok(self.get_param(context).await?.exists(Param::Selftalk))
     }
 
     /// Returns true if chat is a device chat.
-    pub async fn is_device_talk(self, context: &Context) -> Result<bool, Error> {
+    pub async fn is_device_talk(self, context: &Context) -> Result<bool> {
         Ok(self.get_param(context).await?.exists(Param::Devicetalk))
     }
 
-    async fn parent_query<T, F>(
-        self,
-        context: &Context,
-        fields: &str,
-        f: F,
-    ) -> anyhow::Result<Option<T>>
+    async fn parent_query<T, F>(self, context: &Context, fields: &str, f: F) -> Result<Option<T>>
     where
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
@@ -658,7 +637,7 @@ impl ChatId {
     /// prefer plaintext emails.
     ///
     /// To get more verbose summary for a contact, including its key fingerprint, use [`Contact::get_encrinfo`].
-    pub async fn get_encryption_info(self, context: &Context) -> Result<String, Error> {
+    pub async fn get_encryption_info(self, context: &Context) -> Result<String> {
         let mut ret = String::new();
 
         for contact_id in get_chat_contacts(context, self)
@@ -764,7 +743,7 @@ pub struct Chat {
 
 impl Chat {
     /// Loads chat from the database by its ID.
-    pub async fn load_from_db(context: &Context, chat_id: ChatId) -> Result<Self, Error> {
+    pub async fn load_from_db(context: &Context, chat_id: ChatId) -> Result<Self> {
         let mut chat = context
             .sql
             .query_row(
@@ -789,7 +768,8 @@ impl Chat {
                     Ok(c)
                 },
             )
-            .await?;
+            .await
+            .context(format!("Failed loading chat {} from database", chat_id))?;
 
         if chat.id.is_deaddrop() {
             chat.name = stock_str::dead_drop(context).await;
@@ -842,7 +822,7 @@ impl Chat {
         !self.id.is_special() && !self.is_device_talk() && !self.is_mailing_list()
     }
 
-    pub async fn update_param(&mut self, context: &Context) -> Result<(), Error> {
+    pub async fn update_param(&mut self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
@@ -868,7 +848,7 @@ impl Chat {
         &self.name
     }
 
-    pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>, Error> {
+    pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
                 return Ok(Some(dc_get_abs_path(context, image_rel)));
@@ -885,11 +865,11 @@ impl Chat {
         Ok(None)
     }
 
-    pub async fn get_gossiped_timestamp(&self, context: &Context) -> Result<i64, Error> {
+    pub async fn get_gossiped_timestamp(&self, context: &Context) -> Result<i64> {
         get_gossiped_timestamp(context, self.id).await
     }
 
-    pub async fn get_color(&self, context: &Context) -> Result<u32, Error> {
+    pub async fn get_color(&self, context: &Context) -> Result<u32> {
         let mut color = 0;
 
         if self.typ == Chattype::Single {
@@ -910,7 +890,7 @@ impl Chat {
     ///
     /// This is somewhat experimental, even more so than the rest of
     /// deltachat, and the data returned is still subject to change.
-    pub async fn get_info(&self, context: &Context) -> Result<ChatInfo, Error> {
+    pub async fn get_info(&self, context: &Context) -> Result<ChatInfo> {
         let draft = match self.id.get_draft(context).await? {
             Some(message) => message.text.unwrap_or_else(String::new),
             _ => String::new(),
@@ -970,7 +950,7 @@ impl Chat {
         context: &Context,
         msg: &mut Message,
         timestamp: i64,
-    ) -> Result<MsgId, Error> {
+    ) -> Result<MsgId> {
         let mut new_references = "".into();
         let mut to_id = 0;
         let mut location_id = 0;
@@ -1301,7 +1281,7 @@ pub struct ChatInfo {
 /// # Returns
 ///
 /// The "created" chat ID is returned.
-pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId, Error> {
+pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId> {
     let msg = Message::load_from_db(context, msg_id).await?;
     let chat = Chat::load_from_db(context, msg.chat_id).await?;
     ensure!(
@@ -1332,7 +1312,7 @@ pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId
 /// If a chat already exists, this ID is returned, otherwise a new chat is created;
 /// this new chat may already contain messages, eg. from the deaddrop, to get the
 /// chat messages, use dc_get_chat_msgs().
-pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId, Error> {
+pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId> {
     let chat_id = match lookup_by_contact_id(context, contact_id).await {
         Ok((chat_id, chat_blocked)) => {
             if chat_blocked != Blocked::Not {
@@ -1367,7 +1347,7 @@ pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<
     Ok(chat_id)
 }
 
-pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<(), Error> {
+pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<()> {
     // if there is no saved-messages chat, there is nothing to update. this is no error.
     if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_SELF).await {
         let icon = include_bytes!("../assets/icon-saved-messages.png");
@@ -1381,7 +1361,7 @@ pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<(), 
     Ok(())
 }
 
-pub(crate) async fn update_device_icon(context: &Context) -> Result<(), Error> {
+pub(crate) async fn update_device_icon(context: &Context) -> Result<()> {
     // if there is no device-chat, there is nothing to update. this is no error.
     if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE).await {
         let icon = include_bytes!("../assets/icon-device.png");
@@ -1399,11 +1379,7 @@ pub(crate) async fn update_device_icon(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-async fn update_special_chat_name(
-    context: &Context,
-    contact_id: u32,
-    name: String,
-) -> Result<(), Error> {
+async fn update_special_chat_name(context: &Context, contact_id: u32, name: String) -> Result<()> {
     if let Ok((chat_id, _)) = lookup_by_contact_id(context, contact_id).await {
         // the `!= name` condition avoids unneeded writes
         context
@@ -1417,7 +1393,7 @@ async fn update_special_chat_name(
     Ok(())
 }
 
-pub(crate) async fn update_special_chat_names(context: &Context) -> Result<(), Error> {
+pub(crate) async fn update_special_chat_names(context: &Context) -> Result<()> {
     update_special_chat_name(
         context,
         DC_CONTACT_ID_DEVICE,
@@ -1437,7 +1413,7 @@ pub(crate) async fn create_or_lookup_by_contact_id(
     context: &Context,
     contact_id: u32,
     create_blocked: Blocked,
-) -> Result<(ChatId, Blocked), Error> {
+) -> Result<(ChatId, Blocked)> {
     ensure!(context.sql.is_open().await, "Database not available");
     ensure!(contact_id > 0, "Invalid contact id requested");
 
@@ -1492,7 +1468,7 @@ pub(crate) async fn create_or_lookup_by_contact_id(
 pub(crate) async fn lookup_by_contact_id(
     context: &Context,
     contact_id: u32,
-) -> Result<(ChatId, Blocked), Error> {
+) -> Result<(ChatId, Blocked)> {
     ensure!(context.sql.is_open().await, "Database not available");
 
     let row = context
@@ -1517,18 +1493,14 @@ pub(crate) async fn lookup_by_contact_id(
     Ok(row)
 }
 
-pub async fn get_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId, Error> {
+pub async fn get_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId> {
     let (chat_id, blocked) = lookup_by_contact_id(context, contact_id).await?;
     ensure_eq!(blocked, Blocked::Not, "Requested contact is blocked");
 
     Ok(chat_id)
 }
 
-pub async fn prepare_msg(
-    context: &Context,
-    chat_id: ChatId,
-    msg: &mut Message,
-) -> Result<MsgId, Error> {
+pub async fn prepare_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     ensure!(
         !chat_id.is_special(),
         "Cannot prepare message for special chat"
@@ -1559,7 +1531,7 @@ pub(crate) fn msgtype_has_file(msgtype: Viewtype) -> bool {
     }
 }
 
-async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
+async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.viewtype) {
@@ -1614,7 +1586,7 @@ async fn prepare_msg_common(
     context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     msg.id = MsgId::new_unset();
     prepare_msg_blob(context, msg).await?;
     chat_id.unarchive(context).await?;
@@ -1664,11 +1636,7 @@ pub async fn is_contact_in_chat(context: &Context, chat_id: ChatId, contact_id: 
 // TODO: Do not allow ChatId to be 0, if prepare_msg had been called
 //   the caller can get it from msg.chat_id.  Forwards would need to
 //   be fixed for this somehow too.
-pub async fn send_msg(
-    context: &Context,
-    chat_id: ChatId,
-    msg: &mut Message,
-) -> Result<MsgId, Error> {
+pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     if chat_id.is_unset() {
         let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
@@ -1697,11 +1665,7 @@ pub async fn send_msg(
 /// Directly  opens an smtp
 /// connection and sends the message, bypassing the job system. If this fails, it writes a send job to
 /// the database.
-pub async fn send_msg_sync(
-    context: &Context,
-    chat_id: ChatId,
-    msg: &mut Message,
-) -> Result<MsgId, Error> {
+pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     if let Some(mut job) = prepare_send_msg(context, chat_id, msg).await? {
         let mut smtp = crate::smtp::Smtp::new();
 
@@ -1729,11 +1693,7 @@ pub async fn send_msg_sync(
     }
 }
 
-async fn send_msg_inner(
-    context: &Context,
-    chat_id: ChatId,
-    msg: &mut Message,
-) -> Result<MsgId, Error> {
+async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     if let Some(send_job) = prepare_send_msg(context, chat_id, msg).await? {
         job::add(context, send_job).await;
 
@@ -1754,7 +1714,7 @@ async fn prepare_send_msg(
     context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
-) -> Result<Option<crate::job::Job>, Error> {
+) -> Result<Option<crate::job::Job>> {
     // dc_prepare_msg() leaves the message state to OutPreparing, we
     // only have to change the state to OutPending in this case.
     // Otherwise we still have to prepare the message, which will set
@@ -1779,7 +1739,7 @@ pub async fn send_text_msg(
     context: &Context,
     chat_id: ChatId,
     text_to_send: String,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     ensure!(
         !chat_id.is_special(),
         "bad chat_id, can not be a special chat: {}",
@@ -1791,7 +1751,7 @@ pub async fn send_text_msg(
     send_msg(context, chat_id, &mut msg).await
 }
 
-pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Result<MsgId, Error> {
+pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Result<MsgId> {
     ensure!(
         !chat_id.is_special(),
         "video chat invitation cannot be sent to special chat: {}",
@@ -1824,7 +1784,7 @@ pub async fn get_chat_msgs(
     chat_id: ChatId,
     flags: u32,
     marker1before: Option<MsgId>,
-) -> Result<Vec<ChatItem>, Error> {
+) -> Result<Vec<ChatItem>> {
     match delete_expired_messages(context).await {
         Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
         Ok(messages_deleted) => {
@@ -1970,7 +1930,7 @@ pub(crate) async fn marknoticed_chat_if_older_than(
     context: &Context,
     chat_id: ChatId,
     timestamp: i64,
-) -> Result<(), Error> {
+) -> Result<()> {
     if let Some(chat_timestamp) = context
         .sql
         .query_get_value(
@@ -1986,7 +1946,7 @@ pub(crate) async fn marknoticed_chat_if_older_than(
     Ok(())
 }
 
-pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), Error> {
+pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {
     // for the virtual deaddrop chat-id,
     // mark all messages that will appear in the deaddrop as noticed
     if chat_id.is_deaddrop() {
@@ -2048,7 +2008,7 @@ pub async fn get_chat_media(
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
-) -> Result<Vec<MsgId>, Error> {
+) -> Result<Vec<MsgId>> {
     // TODO This query could/should be converted to `AND type IN (?, ?, ?)`.
     let list = context
         .sql
@@ -2102,7 +2062,7 @@ pub async fn get_next_media(
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
-) -> Result<Option<MsgId>, Error> {
+) -> Result<Option<MsgId>> {
     let mut ret: Option<MsgId> = None;
 
     if let Ok(msg) = Message::load_from_db(context, curr_msg_id).await {
@@ -2139,7 +2099,7 @@ pub async fn get_next_media(
     Ok(ret)
 }
 
-pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<u32>, Error> {
+pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<u32>> {
     // Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
     // groupchat but the chats stays visible, moreover, this makes displaying lists easier)
 
@@ -2172,7 +2132,7 @@ pub async fn create_group_chat(
     context: &Context,
     protect: ProtectionStatus,
     chat_name: impl AsRef<str>,
-) -> Result<ChatId, Error> {
+) -> Result<ChatId> {
     let chat_name = improve_single_line_input(chat_name);
     ensure!(!chat_name.is_empty(), "Invalid chat name");
 
@@ -2278,7 +2238,7 @@ pub(crate) async fn add_contact_to_chat_ex(
     chat_id: ChatId,
     contact_id: u32,
     from_handshake: bool,
-) -> Result<bool, Error> {
+) -> Result<bool> {
     ensure!(!chat_id.is_special(), "can not add member to special chats");
     let contact = Contact::get_by_id(context, contact_id).await?;
     let mut msg = Message::default();
@@ -2361,16 +2321,13 @@ pub(crate) async fn add_contact_to_chat_ex(
     Ok(true)
 }
 
-pub(crate) async fn reset_gossiped_timestamp(
-    context: &Context,
-    chat_id: ChatId,
-) -> Result<(), Error> {
+pub(crate) async fn reset_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<()> {
     set_gossiped_timestamp(context, chat_id, 0).await
 }
 
 /// Get timestamp of the last gossip sent in the chat.
 /// Zero return value means that gossip was never sent.
-pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<i64, Error> {
+pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<i64> {
     let timestamp: Option<i64> = context
         .sql
         .query_get_value(
@@ -2385,7 +2342,7 @@ pub(crate) async fn set_gossiped_timestamp(
     context: &Context,
     chat_id: ChatId,
     timestamp: i64,
-) -> Result<(), Error> {
+) -> Result<()> {
     ensure!(!chat_id.is_special(), "can not add member to special chats");
     info!(
         context,
@@ -2403,10 +2360,7 @@ pub(crate) async fn set_gossiped_timestamp(
     Ok(())
 }
 
-pub(crate) async fn shall_attach_selfavatar(
-    context: &Context,
-    chat_id: ChatId,
-) -> Result<bool, Error> {
+pub(crate) async fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<bool> {
     // versions before 12/2019 already allowed to set selfavatar, however, it was never sent to others.
     // to avoid sending out previously set selfavatars unexpectedly we added this additional check.
     // it can be removed after some time.
@@ -2482,11 +2436,7 @@ impl rusqlite::types::FromSql for MuteDuration {
     }
 }
 
-pub async fn set_muted(
-    context: &Context,
-    chat_id: ChatId,
-    duration: MuteDuration,
-) -> Result<(), Error> {
+pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
     if context
         .sql
@@ -2508,7 +2458,7 @@ pub async fn remove_contact_from_chat(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
-) -> Result<(), Error> {
+) -> Result<()> {
     ensure!(
         !chat_id.is_special(),
         "bad chat_id, can not be special chat: {}",
@@ -2580,7 +2530,7 @@ pub async fn remove_contact_from_chat(
     Ok(())
 }
 
-async fn set_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Result<(), Error> {
+async fn set_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Result<()> {
     if !is_group_explicitly_left(context, grpid.as_ref()).await? {
         context
             .sql
@@ -2597,7 +2547,7 @@ async fn set_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) ->
 pub(crate) async fn is_group_explicitly_left(
     context: &Context,
     grpid: impl AsRef<str>,
-) -> Result<bool, Error> {
+) -> Result<bool> {
     let exists = context
         .sql
         .exists(
@@ -2612,7 +2562,7 @@ pub async fn set_chat_name(
     context: &Context,
     chat_id: ChatId,
     new_name: impl AsRef<str>,
-) -> Result<(), Error> {
+) -> Result<()> {
     let new_name = improve_single_line_input(new_name);
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success = false;
@@ -2685,7 +2635,7 @@ pub async fn set_chat_profile_image(
     context: &Context,
     chat_id: ChatId,
     new_image: impl AsRef<str>, // XXX use PathBuf
-) -> Result<(), Error> {
+) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     ensure!(
@@ -2739,11 +2689,7 @@ pub async fn set_chat_profile_image(
     Ok(())
 }
 
-pub async fn forward_msgs(
-    context: &Context,
-    msg_ids: &[MsgId],
-    chat_id: ChatId,
-) -> Result<(), Error> {
+pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId) -> Result<()> {
     ensure!(!msg_ids.is_empty(), "empty msgs_ids: nothing to forward");
     ensure!(!chat_id.is_special(), "can not forward to special chat");
 
@@ -2831,10 +2777,7 @@ pub async fn forward_msgs(
     Ok(())
 }
 
-pub(crate) async fn get_chat_contact_cnt(
-    context: &Context,
-    chat_id: ChatId,
-) -> Result<usize, Error> {
+pub(crate) async fn get_chat_contact_cnt(context: &Context, chat_id: ChatId) -> Result<usize> {
     let count = context
         .sql
         .count(
@@ -2845,7 +2788,7 @@ pub(crate) async fn get_chat_contact_cnt(
     Ok(count as usize)
 }
 
-pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize, Error> {
+pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
     if context.sql.is_open().await {
         // no database, no chats - this is no error (needed eg. for information)
         let count = context
@@ -2893,7 +2836,7 @@ pub async fn add_device_msg_with_importance(
     label: Option<&str>,
     msg: Option<&mut Message>,
     important: bool,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     ensure!(
         label.is_some() || msg.is_some(),
         "device-messages need label, msg or both"
@@ -2995,11 +2938,11 @@ pub async fn add_device_msg(
     context: &Context,
     label: Option<&str>,
     msg: Option<&mut Message>,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     add_device_msg_with_importance(context, label, msg, false).await
 }
 
-pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool, Error> {
+pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool> {
     ensure!(!label.is_empty(), "empty label");
     let exists = context
         .sql
@@ -3017,7 +2960,7 @@ pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result
 //   no wrong information are shown in the device chat
 // - deletion in `devmsglabels` makes sure,
 //   deleted messages are resetted and useful messages can be added again
-pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Result<(), Error> {
+pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Result<()> {
     context
         .sql
         .execute(
@@ -3040,7 +2983,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     chat_id: ChatId,
     text: impl AsRef<str>,
     cmd: SystemMessage,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
     let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
 
