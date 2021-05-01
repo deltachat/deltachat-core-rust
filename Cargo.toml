@@ -16,11 +16,11 @@ deltachat_derive = { path = "./deltachat_derive" }
 
 ansi_term = { version = "0.12.1", optional = true }
 anyhow = "1.0.40"
-async-imap = "0.4.0"
+async-imap = "0.5.0"
 async-native-tls = { version = "0.3.3" }
 async-smtp = { git = "https://github.com/async-email/async-smtp", rev="2275fd8d13e39b2c58d6605c786ff06ff9e05708" }
 async-std-resolver = "0.20.2"
-async-std = { version = "~1.8.0", features = ["unstable"] }
+async-std = { version = "~1.9.0", features = ["unstable"] }
 async-tar = "0.3.0"
 async-trait = "0.1.50"
 backtrace = "0.3.58"
@@ -65,7 +65,7 @@ serde = { version = "1.0", features = ["derive"] }
 sha-1 = "0.9.3"
 sha2 = "0.9.0"
 smallvec = "1.0.0"
-stop-token = { version = "0.1.1", features = ["unstable"] }
+stop-token = "0.2.0"
 strum = "0.20.0"
 strum_macros = "0.20.1"
 surf = { version = "2.0.0-alpha.4", default-features = false, features = ["h1-client"] }
@@ -76,7 +76,7 @@ uuid = { version = "0.8", features = ["serde", "v4"] }
 
 [dev-dependencies]
 ansi_term = "0.12.0"
-async-std = { version = "1.6.4", features = ["unstable", "attributes"] }
+async-std = { version = "1.9.0", features = ["unstable", "attributes"] }
 criterion = "0.3"
 futures-lite = "1.7.0"
 log = "0.4.11"
