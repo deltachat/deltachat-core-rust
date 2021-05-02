@@ -401,7 +401,7 @@ impl<'a> BlobObject<'a> {
         let new_name = self
             .recode_to_size(context, blob_abs, img_wh, Some(20_000))
             .await?;
-        if new_name != "" {
+        if !new_name.is_empty() {
             self.name = new_name;
         }
         Ok(())
