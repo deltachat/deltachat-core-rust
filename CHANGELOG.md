@@ -1,6 +1,6 @@
 # Changelog 
 
-## Unreleased
+## 1.54.0
 
 - switch back from `sqlx` to `rusqlite` due to performance regressions #2380 #2381 #2385 #2387
 
@@ -20,11 +20,12 @@
 
 - add "Forwarded:" to notification and chatlist summaries #2310
 
-- place user avatar directly into `Chat-User-Avatar` header #2232
+- place user avatar directly into `Chat-User-Avatar` header #2232 #2384
 
 - improve tests #2360 #2362 #2370 #2377 #2387
 
 - cleanup #2359 #2361 #2374 #2376 #2379 #2388
+
 
 ## 1.53.0
 
