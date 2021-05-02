@@ -1,5 +1,6 @@
 //! # Blob directory management
 
+use core::cmp::max;
 use std::ffi::OsStr;
 use std::fmt;
 
@@ -7,8 +8,12 @@ use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use async_std::{fs, io};
 
+use anyhow::format_err;
+use anyhow::Context as _;
 use anyhow::Error;
+use image::DynamicImage;
 use image::GenericImageView;
+use image::ImageFormat;
 use num_traits::FromPrimitive;
 use thiserror::Error;
 
@@ -380,7 +385,7 @@ impl<'a> BlobObject<'a> {
         true
     }
 
-    pub async fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
+    pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<(), BlobError> {
         let blob_abs = self.to_abs_path();
 
         let img_wh =
@@ -391,7 +396,15 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => WORSE_AVATAR_SIZE,
             };
 
-        self.recode_to_size(context, blob_abs, img_wh).await
+        // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
+        // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
+        if let Some(new_name) = self
+            .recode_to_size(context, blob_abs, img_wh, Some(20_000))
+            .await?
+        {
+            self.name = new_name;
+        }
+        Ok(())
     }
 
     pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
@@ -410,30 +423,69 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => WORSE_IMAGE_SIZE,
             };
 
-        self.recode_to_size(context, blob_abs, img_wh).await
+        if self
+            .recode_to_size(context, blob_abs, img_wh, None)
+            .await?
+            .is_some()
+        {
+            return Err(format_err!(
+                "Internal error: recode_to_size(..., None) shouldn't change the name of the image"
+            )
+            .into());
+        }
+        Ok(())
     }
 
     async fn recode_to_size(
         &self,
         context: &Context,
-        blob_abs: PathBuf,
-        img_wh: u32,
-    ) -> Result<(), BlobError> {
+        mut blob_abs: PathBuf,
+        mut img_wh: u32,
+        max_bytes: Option<usize>,
+    ) -> Result<Option<String>, BlobError> {
         let mut img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
             cause: err,
         })?;
         let orientation = self.get_exif_orientation(context);
+        let mut encoded = Vec::new();
+        let mut changed_name = None;
 
-        let do_scale = img.width() > img_wh || img.height() > img_wh;
+        fn encode_img(img: &DynamicImage, encoded: &mut Vec<u8>) -> anyhow::Result<()> {
+            encoded.clear();
+            img.write_to(encoded, image::ImageFormat::Jpeg)?;
+            Ok(())
+        }
+        fn encode_img_exceeds_bytes(
+            context: &Context,
+            img: &DynamicImage,
+            max_bytes: Option<usize>,
+            encoded: &mut Vec<u8>,
+        ) -> anyhow::Result<bool> {
+            if let Some(max_bytes) = max_bytes {
+                encode_img(img, encoded)?;
+                if encoded.len() > max_bytes {
+                    info!(
+                        context,
+                        "image size {}B ({}x{}px) exceeds {}B, need to scale down",
+                        encoded.len(),
+                        img.width(),
+                        img.height(),
+                        max_bytes,
+                    );
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        let exceeds_width = img.width() > img_wh || img.height() > img_wh;
+
+        let do_scale =
+            exceeds_width || encode_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
         let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
         if do_scale || do_rotate {
-            if do_scale {
-                img = img.thumbnail(img_wh, img_wh);
-            }
-
             if do_rotate {
                 img = match orientation {
                     Ok(90) => img.rotate90(),
@@ -443,14 +495,60 @@ impl<'a> BlobObject<'a> {
                 }
             }
 
-            img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
-                blobdir: context.get_blobdir().to_path_buf(),
-                blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-                cause: err.into(),
-            })?;
+            if do_scale {
+                if !exceeds_width {
+                    // The image is already smaller than img_wh, but exceeds max_bytes
+                    // We can directly start with trying to scale down to 2/3 of its current width
+                    img_wh = max(img.width(), img.height()) * 2 / 3
+                }
+
+                loop {
+                    let new_img = img.thumbnail(img_wh, img_wh);
+
+                    if encode_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
+                        if img_wh < 20 {
+                            return Err(format_err!(
+                                "Failed to scale image to below {}B",
+                                max_bytes.unwrap_or_default()
+                            )
+                            .into());
+                        }
+
+                        img_wh = img_wh * 2 / 3;
+                    } else {
+                        info!(
+                            context,
+                            "Final scaled-down image size: {}B ({}px)",
+                            encoded.len(),
+                            img_wh
+                        );
+                        break;
+                    }
+                }
+            }
+
+            // The file format is JPEG now, we may have to change the file extension
+            if !matches!(ImageFormat::from_path(&blob_abs), Ok(ImageFormat::Jpeg)) {
+                blob_abs = blob_abs.with_extension("jpg");
+                let file_name = blob_abs.file_name().context("No avatar file name (???)")?;
+                let file_name = file_name.to_str().context("Filename is no UTF-8 (???)")?;
+                changed_name = Some(format!("$BLOBDIR/{}", file_name));
+            }
+
+            if encoded.is_empty() {
+                encode_img(&img, &mut encoded)?;
+            }
+
+            fs::write(&blob_abs, &encoded)
+                .await
+                .map_err(|err| BlobError::WriteFailure {
+                    blobdir: context.get_blobdir().to_path_buf(),
+                    blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+                    cause: err.into(),
+                })?;
         }
 
-        Ok(())
+        Ok(changed_name)
     }
 
     pub fn get_exif_orientation(&self, context: &Context) -> Result<i32, Error> {
@@ -522,6 +620,8 @@ pub enum BlobError {
 
 #[cfg(test)]
 mod tests {
+    use fs::File;
+
     use super::*;
 
     use crate::test_utils::TestContext;
@@ -714,5 +814,106 @@ mod tests {
         assert!(!stem.contains(':'));
         assert!(!stem.contains('*'));
         assert!(!stem.contains('?'));
+    }
+
+    #[async_std::test]
+    async fn test_selfavatar_outside_blobdir() {
+        let t = TestContext::new().await;
+        let avatar_src = t.dir.path().join("avatar.jpg");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        File::create(&avatar_src)
+            .await
+            .unwrap()
+            .write_all(avatar_bytes)
+            .await
+            .unwrap();
+        let avatar_blob = t.get_blobdir().join("avatar.jpg");
+        assert!(!avatar_blob.exists().await);
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(avatar_blob.exists().await);
+        assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
+        let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
+        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+
+        let img = image::open(avatar_src).unwrap();
+        assert_eq!(img.width(), 1000);
+        assert_eq!(img.height(), 1000);
+
+        let img = image::open(&avatar_blob).unwrap();
+        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
+        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
+
+        async fn file_size(path_buf: &PathBuf) -> u64 {
+            let file = File::open(path_buf).await.unwrap();
+            file.metadata().await.unwrap().len()
+        }
+
+        let blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
+
+        blob.recode_to_size(&t, blob.to_abs_path(), 1000, Some(3000))
+            .await
+            .unwrap();
+        assert!(file_size(&avatar_blob).await <= 3000);
+        assert!(file_size(&avatar_blob).await > 2000);
+        let img = image::open(&avatar_blob).unwrap();
+        assert!(img.width() > 130);
+        assert_eq!(img.width(), img.height());
+    }
+
+    #[async_std::test]
+    async fn test_selfavatar_in_blobdir() {
+        let t = TestContext::new().await;
+        let avatar_src = t.get_blobdir().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar900x900.png");
+        File::create(&avatar_src)
+            .await
+            .unwrap()
+            .write_all(avatar_bytes)
+            .await
+            .unwrap();
+
+        let img = image::open(&avatar_src).unwrap();
+        assert_eq!(img.width(), 900);
+        assert_eq!(img.height(), 900);
+
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
+            .await
+            .unwrap();
+        let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
+        assert_eq!(
+            avatar_cfg,
+            avatar_src.with_extension("jpg").to_str().unwrap()
+        );
+
+        let img = image::open(avatar_cfg).unwrap();
+        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
+        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
+    }
+
+    #[async_std::test]
+    async fn test_selfavatar_copy_without_recode() {
+        let t = TestContext::new().await;
+        let avatar_src = t.dir.path().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        File::create(&avatar_src)
+            .await
+            .unwrap()
+            .write_all(avatar_bytes)
+            .await
+            .unwrap();
+        let avatar_blob = t.get_blobdir().join("avatar.png");
+        assert!(!avatar_blob.exists().await);
+        t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(avatar_blob.exists().await);
+        assert_eq!(
+            std::fs::metadata(&avatar_blob).unwrap().len(),
+            avatar_bytes.len() as u64
+        );
+        let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
+        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
     }
 }

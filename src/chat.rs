@@ -2660,7 +2660,7 @@ pub async fn set_chat_profile_image(
         msg.param.remove(Param::Arg);
         msg.text = Some(stock_str::msg_grp_img_deleted(context, DC_CONTACT_ID_SELF as u32).await);
     } else {
-        let image_blob = match BlobObject::from_path(context, Path::new(new_image.as_ref())) {
+        let mut image_blob = match BlobObject::from_path(context, Path::new(new_image.as_ref())) {
             Ok(blob) => Ok(blob),
             Err(err) => match err {
                 BlobError::WrongBlobdir { .. } => {

@@ -10,7 +10,7 @@ const DBVERSION: i32 = 68;
 const VERSION_CFG: &str = "dbversion";
 const TABLES: &str = include_str!("./tables.sql");
 
-pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool)> {
+pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool)> {
     let mut recalc_fingerprints = false;
     let mut exists_before_update = false;
     let mut dbversion_before_update = DBVERSION;
@@ -39,6 +39,7 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool)> {
     let dbversion = dbversion_before_update;
     let mut update_icons = !exists_before_update;
     let mut disable_server_delete = false;
+    let mut recode_avatar = false;
 
     if dbversion < 1 {
         info!(context, "[migration] v1");
@@ -460,8 +461,17 @@ paramsv![]
         sql.execute_migration("ALTER TABLE msgs ADD COLUMN subject TEXT DEFAULT '';", 76)
             .await?;
     }
+    if dbversion < 77 {
+        info!(context, "[migration] v77");
+        recode_avatar = true;
+    }
 
-    Ok((recalc_fingerprints, update_icons, disable_server_delete))
+    Ok((
+        recalc_fingerprints,
+        update_icons,
+        disable_server_delete,
+        recode_avatar,
+    ))
 }
 
 impl Sql {

@@ -11,6 +11,7 @@ use anyhow::Context as _;
 use async_std::prelude::*;
 use rusqlite::OpenFlags;
 
+use crate::blob::BlobObject;
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
 use crate::config::Config;
 use crate::constants::{Viewtype, DC_CHAT_ID_TRASH};
@@ -138,7 +139,7 @@ impl Sql {
             // this should be done before updates that use high-level objects that
             // rely themselves on the low-level structure.
 
-            let (recalc_fingerprints, update_icons, disable_server_delete) =
+            let (recalc_fingerprints, update_icons, disable_server_delete, recode_avatar) =
                 migrations::run(context, self).await?;
 
             // (2) updates that require high-level objects
@@ -181,6 +182,23 @@ impl Sql {
                     context
                         .set_config(Config::DeleteServerAfter, Some("0"))
                         .await?;
+                }
+            }
+
+            if recode_avatar {
+                if let Some(avatar) = context.get_config(Config::Selfavatar).await? {
+                    let mut blob = BlobObject::new_from_path(context, &avatar).await?;
+                    match blob.recode_to_avatar_size(context).await {
+                        Ok(()) => {
+                            context
+                                .set_config(Config::Selfavatar, Some(&avatar))
+                                .await?
+                        }
+                        Err(e) => {
+                            warn!(context, "Migrations can't recode avatar, removing. {:#}", e);
+                            context.set_config(Config::Selfavatar, None).await?
+                        }
+                    }
                 }
             }
         }
