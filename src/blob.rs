@@ -395,7 +395,8 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => WORSE_AVATAR_SIZE,
             };
 
-        // max_bytes is 20_000 bytes as that's the max header size of some servers
+        // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
+        // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
         let new_name = self
             .recode_to_size(context, blob_abs, img_wh, Some(20_000))
             .await?;
