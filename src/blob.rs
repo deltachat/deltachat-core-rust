@@ -398,10 +398,10 @@ impl<'a> BlobObject<'a> {
 
         // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
         // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
-        let new_name = self
+        if let Some(new_name) = self
             .recode_to_size(context, blob_abs, img_wh, Some(20_000))
-            .await?;
-        if !new_name.is_empty() {
+            .await?
+        {
             self.name = new_name;
         }
         Ok(())
@@ -423,8 +423,11 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => WORSE_IMAGE_SIZE,
             };
 
-        let new_name = self.recode_to_size(context, blob_abs, img_wh, None).await?;
-        if !new_name.is_empty() {
+        if self
+            .recode_to_size(context, blob_abs, img_wh, None)
+            .await?
+            .is_some()
+        {
             return Err(format_err!(
                 "Internal error: recode_to_size(..., None) shouldn't change the name of the image"
             )
@@ -439,7 +442,7 @@ impl<'a> BlobObject<'a> {
         mut blob_abs: PathBuf,
         mut img_wh: u32,
         max_bytes: Option<usize>,
-    ) -> Result<String, BlobError> {
+    ) -> Result<Option<String>, BlobError> {
         let mut img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
@@ -447,7 +450,7 @@ impl<'a> BlobObject<'a> {
         })?;
         let orientation = self.get_exif_orientation(context);
         let mut encoded = Vec::new();
-        let mut changed_name = String::new();
+        let mut changed_name = None;
 
         fn encode_img(img: &DynamicImage, encoded: &mut Vec<u8>) -> anyhow::Result<()> {
             encoded.clear();
@@ -529,7 +532,7 @@ impl<'a> BlobObject<'a> {
                 blob_abs = blob_abs.with_extension("jpg");
                 let file_name = blob_abs.file_name().context("No avatar file name (???)")?;
                 let file_name = file_name.to_str().context("Filename is no UTF-8 (???)")?;
-                changed_name = format!("$BLOBDIR/{}", file_name);
+                changed_name = Some(format!("$BLOBDIR/{}", file_name));
             }
 
             if encoded.is_empty() {
