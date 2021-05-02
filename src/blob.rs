@@ -1,5 +1,6 @@
 //! # Blob directory management
 
+use core::cmp::max;
 use std::ffi::OsStr;
 use std::fmt;
 
@@ -495,7 +496,7 @@ impl<'a> BlobObject<'a> {
                 if !exceeds_width {
                     // The image is already smaller than img_wh, but exceeds max_bytes
                     // We can directly start with trying to scale down to 2/3 of its current width
-                    img_wh = img.width() * 2 / 3 // TODO should be {max or min}(img.width(), img.height())
+                    img_wh = max(img.width(), img.height()) * 2 / 3
                 }
 
                 loop {
