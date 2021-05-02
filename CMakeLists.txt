@@ -8,8 +8,18 @@ add_custom_command(
 	"target/release/libdeltachat.a"
 	"target/release/libdeltachat.so"
 	"target/release/pkgconfig/deltachat.pc"
-	COMMAND PREFIX=${CMAKE_INSTALL_PREFIX} ${CARGO} build --package deltachat_ffi --release --no-default-features
-	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+	COMMAND PREFIX=${CMAKE_INSTALL_PREFIX} ${CARGO} build --release --no-default-features
+
+	# Build in `deltachat-ffi` directory instead of using
+	# `--package deltachat_ffi` to avoid feature resolver version
+	# "1" bug which makes `--no-default-features` affect only
+	# `deltachat`, but not `deltachat-ffi` package.
+	#
+	# We can't enable version "2" resolver [1] because it is not
+	# stable yet on rust 1.50.0.
+	#
+	# [1] https://doc.rust-lang.org/nightly/cargo/reference/features.html#resolver-version-2-command-line-flags
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/deltachat-ffi
 )
 
 add_custom_target(
