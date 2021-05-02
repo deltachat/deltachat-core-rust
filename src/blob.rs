@@ -423,7 +423,7 @@ impl<'a> BlobObject<'a> {
             };
 
         let new_name = self.recode_to_size(context, blob_abs, img_wh, None).await?;
-        if new_name != "" {
+        if !new_name.is_empty() {
             return Err(format_err!(
                 "Internal error: recode_to_size(..., None) shouldn't change the name of the image"
             )
@@ -460,7 +460,7 @@ impl<'a> BlobObject<'a> {
             encoded: &mut Vec<u8>,
         ) -> anyhow::Result<bool> {
             if let Some(max_bytes) = max_bytes {
-                encode_img(&img, encoded)?;
+                encode_img(img, encoded)?;
                 if encoded.len() > max_bytes {
                     info!(
                         context,
