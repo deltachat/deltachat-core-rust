@@ -515,7 +515,18 @@ impl MimeMessage {
         {
             // Avatar sent directly in the header as base64.
             if let Ok(decoded_data) = avatar {
-                match BlobObject::create(context, "avatar", &decoded_data).await {
+                let extension = if let Ok(format) = image::guess_format(&decoded_data) {
+                    if let Some(ext) = format.extensions_str().first() {
+                        format!(".{}", ext)
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                };
+                match BlobObject::create(context, format!("avatar{}", extension), &decoded_data)
+                    .await
+                {
                     Ok(blob) => Some(AvatarAction::Change(blob.as_name().to_string())),
                     Err(err) => {
                         warn!(
