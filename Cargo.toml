@@ -115,9 +115,8 @@ name = "search_msgs"
 harness = false
 
 [features]
-default = ["bundled-sqlite"]
+default = []
 internals = []
 repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term", "dirs"]
-vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored"]
+vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored", "rusqlite/bundled"]
 nightly = ["pgp/nightly"]
-bundled-sqlite = ["rusqlite/bundled"]
