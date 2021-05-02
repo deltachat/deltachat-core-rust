@@ -20,7 +20,6 @@ use crate::constants::{
     WORSE_IMAGE_SIZE,
 };
 use crate::context::Context;
-use crate::dc_tools::count_bytes;
 use crate::events::EventType;
 use crate::message;
 
@@ -431,19 +430,22 @@ impl<'a> BlobObject<'a> {
             cause: err,
         })?;
         let orientation = self.get_exif_orientation(context);
+        let mut encoded = Vec::new();
 
         fn exceeds_bytes(
             context: &Context,
             img: &DynamicImage,
             max_bytes: Option<usize>,
+            encoded: &mut Vec<u8>,
         ) -> anyhow::Result<bool> {
             if let Some(max_bytes) = max_bytes {
-                let size = count_bytes(img)?;
-                if size > max_bytes {
+                encoded.clear();
+                img.write_to(encoded, image::ImageFormat::Png)?;
+                if encoded.len() > max_bytes {
                     info!(
                         context,
                         "image size {}B ({}x{}px) exceeds {}B, need to scale down",
-                        size,
+                        encoded.len(),
                         img.width(),
                         img.height(),
                         max_bytes,
@@ -455,10 +457,19 @@ impl<'a> BlobObject<'a> {
         };
         let exceeds_width = img.width() > img_wh || img.height() > img_wh;
 
-        let do_scale = exceeds_width || exceeds_bytes(context, &img, max_bytes)?;
+        let do_scale = exceeds_width || exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
         let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
         if do_scale || do_rotate {
+            if do_rotate {
+                img = match orientation {
+                    Ok(90) => img.rotate90(),
+                    Ok(180) => img.rotate180(),
+                    Ok(270) => img.rotate270(),
+                    _ => img,
+                }
+            }
+
             if do_scale {
                 if !exceeds_width {
                     // The image is already smaller than img_wh, but exceeds max_bytes
@@ -469,7 +480,7 @@ impl<'a> BlobObject<'a> {
                 img = loop {
                     let new_img = img.thumbnail(img_wh, img_wh);
 
-                    if exceeds_bytes(context, &new_img, max_bytes)? {
+                    if exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
                         if img_wh < 20 {
                             return Err(format_err!(
                                 "Failed to scale image to below {}B",
@@ -483,28 +494,28 @@ impl<'a> BlobObject<'a> {
                         info!(
                             context,
                             "Final scaled-down image size: {}B ({}px)",
-                            count_bytes(&new_img)?,
+                            encoded.len(),
                             img_wh
                         ); // TODO dbg (?)
                         break new_img;
                     }
                 }
+            } else {
+                img.write_to(&mut encoded, image::ImageFormat::Jpeg)
+                    .map_err(|err| BlobError::RecodeFailure {
+                        blobdir: context.get_blobdir().to_path_buf(),
+                        blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+                        cause: err.into(),
+                    })?;
             }
 
-            if do_rotate {
-                img = match orientation {
-                    Ok(90) => img.rotate90(),
-                    Ok(180) => img.rotate180(),
-                    Ok(270) => img.rotate270(),
-                    _ => img,
-                }
-            }
-
-            img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
-                blobdir: context.get_blobdir().to_path_buf(),
-                blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-                cause: err.into(),
-            })?;
+            fs::write(&blob_abs, &encoded)
+                .await
+                .map_err(|err| BlobError::WriteFailure {
+                    blobdir: context.get_blobdir().to_path_buf(),
+                    blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+                    cause: err.into(),
+                })?;
         }
 
         Ok(())
