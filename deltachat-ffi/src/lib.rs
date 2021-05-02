@@ -1678,7 +1678,7 @@ pub unsafe extern "C" fn dc_get_contacts(
     let query = to_opt_string_lossy(query);
 
     block_on(async move {
-        match Contact::get_all(&ctx, flags, query).await {
+        match Contact::get_all(&ctx, flags, query.as_deref()).await {
             Ok(contacts) => Box::into_raw(Box::new(dc_array_t::from(contacts))),
             Err(_) => ptr::null_mut(),
         }
