@@ -447,15 +447,19 @@ impl<'a> BlobObject<'a> {
         let mut encoded = Vec::new();
         let mut changed_name = String::new();
 
-        fn exceeds_bytes(
+        fn encode_img(img: &DynamicImage, encoded: &mut Vec<u8>) -> anyhow::Result<()> {
+            encoded.clear();
+            img.write_to(encoded, image::ImageFormat::Jpeg)?;
+            Ok(())
+        }
+        fn encode_img_exceeds_bytes(
             context: &Context,
             img: &DynamicImage,
             max_bytes: Option<usize>,
             encoded: &mut Vec<u8>,
         ) -> anyhow::Result<bool> {
             if let Some(max_bytes) = max_bytes {
-                encoded.clear();
-                img.write_to(encoded, image::ImageFormat::Jpeg)?;
+                encode_img(&img, encoded)?;
                 if encoded.len() > max_bytes {
                     info!(
                         context,
@@ -469,10 +473,11 @@ impl<'a> BlobObject<'a> {
                 }
             }
             Ok(false)
-        };
+        }
         let exceeds_width = img.width() > img_wh || img.height() > img_wh;
 
-        let do_scale = exceeds_width || exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
+        let do_scale =
+            exceeds_width || encode_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
         let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
         if do_scale || do_rotate {
@@ -495,7 +500,7 @@ impl<'a> BlobObject<'a> {
                 loop {
                     let new_img = img.thumbnail(img_wh, img_wh);
 
-                    if exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
+                    if encode_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
                         if img_wh < 20 {
                             return Err(format_err!(
                                 "Failed to scale image to below {}B",
@@ -511,24 +516,22 @@ impl<'a> BlobObject<'a> {
                             "Final scaled-down image size: {}B ({}px)",
                             encoded.len(),
                             img_wh
-                        ); // TODO dbg (?)
+                        );
                         break;
                     }
                 }
-            } else {
-                img.write_to(&mut encoded, ImageFormat::Jpeg)
-                    .map_err(|err| BlobError::RecodeFailure {
-                        blobdir: context.get_blobdir().to_path_buf(),
-                        blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-                        cause: err.into(),
-                    })?;
             }
 
+            // The file format is JPEG now, we may have to change the file extension
             if !matches!(ImageFormat::from_path(&blob_abs), Ok(ImageFormat::Jpeg)) {
                 blob_abs = blob_abs.with_extension("jpg");
                 let file_name = blob_abs.file_name().context("No avatar file name (???)")?;
                 let file_name = file_name.to_str().context("Filename is no UTF-8 (???)")?;
                 changed_name = format!("$BLOBDIR/{}", file_name);
+            }
+
+            if encoded.is_empty() {
+                encode_img(&img, &mut encoded)?;
             }
 
             fs::write(&blob_abs, &encoded)
