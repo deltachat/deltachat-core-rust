@@ -187,10 +187,17 @@ impl Sql {
 
             if recode_avatar {
                 if let Some(avatar) = context.get_config(Config::Selfavatar).await? {
-                    let blob = BlobObject::new_from_path(context, avatar).await?;
-                    if let Err(e) = blob.recode_to_avatar_size(context).await {
-                        warn!(context, "Migrations can't recode avatar, removing. {:#}", e);
-                        context.set_config(Config::Selfavatar, None).await?
+                    let mut blob = BlobObject::new_from_path(context, &avatar).await?;
+                    match blob.recode_to_avatar_size(context).await {
+                        Ok(()) => {
+                            context
+                                .set_config(Config::Selfavatar, Some(&avatar))
+                                .await?
+                        }
+                        Err(e) => {
+                            warn!(context, "Migrations can't recode avatar, removing. {:#}", e);
+                            context.set_config(Config::Selfavatar, None).await?
+                        }
                     }
                 }
             }
