@@ -84,7 +84,7 @@ def main():
 
     print("after commit, on master make sure to: ")
     print("")
-    print("   git tag {}".format(newversion))
+    print("   git tag -a {}".format(newversion))
     print("   git push origin {}".format(newversion))
     print("")
 
