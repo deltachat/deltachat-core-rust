@@ -61,7 +61,7 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use anyhow::{ensure, Context as _, Error};
+use anyhow::{ensure, Context as _, Result};
 use async_std::task;
 use serde::{Deserialize, Serialize};
 
@@ -73,7 +73,6 @@ use crate::dc_tools::time;
 use crate::events::EventType;
 use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
-use crate::sql;
 use crate::stock_str;
 use crate::{
     chat::{lookup_by_contact_id, send_msg, ChatId},
@@ -150,7 +149,7 @@ impl rusqlite::types::FromSql for Timer {
 
 impl ChatId {
     /// Get ephemeral message timer value in seconds.
-    pub async fn get_ephemeral_timer(self, context: &Context) -> Result<Timer, Error> {
+    pub async fn get_ephemeral_timer(self, context: &Context) -> Result<Timer> {
         let timer = context
             .sql
             .query_get_value(
@@ -169,7 +168,7 @@ impl ChatId {
         self,
         context: &Context,
         timer: Timer,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         ensure!(!self.is_special(), "Invalid chat ID");
 
         context
@@ -192,7 +191,7 @@ impl ChatId {
     /// Set ephemeral message timer value in seconds.
     ///
     /// If timer value is 0, disable ephemeral message timer.
-    pub async fn set_ephemeral_timer(self, context: &Context, timer: Timer) -> Result<(), Error> {
+    pub async fn set_ephemeral_timer(self, context: &Context, timer: Timer) -> Result<()> {
         if timer == self.get_ephemeral_timer(context).await? {
             return Ok(());
         }
@@ -307,7 +306,7 @@ impl MsgId {
 /// false. This function does not emit the MsgsChanged event itself,
 /// because it is also called when chatlist is reloaded, and emitting
 /// MsgsChanged there will cause infinite reload loop.
-pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, Error> {
+pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool> {
     let mut updated = context
         .sql
         .execute(
@@ -484,7 +483,7 @@ pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> anyhow::Resul
 ///
 /// This function is supposed to be called in the background,
 /// e.g. from housekeeping task.
-pub(crate) async fn start_ephemeral_timers(context: &Context) -> sql::Result<()> {
+pub(crate) async fn start_ephemeral_timers(context: &Context) -> Result<()> {
     context
         .sql
         .execute(

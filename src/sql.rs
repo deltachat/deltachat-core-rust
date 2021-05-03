@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use std::path::Path;
 use std::time::Duration;
 
-use anyhow::Context as _;
+use anyhow::{bail, format_err, Context as _, Result};
 use async_std::prelude::*;
 use rusqlite::OpenFlags;
 
@@ -33,10 +33,7 @@ macro_rules! paramsv {
     };
 }
 
-mod error;
 mod migrations;
-
-pub use self::error::*;
 
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(Debug)]
@@ -101,7 +98,7 @@ impl Sql {
             .max_size(10)
             .connection_timeout(Duration::from_secs(60))
             .build(mgr)
-            .map_err(Error::ConnectionPool)?;
+            .context("Can't build SQL connection pool")?;
         Ok(pool)
     }
 
@@ -119,21 +116,20 @@ impl Sql {
                 "Cannot open, database \"{:?}\" already opened.",
                 dbfile.as_ref(),
             );
-            return Err(Error::SqlAlreadyOpen.into());
+            bail!("SQL database is already opened.");
         }
 
         *self.pool.write().await = Some(Self::new_pool(dbfile.as_ref(), readonly)?);
 
         if !readonly {
-            self.with_conn(move |conn| {
+            {
+                let conn = self.get_conn().await?;
                 // journal_mode is persisted, it is sufficient to change it only for one handle.
                 conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
 
                 // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
                 conn.pragma_update(None, "synchronous", &"NORMAL".to_string())?;
-                Ok(())
-            })
-            .await?;
+            }
 
             // (1) update low-level database structure.
             // this should be done before updates that use high-level objects that
@@ -256,38 +252,12 @@ impl Sql {
         &self,
     ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+        let pool = lock
+            .as_ref()
+            .ok_or_else(|| format_err!("No SQL connection"))?;
         let conn = pool.get()?;
 
         Ok(conn)
-    }
-
-    pub async fn with_conn<G, H>(&self, g: G) -> anyhow::Result<H>
-    where
-        H: Send + 'static,
-        G: Send
-            + 'static
-            + FnOnce(
-                r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>,
-            ) -> anyhow::Result<H>,
-    {
-        let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-        let conn = pool.get()?;
-
-        g(conn)
-    }
-
-    pub async fn with_conn_async<G, H, Fut>(&self, mut g: G) -> Result<H>
-    where
-        G: FnMut(r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Fut,
-        Fut: Future<Output = Result<H>> + Send,
-    {
-        let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
-
-        let conn = pool.get()?;
-        g(conn).await
     }
 
     /// Used for executing `SELECT COUNT` statements only. Returns the resulting count.
@@ -331,39 +301,34 @@ impl Sql {
         H: Send + 'static,
         G: Send + 'static + FnOnce(&mut rusqlite::Transaction<'_>) -> anyhow::Result<H>,
     {
-        self.with_conn(move |mut conn| {
-            let conn2 = &mut conn;
-            let mut transaction = conn2.transaction()?;
-            let ret = callback(&mut transaction);
+        let mut conn = self.get_conn().await?;
+        let mut transaction = conn.transaction()?;
+        let ret = callback(&mut transaction);
 
-            match ret {
-                Ok(ret) => {
-                    transaction.commit()?;
-                    Ok(ret)
-                }
-                Err(err) => {
-                    transaction.rollback()?;
-                    Err(err)
-                }
+        match ret {
+            Ok(ret) => {
+                transaction.commit()?;
+                Ok(ret)
             }
-        })
-        .await
+            Err(err) => {
+                transaction.rollback()?;
+                Err(err)
+            }
+        }
     }
 
     /// Query the database if the requested table already exists.
     pub async fn table_exists(&self, name: impl AsRef<str>) -> anyhow::Result<bool> {
         let name = name.as_ref().to_string();
-        self.with_conn(move |conn| {
-            let mut exists = false;
-            conn.pragma(None, "table_info", &name, |_row| {
-                // will only be executed if the info was found
-                exists = true;
-                Ok(())
-            })?;
+        let conn = self.get_conn().await?;
+        let mut exists = false;
+        conn.pragma(None, "table_info", &name, |_row| {
+            // will only be executed if the info was found
+            exists = true;
+            Ok(())
+        })?;
 
-            Ok(exists)
-        })
-        .await
+        Ok(exists)
     }
 
     /// Check if a column exists in a given table.
@@ -374,21 +339,19 @@ impl Sql {
     ) -> anyhow::Result<bool> {
         let table_name = table_name.as_ref().to_string();
         let col_name = col_name.as_ref().to_string();
-        self.with_conn(move |conn| {
-            let mut exists = false;
-            // `PRAGMA table_info` returns one row per column,
-            // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
-            conn.pragma(None, "table_info", &table_name, |row| {
-                let curr_name: String = row.get(1)?;
-                if col_name == curr_name {
-                    exists = true;
-                }
-                Ok(())
-            })?;
+        let conn = self.get_conn().await?;
+        let mut exists = false;
+        // `PRAGMA table_info` returns one row per column,
+        // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
+        conn.pragma(None, "table_info", &table_name, |row| {
+            let curr_name: String = row.get(1)?;
+            if col_name == curr_name {
+                exists = true;
+            }
+            Ok(())
+        })?;
 
-            Ok(exists)
-        })
-        .await
+        Ok(exists)
     }
 
     /// Execute a query which is expected to return zero or one row.
@@ -401,14 +364,11 @@ impl Sql {
     where
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
-        let res = match self.query_row(sql, params, f).await {
+        let conn = self.get_conn().await?;
+        let res = match conn.query_row(sql.as_ref(), params, f) {
             Ok(res) => Ok(Some(res)),
-            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Ok(None),
-            Err(Error::Sql(rusqlite::Error::InvalidColumnType(
-                _,
-                _,
-                rusqlite::types::Type::Null,
-            ))) => Ok(None),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(rusqlite::Error::InvalidColumnType(_, _, rusqlite::types::Type::Null)) => Ok(None),
             Err(err) => Err(err),
         }?;
         Ok(res)
@@ -434,10 +394,6 @@ impl Sql {
     /// Setting `None` deletes the value.  On failure an error message
     /// will already have been logged.
     pub async fn set_raw_config(&self, key: impl AsRef<str>, value: Option<&str>) -> Result<()> {
-        if !self.is_open().await {
-            return Err(Error::SqlNoConnection);
-        }
-
         let key = key.as_ref();
         if let Some(value) = value {
             let exists = self
@@ -470,9 +426,6 @@ impl Sql {
 
     /// Get configuration options from the database.
     pub async fn get_raw_config(&self, key: impl AsRef<str>) -> Result<Option<String>> {
-        if !self.is_open().await || key.as_ref().is_empty() {
-            return Err(Error::SqlNoConnection);
-        }
         let value = self
             .query_get_value(
                 "SELECT value FROM config WHERE keyname=?;",

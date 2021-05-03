@@ -568,39 +568,33 @@ pub async fn save(
             accuracy,
             ..
         } = location;
-        let (loc_id, ts) = context
-            .sql
-            .with_conn(move |conn| {
-                let mut stmt_test = conn
-                    .prepare_cached("SELECT id FROM locations WHERE timestamp=? AND from_id=?")?;
-                let mut stmt_insert = conn.prepare_cached(stmt_insert)?;
 
-                let exists = stmt_test.exists(paramsv![timestamp, contact_id as i32])?;
+        let conn = context.sql.get_conn().await?;
+        let mut stmt_test =
+            conn.prepare_cached("SELECT id FROM locations WHERE timestamp=? AND from_id=?")?;
+        let mut stmt_insert = conn.prepare_cached(stmt_insert)?;
 
-                if independent || !exists {
-                    stmt_insert.execute(paramsv![
-                        timestamp,
-                        contact_id as i32,
-                        chat_id,
-                        latitude,
-                        longitude,
-                        accuracy,
-                        independent,
-                    ])?;
+        let exists = stmt_test.exists(paramsv![timestamp, contact_id as i32])?;
 
-                    if timestamp > newest_timestamp {
-                        // okay to drop, as we use cached prepared statements
-                        drop(stmt_test);
-                        drop(stmt_insert);
-                        newest_timestamp = timestamp;
-                        newest_location_id = conn.last_insert_rowid();
-                    }
-                }
-                Ok((newest_location_id, newest_timestamp))
-            })
-            .await?;
-        newest_timestamp = ts;
-        newest_location_id = loc_id;
+        if independent || !exists {
+            stmt_insert.execute(paramsv![
+                timestamp,
+                contact_id as i32,
+                chat_id,
+                latitude,
+                longitude,
+                accuracy,
+                independent,
+            ])?;
+
+            if timestamp > newest_timestamp {
+                // okay to drop, as we use cached prepared statements
+                drop(stmt_test);
+                drop(stmt_insert);
+                newest_timestamp = timestamp;
+                newest_location_id = conn.last_insert_rowid();
+            }
+        }
     }
 
     Ok(u32::try_from(newest_location_id)?)
@@ -642,55 +636,50 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
         )
         .await;
 
-    if rows.is_ok() {
-        let msgs = context
-            .sql
-            .with_conn(move |conn| {
-                let rows = rows.unwrap();
+    if let Ok(rows) = rows {
+        let mut msgs = Vec::new();
 
-                let mut stmt_locations = conn.prepare_cached(
-                    "SELECT id \
-         FROM locations \
-         WHERE from_id=? \
-         AND timestamp>=? \
-         AND timestamp>? \
-         AND independent=0 \
-                 ORDER BY timestamp;",
-                )?;
+        {
+            let conn = job_try!(context.sql.get_conn().await);
 
-                let mut msgs = Vec::new();
-                for (chat_id, locations_send_begin, locations_last_sent) in &rows {
-                    if !stmt_locations
-                        .exists(paramsv![
-                            DC_CONTACT_ID_SELF,
-                            *locations_send_begin,
-                            *locations_last_sent,
-                        ])
-                        .unwrap_or_default()
-                    {
-                        // if there is no new location, there's nothing to send.
-                        // however, maybe we want to bypass this test eg. 15 minutes
-                    } else {
-                        // pending locations are attached automatically to every message,
-                        // so also to this empty text message.
-                        // DC_CMD_LOCATION is only needed to create a nicer subject.
-                        //
-                        // for optimisation and to avoid flooding the sending queue,
-                        // we could sending these messages only if we're really online.
-                        // the easiest way to determine this, is to check for an empty message queue.
-                        // (might not be 100%, however, as positions are sent combined later
-                        // and dc_set_location() is typically called periodically, this is ok)
-                        let mut msg = Message::new(Viewtype::Text);
-                        msg.hidden = true;
-                        msg.param.set_cmd(SystemMessage::LocationOnly);
-                        msgs.push((*chat_id, msg));
-                    }
+            let mut stmt_locations = job_try!(conn.prepare_cached(
+                "SELECT id \
+     FROM locations \
+     WHERE from_id=? \
+     AND timestamp>=? \
+     AND timestamp>? \
+     AND independent=0 \
+             ORDER BY timestamp;",
+            ));
+
+            for (chat_id, locations_send_begin, locations_last_sent) in &rows {
+                if !stmt_locations
+                    .exists(paramsv![
+                        DC_CONTACT_ID_SELF,
+                        *locations_send_begin,
+                        *locations_last_sent,
+                    ])
+                    .unwrap_or_default()
+                {
+                    // if there is no new location, there's nothing to send.
+                    // however, maybe we want to bypass this test eg. 15 minutes
+                } else {
+                    // pending locations are attached automatically to every message,
+                    // so also to this empty text message.
+                    // DC_CMD_LOCATION is only needed to create a nicer subject.
+                    //
+                    // for optimisation and to avoid flooding the sending queue,
+                    // we could sending these messages only if we're really online.
+                    // the easiest way to determine this, is to check for an empty message queue.
+                    // (might not be 100%, however, as positions are sent combined later
+                    // and dc_set_location() is typically called periodically, this is ok)
+                    let mut msg = Message::new(Viewtype::Text);
+                    msg.hidden = true;
+                    msg.param.set_cmd(SystemMessage::LocationOnly);
+                    msgs.push((*chat_id, msg));
                 }
-
-                Ok(msgs)
-            })
-            .await
-            .unwrap_or_default(); // TODO: better error handling
+            }
+        }
 
         for (chat_id, mut msg) in msgs.into_iter() {
             // TODO: better error handling

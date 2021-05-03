@@ -1059,7 +1059,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut msg_ids = vec![MsgId::new(0)];
             msg_ids[0] = MsgId::new(arg1.parse()?);
-            message::markseen_msgs(&context, msg_ids).await;
+            message::markseen_msgs(&context, msg_ids).await?;
         }
         "delmsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");

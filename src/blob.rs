@@ -612,8 +612,6 @@ pub enum BlobError {
     WrongBlobdir { blobdir: PathBuf, src: PathBuf },
     #[error("Blob has a badname {}", .blobname.display())]
     WrongName { blobname: PathBuf },
-    #[error("Sql: {0}")]
-    Sql(#[from] crate::sql::Error),
     #[error("{0}")]
     Other(#[from] anyhow::Error),
 }

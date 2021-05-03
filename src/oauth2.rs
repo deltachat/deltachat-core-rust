@@ -309,7 +309,7 @@ impl Oauth2 {
     }
 }
 
-async fn is_expired(context: &Context) -> Result<bool, crate::sql::Error> {
+async fn is_expired(context: &Context) -> Result<bool> {
     let expire_timestamp = context
         .sql
         .get_raw_config_int64("oauth2_timestamp_expires")

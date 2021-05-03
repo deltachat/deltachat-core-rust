@@ -23,7 +23,6 @@ use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus, ToSave};
 use crate::qr::check_qr;
-use crate::sql;
 use crate::stock_str;
 use crate::token;
 
@@ -267,8 +266,6 @@ pub enum JoinError {
     #[error("Unknown contact (this is a bug)")]
     UnknownContact(#[source] anyhow::Error),
     // Note that this can only occur if we failed to create the chat correctly.
-    #[error("No Chat found for group (this is a bug)")]
-    MissingChat(#[source] sql::Error),
     #[error("Ongoing sender dropped (this is a bug)")]
     OngoingSenderDropped,
     #[error("Other")]
@@ -335,7 +332,9 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
                         Err(err) => {
                             if start.elapsed() > Duration::from_secs(7) {
                                 context.free_ongoing().await;
-                                return Err(JoinError::MissingChat(err));
+                                return Err(err
+                                    .context("Ongoing sender dropped (this is a bug)")
+                                    .into());
                             }
                         }
                     }
@@ -669,8 +668,9 @@ pub(crate) async fn handle_securejoin_handshake(
                     }
                     Err(err) => {
                         error!(context, "Chat {} not found: {}", &field_grpid, err);
-                        return Err(Error::new(err)
-                            .context(format!("Chat for group {} not found", &field_grpid)));
+                        return Err(
+                            err.context(format!("Chat for group {} not found", &field_grpid))
+                        );
                     }
                 }
             } else {
@@ -745,8 +745,9 @@ pub(crate) async fn handle_securejoin_handshake(
                         .unwrap_or_else(|| "");
                     if let Err(err) = chat::get_chat_id_by_grpid(context, &field_grpid).await {
                         warn!(context, "Failed to lookup chat_id from grpid: {}", err);
-                        return Err(Error::new(err)
-                            .context(format!("Chat for group {} not found", &field_grpid)));
+                        return Err(
+                            err.context(format!("Chat for group {} not found", &field_grpid))
+                        );
                     }
                 }
                 Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device

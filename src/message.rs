@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 
-use anyhow::{ensure, Error};
+use anyhow::{ensure, format_err, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -78,7 +78,7 @@ impl MsgId {
     }
 
     /// Returns message state.
-    pub async fn get_state(self, context: &Context) -> crate::sql::Result<MessageState> {
+    pub async fn get_state(self, context: &Context) -> Result<MessageState> {
         let result = context
             .sql
             .query_get_value("SELECT state FROM msgs WHERE id=?", paramsv![self])
@@ -90,11 +90,7 @@ impl MsgId {
     /// Returns Some if the message needs to be moved from `folder`.
     /// If yes, returns `ConfiguredInboxFolder`, `ConfiguredMvboxFolder` or `ConfiguredSentboxFolder`,
     /// depending on where the message should be moved
-    pub async fn needs_move(
-        self,
-        context: &Context,
-        folder: &str,
-    ) -> Result<Option<Config>, Error> {
+    pub async fn needs_move(self, context: &Context, folder: &str) -> Result<Option<Config>> {
         use Config::*;
         if context.is_mvbox(folder).await? {
             return Ok(None);
@@ -133,7 +129,7 @@ impl MsgId {
         }
     }
 
-    async fn needs_move_to_mvbox(self, context: &Context, msg: &Message) -> Result<bool, Error> {
+    async fn needs_move_to_mvbox(self, context: &Context, msg: &Message) -> Result<bool> {
         if !context.get_config_bool(Config::MvboxMove).await? {
             return Ok(false);
         }
@@ -156,7 +152,7 @@ impl MsgId {
     /// We keep some infos to
     /// 1. not download the same message again
     /// 2. be able to delete the message on the server if we want to
-    pub async fn trash(self, context: &Context) -> crate::sql::Result<()> {
+    pub async fn trash(self, context: &Context) -> Result<()> {
         let chat_id = DC_CHAT_ID_TRASH;
         context
             .sql
@@ -181,7 +177,7 @@ WHERE id=?;
     }
 
     /// Deletes a message and corresponding MDNs from the database.
-    pub async fn delete_from_db(self, context: &Context) -> crate::sql::Result<()> {
+    pub async fn delete_from_db(self, context: &Context) -> Result<()> {
         // We don't use transactions yet, so remove MDNs first to make
         // sure they are not left while the message is deleted.
         context
@@ -200,7 +196,7 @@ WHERE id=?;
     /// It is used to avoid trying to remove the message from the
     /// server multiple times when there are multiple message records
     /// pointing to the same server UID.
-    pub(crate) async fn unlink(self, context: &Context) -> crate::sql::Result<()> {
+    pub(crate) async fn unlink(self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
@@ -342,7 +338,7 @@ impl Message {
         }
     }
 
-    pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message, Error> {
+    pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message> {
         ensure!(
             !id.is_special(),
             "Can not load special message ID {} from DB.",
@@ -456,7 +452,7 @@ impl Message {
         self.param.get_path(Param::File, context).unwrap_or(None)
     }
 
-    pub async fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<(), Error> {
+    pub async fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<()> {
         if chat::msgtype_has_file(self.viewtype) {
             let file_param = self.param.get_path(Param::File, context)?;
             if let Some(path_and_filename) = file_param {
@@ -875,7 +871,7 @@ impl Message {
     ///
     /// The message itself is not required to exist in the database,
     /// it may even be deleted from the database by the time the message is prepared.
-    pub async fn set_quote(&mut self, context: &Context, quote: &Message) -> Result<(), Error> {
+    pub async fn set_quote(&mut self, context: &Context, quote: &Message) -> Result<()> {
         ensure!(
             !quote.rfc724_mid.is_empty(),
             "Message without Message-Id cannot be quoted"
@@ -908,7 +904,7 @@ impl Message {
         self.param.get(Param::Quote).map(|s| s.to_string())
     }
 
-    pub async fn quoted_message(&self, context: &Context) -> Result<Option<Message>, Error> {
+    pub async fn quoted_message(&self, context: &Context) -> Result<Option<Message>> {
         if self.param.get(Param::Quote).is_some() {
             if let Some(in_reply_to) = &self.in_reply_to {
                 if let Some((_, _, msg_id)) = rfc724_mid_exists(context, in_reply_to).await? {
@@ -1222,7 +1218,7 @@ pub async fn decide_on_contact_request(
     created_chat_id
 }
 
-pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String, Error> {
+pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     let msg = Message::load_from_db(context, msg_id).await?;
     let rawtxt: Option<String> = context
         .sql
@@ -1443,7 +1439,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
 /// Returns an empty string if there are no headers saved for the given message,
 /// e.g. because of save_mime_headers is not set
 /// or the message is not incoming.
-pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<String, Error> {
+pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<String> {
     let headers = context
         .sql
         .query_get_value(
@@ -1497,44 +1493,39 @@ async fn delete_poi_location(context: &Context, location_id: u32) -> bool {
         .is_ok()
 }
 
-pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
+pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()> {
     if msg_ids.is_empty() {
-        return false;
+        return Ok(());
     }
 
-    let msgs = context
-        .sql
-        .with_conn(move |conn| {
-            let mut stmt = conn.prepare_cached(concat!(
-                "SELECT",
-                "    m.chat_id AS chat_id,",
-                "    m.state AS state,",
-                "    c.blocked AS blocked",
-                " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-                " WHERE m.id=? AND m.chat_id>9"
-            ))?;
+    let conn = context.sql.get_conn().await?;
+    let mut stmt = conn.prepare_cached(concat!(
+        "SELECT",
+        "    m.chat_id AS chat_id,",
+        "    m.state AS state,",
+        "    c.blocked AS blocked",
+        " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
+        " WHERE m.id=? AND m.chat_id>9"
+    ))?;
 
-            let mut msgs = Vec::with_capacity(msg_ids.len());
-            for id in msg_ids.into_iter() {
-                let query_res = stmt.query_row(paramsv![id], |row| {
-                    Ok((
-                        row.get::<_, ChatId>("chat_id")?,
-                        row.get::<_, MessageState>("state")?,
-                        row.get::<_, Option<Blocked>>("blocked")?
-                            .unwrap_or_default(),
-                    ))
-                });
-                if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
-                    continue;
-                }
-                let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
-                msgs.push((id, chat_id, state, blocked));
-            }
-
-            Ok(msgs)
-        })
-        .await
-        .unwrap_or_default();
+    let mut msgs = Vec::with_capacity(msg_ids.len());
+    for id in msg_ids.into_iter() {
+        let query_res = stmt.query_row(paramsv![id], |row| {
+            Ok((
+                row.get::<_, ChatId>("chat_id")?,
+                row.get::<_, MessageState>("state")?,
+                row.get::<_, Option<Blocked>>("blocked")?
+                    .unwrap_or_default(),
+            ))
+        });
+        if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
+            continue;
+        }
+        let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
+        msgs.push((id, chat_id, state, blocked));
+    }
+    drop(stmt);
+    drop(conn);
 
     let mut updated_chat_ids = BTreeMap::new();
 
@@ -1566,7 +1557,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         context.emit_event(EventType::MsgsNoticed(*updated_chat_id));
     }
 
-    true
+    Ok(())
 }
 
 pub async fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageState) -> bool {
@@ -1669,7 +1660,7 @@ pub async fn get_summarytext_by_raw(
 
 // Context functions to work with messages
 
-pub async fn exists(context: &Context, msg_id: MsgId) -> anyhow::Result<bool> {
+pub async fn exists(context: &Context, msg_id: MsgId) -> Result<bool> {
     if msg_id.is_special() {
         return Ok(false);
     }
@@ -1724,7 +1715,7 @@ pub async fn handle_mdn(
     from_id: u32,
     rfc724_mid: &str,
     timestamp_sent: i64,
-) -> anyhow::Result<Option<(ChatId, MsgId)>> {
+) -> Result<Option<(ChatId, MsgId)>> {
     if from_id <= DC_CONTACT_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
         return Ok(None);
     }
@@ -1829,7 +1820,7 @@ pub(crate) async fn handle_ndn(
     context: &Context,
     failed: &FailureReport,
     error: Option<impl AsRef<str>>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     if failed.rfc724_mid.is_empty() {
         return Ok(());
     }
@@ -1878,7 +1869,7 @@ async fn ndn_maybe_add_info_msg(
     failed: &FailureReport,
     chat_id: ChatId,
     chat_type: Chattype,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     match chat_type {
         Chattype::Group => {
             if let Some(failed_recipient) = &failed.failed_recipient {
@@ -1886,7 +1877,7 @@ async fn ndn_maybe_add_info_msg(
                     Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
                         .await?
                         .ok_or_else(|| {
-                            Error::msg("ndn_maybe_add_info_msg: Contact ID not found")
+                            format_err!("ndn_maybe_add_info_msg: Contact ID not found")
                         })?;
                 let contact = Contact::load_from_db(context, contact_id).await?;
                 // Tell the user which of the recipients failed if we know that (because in
@@ -1949,7 +1940,7 @@ pub async fn estimate_deletion_cnt(
     context: &Context,
     from_server: bool,
     seconds: i64,
-) -> Result<usize, Error> {
+) -> Result<usize> {
     let self_chat_id = chat::lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
         .await
         .unwrap_or_default()
@@ -2016,7 +2007,7 @@ pub async fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> usize {
 pub(crate) async fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
-) -> Result<Option<(String, u32, MsgId)>, Error> {
+) -> Result<Option<(String, u32, MsgId)>> {
     let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     if rfc724_mid.is_empty() {
         warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
@@ -2739,7 +2730,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_markseen_msgs() -> anyhow::Result<()> {
+    async fn test_markseen_msgs() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
@@ -2765,7 +2756,7 @@ mod tests {
         assert_eq!(bob.get_fresh_msgs().await?.len(), 0);
 
         // that has no effect in deaddrop
-        markseen_msgs(&bob, vec![msg1.id, msg2.id]).await;
+        markseen_msgs(&bob, vec![msg1.id, msg2.id]).await?;
 
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
         let msgs = chat::get_chat_msgs(&bob, DC_CHAT_ID_DEADDROP, 0, None).await?;
@@ -2794,22 +2785,22 @@ mod tests {
         assert_eq!(alice.get_fresh_msgs().await?.len(), 2);
 
         // no message-ids, that should have no effect
-        markseen_msgs(&alice, vec![]).await;
+        markseen_msgs(&alice, vec![]).await?;
 
         // bad message-id, that should have no effect
-        markseen_msgs(&alice, vec![MsgId::new(123456)]).await;
+        markseen_msgs(&alice, vec![MsgId::new(123456)]).await?;
 
         assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 2);
         assert_eq!(alice.get_fresh_msgs().await?.len(), 2);
 
         // mark the most recent as seen
-        markseen_msgs(&alice, vec![msg2.id]).await;
+        markseen_msgs(&alice, vec![msg2.id]).await?;
 
         assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 1);
         assert_eq!(alice.get_fresh_msgs().await?.len(), 1);
 
         // user scrolled up - mark both as seen
-        markseen_msgs(&alice, vec![msg1.id, msg2.id]).await;
+        markseen_msgs(&alice, vec![msg1.id, msg2.id]).await?;
 
         assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 0);
         assert_eq!(alice.get_fresh_msgs().await?.len(), 0);
@@ -2818,7 +2809,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_get_state() -> anyhow::Result<()> {
+    async fn test_get_state() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
@@ -2868,7 +2859,7 @@ mod tests {
         marknoticed_chat(&bob, bob_msg.chat_id).await?;
         assert_state(&bob, bob_msg.id, MessageState::InNoticed).await;
 
-        markseen_msgs(&bob, vec![bob_msg.id]).await;
+        markseen_msgs(&bob, vec![bob_msg.id]).await?;
         assert_state(&bob, bob_msg.id, MessageState::InSeen).await;
 
         Ok(())

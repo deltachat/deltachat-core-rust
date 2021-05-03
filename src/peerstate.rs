@@ -421,7 +421,7 @@ impl Peerstate {
         }
     }
 
-    pub async fn save_to_db(&self, sql: &Sql, create: bool) -> crate::sql::Result<()> {
+    pub async fn save_to_db(&self, sql: &Sql, create: bool) -> Result<()> {
         if self.to_save == Some(ToSave::All) || create {
             sql.execute(
                 if create {

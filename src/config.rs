@@ -305,7 +305,7 @@ impl Context {
         }
     }
 
-    pub async fn set_config_bool(&self, key: Config, value: bool) -> crate::sql::Result<()> {
+    pub async fn set_config_bool(&self, key: Config, value: bool) -> Result<()> {
         self.set_config(key, if value { Some("1") } else { None })
             .await?;
         Ok(())
