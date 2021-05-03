@@ -122,15 +122,14 @@ impl Sql {
         *self.pool.write().await = Some(Self::new_pool(dbfile.as_ref(), readonly)?);
 
         if !readonly {
-            self.with_conn(move |conn| {
+            {
+                let conn = self.get_conn().await?;
                 // journal_mode is persisted, it is sufficient to change it only for one handle.
                 conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
 
                 // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
                 conn.pragma_update(None, "synchronous", &"NORMAL".to_string())?;
-                Ok(())
-            })
-            .await?;
+            }
 
             // (1) update low-level database structure.
             // this should be done before updates that use high-level objects that
@@ -313,39 +312,34 @@ impl Sql {
         H: Send + 'static,
         G: Send + 'static + FnOnce(&mut rusqlite::Transaction<'_>) -> anyhow::Result<H>,
     {
-        self.with_conn(move |mut conn| {
-            let conn2 = &mut conn;
-            let mut transaction = conn2.transaction()?;
-            let ret = callback(&mut transaction);
+        let mut conn = self.get_conn().await?;
+        let mut transaction = conn.transaction()?;
+        let ret = callback(&mut transaction);
 
-            match ret {
-                Ok(ret) => {
-                    transaction.commit()?;
-                    Ok(ret)
-                }
-                Err(err) => {
-                    transaction.rollback()?;
-                    Err(err)
-                }
+        match ret {
+            Ok(ret) => {
+                transaction.commit()?;
+                Ok(ret)
             }
-        })
-        .await
+            Err(err) => {
+                transaction.rollback()?;
+                Err(err)
+            }
+        }
     }
 
     /// Query the database if the requested table already exists.
     pub async fn table_exists(&self, name: impl AsRef<str>) -> anyhow::Result<bool> {
         let name = name.as_ref().to_string();
-        self.with_conn(move |conn| {
-            let mut exists = false;
-            conn.pragma(None, "table_info", &name, |_row| {
-                // will only be executed if the info was found
-                exists = true;
-                Ok(())
-            })?;
+        let conn = self.get_conn().await?;
+        let mut exists = false;
+        conn.pragma(None, "table_info", &name, |_row| {
+            // will only be executed if the info was found
+            exists = true;
+            Ok(())
+        })?;
 
-            Ok(exists)
-        })
-        .await
+        Ok(exists)
     }
 
     /// Check if a column exists in a given table.
@@ -356,21 +350,19 @@ impl Sql {
     ) -> anyhow::Result<bool> {
         let table_name = table_name.as_ref().to_string();
         let col_name = col_name.as_ref().to_string();
-        self.with_conn(move |conn| {
-            let mut exists = false;
-            // `PRAGMA table_info` returns one row per column,
-            // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
-            conn.pragma(None, "table_info", &table_name, |row| {
-                let curr_name: String = row.get(1)?;
-                if col_name == curr_name {
-                    exists = true;
-                }
-                Ok(())
-            })?;
+        let conn = self.get_conn().await?;
+        let mut exists = false;
+        // `PRAGMA table_info` returns one row per column,
+        // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
+        conn.pragma(None, "table_info", &table_name, |row| {
+            let curr_name: String = row.get(1)?;
+            if col_name == curr_name {
+                exists = true;
+            }
+            Ok(())
+        })?;
 
-            Ok(exists)
-        })
-        .await
+        Ok(exists)
     }
 
     /// Execute a query which is expected to return zero or one row.
