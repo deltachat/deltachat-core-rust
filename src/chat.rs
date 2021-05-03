@@ -38,7 +38,6 @@ use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
-use crate::sql;
 use crate::stock_str;
 
 /// An chat item, such as a message or a marker.
@@ -599,7 +598,7 @@ impl ChatId {
     async fn get_parent_mime_headers(
         self,
         context: &Context,
-    ) -> sql::Result<Option<(String, String, String)>> {
+    ) -> Result<Option<(String, String, String)>> {
         if let Some((rfc724_mid, mime_in_reply_to, mime_references, error)) = self
             .parent_query(
                 context,
@@ -2808,7 +2807,7 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
 pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,
-) -> Result<(ChatId, bool, Blocked), sql::Error> {
+) -> Result<(ChatId, bool, Blocked)> {
     context
         .sql
         .query_row(
@@ -3882,7 +3881,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_marknoticed_chat() -> anyhow::Result<()> {
+    async fn test_marknoticed_chat() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat = t.create_chat_with_contact("bob", "bob@example.org").await;
 
@@ -3930,7 +3929,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_marknoticed_deaddrop_chat() -> anyhow::Result<()> {
+    async fn test_marknoticed_deaddrop_chat() -> Result<()> {
         let t = TestContext::new_alice().await;
 
         let chats = Chatlist::try_load(&t, 0, None, None).await?;

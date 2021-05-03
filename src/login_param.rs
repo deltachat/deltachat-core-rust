@@ -5,6 +5,7 @@ use std::fmt;
 
 use crate::provider::{get_provider_by_id, Provider};
 use crate::{context::Context, provider::Socket};
+use anyhow::Result;
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, PartialEq, Eq)]
 #[repr(u32)]
@@ -54,10 +55,7 @@ pub struct LoginParam {
 
 impl LoginParam {
     /// Read the login parameters from the database.
-    pub async fn from_database(
-        context: &Context,
-        prefix: impl AsRef<str>,
-    ) -> crate::sql::Result<Self> {
+    pub async fn from_database(context: &Context, prefix: impl AsRef<str>) -> Result<Self> {
         let prefix = prefix.as_ref();
         let sql = &context.sql;
 
@@ -156,11 +154,7 @@ impl LoginParam {
     }
 
     /// Save this loginparam to the database.
-    pub async fn save_to_database(
-        &self,
-        context: &Context,
-        prefix: impl AsRef<str>,
-    ) -> crate::sql::Result<()> {
+    pub async fn save_to_database(&self, context: &Context, prefix: impl AsRef<str>) -> Result<()> {
         let prefix = prefix.as_ref();
         let sql = &context.sql;
 
@@ -317,7 +311,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_save_load_login_param() -> anyhow::Result<()> {
+    async fn test_save_load_login_param() -> Result<()> {
         let t = TestContext::new().await;
 
         let param = LoginParam {

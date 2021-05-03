@@ -15,7 +15,6 @@ use crate::config::Config;
 use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::dc_tools::{time, EmailAddress, InvalidEmailError};
-use crate::sql;
 
 // Re-export key types
 pub use crate::pgp::KeyPair;
@@ -31,8 +30,6 @@ pub enum Error {
     Pgp(#[from] pgp::errors::Error),
     #[error("Failed to generate PGP key: {}", _0)]
     Keygen(#[from] crate::pgp::PgpKeygenError),
-    #[error("Failed to load key: {}", _0)]
-    LoadKey(#[from] sql::Error),
     #[error("Failed to save generated key: {}", _0)]
     StoreKey(#[from] SaveKeyError),
     #[error("No address configured")]

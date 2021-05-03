@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use std::path::Path;
 use std::time::Duration;
 
-use anyhow::Context as _;
+use anyhow::{bail, format_err, Context as _, Result};
 use async_std::prelude::*;
 use rusqlite::OpenFlags;
 
@@ -33,10 +33,7 @@ macro_rules! paramsv {
     };
 }
 
-mod error;
 mod migrations;
-
-pub use self::error::*;
 
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(Debug)]
@@ -101,7 +98,7 @@ impl Sql {
             .max_size(10)
             .connection_timeout(Duration::from_secs(60))
             .build(mgr)
-            .map_err(Error::ConnectionPool)?;
+            .context("Can't build SQL connection pool")?;
         Ok(pool)
     }
 
@@ -119,7 +116,7 @@ impl Sql {
                 "Cannot open, database \"{:?}\" already opened.",
                 dbfile.as_ref(),
             );
-            return Err(Error::SqlAlreadyOpen.into());
+            bail!("SQL database is already opened.");
         }
 
         *self.pool.write().await = Some(Self::new_pool(dbfile.as_ref(), readonly)?);
@@ -256,7 +253,7 @@ impl Sql {
         &self,
     ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+        let pool = lock.as_ref().ok_or(format_err!("No SQL connection"))?;
         let conn = pool.get()?;
 
         Ok(conn)
@@ -272,7 +269,7 @@ impl Sql {
             ) -> anyhow::Result<H>,
     {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+        let pool = lock.as_ref().ok_or(format_err!("No SQL connection"))?;
         let conn = pool.get()?;
 
         g(conn)
@@ -284,7 +281,7 @@ impl Sql {
         Fut: Future<Output = Result<H>> + Send,
     {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(Error::SqlNoConnection)?;
+        let pool = lock.as_ref().ok_or(format_err!("No SQL connection"))?;
 
         let conn = pool.get()?;
         g(conn).await
@@ -401,14 +398,11 @@ impl Sql {
     where
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
-        let res = match self.query_row(sql, params, f).await {
+        let conn = self.get_conn().await?;
+        let res = match conn.query_row(sql.as_ref(), params, f) {
             Ok(res) => Ok(Some(res)),
-            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Ok(None),
-            Err(Error::Sql(rusqlite::Error::InvalidColumnType(
-                _,
-                _,
-                rusqlite::types::Type::Null,
-            ))) => Ok(None),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(rusqlite::Error::InvalidColumnType(_, _, rusqlite::types::Type::Null)) => Ok(None),
             Err(err) => Err(err),
         }?;
         Ok(res)
@@ -435,7 +429,7 @@ impl Sql {
     /// will already have been logged.
     pub async fn set_raw_config(&self, key: impl AsRef<str>, value: Option<&str>) -> Result<()> {
         if !self.is_open().await {
-            return Err(Error::SqlNoConnection);
+            bail!("No SQL connection");
         }
 
         let key = key.as_ref();
@@ -470,8 +464,8 @@ impl Sql {
 
     /// Get configuration options from the database.
     pub async fn get_raw_config(&self, key: impl AsRef<str>) -> Result<Option<String>> {
-        if !self.is_open().await || key.as_ref().is_empty() {
-            return Err(Error::SqlNoConnection);
+        if !self.is_open().await {
+            bail!("No SQL connection");
         }
         let value = self
             .query_get_value(

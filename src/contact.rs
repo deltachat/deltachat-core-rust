@@ -175,7 +175,7 @@ pub enum VerifiedStatus {
 }
 
 impl Contact {
-    pub async fn load_from_db(context: &Context, contact_id: u32) -> crate::sql::Result<Self> {
+    pub async fn load_from_db(context: &Context, contact_id: u32) -> Result<Self> {
         let mut contact = context
             .sql
             .query_row(

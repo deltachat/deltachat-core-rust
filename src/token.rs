@@ -4,6 +4,7 @@
 //!
 //! Tokens are used in countermitm verification protocols.
 
+use anyhow::Result;
 use deltachat_derive::{FromSql, ToSql};
 
 use crate::chat::ChatId;
@@ -58,7 +59,7 @@ pub async fn lookup(
     context: &Context,
     namespace: Namespace,
     chat: Option<ChatId>,
-) -> crate::sql::Result<Option<String>> {
+) -> Result<Option<String>> {
     let token = match chat {
         Some(chat_id) => {
             context

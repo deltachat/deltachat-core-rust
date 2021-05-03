@@ -430,7 +430,7 @@ impl Job {
         &self,
         context: &Context,
         contact_id: u32,
-    ) -> sql::Result<(Vec<u32>, Vec<String>)> {
+    ) -> Result<(Vec<u32>, Vec<String>)> {
         // Extract message IDs from job parameters
         let res: Vec<(u32, MsgId)> = context
             .sql
@@ -846,7 +846,7 @@ pub async fn kill_action(context: &Context, action: Action) -> bool {
 }
 
 /// Remove jobs with specified IDs.
-async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
+async fn kill_ids(context: &Context, job_ids: &[u32]) -> Result<()> {
     let q = format!(
         "DELETE FROM jobs WHERE id IN({})",
         job_ids.iter().map(|_| "?").join(",")
@@ -1050,7 +1050,7 @@ pub(crate) enum Connection<'a> {
     Smtp(&'a mut Smtp),
 }
 
-pub(crate) async fn load_imap_deletion_job(context: &Context) -> sql::Result<Option<Job>> {
+pub(crate) async fn load_imap_deletion_job(context: &Context) -> Result<Option<Job>> {
     let res = if let Some(msg_id) = load_imap_deletion_msgid(context).await? {
         Some(Job::new(
             Action::DeleteMsgOnImap,
