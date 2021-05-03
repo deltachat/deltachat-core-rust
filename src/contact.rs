@@ -915,7 +915,7 @@ impl Contact {
                 }
                 Err(err) => {
                     error!(context, "delete_contact {} failed ({})", contact_id, err);
-                    return Err(err.into());
+                    return Err(err);
                 }
             }
         }

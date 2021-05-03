@@ -252,7 +252,9 @@ impl Sql {
         &self,
     ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
         let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(format_err!("No SQL connection"))?;
+        let pool = lock
+            .as_ref()
+            .ok_or_else(|| format_err!("No SQL connection"))?;
         let conn = pool.get()?;
 
         Ok(conn)
