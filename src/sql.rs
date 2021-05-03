@@ -275,18 +275,6 @@ impl Sql {
         g(conn)
     }
 
-    pub async fn with_conn_async<G, H, Fut>(&self, mut g: G) -> Result<H>
-    where
-        G: FnMut(r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Fut,
-        Fut: Future<Output = Result<H>> + Send,
-    {
-        let lock = self.pool.read().await;
-        let pool = lock.as_ref().ok_or(format_err!("No SQL connection"))?;
-
-        let conn = pool.get()?;
-        g(conn).await
-    }
-
     /// Used for executing `SELECT COUNT` statements only. Returns the resulting count.
     pub async fn count(
         &self,
