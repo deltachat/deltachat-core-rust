@@ -428,10 +428,6 @@ impl Sql {
     /// Setting `None` deletes the value.  On failure an error message
     /// will already have been logged.
     pub async fn set_raw_config(&self, key: impl AsRef<str>, value: Option<&str>) -> Result<()> {
-        if !self.is_open().await {
-            bail!("No SQL connection");
-        }
-
         let key = key.as_ref();
         if let Some(value) = value {
             let exists = self
@@ -464,9 +460,6 @@ impl Sql {
 
     /// Get configuration options from the database.
     pub async fn get_raw_config(&self, key: impl AsRef<str>) -> Result<Option<String>> {
-        if !self.is_open().await {
-            bail!("No SQL connection");
-        }
         let value = self
             .query_get_value(
                 "SELECT value FROM config WHERE keyname=?;",
