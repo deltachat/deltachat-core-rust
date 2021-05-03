@@ -1493,44 +1493,39 @@ async fn delete_poi_location(context: &Context, location_id: u32) -> bool {
         .is_ok()
 }
 
-pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
+pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()> {
     if msg_ids.is_empty() {
-        return false;
+        return Ok(());
     }
 
-    let msgs = context
-        .sql
-        .with_conn(move |conn| {
-            let mut stmt = conn.prepare_cached(concat!(
-                "SELECT",
-                "    m.chat_id AS chat_id,",
-                "    m.state AS state,",
-                "    c.blocked AS blocked",
-                " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-                " WHERE m.id=? AND m.chat_id>9"
-            ))?;
+    let conn = context.sql.get_conn().await?;
+    let mut stmt = conn.prepare_cached(concat!(
+        "SELECT",
+        "    m.chat_id AS chat_id,",
+        "    m.state AS state,",
+        "    c.blocked AS blocked",
+        " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
+        " WHERE m.id=? AND m.chat_id>9"
+    ))?;
 
-            let mut msgs = Vec::with_capacity(msg_ids.len());
-            for id in msg_ids.into_iter() {
-                let query_res = stmt.query_row(paramsv![id], |row| {
-                    Ok((
-                        row.get::<_, ChatId>("chat_id")?,
-                        row.get::<_, MessageState>("state")?,
-                        row.get::<_, Option<Blocked>>("blocked")?
-                            .unwrap_or_default(),
-                    ))
-                });
-                if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
-                    continue;
-                }
-                let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
-                msgs.push((id, chat_id, state, blocked));
-            }
-
-            Ok(msgs)
-        })
-        .await
-        .unwrap_or_default();
+    let mut msgs = Vec::with_capacity(msg_ids.len());
+    for id in msg_ids.into_iter() {
+        let query_res = stmt.query_row(paramsv![id], |row| {
+            Ok((
+                row.get::<_, ChatId>("chat_id")?,
+                row.get::<_, MessageState>("state")?,
+                row.get::<_, Option<Blocked>>("blocked")?
+                    .unwrap_or_default(),
+            ))
+        });
+        if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
+            continue;
+        }
+        let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
+        msgs.push((id, chat_id, state, blocked));
+    }
+    drop(stmt);
+    drop(conn);
 
     let mut updated_chat_ids = BTreeMap::new();
 
@@ -1562,7 +1557,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
         context.emit_event(EventType::MsgsNoticed(*updated_chat_id));
     }
 
-    true
+    Ok(())
 }
 
 pub async fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageState) -> bool {
@@ -2761,7 +2756,7 @@ mod tests {
         assert_eq!(bob.get_fresh_msgs().await?.len(), 0);
 
         // that has no effect in deaddrop
-        markseen_msgs(&bob, vec![msg1.id, msg2.id]).await;
+        markseen_msgs(&bob, vec![msg1.id, msg2.id]).await?;
 
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
         let msgs = chat::get_chat_msgs(&bob, DC_CHAT_ID_DEADDROP, 0, None).await?;
@@ -2790,22 +2785,22 @@ mod tests {
         assert_eq!(alice.get_fresh_msgs().await?.len(), 2);
 
         // no message-ids, that should have no effect
-        markseen_msgs(&alice, vec![]).await;
+        markseen_msgs(&alice, vec![]).await?;
 
         // bad message-id, that should have no effect
-        markseen_msgs(&alice, vec![MsgId::new(123456)]).await;
+        markseen_msgs(&alice, vec![MsgId::new(123456)]).await?;
 
         assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 2);
         assert_eq!(alice.get_fresh_msgs().await?.len(), 2);
 
         // mark the most recent as seen
-        markseen_msgs(&alice, vec![msg2.id]).await;
+        markseen_msgs(&alice, vec![msg2.id]).await?;
 
         assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 1);
         assert_eq!(alice.get_fresh_msgs().await?.len(), 1);
 
         // user scrolled up - mark both as seen
-        markseen_msgs(&alice, vec![msg1.id, msg2.id]).await;
+        markseen_msgs(&alice, vec![msg1.id, msg2.id]).await?;
 
         assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 0);
         assert_eq!(alice.get_fresh_msgs().await?.len(), 0);
@@ -2864,7 +2859,7 @@ mod tests {
         marknoticed_chat(&bob, bob_msg.chat_id).await?;
         assert_state(&bob, bob_msg.id, MessageState::InNoticed).await;
 
-        markseen_msgs(&bob, vec![bob_msg.id]).await;
+        markseen_msgs(&bob, vec![bob_msg.id]).await?;
         assert_state(&bob, bob_msg.id, MessageState::InSeen).await;
 
         Ok(())

@@ -1560,7 +1560,9 @@ pub unsafe extern "C" fn dc_markseen_msgs(
     let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
     let ctx = &*context;
 
-    block_on(message::markseen_msgs(&ctx, msg_ids));
+    block_on(message::markseen_msgs(&ctx, msg_ids))
+        .log_err(ctx, "failed dc_markseen_msgs() call")
+        .ok();
 }
 
 #[no_mangle]
