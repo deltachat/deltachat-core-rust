@@ -258,19 +258,6 @@ impl Sql {
         Ok(conn)
     }
 
-    pub async fn with_conn<G, H>(&self, g: G) -> anyhow::Result<H>
-    where
-        H: Send + 'static,
-        G: Send
-            + 'static
-            + FnOnce(
-                r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>,
-            ) -> anyhow::Result<H>,
-    {
-        let conn = self.get_conn().await?;
-        g(conn)
-    }
-
     /// Used for executing `SELECT COUNT` statements only. Returns the resulting count.
     pub async fn count(
         &self,
