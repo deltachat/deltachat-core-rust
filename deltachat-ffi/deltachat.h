@@ -2990,7 +2990,7 @@ char*           dc_chat_get_name             (const dc_chat_t* chat);
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
- * @return Path and file if the profile image, if any.
+ * @return Path and file of the profile image, if any.
  *     NULL otherwise.
  *     Must be released using dc_str_unref() after usage.
  */
