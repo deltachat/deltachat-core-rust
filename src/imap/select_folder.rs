@@ -62,10 +62,10 @@ impl Imap {
     /// select a folder, possibly update uid_validity and, if needed,
     /// expunge the folder to remove delete-marked messages.
     /// Returns whether a new folder was selected.
-    pub(super) async fn select_folder<S: AsRef<str>>(
+    pub(super) async fn select_folder(
         &mut self,
         context: &Context,
-        folder: Option<S>,
+        folder: Option<&str>,
     ) -> Result<NewlySelected> {
         if self.session.is_none() {
             self.config.selected_folder = None;
@@ -76,9 +76,9 @@ impl Imap {
 
         // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
         // if there is _no_ new folder, we continue as we might want to expunge below.
-        if let Some(ref folder) = folder {
+        if let Some(folder) = folder {
             if let Some(ref selected_folder) = self.config.selected_folder {
-                if folder.as_ref() == selected_folder {
+                if folder == selected_folder {
                     return Ok(NewlySelected::No);
                 }
             }
@@ -88,7 +88,7 @@ impl Imap {
         self.maybe_close_folder(context).await?;
 
         // select new folder
-        if let Some(ref folder) = folder {
+        if let Some(folder) = folder {
             if let Some(ref mut session) = &mut self.session {
                 let res = session.select(folder).await;
 
@@ -98,7 +98,7 @@ impl Imap {
 
                 match res {
                     Ok(mailbox) => {
-                        self.config.selected_folder = Some(folder.as_ref().to_string());
+                        self.config.selected_folder = Some(folder.to_string());
                         self.config.selected_mailbox = Some(mailbox);
                         Ok(NewlySelected::Yes)
                     }
@@ -108,7 +108,7 @@ impl Imap {
                         Err(Error::ConnectionLost)
                     }
                     Err(async_imap::error::Error::Validate(_)) => {
-                        Err(Error::BadFolderName(folder.as_ref().to_string()))
+                        Err(Error::BadFolderName(folder.to_string()))
                     }
                     Err(err) => {
                         self.config.selected_folder = None;

@@ -1278,7 +1278,7 @@ async fn build_body_file(
 }
 
 fn build_selfavatar_file(context: &Context, path: &str) -> Result<String> {
-    let blob = BlobObject::from_path(context, path)?;
+    let blob = BlobObject::from_path(context, path.as_ref())?;
     let body = std::fs::read(blob.to_abs_path())?;
     let encoded_body = wrapped_base64_encode(&body);
     Ok(encoded_body)
@@ -1328,8 +1328,8 @@ fn encode_words(word: &str) -> String {
     encoded_words::encode(word, None, encoded_words::EncodingFlag::Shortest, None)
 }
 
-fn needs_encoding(to_check: impl AsRef<str>) -> bool {
-    !to_check.as_ref().chars().all(|c| {
+fn needs_encoding(to_check: &str) -> bool {
+    !to_check.chars().all(|c| {
         c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '~' || c == '%'
     })
 }

@@ -524,7 +524,7 @@ impl MimeMessage {
                 } else {
                     String::new()
                 };
-                match BlobObject::create(context, format!("avatar{}", extension), &decoded_data)
+                match BlobObject::create(context, &format!("avatar{}", extension), &decoded_data)
                     .await
                 {
                     Ok(blob) => Some(AvatarAction::Change(blob.as_name().to_string())),

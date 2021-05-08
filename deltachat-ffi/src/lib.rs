@@ -271,7 +271,7 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     let redirect = to_string_lossy(redirect);
 
     block_on(async move {
-        match oauth2::dc_get_oauth2_url(&ctx, addr, redirect).await {
+        match oauth2::dc_get_oauth2_url(&ctx, &addr, &redirect).await {
             Some(res) => res.strdup(),
             None => ptr::null_mut(),
         }
@@ -1188,7 +1188,7 @@ pub unsafe extern "C" fn dc_search_msgs(
 
     block_on(async move {
         let arr = dc_array_t::from(
-            ctx.search_msgs(chat_id, to_string_lossy(query))
+            ctx.search_msgs(chat_id, &to_string_lossy(query))
                 .await
                 .unwrap_or_log_default(ctx, "Failed search_msgs")
                 .iter()
@@ -1237,7 +1237,7 @@ pub unsafe extern "C" fn dc_create_group_chat(
     };
 
     block_on(async move {
-        chat::create_group_chat(&ctx, protect, to_string_lossy(name))
+        chat::create_group_chat(&ctx, protect, &to_string_lossy(name))
             .await
             .log_err(ctx, "Failed to create group chat")
             .map(|id| id.to_u32())
@@ -1312,7 +1312,7 @@ pub unsafe extern "C" fn dc_set_chat_name(
     let ctx = &*context;
 
     block_on(async move {
-        chat::set_chat_name(&ctx, ChatId::new(chat_id), to_string_lossy(name))
+        chat::set_chat_name(&ctx, ChatId::new(chat_id), &to_string_lossy(name))
             .await
             .map(|_| 1)
             .unwrap_or_log_default(&ctx, "Failed to set chat name")
@@ -1642,7 +1642,7 @@ pub unsafe extern "C" fn dc_create_contact(
     let name = to_string_lossy(name);
 
     block_on(async move {
-        Contact::create(&ctx, name, to_string_lossy(addr))
+        Contact::create(&ctx, &name, &to_string_lossy(addr))
             .await
             .unwrap_or(0)
     })
@@ -1660,7 +1660,7 @@ pub unsafe extern "C" fn dc_add_address_book(
     let ctx = &*context;
 
     block_on(async move {
-        match Contact::add_address_book(&ctx, to_string_lossy(addr_book)).await {
+        match Contact::add_address_book(&ctx, &to_string_lossy(addr_book)).await {
             Ok(cnt) => cnt as libc::c_int,
             Err(_) => 0,
         }
@@ -1827,7 +1827,7 @@ pub unsafe extern "C" fn dc_imex(
 
     if let Some(param1) = to_opt_string_lossy(param1) {
         spawn(async move {
-            imex::imex(&ctx, what, &param1)
+            imex::imex(&ctx, what, param1.as_ref())
                 .await
                 .log_err(ctx, "IMEX failed")
         });
@@ -1848,7 +1848,7 @@ pub unsafe extern "C" fn dc_imex_has_backup(
     let ctx = &*context;
 
     block_on(async move {
-        match imex::has_backup(&ctx, to_string_lossy(dir)).await {
+        match imex::has_backup(&ctx, to_string_lossy(dir).as_ref()).await {
             Ok(res) => res.strdup(),
             Err(err) => {
                 // do not bubble up error to the user,
@@ -1929,7 +1929,7 @@ pub unsafe extern "C" fn dc_check_qr(
     let ctx = &*context;
 
     block_on(async move {
-        let lot = qr::check_qr(&ctx, to_string_lossy(qr)).await;
+        let lot = qr::check_qr(&ctx, &to_string_lossy(qr)).await;
         Box::into_raw(Box::new(lot))
     })
 }

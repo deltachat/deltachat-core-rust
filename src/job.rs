@@ -904,8 +904,8 @@ async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, fold
 
                 match Contact::add_or_lookup(
                     context,
-                    display_name_normalized,
-                    contact.addr,
+                    &display_name_normalized,
+                    &contact.addr,
                     Origin::OutgoingTo,
                 )
                 .await

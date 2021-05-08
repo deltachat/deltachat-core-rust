@@ -1,10 +1,10 @@
 //! # SQLite wrapper
 
+use async_std::path::Path;
 use async_std::sync::RwLock;
 
 use std::collections::HashSet;
 use std::convert::TryFrom;
-use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{bail, format_err, Context as _, Result};
@@ -107,19 +107,18 @@ impl Sql {
     pub async fn open(
         &self,
         context: &Context,
-        dbfile: impl AsRef<Path>,
+        dbfile: &Path,
         readonly: bool,
     ) -> anyhow::Result<()> {
         if self.is_open().await {
             error!(
                 context,
-                "Cannot open, database \"{:?}\" already opened.",
-                dbfile.as_ref(),
+                "Cannot open, database \"{:?}\" already opened.", dbfile,
             );
             bail!("SQL database is already opened.");
         }
 
-        *self.pool.write().await = Some(Self::new_pool(dbfile.as_ref(), readonly)?);
+        *self.pool.write().await = Some(Self::new_pool(dbfile, readonly)?);
 
         if !readonly {
             {
@@ -183,7 +182,7 @@ impl Sql {
 
             if recode_avatar {
                 if let Some(avatar) = context.get_config(Config::Selfavatar).await? {
-                    let mut blob = BlobObject::new_from_path(context, &avatar).await?;
+                    let mut blob = BlobObject::new_from_path(context, avatar.as_ref()).await?;
                     match blob.recode_to_avatar_size(context).await {
                         Ok(()) => {
                             context
@@ -199,7 +198,7 @@ impl Sql {
             }
         }
 
-        info!(context, "Opened {:?}.", dbfile.as_ref());
+        info!(context, "Opened {:?}.", dbfile);
 
         Ok(())
     }
@@ -318,11 +317,10 @@ impl Sql {
     }
 
     /// Query the database if the requested table already exists.
-    pub async fn table_exists(&self, name: impl AsRef<str>) -> anyhow::Result<bool> {
-        let name = name.as_ref().to_string();
+    pub async fn table_exists(&self, name: &str) -> anyhow::Result<bool> {
         let conn = self.get_conn().await?;
         let mut exists = false;
-        conn.pragma(None, "table_info", &name, |_row| {
+        conn.pragma(None, "table_info", &name.to_string(), |_row| {
             // will only be executed if the info was found
             exists = true;
             Ok(())
@@ -332,18 +330,12 @@ impl Sql {
     }
 
     /// Check if a column exists in a given table.
-    pub async fn col_exists(
-        &self,
-        table_name: impl AsRef<str>,
-        col_name: impl AsRef<str>,
-    ) -> anyhow::Result<bool> {
-        let table_name = table_name.as_ref().to_string();
-        let col_name = col_name.as_ref().to_string();
+    pub async fn col_exists(&self, table_name: &str, col_name: &str) -> anyhow::Result<bool> {
         let conn = self.get_conn().await?;
         let mut exists = false;
         // `PRAGMA table_info` returns one row per column,
         // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
-        conn.pragma(None, "table_info", &table_name, |row| {
+        conn.pragma(None, "table_info", &table_name.to_string(), |row| {
             let curr_name: String = row.get(1)?;
             if col_name == curr_name {
                 exists = true;
@@ -406,13 +398,13 @@ impl Sql {
             if exists {
                 self.execute(
                     "UPDATE config SET value=? WHERE keyname=?;",
-                    paramsv![(*value).to_string(), key.to_string()],
+                    paramsv![value, key],
                 )
                 .await?;
             } else {
                 self.execute(
                     "INSERT INTO config (keyname, value) VALUES (?, ?);",
-                    paramsv![key.to_string(), (*value).to_string()],
+                    paramsv![key, value],
                 )
                 .await?;
             }
@@ -429,7 +421,7 @@ impl Sql {
         let value = self
             .query_get_value(
                 "SELECT value FROM config WHERE keyname=?;",
-                paramsv![key.as_ref().to_string()],
+                paramsv![key.as_ref()],
             )
             .await
             .context(format!("failed to fetch raw config: {}", key.as_ref()))?;
@@ -761,7 +753,7 @@ mod test {
 
         t.sql.close().await;
         housekeeping(&t).await.unwrap_err(); // housekeeping should fail as the db is closed
-        t.sql.open(&t, &t.get_dbfile(), false).await.unwrap();
+        t.sql.open(&t, t.get_dbfile(), false).await.unwrap();
 
         let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
@@ -792,11 +784,11 @@ mod test {
         let sql = Sql::new();
 
         // Create database with all the tables.
-        sql.open(&t, &dbfile, false).await.unwrap();
+        sql.open(&t, dbfile.as_ref(), false).await.unwrap();
         sql.close().await;
 
         // Reopen the database
-        sql.open(&t, &dbfile, false).await?;
+        sql.open(&t, dbfile.as_ref(), false).await?;
         sql.execute(
             "INSERT INTO config (keyname, value) VALUES (?, ?);",
             paramsv!("foo", "bar"),

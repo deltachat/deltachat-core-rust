@@ -254,21 +254,14 @@ impl Contact {
     /// a bunch of addresses.
     ///
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
-    pub async fn create(
-        context: &Context,
-        name: impl AsRef<str>,
-        addr: impl AsRef<str>,
-    ) -> Result<u32> {
+    pub async fn create(context: &Context, name: &str, addr: &str) -> Result<u32> {
         let name = improve_single_line_input(name);
-        ensure!(
-            !addr.as_ref().is_empty(),
-            "Cannot create contact with empty address"
-        );
+        ensure!(!addr.is_empty(), "Cannot create contact with empty address");
 
-        let (name, addr) = sanitize_name_and_addr(name, addr);
+        let (name, addr) = sanitize_name_and_addr(&name, addr);
 
         let (contact_id, sth_modified) =
-            Contact::add_or_lookup(context, name, addr, Origin::ManuallyCreated).await?;
+            Contact::add_or_lookup(context, &name, &addr, Origin::ManuallyCreated).await?;
         let blocked = Contact::is_blocked_load(context, contact_id).await;
         match sth_modified {
             Modifier::None => {}
@@ -365,19 +358,16 @@ impl Contact {
     /// Returns the contact_id and a `Modifier` value indicating if a modification occured.
     pub(crate) async fn add_or_lookup(
         context: &Context,
-        name: impl AsRef<str>,
-        addr: impl AsRef<str>,
+        name: &str,
+        addr: &str,
         mut origin: Origin,
     ) -> Result<(u32, Modifier)> {
         let mut sth_modified = Modifier::None;
 
-        ensure!(
-            !addr.as_ref().is_empty(),
-            "Can not add_or_lookup empty address"
-        );
+        ensure!(!addr.is_empty(), "Can not add_or_lookup empty address");
         ensure!(origin != Origin::Unknown, "Missing valid origin");
 
-        let addr = addr_normalize(addr.as_ref()).to_string();
+        let addr = addr_normalize(addr).to_string();
         let addr_self = context
             .get_config(Config::ConfiguredAddr)
             .await?
@@ -392,16 +382,12 @@ impl Contact {
                 context,
                 "Bad address \"{}\" for contact \"{}\".",
                 addr,
-                if !name.as_ref().is_empty() {
-                    name.as_ref()
-                } else {
-                    "<unset>"
-                },
+                if !name.is_empty() { name } else { "<unset>" },
             );
             bail!("Bad address supplied: {:?}", addr);
         }
 
-        let mut name = name.as_ref();
+        let mut name = name;
         #[allow(clippy::collapsible_if)]
         if origin <= Origin::OutgoingTo {
             // The user may accidentally have written to a "noreply" address with another MUA:
@@ -581,13 +567,13 @@ impl Contact {
     /// The `addr_book` is a multiline string in the format `Name one\nAddress one\nName two\nAddress two`.
     ///
     /// Returns the number of modified contacts.
-    pub async fn add_address_book(context: &Context, addr_book: impl AsRef<str>) -> Result<usize> {
+    pub async fn add_address_book(context: &Context, addr_book: &str) -> Result<usize> {
         let mut modify_cnt = 0;
 
-        for (name, addr) in split_address_book(addr_book.as_ref()).into_iter() {
+        for (name, addr) in split_address_book(addr_book).into_iter() {
             let (name, addr) = sanitize_name_and_addr(name, addr);
             let name = normalize_name(name);
-            match Contact::add_or_lookup(context, name, &addr, Origin::AddressBook).await {
+            match Contact::add_or_lookup(context, &name, &addr, Origin::AddressBook).await {
                 Err(err) => {
                     warn!(
                         context,
@@ -633,13 +619,7 @@ impl Contact {
         let flag_add_self = (listflags & DC_GCL_ADD_SELF) != 0;
 
         if flag_verified_only || query.is_some() {
-            let s3str_like_cmd = format!(
-                "%{}%",
-                query
-                    .as_ref()
-                    .map(|s| s.as_ref().to_string())
-                    .unwrap_or_default()
-            );
+            let s3str_like_cmd = format!("%{}%", query.as_ref().map(|s| s.as_ref()).unwrap_or(""));
             context
                 .sql
                 .query_map(
@@ -849,14 +829,14 @@ impl Contact {
                     cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
                     cat_fingerprint(
                         &mut ret,
-                        peerstate.addr.clone(),
+                        &peerstate.addr,
                         &fingerprint_other_verified,
                         &fingerprint_other_unverified,
                     );
                 } else {
                     cat_fingerprint(
                         &mut ret,
-                        peerstate.addr.clone(),
+                        &peerstate.addr,
                         &fingerprint_other_verified,
                         &fingerprint_other_unverified,
                     );
@@ -1098,18 +1078,14 @@ impl Contact {
         VerifiedStatus::Unverified
     }
 
-    pub async fn addr_equals_contact(
-        context: &Context,
-        addr: impl AsRef<str>,
-        contact_id: u32,
-    ) -> bool {
-        if addr.as_ref().is_empty() {
+    pub async fn addr_equals_contact(context: &Context, addr: &str, contact_id: u32) -> bool {
+        if addr.is_empty() {
             return false;
         }
 
         if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
             if !contact.addr.is_empty() {
-                let normalized_addr = addr_normalize(addr.as_ref());
+                let normalized_addr = addr_normalize(addr);
                 if contact.addr == normalized_addr {
                     return true;
                 }
@@ -1178,23 +1154,23 @@ pub fn addr_normalize(addr: &str) -> &str {
     }
 }
 
-fn sanitize_name_and_addr(name: impl AsRef<str>, addr: impl AsRef<str>) -> (String, String) {
+fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     static ADDR_WITH_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new("(.*)<(.*)>").unwrap());
     if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
         (
-            if name.as_ref().is_empty() {
+            if name.is_empty() {
                 captures
                     .get(1)
                     .map_or("".to_string(), |m| normalize_name(m.as_str()))
             } else {
-                name.as_ref().to_string()
+                name.to_string()
             },
             captures
                 .get(2)
                 .map_or("".to_string(), |m| m.as_str().to_string()),
         )
     } else {
-        (name.as_ref().to_string(), addr.as_ref().to_string())
+        (name.to_string(), addr.to_string())
     }
 }
 
@@ -1351,13 +1327,13 @@ pub fn normalize_name(full_name: impl AsRef<str>) -> String {
 
 fn cat_fingerprint(
     ret: &mut String,
-    addr: impl AsRef<str>,
+    addr: &str,
     fingerprint_verified: impl AsRef<str>,
     fingerprint_unverified: impl AsRef<str>,
 ) {
     *ret += &format!(
         "\n\n{}:\n{}",
-        addr.as_ref(),
+        addr,
         if !fingerprint_verified.as_ref().is_empty() {
             fingerprint_verified.as_ref()
         } else {
@@ -1370,7 +1346,7 @@ fn cat_fingerprint(
     {
         *ret += &format!(
             "\n\n{} (alternative):\n{}",
-            addr.as_ref(),
+            addr,
             fingerprint_unverified.as_ref()
         );
     }

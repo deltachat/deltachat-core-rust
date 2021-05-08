@@ -51,7 +51,7 @@ enum CreateEvent {
 pub async fn dc_receive_imf(
     context: &Context,
     imf_raw: &[u8],
-    server_folder: impl AsRef<str>,
+    server_folder: &str,
     server_uid: u32,
     seen: bool,
 ) -> Result<()> {
@@ -61,17 +61,14 @@ pub async fn dc_receive_imf(
 pub(crate) async fn dc_receive_imf_inner(
     context: &Context,
     imf_raw: &[u8],
-    server_folder: impl AsRef<str>,
+    server_folder: &str,
     server_uid: u32,
     seen: bool,
     fetching_existing_messages: bool,
 ) -> Result<()> {
     info!(
         context,
-        "Receiving message {}/{}, seen={}...",
-        server_folder.as_ref(),
-        server_uid,
-        seen
+        "Receiving message {}/{}, seen={}...", server_folder, server_uid, seen
     );
 
     if std::env::var(crate::DCC_MIME_DEBUG).unwrap_or_default() == "2" {
@@ -176,7 +173,7 @@ pub(crate) async fn dc_receive_imf_inner(
             imf_raw,
             incoming,
             incoming_origin,
-            server_folder.as_ref(),
+            server_folder,
             server_uid,
             &to_ids,
             &rfc724_mid,
@@ -366,7 +363,7 @@ async fn add_parts(
     imf_raw: &[u8],
     incoming: bool,
     incoming_origin: Origin,
-    server_folder: impl AsRef<str>,
+    server_folder: &str,
     server_uid: u32,
     to_ids: &ContactIds,
     rfc724_mid: &str,
@@ -394,9 +391,8 @@ async fn add_parts(
     if let Some((old_server_folder, old_server_uid, _)) =
         message::rfc724_mid_exists(context, rfc724_mid).await?
     {
-        if old_server_folder != server_folder.as_ref() || old_server_uid != server_uid {
-            message::update_server_uid(context, rfc724_mid, server_folder.as_ref(), server_uid)
-                .await;
+        if old_server_folder != server_folder || old_server_uid != server_uid {
+            message::update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
         }
 
         warn!(context, "Message already in DB");
@@ -655,7 +651,7 @@ async fn add_parts(
         let is_spam = (chat_id_blocked == Blocked::Deaddrop)
             && !incoming_origin.is_known()
             && (is_dc_message == MessengerMessage::No)
-            && context.is_spam_folder(&server_folder).await?;
+            && context.is_spam_folder(server_folder).await?;
         if is_spam {
             *chat_id = DC_CHAT_ID_TRASH;
             info!(context, "Message is probably spam (TRASH)");
@@ -689,7 +685,7 @@ async fn add_parts(
             }
         }
 
-        if !context.is_sentbox(&server_folder).await?
+        if !context.is_sentbox(server_folder).await?
             && mime_parser.get(HeaderDef::Received).is_none()
         {
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
@@ -920,7 +916,6 @@ async fn add_parts(
     let subject = mime_parser.get_subject().unwrap_or_default();
 
     let mut parts = std::mem::replace(&mut mime_parser.parts, Vec::new());
-    let server_folder = server_folder.as_ref().to_string();
     let is_system_message = mime_parser.is_system_message;
 
     // if indicated by the parser,
@@ -1855,8 +1850,8 @@ async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> Result<St
 }
 
 #[allow(clippy::indexing_slicing)]
-fn hex_hash(s: impl AsRef<str>) -> String {
-    let bytes = s.as_ref().as_bytes();
+fn hex_hash(s: &str) -> String {
+    let bytes = s.as_bytes();
     let result = Sha256::digest(bytes);
     hex::encode(&result[..8])
 }
@@ -2089,7 +2084,7 @@ async fn add_or_lookup_contact_by_addr(
     let display_name_normalized = display_name.map(normalize_name).unwrap_or_default();
 
     let (row_id, _modified) =
-        Contact::add_or_lookup(context, display_name_normalized, addr, origin).await?;
+        Contact::add_or_lookup(context, &display_name_normalized, addr, origin).await?;
     ensure!(row_id > 0, "could not add contact: {:?}", addr);
 
     Ok(row_id)

@@ -2034,7 +2034,7 @@ pub(crate) async fn rfc724_mid_exists(
 pub async fn update_server_uid(
     context: &Context,
     rfc724_mid: &str,
-    server_folder: impl AsRef<str>,
+    server_folder: &str,
     server_uid: u32,
 ) {
     match context
@@ -2042,7 +2042,7 @@ pub async fn update_server_uid(
         .execute(
             "UPDATE msgs SET server_folder=?, server_uid=? \
              WHERE rfc724_mid=?",
-            paramsv![server_folder.as_ref(), server_uid, rfc724_mid],
+            paramsv![server_folder, server_uid, rfc724_mid],
         )
         .await
     {

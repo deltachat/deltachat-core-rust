@@ -115,14 +115,14 @@ pub fn get_provider_by_domain(domain: &str) -> Option<&'static Provider> {
 /// Finds a provider based on MX record for the given domain.
 ///
 /// For security reasons, only Gmail can be configured this way.
-pub async fn get_provider_by_mx(domain: impl AsRef<str>) -> Option<&'static Provider> {
+pub async fn get_provider_by_mx(domain: &str) -> Option<&'static Provider> {
     if let Ok(resolver) = resolver(
         config::ResolverConfig::default(),
         config::ResolverOpts::default(),
     )
     .await
     {
-        let mut fqdn: String = String::from(domain.as_ref());
+        let mut fqdn: String = domain.to_string();
         if !fqdn.ends_with('.') {
             fqdn.push('.');
         }

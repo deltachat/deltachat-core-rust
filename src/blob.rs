@@ -58,11 +58,11 @@ impl<'a> BlobObject<'a> {
     /// underlying error.
     pub async fn create(
         context: &'a Context,
-        suggested_name: impl AsRef<str>,
+        suggested_name: &str,
         data: &[u8],
     ) -> std::result::Result<BlobObject<'a>, BlobError> {
         let blobdir = context.get_blobdir();
-        let (stem, ext) = BlobObject::sanitise_name(suggested_name.as_ref());
+        let (stem, ext) = BlobObject::sanitise_name(suggested_name);
         let (name, mut file) = BlobObject::create_new_file(blobdir, &stem, &ext).await?;
         file.write_all(data)
             .await
@@ -137,18 +137,17 @@ impl<'a> BlobObject<'a> {
     /// copied.
     pub async fn create_and_copy(
         context: &'a Context,
-        src: impl AsRef<Path>,
+        src: &Path,
     ) -> std::result::Result<BlobObject<'a>, BlobError> {
-        let mut src_file =
-            fs::File::open(src.as_ref())
-                .await
-                .map_err(|err| BlobError::CopyFailure {
-                    blobdir: context.get_blobdir().to_path_buf(),
-                    blobname: String::from(""),
-                    src: src.as_ref().to_path_buf(),
-                    cause: err,
-                })?;
-        let (stem, ext) = BlobObject::sanitise_name(&src.as_ref().to_string_lossy());
+        let mut src_file = fs::File::open(src)
+            .await
+            .map_err(|err| BlobError::CopyFailure {
+                blobdir: context.get_blobdir().to_path_buf(),
+                blobname: String::from(""),
+                src: src.to_path_buf(),
+                cause: err,
+            })?;
+        let (stem, ext) = BlobObject::sanitise_name(&src.to_string_lossy());
         let (name, mut dst_file) =
             BlobObject::create_new_file(context.get_blobdir(), &stem, &ext).await?;
         let name_for_err = name.clone();
@@ -161,7 +160,7 @@ impl<'a> BlobObject<'a> {
             return Err(BlobError::CopyFailure {
                 blobdir: context.get_blobdir().to_path_buf(),
                 blobname: name_for_err,
-                src: src.as_ref().to_path_buf(),
+                src: src.to_path_buf(),
                 cause: err,
             });
         }
@@ -195,16 +194,13 @@ impl<'a> BlobObject<'a> {
     /// the [BlobObject::from_path] methods.  See those for possible
     /// errors.
     pub async fn new_from_path(
-        context: &Context,
-        src: impl AsRef<Path>,
-    ) -> std::result::Result<BlobObject<'_>, BlobError> {
-        if src.as_ref().starts_with(context.get_blobdir()) {
+        context: &'a Context,
+        src: &Path,
+    ) -> std::result::Result<BlobObject<'a>, BlobError> {
+        if src.starts_with(context.get_blobdir()) {
             BlobObject::from_path(context, src)
-        } else if src.as_ref().starts_with("$BLOBDIR/") {
-            BlobObject::from_name(
-                context,
-                src.as_ref().to_str().unwrap_or_default().to_string(),
-            )
+        } else if src.starts_with("$BLOBDIR/") {
+            BlobObject::from_name(context, src.to_str().unwrap_or_default().to_string())
         } else {
             BlobObject::create_and_copy(context, src).await
         }
@@ -225,23 +221,22 @@ impl<'a> BlobObject<'a> {
     /// [BlobError::WrongName] is used if the file name does not
     /// remain identical after sanitisation.
     pub fn from_path(
-        context: &Context,
-        path: impl AsRef<Path>,
-    ) -> std::result::Result<BlobObject, BlobError> {
-        let rel_path = path
-            .as_ref()
-            .strip_prefix(context.get_blobdir())
-            .map_err(|_| BlobError::WrongBlobdir {
-                blobdir: context.get_blobdir().to_path_buf(),
-                src: path.as_ref().to_path_buf(),
-            })?;
-        if !BlobObject::is_acceptible_blob_name(&rel_path) {
+        context: &'a Context,
+        path: &Path,
+    ) -> std::result::Result<BlobObject<'a>, BlobError> {
+        let rel_path =
+            path.strip_prefix(context.get_blobdir())
+                .map_err(|_| BlobError::WrongBlobdir {
+                    blobdir: context.get_blobdir().to_path_buf(),
+                    src: path.to_path_buf(),
+                })?;
+        if !BlobObject::is_acceptible_blob_name(rel_path) {
             return Err(BlobError::WrongName {
-                blobname: path.as_ref().to_path_buf(),
+                blobname: path.to_path_buf(),
             });
         }
         let name = rel_path.to_str().ok_or_else(|| BlobError::WrongName {
-            blobname: path.as_ref().to_path_buf(),
+            blobname: path.to_path_buf(),
         })?;
         BlobObject::from_name(context, name.to_string())
     }
@@ -724,13 +719,15 @@ mod tests {
         let t = TestContext::new().await;
         let src = t.dir.path().join("src");
         fs::write(&src, b"boo").await.unwrap();
-        let blob = BlobObject::create_and_copy(&t, &src).await.unwrap();
+        let blob = BlobObject::create_and_copy(&t, src.as_ref()).await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/src");
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
 
         let whoops = t.dir.path().join("whoops");
-        assert!(BlobObject::create_and_copy(&t, &whoops).await.is_err());
+        assert!(BlobObject::create_and_copy(&t, whoops.as_ref())
+            .await
+            .is_err());
         let whoops = t.get_blobdir().join("whoops");
         assert!(!whoops.exists().await);
     }
@@ -741,7 +738,9 @@ mod tests {
 
         let src_ext = t.dir.path().join("external");
         fs::write(&src_ext, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t, &src_ext).await.unwrap();
+        let blob = BlobObject::new_from_path(&t, src_ext.as_ref())
+            .await
+            .unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/external");
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
@@ -758,7 +757,9 @@ mod tests {
         let t = TestContext::new().await;
         let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
         fs::write(&src_ext, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t, &src_ext).await.unwrap();
+        let blob = BlobObject::new_from_path(&t, src_ext.as_ref())
+            .await
+            .unwrap();
         assert_eq!(
             blob.as_name(),
             "$BLOBDIR/autocrypt-setup-message-4137848473.html"

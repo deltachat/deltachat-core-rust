@@ -249,7 +249,7 @@ impl Context {
                     .await?;
                 match value {
                     Some(value) => {
-                        let mut blob = BlobObject::new_from_path(self, value).await?;
+                        let mut blob = BlobObject::new_from_path(self, value.as_ref()).await?;
                         blob.recode_to_avatar_size(self).await?;
                         self.sql.set_raw_config(key, Some(blob.as_name())).await?;
                         Ok(())

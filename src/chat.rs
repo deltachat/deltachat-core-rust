@@ -1367,7 +1367,7 @@ pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<()> 
     // if there is no saved-messages chat, there is nothing to update. this is no error.
     if let Some(chat_id) = ChatId::lookup_by_contact(context, DC_CONTACT_ID_SELF).await? {
         let icon = include_bytes!("../assets/icon-saved-messages.png");
-        let blob = BlobObject::create(context, "icon-saved-messages.png".to_string(), icon).await?;
+        let blob = BlobObject::create(context, "icon-saved-messages.png", icon).await?;
         let icon = blob.as_name().to_string();
 
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -1381,7 +1381,7 @@ pub(crate) async fn update_device_icon(context: &Context) -> Result<()> {
     // if there is no device-chat, there is nothing to update. this is no error.
     if let Some(chat_id) = ChatId::lookup_by_contact(context, DC_CONTACT_ID_DEVICE).await? {
         let icon = include_bytes!("../assets/icon-device.png");
-        let blob = BlobObject::create(context, "icon-device.png".to_string(), icon).await?;
+        let blob = BlobObject::create(context, "icon-device.png", icon).await?;
         let icon = blob.as_name().to_string();
 
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -2174,7 +2174,7 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec
 pub async fn create_group_chat(
     context: &Context,
     protect: ProtectionStatus,
-    chat_name: impl AsRef<str>,
+    chat_name: &str,
 ) -> Result<ChatId> {
     let chat_name = improve_single_line_input(chat_name);
     ensure!(!chat_name.is_empty(), "Invalid chat name");
@@ -2531,7 +2531,7 @@ pub async fn remove_contact_from_chat(
                     if chat.is_promoted() {
                         msg.viewtype = Viewtype::Text;
                         if contact.id == DC_CONTACT_ID_SELF {
-                            set_group_explicitly_left(context, chat.grpid).await?;
+                            set_group_explicitly_left(context, &chat.grpid).await?;
                             msg.text = Some(
                                 stock_str::msg_group_left(context, DC_CONTACT_ID_SELF as u32).await,
                             );
@@ -2573,13 +2573,13 @@ pub async fn remove_contact_from_chat(
     Ok(())
 }
 
-async fn set_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Result<()> {
-    if !is_group_explicitly_left(context, grpid.as_ref()).await? {
+async fn set_group_explicitly_left(context: &Context, grpid: &str) -> Result<()> {
+    if !is_group_explicitly_left(context, grpid).await? {
         context
             .sql
             .execute(
                 "INSERT INTO leftgrps (grpid) VALUES(?);",
-                paramsv![grpid.as_ref().to_string()],
+                paramsv![grpid.to_string()],
             )
             .await?;
     }
@@ -2601,11 +2601,7 @@ pub(crate) async fn is_group_explicitly_left(
     Ok(exists)
 }
 
-pub async fn set_chat_name(
-    context: &Context,
-    chat_id: ChatId,
-    new_name: impl AsRef<str>,
-) -> Result<()> {
+pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -> Result<()> {
     let new_name = improve_single_line_input(new_name);
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success = false;
