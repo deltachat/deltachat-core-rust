@@ -1,0 +1,54 @@
+name: Windows REPL exe
+
+on:
+  pull_request:
+
+jobs:
+  build_repl:
+    name: Build REPL
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      matrix:
+        os: [windows-latest]
+        rust: [1.50.0]
+        experimental: [false]
+
+    steps:
+    - uses: actions/checkout@master
+
+    - name: Install ${{ matrix.rust }}
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        override: true
+
+    - name: Cache cargo registry
+      uses: actions/cache@v2
+      with:
+        path: ~/.cargo/registry
+        key: ${{ matrix.os }}-${{ matrix.rust }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v2
+      with:
+        path: ~/.cargo/git
+        key: ${{ matrix.os }}-${{ matrix.rust }}-cargo-index-${{ hashFiles('**/Cargo.toml') }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v2
+      with:
+        path: target
+        key: ${{ matrix.os }}-${{ matrix.rust }}-cargo-build-target-${{ hashFiles('**/Cargo.toml') }}
+
+    - name: build
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --example repl --features repl,vendored
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v2
+      with:
+        name: repl.exe
+        path: 'target/debug/examples/repl.exe'
