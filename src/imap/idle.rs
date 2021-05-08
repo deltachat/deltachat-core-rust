@@ -27,7 +27,7 @@ impl Imap {
         }
         self.setup_handle(context).await?;
 
-        self.select_folder(context, watch_folder.clone()).await?;
+        self.select_folder(context, watch_folder.as_deref()).await?;
 
         let timeout = Duration::from_secs(23 * 60);
         let mut info = Default::default();

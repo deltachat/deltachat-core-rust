@@ -925,7 +925,7 @@ impl Context {
         chat::add_device_msg(self, Some("core-about-device-chat"), Some(&mut msg)).await?;
 
         let image = include_bytes!("../assets/welcome-image.jpg");
-        let blob = BlobObject::create(self, "welcome-image.jpg".to_string(), image).await?;
+        let blob = BlobObject::create(self, "welcome-image.jpg", image).await?;
         let mut msg = Message::new(Viewtype::Image);
         msg.param.set(Param::File, blob.as_name());
         chat::add_device_msg(self, Some("core-welcome-image"), Some(&mut msg)).await?;

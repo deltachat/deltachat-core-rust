@@ -463,12 +463,8 @@ impl Context {
     ///
     /// If `chat_id` is provided this searches only for messages in this chat, if `chat_id`
     /// is `None` this searches messages from all chats.
-    pub async fn search_msgs(
-        &self,
-        chat_id: Option<ChatId>,
-        query: impl AsRef<str>,
-    ) -> Result<Vec<MsgId>> {
-        let real_query = query.as_ref().trim();
+    pub async fn search_msgs(&self, chat_id: Option<ChatId>, query: &str) -> Result<Vec<MsgId>> {
+        let real_query = query.trim();
         if real_query.is_empty() {
             return Ok(Vec::new());
         }
@@ -535,28 +531,27 @@ impl Context {
         Ok(list)
     }
 
-    pub async fn is_inbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+    pub async fn is_inbox(&self, folder_name: &str) -> Result<bool> {
         let inbox = self.get_config(Config::ConfiguredInboxFolder).await?;
-        Ok(inbox == Some(folder_name.as_ref().to_string()))
+        Ok(inbox.as_deref() == Some(folder_name))
     }
 
-    pub async fn is_sentbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+    pub async fn is_sentbox(&self, folder_name: &str) -> Result<bool> {
         let sentbox = self.get_config(Config::ConfiguredSentboxFolder).await?;
 
-        Ok(sentbox == Some(folder_name.as_ref().to_string()))
+        Ok(sentbox.as_deref() == Some(folder_name))
     }
 
-    pub async fn is_mvbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+    pub async fn is_mvbox(&self, folder_name: &str) -> Result<bool> {
         let mvbox = self.get_config(Config::ConfiguredMvboxFolder).await?;
 
-        Ok(mvbox == Some(folder_name.as_ref().to_string()))
+        Ok(mvbox.as_deref() == Some(folder_name))
     }
 
-    pub async fn is_spam_folder(&self, folder_name: impl AsRef<str>) -> Result<bool> {
-        let is_spam = self.get_config(Config::ConfiguredSpamFolder).await?
-            == Some(folder_name.as_ref().to_string());
+    pub async fn is_spam_folder(&self, folder_name: &str) -> Result<bool> {
+        let spam = self.get_config(Config::ConfiguredSpamFolder).await?;
 
-        Ok(is_spam)
+        Ok(spam.as_deref() == Some(folder_name))
     }
 
     pub fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {

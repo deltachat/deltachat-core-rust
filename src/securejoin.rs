@@ -296,7 +296,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
     ========================================================*/
 
     info!(context, "Requesting secure-join ...",);
-    let qr_scan = check_qr(context, &qr).await;
+    let qr_scan = check_qr(context, qr).await;
 
     let invite = QrInvite::try_from(qr_scan)?;
 
@@ -365,9 +365,9 @@ async fn send_handshake_msg(
     context: &Context,
     contact_chat_id: ChatId,
     step: &str,
-    param2: impl AsRef<str>,
+    param2: &str,
     fingerprint: Option<Fingerprint>,
-    grpid: impl AsRef<str>,
+    grpid: &str,
 ) -> Result<(), SendMsgError> {
     let mut msg = Message {
         viewtype: Viewtype::Text,
@@ -381,14 +381,14 @@ async fn send_handshake_msg(
     } else {
         msg.param.set(Param::Arg, step);
     }
-    if !param2.as_ref().is_empty() {
+    if !param2.is_empty() {
         msg.param.set(Param::Arg2, param2);
     }
     if let Some(fp) = fingerprint {
         msg.param.set(Param::Arg3, fp.hex());
     }
-    if !grpid.as_ref().is_empty() {
-        msg.param.set(Param::Arg4, grpid.as_ref());
+    if !grpid.is_empty() {
+        msg.param.set(Param::Arg4, grpid);
     }
     if step == "vg-request" || step == "vc-request" {
         msg.param.set_int(Param::ForcePlaintext, 1);

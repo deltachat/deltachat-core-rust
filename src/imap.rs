@@ -710,7 +710,7 @@ impl Imap {
         }
 
         let (largest_uid_processed, error_cnt) = self
-            .fetch_many_msgs(context, &folder, uids, fetch_existing_msgs)
+            .fetch_many_msgs(context, folder, uids, fetch_existing_msgs)
             .await;
         read_errors += error_cnt;
 
@@ -858,10 +858,10 @@ impl Imap {
     /// Fetches a list of messages by server UID.
     ///
     /// Returns the last uid fetch successfully and an error count.
-    async fn fetch_many_msgs<S: AsRef<str>>(
+    async fn fetch_many_msgs(
         &mut self,
         context: &Context,
-        folder: S,
+        folder: &str,
         server_uids: Vec<u32>,
         fetching_existing_messages: bool,
     ) -> (Option<u32>, usize) {
@@ -899,14 +899,14 @@ impl Imap {
                         context,
                         "Error on fetching messages #{} from folder \"{}\"; error={}.",
                         &set,
-                        folder.as_ref(),
+                        folder,
                         err
                     );
                     return (None, server_uids.len());
                 }
             };
 
-            let folder = folder.as_ref().to_string();
+            let folder = folder.to_string();
 
             while let Some(Ok(msg)) = msgs.next().await {
                 let server_uid = msg.uid.unwrap_or_default();
@@ -1129,7 +1129,7 @@ impl Imap {
                 return Some(ImapActionResult::RetryLater);
             }
         }
-        match self.select_folder(context, Some(&folder)).await {
+        match self.select_folder(context, Some(folder)).await {
             Ok(_) => None,
             Err(select_folder::Error::ConnectionLost) => {
                 warn!(context, "Lost imap connection");

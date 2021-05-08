@@ -338,13 +338,13 @@ impl TestContext {
     pub async fn create_chat(&self, other: &TestContext) -> Chat {
         let (contact_id, _modified) = Contact::add_or_lookup(
             self,
-            other
+            &other
                 .ctx
                 .get_config(Config::Displayname)
                 .await
                 .unwrap_or_default()
                 .unwrap_or_default(),
-            other
+            &other
                 .ctx
                 .get_config(Config::ConfiguredAddr)
                 .await

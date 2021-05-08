@@ -45,9 +45,7 @@ fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
 /// Check a scanned QR code.
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
-pub async fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
-    let qr = qr.as_ref();
-
+pub async fn check_qr(context: &Context, qr: &str) -> Lot {
     info!(context, "Scanned QR code: {}", qr);
 
     if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
@@ -156,15 +154,11 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         if let Some(peerstate) = peerstate {
             lot.state = LotState::QrFprOk;
 
-            lot.id = Contact::add_or_lookup(
-                context,
-                name,
-                peerstate.addr.clone(),
-                Origin::UnhandledQrScan,
-            )
-            .await
-            .map(|(id, _)| id)
-            .unwrap_or_default();
+            lot.id =
+                Contact::add_or_lookup(context, &name, &peerstate.addr, Origin::UnhandledQrScan)
+                    .await
+                    .map(|(id, _)| id)
+                    .unwrap_or_default();
 
             if let Ok(chat) = ChatIdBlocked::get_for_contact(context, lot.id, Blocked::Deaddrop)
                 .await
@@ -286,7 +280,7 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
 }
 
 pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
-    match check_qr(context, &qr).await.state {
+    match check_qr(context, qr).await.state {
         LotState::QrAccount => set_account_from_qr(context, qr).await,
         LotState::QrWebrtcInstance => {
             let val = decode_webrtc_instance(context, qr).text2;
@@ -423,7 +417,7 @@ impl Lot {
     pub async fn from_address(context: &Context, name: String, addr: String) -> Self {
         let mut l = Lot::new();
         l.state = LotState::QrAddr;
-        l.id = match Contact::add_or_lookup(context, name, addr, Origin::UnhandledQrScan).await {
+        l.id = match Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan).await {
             Ok((id, _)) => id,
             Err(err) => return err.into(),
         };
@@ -677,7 +671,7 @@ mod tests {
 
         let res = check_qr(
             &ctx.ctx,
-            format!("OPENPGP4FPR:{}#a=alice@example.com", pub_key.fingerprint()),
+            &format!("OPENPGP4FPR:{}#a=alice@example.com", pub_key.fingerprint()),
         )
         .await;
         assert_eq!(res.get_state(), LotState::QrFprOk);

@@ -641,9 +641,8 @@ impl rusqlite::types::ToSql for EmailAddress {
 }
 
 /// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
-pub(crate) fn improve_single_line_input(input: impl AsRef<str>) -> String {
+pub(crate) fn improve_single_line_input(input: &str) -> String {
     input
-        .as_ref()
         .replace("\n", " ")
         .replace("\r", " ")
         .trim()

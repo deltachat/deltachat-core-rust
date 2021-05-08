@@ -457,20 +457,20 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "export-backup" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportBackup, &dir).await?;
+            imex(&context, ImexMode::ExportBackup, dir.as_ref()).await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            imex(&context, ImexMode::ImportBackup, arg1).await?;
+            imex(&context, ImexMode::ImportBackup, arg1.as_ref()).await?;
         }
         "export-keys" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportSelfKeys, &dir).await?;
+            imex(&context, ImexMode::ExportSelfKeys, dir.as_ref()).await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-keys" => {
-            imex(&context, ImexMode::ImportSelfKeys, arg1).await?;
+            imex(&context, ImexMode::ImportSelfKeys, arg1.as_ref()).await?;
         }
         "export-setup" => {
             let setup_code = create_setup_code(&context);
@@ -1086,7 +1086,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             if !arg2.is_empty() {
                 let book = format!("{}\n{}", arg1, arg2);
-                Contact::add_address_book(&context, book).await?;
+                Contact::add_address_book(&context, &book).await?;
             } else {
                 Contact::create(&context, "", arg1).await?;
             }

@@ -32,10 +32,10 @@ impl DerefMut for Client {
 }
 
 impl Client {
-    pub async fn login<U: AsRef<str>, P: AsRef<str>>(
+    pub async fn login(
         self,
-        username: U,
-        password: P,
+        username: &str,
+        password: &str,
     ) -> std::result::Result<Session, (ImapError, Self)> {
         let Client { inner, is_secure } = self;
         let session = inner
@@ -53,10 +53,10 @@ impl Client {
         Ok(Session { inner: session })
     }
 
-    pub async fn authenticate<A: async_imap::Authenticator, S: AsRef<str>>(
+    pub async fn authenticate(
         self,
-        auth_type: S,
-        authenticator: A,
+        auth_type: &str,
+        authenticator: impl async_imap::Authenticator,
     ) -> std::result::Result<Session, (ImapError, Self)> {
         let Client { inner, is_secure } = self;
         let session =
@@ -75,15 +75,14 @@ impl Client {
         Ok(Session { inner: session })
     }
 
-    pub async fn connect_secure<A: net::ToSocketAddrs, S: AsRef<str>>(
-        addr: A,
-        domain: S,
+    pub async fn connect_secure(
+        addr: impl net::ToSocketAddrs,
+        domain: &str,
         strict_tls: bool,
     ) -> ImapResult<Self> {
         let stream = TcpStream::connect(addr).await?;
         let tls = dc_build_tls(strict_tls);
-        let tls_stream: Box<dyn SessionStream> =
-            Box::new(tls.connect(domain.as_ref(), stream).await?);
+        let tls_stream: Box<dyn SessionStream> = Box::new(tls.connect(domain, stream).await?);
         let mut client = ImapClient::new(tls_stream);
 
         let _greeting = client
@@ -97,7 +96,7 @@ impl Client {
         })
     }
 
-    pub async fn connect_insecure<A: net::ToSocketAddrs>(addr: A) -> ImapResult<Self> {
+    pub async fn connect_insecure(addr: impl net::ToSocketAddrs) -> ImapResult<Self> {
         let stream: Box<dyn SessionStream> = Box::new(TcpStream::connect(addr).await?);
 
         let mut client = ImapClient::new(stream);
@@ -112,7 +111,7 @@ impl Client {
         })
     }
 
-    pub async fn secure<S: AsRef<str>>(self, domain: S, strict_tls: bool) -> ImapResult<Client> {
+    pub async fn secure(self, domain: &str, strict_tls: bool) -> ImapResult<Client> {
         if self.is_secure {
             Ok(self)
         } else {
@@ -121,7 +120,7 @@ impl Client {
             inner.run_command_and_check_ok("STARTTLS", None).await?;
 
             let stream = inner.into_inner();
-            let ssl_stream = tls.connect(domain.as_ref(), stream).await?;
+            let ssl_stream = tls.connect(domain, stream).await?;
             let boxed: Box<dyn SessionStream> = Box::new(ssl_stream);
 
             Ok(Client {
