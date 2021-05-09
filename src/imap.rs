@@ -925,7 +925,11 @@ impl Imap {
 
                 let is_deleted = msg.flags().any(|flag| flag == Flag::Deleted);
                 if is_deleted || msg.body().is_none() {
-                    // No need to process these.
+                    info!(
+                        context,
+                        "Not processing deleted or empty msg {}", server_uid
+                    );
+                    last_uid = Some(server_uid);
                     continue;
                 }
 
