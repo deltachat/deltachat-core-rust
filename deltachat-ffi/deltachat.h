@@ -3075,7 +3075,7 @@ int             dc_chat_is_device_talk       (const dc_chat_t* chat);
 
 
 /**
- * Check if messages can be sent to a give chat.
+ * Check if messages can be sent to a given chat.
  * This is not true e.g. for the deaddrop or for the device-talk, cmp. dc_chat_is_device_talk().
  *
  * Calling dc_send_msg() for these chats will fail
