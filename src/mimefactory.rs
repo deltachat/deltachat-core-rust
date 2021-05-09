@@ -1143,10 +1143,13 @@ impl<'a> MimeFactory<'a> {
             self.msg.get_summarytext(context, 32).await
         };
         let p2 = stock_str::read_rcpt_mail_body(context, p1).await;
-        let message_text = format!("{}\r\n", p2);
+        let message_text = format!("{}\r\n", format_flowed(&p2));
         message = message.child(
             PartBuilder::new()
-                .content_type(&mime::TEXT_PLAIN_UTF_8)
+                .header((
+                    "Content-Type".to_string(),
+                    "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
+                ))
                 .body(message_text)
                 .build(),
         );
