@@ -1970,6 +1970,47 @@ class TestOnlineAccount:
         assert msg_back.chat == chat
         assert chat.get_profile_image() is None
 
+    def test_fetch_deleted_msg(self, acfactory, lp):
+        """This is a regression test: Messages with \\Deleted flag were downloaded again and again,
+        hundreds of times, because uid_next was not updated.
+
+        See https://github.com/deltachat/deltachat-core-rust/issues/2429.
+        """
+        ac1 = acfactory.get_one_online_account()
+        ac1.stop_io()
+
+        ac1.direct_imap.append("INBOX", """
+            From: alice <alice@example.org>
+            Subject: subj
+            To: bob@example.com
+            Chat-Version: 1.0
+            Message-ID: <aepiors@example.org>
+            Content-Type: text/plain; charset=utf-8
+
+            Deleted message
+        """)
+        ac1.direct_imap.delete("1:*", expunge=False)
+        ac1.start_io()
+
+        for ev in ac1._evtracker.iter_events():
+            if ev.name == "DC_EVENT_MSGS_CHANGED":
+                pytest.fail("A deleted message was shown to the user")
+
+            if ev.name == "DC_EVENT_INFO" and "1 mails read from" in ev.data2:
+                break
+
+        # The message was downloaded once, now check that it's not downloaded again
+
+        for ev in ac1._evtracker.iter_events():
+            if ev.name == "DC_EVENT_INFO" and "1 mails read from" in ev.data2:
+                pytest.fail("The same email was read twice")
+
+            if ev.name == "DC_EVENT_MSGS_CHANGED":
+                pytest.fail("A deleted message was shown to the user")
+
+            if ev.name == "DC_EVENT_INFO" and "INBOX: Idle entering wait-on-remote state" in ev.data2:
+                break  # DC is done with reading messages
+
     def test_send_receive_locations(self, acfactory, lp):
         now = datetime.utcnow()
         ac1, ac2 = acfactory.get_two_online_accounts()
