@@ -1449,9 +1449,9 @@ dependencies = [
 
 [[package]]
 name = "escaper"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39da344028c2227132b2dfa7c186e2104ecc153467583d00ed9c398f9ff693b0"
+checksum = "a53eb97b7349ba1bdb31839eceafe9aaae8f1d8d944dc589b67fb0b26e1c1666"
 dependencies = [
  "entities",
 ]
