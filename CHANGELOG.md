@@ -1,5 +1,20 @@
 # Changelog 
 
+## 1.55.0
+
+- fix panic when receiving some HTML messages #2434
+
+- fix downloading some messages multiple times #2430
+
+- fix formatting of read receipt texts #2431
+
+- simplify SQL error handling #2415
+
+- explicit rust API for creating chats with blocked status #2282
+
+- debloat the binary by using less AsRef arguments #2425
+
+
 ## 1.54.0
 
 - switch back from `sqlx` to `rusqlite` due to performance regressions #2380 #2381 #2385 #2387
