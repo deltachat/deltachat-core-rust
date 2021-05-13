@@ -973,7 +973,7 @@ mod tests {
         let bob = TestContext::new_bob().await;
 
         // Setup JoinerProgress sinks.
-        let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::bounded(100);
+        let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::bounded(128);
         bob.add_event_sink(move |event: Event| {
             let joiner_progress_tx = joiner_progress_tx.clone();
             async move {
@@ -1164,7 +1164,7 @@ mod tests {
         let bob = TestContext::new_bob().await;
 
         // Setup JoinerProgress sinks.
-        let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::bounded(100);
+        let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::bounded(128);
         bob.add_event_sink(move |event: Event| {
             let joiner_progress_tx = joiner_progress_tx.clone();
             async move {
@@ -1312,7 +1312,7 @@ mod tests {
         let bob = TestContext::new_bob().await;
 
         // Setup JoinerProgress sinks.
-        let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::bounded(100);
+        let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::bounded(128);
         bob.add_event_sink(move |event: Event| {
             let joiner_progress_tx = joiner_progress_tx.clone();
             async move {

@@ -18,7 +18,7 @@ pub struct Events {
 
 impl Default for Events {
     fn default() -> Self {
-        let (sender, receiver) = channel::bounded(1_000);
+        let (sender, receiver) = channel::bounded(1_024);
 
         Self { receiver, sender }
     }
