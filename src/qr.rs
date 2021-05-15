@@ -113,7 +113,6 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         None
     };
 
-    // what is up with that param name?
     let name = if let Some(encoded_name) = param.get("n") {
         let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
         match percent_decode_str(&encoded_name).decode_utf8() {
