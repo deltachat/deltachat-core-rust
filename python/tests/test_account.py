@@ -2396,26 +2396,31 @@ class TestOnlineAccount:
         assert received_reply.quoted_text == "hello"
         assert received_reply.quote.id == out_msg.id
 
-    @pytest.mark.parametrize("folder,move,expected_destination,", [
-        ("xyz", False, "xyz"),  # Test that emails are recognized in a random folder but not moved
-        ("xyz", True, "DeltaChat"),  # ...emails are found in a random folder and moved to DeltaChat
-        ("Spam", False, "INBOX")  # ...emails are moved from the spam folder to the Inbox
+    @pytest.mark.parametrize("folder,move,expected_destination,inbox_watch,", [
+        ("xyz", False, "xyz", "1"),  # Test that emails are recognized in a random folder but not moved
+        ("xyz", True, "DeltaChat", "1"),  # ...emails are found in a random folder and moved to DeltaChat
+        ("Spam", False, "INBOX", "1"),  # ...emails are moved from the spam folder to the Inbox
+        ("INBOX", False, "INBOX", "0"),  # ...emails are found in the `Inbox` folder even if `inbox_move` is "0"
     ])
     # Testrun.org does not support the CREATE-SPECIAL-USE capability, which means that we can't create a folder with
     # the "\Junk" flag (see https://tools.ietf.org/html/rfc6154). So, we can't test spam folder detection by flag.
-    def test_scan_folders(self, acfactory, lp, folder, move, expected_destination):
+    def test_scan_folders(self, acfactory, lp, folder, move, expected_destination, inbox_watch):
         """Delta Chat periodically scans all folders for new messages to make sure we don't miss any."""
         variant = folder + "-" + str(move) + "-" + expected_destination
         lp.sec("Testing variant " + variant)
         ac1 = acfactory.get_online_configuring_account(move=move)
         ac2 = acfactory.get_online_configuring_account()
+        ac1.set_config("inbox_watch", inbox_watch)
 
         acfactory.wait_configure(ac1)
         ac1.direct_imap.create_folder(folder)
 
         acfactory.wait_configure_and_start_io()
         # Wait until each folder was selected once and we are IDLEing:
-        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        if inbox_watch == "1":
+            ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        else:
+            ac1._evtracker.get_info_contains("IMAP-fake-IDLE: no folder, waiting for interrupt")
         ac1.stop_io()
 
         # Send a message to ac1 and move it to the mvbox:
@@ -2432,7 +2437,10 @@ class TestOnlineAccount:
         assert msg.text == "hello"
 
         # Wait until the message was moved (if at all) and we are IDLEing again:
-        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        if inbox_watch == "1":
+            ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        else:
+            ac1._evtracker.get_info_contains("IMAP-fake-IDLE: no folder, waiting for interrupt")
         ac1.direct_imap.select_folder(expected_destination)
         assert len(ac1.direct_imap.get_all_messages()) == 1
         if folder != expected_destination:
