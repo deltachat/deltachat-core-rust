@@ -25,7 +25,7 @@ impl Imap {
         }
         info!(context, "Starting full folder scan");
 
-        self.setup_handle(context).await?;
+        self.connect_configured(context).await?;
         let session = self.session.as_mut();
         let session = session.context("scan_folders(): IMAP No Connection established")?;
         let folders: Vec<_> = session.list(Some(""), Some("*")).await?.collect().await;
