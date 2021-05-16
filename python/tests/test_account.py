@@ -2400,7 +2400,7 @@ class TestOnlineAccount:
         ("xyz", False, "xyz", "1"),  # Test that emails are recognized in a random folder but not moved
         ("xyz", True, "DeltaChat", "1"),  # ...emails are found in a random folder and moved to DeltaChat
         ("Spam", False, "INBOX", "1"),  # ...emails are moved from the spam folder to the Inbox
-        ("INBOX", False, "INBOX", "0"),  # ...emails are found in the `Inbox` folder even if `inbox_move` is "0"
+        ("INBOX", False, "INBOX", "0"),  # ...emails are found in the `Inbox` folder even if `inbox_watch` is "0"
     ])
     # Testrun.org does not support the CREATE-SPECIAL-USE capability, which means that we can't create a folder with
     # the "\Junk" flag (see https://tools.ietf.org/html/rfc6154). So, we can't test spam folder detection by flag.
