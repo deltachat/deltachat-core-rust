@@ -278,8 +278,8 @@ pub(crate) async fn dc_receive_imf_inner(
                 job::Job::new(Action::MoveMsg, insert_msg_id.to_u32(), Params::new(), 0),
             )
             .await;
-        } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
-            // This is a Delta Chat MDN. Mark as read.
+        } else if !seen {
+            // Mark as read.
             job::add(
                 context,
                 job::Job::new(

@@ -1033,6 +1033,34 @@ class TestOnlineAccount:
         except queue.Empty:
             pass  # mark_seen_messages() has generated events before it returns
 
+    def test_moved_markseen(self, acfactory, lp):
+        """Test that message already moved to DeltaChat folder is marked as seen."""
+        ac1 = acfactory.get_online_configuring_account(mvbox=True)
+        ac2 = acfactory.get_online_configuring_account()
+        acfactory.wait_configure_and_start_io([ac1, ac2])
+        ac1.stop_io()
+
+        ac1.direct_imap.idle_start()
+        ac2.create_chat(ac1).send_text("Hello!")
+        ac1.direct_imap.idle_check(terminate=True)
+
+        # Emulate moving of the message to DeltaChat folder by Sieve rule.
+        # mailcow server contains this rule by default.
+        ac1.direct_imap.conn.move(["*"], "DeltaChat")
+        ac1.direct_imap.select_folder("DeltaChat")
+        fetch = list(ac1.direct_imap.conn.fetch("*", b'FLAGS').values())
+        flags = fetch[-1][b'FLAGS']
+        is_seen = b'\\Seen' in flags
+        assert not is_seen
+
+        ac1.start_io()
+        ac1._evtracker.get_info_contains("action MarkseenMsgOnImap as it succeeded")
+
+        fetch = list(ac1.direct_imap.conn.fetch("*", b'FLAGS').values())
+        flags = fetch[-1][b'FLAGS']
+        is_seen = b'\\Seen' in flags
+        assert is_seen
+
     def test_message_override_sender_name(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = acfactory.get_accepted_chat(ac1, ac2)
@@ -2440,6 +2468,7 @@ class TestOnlineAccount:
         if inbox_watch == "1":
             ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
         else:
+            ac1._evtracker.get_info_contains("action MarkseenMsgOnImap as it succeeded")
             ac1._evtracker.get_info_contains("IMAP-fake-IDLE: no folder, waiting for interrupt")
         ac1.direct_imap.select_folder(expected_destination)
         assert len(ac1.direct_imap.get_all_messages()) == 1
