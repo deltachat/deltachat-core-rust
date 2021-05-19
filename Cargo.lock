@@ -749,6 +749,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "clipboard-win"
+version = "4.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e4ea1881992efc993e4dc50a324cdbd03216e41bdc8385720ff47efc9bd2ca8"
+dependencies = [
+ "error-code",
+ "str-buf",
+ "winapi",
+]
+
+[[package]]
 name = "color_quant"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1456,6 +1467,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "error-code"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5115567ac25674e0043e472be13d14e537f37ea8aa4bdc4aef0c89add1db1ff"
+dependencies = [
+ "libc",
+ "str-buf",
+]
+
+[[package]]
 name = "escaper"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1498,6 +1519,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca5faf057445ce5c9d4329e382b2ce7ca38550ef3b73a5348362d5f24e0c7fe3"
 dependencies = [
  "instant",
+]
+
+[[package]]
+name = "fd-lock"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0010f02effd88c702318c5dde0463206be67495d0b4d906ba7c0a8f166cc7f06"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]
@@ -1553,16 +1584,6 @@ checksum = "5fc25a87fa4fd2094bffb06925852034d90a17f0d1e05197d4956d3555752191"
 dependencies = [
  "matches",
  "percent-encoding",
-]
-
-[[package]]
-name = "fs2"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
-dependencies = [
- "libc",
- "winapi",
 ]
 
 [[package]]
@@ -3159,14 +3180,16 @@ dependencies = [
 
 [[package]]
 name = "rustyline"
-version = "8.0.0"
+version = "8.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9e1b597fcd1eeb1d6b25b493538e5aa19629eb08932184b85fef931ba87e893"
+checksum = "53e628a0a8e3e278dc96badc1f54492e5c5201037c7df14935c8b9571e9d2923"
 dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
+ "clipboard-win",
  "dirs-next",
- "fs2",
+ "error-code",
+ "fd-lock",
  "libc",
  "log",
  "memchr",
@@ -3546,6 +3569,12 @@ dependencies = [
  "async-std",
  "pin-project-lite",
 ]
+
+[[package]]
+name = "str-buf"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d44a3643b4ff9caf57abcee9c2c621d6c03d9135e0d8b589bd9afb5992cb176a"
 
 [[package]]
 name = "stream-cipher"
