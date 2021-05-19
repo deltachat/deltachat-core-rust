@@ -58,7 +58,7 @@ rand = "0.7.0"
 regex = "1.4.6"
 rusqlite = "0.25"
 rust-hsluv = "0.1.4"
-rustyline = { version = "8.0.0", optional = true }
+rustyline = { version = "8.1.0", optional = true }
 sanitize-filename = "0.3.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
