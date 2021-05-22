@@ -10,7 +10,6 @@ use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::{dc_get_abs_path, improve_single_line_input};
 use crate::events::EventType;
-use crate::job;
 use crate::message::MsgId;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
@@ -288,15 +287,6 @@ impl Context {
                 let value = value.map(improve_single_line_input);
                 self.sql.set_raw_config(key, value.as_deref()).await?;
                 Ok(())
-            }
-            Config::DeleteServerAfter => {
-                let ret = self
-                    .sql
-                    .set_raw_config(key, value)
-                    .await
-                    .map_err(Into::into);
-                job::schedule_resync(self).await;
-                ret
             }
             _ => {
                 self.sql.set_raw_config(key, value).await?;
