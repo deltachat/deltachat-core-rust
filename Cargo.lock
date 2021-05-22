@@ -3180,15 +3180,14 @@ dependencies = [
 
 [[package]]
 name = "rustyline"
-version = "8.1.0"
+version = "8.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53e628a0a8e3e278dc96badc1f54492e5c5201037c7df14935c8b9571e9d2923"
+checksum = "fbd4eaf7a7738f76c98e4f0395253ae853be3eb018f7b0bb57fe1b6c17e31874"
 dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
  "clipboard-win",
  "dirs-next",
- "error-code",
  "fd-lock",
  "libc",
  "log",
