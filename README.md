@@ -3,7 +3,6 @@
 > Deltachat-core written in Rust 
 
 [![Rust CI](https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml)
-[![Remote tests](https://github.com/deltachat/deltachat-core-rust/actions/workflows/remote_tests.yml/badge.svg)](https://github.com/deltachat/deltachat-core-rust/actions/workflows/remote_tests.yml)
 [![CircleCI](https://circleci.com/gh/deltachat/deltachat-core-rust.svg?style=shield)](https://circleci.com/gh/deltachat/deltachat-core-rust/)
 
 ## Installing Rust and Cargo
