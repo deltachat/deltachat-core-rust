@@ -1071,16 +1071,19 @@ class TestOnlineAccount:
         # We had so many problems with markseen, if in doubt, rather create another test, it can't harm.
         ac1 = acfactory.get_online_configuring_account(move=mvbox_move, mvbox=mvbox_move)
         ac2 = acfactory.get_online_configuring_account(move=mvbox_move, mvbox=mvbox_move)
-        acfactory.wait_configure_and_start_io()
 
-        acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
-        msg = ac2._evtracker.wait_next_incoming_message()
+        acfactory.wait_configure_and_start_io()
+        # Do not send BCC to self, we only want to test MDN on ac1.
+        ac1.set_config("bcc_self", "0")
 
         folder = "mvbox" if mvbox_move else "inbox"
         ac1.direct_imap.select_config_folder(folder)
         ac2.direct_imap.select_config_folder(folder)
         ac1.direct_imap.idle_start()
         ac2.direct_imap.idle_start()
+
+        acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
+        msg = ac2._evtracker.wait_next_incoming_message()
 
         ac2.mark_seen_messages([msg])
 
