@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(deltachat)
+project(deltachat LANGUAGES C)
 
 find_program(CARGO cargo)
 
