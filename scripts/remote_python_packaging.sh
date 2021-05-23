@@ -29,7 +29,7 @@ set +x
 
 for arch in "" "-arm64"; do
 
-ssh -o ServerAliveInterval=30 $SSHTARGET bash -c "cat >${BUILDDIR}${arch}/exec_docker_run" <<_HERE
+ssh $SSHTARGET bash -c "cat >${BUILDDIR}${arch}/exec_docker_run" <<_HERE
     set +x -e
     shopt -s huponexit
     cd ${BUILDDIR}${arch}
@@ -48,10 +48,10 @@ done
 echo "--- Running $CIRCLE_JOB remotely"
 
 echo "--- Building aarch64 wheels"
-ssh -t $SSHTARGET bash "$BUILDDIR-arm64/exec_docker_run"
+ssh -o ServerAliveInterval=30 -t $SSHTARGET bash "$BUILDDIR-arm64/exec_docker_run"
 
 echo "--- Building x86_64 wheels"
-ssh -t $SSHTARGET bash "$BUILDDIR/exec_docker_run"
+ssh -o ServerAliveInterval=30 -t $SSHTARGET bash "$BUILDDIR/exec_docker_run"
 
 mkdir -p workspace 
 
