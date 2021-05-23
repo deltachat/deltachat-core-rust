@@ -55,12 +55,12 @@ workflows:
       - remote_python_packaging:
           filters:
             tags:
-              only: /.*/
+              only: /.+/
 
       - build_doxygen:
           filters:
             tags:
-              only: /.*/
+              only: /.+/
 
       - upload_docs_wheels:
           requires:
@@ -68,4 +68,4 @@ workflows:
              - build_doxygen
           filters:
             tags:
-              only: /.*/
+              only: /.+/
