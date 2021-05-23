@@ -43,7 +43,7 @@ mkdir -p $TOXWORKDIR
 # Note that the independent remote_tests_python step does all kinds of
 # live-testing already. 
 unset DCC_NEW_TMP_EMAIL
-tox --workdir "$TOXWORKDIR" -e py36,py37,py38,py39,auditwheels
+tox --workdir "$TOXWORKDIR" -e py37,py38,py39,auditwheels
 popd
 
 
