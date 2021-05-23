@@ -56,11 +56,15 @@ workflows:
           filters:
             tags:
               only: /.+/
+            branches:
+              ignore: /.*/
 
       - build_doxygen:
           filters:
             tags:
               only: /.+/
+            branches:
+              ignore: /.*/
 
       - upload_docs_wheels:
           requires:
@@ -69,3 +73,5 @@ workflows:
           filters:
             tags:
               only: /.+/
+            branches:
+              ignore: /.*/
