@@ -19,14 +19,19 @@ export DCC_RS_TARGET=release
 
 # Configure access to a base python and to several python interpreters
 # needed by tox below.
-export PATH=$PATH:/opt/python/cp35-cp35m/bin
+export PATH=$PATH:/opt/python/cp36-cp36m/bin
 export PYTHONDONTWRITEBYTECODE=1
 pushd /bin
-rm -f python3.5
-ln -s /opt/python/cp35-cp35m/bin/python3.5
+rm -f python3.6
 ln -s /opt/python/cp36-cp36m/bin/python3.6
+rm -f python3.7
 ln -s /opt/python/cp37-cp37m/bin/python3.7
+rm -f python3.8
 ln -s /opt/python/cp38-cp38/bin/python3.8
+rm -f python3.9
+ln -s /opt/python/cp39-cp39/bin/python3.9
+rm -f python3.10
+ln -s /opt/python/cp310-cp310/bin/python3.10
 popd
 
 pushd python
@@ -40,7 +45,7 @@ mkdir -p $TOXWORKDIR
 # Note that the independent remote_tests_python step does all kinds of
 # live-testing already. 
 unset DCC_NEW_TMP_EMAIL
-tox --workdir "$TOXWORKDIR" -e py35,py36,py37,py38,auditwheels
+tox --workdir "$TOXWORKDIR" -e py36,py37,py38,py39,py310,auditwheels
 popd
 
 
