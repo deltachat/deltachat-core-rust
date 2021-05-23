@@ -54,18 +54,18 @@ workflows:
     jobs:
       - remote_python_packaging:
           filters:
-            branches:
-              only: master
+            tags:
+              only: /.*/
+
+      - build_doxygen:
+          filters:
+            tags:
+              only: /.*/
 
       - upload_docs_wheels:
           requires:
              - remote_python_packaging
              - build_doxygen
           filters:
-            branches:
-              only: master
-
-      - build_doxygen:
-          filters:
-            branches:
-              only: master
+            tags:
+              only: /.*/
