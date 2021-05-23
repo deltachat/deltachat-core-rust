@@ -48,3 +48,7 @@ to avoid the relatively large download::
     cd scripts  # where all CI things are 
     docker build -t deltachat/coredeps docker-coredeps
     docker build -t deltachat/doxygen docker-doxygen 
+
+Additionally, you can install qemu and build arm64 docker image:
+    apt-get install qemu binfmt-support qemu-user-static
+    docker build -t deltachat/coredeps-arm64 docker-coredeps-arm64
