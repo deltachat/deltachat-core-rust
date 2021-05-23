@@ -29,7 +29,7 @@ set +x
 
 for arch in "" "-arm64"; do
 
-ssh $SSHTARGET bash -c "cat >${BUILDDIR}${arch}/exec_docker_run" <<_HERE
+ssh -o ServerAliveInterval=30 $SSHTARGET bash -c "cat >${BUILDDIR}${arch}/exec_docker_run" <<_HERE
     set +x -e
     shopt -s huponexit
     cd ${BUILDDIR}${arch}
