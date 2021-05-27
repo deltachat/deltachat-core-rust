@@ -1334,7 +1334,7 @@ impl Imap {
                 let folder_meaning = get_folder_meaning(&folder);
                 let folder_name_meaning = get_folder_meaning_by_name(folder.name());
                 if folder.name() == "DeltaChat" {
-                    // Always takes precendence
+                    // Always takes precedence
                     mvbox_folder = Some(folder.name().to_string());
                 } else if folder.name() == fallback_folder {
                     // only set if none has been already set
