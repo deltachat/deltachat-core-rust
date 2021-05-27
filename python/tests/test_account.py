@@ -1319,9 +1319,11 @@ class TestOnlineAccount:
         assert not device_chat.can_send()
         assert device_chat.get_draft() is None
 
-    def test_dont_show_emails_in_draft_folder(self, acfactory):
+    def test_dont_show_emails_in_draft_folder(self, acfactory, lp):
         """Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them.
-        So: If it's outgoing AND there is no Received header AND it's not in the sentbox, then ignore the email."""
+        So: If it's outgoing AND there is no Received header AND it's not in the sentbox, then ignore the email.
+
+        If the draft email is sent out later (i.e. moved to "Sent"), it must be shown."""
         ac1 = acfactory.get_online_configuring_account()
         ac1.set_config("show_emails", "2")
         ac1.create_contact("alice@example.com").create_chat()
@@ -1342,7 +1344,7 @@ class TestOnlineAccount:
             Message-ID: <aepiors@example.org>
             Content-Type: text/plain; charset=utf-8
 
-            message in Drafts
+            message in Drafts that is moved to Sent later
         """.format(ac1.get_config("configured_addr")))
         ac1.direct_imap.append("Sent", """
             From: ac1 <{}>
@@ -1355,6 +1357,7 @@ class TestOnlineAccount:
         """.format(ac1.get_config("configured_addr")))
 
         ac1.set_config("scan_all_folders_debounce_secs", "0")
+        lp.sec("All prepared, now let DC find the message")
         ac1.start_io()
 
         msg = ac1._evtracker.wait_next_messages_changed()
@@ -1364,6 +1367,17 @@ class TestOnlineAccount:
 
         assert msg.text == "subj – message in Sent"
         assert len(msg.chat.get_messages()) == 1
+
+        ac1.stop_io()
+        lp.sec("'Send out' the draft, i.e. move it to the Sent folder, and wait for DC to display it this time")
+        uid = ac1.direct_imap.get_uid_by_message_id("Drafts", "aepiors@example.org")
+        ac1.direct_imap.conn.move(uid, "Sent")
+
+        ac1.start_io()
+        msg2 = ac1._evtracker.wait_next_messages_changed()
+
+        assert msg.text == "subj – message in Drafts that is moved to Sent later"
+        assert len(msg.chat.get_messages()) == 2
 
     def test_prefer_encrypt(self, acfactory, lp):
         """Test quorum rule for encryption preference in 1:1 and group chat."""
