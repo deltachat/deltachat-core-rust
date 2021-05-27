@@ -3994,30 +3994,20 @@ YEAAAAAA!.
         dc_receive_imf(
             &t,
             b"Bcc: alice@example.com
-Return-Path: <alice@example.com>
-Received: from [127.0.0.1] (c80-216-143-104.bredband.tele2.se. [80.216.143.104])
-        by smtp.gmail.com with UTF8SMTPSA id f3sm109466lfu.271.2021.05.26.23.32.44
-        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
-        Wed, 26 May 2021 23:32:44 -0700 (PDT)
+Received: from [127.0.0.1]
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
-Chat-Disposition-Notification-To: alice@example.com
-Subject: =?utf-8?q?Re=3A_Meddelande_fr=C3=A5n_XXXXXX
+Subject: s
 MIME-Version: 1.0
-References: <Mr.0QjSFh-XUmS.tj2vVs5ZJnx@gmail.com>
-	<Mr.dM6crEU09G0.ISm3PN-aYOm@other.maildomain.com>
-In-Reply-To: <Mr.dM6crEU09G0.ISm3PN-aYOm@other.maildomain.com>
 Date: Thu, 27 May 2021 06:32:44 +0000
 Chat-Version: 1.0
-Autocrypt: addr=alice@example.com;
-	keydata=XXXXXXXXXXXXX
-Message-ID: <Mr.nYtIW4fVo6q.AXaQtjM4PL-@gmail.com>
-To: =?utf-8?q?Stefan_Bj=C3=B6rk?= <me@other.maildomain.com>
+Message-ID: <hijk@gmail.com>
+To: <me@other.maildomain.com>
 From: <alice@example.com>
 
 Message content...
 
 -- 
-Skickat fran Delta Chat: https://delta.chat", // TODO was "från"
+Skickat fran Delta Chat: https://delta.chat",
             "Inbox",
             1,
             false,
