@@ -126,7 +126,7 @@ impl FolderMeaning {
             FolderMeaning::Unknown => None,
             FolderMeaning::Spam => Some(Config::ConfiguredSpamFolder),
             FolderMeaning::Sent => Some(Config::ConfiguredSentboxFolder),
-            FolderMeaning::Drafts => Some(Config::ConfiguredDraftsFolder),
+            FolderMeaning::Drafts => None,
             FolderMeaning::Other => None,
         }
     }

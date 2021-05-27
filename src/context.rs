@@ -551,11 +551,6 @@ impl Context {
         Ok(spam.as_deref() == Some(folder_name))
     }
 
-    pub async fn is_drafts_folder(&self, folder_name: &str) -> Result<bool> {
-        let drafts = self.get_config(Config::ConfiguredDraftsFolder).await?;
-        Ok(drafts.as_deref() == Some(folder_name))
-    }
-
     pub fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());

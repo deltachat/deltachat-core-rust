@@ -1,10 +1,11 @@
 use std::{collections::BTreeMap, time::Instant};
 
 use anyhow::{Context as _, Result};
+use futures::stream::Fold;
 
-use crate::context::Context;
 use crate::imap::Imap;
 use crate::{config::Config, log::LogExt};
+use crate::{context::Context, imap::FolderMeaning};
 use async_std::prelude::*;
 
 use super::{get_folder_meaning, get_folder_meaning_by_name};
@@ -55,22 +56,23 @@ impl Imap {
                     .or_insert_with(|| folder.name().to_string());
             }
 
+            let is_drafts = folder_meaning == FolderMeaning::Drafts
+                || (folder_meaning == FolderMeaning::Unknown
+                    && folder_name_meaning == FolderMeaning::Drafts);
+
             // Don't scan folders that are watched anyway
-            if !watched_folders.contains(&folder.name().to_string())
-                && !context.is_drafts_folder(&folder.name().to_string()).await?
-            {
+            if !watched_folders.contains(&folder.name().to_string()) && !is_drafts {
                 self.fetch_new_messages(context, folder.name(), false)
                     .await
                     .ok_or_log_msg(context, "Can't fetch new msgs in scanned folder");
             }
         }
 
-        // We iterate over all 3 folder meanings to make sure that if e.g. the "Sent" folder was deleted,
+        // We iterate over both folder meanings to make sure that if e.g. the "Sent" folder was deleted,
         // `ConfiguredSentboxFolder` is set to `None`:
         for config in &[
             Config::ConfiguredSentboxFolder,
             Config::ConfiguredSpamFolder,
-            Config::ConfiguredDraftsFolder,
         ] {
             context
                 .set_config(*config, folder_configs.get(config).map(|s| s.as_str()))
