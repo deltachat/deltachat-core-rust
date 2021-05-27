@@ -14,7 +14,6 @@ use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
-use crate::chat;
 use crate::config::Config;
 use crate::constants::{
     Chattype, ShowEmails, Viewtype, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
@@ -36,6 +35,7 @@ use crate::param::Params;
 use crate::provider::Socket;
 use crate::scheduler::InterruptInfo;
 use crate::stock_str;
+use crate::{chat, constants::DC_CONTACT_ID_SELF};
 
 mod client;
 mod idle;
@@ -709,6 +709,7 @@ impl Imap {
                 current_uid,
                 &headers,
                 &msg_id,
+                &msg,
                 folder,
                 show_emails,
             )
@@ -1635,6 +1636,7 @@ fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> 
 pub(crate) async fn prefetch_should_download(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
+    msg: &Fetch,
     show_emails: ShowEmails,
 ) -> Result<bool> {
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
@@ -1672,12 +1674,17 @@ pub(crate) async fn prefetch_should_download(
         .get_header_value(HeaderDef::AutocryptSetupMessage)
         .is_some();
 
-    let (_contact_id, blocked_contact, origin) =
+    let (from_id, blocked_contact, origin) =
         from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
     // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
     // (prevent_rename is the last argument of from_field_to_contact_id())
-    let accepted_contact = origin.is_known();
 
+    if msg.flags().any(|f| f == Flag::Draft) && from_id == DC_CONTACT_ID_SELF {
+        info!(context, "Ignoring draft message");
+        return Ok(false);
+    }
+
+    let accepted_contact = origin.is_known();
     let show = is_autocrypt_setup_message
         || match show_emails {
             ShowEmails::Off => is_chat_message || is_reply_to_chat_message,
@@ -1696,6 +1703,7 @@ async fn message_needs_processing(
     current_uid: u32,
     headers: &[mailparse::MailHeader<'_>],
     msg_id: &str,
+    msg: &Fetch,
     folder: &str,
     show_emails: ShowEmails,
 ) -> bool {
@@ -1719,7 +1727,7 @@ async fn message_needs_processing(
     // we do not know the message-id
     // or the message-id is missing (in this case, we create one in the further process)
     // or some other error happened
-    let show = match prefetch_should_download(context, headers, show_emails).await {
+    let show = match prefetch_should_download(context, headers, msg, show_emails).await {
         Ok(show) => show,
         Err(err) => {
             warn!(context, "prefetch_should_download error: {}", err);
