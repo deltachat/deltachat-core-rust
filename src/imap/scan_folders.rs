@@ -1,13 +1,13 @@
-use std::time::Instant;
+use std::{collections::BTreeMap, time::Instant};
 
 use anyhow::{Context as _, Result};
 
-use crate::config::Config;
 use crate::context::Context;
 use crate::imap::Imap;
+use crate::{config::Config, log::LogExt};
 use async_std::prelude::*;
 
-use super::{get_folder_meaning, get_folder_meaning_by_name, FolderMeaning};
+use super::{get_folder_meaning, get_folder_meaning_by_name};
 
 impl Imap {
     pub async fn scan_folders(&mut self, context: &Context) -> Result<()> {
@@ -31,8 +31,7 @@ impl Imap {
         let folders: Vec<_> = session.list(Some(""), Some("*")).await?.collect().await;
         let watched_folders = get_watched_folders(context).await;
 
-        let mut sentbox_folder = None;
-        let mut spam_folder = None;
+        let mut folder_configs = BTreeMap::new();
 
         for folder in folders {
             let folder = match folder {
@@ -43,38 +42,40 @@ impl Imap {
                 }
             };
 
-            let foldername = folder.name();
             let folder_meaning = get_folder_meaning(&folder);
-            let folder_name_meaning = get_folder_meaning_by_name(foldername);
+            let folder_name_meaning = get_folder_meaning_by_name(folder.name());
 
-            if folder_meaning == FolderMeaning::SentObjects {
-                // Always takes precedent
-                sentbox_folder = Some(folder.name().to_string());
-            } else if folder_meaning == FolderMeaning::Spam {
-                spam_folder = Some(folder.name().to_string());
-            } else if folder_name_meaning == FolderMeaning::SentObjects {
-                // only set iff none has been already set
-                if sentbox_folder.is_none() {
-                    sentbox_folder = Some(folder.name().to_string());
-                }
-            } else if folder_name_meaning == FolderMeaning::Spam && spam_folder.is_none() {
-                spam_folder = Some(folder.name().to_string());
+            if let Some(config) = folder_meaning.to_config() {
+                // Always takes precedence
+                folder_configs.insert(config, folder.name().to_string());
+            } else if let Some(config) = folder_name_meaning.to_config() {
+                // only set if none has been already set
+                folder_configs
+                    .entry(config)
+                    .or_insert_with(|| folder.name().to_string());
             }
 
             // Don't scan folders that are watched anyway
-            if !watched_folders.contains(&foldername.to_string()) {
-                if let Err(e) = self.fetch_new_messages(context, foldername, false).await {
-                    warn!(context, "Can't fetch new msgs in scanned folder: {:#}", e);
-                }
+            if !watched_folders.contains(&folder.name().to_string())
+                && !context.is_drafts_folder(&folder.name().to_string()).await?
+            {
+                self.fetch_new_messages(context, folder.name(), false)
+                    .await
+                    .ok_or_log_msg(context, "Can't fetch new msgs in scanned folder");
             }
         }
 
-        context
-            .set_config(Config::ConfiguredSentboxFolder, sentbox_folder.as_deref())
-            .await?;
-        context
-            .set_config(Config::ConfiguredSpamFolder, spam_folder.as_deref())
-            .await?;
+        // We iterate over all 3 folder meanings to make sure that if e.g. the "Sent" folder was deleted,
+        // `ConfiguredSentboxFolder` is set to `None`:
+        for config in &[
+            Config::ConfiguredSentboxFolder,
+            Config::ConfiguredSpamFolder,
+            Config::ConfiguredDraftsFolder,
+        ] {
+            context
+                .set_config(*config, folder_configs.get(config).map(|s| s.as_str()))
+                .await?;
+        }
 
         last_scan.replace(Instant::now());
         Ok(())

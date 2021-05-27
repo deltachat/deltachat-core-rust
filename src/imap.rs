@@ -111,12 +111,25 @@ impl async_imap::Authenticator for OAuth2 {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum FolderMeaning {
     Unknown,
     Spam,
-    SentObjects,
+    Sent,
+    Drafts,
     Other,
+}
+
+impl FolderMeaning {
+    fn to_config(self) -> Option<Config> {
+        match self {
+            FolderMeaning::Unknown => None,
+            FolderMeaning::Spam => Some(Config::ConfiguredSpamFolder),
+            FolderMeaning::Sent => Some(Config::ConfiguredSentboxFolder),
+            FolderMeaning::Drafts => Some(Config::ConfiguredDraftsFolder),
+            FolderMeaning::Other => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -1300,9 +1313,8 @@ impl Imap {
 
             let mut delimiter = ".".to_string();
             let mut delimiter_is_default = true;
-            let mut sentbox_folder = None;
-            let mut spam_folder = None;
             let mut mvbox_folder = None;
+            let mut folder_configs = BTreeMap::new();
             let mut fallback_folder = get_fallback_folder(&delimiter);
 
             while let Some(folder) = folders.next().await {
@@ -1321,31 +1333,26 @@ impl Imap {
                 let folder_meaning = get_folder_meaning(&folder);
                 let folder_name_meaning = get_folder_meaning_by_name(folder.name());
                 if folder.name() == "DeltaChat" {
-                    // Always takes precendent
+                    // Always takes precendence
                     mvbox_folder = Some(folder.name().to_string());
                 } else if folder.name() == fallback_folder {
-                    // only set iff none has been already set
+                    // only set if none has been already set
                     if mvbox_folder.is_none() {
                         mvbox_folder = Some(folder.name().to_string());
                     }
-                } else if folder_meaning == FolderMeaning::SentObjects {
-                    // Always takes precedent
-                    sentbox_folder = Some(folder.name().to_string());
-                } else if folder_meaning == FolderMeaning::Spam {
-                    spam_folder = Some(folder.name().to_string());
-                } else if folder_name_meaning == FolderMeaning::SentObjects {
-                    // only set iff none has been already set
-                    if sentbox_folder.is_none() {
-                        sentbox_folder = Some(folder.name().to_string());
-                    }
-                } else if folder_name_meaning == FolderMeaning::Spam && spam_folder.is_none() {
-                    spam_folder = Some(folder.name().to_string());
+                } else if let Some(config) = folder_meaning.to_config() {
+                    // Always takes precedence
+                    folder_configs.insert(config, folder.name().to_string());
+                } else if let Some(config) = folder_name_meaning.to_config() {
+                    // only set if none has been already set
+                    folder_configs
+                        .entry(config)
+                        .or_insert_with(|| folder.name().to_string());
                 }
             }
             drop(folders);
 
             info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
-            info!(context, "sentbox folder is {:?}", sentbox_folder);
 
             if mvbox_folder.is_none() && create_mvbox {
                 info!(context, "Creating MVBOX-folder \"DeltaChat\"...",);
@@ -1393,15 +1400,8 @@ impl Imap {
                     .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                     .await?;
             }
-            if let Some(ref sentbox_folder) = sentbox_folder {
-                context
-                    .set_config(Config::ConfiguredSentboxFolder, Some(sentbox_folder))
-                    .await?;
-            }
-            if let Some(ref spam_folder) = spam_folder {
-                context
-                    .set_config(Config::ConfiguredSpamFolder, Some(spam_folder))
-                    .await?;
+            for (config, name) in folder_configs {
+                context.set_config(config, Some(&name)).await?;
             }
             context
                 .sql
@@ -1474,29 +1474,50 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
         "迷惑メール",
         "스팸",
     ];
+    const DRAFT_NAMES: &[&str] = &[
+        "Drafts",
+        "Kladder",
+        "Entw?rfe",
+        "Borradores",
+        "Brouillons",
+        "Bozze",
+        "Concepten",
+        "Wersje robocze",
+        "Rascunhos",
+        "Entwürfe",
+        "Koncepty",
+        "Kopie robocze",
+        "Taslaklar",
+        "Utkast",
+        "Πρόχειρα",
+        "Черновики",
+        "下書き",
+        "草稿",
+        "임시보관함",
+    ];
     let lower = folder_name.to_lowercase();
 
     if SENT_NAMES.iter().any(|s| s.to_lowercase() == lower) {
-        FolderMeaning::SentObjects
+        FolderMeaning::Sent
     } else if SPAM_NAMES.iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::Spam
+    } else if DRAFT_NAMES.iter().any(|s| s.to_lowercase() == lower) {
+        FolderMeaning::Drafts
     } else {
         FolderMeaning::Unknown
     }
 }
 
 fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
-    let special_names = vec!["\\Trash", "\\Drafts"];
-
     for attr in folder_name.attributes() {
         if let NameAttribute::Custom(ref label) = attr {
-            if special_names.iter().any(|s| *s == label) {
-                return FolderMeaning::Other;
-            } else if label == "\\Sent" {
-                return FolderMeaning::SentObjects;
-            } else if label == "\\Spam" || label == "\\Junk" {
-                return FolderMeaning::Spam;
-            }
+            match label.as_ref() {
+                "\\Trash" => return FolderMeaning::Other,
+                "\\Sent" => return FolderMeaning::Sent,
+                "\\Spam" | "\\Junk" => return FolderMeaning::Spam,
+                "\\Drafts" => return FolderMeaning::Drafts,
+                _ => {}
+            };
         }
     }
     FolderMeaning::Unknown
@@ -1861,25 +1882,16 @@ mod tests {
     use crate::test_utils::TestContext;
     #[test]
     fn test_get_folder_meaning_by_name() {
-        assert_eq!(
-            get_folder_meaning_by_name("Gesendet"),
-            FolderMeaning::SentObjects
-        );
-        assert_eq!(
-            get_folder_meaning_by_name("GESENDET"),
-            FolderMeaning::SentObjects
-        );
-        assert_eq!(
-            get_folder_meaning_by_name("gesendet"),
-            FolderMeaning::SentObjects
-        );
+        assert_eq!(get_folder_meaning_by_name("Gesendet"), FolderMeaning::Sent);
+        assert_eq!(get_folder_meaning_by_name("GESENDET"), FolderMeaning::Sent);
+        assert_eq!(get_folder_meaning_by_name("gesendet"), FolderMeaning::Sent);
         assert_eq!(
             get_folder_meaning_by_name("Messages envoyés"),
-            FolderMeaning::SentObjects
+            FolderMeaning::Sent
         );
         assert_eq!(
             get_folder_meaning_by_name("mEsSaGes envoyÉs"),
-            FolderMeaning::SentObjects
+            FolderMeaning::Sent
         );
         assert_eq!(get_folder_meaning_by_name("xxx"), FolderMeaning::Unknown);
         assert_eq!(get_folder_meaning_by_name("SPAM"), FolderMeaning::Spam);

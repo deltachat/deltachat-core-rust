@@ -1376,7 +1376,7 @@ class TestOnlineAccount:
         ac1.start_io()
         msg2 = ac1._evtracker.wait_next_messages_changed()
 
-        assert msg.text == "subj – message in Drafts that is moved to Sent later"
+        assert msg2.text == "subj – message in Drafts that is moved to Sent later"
         assert len(msg.chat.get_messages()) == 2
 
     def test_prefer_encrypt(self, acfactory, lp):
