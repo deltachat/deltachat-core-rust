@@ -662,7 +662,11 @@ async fn add_parts(
         // the mail is on the IMAP server, probably it is also delivered.
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
-        to_id = to_ids.get_index(0).cloned().unwrap_or_default();
+        to_id = *to_ids
+            .iter()
+            .find(|id| **id != DC_CONTACT_ID_SELF)
+            .or_else(|| to_ids.first())
+            .unwrap_or(&0);
 
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get(HeaderDef::SecureJoin).is_some() {
