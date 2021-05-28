@@ -25,7 +25,7 @@ impl Imap {
         if !self.can_idle() {
             bail!("IMAP server does not have IDLE capability");
         }
-        self.setup_handle(context).await?;
+        self.prepare(context).await?;
 
         self.select_folder(context, watch_folder.as_deref()).await?;
 
@@ -158,7 +158,7 @@ impl Imap {
                     // try to connect with proper login params
                     // (setup_handle_if_needed might not know about them if we
                     // never successfully connected)
-                    if let Err(err) = self.connect_configured(context).await {
+                    if let Err(err) = self.prepare(context).await {
                         warn!(context, "fake_idle: could not connect: {}", err);
                         continue;
                     }

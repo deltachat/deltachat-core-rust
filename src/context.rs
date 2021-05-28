@@ -161,7 +161,9 @@ impl Context {
 
         {
             let l = &mut *self.inner.scheduler.write().await;
-            l.start(self.clone()).await;
+            if let Err(err) = l.start(self.clone()).await {
+                error!(self, "Failed to start IO: {}", err)
+            }
         }
     }
 

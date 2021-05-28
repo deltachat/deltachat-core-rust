@@ -532,7 +532,7 @@ impl Job {
     }
 
     async fn move_msg(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.connect_configured(context).await {
+        if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }
@@ -594,7 +594,7 @@ impl Job {
     /// records pointing to the same message on the server, the job
     /// also removes the message on the server.
     async fn delete_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.connect_configured(context).await {
+        if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }
@@ -682,7 +682,7 @@ impl Job {
         if job_try!(context.get_config_bool(Config::Bot).await) {
             return Status::Finished(Ok(())); // Bots don't want those messages
         }
-        if let Err(err) = imap.connect_configured(context).await {
+        if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }
@@ -755,7 +755,7 @@ impl Job {
     /// Chat in contrast to the Sent folder, which is normally managed
     /// by the user via webmail or another email client.
     async fn resync_folders(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.connect_configured(context).await {
+        if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }
@@ -779,7 +779,7 @@ impl Job {
     }
 
     async fn markseen_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.connect_configured(context).await {
+        if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }
