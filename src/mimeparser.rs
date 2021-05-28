@@ -1585,7 +1585,7 @@ fn get_attachment_filename(
 /// Returned addresses are normalized and lowercased.
 pub(crate) fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
     get_all_addresses_from_header(headers, |header_key| {
-        header_key == "to" || header_key == "cc" || header_key == "bcc"
+        header_key == "to" || header_key == "cc"
     })
 }
 
