@@ -1,7 +1,6 @@
 use std::{collections::BTreeMap, time::Instant};
 
 use anyhow::{Context as _, Result};
-use futures::stream::Fold;
 
 use crate::imap::Imap;
 use crate::{config::Config, log::LogExt};
