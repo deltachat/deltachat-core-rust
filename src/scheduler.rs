@@ -1,3 +1,4 @@
+use anyhow::{bail, Result};
 use async_std::prelude::*;
 use async_std::{
     channel::{self, Receiver, Sender},
@@ -130,7 +131,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 async fn fetch(ctx: &Context, connection: &mut Imap) {
     match ctx.get_config(Config::ConfiguredInboxFolder).await {
         Ok(Some(watch_folder)) => {
-            if let Err(err) = connection.connect_configured(ctx).await {
+            if let Err(err) = connection.prepare(ctx).await {
                 error_network!(ctx, "{}", err);
                 return;
             }
@@ -159,7 +160,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
     match ctx.get_config(folder).await {
         Ok(Some(watch_folder)) => {
             // connect and fake idle if unable to connect
-            if let Err(err) = connection.connect_configured(ctx).await {
+            if let Err(err) = connection.prepare(ctx).await {
                 warn!(ctx, "imap connection failed: {}", err);
                 return connection.fake_idle(ctx, Some(watch_folder)).await;
             }
@@ -301,11 +302,11 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
 
 impl Scheduler {
     /// Start the scheduler, panics if it is already running.
-    pub async fn start(&mut self, ctx: Context) {
-        let (mvbox, mvbox_handlers) = ImapConnectionState::new();
-        let (sentbox, sentbox_handlers) = ImapConnectionState::new();
+    pub async fn start(&mut self, ctx: Context) -> Result<()> {
+        let (mvbox, mvbox_handlers) = ImapConnectionState::new(&ctx).await?;
+        let (sentbox, sentbox_handlers) = ImapConnectionState::new(&ctx).await?;
         let (smtp, smtp_handlers) = SmtpConnectionState::new();
-        let (inbox, inbox_handlers) = ImapConnectionState::new();
+        let (inbox, inbox_handlers) = ImapConnectionState::new(&ctx).await?;
 
         let (inbox_start_send, inbox_start_recv) = channel::bounded(1);
         let (mvbox_start_send, mvbox_start_recv) = channel::bounded(1);
@@ -321,11 +322,7 @@ impl Scheduler {
             }))
         };
 
-        if ctx
-            .get_config_bool(Config::MvboxWatch)
-            .await
-            .unwrap_or_default()
-        {
+        if ctx.get_config_bool(Config::MvboxWatch).await? {
             let ctx = ctx.clone();
             mvbox_handle = Some(task::spawn(async move {
                 simple_imap_loop(
@@ -343,11 +340,7 @@ impl Scheduler {
                 .expect("mvbox start send, missing receiver");
         }
 
-        if ctx
-            .get_config_bool(Config::SentboxWatch)
-            .await
-            .unwrap_or_default()
-        {
+        if ctx.get_config_bool(Config::SentboxWatch).await? {
             let ctx = ctx.clone();
             sentbox_handle = Some(task::spawn(async move {
                 simple_imap_loop(
@@ -391,10 +384,11 @@ impl Scheduler {
             .try_join(smtp_start_recv.recv())
             .await
         {
-            error!(ctx, "failed to start scheduler: {}", err);
+            bail!("failed to start scheduler: {}", err);
         }
 
         info!(ctx, "scheduler is running");
+        Ok(())
     }
 
     async fn maybe_network(&self) {
@@ -588,13 +582,13 @@ pub(crate) struct ImapConnectionState {
 
 impl ImapConnectionState {
     /// Construct a new connection.
-    fn new() -> (Self, ImapConnectionHandlers) {
+    async fn new(context: &Context) -> Result<(Self, ImapConnectionHandlers)> {
         let (stop_sender, stop_receiver) = channel::bounded(1);
         let (shutdown_sender, shutdown_receiver) = channel::bounded(1);
         let (idle_interrupt_sender, idle_interrupt_receiver) = channel::bounded(1);
 
         let handlers = ImapConnectionHandlers {
-            connection: Imap::new(idle_interrupt_receiver),
+            connection: Imap::new_configured(context, idle_interrupt_receiver).await?,
             stop_receiver,
             shutdown_sender,
         };
@@ -607,7 +601,7 @@ impl ImapConnectionState {
 
         let conn = ImapConnectionState { state };
 
-        (conn, handlers)
+        Ok((conn, handlers))
     }
 
     /// Interrupt any form of idle.

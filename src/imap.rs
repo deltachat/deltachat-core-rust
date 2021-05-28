@@ -8,7 +8,7 @@ use std::{cmp, cmp::max, collections::BTreeMap};
 use anyhow::{bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
-    types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
+    types::{Fetch, Flag, Mailbox, Name, NameAttribute},
 };
 use async_std::channel::Receiver;
 use async_std::prelude::*;
@@ -92,6 +92,10 @@ pub struct Imap {
     interrupt: Option<stop_token::StopSource>,
     should_reconnect: bool,
     login_failed_once: bool,
+
+    /// True if CAPABILITY command was run successfully once and config.can_* contain correct
+    /// values.
+    capabilities_determined: bool,
 }
 
 #[derive(Debug)]
@@ -128,6 +132,7 @@ struct ImapConfig {
     pub selected_folder: Option<String>,
     pub selected_mailbox: Option<Mailbox>,
     pub selected_folder_needs_expunge: bool,
+
     pub can_idle: bool,
 
     /// True if the server has MOVE capability as defined in
@@ -135,58 +140,93 @@ struct ImapConfig {
     pub can_move: bool,
 }
 
-impl Default for ImapConfig {
-    fn default() -> Self {
-        ImapConfig {
-            addr: "".into(),
-            lp: Default::default(),
-            strict_tls: false,
-            oauth2: false,
+impl Imap {
+    /// Creates new disconnected IMAP client using the specific login parameters.
+    ///
+    /// `addr` is used to renew token if OAuth2 authentication is used.
+    pub async fn new(
+        lp: &ServerLoginParam,
+        addr: &str,
+        oauth2: bool,
+        provider_strict_tls: bool,
+        idle_interrupt: Receiver<InterruptInfo>,
+    ) -> Result<Self> {
+        if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
+            bail!("Incomplete IMAP connection parameters");
+        }
+
+        let strict_tls = match lp.certificate_checks {
+            CertificateChecks::Automatic => provider_strict_tls,
+            CertificateChecks::Strict => true,
+            CertificateChecks::AcceptInvalidCertificates
+            | CertificateChecks::AcceptInvalidCertificates2 => false,
+        };
+        let config = ImapConfig {
+            addr: addr.to_string(),
+            lp: lp.clone(),
+            strict_tls,
+            oauth2,
             selected_folder: None,
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
             can_idle: false,
             can_move: false,
-        }
-    }
-}
+        };
 
-impl Imap {
-    pub fn new(idle_interrupt: Receiver<InterruptInfo>) -> Self {
-        Imap {
+        let imap = Imap {
             idle_interrupt,
-            config: Default::default(),
-            session: Default::default(),
-            connected: Default::default(),
-            interrupt: Default::default(),
-            should_reconnect: Default::default(),
-            login_failed_once: Default::default(),
+            config,
+            session: None,
+            connected: false,
+            interrupt: None,
+            should_reconnect: false,
+            login_failed_once: false,
+            capabilities_determined: false,
+        };
+
+        Ok(imap)
+    }
+
+    /// Creates new disconnected IMAP client using configured parameters.
+    pub async fn new_configured(
+        context: &Context,
+        idle_interrupt: Receiver<InterruptInfo>,
+    ) -> Result<Self> {
+        if !context.is_configured().await? {
+            bail!("IMAP Connect without configured params");
         }
-    }
 
-    pub fn is_connected(&self) -> bool {
-        self.connected
-    }
+        let param = LoginParam::from_database(context, "configured_").await?;
+        // the trailing underscore is correct
 
-    pub fn should_reconnect(&self) -> bool {
-        self.should_reconnect
-    }
-
-    pub fn trigger_reconnect(&mut self) {
-        self.should_reconnect = true;
+        let imap = Self::new(
+            &param.imap,
+            &param.addr,
+            param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
+            param.provider.map_or(false, |provider| provider.strict_tls),
+            idle_interrupt,
+        )
+        .await?;
+        Ok(imap)
     }
 
     /// Connects or reconnects if needed.
     ///
-    /// It is safe to call this function if already connected, actions
-    /// are performed only as needed.
-    async fn try_setup_handle(&mut self, context: &Context) -> Result<()> {
+    /// It is safe to call this function if already connected, actions are performed only as needed.
+    ///
+    /// Does not emit network errors, can be used to try various parameters during
+    /// autoconfiguration.
+    ///
+    /// Calling this function is not enough to perform IMAP operations. Use [`Imap::prepare`]
+    /// instead if you are going to actually use connection rather than trying connection
+    /// parameters.
+    pub async fn connect(&mut self, context: &Context) -> Result<()> {
         if self.config.lp.server.is_empty() {
             bail!("IMAP operation attempted while it is torn down");
         }
 
         if self.should_reconnect() {
-            self.unsetup_handle(context).await;
+            self.disconnect(context).await;
             self.should_reconnect = false;
         } else if self.is_connected() {
             return Ok(());
@@ -256,6 +296,10 @@ impl Imap {
                 self.connected = true;
                 self.session = Some(session);
                 self.login_failed_once = false;
+                emit_event!(
+                    context,
+                    EventType::ImapConnected(format!("IMAP-LOGIN as {}", self.config.lp.user))
+                );
                 Ok(())
             }
 
@@ -292,20 +336,49 @@ impl Imap {
         }
     }
 
-    /// Connects or reconnects if not already connected.
+    /// Determine server capabilities if not done yet.
+    async fn determine_capabilities(&mut self) -> Result<()> {
+        if self.capabilities_determined {
+            return Ok(());
+        }
+
+        match &mut self.session {
+            Some(ref mut session) => match session.capabilities().await {
+                Ok(caps) => {
+                    self.config.can_idle = caps.has_str("IDLE");
+                    self.config.can_move = caps.has_str("MOVE");
+                    self.capabilities_determined = true;
+                    Ok(())
+                }
+                Err(err) => {
+                    bail!("CAPABILITY command error: {}", err);
+                }
+            },
+            None => {
+                bail!("Can't determine server capabilities because connection was not established")
+            }
+        }
+    }
+
+    /// Prepare for IMAP operation.
     ///
-    /// This function emits network error if it fails.  It should not
-    /// be used during configuration to avoid showing failed attempt
-    /// errors to the user.
-    async fn setup_handle(&mut self, context: &Context) -> Result<()> {
-        let res = self.try_setup_handle(context).await;
+    /// Ensure that IMAP client is connected, folders are created and IMAP capabilities are
+    /// determined.
+    ///
+    /// This function emits network error if it fails.  It should not be used during configuration
+    /// to avoid showing failed attempt errors to the user.
+    pub async fn prepare(&mut self, context: &Context) -> Result<()> {
+        let res = self.connect(context).await;
         if let Err(ref err) = res {
             emit_event!(context, EventType::ErrorNetwork(err.to_string()));
         }
+
+        self.ensure_configured_folders(context, true).await?;
+        self.determine_capabilities().await?;
         res
     }
 
-    async fn unsetup_handle(&mut self, context: &Context) {
+    async fn disconnect(&mut self, context: &Context) {
         // Close folder if messages should be expunged
         if let Err(err) = self.close_folder(context).await {
             warn!(context, "failed to close folder: {:?}", err);
@@ -318,139 +391,21 @@ impl Imap {
             }
         }
         self.connected = false;
+        self.capabilities_determined = false;
         self.config.selected_folder = None;
         self.config.selected_mailbox = None;
     }
 
-    async fn free_connect_params(&mut self) {
-        let mut cfg = &mut self.config;
-
-        cfg.addr = "".into();
-        cfg.lp = Default::default();
-
-        cfg.can_idle = false;
-        cfg.can_move = false;
+    pub fn is_connected(&self) -> bool {
+        self.connected
     }
 
-    /// Connects to IMAP account using already-configured parameters.
-    ///
-    /// Emits network error if connection fails.
-    pub async fn connect_configured(&mut self, context: &Context) -> Result<()> {
-        if self.is_connected() && !self.should_reconnect() {
-            return Ok(());
-        }
-        if !context.is_configured().await? {
-            bail!("IMAP Connect without configured params");
-        }
-
-        let param = LoginParam::from_database(context, "configured_").await?;
-        // the trailing underscore is correct
-
-        if let Err(err) = self
-            .connect(
-                context,
-                &param.imap,
-                &param.addr,
-                param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
-                param.provider.map_or(false, |provider| provider.strict_tls),
-            )
-            .await
-        {
-            bail!("IMAP Connection Failed with params {}: {}", param, err);
-        } else {
-            self.ensure_configured_folders(context, true).await
-        }
+    pub fn should_reconnect(&self) -> bool {
+        self.should_reconnect
     }
 
-    /// Tries connecting to imap account using the specific login parameters.
-    ///
-    /// `addr` is used to renew token if OAuth2 authentication is used.
-    ///
-    /// Does not emit network errors, can be used to try various
-    /// parameters during autoconfiguration.
-    pub async fn connect(
-        &mut self,
-        context: &Context,
-        lp: &ServerLoginParam,
-        addr: &str,
-        oauth2: bool,
-        provider_strict_tls: bool,
-    ) -> Result<()> {
-        if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
-            bail!("Incomplete IMAP connection parameters");
-        }
-
-        {
-            let mut config = &mut self.config;
-            config.addr = addr.to_string();
-            config.lp = lp.clone();
-            config.strict_tls = match lp.certificate_checks {
-                CertificateChecks::Automatic => provider_strict_tls,
-                CertificateChecks::Strict => true,
-                CertificateChecks::AcceptInvalidCertificates
-                | CertificateChecks::AcceptInvalidCertificates2 => false,
-            };
-            config.oauth2 = oauth2;
-        }
-
-        if let Err(err) = self.try_setup_handle(context).await {
-            warn!(context, "try_setup_handle: {}", err);
-            self.free_connect_params().await;
-            return Err(err);
-        }
-
-        let teardown = match &mut self.session {
-            Some(ref mut session) => match session.capabilities().await {
-                Ok(caps) => {
-                    if !context.sql.is_open().await {
-                        warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.user,);
-                        true
-                    } else {
-                        let can_idle = caps.has_str("IDLE");
-                        let can_move = caps.has_str("MOVE");
-                        let caps_list = caps.iter().fold(String::new(), |s, c| {
-                            if let Capability::Atom(x) = c {
-                                s + &format!(" {}", x)
-                            } else {
-                                s + &format!(" {:?}", c)
-                            }
-                        });
-
-                        self.config.can_idle = can_idle;
-                        self.config.can_move = can_move;
-                        self.connected = true;
-                        emit_event!(
-                            context,
-                            EventType::ImapConnected(format!(
-                                "IMAP-LOGIN as {}, capabilities: {}",
-                                lp.user, caps_list,
-                            ))
-                        );
-                        false
-                    }
-                }
-                Err(err) => {
-                    info!(context, "CAPABILITY command error: {}", err);
-                    true
-                }
-            },
-            None => true,
-        };
-
-        if teardown {
-            self.disconnect(context).await;
-
-            warn!(
-                context,
-                "IMAP disconnected immediately after connecting due to error"
-            );
-        }
-        Ok(())
-    }
-
-    pub async fn disconnect(&mut self, context: &Context) {
-        self.unsetup_handle(context).await;
-        self.free_connect_params().await;
+    pub fn trigger_reconnect(&mut self) {
+        self.should_reconnect = true;
     }
 
     pub async fn fetch(&mut self, context: &Context, watch_folder: &str) -> Result<()> {
@@ -458,7 +413,7 @@ impl Imap {
             // probably shutdown
             bail!("IMAP operation attempted while it is torn down");
         }
-        self.setup_handle(context).await?;
+        self.prepare(context).await?;
 
         while self
             .fetch_new_messages(context, &watch_folder, false)
@@ -974,10 +929,6 @@ impl Imap {
         (last_uid, read_errors)
     }
 
-    pub async fn can_move(&self) -> bool {
-        self.config.can_move
-    }
-
     pub async fn mv(
         &mut self,
         context: &Context,
@@ -1002,7 +953,7 @@ impl Imap {
         let set = format!("{}", uid);
         let display_folder_id = format!("{}/{}", folder, uid);
 
-        if self.can_move().await {
+        if self.config.can_move {
             if let Some(ref mut session) = &mut self.session {
                 match session.uid_mv(&set, &dest_folder).await {
                     Ok(_) => {
@@ -1128,7 +1079,7 @@ impl Imap {
             // TODO: make INBOX/SENT/MVBOX perform the jobs on their
             // respective folders to avoid select_folder network traffic
             // and the involved error states
-            if let Err(err) = self.connect_configured(context).await {
+            if let Err(err) = self.prepare(context).await {
                 warn!(context, "prepare_imap_op failed: {}", err);
                 return Some(ImapActionResult::RetryLater);
             }
