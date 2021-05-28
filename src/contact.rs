@@ -860,7 +860,7 @@ impl Contact {
             "Can not delete special contact"
         );
 
-        let count_contacts = context
+        let count_chats = context
             .sql
             .count(
                 "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
@@ -868,19 +868,7 @@ impl Contact {
             )
             .await?;
 
-        let count_msgs = if count_contacts > 0 {
-            context
-                .sql
-                .count(
-                    "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
-                    paramsv![contact_id as i32, contact_id as i32],
-                )
-                .await?
-        } else {
-            0
-        };
-
-        if count_msgs == 0 {
+        if count_chats == 0 {
             match context
                 .sql
                 .execute(
@@ -902,9 +890,9 @@ impl Contact {
 
         info!(
             context,
-            "could not delete contact {}, there are {} messages with it", contact_id, count_msgs
+            "could not delete contact {}, there are {} chats with it", contact_id, count_chats
         );
-        bail!("Could not delete contact with messages in it");
+        bail!("Could not delete contact with ongoing chats");
     }
 
     /// Get a single contact object.  For a list, see eg. dc_get_contacts().
@@ -1616,6 +1604,34 @@ mod tests {
         assert_eq!(contact.get_name(), stock_str::self_msg(&t).await);
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
+    }
+
+    #[async_std::test]
+    async fn test_delete() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        assert!(Contact::delete(&alice, DC_CONTACT_ID_SELF).await.is_err());
+
+        // Create Bob contact
+        let (contact_id, _) =
+            Contact::add_or_lookup(&alice, "Bob", "bob@example.net", Origin::ManuallyCreated)
+                .await
+                .unwrap();
+
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.net")
+            .await;
+
+        // Can't delete a contact with ongoing chats.
+        assert!(Contact::delete(&alice, contact_id).await.is_err());
+
+        // Delete chat.
+        chat.get_id().delete(&alice).await?;
+
+        // Can delete contact now.
+        Contact::delete(&alice, contact_id).await?;
+
+        Ok(())
     }
 
     #[async_std::test]
