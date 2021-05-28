@@ -17,7 +17,7 @@ async fn address_book_benchmark(n: u32, read_count: u32) {
         .collect::<Vec<String>>()
         .join("");
 
-    Contact::add_address_book(&context, book).await.unwrap();
+    Contact::add_address_book(&context, &book).await.unwrap();
 
     let query: Option<&str> = None;
     for _ in 0..read_count {
