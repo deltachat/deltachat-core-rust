@@ -3986,4 +3986,33 @@ YEAAAAAA!.
             .await,
         );
     }
+
+    #[async_std::test]
+    async fn test_dont_show_all_outgoing_msgs_in_self_chat() {
+        // Regression test for https://github.com/deltachat/deltachat-android/issues/1940:
+        // Some servers add a `Bcc: <Self>` header, which caused all outgoing messages to
+        // be shown in the self-chat.
+        let t = TestContext::new_alice().await;
+
+        dc_receive_imf(
+            &t,
+            b"Bcc: alice@example.com
+Received: from [127.0.0.1]
+Subject: s
+Chat-Version: 1.0
+Message-ID: <abcd@gmail.com>
+To: <me@other.maildomain.com>
+From: <alice@example.com>
+
+Message content",
+            "Inbox",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let msg = t.get_last_msg().await;
+        assert_ne!(msg.chat_id, t.get_self_chat().await.id);
+    }
 }
