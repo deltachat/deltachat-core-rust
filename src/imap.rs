@@ -709,7 +709,7 @@ impl Imap {
                 current_uid,
                 &headers,
                 &msg_id,
-                &msg,
+                msg.flags(),
                 folder,
                 show_emails,
             )
@@ -1334,7 +1334,7 @@ impl Imap {
                 let folder_meaning = get_folder_meaning(&folder);
                 let folder_name_meaning = get_folder_meaning_by_name(folder.name());
                 if folder.name() == "DeltaChat" {
-                    // Always takes precedence
+                    // Always takes precendence
                     mvbox_folder = Some(folder.name().to_string());
                 } else if folder.name() == fallback_folder {
                     // only set if none has been already set
@@ -1636,7 +1636,7 @@ fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> 
 pub(crate) async fn prefetch_should_download(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
-    msg: &Fetch,
+    mut flags: impl Iterator<Item = Flag<'_>>,
     show_emails: ShowEmails,
 ) -> Result<bool> {
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
@@ -1679,7 +1679,7 @@ pub(crate) async fn prefetch_should_download(
     // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
     // (prevent_rename is the last argument of from_field_to_contact_id())
 
-    if msg.flags().any(|f| f == Flag::Draft) && from_id == DC_CONTACT_ID_SELF {
+    if flags.any(|f| f == Flag::Draft) && from_id == DC_CONTACT_ID_SELF {
         info!(context, "Ignoring draft message");
         return Ok(false);
     }
@@ -1703,7 +1703,7 @@ async fn message_needs_processing(
     current_uid: u32,
     headers: &[mailparse::MailHeader<'_>],
     msg_id: &str,
-    msg: &Fetch,
+    flags: impl Iterator<Item = Flag<'_>>,
     folder: &str,
     show_emails: ShowEmails,
 ) -> bool {
@@ -1727,7 +1727,7 @@ async fn message_needs_processing(
     // we do not know the message-id
     // or the message-id is missing (in this case, we create one in the further process)
     // or some other error happened
-    let show = match prefetch_should_download(context, headers, msg, show_emails).await {
+    let show = match prefetch_should_download(context, headers, flags, show_emails).await {
         Ok(show) => show,
         Err(err) => {
             warn!(context, "prefetch_should_download error: {}", err);
