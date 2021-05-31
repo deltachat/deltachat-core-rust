@@ -1,11 +1,11 @@
-FROM quay.io/pypa/manylinux2010_x86_64
+FROM quay.io/pypa/manylinux2014_x86_64
 
 # Configure ld.so/ldconfig and pkg-config
 RUN echo /usr/local/lib64 > /etc/ld.so.conf.d/local.conf && \
     echo /usr/local/lib >> /etc/ld.so.conf.d/local.conf
 ENV PKG_CONFIG_PATH /usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig
 
-# Install a recent Perl, needed to install the openssl crate 
+# Install a recent Perl, needed to install the openssl crate
 ADD deps/build_perl.sh /builder/build_perl.sh
 RUN rm /usr/bin/perl
 RUN mkdir tmp1 && cd tmp1 && bash /builder/build_perl.sh && cd .. && rm -r tmp1

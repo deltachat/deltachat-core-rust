@@ -51,7 +51,7 @@ pub enum Oauth2Authorizer {
     Gmail = 2,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Server {
     pub protocol: Protocol,
     pub socket: Socket,
@@ -60,13 +60,13 @@ pub struct Server {
     pub username_pattern: UsernamePattern,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ConfigDefault {
     pub key: Config,
     pub value: &'static str,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Provider {
     /// Unique ID, corresponding to provider database filename.
     pub id: &'static str,
@@ -115,14 +115,14 @@ pub fn get_provider_by_domain(domain: &str) -> Option<&'static Provider> {
 /// Finds a provider based on MX record for the given domain.
 ///
 /// For security reasons, only Gmail can be configured this way.
-pub async fn get_provider_by_mx(domain: impl AsRef<str>) -> Option<&'static Provider> {
+pub async fn get_provider_by_mx(domain: &str) -> Option<&'static Provider> {
     if let Ok(resolver) = resolver(
         config::ResolverConfig::default(),
         config::ResolverOpts::default(),
     )
     .await
     {
-        let mut fqdn: String = String::from(domain.as_ref());
+        let mut fqdn: String = domain.to_string();
         if !fqdn.ends_with('.') {
             fqdn.push('.');
         }

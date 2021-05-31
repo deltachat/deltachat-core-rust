@@ -1120,9 +1120,9 @@ int             dc_estimate_deletion_cnt    (dc_context_t* context, int from_ser
  * or badge counters eg. on the app-icon.
  * The list is already sorted and starts with the most recent fresh message.
  *
- * Messages belonging to muted chats are not returned,
- * as they should not be notified
- * and also a badge counters should not include messages of muted chats.
+ * Messages belonging to muted chats or to the deaddrop are not returned;
+ * these messages should not be notified
+ * and also badge counters should not include these messages.
  *
  * To get the number of fresh messages for a single chat, muted or not,
  * use dc_get_fresh_msg_cnt().
@@ -1146,7 +1146,8 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
- * @param chat_id The chat ID of which all messages should be marked as being noticed.
+ * @param chat_id The chat ID of which all messages should be marked as being noticed
+ *     (this also works for the virtual chat ID DC_CHAT_ID_DEADDROP).
  */
 void            dc_marknoticed_chat          (dc_context_t* context, uint32_t chat_id);
 
@@ -1313,6 +1314,12 @@ uint32_t dc_get_chat_ephemeral_timer (dc_context_t* context, uint32_t chat_id);
  * Global chat results are typically displayed using dc_msg_get_summary(), chat
  * search results may just hilite the corresponding messages and present a
  * prev/next button.
+ *
+ * For global search, result is limited to 1000 messages,
+ * this allows incremental search done fast.
+ * So, when getting exactly 1000 results, the result may be truncated;
+ * the UIs may display sth. as "1000+ messages found" in this case.
+ * Chat search (if a chat_id is set) is not limited.
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -1629,13 +1636,22 @@ void            dc_marknoticed_contact       (dc_context_t* context, uint32_t co
 
 
 /**
- * Mark a message as _seen_, updates the IMAP state and
- * sends MDNs. If the message is not in a real chat (e.g. a contact request), the
- * message is only marked as NOTICED and no IMAP/MDNs is done.  See also
- * dc_marknoticed_chat().
+ * Mark messages as presented to the user.
+ * Typically, UIs call this function on scrolling through the chatlist,
+ * when the messages are presented at least for a little moment.
+ * The concrete action depends on the type of the chat and on the users settings
+ * (dc_msgs_presented() may be a better name therefore, but well :)
  *
- * Moreover, if messages belong to a chat with ephemeral messages enabled,
- * the ephemeral timer is started for these messages.
+ * - For normal chats, the IMAP state is updated, MDN is sent
+ *   (if dc_set_config()-options `mdns_enabled` is set)
+ *   and the internal state is changed to DC_STATE_IN_SEEN to reflect these actions.
+ *
+ * - For the deaddrop, no IMAP or MNDs is done
+ *   and the internal change is not changed therefore.
+ *   See also dc_marknoticed_chat().
+ *
+ * Moreover, timer is started for incoming ephemeral messages.
+ * This also happens for messages in the deaddrop.
  *
  * One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.
  *
@@ -3016,7 +3032,7 @@ char*           dc_chat_get_name             (const dc_chat_t* chat);
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
- * @return Path and file if the profile image, if any.
+ * @return Path and file of the profile image, if any.
  *     NULL otherwise.
  *     Must be released using dc_str_unref() after usage.
  */
@@ -3101,7 +3117,7 @@ int             dc_chat_is_device_talk       (const dc_chat_t* chat);
 
 
 /**
- * Check if messages can be sent to a give chat.
+ * Check if messages can be sent to a given chat.
  * This is not true e.g. for the deaddrop or for the device-talk, cmp. dc_chat_is_device_talk().
  *
  * Calling dc_send_msg() for these chats will fail
@@ -5642,6 +5658,11 @@ void dc_event_unref(dc_event_t* event);
 //
 /// `%1$s` will be replaced by the number of weeks (always >1) the timer is set to.
 #define DC_STR_EPHEMERAL_WEEKS            96
+
+/// "Forwarded"
+///
+/// Used in message summary text for notifications and chatlist.
+#define DC_STR_FORWARDED                  97
 
 /**
  * @}

@@ -198,6 +198,8 @@ pub enum EventType {
     /// - Messages sent, received or removed
     /// - Chats created, deleted or archived
     /// - A draft has been set
+    ///
+    /// The `chat_id` and `msg_id` values will be 0 if more than one message is changed.
     #[strum(props(id = "2000"))]
     MsgsChanged { chat_id: ChatId, msg_id: MsgId },
 

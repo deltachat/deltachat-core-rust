@@ -1,4 +1,5 @@
 //! # Constants
+use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
@@ -15,9 +16,10 @@ pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION")
     Eq,
     FromPrimitive,
     ToPrimitive,
+    FromSql,
+    ToSql,
     Serialize,
     Deserialize,
-    sqlx::Type,
 )]
 #[repr(i8)]
 pub enum Blocked {
@@ -32,7 +34,9 @@ impl Default for Blocked {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(u8)]
 pub enum ShowEmails {
     Off = 0,
@@ -46,7 +50,9 @@ impl Default for ShowEmails {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(u8)]
 pub enum MediaQuality {
     Balanced = 0,
@@ -59,7 +65,9 @@ impl Default for MediaQuality {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(u8)]
 pub enum KeyGenType {
     Default = 0,
@@ -73,7 +81,9 @@ impl Default for KeyGenType {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(i8)]
 pub enum VideochatType {
     Unknown = 0,
@@ -133,10 +143,11 @@ pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
     Eq,
     FromPrimitive,
     ToPrimitive,
+    FromSql,
+    ToSql,
     IntoStaticStr,
     Serialize,
     Deserialize,
-    sqlx::Type,
 )]
 #[repr(u32)]
 pub enum Chattype {
@@ -247,9 +258,10 @@ pub const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
     Eq,
     FromPrimitive,
     ToPrimitive,
+    FromSql,
+    ToSql,
     Serialize,
     Deserialize,
-    sqlx::Type,
 )]
 #[repr(u32)]
 pub enum Viewtype {
@@ -310,16 +322,6 @@ impl Default for Viewtype {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn derive_display_works_as_expected() {
-        assert_eq!(format!("{}", Viewtype::Audio), "Audio");
-    }
-}
-
 pub const DC_JOB_DELETE_MSG_ON_IMAP: i32 = 110;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
@@ -327,4 +329,101 @@ pub const DC_JOB_DELETE_MSG_ON_IMAP: i32 = 110;
 pub enum KeyType {
     Public = 0,
     Private = 1,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use num_traits::FromPrimitive;
+
+    #[test]
+    fn test_derive_display_works_as_expected() {
+        assert_eq!(format!("{}", Viewtype::Audio), "Audio");
+    }
+
+    #[test]
+    fn test_viewtype_values() {
+        // values may be written to disk and must not change
+        assert_eq!(Viewtype::Unknown, Viewtype::default());
+        assert_eq!(Viewtype::Unknown, Viewtype::from_i32(0).unwrap());
+        assert_eq!(Viewtype::Text, Viewtype::from_i32(10).unwrap());
+        assert_eq!(Viewtype::Image, Viewtype::from_i32(20).unwrap());
+        assert_eq!(Viewtype::Gif, Viewtype::from_i32(21).unwrap());
+        assert_eq!(Viewtype::Sticker, Viewtype::from_i32(23).unwrap());
+        assert_eq!(Viewtype::Audio, Viewtype::from_i32(40).unwrap());
+        assert_eq!(Viewtype::Voice, Viewtype::from_i32(41).unwrap());
+        assert_eq!(Viewtype::Video, Viewtype::from_i32(50).unwrap());
+        assert_eq!(Viewtype::File, Viewtype::from_i32(60).unwrap());
+        assert_eq!(
+            Viewtype::VideochatInvitation,
+            Viewtype::from_i32(70).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_chattype_values() {
+        // values may be written to disk and must not change
+        assert_eq!(Chattype::Undefined, Chattype::default());
+        assert_eq!(Chattype::Undefined, Chattype::from_i32(0).unwrap());
+        assert_eq!(Chattype::Single, Chattype::from_i32(100).unwrap());
+        assert_eq!(Chattype::Group, Chattype::from_i32(120).unwrap());
+        assert_eq!(Chattype::Mailinglist, Chattype::from_i32(140).unwrap());
+    }
+
+    #[test]
+    fn test_keygentype_values() {
+        // values may be written to disk and must not change
+        assert_eq!(KeyGenType::Default, KeyGenType::default());
+        assert_eq!(KeyGenType::Default, KeyGenType::from_i32(0).unwrap());
+        assert_eq!(KeyGenType::Rsa2048, KeyGenType::from_i32(1).unwrap());
+        assert_eq!(KeyGenType::Ed25519, KeyGenType::from_i32(2).unwrap());
+    }
+
+    #[test]
+    fn test_keytype_values() {
+        // values may be written to disk and must not change
+        assert_eq!(KeyType::Public, KeyType::from_i32(0).unwrap());
+        assert_eq!(KeyType::Private, KeyType::from_i32(1).unwrap());
+    }
+
+    #[test]
+    fn test_showemails_values() {
+        // values may be written to disk and must not change
+        assert_eq!(ShowEmails::Off, ShowEmails::default());
+        assert_eq!(ShowEmails::Off, ShowEmails::from_i32(0).unwrap());
+        assert_eq!(
+            ShowEmails::AcceptedContacts,
+            ShowEmails::from_i32(1).unwrap()
+        );
+        assert_eq!(ShowEmails::All, ShowEmails::from_i32(2).unwrap());
+    }
+
+    #[test]
+    fn test_blocked_values() {
+        // values may be written to disk and must not change
+        assert_eq!(Blocked::Not, Blocked::default());
+        assert_eq!(Blocked::Not, Blocked::from_i32(0).unwrap());
+        assert_eq!(Blocked::Manually, Blocked::from_i32(1).unwrap());
+        assert_eq!(Blocked::Deaddrop, Blocked::from_i32(2).unwrap());
+    }
+
+    #[test]
+    fn test_mediaquality_values() {
+        // values may be written to disk and must not change
+        assert_eq!(MediaQuality::Balanced, MediaQuality::default());
+        assert_eq!(MediaQuality::Balanced, MediaQuality::from_i32(0).unwrap());
+        assert_eq!(MediaQuality::Worse, MediaQuality::from_i32(1).unwrap());
+    }
+
+    #[test]
+    fn test_videochattype_values() {
+        // values may be written to disk and must not change
+        assert_eq!(VideochatType::Unknown, VideochatType::default());
+        assert_eq!(VideochatType::Unknown, VideochatType::from_i32(0).unwrap());
+        assert_eq!(
+            VideochatType::BasicWebrtc,
+            VideochatType::from_i32(1).unwrap()
+        );
+        assert_eq!(VideochatType::Jitsi, VideochatType::from_i32(2).unwrap());
+    }
 }

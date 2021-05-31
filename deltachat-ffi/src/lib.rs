@@ -21,6 +21,7 @@ use std::ptr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
+use anyhow::Context as _;
 use async_std::task::{block_on, spawn};
 use num_traits::{FromPrimitive, ToPrimitive};
 
@@ -130,12 +131,14 @@ pub unsafe extern "C" fn dc_set_config(
         return 0;
     }
     let ctx = &*context;
-    match config::Config::from_str(&to_string_lossy(key)) {
-        // When ctx.set_config() fails it already logged the error.
-        // TODO: Context::set_config() should not log this
+    let key = to_string_lossy(key);
+    match config::Config::from_str(&key) {
         Ok(key) => block_on(async move {
-            ctx.set_config(key, to_opt_string_lossy(value).as_deref())
+            let value = to_opt_string_lossy(value);
+            ctx.set_config(key, value.as_deref())
                 .await
+                .with_context(|| format!("Can't set {} to {:?}", key, value))
+                .log_err(ctx, "dc_set_config() failed")
                 .is_ok() as libc::c_int
         }),
         Err(_) => {
@@ -290,7 +293,7 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     let redirect = to_string_lossy(redirect);
 
     block_on(async move {
-        match oauth2::dc_get_oauth2_url(&ctx, addr, redirect).await {
+        match oauth2::dc_get_oauth2_url(&ctx, &addr, &redirect).await {
             Some(res) => res.strdup(),
             None => ptr::null_mut(),
         }
@@ -658,7 +661,7 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
     let ctx = &*context;
 
     block_on(async move {
-        chat::create_by_contact_id(&ctx, contact_id)
+        ChatId::create_for_contact(&ctx, contact_id)
             .await
             .log_err(ctx, "Failed to create chat from contact_id")
             .map(|id| id.to_u32())
@@ -678,11 +681,12 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     let ctx = &*context;
 
     block_on(async move {
-        chat::get_by_contact_id(&ctx, contact_id)
+        ChatId::lookup_by_contact(&ctx, contact_id)
             .await
             .log_err(ctx, "Failed to get chat for contact_id")
+            .unwrap_or_default() // unwraps the Result
             .map(|id| id.to_u32())
-            .unwrap_or(0)
+            .unwrap_or(0) // unwraps the Option
     })
 }
 
@@ -1206,7 +1210,7 @@ pub unsafe extern "C" fn dc_search_msgs(
 
     block_on(async move {
         let arr = dc_array_t::from(
-            ctx.search_msgs(chat_id, to_string_lossy(query))
+            ctx.search_msgs(chat_id, &to_string_lossy(query))
                 .await
                 .unwrap_or_log_default(ctx, "Failed search_msgs")
                 .iter()
@@ -1255,7 +1259,7 @@ pub unsafe extern "C" fn dc_create_group_chat(
     };
 
     block_on(async move {
-        chat::create_group_chat(&ctx, protect, to_string_lossy(name))
+        chat::create_group_chat(&ctx, protect, &to_string_lossy(name))
             .await
             .log_err(ctx, "Failed to create group chat")
             .map(|id| id.to_u32())
@@ -1330,7 +1334,7 @@ pub unsafe extern "C" fn dc_set_chat_name(
     let ctx = &*context;
 
     block_on(async move {
-        chat::set_chat_name(&ctx, ChatId::new(chat_id), to_string_lossy(name))
+        chat::set_chat_name(&ctx, ChatId::new(chat_id), &to_string_lossy(name))
             .await
             .map(|_| 1)
             .unwrap_or_log_default(&ctx, "Failed to set chat name")
@@ -1527,8 +1531,7 @@ pub unsafe extern "C" fn dc_delete_msgs(
     let ctx = &*context;
     let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
 
-    block_on(message::delete_msgs(&ctx, &msg_ids));
-    info!(&ctx, "verbose (issue 2335): ffi called dc_delete_msgs()");
+    block_on(message::delete_msgs(&ctx, &msg_ids))
 }
 
 #[no_mangle]
@@ -1580,7 +1583,9 @@ pub unsafe extern "C" fn dc_markseen_msgs(
     let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
     let ctx = &*context;
 
-    block_on(message::markseen_msgs(&ctx, msg_ids));
+    block_on(message::markseen_msgs(&ctx, msg_ids))
+        .log_err(ctx, "failed dc_markseen_msgs() call")
+        .ok();
 }
 
 #[no_mangle]
@@ -1659,7 +1664,7 @@ pub unsafe extern "C" fn dc_create_contact(
     let name = to_string_lossy(name);
 
     block_on(async move {
-        Contact::create(&ctx, name, to_string_lossy(addr))
+        Contact::create(&ctx, &name, &to_string_lossy(addr))
             .await
             .unwrap_or(0)
     })
@@ -1677,7 +1682,7 @@ pub unsafe extern "C" fn dc_add_address_book(
     let ctx = &*context;
 
     block_on(async move {
-        match Contact::add_address_book(&ctx, to_string_lossy(addr_book)).await {
+        match Contact::add_address_book(&ctx, &to_string_lossy(addr_book)).await {
             Ok(cnt) => cnt as libc::c_int,
             Err(_) => 0,
         }
@@ -1844,7 +1849,7 @@ pub unsafe extern "C" fn dc_imex(
 
     if let Some(param1) = to_opt_string_lossy(param1) {
         spawn(async move {
-            imex::imex(&ctx, what, &param1)
+            imex::imex(&ctx, what, param1.as_ref())
                 .await
                 .log_err(ctx, "IMEX failed")
         });
@@ -1865,7 +1870,7 @@ pub unsafe extern "C" fn dc_imex_has_backup(
     let ctx = &*context;
 
     block_on(async move {
-        match imex::has_backup(&ctx, to_string_lossy(dir)).await {
+        match imex::has_backup(&ctx, to_string_lossy(dir).as_ref()).await {
             Ok(res) => res.strdup(),
             Err(err) => {
                 // do not bubble up error to the user,
@@ -1946,7 +1951,7 @@ pub unsafe extern "C" fn dc_check_qr(
     let ctx = &*context;
 
     block_on(async move {
-        let lot = qr::check_qr(&ctx, to_string_lossy(qr)).await;
+        let lot = qr::check_qr(&ctx, &to_string_lossy(qr)).await;
         Box::into_raw(Box::new(lot))
     })
 }

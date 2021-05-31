@@ -632,10 +632,17 @@ impl FromStr for EmailAddress {
     }
 }
 
+impl rusqlite::types::ToSql for EmailAddress {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        let val = rusqlite::types::Value::Text(self.to_string());
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
+    }
+}
+
 /// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
-pub(crate) fn improve_single_line_input(input: impl AsRef<str>) -> String {
+pub(crate) fn improve_single_line_input(input: &str) -> String {
     input
-        .as_ref()
         .replace("\n", " ")
         .replace("\r", " ")
         .trim()
@@ -879,16 +886,6 @@ mod tests {
         }
 
         assert!(!dc_delete_file(context, "$BLOBDIR/lkqwjelqkwlje").await);
-        if dc_file_exist!(context, "$BLOBDIR/foobar").await
-            || dc_file_exist!(context, "$BLOBDIR/dada").await
-            || dc_file_exist!(context, "$BLOBDIR/foobar.dadada").await
-            || dc_file_exist!(context, "$BLOBDIR/foobar-folder").await
-        {
-            dc_delete_file(context, "$BLOBDIR/foobar").await;
-            dc_delete_file(context, "$BLOBDIR/dada").await;
-            dc_delete_file(context, "$BLOBDIR/foobar.dadada").await;
-            dc_delete_file(context, "$BLOBDIR/foobar-folder").await;
-        }
         assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content")
             .await
             .is_ok());

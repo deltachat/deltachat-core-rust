@@ -15,6 +15,7 @@ git ls-files >.rsynclist
 # we seem to need .git for setuptools_scm versioning 
 find .git >>.rsynclist
 rsync --delete --files-from=.rsynclist -az ./ "$SSHTARGET:$BUILDDIR"
+rsync --delete --files-from=.rsynclist -az ./ "$SSHTARGET:$BUILDDIR-arm64"
 
 set +x
 
@@ -26,24 +27,41 @@ set +x
 # everything is terminated/cleaned up and we have no orphaned
 # useless still-running docker-containers consuming resources. 
 
-ssh $SSHTARGET bash -c "cat >$BUILDDIR/exec_docker_run" <<_HERE
+for arch in "" "-arm64"; do
+
+ssh $SSHTARGET bash -c "cat >${BUILDDIR}${arch}/exec_docker_run" <<_HERE
     set +x -e
     shopt -s huponexit
-    cd $BUILDDIR
+    cd ${BUILDDIR}${arch}
     export DCC_NEW_TMP_EMAIL=$DCC_NEW_TMP_EMAIL
     set -x
 
     # run everything else inside docker 
     docker run -e DCC_NEW_TMP_EMAIL \
        --rm -it -v \$(pwd):/mnt -w /mnt \
-       deltachat/coredeps ci_scripts/run_all.sh
+       deltachat/coredeps${arch} scripts/run_all.sh
 
 _HERE
 
+done
+
 echo "--- Running $CIRCLE_JOB remotely"
 
-ssh -t $SSHTARGET bash "$BUILDDIR/exec_docker_run"
+echo "--- Building aarch64 wheels"
+ssh -o ServerAliveInterval=30 -t $SSHTARGET bash "$BUILDDIR-arm64/exec_docker_run"
+
+echo "--- Building x86_64 wheels"
+ssh -o ServerAliveInterval=30 -t $SSHTARGET bash "$BUILDDIR/exec_docker_run"
+
 mkdir -p workspace 
-rsync -avz "$SSHTARGET:$BUILDDIR/python/.docker-tox/wheelhouse/*manylinux201*" workspace/wheelhouse/
-rsync -avz "$SSHTARGET:$BUILDDIR/python/.docker-tox/dist/*" workspace/wheelhouse/
+
+# Wheels
+for arch in "" "-arm64"; do
+rsync -avz "$SSHTARGET:$BUILDDIR${arch}/python/.docker-tox/wheelhouse/*manylinux201*" workspace/wheelhouse/
+done
+
+# Source packages
+rsync -avz "$SSHTARGET:$BUILDDIR${arch}/python/.docker-tox/dist/*" workspace/wheelhouse/
+
+# Documentation
 rsync -avz "$SSHTARGET:$BUILDDIR/python/doc/_build/" workspace/py-docs

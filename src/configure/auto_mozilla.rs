@@ -251,10 +251,10 @@ fn parse_serverparams(in_emailaddr: &str, xml_raw: &str) -> Result<Vec<ServerPar
 
 pub(crate) async fn moz_autoconfigure(
     context: &Context,
-    url: impl AsRef<str>,
+    url: &str,
     param_in: &LoginParam,
 ) -> Result<Vec<ServerParams>, Error> {
-    let xml_raw = read_url(context, url.as_ref()).await?;
+    let xml_raw = read_url(context, url).await?;
 
     let res = parse_serverparams(&param_in.addr, &xml_raw);
     if let Err(err) = &res {

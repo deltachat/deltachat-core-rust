@@ -8,8 +8,7 @@ use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
 use crate::blob::BlobObject;
-use crate::chat;
-use crate::chat::ProtectionStatus;
+use crate::chat::{self, ChatId, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::{Contact, Origin};
@@ -259,6 +258,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Message deletion timer is set to %1$s weeks."))]
     MsgEphemeralTimerWeeks = 96,
+
+    #[strum(props(fallback = "Forwarded"))]
+    Forwarded = 97,
 }
 
 impl StockMessage {
@@ -841,6 +843,11 @@ pub(crate) async fn msg_ephemeral_timer_weeks(
         .await
 }
 
+/// Stock string: `Forwarded`.
+pub(crate) async fn forwarded(context: &Context) -> String {
+    translated(context, StockMessage::Forwarded).await
+}
+
 impl Context {
     /// Set the stock string for the [StockMessage].
     ///
@@ -893,7 +900,7 @@ impl Context {
             self.sql
                 .set_raw_config_bool("self-chat-added", true)
                 .await?;
-            chat::create_by_contact_id(self, DC_CONTACT_ID_SELF).await?;
+            ChatId::create_for_contact(self, DC_CONTACT_ID_SELF).await?;
         }
 
         // add welcome-messages. by the label, this is done only once,
@@ -903,7 +910,7 @@ impl Context {
         chat::add_device_msg(self, Some("core-about-device-chat"), Some(&mut msg)).await?;
 
         let image = include_bytes!("../assets/welcome-image.jpg");
-        let blob = BlobObject::create(self, "welcome-image.jpg".to_string(), image).await?;
+        let blob = BlobObject::create(self, "welcome-image.jpg", image).await?;
         let mut msg = Message::new(Viewtype::Image);
         msg.param.set(Param::File, blob.as_name());
         chat::add_device_msg(self, Some("core-welcome-image"), Some(&mut msg)).await?;

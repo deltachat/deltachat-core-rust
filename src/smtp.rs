@@ -35,8 +35,6 @@ pub enum Error {
     Oauth2Error { address: String },
     #[error("TLS error {0}")]
     Tls(#[from] async_native_tls::Error),
-    #[error("Sql {0}")]
-    Sql(#[from] crate::sql::Error),
     #[error("{0}")]
     Other(#[from] anyhow::Error),
 }

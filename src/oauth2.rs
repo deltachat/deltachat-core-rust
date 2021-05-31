@@ -53,20 +53,20 @@ struct Response {
 
 pub async fn dc_get_oauth2_url(
     context: &Context,
-    addr: impl AsRef<str>,
-    redirect_uri: impl AsRef<str>,
+    addr: &str,
+    redirect_uri: &str,
 ) -> Option<String> {
     if let Some(oauth2) = Oauth2::from_address(addr).await {
         if context
             .sql
-            .set_raw_config("oauth2_pending_redirect_uri", Some(redirect_uri.as_ref()))
+            .set_raw_config("oauth2_pending_redirect_uri", Some(redirect_uri))
             .await
             .is_err()
         {
             return None;
         }
-        let oauth2_url = replace_in_uri(&oauth2.get_code, "$CLIENT_ID", &oauth2.client_id);
-        let oauth2_url = replace_in_uri(&oauth2_url, "$REDIRECT_URI", redirect_uri.as_ref());
+        let oauth2_url = replace_in_uri(oauth2.get_code, "$CLIENT_ID", oauth2.client_id);
+        let oauth2_url = replace_in_uri(&oauth2_url, "$REDIRECT_URI", redirect_uri);
 
         Some(oauth2_url)
     } else {
@@ -76,8 +76,8 @@ pub async fn dc_get_oauth2_url(
 
 pub async fn dc_get_oauth2_access_token(
     context: &Context,
-    addr: impl AsRef<str>,
-    code: impl AsRef<str>,
+    addr: &str,
+    code: &str,
     regenerate: bool,
 ) -> Result<Option<String>> {
     if let Some(oauth2) = Oauth2::from_address(addr).await {
@@ -101,7 +101,7 @@ pub async fn dc_get_oauth2_access_token(
             .unwrap_or_else(|| "unset".into());
 
         let (redirect_uri, token_url, update_redirect_uri_on_success) =
-            if refresh_token.is_none() || refresh_token_for != code.as_ref() {
+            if refresh_token.is_none() || refresh_token_for != code {
                 info!(context, "Generate OAuth2 refresh_token and access_token...",);
                 (
                     context
@@ -145,7 +145,7 @@ pub async fn dc_get_oauth2_access_token(
             } else if value == "$REDIRECT_URI" {
                 value = &redirect_uri;
             } else if value == "$CODE" {
-                value = code.as_ref();
+                value = code;
             } else if value == "$REFRESH_TOKEN" && refresh_token.is_some() {
                 value = refresh_token.as_ref().unwrap();
             }
@@ -179,7 +179,7 @@ pub async fn dc_get_oauth2_access_token(
                 .await?;
             context
                 .sql
-                .set_raw_config("oauth2_refresh_token_for", Some(code.as_ref()))
+                .set_raw_config("oauth2_refresh_token_for", Some(code))
                 .await?;
         }
 
@@ -222,10 +222,10 @@ pub async fn dc_get_oauth2_access_token(
 
 pub async fn dc_get_oauth2_addr(
     context: &Context,
-    addr: impl AsRef<str>,
-    code: impl AsRef<str>,
+    addr: &str,
+    code: &str,
 ) -> Result<Option<String>> {
-    let oauth2 = match Oauth2::from_address(addr.as_ref()).await {
+    let oauth2 = match Oauth2::from_address(addr).await {
         Some(o) => o,
         None => return Ok(None),
     };
@@ -233,16 +233,14 @@ pub async fn dc_get_oauth2_addr(
         return Ok(None);
     }
 
-    if let Some(access_token) =
-        dc_get_oauth2_access_token(context, addr.as_ref(), code.as_ref(), false).await?
-    {
-        let addr_out = oauth2.get_addr(context, access_token).await;
+    if let Some(access_token) = dc_get_oauth2_access_token(context, addr, code, false).await? {
+        let addr_out = oauth2.get_addr(context, &access_token).await;
         if addr_out.is_none() {
             // regenerate
             if let Some(access_token) =
                 dc_get_oauth2_access_token(context, addr, code, true).await?
             {
-                Ok(oauth2.get_addr(context, access_token).await)
+                Ok(oauth2.get_addr(context, &access_token).await)
             } else {
                 Ok(None)
             }
@@ -255,8 +253,8 @@ pub async fn dc_get_oauth2_addr(
 }
 
 impl Oauth2 {
-    async fn from_address(addr: impl AsRef<str>) -> Option<Self> {
-        let addr_normalized = normalize_addr(addr.as_ref());
+    async fn from_address(addr: &str) -> Option<Self> {
+        let addr_normalized = normalize_addr(addr);
         if let Some(domain) = addr_normalized
             .find('@')
             .map(|index| addr_normalized.split_at(index + 1).1)
@@ -274,9 +272,9 @@ impl Oauth2 {
         None
     }
 
-    async fn get_addr(&self, context: &Context, access_token: impl AsRef<str>) -> Option<String> {
+    async fn get_addr(&self, context: &Context, access_token: &str) -> Option<String> {
         let userinfo_url = self.get_userinfo.unwrap_or("");
-        let userinfo_url = replace_in_uri(&userinfo_url, "$ACCESS_TOKEN", access_token);
+        let userinfo_url = replace_in_uri(userinfo_url, "$ACCESS_TOKEN", access_token);
 
         // should returns sth. as
         // {
@@ -309,7 +307,7 @@ impl Oauth2 {
     }
 }
 
-async fn is_expired(context: &Context) -> Result<bool, crate::sql::Error> {
+async fn is_expired(context: &Context) -> Result<bool> {
     let expire_timestamp = context
         .sql
         .get_raw_config_int64("oauth2_timestamp_expires")
@@ -326,9 +324,9 @@ async fn is_expired(context: &Context) -> Result<bool, crate::sql::Error> {
     Ok(true)
 }
 
-fn replace_in_uri(uri: impl AsRef<str>, key: impl AsRef<str>, value: impl AsRef<str>) -> String {
-    let value_urlencoded = utf8_percent_encode(value.as_ref(), NON_ALPHANUMERIC).to_string();
-    uri.as_ref().replace(key.as_ref(), &value_urlencoded)
+fn replace_in_uri(uri: &str, key: &str, value: &str) -> String {
+    let value_urlencoded = utf8_percent_encode(value, NON_ALPHANUMERIC).to_string();
+    uri.replace(key, &value_urlencoded)
 }
 
 fn normalize_addr(addr: &str) -> &str {

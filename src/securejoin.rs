@@ -9,7 +9,7 @@ use async_std::sync::Mutex;
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::{self, Chat, ChatId};
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_LAST_SPECIAL};
 use crate::contact::{Contact, Origin, VerifiedStatus};
@@ -23,7 +23,6 @@ use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus, ToSave};
 use crate::qr::check_qr;
-use crate::sql;
 use crate::stock_str;
 use crate::token;
 
@@ -267,8 +266,6 @@ pub enum JoinError {
     #[error("Unknown contact (this is a bug)")]
     UnknownContact(#[source] anyhow::Error),
     // Note that this can only occur if we failed to create the chat correctly.
-    #[error("No Chat found for group (this is a bug)")]
-    MissingChat(#[source] sql::Error),
     #[error("Ongoing sender dropped (this is a bug)")]
     OngoingSenderDropped,
     #[error("Other")]
@@ -299,7 +296,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
     ========================================================*/
 
     info!(context, "Requesting secure-join ...",);
-    let qr_scan = check_qr(context, &qr).await;
+    let qr_scan = check_qr(context, qr).await;
 
     let invite = QrInvite::try_from(qr_scan)?;
 
@@ -307,7 +304,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
         StartedProtocolVariant::SetupContact => {
             // for a one-to-one-chat, the chat is already known, return the chat-id,
             // the verification runs in background
-            let chat_id = chat::create_by_contact_id(context, invite.contact_id())
+            let chat_id = ChatId::create_for_contact(context, invite.contact_id())
                 .await
                 .map_err(JoinError::UnknownContact)?;
             Ok(chat_id)
@@ -335,7 +332,9 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
                         Err(err) => {
                             if start.elapsed() > Duration::from_secs(7) {
                                 context.free_ongoing().await;
-                                return Err(JoinError::MissingChat(err));
+                                return Err(err
+                                    .context("Ongoing sender dropped (this is a bug)")
+                                    .into());
                             }
                         }
                     }
@@ -366,9 +365,9 @@ async fn send_handshake_msg(
     context: &Context,
     contact_chat_id: ChatId,
     step: &str,
-    param2: impl AsRef<str>,
+    param2: &str,
     fingerprint: Option<Fingerprint>,
-    grpid: impl AsRef<str>,
+    grpid: &str,
 ) -> Result<(), SendMsgError> {
     let mut msg = Message {
         viewtype: Viewtype::Text,
@@ -382,14 +381,14 @@ async fn send_handshake_msg(
     } else {
         msg.param.set(Param::Arg, step);
     }
-    if !param2.as_ref().is_empty() {
+    if !param2.is_empty() {
         msg.param.set(Param::Arg2, param2);
     }
     if let Some(fp) = fingerprint {
         msg.param.set(Param::Arg3, fp.hex());
     }
-    if !grpid.as_ref().is_empty() {
-        msg.param.set(Param::Arg4, grpid.as_ref());
+    if !grpid.is_empty() {
+        msg.param.set(Param::Arg4, grpid);
     }
     if step == "vg-request" || step == "vc-request" {
         msg.param.set_int(Param::ForcePlaintext, 1);
@@ -499,19 +498,18 @@ pub(crate) async fn handle_securejoin_handshake(
     );
 
     let contact_chat_id = {
-        let (chat_id, blocked) =
-            chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Failed to look up or create chat for contact {}",
-                        contact_id
-                    )
-                })?;
-        if blocked != Blocked::Not {
-            chat_id.unblock(context).await;
+        let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Not)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to look up or create chat for contact {}",
+                    contact_id
+                )
+            })?;
+        if chat.blocked != Blocked::Not {
+            chat.id.unblock(context).await;
         }
-        chat_id
+        chat.id
     };
 
     let join_vg = step.starts_with("vg-");
@@ -669,8 +667,9 @@ pub(crate) async fn handle_securejoin_handshake(
                     }
                     Err(err) => {
                         error!(context, "Chat {} not found: {}", &field_grpid, err);
-                        return Err(Error::new(err)
-                            .context(format!("Chat for group {} not found", &field_grpid)));
+                        return Err(
+                            err.context(format!("Chat for group {} not found", &field_grpid))
+                        );
                     }
                 }
             } else {
@@ -745,8 +744,9 @@ pub(crate) async fn handle_securejoin_handshake(
                         .unwrap_or_else(|| "");
                     if let Err(err) = chat::get_chat_id_by_grpid(context, &field_grpid).await {
                         warn!(context, "Failed to lookup chat_id from grpid: {}", err);
-                        return Err(Error::new(err)
-                            .context(format!("Chat for group {} not found", &field_grpid)));
+                        return Err(
+                            err.context(format!("Chat for group {} not found", &field_grpid))
+                        );
                     }
                 }
                 Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device
@@ -793,19 +793,18 @@ pub(crate) async fn observe_securejoin_on_other_device(
     info!(context, "observing secure-join message \'{}\'", step);
 
     let contact_chat_id = {
-        let (chat_id, blocked) =
-            chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Failed to look up or create chat for contact {}",
-                        contact_id
-                    )
-                })?;
-        if blocked != Blocked::Not {
-            chat_id.unblock(context).await;
+        let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Not)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to look up or create chat for contact {}",
+                    contact_id
+                )
+            })?;
+        if chat.blocked != Blocked::Not {
+            chat.id.unblock(context).await;
         }
-        chat_id
+        chat.id
     };
 
     match step.as_str() {

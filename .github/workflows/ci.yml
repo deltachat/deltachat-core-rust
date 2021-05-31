@@ -65,26 +65,16 @@ jobs:
 
   build_and_test:
     name: Build and test
-    runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       matrix:
-        # macOS disabled due to random failures related to caching
-        #os: [ubuntu-latest, windows-latest, macOS-latest]
-        os: [ubuntu-latest, windows-latest]
-        rust: [1.50.0]
-        experimental: [false]
-#        include:
-#          - os: ubuntu-latest
-#            rust: nightly
-#            experimental: true
-#          - os: windows-latest
-#            rust: nightly
-#            experimental: true
-#          - os: macOS-latest
-#            rust: nightly
-#            experimental: true
-
+        include:
+          - os: ubuntu-latest
+            rust: 1.50.0
+            python: 3.6
+          - os: windows-latest
+            rust: 1.50.0
+            python: false # Python bindings compilation on Windows is not supported.
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@master
 
@@ -114,8 +104,10 @@ jobs:
 
     - name: check
       uses: actions-rs/cargo@v1
+      env:
+        RUSTFLAGS: -D warnings
       with:
-        command:  check
+        command: check
         args: --all --bins --examples --tests --features repl
 
     - name: tests
@@ -123,3 +115,29 @@ jobs:
       with:
         command: test
         args: --all
+
+    - name: install python
+      if: ${{ matrix.python }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python }}
+
+    - name: install tox
+      if: ${{ matrix.python }}
+      run: pip install tox
+
+    - name: build C library
+      if: ${{ matrix.python }}
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: -p deltachat_ffi
+
+    - name: run python tests
+      if: ${{ matrix.python }}
+      env:
+        DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+        DCC_RS_TARGET: debug
+        DCC_RS_DEV: ${{ github.workspace }}
+      working-directory: python
+      run: tox -e lint,doc,py3

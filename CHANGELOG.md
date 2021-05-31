@@ -8,6 +8,83 @@
   and `dc_get_connectivity_html()`;
   `DC_EVENT_CONNECTIVITY_CHANGED` is emitted on changes
 
+## 1.55.0
+
+- fix panic when receiving some HTML messages #2434
+
+- fix downloading some messages multiple times #2430
+
+- fix formatting of read receipt texts #2431
+
+- simplify SQL error handling #2415
+
+- explicit rust API for creating chats with blocked status #2282
+
+- debloat the binary by using less AsRef arguments #2425
+
+
+## 1.54.0
+
+- switch back from `sqlx` to `rusqlite` due to performance regressions #2380 #2381 #2385 #2387
+
+- global search performance improvement #2364 #2365 #2366
+
+- improve SQLite performance with `PRAGMA synchronous=normal` #2382
+
+- python: fix building of bindings against system-wide install of `libdeltachat` #2383 #2385
+
+- python: list `requests` as a requirement #2390
+
+- fix creation of many delete jobs when being offline #2372
+
+- synchronize status between devices #2386
+
+- deaddrop (contact requests) chat improvements #2373
+
+- add "Forwarded:" to notification and chatlist summaries #2310
+
+- place user avatar directly into `Chat-User-Avatar` header #2232 #2384
+
+- improve tests #2360 #2362 #2370 #2377 #2387
+
+- cleanup #2359 #2361 #2374 #2376 #2379 #2388
+
+
+## 1.53.0
+
+- fix sqlx performance regression #2355 2356
+
+- add a `ci_scripts/coverage.sh` #2333 #2334
+
+- refactorings and tests #2348 #2349 #2350
+
+- improve python bindings #2332 #2326
+
+
+## 1.52.0
+
+- database library changed from rusqlite to sqlx #2089 #2331 #2336 #2340
+
+- add alias support: UIs should check for `dc_msg_get_override_sender_name()`
+  also in single-chats now and display divergent names and avatars #2297
+
+- parse blockquote-tags for better quote detection #2313
+
+- ignore unknown classical emails from spam folder #2311
+
+- support "Mixed Up” encryption repairing #2321
+
+- fix single chat search #2344
+
+- fix nightly clippy and rustc errors #2341
+
+- update dependencies #2350
+
+- improve ci #2342
+
+- improve python bindings #2332 #2326
+
+
 ## 1.51.0
 
 - breaking change: You have to call `dc_stop_io()`/`dc_start_io()`

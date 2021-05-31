@@ -25,7 +25,7 @@ pub(crate) struct ServerParams {
 }
 
 impl ServerParams {
-    pub(crate) fn expand_usernames(mut self, addr: &str) -> Vec<ServerParams> {
+    fn expand_usernames(mut self, addr: &str) -> Vec<ServerParams> {
         let mut res = Vec::new();
 
         if self.username.is_empty() {
@@ -42,7 +42,7 @@ impl ServerParams {
         res
     }
 
-    pub(crate) fn expand_hostnames(mut self, param_domain: &str) -> Vec<ServerParams> {
+    fn expand_hostnames(mut self, param_domain: &str) -> Vec<ServerParams> {
         let mut res = Vec::new();
         if self.hostname.is_empty() {
             self.hostname = param_domain.to_string();
@@ -62,7 +62,7 @@ impl ServerParams {
         res
     }
 
-    pub(crate) fn expand_ports(mut self) -> Vec<ServerParams> {
+    fn expand_ports(mut self) -> Vec<ServerParams> {
         // Try to infer port from socket security.
         if self.port == 0 {
             self.port = match self.socket {
@@ -159,6 +159,38 @@ mod tests {
                 socket: Socket::Ssl,
                 username: "foobar".to_string(),
             }],
+        );
+
+        let v = expand_param_vector(
+            vec![ServerParams {
+                protocol: Protocol::Smtp,
+                hostname: "example.net".to_string(),
+                port: 123,
+                socket: Socket::Automatic,
+                username: "foobar".to_string(),
+            }],
+            "foobar@example.net",
+            "example.net",
+        );
+
+        assert_eq!(
+            v,
+            vec![
+                ServerParams {
+                    protocol: Protocol::Smtp,
+                    hostname: "example.net".to_string(),
+                    port: 123,
+                    socket: Socket::Ssl,
+                    username: "foobar".to_string()
+                },
+                ServerParams {
+                    protocol: Protocol::Smtp,
+                    hostname: "example.net".to_string(),
+                    port: 123,
+                    socket: Socket::Starttls,
+                    username: "foobar".to_string()
+                }
+            ],
         );
     }
 }

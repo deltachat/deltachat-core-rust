@@ -534,29 +534,21 @@ impl Imap {
         // Write collected UIDs to SQLite database.
         context
             .sql
-            .transaction(|conn| {
-                Box::pin(async move {
-                    sqlx::query("UPDATE msgs SET server_uid=0 WHERE server_folder=?")
-                        .bind(&folder)
-                        .execute(&mut *conn)
-                        .await?;
-
-                    for (uid, rfc724_mid) in &msg_ids {
-                        // This may detect previously undetected moved
-                        // messages, so we update server_folder too.
-                        sqlx::query(
-                            "UPDATE msgs \
+            .transaction(move |transaction| {
+                transaction.execute(
+                    "UPDATE msgs SET server_uid=0 WHERE server_folder=?",
+                    params![folder],
+                )?;
+                for (uid, rfc724_mid) in &msg_ids {
+                    // This may detect previously undetected moved
+                    // messages, so we update server_folder too.
+                    transaction.execute(
+                        "UPDATE msgs \
                              SET server_folder=?,server_uid=? WHERE rfc724_mid=?",
-                        )
-                        .bind(&folder)
-                        .bind(uid)
-                        .bind(rfc724_mid)
-                        .execute(&mut *conn)
-                        .await?;
-                    }
-
-                    Ok(())
-                })
+                        params![folder, uid, rfc724_mid],
+                    )?;
+                }
+                Ok(())
             })
             .await?;
         Ok(())
@@ -731,7 +723,7 @@ impl Imap {
         }
 
         let (largest_uid_processed, error_cnt) = self
-            .fetch_many_msgs(context, &folder, uids, fetch_existing_msgs)
+            .fetch_many_msgs(context, folder, uids, fetch_existing_msgs)
             .await;
         read_errors += error_cnt;
 
@@ -879,10 +871,10 @@ impl Imap {
     /// Fetches a list of messages by server UID.
     ///
     /// Returns the last uid fetch successfully and an error count.
-    async fn fetch_many_msgs<S: AsRef<str>>(
+    async fn fetch_many_msgs(
         &mut self,
         context: &Context,
-        folder: S,
+        folder: &str,
         server_uids: Vec<u32>,
         fetching_existing_messages: bool,
     ) -> (Option<u32>, usize) {
@@ -920,14 +912,14 @@ impl Imap {
                         context,
                         "Error on fetching messages #{} from folder \"{}\"; error={}.",
                         &set,
-                        folder.as_ref(),
+                        folder,
                         err
                     );
                     return (None, server_uids.len());
                 }
             };
 
-            let folder = folder.as_ref().to_string();
+            let folder = folder.to_string();
 
             while let Some(Ok(msg)) = msgs.next().await {
                 let server_uid = msg.uid.unwrap_or_default();
@@ -946,7 +938,11 @@ impl Imap {
 
                 let is_deleted = msg.flags().any(|flag| flag == Flag::Deleted);
                 if is_deleted || msg.body().is_none() {
-                    // No need to process these.
+                    info!(
+                        context,
+                        "Not processing deleted or empty msg {}", server_uid
+                    );
+                    last_uid = Some(server_uid);
                     continue;
                 }
 
@@ -1150,7 +1146,7 @@ impl Imap {
                 return Some(ImapActionResult::RetryLater);
             }
         }
-        match self.select_folder(context, Some(&folder)).await {
+        match self.select_folder(context, Some(folder)).await {
             Ok(_) => None,
             Err(select_folder::Error::ConnectionLost) => {
                 warn!(context, "Lost imap connection");
@@ -1745,15 +1741,9 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
     context
         .sql
         .execute(
-            sqlx::query(
-                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
                 ON CONFLICT(folder) DO UPDATE SET uid_next=? WHERE folder=?;",
-            )
-            .bind(folder)
-            .bind(0i32)
-            .bind(uid_next as i64)
-            .bind(uid_next as i64)
-            .bind(folder),
+            paramsv![folder, 0u32, uid_next, uid_next, folder],
         )
         .await?;
     Ok(())
@@ -1767,7 +1757,10 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
 async fn get_uid_next(context: &Context, folder: &str) -> Result<u32> {
     Ok(context
         .sql
-        .query_get_value(sqlx::query("SELECT uid_next FROM imap_sync WHERE folder=?;").bind(folder))
+        .query_get_value(
+            "SELECT uid_next FROM imap_sync WHERE folder=?;",
+            paramsv![folder],
+        )
         .await?
         .unwrap_or(0))
 }
@@ -1780,15 +1773,9 @@ pub(crate) async fn set_uidvalidity(
     context
         .sql
         .execute(
-            sqlx::query(
-                "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
+            "INSERT INTO imap_sync (folder, uidvalidity, uid_next) VALUES (?,?,?)
                 ON CONFLICT(folder) DO UPDATE SET uidvalidity=? WHERE folder=?;",
-            )
-            .bind(folder)
-            .bind(uidvalidity as i32)
-            .bind(0i32)
-            .bind(uidvalidity as i32)
-            .bind(folder),
+            paramsv![folder, uidvalidity, 0u32, uidvalidity, folder],
         )
         .await?;
     Ok(())
@@ -1798,7 +1785,8 @@ async fn get_uidvalidity(context: &Context, folder: &str) -> Result<u32> {
     Ok(context
         .sql
         .query_get_value(
-            sqlx::query("SELECT uidvalidity FROM imap_sync WHERE folder=?;").bind(folder),
+            "SELECT uidvalidity FROM imap_sync WHERE folder=?;",
+            paramsv![folder],
         )
         .await?
         .unwrap_or(0))

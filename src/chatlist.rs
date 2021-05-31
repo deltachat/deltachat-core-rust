@@ -1,10 +1,7 @@
 //! # Chat list module
 
 use anyhow::{bail, ensure, Result};
-use async_std::prelude::*;
-use sqlx::Row;
 
-use crate::chat;
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
     Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_DEADDROP,
@@ -112,20 +109,23 @@ impl Chatlist {
 
         let mut add_archived_link_item = false;
 
-        let skip_id = if flag_for_forwarding {
-            chat::lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
-                .await
-                .unwrap_or_default()
-                .0
-        } else {
-            ChatId::new(0)
+        let process_row = |row: &rusqlite::Row| {
+            let chat_id: ChatId = row.get(0)?;
+            let msg_id: MsgId = row.get(1).unwrap_or_default();
+            Ok((chat_id, msg_id))
         };
 
-        let process_row = |row: sqlx::Result<sqlx::sqlite::SqliteRow>| {
-            let row = row?;
-            let chat_id: ChatId = row.try_get(0)?;
-            let msg_id: MsgId = row.try_get(1).unwrap_or_default();
-            Ok((chat_id, msg_id))
+        let process_rows = |rows: rusqlite::MappedRows<_>| {
+            rows.collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(Into::into)
+        };
+
+        let skip_id = if flag_for_forwarding {
+            ChatId::lookup_by_contact(context, DC_CONTACT_ID_DEVICE)
+                .await?
+                .unwrap_or_default()
+        } else {
+            ChatId::new(0)
         };
 
         // select with left join and minimum:
@@ -143,10 +143,10 @@ impl Chatlist {
         // tg do the same) for the deaddrop, however, they should
         // really be hidden, however, _currently_ the deaddrop is not
         // shown at all permanent in the chatlist.
-        let mut ids: Vec<_> = if let Some(query_contact_id) = query_contact_id {
+        let mut ids = if let Some(query_contact_id) = query_contact_id {
             // show chats shared with a given contact
-            context.sql.fetch(
-                sqlx::query("SELECT c.id, m.id
+            context.sql.query_map(
+                "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -160,9 +160,11 @@ impl Chatlist {
                    AND c.blocked=0
                    AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2)
                  GROUP BY c.id
-                 ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;"
-                ).bind(MessageState::OutDraft).bind(query_contact_id).bind(ChatVisibility::Pinned)
-            ).await?.map(process_row).collect::<sqlx::Result<_>>().await?
+                 ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                paramsv![MessageState::OutDraft, query_contact_id as i32, ChatVisibility::Pinned],
+                process_row,
+                process_rows,
+            ).await?
         } else if flag_archived_only {
             // show archived chats
             // (this includes the archived device-chat; we could skip it,
@@ -170,9 +172,8 @@ impl Chatlist {
             // and adapting the number requires larger refactorings and seems not to be worth the effort)
             context
                 .sql
-                .fetch(
-                    sqlx::query(
-                        "SELECT c.id, m.id
+                .query_map(
+                    "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -187,12 +188,10 @@ impl Chatlist {
                    AND c.archived=1
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                    )
-                    .bind(MessageState::OutDraft),
+                    paramsv![MessageState::OutDraft],
+                    process_row,
+                    process_rows,
                 )
-                .await?
-                .map(process_row)
-                .collect::<sqlx::Result<_>>()
                 .await?
         } else if let Some(query) = query {
             let query = query.trim().to_string();
@@ -207,9 +206,8 @@ impl Chatlist {
             let str_like_cmd = format!("%{}%", query);
             context
                 .sql
-                .fetch(
-                    sqlx::query(
-                        "SELECT c.id, m.id
+                .query_map(
+                    "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -224,27 +222,21 @@ impl Chatlist {
                    AND c.name LIKE ?3
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                    )
-                    .bind(MessageState::OutDraft)
-                    .bind(skip_id)
-                    .bind(str_like_cmd),
+                    paramsv![MessageState::OutDraft, skip_id, str_like_cmd],
+                    process_row,
+                    process_rows,
                 )
-                .await?
-                .map(process_row)
-                .collect::<sqlx::Result<_>>()
                 .await?
         } else {
             //  show normal chatlist
             let sort_id_up = if flag_for_forwarding {
-                chat::lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
-                    .await
+                ChatId::lookup_by_contact(context, DC_CONTACT_ID_SELF)
+                    .await?
                     .unwrap_or_default()
-                    .0
             } else {
                 ChatId::new(0)
             };
-
-            let mut ids: Vec<_> = context.sql.fetch(sqlx::query(
+            let mut ids = context.sql.query_map(
                 "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
@@ -259,15 +251,11 @@ impl Chatlist {
                    AND c.blocked=0
                    AND NOT c.archived=?3
                  GROUP BY c.id
-                 ORDER BY c.id=?4 DESC, c.archived=?5 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;"
-            )
-              .bind(MessageState::OutDraft)
-              .bind(skip_id)
-              .bind(ChatVisibility::Archived)
-              .bind(sort_id_up)
-              .bind(ChatVisibility::Pinned)
-            ).await?.map(process_row).collect::<sqlx::Result<_>>().await?;
-
+                 ORDER BY c.id=?4 DESC, c.archived=?5 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                paramsv![MessageState::OutDraft, skip_id, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
+                process_row,
+                process_rows,
+            ).await?;
             if !flag_no_specials {
                 if let Some(last_deaddrop_fresh_msg_id) =
                     get_last_deaddrop_fresh_msg(context).await?
@@ -410,9 +398,10 @@ impl Chatlist {
 pub async fn dc_get_archived_cnt(context: &Context) -> Result<usize> {
     let count = context
         .sql
-        .count(sqlx::query(
+        .count(
             "SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;",
-        ))
+            paramsv![],
+        )
         .await?;
     Ok(count)
 }
@@ -422,16 +411,19 @@ async fn get_last_deaddrop_fresh_msg(context: &Context) -> Result<Option<MsgId>>
     // sufficient as there are typically only few fresh messages.
     let id = context
         .sql
-        .query_get_value(sqlx::query(concat!(
-            "SELECT m.id",
-            " FROM msgs m",
-            " LEFT JOIN chats c",
-            "        ON c.id=m.chat_id",
-            " WHERE m.state=10",
-            "   AND m.hidden=0",
-            "   AND c.blocked=2",
-            " ORDER BY m.timestamp DESC, m.id DESC;"
-        )))
+        .query_get_value(
+            concat!(
+                "SELECT m.id",
+                " FROM msgs m",
+                " LEFT JOIN chats c",
+                "        ON c.id=m.chat_id",
+                " WHERE m.state=10",
+                "   AND m.hidden=0",
+                "   AND c.blocked=2",
+                " ORDER BY m.timestamp DESC, m.id DESC;"
+            ),
+            paramsv![],
+        )
         .await?;
     Ok(id)
 }
@@ -440,8 +432,11 @@ async fn get_last_deaddrop_fresh_msg(context: &Context) -> Result<Option<MsgId>>
 mod tests {
     use super::*;
 
-    use crate::chat::{create_group_chat, ProtectionStatus};
+    use crate::chat::{create_group_chat, get_chat_contacts, ProtectionStatus};
     use crate::constants::Viewtype;
+    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::message;
+    use crate::message::ContactRequestDecision;
     use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;
 
@@ -545,6 +540,136 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(chats.len(), 1);
+    }
+
+    #[async_std::test]
+    async fn test_search_single_chat() -> anyhow::Result<()> {
+        let t = TestContext::new_alice().await;
+
+        // receive a one-to-one-message, accept contact request
+        dc_receive_imf(
+            &t,
+            b"From: Bob Authname <bob@example.org>\n\
+                 To: alice@example.com\n\
+                 Subject: foo\n\
+                 Message-ID: <msg1234@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2021 22:37:57 +0000\n\
+                 \n\
+                 hello foo\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let chats = Chatlist::try_load(&t, 0, Some("Bob Authname"), None).await?;
+        assert_eq!(chats.len(), 0);
+
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.get_chat_id(), DC_CHAT_ID_DEADDROP);
+
+        let chat_id =
+            message::decide_on_contact_request(&t, msg.get_id(), ContactRequestDecision::StartChat)
+                .await
+                .unwrap();
+        let contacts = get_chat_contacts(&t, chat_id).await?;
+        let contact_id = *contacts.first().unwrap();
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "Bob Authname");
+
+        // check, the one-to-one-chat can be found using chatlist search query
+        let chats = Chatlist::try_load(&t, 0, Some("bob authname"), None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), chat_id);
+
+        // change the name of the contact; this also changes the name of the one-to-one-chat
+        let test_id = Contact::create(&t, "Bob Nickname", "bob@example.org").await?;
+        assert_eq!(contact_id, test_id);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "Bob Nickname");
+        let chats = Chatlist::try_load(&t, 0, Some("bob authname"), None).await?;
+        assert_eq!(chats.len(), 0);
+        let chats = Chatlist::try_load(&t, 0, Some("bob nickname"), None).await?;
+        assert_eq!(chats.len(), 1);
+
+        // revert contact to authname, this again changes the name of the one-to-one-chat
+        let test_id = Contact::create(&t, "", "bob@example.org").await?;
+        assert_eq!(contact_id, test_id);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "Bob Authname");
+        let chats = Chatlist::try_load(&t, 0, Some("bob authname"), None).await?;
+        assert_eq!(chats.len(), 1);
+        let chats = Chatlist::try_load(&t, 0, Some("bob nickname"), None).await?;
+        assert_eq!(chats.len(), 0);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_search_single_chat_without_authname() -> anyhow::Result<()> {
+        let t = TestContext::new_alice().await;
+
+        // receive a one-to-one-message without authname set, accept contact request
+        dc_receive_imf(
+            &t,
+            b"From: bob@example.org\n\
+                 To: alice@example.com\n\
+                 Subject: foo\n\
+                 Message-ID: <msg5678@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2021 22:38:57 +0000\n\
+                 \n\
+                 hello foo\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let msg = t.get_last_msg().await;
+        let chat_id =
+            message::decide_on_contact_request(&t, msg.get_id(), ContactRequestDecision::StartChat)
+                .await
+                .unwrap();
+        let contacts = get_chat_contacts(&t, chat_id).await?;
+        let contact_id = *contacts.first().unwrap();
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "bob@example.org");
+
+        // check, the one-to-one-chat can be found using chatlist search query
+        let chats = Chatlist::try_load(&t, 0, Some("bob@example.org"), None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), chat_id);
+
+        // change the name of the contact; this also changes the name of the one-to-one-chat
+        let test_id = Contact::create(&t, "Bob Nickname", "bob@example.org").await?;
+        assert_eq!(contact_id, test_id);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "Bob Nickname");
+        let chats = Chatlist::try_load(&t, 0, Some("bob@example.org"), None).await?;
+        assert_eq!(chats.len(), 0); // email-addresses are searchable in contacts, not in chats
+        let chats = Chatlist::try_load(&t, 0, Some("Bob Nickname"), None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), chat_id);
+
+        // revert name change, this again changes the name of the one-to-one-chat to the email-address
+        let test_id = Contact::create(&t, "", "bob@example.org").await?;
+        assert_eq!(contact_id, test_id);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_name(), "bob@example.org");
+        let chats = Chatlist::try_load(&t, 0, Some("bob@example.org"), None).await?;
+        assert_eq!(chats.len(), 1);
+        let chats = Chatlist::try_load(&t, 0, Some("bob nickname"), None).await?;
+        assert_eq!(chats.len(), 0);
+
+        // finally, also check that a simple substring-search is working with email-addresses
+        let chats = Chatlist::try_load(&t, 0, Some("b@exa"), None).await?;
+        assert_eq!(chats.len(), 1);
+        let chats = Chatlist::try_load(&t, 0, Some("b@exac"), None).await?;
+        assert_eq!(chats.len(), 0);
+
+        Ok(())
     }
 
     #[async_std::test]

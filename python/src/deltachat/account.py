@@ -89,6 +89,22 @@ class Account(object):
             d[key.lower()] = value
         return d
 
+    def dump_account_info(self, logfile):
+        def log(*args, **kwargs):
+            kwargs["file"] = logfile
+            print(*args, **kwargs)
+
+        log("=============== " + self.get_config("displayname") + " ===============")
+        cursor = 0
+        for name, val in self.get_info().items():
+            entry = "{}={}".format(name.upper(), val)
+            if cursor + len(entry) > 80:
+                log("")
+                cursor = 0
+            log(entry, end=" ")
+            cursor += len(entry) + 1
+        log("")
+
     def set_stock_translation(self, id, string):
         """ set stock translation string.
 

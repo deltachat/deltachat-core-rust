@@ -4,6 +4,7 @@ use std::pin::Pin;
 
 use anyhow::{bail, Result};
 use charset::Charset;
+use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
@@ -102,7 +103,9 @@ pub(crate) enum MailinglistType {
     None,
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+)]
 #[repr(u32)]
 pub enum SystemMessage {
     Unknown = 0,
@@ -146,7 +149,7 @@ impl MimeMessage {
         let mut from = Default::default();
         let mut chat_disposition_notification_to = None;
 
-        // init known headers with what mailparse provided us
+        // Parse IMF headers.
         MimeMessage::merge_headers(
             context,
             &mut headers,
@@ -155,6 +158,21 @@ impl MimeMessage {
             &mut chat_disposition_notification_to,
             &mail.headers,
         );
+
+        // Parse hidden headers.
+        let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
+        if mimetype.type_() == mime::MULTIPART && mimetype.subtype().as_str() == "mixed" {
+            if let Some(part) = mail.subparts.first() {
+                for field in &part.headers {
+                    let key = field.get_key().to_lowercase();
+
+                    // For now only Chat-User-Avatar can be hidden.
+                    if !headers.contains_key(&key) && key == "chat-user-avatar" {
+                        headers.insert(key.to_string(), field.get_value());
+                    }
+                }
+            }
+        }
 
         // remove headers that are allowed _only_ in the encrypted part
         headers.remove("secure-join-fingerprint");
@@ -260,7 +278,7 @@ impl MimeMessage {
         parser.maybe_remove_bad_parts();
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
-        parser.parse_headers(context);
+        parser.parse_headers(context).await;
 
         if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
@@ -307,13 +325,13 @@ impl MimeMessage {
     }
 
     /// Parses avatar action headers.
-    fn parse_avatar_headers(&mut self) {
+    async fn parse_avatar_headers(&mut self, context: &Context) {
         if let Some(header_value) = self.get(HeaderDef::ChatGroupAvatar).cloned() {
-            self.group_avatar = self.avatar_action_from_header(header_value);
+            self.group_avatar = self.avatar_action_from_header(context, header_value).await;
         }
 
         if let Some(header_value) = self.get(HeaderDef::ChatUserAvatar).cloned() {
-            self.user_avatar = self.avatar_action_from_header(header_value);
+            self.user_avatar = self.avatar_action_from_header(context, header_value).await;
         }
     }
 
@@ -403,9 +421,9 @@ impl MimeMessage {
         }
     }
 
-    fn parse_headers(&mut self, context: &Context) {
+    async fn parse_headers(&mut self, context: &Context) {
         self.parse_system_message_headers(context);
-        self.parse_avatar_headers();
+        self.parse_avatar_headers(context).await;
         self.parse_videochat_headers();
         self.squash_attachment_parts();
 
@@ -482,10 +500,48 @@ impl MimeMessage {
         }
     }
 
-    fn avatar_action_from_header(&mut self, header_value: String) -> Option<AvatarAction> {
+    async fn avatar_action_from_header(
+        &mut self,
+        context: &Context,
+        header_value: String,
+    ) -> Option<AvatarAction> {
         if header_value == "0" {
             Some(AvatarAction::Delete)
+        } else if let Some(avatar) = header_value
+            .split_ascii_whitespace()
+            .collect::<String>()
+            .strip_prefix("base64:")
+            .map(base64::decode)
+        {
+            // Avatar sent directly in the header as base64.
+            if let Ok(decoded_data) = avatar {
+                let extension = if let Ok(format) = image::guess_format(&decoded_data) {
+                    if let Some(ext) = format.extensions_str().first() {
+                        format!(".{}", ext)
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                };
+                match BlobObject::create(context, &format!("avatar{}", extension), &decoded_data)
+                    .await
+                {
+                    Ok(blob) => Some(AvatarAction::Change(blob.as_name().to_string())),
+                    Err(err) => {
+                        warn!(
+                            context,
+                            "Could not save decoded avatar to blob file: {}", err
+                        );
+                        None
+                    }
+                }
+            } else {
+                None
+            }
         } else {
+            // Avatar sent in attachment, as previous versions of Delta Chat did.
+
             let mut i = 0;
             while let Some(part) = self.parts.get_mut(i) {
                 if let Some(part_filename) = &part.org_filename {
@@ -1249,7 +1305,8 @@ impl MimeMessage {
             context
                 .sql
                 .query_get_value(
-                    sqlx::query("SELECT timestamp FROM msgs WHERE rfc724_mid=?").bind(field),
+                    "SELECT timestamp FROM msgs WHERE rfc724_mid=?",
+                    paramsv![field],
                 )
                 .await?
         } else {
@@ -1528,7 +1585,7 @@ fn get_attachment_filename(
 /// Returned addresses are normalized and lowercased.
 pub(crate) fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
     get_all_addresses_from_header(headers, |header_key| {
-        header_key == "to" || header_key == "cc" || header_key == "bcc"
+        header_key == "to" || header_key == "cc"
     })
 }
 
@@ -1920,9 +1977,8 @@ mod tests {
             .ctx
             .sql
             .execute(
-                sqlx::query("INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)")
-                    .bind("Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org")
-                    .bind(timestamp),
+                "INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)",
+                paramsv!["Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp],
             )
             .await
             .expect("Failed to write to the database");

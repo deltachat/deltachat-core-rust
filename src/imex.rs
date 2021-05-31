@@ -3,17 +3,18 @@
 use std::any::Any;
 use std::ffi::OsStr;
 
+use ::pgp::types::KeyTrait;
 use anyhow::{bail, ensure, format_err, Context as _, Result};
-use async_std::path::{Path, PathBuf};
 use async_std::{
     fs::{self, File},
+    path::{Path, PathBuf},
     prelude::*,
 };
+use async_tar::Archive;
 use rand::{thread_rng, Rng};
-use sqlx::Row;
 
-use crate::chat;
-use crate::chat::delete_and_reset_all_device_msgs;
+use crate::blob::BlobObject;
+use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
 use crate::config::Config;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
@@ -24,15 +25,13 @@ use crate::dc_tools::{
 use crate::e2ee;
 use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
+use crate::log::LogExt;
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock_str;
-use crate::{blob::BlobObject, log::LogExt};
-use ::pgp::types::KeyTrait;
-use async_tar::Archive;
 
 // Name of the database file in the backup.
 const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
@@ -79,7 +78,7 @@ pub enum ImexMode {
 ///
 /// Only one import-/export-progress can run at the same time.
 /// To cancel an import-/export-progress, drop the future returned by this function.
-pub async fn imex(context: &Context, what: ImexMode, param1: impl AsRef<Path>) -> Result<()> {
+pub async fn imex(context: &Context, what: ImexMode, param1: &Path) -> Result<()> {
     let cancel = context.alloc_ongoing().await?;
 
     let res = async {
@@ -124,8 +123,7 @@ async fn cleanup_aborted_imex(context: &Context, what: ImexMode) {
 }
 
 /// Returns the filename of the backup found (otherwise an error)
-pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
-    let dir_name = dir_name.as_ref();
+pub async fn has_backup(context: &Context, dir_name: &Path) -> Result<String> {
     let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
     let mut newest_backup_name = "".to_string();
     let mut newest_backup_path: Option<PathBuf> = None;
@@ -155,8 +153,7 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
 }
 
 /// Returns the filename of the backup found (otherwise an error)
-pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
-    let dir_name = dir_name.as_ref();
+pub async fn has_backup_old(context: &Context, dir_name: &Path) -> Result<String> {
     let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
     let mut newest_backup_time = 0;
     let mut newest_backup_name = "".to_string();
@@ -232,7 +229,7 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     )
     .await?;
 
-    let chat_id = chat::create_by_contact_id(context, DC_CONTACT_ID_SELF).await?;
+    let chat_id = ChatId::create_for_contact(context, DC_CONTACT_ID_SELF).await?;
     msg = Message::default();
     msg.viewtype = Viewtype::File;
     msg.param.set(Param::File, setup_file_blob.as_name());
@@ -451,8 +448,8 @@ pub fn normalize_setup_code(s: &str) -> String {
     out
 }
 
-async fn imex_inner(context: &Context, what: ImexMode, path: impl AsRef<Path>) -> Result<()> {
-    info!(context, "Import/export dir: {}", path.as_ref().display());
+async fn imex_inner(context: &Context, what: ImexMode, path: &Path) -> Result<()> {
+    info!(context, "Import/export dir: {}", path.display());
     ensure!(context.sql.is_open().await, "Database not opened.");
     context.emit_event(EventType::ImexProgress(10));
 
@@ -476,12 +473,8 @@ async fn imex_inner(context: &Context, what: ImexMode, path: impl AsRef<Path>) -
 }
 
 /// Import Backup
-async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
-    if backup_to_import
-        .as_ref()
-        .to_string_lossy()
-        .ends_with(".bak")
-    {
+async fn import_backup(context: &Context, backup_to_import: &Path) -> Result<()> {
+    if backup_to_import.to_string_lossy().ends_with(".bak") {
         // Backwards compability
         return import_backup_old(context, backup_to_import).await;
     }
@@ -489,7 +482,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
     info!(
         context,
         "Import \"{}\" to \"{}\".",
-        backup_to_import.as_ref().display(),
+        backup_to_import.display(),
         context.get_dbfile().display()
     );
 
@@ -547,7 +540,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
 
     context
         .sql
-        .open(context, &context.get_dbfile(), false)
+        .open(context, context.get_dbfile(), false)
         .await
         .context("Could not re-open db")?;
 
@@ -556,11 +549,11 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
     Ok(())
 }
 
-async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
+async fn import_backup_old(context: &Context, backup_to_import: &Path) -> Result<()> {
     info!(
         context,
         "Import \"{}\" to \"{}\".",
-        backup_to_import.as_ref().display(),
+        backup_to_import.display(),
         context.get_dbfile().display()
     );
 
@@ -580,14 +573,14 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     );
 
     ensure!(
-        dc_copy_file(context, backup_to_import.as_ref(), context.get_dbfile()).await,
+        dc_copy_file(context, backup_to_import, context.get_dbfile()).await,
         "could not copy file"
     );
     /* error already logged */
     /* re-open copied database file */
     context
         .sql
-        .open(context, &context.get_dbfile(), false)
+        .open(context, context.get_dbfile(), false)
         .await
         .context("Could not re-open db")?;
 
@@ -595,9 +588,8 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
 
     let total_files_cnt = context
         .sql
-        .count(sqlx::query("SELECT COUNT(*) FROM backup_blobs;"))
+        .count("SELECT COUNT(*) FROM backup_blobs;", paramsv![])
         .await?;
-
     info!(
         context,
         "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
@@ -607,25 +599,33 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
     // consuming too much memory.
     let file_ids = context
         .sql
-        .fetch(sqlx::query("SELECT id FROM backup_blobs ORDER BY id"))
-        .await?
-        .map(|row| row?.try_get(0))
-        .collect::<sqlx::Result<Vec<i64>>>()
+        .query_map(
+            "SELECT id FROM backup_blobs ORDER BY id",
+            paramsv![],
+            |row| row.get(0),
+            |ids| {
+                ids.collect::<std::result::Result<Vec<i64>, _>>()
+                    .map_err(Into::into)
+            },
+        )
         .await?;
 
     let mut all_files_extracted = true;
     for (processed_files_cnt, file_id) in file_ids.into_iter().enumerate() {
         // Load a single blob into memory
-        let row = context
+        let (file_name, file_blob) = context
             .sql
-            .fetch_one(
-                sqlx::query("SELECT file_name, file_content FROM backup_blobs WHERE id = ?")
-                    .bind(file_id),
+            .query_row(
+                "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
+                paramsv![file_id],
+                |row| {
+                    let file_name: String = row.get(0)?;
+                    let file_blob: Vec<u8> = row.get(1)?;
+                    Ok((file_name, file_blob))
+                },
             )
             .await?;
 
-        let file_name: String = row.try_get(0)?;
-        let file_blob: &[u8] = row.try_get(1)?;
         if context.shall_stop_ongoing().await {
             all_files_extracted = false;
             break;
@@ -643,16 +643,16 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
         }
 
         let path_filename = context.get_blobdir().join(file_name);
-        dc_write_file(context, &path_filename, file_blob).await?;
+        dc_write_file(context, &path_filename, &file_blob).await?;
     }
 
     if all_files_extracted {
         // only delete backup_blobs if all files were successfully extracted
         context
             .sql
-            .execute(sqlx::query("DROP TABLE backup_blobs;"))
+            .execute("DROP TABLE backup_blobs;", paramsv![])
             .await?;
-        context.sql.execute(sqlx::query("VACUUM;")).await.ok();
+        context.sql.execute("VACUUM;", paramsv![]).await.ok();
         Ok(())
     } else {
         bail!("received stop signal");
@@ -663,7 +663,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
  * Export backup
  ******************************************************************************/
 #[allow(unused)]
-async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
+async fn export_backup(context: &Context, dir: &Path) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
     let (temp_path, dest_path) = get_next_backup_path(dir, now).await?;
@@ -677,7 +677,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     context
         .sql
-        .execute(sqlx::query("VACUUM;"))
+        .execute("VACUUM;", paramsv![])
         .await
         .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e));
 
@@ -699,10 +699,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let res = export_backup_inner(context, &temp_path).await;
 
     // we re-open the database after export is finished
-    context
-        .sql
-        .open(context, &context.get_dbfile(), false)
-        .await;
+    context.sql.open(context, context.get_dbfile(), false).await;
 
     match &res {
         Ok(_) => {
@@ -769,7 +766,7 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
 /*******************************************************************************
  * Classic key import
  ******************************************************************************/
-async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
+async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
     /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
     plain ASC keys, at least keys without a password, if we do not want to implement a password entry function.
     Importing ASC keys is useful to use keys in Delta Chat used by any other non-Autocrypt-PGP implementation.
@@ -779,12 +776,12 @@ async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
     let mut set_default: bool;
     let mut imported_cnt = 0;
 
-    let dir_name = dir.as_ref().to_string_lossy();
+    let dir_name = dir.to_string_lossy();
     let mut dir_handle = async_std::fs::read_dir(&dir).await?;
     while let Some(entry) = dir_handle.next().await {
         let entry_fn = entry?.file_name();
         let name_f = entry_fn.to_string_lossy();
-        let path_plus_name = dir.as_ref().join(&entry_fn);
+        let path_plus_name = dir.join(&entry_fn);
         match dc_get_filesuffix_lc(&name_f) {
             Some(suffix) => {
                 if suffix != "asc" {
@@ -827,32 +824,35 @@ async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
     Ok(())
 }
 
-async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
+async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
     let mut export_errors = 0;
 
-    let mut keys = context
+    let keys = context
         .sql
-        .fetch(sqlx::query(
+        .query_map(
             "SELECT id, public_key, private_key, is_default FROM keypairs;",
-        ))
-        .await?
-        .map(|row| -> sqlx::Result<_> {
-            let row = row?;
-            let id = row.try_get(0)?;
-            let public_key_blob: &[u8] = row.try_get(1)?;
-            let public_key = SignedPublicKey::from_slice(public_key_blob);
-            let private_key_blob: &[u8] = row.try_get(2)?;
-            let private_key = SignedSecretKey::from_slice(private_key_blob);
-            let is_default: i32 = row.try_get(3)?;
+            paramsv![],
+            |row| {
+                let id = row.get(0)?;
+                let public_key_blob: Vec<u8> = row.get(1)?;
+                let public_key = SignedPublicKey::from_slice(&public_key_blob);
+                let private_key_blob: Vec<u8> = row.get(2)?;
+                let private_key = SignedSecretKey::from_slice(&private_key_blob);
+                let is_default: i32 = row.get(3)?;
 
-            Ok((id, public_key, private_key, is_default))
-        });
+                Ok((id, public_key, private_key, is_default))
+            },
+            |keys| {
+                keys.collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(Into::into)
+            },
+        )
+        .await?;
 
-    while let Some(parts) = keys.next().await {
-        let (id, public_key, private_key, is_default) = parts?;
+    for (id, public_key, private_key, is_default) in keys {
         let id = Some(id).filter(|_| is_default != 0);
         if let Ok(key) = public_key {
-            if export_key_to_asc_file(context, &dir, id, &key)
+            if export_key_to_asc_file(context, dir, id, &key)
                 .await
                 .is_err()
             {
@@ -862,7 +862,7 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
             export_errors += 1;
         }
         if let Ok(key) = private_key {
-            if export_key_to_asc_file(context, &dir, id, &key)
+            if export_key_to_asc_file(context, dir, id, &key)
                 .await
                 .is_err()
             {
@@ -882,7 +882,7 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
  ******************************************************************************/
 async fn export_key_to_asc_file<T>(
     context: &Context,
-    dir: impl AsRef<Path>,
+    dir: &Path,
     id: Option<i64>,
     key: &T,
 ) -> std::io::Result<()>
@@ -899,7 +899,7 @@ where
             "unknown"
         };
         let id = id.map_or("default".into(), |i| i.to_string());
-        dir.as_ref().join(format!("{}-key-{}.asc", kind, &id))
+        dir.join(format!("{}-key-{}.asc", kind, &id))
     };
     info!(
         context,
@@ -979,7 +979,7 @@ mod tests {
     async fn test_export_public_key_to_asc_file() {
         let context = TestContext::new().await;
         let key = alice_keypair().public;
-        let blobdir = "$BLOBDIR";
+        let blobdir = Path::new("$BLOBDIR");
         assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key)
             .await
             .is_ok());
@@ -994,7 +994,7 @@ mod tests {
     async fn test_export_private_key_to_asc_file() {
         let context = TestContext::new().await;
         let key = alice_keypair().secret;
-        let blobdir = "$BLOBDIR";
+        let blobdir = Path::new("$BLOBDIR");
         assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key)
             .await
             .is_ok());
@@ -1009,7 +1009,7 @@ mod tests {
     async fn test_export_and_import_key() {
         let context = TestContext::new().await;
         context.configure_alice().await;
-        let blobdir = context.ctx.get_blobdir().to_str().unwrap();
+        let blobdir = context.ctx.get_blobdir();
         if let Err(err) = imex(&context.ctx, ImexMode::ExportSelfKeys, blobdir).await {
             panic!("got error on export: {:?}", err);
         }

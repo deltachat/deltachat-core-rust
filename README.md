@@ -2,7 +2,8 @@
 
 > Deltachat-core written in Rust 
 
-[![CircleCI build status][circle-shield]][circle] [![Appveyor build status][appveyor-shield]][appveyor]
+[![Rust CI](https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml)
+[![CircleCI](https://circleci.com/gh/deltachat/deltachat-core-rust.svg?style=shield)](https://circleci.com/gh/deltachat/deltachat-core-rust/)
 
 ## Installing Rust and Cargo
 
@@ -110,11 +111,6 @@ $ cargo test -- --ignored
 
 - `vendored`: When using Openssl for TLS, this bundles a vendored version.
 - `nightly`: Enable nightly only performance and security related features.
-
-[circle-shield]: https://img.shields.io/circleci/project/github/deltachat/deltachat-core-rust/master.svg?style=flat-square
-[circle]: https://circleci.com/gh/deltachat/deltachat-core-rust/
-[appveyor-shield]: https://ci.appveyor.com/api/projects/status/lqpegel3ld4ipxj8/branch/master?style=flat-square
-[appveyor]: https://ci.appveyor.com/project/dignifiedquire/deltachat-core-rust/branch/master
 
 ## Language bindings and frontend projects
 

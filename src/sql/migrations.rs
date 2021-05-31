@@ -1,40 +1,33 @@
-use async_std::prelude::*;
+use anyhow::Result;
 
-use super::{Result, Sql};
 use crate::config::Config;
 use crate::constants::ShowEmails;
 use crate::context::Context;
 use crate::dc_tools::EmailAddress;
 use crate::imap;
 use crate::provider::get_provider_by_domain;
+use crate::sql::Sql;
 
 const DBVERSION: i32 = 68;
 const VERSION_CFG: &str = "dbversion";
 const TABLES: &str = include_str!("./tables.sql");
 
-pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool)> {
+pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool)> {
     let mut recalc_fingerprints = false;
     let mut exists_before_update = false;
     let mut dbversion_before_update = DBVERSION;
 
     if !sql.table_exists("config").await? {
         info!(context, "First time init: creating tables",);
-        sql.transaction(move |conn| {
-            Box::pin(async move {
-                sqlx::query(TABLES)
-                    .execute_many(&mut *conn)
-                    .await
-                    .collect::<std::result::Result<Vec<_>, _>>()
-                    .await?;
+        sql.transaction(move |transaction| {
+            transaction.execute_batch(TABLES)?;
 
-                // set raw config inside the transaction
-                sqlx::query("INSERT INTO config (keyname, value) VALUES (?, ?);")
-                    .bind(VERSION_CFG)
-                    .bind(format!("{}", dbversion_before_update))
-                    .execute(&mut *conn)
-                    .await?;
-                Ok(())
-            })
+            // set raw config inside the transaction
+            transaction.execute(
+                "INSERT INTO config (keyname, value) VALUES (?, ?);",
+                paramsv![VERSION_CFG, format!("{}", dbversion_before_update)],
+            )?;
+            Ok(())
         })
         .await?;
     } else {
@@ -48,6 +41,7 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool)> {
     let dbversion = dbversion_before_update;
     let mut update_icons = !exists_before_update;
     let mut disable_server_delete = false;
+    let mut recode_avatar = false;
 
     if dbversion < 1 {
         info!(context, "[migration] v1");
@@ -417,9 +411,10 @@ ALTER TABLE msgs ADD COLUMN mime_modified INTEGER DEFAULT 0;"#,
     if dbversion < 73 {
         use Config::*;
         info!(context, "[migration] v73");
-        sql.execute(sqlx::query(
+        sql.execute(
             r#"
-CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"#),
+CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"#,
+paramsv![]
         )
             .await?;
         for c in &[
@@ -468,8 +463,17 @@ CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, 
         sql.execute_migration("ALTER TABLE msgs ADD COLUMN subject TEXT DEFAULT '';", 76)
             .await?;
     }
+    if dbversion < 77 {
+        info!(context, "[migration] v77");
+        recode_avatar = true;
+    }
 
-    Ok((recalc_fingerprints, update_icons, disable_server_delete))
+    Ok((
+        recalc_fingerprints,
+        update_icons,
+        disable_server_delete,
+        recode_avatar,
+    ))
 }
 
 impl Sql {
@@ -479,24 +483,16 @@ impl Sql {
     }
 
     async fn execute_migration(&self, query: &'static str, version: i32) -> Result<()> {
-        let query = sqlx::query(query);
-        self.transaction(move |conn| {
-            Box::pin(async move {
-                query
-                    .execute_many(&mut *conn)
-                    .await
-                    .collect::<std::result::Result<Vec<_>, _>>()
-                    .await?;
+        self.transaction(move |transaction| {
+            transaction.execute_batch(query)?;
 
-                // set raw config inside the transaction
-                sqlx::query("UPDATE config SET value=? WHERE keyname=?;")
-                    .bind(format!("{}", version))
-                    .bind(VERSION_CFG)
-                    .execute(&mut *conn)
-                    .await?;
+            // set raw config inside the transaction
+            transaction.execute(
+                "UPDATE config SET value=? WHERE keyname=?;",
+                paramsv![format!("{}", version), VERSION_CFG],
+            )?;
 
-                Ok(())
-            })
+            Ok(())
         })
         .await?;
 

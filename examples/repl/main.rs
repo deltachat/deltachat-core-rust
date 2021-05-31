@@ -26,8 +26,9 @@ use rustyline::config::OutputStreamType;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::{Hinter, HistoryHinter};
+use rustyline::validate::Validator;
 use rustyline::{
-    Cmd, CompletionType, Config, Context as RustyContext, EditMode, Editor, Helper, KeyPress,
+    Cmd, CompletionType, Config, Context as RustyContext, EditMode, Editor, Helper, KeyEvent,
 };
 
 mod cmdline;
@@ -235,7 +236,9 @@ const MISC_COMMANDS: [&str; 10] = [
 ];
 
 impl Hinter for DcHelper {
-    fn hint(&self, line: &str, pos: usize, ctx: &RustyContext<'_>) -> Option<String> {
+    type Hint = String;
+
+    fn hint(&self, line: &str, pos: usize, ctx: &RustyContext<'_>) -> Option<Self::Hint> {
         if !line.is_empty() {
             for &cmds in &[
                 &IMEX_COMMANDS[..],
@@ -257,11 +260,10 @@ impl Hinter for DcHelper {
 }
 
 static COLORED_PROMPT: &str = "\x1b[1;32m> \x1b[0m";
-static PROMPT: &str = "> ";
 
 impl Highlighter for DcHelper {
-    fn highlight_prompt<'p>(&self, prompt: &'p str) -> Cow<'p, str> {
-        if prompt == PROMPT {
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(&self, prompt: &'p str, default: bool) -> Cow<'b, str> {
+        if default {
             Borrowed(COLORED_PROMPT)
         } else {
             Borrowed(prompt)
@@ -282,6 +284,7 @@ impl Highlighter for DcHelper {
 }
 
 impl Helper for DcHelper {}
+impl Validator for DcHelper {}
 
 async fn start(args: Vec<String>) -> Result<(), Error> {
     if args.len() < 2 {
@@ -315,8 +318,8 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         };
         let mut rl = Editor::with_config(config);
         rl.set_helper(Some(h));
-        rl.bind_sequence(KeyPress::Meta('N'), Cmd::HistorySearchForward);
-        rl.bind_sequence(KeyPress::Meta('P'), Cmd::HistorySearchBackward);
+        rl.bind_sequence(KeyEvent::alt('N'), Cmd::HistorySearchForward);
+        rl.bind_sequence(KeyEvent::alt('P'), Cmd::HistorySearchBackward);
         if rl.load_history(".dc-history.txt").is_err() {
             println!("No previous history.");
         }

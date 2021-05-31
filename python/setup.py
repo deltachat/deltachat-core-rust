@@ -18,7 +18,7 @@ def main():
         description='Python bindings for the Delta Chat Core library using CFFI against the Rust-implemented libdeltachat',
         long_description=long_description,
         author='holger krekel, Floris Bruynooghe, Bjoern Petersen and contributors',
-        install_requires=['cffi>=1.0.0', 'pluggy', 'imapclient'],
+        install_requires=['cffi>=1.0.0', 'pluggy', 'imapclient', 'requests'],
         packages=setuptools.find_packages('src'),
         package_dir={'': 'src'},
         cffi_modules=['src/deltachat/_build.py:ffibuilder'],

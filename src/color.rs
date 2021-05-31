@@ -8,8 +8,8 @@ use hsluv::hsluv_to_rgb;
 use sha1::{Digest, Sha1};
 
 /// Converts an identifier to Hue angle.
-fn str_to_angle(s: impl AsRef<str>) -> f64 {
-    let bytes = s.as_ref().as_bytes();
+fn str_to_angle(s: &str) -> f64 {
+    let bytes = s.as_bytes();
     let result = Sha1::digest(bytes);
     let checksum: u16 = result.get(0).map_or(0, |&x| u16::from(x))
         + 256 * result.get(1).map_or(0, |&x| u16::from(x));
@@ -31,7 +31,7 @@ fn rgb_to_u32((r, g, b): (f64, f64, f64)) -> u32 {
 ///
 /// Saturation is set to maximum (100.0) to make colors distinguishable, and lightness is set to
 /// half (50.0) to make colors suitable both for light and dark theme.
-pub(crate) fn str_to_color(s: impl AsRef<str>) -> u32 {
+pub(crate) fn str_to_color(s: &str) -> u32 {
     rgb_to_u32(hsluv_to_rgb((str_to_angle(s), 100.0, 50.0)))
 }
 

@@ -314,6 +314,7 @@ mod tests {
                 "[ Foo ](https://example.com)",
             ),
             ("<b> bar </b>", "* bar *"),
+            ("<i>foo</i>", "_foo_"),
             ("<b> bar <i> foo", "* bar _ foo"),
             ("&amp; bar", "& bar"),
             // Despite missing ', this should be shown:
@@ -389,6 +390,13 @@ mod tests {
         "##;
         let txt = dehtml(input).unwrap();
         assert_eq!(txt.trim(), "lots of text");
+    }
+
+    #[test]
+    fn test_pre_tag() {
+        let input = "<html><pre>\ntwo\nlines\n</pre></html>";
+        let txt = dehtml(input).unwrap();
+        assert_eq!(txt.trim(), "two\nlines");
     }
 
     #[async_std::test]

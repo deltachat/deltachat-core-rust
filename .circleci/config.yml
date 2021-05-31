@@ -13,7 +13,7 @@ jobs:
     executor: doxygen
     steps:
       - checkout
-      - run: bash ci_scripts/run-doxygen.sh
+      - run: bash scripts/run-doxygen.sh
       - run: mkdir -p workspace/c-docs
       - run: cp -av deltachat-ffi/{html,xml} workspace/c-docs/
       - persist_to_workspace:
@@ -27,7 +27,10 @@ jobs:
       - checkout
       # the following commands on success produces
       # workspace/{wheelhouse,py-docs} as artefact directories
-      - run: bash ci_scripts/remote_python_packaging.sh 
+      - run:
+          # building aarch64 packages under qemu is very slow
+          no_output_timeout: 60m
+          command: bash scripts/remote_python_packaging.sh
       - persist_to_workspace:
           root: workspace
           paths:
@@ -42,7 +45,7 @@ jobs:
       - attach_workspace:
           at: workspace
       - run: ls -laR workspace
-      - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse workspace/c-docs
+      - run: scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse workspace/c-docs
 
 workflows:
   version: 2.1
@@ -51,24 +54,24 @@ workflows:
     jobs:
       - remote_python_packaging:
           filters:
+            tags:
+              only: /.+/
             branches:
-              only: master
-            #tags:
-            #  only: /.*/
+              ignore: /.*/
+
+      - build_doxygen:
+          filters:
+            tags:
+              only: /.+/
+            branches:
+              ignore: /.*/
 
       - upload_docs_wheels:
           requires:
              - remote_python_packaging
              - build_doxygen
           filters:
-            branches:
-              only: master
             tags:
-              only: /.*/
-
-      - build_doxygen:
-          filters:
+              only: /.+/
             branches:
-              only: master
-            tags:
-              only: /.*/
+              ignore: /.*/

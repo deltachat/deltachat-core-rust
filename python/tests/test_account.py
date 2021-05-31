@@ -816,6 +816,48 @@ class TestOnlineAccount:
         assert open(msg.filename).read() == content
         assert msg.filename.endswith(basename)
 
+    def test_html_message(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = acfactory.get_accepted_chat(ac1, ac2)
+        html_text = "<p>hello HTML world</p>"
+
+        lp.sec("ac1: prepare and send text message to ac2")
+        msg1 = chat.send_text("message0")
+        assert not msg1.has_html()
+        assert msg1.html == ""
+
+        lp.sec("wait for ac2 to receive message")
+        msg2 = ac2._evtracker.wait_next_incoming_message()
+        assert msg2.text == "message0"
+        assert not msg2.has_html()
+        assert msg2.html == ""
+
+        lp.sec("ac1: prepare and send HTML+text message to ac2")
+        msg1 = Message.new_empty(ac1, "text")
+        msg1.set_text("message1")
+        msg1.set_html(html_text)
+        msg1 = chat.send_msg(msg1)
+        assert msg1.has_html()
+        assert html_text in msg1.html
+
+        lp.sec("wait for ac2 to receive message")
+        msg2 = ac2._evtracker.wait_next_incoming_message()
+        assert msg2.text == "message1"
+        assert msg2.has_html()
+        assert html_text in msg2.html
+
+        lp.sec("ac1: prepare and send HTML-only message to ac2")
+        msg1 = Message.new_empty(ac1, "text")
+        msg1.set_html(html_text)
+        msg1 = chat.send_msg(msg1)
+
+        lp.sec("wait for ac2 to receive message")
+        msg2 = ac2._evtracker.wait_next_incoming_message()
+        assert "<p>" not in msg2.text
+        assert "hello HTML world" in msg2.text
+        assert msg2.has_html()
+        assert html_text in msg2.html
+
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True, sentbox=True)
@@ -991,22 +1033,84 @@ class TestOnlineAccount:
         except queue.Empty:
             pass  # mark_seen_messages() has generated events before it returns
 
+    def test_moved_markseen(self, acfactory, lp):
+        """Test that message already moved to DeltaChat folder is marked as seen."""
+        ac1 = acfactory.get_online_configuring_account(mvbox=True, config={"inbox_watch": "0"})
+        ac2 = acfactory.get_online_configuring_account()
+        acfactory.wait_configure_and_start_io([ac1, ac2])
+        ac1.set_config("bcc_self", "1")
+
+        ac1.direct_imap.idle_start()
+        ac1.create_chat(ac2).send_text("Hello!")
+        ac1.direct_imap.idle_check(terminate=True)
+        ac1.stop_io()
+
+        # Emulate moving of the message to DeltaChat folder by Sieve rule.
+        # mailcow server contains this rule by default.
+        ac1.direct_imap.conn.move(["*"], "DeltaChat")
+
+        ac1.direct_imap.select_folder("DeltaChat")
+        ac1.direct_imap.idle_start()
+        ac1.start_io()
+        ac1.direct_imap.idle_wait_for_seen()
+        ac1.direct_imap.idle_done()
+
+        fetch = list(ac1.direct_imap.conn.fetch("*", b'FLAGS').values())
+        flags = fetch[-1][b'FLAGS']
+        is_seen = b'\\Seen' in flags
+        assert is_seen
+
+    def test_message_override_sender_name(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = acfactory.get_accepted_chat(ac1, ac2)
+        overridden_name = "someone else"
+
+        ac1.set_config("displayname", "ac1")
+
+        lp.sec("sending text message with overridden name from ac1 to ac2")
+        msg1 = Message.new_empty(ac1, "text")
+        msg1.set_override_sender_name(overridden_name)
+        msg1.set_text("message1")
+        msg1 = chat.send_msg(msg1)
+        assert msg1.override_sender_name == overridden_name
+
+        lp.sec("wait for ac2 to receive message")
+        msg2 = ac2._evtracker.wait_next_incoming_message()
+        assert msg2.text == "message1"
+        assert msg2.get_sender_contact().name == ac1.get_config("displayname")
+        assert msg2.override_sender_name == overridden_name
+
+        lp.sec("sending normal text message from ac1 to ac2")
+        msg1 = Message.new_empty(ac1, "text")
+        msg1.set_text("message2")
+        msg1 = chat.send_msg(msg1)
+        assert not msg1.override_sender_name
+
+        lp.sec("wait for ac2 to receive message")
+        msg2 = ac2._evtracker.wait_next_incoming_message()
+        assert msg2.text == "message2"
+        assert msg2.get_sender_contact().name == ac1.get_config("displayname")
+        assert not msg2.override_sender_name
+
     @pytest.mark.parametrize("mvbox_move", [True, False])
     def test_markseen_message_and_mdn(self, acfactory, mvbox_move):
         # Please only change this test if you are very sure that it will still catch the issues it catches now.
         # We had so many problems with markseen, if in doubt, rather create another test, it can't harm.
         ac1 = acfactory.get_online_configuring_account(move=mvbox_move, mvbox=mvbox_move)
         ac2 = acfactory.get_online_configuring_account(move=mvbox_move, mvbox=mvbox_move)
-        acfactory.wait_configure_and_start_io()
 
-        acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
-        msg = ac2._evtracker.wait_next_incoming_message()
+        acfactory.wait_configure_and_start_io()
+        # Do not send BCC to self, we only want to test MDN on ac1.
+        ac1.set_config("bcc_self", "0")
 
         folder = "mvbox" if mvbox_move else "inbox"
         ac1.direct_imap.select_config_folder(folder)
         ac2.direct_imap.select_config_folder(folder)
         ac1.direct_imap.idle_start()
         ac2.direct_imap.idle_start()
+
+        acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
+        msg = ac2._evtracker.wait_next_incoming_message()
 
         ac2.mark_seen_messages([msg])
 
@@ -1498,6 +1602,12 @@ class TestOnlineAccount:
         original_image_path = data.get_path("d.png")
         chat1.send_image(original_image_path)
 
+        # Add another 100KB file that ensures that the progress is smooth enough
+        path = tmpdir.join("attachment.txt")
+        with open(path, "w") as file:
+            file.truncate(100000)
+        chat1.send_file(path.strpath)
+
         def assert_account_is_proper(ac):
             contacts = ac.get_contacts(query="some1")
             assert len(contacts) == 1
@@ -1505,7 +1615,7 @@ class TestOnlineAccount:
             assert contact2.addr == "some1@example.org"
             chat2 = contact2.create_chat()
             messages = chat2.get_messages()
-            assert len(messages) == 2
+            assert len(messages) == 3
             assert messages[0].text == "msg1"
             assert messages[1].filemime == "image/png"
             assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
@@ -1633,7 +1743,7 @@ class TestOnlineAccount:
         ac1._evtracker.wait_securejoin_inviter_progress(1000)
 
     def test_qr_verified_group_and_chatting(self, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
         lp.sec("ac1: create verified-group QR, ac2 scans and joins")
         chat1 = ac1.create_group_chat("hello", verified=True)
         assert chat1.is_protected()
@@ -1662,6 +1772,29 @@ class TestOnlineAccount:
         chat2.send_text("world")
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "world"
+        assert msg.is_encrypted()
+
+        lp.sec("ac1: create QR code and let ac3 scan it, starting the securejoin")
+        qr = ac1.get_setup_contact_qr()
+
+        lp.sec("ac3: start QR-code based setup contact protocol")
+        ch = ac3.qr_setup_contact(qr)
+        assert ch.id >= 10
+        ac1._evtracker.wait_securejoin_inviter_progress(1000)
+
+        lp.sec("ac1: add ac3 to verified group")
+        chat1.add_contact(ac3)
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.is_encrypted()
+        assert msg.is_system_message()
+        assert not msg.error
+
+        lp.sec("ac2: send message and let ac3 read it")
+        chat2.send_text("hi")
+        # Skip system message about added member
+        ac3._evtracker.wait_next_incoming_message()
+        msg = ac3._evtracker.wait_next_incoming_message()
+        assert msg.text == "hi"
         assert msg.is_encrypted()
 
     def test_set_get_contact_avatar(self, acfactory, data, lp):
@@ -1866,6 +1999,47 @@ class TestOnlineAccount:
         msg_back = ac1._evtracker.wait_next_incoming_message()
         assert msg_back.chat == chat
         assert chat.get_profile_image() is None
+
+    def test_fetch_deleted_msg(self, acfactory, lp):
+        """This is a regression test: Messages with \\Deleted flag were downloaded again and again,
+        hundreds of times, because uid_next was not updated.
+
+        See https://github.com/deltachat/deltachat-core-rust/issues/2429.
+        """
+        ac1 = acfactory.get_one_online_account()
+        ac1.stop_io()
+
+        ac1.direct_imap.append("INBOX", """
+            From: alice <alice@example.org>
+            Subject: subj
+            To: bob@example.com
+            Chat-Version: 1.0
+            Message-ID: <aepiors@example.org>
+            Content-Type: text/plain; charset=utf-8
+
+            Deleted message
+        """)
+        ac1.direct_imap.delete("1:*", expunge=False)
+        ac1.start_io()
+
+        for ev in ac1._evtracker.iter_events():
+            if ev.name == "DC_EVENT_MSGS_CHANGED":
+                pytest.fail("A deleted message was shown to the user")
+
+            if ev.name == "DC_EVENT_INFO" and "1 mails read from" in ev.data2:
+                break
+
+        # The message was downloaded once, now check that it's not downloaded again
+
+        for ev in ac1._evtracker.iter_events():
+            if ev.name == "DC_EVENT_INFO" and "1 mails read from" in ev.data2:
+                pytest.fail("The same email was read twice")
+
+            if ev.name == "DC_EVENT_MSGS_CHANGED":
+                pytest.fail("A deleted message was shown to the user")
+
+            if ev.name == "DC_EVENT_INFO" and "INBOX: Idle entering wait-on-remote state" in ev.data2:
+                break  # DC is done with reading messages
 
     def test_send_receive_locations(self, acfactory, lp):
         now = datetime.utcnow()
@@ -2252,26 +2426,31 @@ class TestOnlineAccount:
         assert received_reply.quoted_text == "hello"
         assert received_reply.quote.id == out_msg.id
 
-    @pytest.mark.parametrize("folder,move,expected_destination,", [
-        ("xyz", False, "xyz"),  # Test that emails are recognized in a random folder but not moved
-        ("xyz", True, "DeltaChat"),  # ...emails are found in a random folder and moved to DeltaChat
-        ("Spam", False, "INBOX")  # ...emails are moved from the spam folder to the Inbox
+    @pytest.mark.parametrize("folder,move,expected_destination,inbox_watch,", [
+        ("xyz", False, "xyz", "1"),  # Test that emails are recognized in a random folder but not moved
+        ("xyz", True, "DeltaChat", "1"),  # ...emails are found in a random folder and moved to DeltaChat
+        ("Spam", False, "INBOX", "1"),  # ...emails are moved from the spam folder to the Inbox
+        ("INBOX", False, "INBOX", "0"),  # ...emails are found in the `Inbox` folder even if `inbox_watch` is "0"
     ])
     # Testrun.org does not support the CREATE-SPECIAL-USE capability, which means that we can't create a folder with
     # the "\Junk" flag (see https://tools.ietf.org/html/rfc6154). So, we can't test spam folder detection by flag.
-    def test_scan_folders(self, acfactory, lp, folder, move, expected_destination):
+    def test_scan_folders(self, acfactory, lp, folder, move, expected_destination, inbox_watch):
         """Delta Chat periodically scans all folders for new messages to make sure we don't miss any."""
         variant = folder + "-" + str(move) + "-" + expected_destination
         lp.sec("Testing variant " + variant)
         ac1 = acfactory.get_online_configuring_account(move=move)
         ac2 = acfactory.get_online_configuring_account()
+        ac1.set_config("inbox_watch", inbox_watch)
 
         acfactory.wait_configure(ac1)
         ac1.direct_imap.create_folder(folder)
 
         acfactory.wait_configure_and_start_io()
         # Wait until each folder was selected once and we are IDLEing:
-        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        if inbox_watch == "1":
+            ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        else:
+            ac1._evtracker.get_info_contains("IMAP-fake-IDLE: no folder, waiting for interrupt")
         ac1.stop_io()
 
         # Send a message to ac1 and move it to the mvbox:
@@ -2288,7 +2467,10 @@ class TestOnlineAccount:
         assert msg.text == "hello"
 
         # Wait until the message was moved (if at all) and we are IDLEing again:
-        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        if inbox_watch == "1":
+            ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        else:
+            ac1._evtracker.get_info_contains("IMAP-fake-IDLE: no folder, waiting for interrupt")
         ac1.direct_imap.select_folder(expected_destination)
         assert len(ac1.direct_imap.get_all_messages()) == 1
         if folder != expected_destination:

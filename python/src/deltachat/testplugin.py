@@ -414,13 +414,13 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
 
         def dump_imap_summary(self, logfile):
             for ac in self._accounts:
+                ac.dump_account_info(logfile=logfile)
                 imap = getattr(ac, "direct_imap", None)
                 if imap is not None:
                     try:
                         imap.idle_done()
                     except Exception:
                         pass
-                    imap.dump_account_info(logfile=logfile)
                     imap.dump_imap_structures(tmpdir, logfile=logfile)
 
         def get_accepted_chat(self, ac1, ac2):

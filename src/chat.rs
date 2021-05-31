@@ -1,18 +1,15 @@
 //! # Chat module
 
-use std::convert::TryFrom;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
-use anyhow::Context as _;
-use anyhow::{bail, ensure, format_err, Error};
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_std::path::{Path, PathBuf};
-use async_std::prelude::*;
+use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 
 use crate::aheader::EncryptPreference;
 use crate::blob::{BlobError, BlobObject};
@@ -40,7 +37,6 @@ use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
-use crate::sql;
 use crate::stock_str;
 
 /// An chat item, such as a message or a marker.
@@ -71,10 +67,11 @@ pub enum ChatItem {
     Eq,
     FromPrimitive,
     ToPrimitive,
+    FromSql,
+    ToSql,
     IntoStaticStr,
     Serialize,
     Deserialize,
-    sqlx::Type,
 )]
 #[repr(u32)]
 pub enum ProtectionStatus {
@@ -93,20 +90,8 @@ impl Default for ProtectionStatus {
 /// Some chat IDs are reserved to identify special chat types.  This
 /// type can represent both the special as well as normal chats.
 #[derive(
-    Debug,
-    Copy,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    Hash,
-    PartialOrd,
-    Ord,
-    sqlx::Type,
+    Debug, Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord,
 )]
-#[sqlx(transparent)]
 pub struct ChatId(u32);
 
 impl ChatId {
@@ -170,21 +155,74 @@ impl ChatId {
         self == DC_CHAT_ID_ALLDONE_HINT
     }
 
-    pub async fn set_selfavatar_timestamp(
-        self,
-        context: &Context,
-        timestamp: i64,
-    ) -> Result<(), Error> {
+    /// Returns the [`ChatId`] for the 1:1 chat with `contact_id` if it exists.
+    ///
+    /// If it does not exist, `None` is returned.
+    pub async fn lookup_by_contact(context: &Context, contact_id: u32) -> Result<Option<Self>> {
+        ChatIdBlocked::lookup_by_contact(context, contact_id)
+            .await
+            .map(|lookup| lookup.map(|chat| chat.id))
+    }
+
+    /// Returns the [`ChatId`] for the 1:1 chat with `contact_id`.
+    ///
+    /// If the chat does not yet exist an unblocked chat ([`Blocked::Not`]) is created.
+    ///
+    /// This is an internal API, if **a user action** needs to get a chat
+    /// [`ChatId::create_for_contact`] should be used as this also scales up the
+    /// [`Contact`]'s origin.
+    pub async fn get_for_contact(context: &Context, contact_id: u32) -> Result<Self> {
+        ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Not)
+            .await
+            .map(|chat| chat.id)
+    }
+
+    /// Returns the unblocked 1:1 chat with `contact_id`.
+    ///
+    /// This should be used when **a user action** creates a chat 1:1, it ensures the chat
+    /// exists and is unblocked and scales the [`Contact`]'s origin.
+    ///
+    /// If a chat was in the deaddrop unblocking is how it becomes a normal chat and it will
+    /// look to the user like the chat was newly created.
+    pub async fn create_for_contact(context: &Context, contact_id: u32) -> Result<Self> {
+        let chat_id = match ChatIdBlocked::lookup_by_contact(context, contact_id).await? {
+            Some(chat) => {
+                if chat.blocked != Blocked::Not {
+                    chat.id.unblock(context).await;
+                }
+                chat.id
+            }
+            None => {
+                if Contact::real_exists_by_id(context, contact_id).await
+                    || contact_id == DC_CONTACT_ID_SELF
+                {
+                    let chat_id = ChatId::get_for_contact(context, contact_id).await?;
+                    Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat).await;
+                    chat_id
+                } else {
+                    warn!(
+                        context,
+                        "Cannot create chat, contact {} does not exist.", contact_id,
+                    );
+                    bail!("Can not create chat for non-existing contact");
+                }
+            }
+        };
+        context.emit_event(EventType::MsgsChanged {
+            chat_id: ChatId::new(0),
+            msg_id: MsgId::new(0),
+        });
+        Ok(chat_id)
+    }
+
+    pub async fn set_selfavatar_timestamp(self, context: &Context, timestamp: i64) -> Result<()> {
         context
             .sql
             .execute(
-                sqlx::query(
-                    "UPDATE contacts
+                "UPDATE contacts
                 SET selfavatar_sent=?
               WHERE id IN(SELECT contact_id FROM chats_contacts WHERE chat_id=?);",
-                )
-                .bind(timestamp)
-                .bind(self),
+                paramsv![timestamp, self],
             )
             .await?;
         Ok(())
@@ -198,9 +236,8 @@ impl ChatId {
         context
             .sql
             .execute(
-                sqlx::query("UPDATE chats SET blocked=? WHERE id=?;")
-                    .bind(new_blocked)
-                    .bind(self),
+                "UPDATE chats SET blocked=? WHERE id=?;",
+                paramsv![new_blocked, self],
             )
             .await
             .is_ok()
@@ -218,7 +255,7 @@ impl ChatId {
         self,
         context: &Context,
         protect: ProtectionStatus,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         ensure!(!self.is_special(), "Invalid chat-id.");
 
         let chat = Chat::load_from_db(context, self).await?;
@@ -248,9 +285,8 @@ impl ChatId {
         context
             .sql
             .execute(
-                sqlx::query("UPDATE chats SET protected=? WHERE id=?;")
-                    .bind(protect)
-                    .bind(self),
+                "UPDATE chats SET protected=? WHERE id=?;",
+                paramsv![protect, self],
             )
             .await?;
 
@@ -276,7 +312,7 @@ impl ChatId {
         protect: ProtectionStatus,
         promote: bool,
         from_id: u32,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let msg_text = context.stock_protection_msg(protect, from_id).await;
         let cmd = match protect {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
@@ -299,11 +335,7 @@ impl ChatId {
     }
 
     /// Sets protection and sends or adds a message.
-    pub async fn set_protection(
-        self,
-        context: &Context,
-        protect: ProtectionStatus,
-    ) -> Result<(), Error> {
+    pub async fn set_protection(self, context: &Context, protect: ProtectionStatus) -> Result<()> {
         ensure!(!self.is_special(), "set protection: invalid chat-id.");
 
         let chat = Chat::load_from_db(context, self).await?;
@@ -318,11 +350,7 @@ impl ChatId {
     }
 
     /// Archives or unarchives a chat.
-    pub async fn set_visibility(
-        self,
-        context: &Context,
-        visibility: ChatVisibility,
-    ) -> Result<(), Error> {
+    pub async fn set_visibility(self, context: &Context, visibility: ChatVisibility) -> Result<()> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be special chat: {}",
@@ -333,10 +361,8 @@ impl ChatId {
             context
                 .sql
                 .execute(
-                    sqlx::query("UPDATE msgs SET state=? WHERE chat_id=? AND state=?;")
-                        .bind(MessageState::InNoticed)
-                        .bind(self)
-                        .bind(MessageState::InFresh),
+                    "UPDATE msgs SET state=? WHERE chat_id=? AND state=?;",
+                    paramsv![MessageState::InNoticed, self, MessageState::InFresh],
                 )
                 .await?;
         }
@@ -344,9 +370,8 @@ impl ChatId {
         context
             .sql
             .execute(
-                sqlx::query("UPDATE chats SET archived=? WHERE id=?;")
-                    .bind(visibility)
-                    .bind(self),
+                "UPDATE chats SET archived=? WHERE id=?;",
+                paramsv![visibility, self],
             )
             .await?;
 
@@ -360,18 +385,19 @@ impl ChatId {
 
     // note that unarchive() is not the same as set_visibility(Normal) -
     // eg. unarchive() does not modify pinned chats and does not send events.
-    pub async fn unarchive(self, context: &Context) -> Result<(), Error> {
+    pub async fn unarchive(self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
-                sqlx::query("UPDATE chats SET archived=0 WHERE id=? and archived=1").bind(self),
+                "UPDATE chats SET archived=0 WHERE id=? and archived=1",
+                paramsv![self],
             )
             .await?;
         Ok(())
     }
 
     /// Deletes a chat.
-    pub async fn delete(self, context: &Context) -> Result<(), Error> {
+    pub async fn delete(self, context: &Context) -> Result<()> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be a special chat: {}",
@@ -383,26 +409,27 @@ impl ChatId {
         context
             .sql
             .execute(
-                sqlx::query(
-                    "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
-                )
-                .bind(self),
+                "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
+                paramsv![self],
             )
             .await?;
 
         context
             .sql
-            .execute(sqlx::query("DELETE FROM msgs WHERE chat_id=?;").bind(self))
+            .execute("DELETE FROM msgs WHERE chat_id=?;", paramsv![self])
             .await?;
 
         context
             .sql
-            .execute(sqlx::query("DELETE FROM chats_contacts WHERE chat_id=?;").bind(self))
+            .execute(
+                "DELETE FROM chats_contacts WHERE chat_id=?;",
+                paramsv![self],
+            )
             .await?;
 
         context
             .sql
-            .execute(sqlx::query("DELETE FROM chats WHERE id=?;").bind(self))
+            .execute("DELETE FROM chats WHERE id=?;", paramsv![self])
             .await?;
 
         context.emit_event(EventType::MsgsChanged {
@@ -426,11 +453,7 @@ impl ChatId {
     /// Sets draft message.
     ///
     /// Passing `None` as message just deletes the draft
-    pub async fn set_draft(
-        self,
-        context: &Context,
-        msg: Option<&mut Message>,
-    ) -> Result<(), Error> {
+    pub async fn set_draft(self, context: &Context, msg: Option<&mut Message>) -> Result<()> {
         if self.is_special() {
             return Ok(());
         }
@@ -451,7 +474,7 @@ impl ChatId {
     }
 
     /// Similar to as dc_set_draft() but does not emit an event
-    async fn set_draft_raw(self, context: &Context, msg: &mut Message) -> Result<bool, Error> {
+    async fn set_draft_raw(self, context: &Context, msg: &mut Message) -> Result<bool> {
         let deleted = self.maybe_delete_draft(context).await?;
         let set = self.do_set_draft(context, msg).await.is_ok();
 
@@ -459,19 +482,18 @@ impl ChatId {
         Ok(deleted || set)
     }
 
-    async fn get_draft_msg_id(self, context: &Context) -> Result<Option<MsgId>, Error> {
-        context
+    async fn get_draft_msg_id(self, context: &Context) -> Result<Option<MsgId>> {
+        let msg_id: Option<MsgId> = context
             .sql
-            .query_get_value::<_, MsgId>(
-                sqlx::query("SELECT id FROM msgs WHERE chat_id=? AND state=?;")
-                    .bind(self)
-                    .bind(MessageState::OutDraft),
+            .query_get_value(
+                "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
+                paramsv![self, MessageState::OutDraft],
             )
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(msg_id)
     }
 
-    pub async fn get_draft(self, context: &Context) -> Result<Option<Message>, Error> {
+    pub async fn get_draft(self, context: &Context) -> Result<Option<Message>> {
         if self.is_special() {
             return Ok(None);
         }
@@ -487,7 +509,7 @@ impl ChatId {
     /// Delete draft message in specified chat, if there is one.
     ///
     /// Returns `true`, if message was deleted, `false` otherwise.
-    async fn maybe_delete_draft(self, context: &Context) -> Result<bool, Error> {
+    async fn maybe_delete_draft(self, context: &Context) -> Result<bool> {
         match self.get_draft_msg_id(context).await? {
             Some(msg_id) => Ok(msg_id.delete_from_db(context).await.is_ok()),
             None => Ok(false),
@@ -497,7 +519,7 @@ impl ChatId {
     /// Set provided message as draft message for specified chat.
     ///
     /// Return true on success, false on database error.
-    async fn do_set_draft(self, context: &Context, msg: &mut Message) -> Result<(), Error> {
+    async fn do_set_draft(self, context: &Context, msg: &mut Message) -> Result<()> {
         match msg.viewtype {
             Viewtype::Unknown => bail!("Can not set draft of unknown type."),
             Viewtype::Text => {
@@ -523,43 +545,43 @@ impl ChatId {
         context
             .sql
             .execute(
-                sqlx::query(
-                    "INSERT INTO msgs (
-                     chat_id,
-                     from_id,
-                     timestamp,
-                     type,
-                     state,
-                     txt,
-                     param,
-                     hidden,
-                     mime_in_reply_to)
-                     VALUES (?,?,?,?,?,?,?,?,?);",
-                )
-                .bind(self)
-                .bind(DC_CONTACT_ID_SELF as i32)
-                .bind(time())
-                .bind(msg.viewtype)
-                .bind(MessageState::OutDraft)
-                .bind(msg.text.as_deref().unwrap_or(""))
-                .bind(msg.param.to_string())
-                .bind(1i32)
-                .bind(msg.in_reply_to.as_deref().unwrap_or_default()),
+                "INSERT INTO msgs (
+                 chat_id,
+                 from_id,
+                 timestamp,
+                 type,
+                 state,
+                 txt,
+                 param,
+                 hidden,
+                 mime_in_reply_to)
+         VALUES (?,?,?, ?,?,?,?,?,?);",
+                paramsv![
+                    self,
+                    DC_CONTACT_ID_SELF,
+                    time(),
+                    msg.viewtype,
+                    MessageState::OutDraft,
+                    msg.text.as_deref().unwrap_or(""),
+                    msg.param.to_string(),
+                    1,
+                    msg.in_reply_to.as_deref().unwrap_or_default(),
+                ],
             )
             .await?;
         Ok(())
     }
 
     /// Returns number of messages in a chat.
-    pub async fn get_msg_cnt(self, context: &Context) -> Result<usize, Error> {
+    pub async fn get_msg_cnt(self, context: &Context) -> Result<usize> {
         let count = context
             .sql
-            .count(sqlx::query("SELECT COUNT(*) FROM msgs WHERE chat_id=?;").bind(self))
+            .count("SELECT COUNT(*) FROM msgs WHERE chat_id=?", paramsv![self])
             .await?;
         Ok(count as usize)
     }
 
-    pub async fn get_fresh_msg_cnt(self, context: &Context) -> Result<usize, Error> {
+    pub async fn get_fresh_msg_cnt(self, context: &Context) -> Result<usize> {
         // this function is typically used to show a badge counter beside _each_ chatlist item.
         // to make this as fast as possible, esp. on older devices, we added an combined index over the rows used for querying.
         // so if you alter the query here, you may want to alter the index over `(state, hidden, chat_id)` in `sql.rs`.
@@ -573,23 +595,21 @@ impl ChatId {
         let count = context
             .sql
             .count(
-                sqlx::query(
-                    "SELECT COUNT(*)
+                "SELECT COUNT(*)
                 FROM msgs
                 WHERE state=10
                 AND hidden=0
                 AND chat_id=?;",
-                )
-                .bind(self),
+                paramsv![self],
             )
             .await?;
         Ok(count as usize)
     }
 
-    pub(crate) async fn get_param(self, context: &Context) -> Result<Params, Error> {
+    pub(crate) async fn get_param(self, context: &Context) -> Result<Params> {
         let res: Option<String> = context
             .sql
-            .query_get_value(sqlx::query("SELECT param FROM chats WHERE id=?").bind(self))
+            .query_get_value("SELECT param FROM chats WHERE id=?", paramsv![self])
             .await?;
         Ok(res
             .map(|s| s.parse().unwrap_or_default())
@@ -597,54 +617,61 @@ impl ChatId {
     }
 
     // Returns true if chat is a saved messages chat.
-    pub async fn is_self_talk(self, context: &Context) -> Result<bool, Error> {
+    pub async fn is_self_talk(self, context: &Context) -> Result<bool> {
         Ok(self.get_param(context).await?.exists(Param::Selftalk))
     }
 
     /// Returns true if chat is a device chat.
-    pub async fn is_device_talk(self, context: &Context) -> Result<bool, Error> {
+    pub async fn is_device_talk(self, context: &Context) -> Result<bool> {
         Ok(self.get_param(context).await?.exists(Param::Devicetalk))
     }
 
-    async fn parent_query(
-        self,
-        context: &Context,
-        fields: &str,
-    ) -> sql::Result<Option<sqlx::sqlite::SqliteRow>> {
-        let q = format!(
+    async fn parent_query<T, F>(self, context: &Context, fields: &str, f: F) -> Result<Option<T>>
+    where
+        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+    {
+        let sql = &context.sql;
+        let query = format!(
             "SELECT {} \
              FROM msgs WHERE chat_id=? AND state NOT IN (?, ?, ?, ?) AND NOT hidden \
              ORDER BY timestamp DESC, id DESC \
              LIMIT 1;",
             fields
         );
-        let query = sqlx::query(&q)
-            .bind(self)
-            .bind(MessageState::OutPreparing)
-            .bind(MessageState::OutDraft)
-            .bind(MessageState::OutPending)
-            .bind(MessageState::OutFailed);
-
-        let row = context.sql.fetch_optional(query).await?;
+        let row = sql
+            .query_row_optional(
+                query,
+                paramsv![
+                    self,
+                    MessageState::OutPreparing,
+                    MessageState::OutDraft,
+                    MessageState::OutPending,
+                    MessageState::OutFailed
+                ],
+                f,
+            )
+            .await?;
         Ok(row)
     }
 
     async fn get_parent_mime_headers(
         self,
         context: &Context,
-    ) -> sql::Result<Option<(String, String, String)>> {
-        if let Some(row) = self
+    ) -> Result<Option<(String, String, String)>> {
+        if let Some((rfc724_mid, mime_in_reply_to, mime_references, error)) = self
             .parent_query(
                 context,
                 "rfc724_mid, mime_in_reply_to, mime_references, error",
+                |row: &rusqlite::Row| {
+                    let rfc724_mid: String = row.get(0)?;
+                    let mime_in_reply_to: String = row.get(1)?;
+                    let mime_references: String = row.get(2)?;
+                    let error: String = row.get(3)?;
+                    Ok((rfc724_mid, mime_in_reply_to, mime_references, error))
+                },
             )
             .await?
         {
-            let rfc724_mid: String = row.try_get(0)?;
-            let mime_in_reply_to: String = row.try_get(1)?;
-            let mime_references: String = row.try_get(2)?;
-            let error: String = row.try_get(3)?;
-
             if !error.is_empty() {
                 // Do not reply to error messages.
                 //
@@ -668,7 +695,7 @@ impl ChatId {
     /// prefer plaintext emails.
     ///
     /// To get more verbose summary for a contact, including its key fingerprint, use [`Contact::get_encrinfo`].
-    pub async fn get_encryption_info(self, context: &Context) -> Result<String, Error> {
+    pub async fn get_encryption_info(self, context: &Context) -> Result<String> {
         let mut ret = String::new();
 
         for contact_id in get_chat_contacts(context, self)
@@ -729,6 +756,31 @@ impl std::fmt::Display for ChatId {
     }
 }
 
+/// Allow converting [ChatId] to an SQLite type.
+///
+/// This allows you to directly store [ChatId] into the database as
+/// well as query for a [ChatId].
+impl rusqlite::types::ToSql for ChatId {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        let val = rusqlite::types::Value::Integer(self.0 as i64);
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
+    }
+}
+
+/// Allow converting an SQLite integer directly into [ChatId].
+impl rusqlite::types::FromSql for ChatId {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        i64::column_result(value).and_then(|val| {
+            if 0 <= val && val <= std::u32::MAX as i64 {
+                Ok(ChatId::new(val as u32))
+            } else {
+                Err(rusqlite::types::FromSqlError::OutOfRange(val))
+            }
+        })
+    }
+}
+
 /// An object representing a single chat in memory.
 /// Chat objects are created using eg. `Chat::load_from_db`
 /// and are not updated on database changes;
@@ -749,32 +801,33 @@ pub struct Chat {
 
 impl Chat {
     /// Loads chat from the database by its ID.
-    pub async fn load_from_db(context: &Context, chat_id: ChatId) -> Result<Self, Error> {
-        let row = context
+    pub async fn load_from_db(context: &Context, chat_id: ChatId) -> Result<Self> {
+        let mut chat = context
             .sql
-            .fetch_one(
-                sqlx::query(
-                    "SELECT c.type, c.name, c.grpid, c.param, c.archived,
+            .query_row(
+                "SELECT c.type, c.name, c.grpid, c.param, c.archived,
                     c.blocked, c.locations_send_until, c.muted_until, c.protected
              FROM chats c
              WHERE c.id=?;",
-                )
-                .bind(chat_id),
+                paramsv![chat_id],
+                |row| {
+                    let c = Chat {
+                        id: chat_id,
+                        typ: row.get(0)?,
+                        name: row.get::<_, String>(1)?,
+                        grpid: row.get::<_, String>(2)?,
+                        param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
+                        visibility: row.get(4)?,
+                        blocked: row.get::<_, Option<_>>(5)?.unwrap_or_default(),
+                        is_sending_locations: row.get(6)?,
+                        mute_duration: row.get(7)?,
+                        protected: row.get(8)?,
+                    };
+                    Ok(c)
+                },
             )
-            .await?;
-
-        let mut chat = Chat {
-            id: chat_id,
-            typ: row.try_get(0)?,
-            name: row.try_get::<String, _>(1)?,
-            grpid: row.try_get::<String, _>(2)?,
-            param: row.try_get::<String, _>(3)?.parse().unwrap_or_default(),
-            visibility: row.try_get(4)?,
-            blocked: row.try_get::<Option<_>, _>(5)?.unwrap_or_default(),
-            is_sending_locations: row.try_get(6)?,
-            mute_duration: row.try_get(7)?,
-            protected: row.try_get(8)?,
-        };
+            .await
+            .context(format!("Failed loading chat {} from database", chat_id))?;
 
         if chat.id.is_deaddrop() {
             chat.name = stock_str::dead_drop(context).await;
@@ -827,13 +880,12 @@ impl Chat {
         !self.id.is_special() && !self.is_device_talk() && !self.is_mailing_list()
     }
 
-    pub async fn update_param(&mut self, context: &Context) -> Result<(), Error> {
+    pub async fn update_param(&mut self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
-                sqlx::query("UPDATE chats SET param=? WHERE id=?")
-                    .bind(self.param.to_string())
-                    .bind(self.id),
+                "UPDATE chats SET param=? WHERE id=?",
+                paramsv![self.param.to_string(), self.id],
             )
             .await?;
         Ok(())
@@ -854,7 +906,7 @@ impl Chat {
         &self.name
     }
 
-    pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>, Error> {
+    pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
                 return Ok(Some(dc_get_abs_path(context, image_rel)));
@@ -871,11 +923,11 @@ impl Chat {
         Ok(None)
     }
 
-    pub async fn get_gossiped_timestamp(&self, context: &Context) -> Result<i64, Error> {
+    pub async fn get_gossiped_timestamp(&self, context: &Context) -> Result<i64> {
         get_gossiped_timestamp(context, self.id).await
     }
 
-    pub async fn get_color(&self, context: &Context) -> Result<u32, Error> {
+    pub async fn get_color(&self, context: &Context) -> Result<u32> {
         let mut color = 0;
 
         if self.typ == Chattype::Single {
@@ -896,7 +948,7 @@ impl Chat {
     ///
     /// This is somewhat experimental, even more so than the rest of
     /// deltachat, and the data returned is still subject to change.
-    pub async fn get_info(&self, context: &Context) -> Result<ChatInfo, Error> {
+    pub async fn get_info(&self, context: &Context) -> Result<ChatInfo> {
         let draft = match self.id.get_draft(context).await? {
             Some(message) => message.text.unwrap_or_else(String::new),
             _ => String::new(),
@@ -956,9 +1008,8 @@ impl Chat {
         context: &Context,
         msg: &mut Message,
         timestamp: i64,
-    ) -> Result<MsgId, Error> {
+    ) -> Result<MsgId> {
         let mut new_references = "".into();
-        let mut msg_id = 0;
         let mut to_id = 0;
         let mut location_id = 0;
 
@@ -994,8 +1045,8 @@ impl Chat {
             if let Some(id) = context
                 .sql
                 .query_get_value(
-                    sqlx::query("SELECT contact_id FROM chats_contacts WHERE chat_id=?;")
-                        .bind(self.id),
+                    "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
+                    paramsv![self.id],
                 )
                 .await?
             {
@@ -1066,34 +1117,25 @@ impl Chat {
 
         // add independent location to database
 
-        if msg.param.exists(Param::SetLatitude)
-            && context
+        if msg.param.exists(Param::SetLatitude) {
+            if let Ok(row_id) = context
                 .sql
-                .execute(
-                    sqlx::query(
-                        "INSERT INTO locations \
+                .insert(
+                    "INSERT INTO locations \
                      (timestamp,from_id,chat_id, latitude,longitude,independent)\
                      VALUES (?,?,?, ?,?,1);",
-                    )
-                    .bind(timestamp)
-                    .bind(DC_CONTACT_ID_SELF as i32)
-                    .bind(self.id)
-                    .bind(msg.param.get_float(Param::SetLatitude).unwrap_or_default())
-                    .bind(msg.param.get_float(Param::SetLongitude).unwrap_or_default()),
+                    paramsv![
+                        timestamp,
+                        DC_CONTACT_ID_SELF,
+                        self.id,
+                        msg.param.get_float(Param::SetLatitude).unwrap_or_default(),
+                        msg.param.get_float(Param::SetLongitude).unwrap_or_default(),
+                    ],
                 )
                 .await
-                .is_ok()
-        {
-            location_id = context
-                .sql
-                .get_rowid2(
-                    "locations",
-                    "timestamp",
-                    timestamp,
-                    "from_id",
-                    DC_CONTACT_ID_SELF as i64,
-                )
-                .await?;
+            {
+                location_id = row_id;
+            }
         }
 
         let ephemeral_timer = if msg.param.get_cmd() == SystemMessage::EphemeralTimerChanged {
@@ -1123,11 +1165,10 @@ impl Chat {
 
         // add message to the database
 
-        if context
+        let msg_id = context
             .sql
-            .execute(
-                sqlx::query(
-                    "INSERT INTO msgs (
+            .insert(
+                "INSERT INTO msgs (
                         rfc724_mid,
                         chat_id,
                         from_id,
@@ -1146,41 +1187,29 @@ impl Chat {
                         location_id,
                         ephemeral_timer,
                         ephemeral_timestamp)
-
                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
-                )
-                .bind(&new_rfc724_mid)
-                .bind(self.id)
-                .bind(DC_CONTACT_ID_SELF as i32)
-                .bind(to_id as i32)
-                .bind(timestamp)
-                .bind(msg.viewtype)
-                .bind(msg.state)
-                .bind(msg.text.as_ref().cloned().unwrap_or_default())
-                .bind(&msg.subject)
-                .bind(msg.param.to_string())
-                .bind(msg.hidden)
-                .bind(msg.in_reply_to.as_deref().unwrap_or_default())
-                .bind(new_references)
-                .bind(new_mime_headers.is_some())
-                .bind(new_mime_headers.unwrap_or_default())
-                .bind(location_id as i32)
-                .bind(ephemeral_timer)
-                .bind(ephemeral_timestamp),
+                paramsv![
+                    new_rfc724_mid,
+                    self.id,
+                    DC_CONTACT_ID_SELF,
+                    to_id as i32,
+                    timestamp,
+                    msg.viewtype,
+                    msg.state,
+                    msg.text.as_ref().cloned().unwrap_or_default(),
+                    &msg.subject,
+                    msg.param.to_string(),
+                    msg.hidden,
+                    msg.in_reply_to.as_deref().unwrap_or_default(),
+                    new_references,
+                    new_mime_headers.is_some(),
+                    new_mime_headers.unwrap_or_default(),
+                    location_id as i32,
+                    ephemeral_timer,
+                    ephemeral_timestamp
+                ],
             )
-            .await
-            .is_ok()
-        {
-            msg_id = context
-                .sql
-                .get_rowid("msgs", "rfc724_mid", new_rfc724_mid)
-                .await?;
-        } else {
-            error!(
-                context,
-                "Cannot send message, cannot insert to database ({}).", self.id,
-            );
-        }
+            .await?;
         schedule_ephemeral_task(context).await;
 
         Ok(MsgId::new(u32::try_from(msg_id)?))
@@ -1194,53 +1223,30 @@ pub enum ChatVisibility {
     Pinned,
 }
 
-impl ChatVisibility {
-    fn to_u32(self) -> u32 {
-        match self {
+impl rusqlite::types::ToSql for ChatVisibility {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        let visibility = match &self {
             ChatVisibility::Normal => 0,
             ChatVisibility::Archived => 1,
             ChatVisibility::Pinned => 2,
-        }
-    }
-
-    fn from_u32(val: u32) -> Self {
-        match val {
-            2 => ChatVisibility::Pinned,
-            1 => ChatVisibility::Archived,
-            0 => ChatVisibility::Normal,
-            // fallback to to Normal for unknown values, may happen eg. on imports created by a newer version.
-            _ => ChatVisibility::Normal,
-        }
+        };
+        let val = rusqlite::types::Value::Integer(visibility);
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
     }
 }
 
-impl sqlx::Type<sqlx::Sqlite> for ChatVisibility {
-    fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
-        <u32 as sqlx::Type<_>>::type_info()
-    }
-
-    fn compatible(ty: &sqlx::sqlite::SqliteTypeInfo) -> bool {
-        <u32 as sqlx::Type<_>>::compatible(ty)
-    }
-}
-
-impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for ChatVisibility {
-    fn encode_by_ref(
-        &self,
-        args: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>,
-    ) -> sqlx::encode::IsNull {
-        args.push(sqlx::sqlite::SqliteArgumentValue::Int64(
-            self.to_u32() as i64
-        ));
-
-        sqlx::encode::IsNull::No
-    }
-}
-
-impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for ChatVisibility {
-    fn decode(value: sqlx::sqlite::SqliteValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
-        let value: u32 = sqlx::Decode::decode(value)?;
-        Ok(ChatVisibility::from_u32(value))
+impl rusqlite::types::FromSql for ChatVisibility {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        i64::column_result(value).map(|val| {
+            match val {
+                2 => ChatVisibility::Pinned,
+                1 => ChatVisibility::Archived,
+                0 => ChatVisibility::Normal,
+                // fallback to to Normal for unknown values, may happen eg. on imports created by a newer version.
+                _ => ChatVisibility::Normal,
+            }
+        })
     }
 }
 
@@ -1333,7 +1339,7 @@ pub struct ChatInfo {
 /// # Returns
 ///
 /// The "created" chat ID is returned.
-pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId, Error> {
+pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId> {
     let msg = Message::load_from_db(context, msg_id).await?;
     let chat = Chat::load_from_db(context, msg.chat_id).await?;
     ensure!(
@@ -1357,53 +1363,11 @@ pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId
     Ok(chat.id)
 }
 
-/// Create a normal chat with a single user.
-///
-/// To create group chats, see [`create_group_chat`].
-///
-/// If a chat already exists, this ID is returned, otherwise a new chat is created;
-/// this new chat may already contain messages, eg. from the deaddrop, to get the
-/// chat messages, use dc_get_chat_msgs().
-pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId, Error> {
-    let chat_id = match lookup_by_contact_id(context, contact_id).await {
-        Ok((chat_id, chat_blocked)) => {
-            if chat_blocked != Blocked::Not {
-                // unblock chat (typically move it from the deaddrop to view)
-                chat_id.unblock(context).await;
-            }
-            chat_id
-        }
-        Err(err) => {
-            if !Contact::real_exists_by_id(context, contact_id).await
-                && contact_id != DC_CONTACT_ID_SELF
-            {
-                warn!(
-                    context,
-                    "Cannot create chat, contact {} does not exist.", contact_id,
-                );
-                return Err(err);
-            } else {
-                let (chat_id, _) =
-                    create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).await?;
-                Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat).await;
-                chat_id
-            }
-        }
-    };
-
-    context.emit_event(EventType::MsgsChanged {
-        chat_id: ChatId::new(0),
-        msg_id: MsgId::new(0),
-    });
-
-    Ok(chat_id)
-}
-
-pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<(), Error> {
+pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<()> {
     // if there is no saved-messages chat, there is nothing to update. this is no error.
-    if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_SELF).await {
+    if let Some(chat_id) = ChatId::lookup_by_contact(context, DC_CONTACT_ID_SELF).await? {
         let icon = include_bytes!("../assets/icon-saved-messages.png");
-        let blob = BlobObject::create(context, "icon-saved-messages.png".to_string(), icon).await?;
+        let blob = BlobObject::create(context, "icon-saved-messages.png", icon).await?;
         let icon = blob.as_name().to_string();
 
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -1413,11 +1377,11 @@ pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<(), 
     Ok(())
 }
 
-pub(crate) async fn update_device_icon(context: &Context) -> Result<(), Error> {
+pub(crate) async fn update_device_icon(context: &Context) -> Result<()> {
     // if there is no device-chat, there is nothing to update. this is no error.
-    if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE).await {
+    if let Some(chat_id) = ChatId::lookup_by_contact(context, DC_CONTACT_ID_DEVICE).await? {
         let icon = include_bytes!("../assets/icon-device.png");
-        let blob = BlobObject::create(context, "icon-device.png".to_string(), icon).await?;
+        let blob = BlobObject::create(context, "icon-device.png", icon).await?;
         let icon = blob.as_name().to_string();
 
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -1431,27 +1395,21 @@ pub(crate) async fn update_device_icon(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-async fn update_special_chat_name(
-    context: &Context,
-    contact_id: u32,
-    name: String,
-) -> Result<(), Error> {
-    if let Ok((chat_id, _)) = lookup_by_contact_id(context, contact_id).await {
+async fn update_special_chat_name(context: &Context, contact_id: u32, name: String) -> Result<()> {
+    if let Some(chat_id) = ChatId::lookup_by_contact(context, contact_id).await? {
         // the `!= name` condition avoids unneeded writes
         context
             .sql
             .execute(
-                sqlx::query("UPDATE chats SET name=? WHERE id=? AND name!=?;")
-                    .bind(&name)
-                    .bind(chat_id)
-                    .bind(&name),
+                "UPDATE chats SET name=? WHERE id=? AND name!=?",
+                paramsv![name, chat_id, name],
             )
             .await?;
     }
     Ok(())
 }
 
-pub(crate) async fn update_special_chat_names(context: &Context) -> Result<(), Error> {
+pub(crate) async fn update_special_chat_names(context: &Context) -> Result<()> {
     update_special_chat_name(
         context,
         DC_CONTACT_ID_DEVICE,
@@ -1467,109 +1425,125 @@ pub(crate) async fn update_special_chat_names(context: &Context) -> Result<(), E
     Ok(())
 }
 
-pub(crate) async fn create_or_lookup_by_contact_id(
-    context: &Context,
-    contact_id: u32,
-    create_blocked: Blocked,
-) -> Result<(ChatId, Blocked), Error> {
-    ensure!(context.sql.is_open().await, "Database not available");
-    ensure!(contact_id > 0, "Invalid contact id requested");
-
-    if let Ok((chat_id, chat_blocked)) = lookup_by_contact_id(context, contact_id).await {
-        // Already exists, no need to create.
-        return Ok((chat_id, chat_blocked));
-    }
-
-    let contact = Contact::load_from_db(context, contact_id).await?;
-    let chat_name = contact.get_display_name().to_string();
-
-    context
-        .sql
-        .transaction(move |conn| {
-            Box::pin(async move {
-                sqlx::query(
-                    "INSERT INTO chats (
-                    type,
-                    name,
-                    param,
-                    blocked,
-                    created_timestamp
-                    )
-                    VALUES(?, ?, ?, ?, ?)",
-                )
-                .bind(Chattype::Single)
-                .bind(chat_name)
-                .bind(match contact_id {
-                    DC_CONTACT_ID_SELF => "K=1".to_string(), // K = Param::Selftalk
-                    DC_CONTACT_ID_DEVICE => "D=1".to_string(), // D = Param::Devicetalk
-                    _ => "".to_string(),
-                })
-                .bind(create_blocked)
-                .bind(time())
-                .execute(&mut *conn)
-                .await?;
-
-                sqlx::query(
-                    "INSERT INTO chats_contacts
-                     (chat_id, contact_id)
-                     VALUES((SELECT last_insert_rowid()), ?)",
-                )
-                .bind(contact_id)
-                .execute(&mut *conn)
-                .await?;
-                Ok(())
-            })
-        })
-        .await?;
-
-    if contact_id == DC_CONTACT_ID_SELF {
-        update_saved_messages_icon(context).await?;
-    } else if contact_id == DC_CONTACT_ID_DEVICE {
-        update_device_icon(context).await?;
-    }
-
-    lookup_by_contact_id(context, contact_id).await
+/// Handle a [`ChatId`] and its [`Blocked`] status at once.
+///
+/// This struct is an optimisation to read a [`ChatId`] and its [`Blocked`] status at once
+/// from the database.  It [`Deref`]s to [`ChatId`] so it can be used as an extension to
+/// [`ChatId`].
+///
+/// [`Deref`]: std::ops::Deref
+#[derive(Debug)]
+pub(crate) struct ChatIdBlocked {
+    pub id: ChatId,
+    pub blocked: Blocked,
 }
 
-pub(crate) async fn lookup_by_contact_id(
-    context: &Context,
-    contact_id: u32,
-) -> Result<(ChatId, Blocked), Error> {
-    ensure!(context.sql.is_open().await, "Database not available");
+impl ChatIdBlocked {
+    /// Searches the database for the 1:1 chat with this contact.
+    ///
+    /// If no chat is found `None` is returned.
+    pub async fn lookup_by_contact(context: &Context, contact_id: u32) -> Result<Option<Self>> {
+        ensure!(context.sql.is_open().await, "Database not available");
+        ensure!(contact_id > 0, "Invalid contact id requested");
 
-    let row = context
-        .sql
-        .fetch_one(
-            sqlx::query(
+        context
+            .sql
+            .query_row_optional(
                 "SELECT c.id, c.blocked
-               FROM chats c
-              INNER JOIN chats_contacts j
-                      ON c.id=j.chat_id
-              WHERE c.type=100
-                AND c.id>9
-                AND j.contact_id=?;",
+                   FROM chats c
+                  INNER JOIN chats_contacts j
+                          ON c.id=j.chat_id
+                  WHERE c.type=100  -- 100 = Chattype::Single
+                    AND c.id>9      -- 9 = DC_CHAT_ID_LAST_SPECIAL
+                    AND j.contact_id=?;",
+                paramsv![contact_id],
+                |row| {
+                    let id: ChatId = row.get(0)?;
+                    let blocked: Blocked = row.get(1)?;
+                    Ok(ChatIdBlocked { id, blocked })
+                },
             )
-            .bind(contact_id),
-        )
-        .await?;
-    Ok((
-        row.try_get::<ChatId, _>(0)?,
-        row.try_get::<Option<_>, _>(1)?.unwrap_or_default(),
-    ))
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Returns the chat for the 1:1 chat with this contact.
+    ///
+    /// I the chat does not yet exist a new one is created, using the provided [`Blocked`]
+    /// state.
+    pub async fn get_for_contact(
+        context: &Context,
+        contact_id: u32,
+        create_blocked: Blocked,
+    ) -> Result<Self> {
+        ensure!(context.sql.is_open().await, "Database not available");
+        ensure!(contact_id > 0, "Invalid contact id requested");
+
+        if let Some(res) = Self::lookup_by_contact(context, contact_id).await? {
+            // Already exists, no need to create.
+            return Ok(res);
+        }
+
+        let contact = Contact::load_from_db(context, contact_id).await?;
+        let chat_name = contact.get_display_name().to_string();
+        let mut params = Params::new();
+        match contact_id {
+            DC_CONTACT_ID_SELF => {
+                params.set_int(Param::Selftalk, 1);
+            }
+            DC_CONTACT_ID_DEVICE => {
+                params.set_int(Param::Devicetalk, 1);
+            }
+            _ => (),
+        }
+
+        let chat_id = context
+            .sql
+            .transaction(move |transaction| {
+                transaction.execute(
+                    "INSERT INTO chats
+                     (type, name, param, blocked, created_timestamp)
+                     VALUES(?, ?, ?, ?, ?)",
+                    params![
+                        Chattype::Single,
+                        chat_name,
+                        params.to_string(),
+                        create_blocked as u8,
+                        time(),
+                    ],
+                )?;
+                let chat_id = ChatId::new(
+                    transaction
+                        .last_insert_rowid()
+                        .try_into()
+                        .context("chat table rowid overflows u32")?,
+                );
+
+                transaction.execute(
+                    "INSERT INTO chats_contacts
+                 (chat_id, contact_id)
+                 VALUES((SELECT last_insert_rowid()), ?)",
+                    params![contact_id],
+                )?;
+
+                Ok(chat_id)
+            })
+            .await?;
+
+        match contact_id {
+            DC_CONTACT_ID_SELF => update_saved_messages_icon(context).await?,
+            DC_CONTACT_ID_DEVICE => update_device_icon(context).await?,
+            _ => (),
+        }
+
+        Ok(Self {
+            id: chat_id,
+            blocked: create_blocked,
+        })
+    }
 }
 
-pub async fn get_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId, Error> {
-    let (chat_id, blocked) = lookup_by_contact_id(context, contact_id).await?;
-    ensure_eq!(blocked, Blocked::Not, "Requested contact is blocked");
-
-    Ok(chat_id)
-}
-
-pub async fn prepare_msg(
-    context: &Context,
-    chat_id: ChatId,
-    msg: &mut Message,
-) -> Result<MsgId, Error> {
+pub async fn prepare_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     ensure!(
         !chat_id.is_special(),
         "Cannot prepare message for special chat"
@@ -1600,7 +1574,7 @@ pub(crate) fn msgtype_has_file(msgtype: Viewtype) -> bool {
     }
 }
 
-async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
+async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.viewtype) {
@@ -1655,7 +1629,7 @@ async fn prepare_msg_common(
     context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     msg.id = MsgId::new_unset();
     prepare_msg_blob(context, msg).await?;
     chat_id.unarchive(context).await?;
@@ -1689,9 +1663,8 @@ pub async fn is_contact_in_chat(context: &Context, chat_id: ChatId, contact_id: 
     context
         .sql
         .exists(
-            sqlx::query("SELECT COUNT(*) FROM chats_contacts WHERE chat_id=? AND contact_id=?;")
-                .bind(chat_id)
-                .bind(contact_id),
+            "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
+            paramsv![chat_id, contact_id as i32],
         )
         .await
         .unwrap_or_default()
@@ -1706,11 +1679,7 @@ pub async fn is_contact_in_chat(context: &Context, chat_id: ChatId, contact_id: 
 // TODO: Do not allow ChatId to be 0, if prepare_msg had been called
 //   the caller can get it from msg.chat_id.  Forwards would need to
 //   be fixed for this somehow too.
-pub async fn send_msg(
-    context: &Context,
-    chat_id: ChatId,
-    msg: &mut Message,
-) -> Result<MsgId, Error> {
+pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     if chat_id.is_unset() {
         let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
@@ -1739,11 +1708,7 @@ pub async fn send_msg(
 /// Directly  opens an smtp
 /// connection and sends the message, bypassing the job system. If this fails, it writes a send job to
 /// the database.
-pub async fn send_msg_sync(
-    context: &Context,
-    chat_id: ChatId,
-    msg: &mut Message,
-) -> Result<MsgId, Error> {
+pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     if let Some(mut job) = prepare_send_msg(context, chat_id, msg).await? {
         let mut smtp = crate::smtp::Smtp::new();
 
@@ -1771,11 +1736,7 @@ pub async fn send_msg_sync(
     }
 }
 
-async fn send_msg_inner(
-    context: &Context,
-    chat_id: ChatId,
-    msg: &mut Message,
-) -> Result<MsgId, Error> {
+async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     if let Some(send_job) = prepare_send_msg(context, chat_id, msg).await? {
         job::add(context, send_job).await;
 
@@ -1796,7 +1757,7 @@ async fn prepare_send_msg(
     context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
-) -> Result<Option<crate::job::Job>, Error> {
+) -> Result<Option<crate::job::Job>> {
     // dc_prepare_msg() leaves the message state to OutPreparing, we
     // only have to change the state to OutPending in this case.
     // Otherwise we still have to prepare the message, which will set
@@ -1821,7 +1782,7 @@ pub async fn send_text_msg(
     context: &Context,
     chat_id: ChatId,
     text_to_send: String,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     ensure!(
         !chat_id.is_special(),
         "bad chat_id, can not be a special chat: {}",
@@ -1833,7 +1794,7 @@ pub async fn send_text_msg(
     send_msg(context, chat_id, &mut msg).await
 }
 
-pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Result<MsgId, Error> {
+pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Result<MsgId> {
     ensure!(
         !chat_id.is_special(),
         "video chat invitation cannot be sent to special chat: {}",
@@ -1866,7 +1827,7 @@ pub async fn get_chat_msgs(
     chat_id: ChatId,
     flags: u32,
     marker1before: Option<MsgId>,
-) -> Result<Vec<ChatItem>, Error> {
+) -> Result<Vec<ChatItem>> {
     match delete_expired_messages(context).await {
         Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
         Ok(messages_deleted) => {
@@ -1884,11 +1845,71 @@ pub async fn get_chat_msgs(
         }
     }
 
-    let query = if chat_id.is_deaddrop() {
+    let process_row = if (flags & DC_GCM_INFO_ONLY) != 0 {
+        |row: &rusqlite::Row| {
+            // is_info logic taken from Message.is_info()
+            let params = row.get::<_, String>("param")?;
+            let (from_id, to_id) = (row.get::<_, u32>("from_id")?, row.get::<_, u32>("to_id")?);
+            let is_info_msg: bool = from_id == DC_CONTACT_ID_INFO as u32
+                || to_id == DC_CONTACT_ID_INFO as u32
+                || match Params::from_str(&params) {
+                    Ok(p) => {
+                        let cmd = p.get_cmd();
+                        cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
+                    }
+                    _ => false,
+                };
+
+            Ok((
+                row.get::<_, MsgId>("id")?,
+                row.get::<_, i64>("timestamp")?,
+                !is_info_msg,
+            ))
+        }
+    } else {
+        |row: &rusqlite::Row| {
+            Ok((
+                row.get::<_, MsgId>("id")?,
+                row.get::<_, i64>("timestamp")?,
+                false,
+            ))
+        }
+    };
+    let process_rows = |rows: rusqlite::MappedRows<_>| {
+        let mut ret = Vec::new();
+        let mut last_day = 0;
+        let cnv_to_local = dc_gm2local_offset();
+        for row in rows {
+            let (curr_id, ts, exclude_message): (MsgId, i64, bool) = row?;
+            if let Some(marker_id) = marker1before {
+                if curr_id == marker_id {
+                    ret.push(ChatItem::Marker1);
+                }
+            }
+            if (flags & DC_GCM_ADDDAYMARKER) != 0 {
+                let curr_local_timestamp = ts + cnv_to_local;
+                let curr_day = curr_local_timestamp / 86400;
+                if curr_day != last_day {
+                    ret.push(ChatItem::DayMarker {
+                        timestamp: curr_day,
+                    });
+                    last_day = curr_day;
+                }
+            }
+            if !exclude_message {
+                ret.push(ChatItem::Message { msg_id: curr_id });
+            }
+        }
+        Ok(ret)
+    };
+
+    let items = if chat_id.is_deaddrop() {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
             .unwrap_or_default();
-        sqlx::query(
-            "SELECT m.id AS id, m.timestamp AS timestamp
+        context
+            .sql
+            .query_map(
+                "SELECT m.id AS id, m.timestamp AS timestamp
                FROM msgs m
                LEFT JOIN chats
                       ON m.chat_id=chats.id
@@ -1901,14 +1922,19 @@ pub async fn get_chat_msgs(
                 AND contacts.blocked=0
                 AND m.msgrmsg>=?
               ORDER BY m.timestamp,m.id;",
-        )
-        .bind(if show_emails == ShowEmails::All {
-            0i32
-        } else {
-            1i32
-        })
+                paramsv![if show_emails == ShowEmails::All {
+                    0i32
+                } else {
+                    1i32
+                }],
+                process_row,
+                process_rows,
+            )
+            .await?
     } else if (flags & DC_GCM_INFO_ONLY) != 0 {
-        sqlx::query(
+        context
+            .sql
+            .query_map(
         // GLOB is used here instead of LIKE becase it is case-sensitive
                 "SELECT m.id AS id, m.timestamp AS timestamp, m.param AS param, m.from_id AS from_id, m.to_id AS to_id
                FROM msgs m
@@ -1919,80 +1945,40 @@ pub async fn get_chat_msgs(
                     OR m.from_id == ?
                     OR m.to_id == ?
                 )
-              ORDER BY m.timestamp, m.id;"
-        ).bind(chat_id)
-         .bind(DC_CONTACT_ID_INFO)
-         .bind(DC_CONTACT_ID_INFO)
+              ORDER BY m.timestamp, m.id;",
+                paramsv![chat_id, DC_CONTACT_ID_INFO, DC_CONTACT_ID_INFO],
+                process_row,
+                process_rows,
+            )
+            .await?
     } else {
-        sqlx::query(
-            "SELECT m.id AS id, m.timestamp AS timestamp
+        context
+            .sql
+            .query_map(
+                "SELECT m.id AS id, m.timestamp AS timestamp
                FROM msgs m
               WHERE m.chat_id=?
                 AND m.hidden=0
               ORDER BY m.timestamp, m.id;",
-        )
-        .bind(chat_id)
+                paramsv![chat_id],
+                process_row,
+                process_rows,
+            )
+            .await?
     };
-
-    let mut rows = context.sql.fetch(query).await?;
-
-    let mut ret = Vec::new();
-    let mut last_day = 0;
-    let cnv_to_local = dc_gm2local_offset();
-
-    while let Some(row) = rows.next().await {
-        let row = row?;
-        if (flags & DC_GCM_INFO_ONLY) != 0 {
-            // is_info logic taken from Message.is_info()
-            let params = row.try_get::<String, _>("param")?;
-            let from_id = row.try_get::<u32, _>("from_id")?;
-            let to_id = row.try_get::<u32, _>("to_id")?;
-            let is_info_msg: bool = from_id == DC_CONTACT_ID_INFO
-                || to_id == DC_CONTACT_ID_INFO
-                || match Params::from_str(&params) {
-                    Ok(p) => {
-                        let cmd = p.get_cmd();
-                        cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
-                    }
-                    _ => false,
-                };
-
-            if !is_info_msg {
-                continue;
-            }
-        }
-
-        let curr_id = row.try_get::<MsgId, _>("id")?;
-        let ts = row.try_get::<i64, _>("timestamp")?;
-        if let Some(marker_id) = marker1before {
-            if curr_id == marker_id {
-                ret.push(ChatItem::Marker1);
-            }
-        }
-        if (flags & DC_GCM_ADDDAYMARKER) != 0 {
-            let curr_local_timestamp = ts + cnv_to_local;
-            let curr_day = curr_local_timestamp / 86400;
-            if curr_day != last_day {
-                ret.push(ChatItem::DayMarker {
-                    timestamp: curr_day,
-                });
-                last_day = curr_day;
-            }
-        }
-        ret.push(ChatItem::Message { msg_id: curr_id });
-    }
-    Ok(ret)
+    Ok(items)
 }
 
 pub(crate) async fn marknoticed_chat_if_older_than(
     context: &Context,
     chat_id: ChatId,
     timestamp: i64,
-) -> Result<(), Error> {
+) -> Result<()> {
     if let Some(chat_timestamp) = context
         .sql
         .query_get_value(
-            sqlx::query("SELECT MAX(timestamp) FROM msgs WHERE chat_id=?").bind(chat_id),
+            "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+            paramsv![chat_id],
         )
         .await?
     {
@@ -2003,14 +1989,39 @@ pub(crate) async fn marknoticed_chat_if_older_than(
     Ok(())
 }
 
-pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), Error> {
+pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {
+    // for the virtual deaddrop chat-id,
+    // mark all messages that will appear in the deaddrop as noticed
+    if chat_id.is_deaddrop() {
+        if context
+            .sql
+            .execute(
+                "UPDATE msgs
+                        SET state=?1
+                      WHERE state=?2
+                        AND hidden=0
+                        AND chat_id IN (SELECT id FROM chats WHERE blocked=?3);",
+                paramsv![
+                    MessageState::InNoticed,
+                    MessageState::InFresh,
+                    Blocked::Deaddrop
+                ],
+            )
+            .await?
+            > 0
+        {
+            context.emit_event(EventType::MsgsNoticed(chat_id));
+        }
+        return Ok(());
+    }
+
     // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
+    // the additional SELECT statement may speed up things as no write-blocking is needed.
     let exists = context
         .sql
         .exists(
-            sqlx::query("SELECT COUNT(*) FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;")
-                .bind(MessageState::InFresh)
-                .bind(chat_id),
+            "SELECT COUNT(*) FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
+            paramsv![MessageState::InFresh, chat_id],
         )
         .await?;
     if !exists {
@@ -2020,16 +2031,12 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), 
     context
         .sql
         .execute(
-            sqlx::query(
-                "UPDATE msgs
+            "UPDATE msgs
             SET state=?
           WHERE state=?
             AND hidden=0
             AND chat_id=?;",
-            )
-            .bind(MessageState::InNoticed)
-            .bind(MessageState::InFresh)
-            .bind(chat_id),
+            paramsv![MessageState::InNoticed, MessageState::InFresh, chat_id],
         )
         .await?;
 
@@ -2044,37 +2051,42 @@ pub async fn get_chat_media(
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
-) -> Result<Vec<MsgId>, Error> {
+) -> Result<Vec<MsgId>> {
     // TODO This query could/should be converted to `AND type IN (?, ?, ?)`.
     let list = context
         .sql
-        .fetch(
-            sqlx::query(
-                "SELECT id
+        .query_map(
+            "SELECT id
                FROM msgs
               WHERE chat_id=?
                 AND (type=? OR type=? OR type=?)
               ORDER BY timestamp, id;",
-            )
-            .bind(chat_id)
-            .bind(msg_type)
-            .bind(if msg_type2 != Viewtype::Unknown {
-                msg_type2
-            } else {
-                msg_type
-            })
-            .bind(if msg_type3 != Viewtype::Unknown {
-                msg_type3
-            } else {
-                msg_type
-            }),
+            paramsv![
+                chat_id,
+                msg_type,
+                if msg_type2 != Viewtype::Unknown {
+                    msg_type2
+                } else {
+                    msg_type
+                },
+                if msg_type3 != Viewtype::Unknown {
+                    msg_type3
+                } else {
+                    msg_type
+                },
+            ],
+            |row| row.get::<_, MsgId>(0),
+            |ids| {
+                let mut ret = Vec::new();
+                for id in ids {
+                    if let Ok(msg_id) = id {
+                        ret.push(msg_id)
+                    }
+                }
+                Ok(ret)
+            },
         )
-        .await?
-        .map(|row| row?.try_get(0))
-        .filter_map(|row| row.ok())
-        .collect()
-        .await;
-
+        .await?;
     Ok(list)
 }
 
@@ -2093,7 +2105,7 @@ pub async fn get_next_media(
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
-) -> Result<Option<MsgId>, Error> {
+) -> Result<Option<MsgId>> {
     let mut ret: Option<MsgId> = None;
 
     if let Ok(msg) = Message::load_from_db(context, curr_msg_id).await {
@@ -2130,7 +2142,7 @@ pub async fn get_next_media(
     Ok(ret)
 }
 
-pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<u32>, Error> {
+pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<u32>> {
     // Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
     // groupchat but the chats stays visible, moreover, this makes displaying lists easier)
 
@@ -2143,20 +2155,17 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec
 
     let list = context
         .sql
-        .fetch(
-            sqlx::query(
-                "SELECT cc.contact_id
+        .query_map(
+            "SELECT cc.contact_id
                FROM chats_contacts cc
                LEFT JOIN contacts c
                       ON c.id=cc.contact_id
               WHERE cc.chat_id=?
               ORDER BY c.id=1, LOWER(c.name||c.addr), c.id;",
-            )
-            .bind(chat_id),
+            paramsv![chat_id],
+            |row| row.get::<_, u32>(0),
+            |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
-        .await?
-        .map(|row| row?.try_get(0))
-        .collect::<sqlx::Result<_>>()
         .await?;
 
     Ok(list)
@@ -2165,30 +2174,23 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec
 pub async fn create_group_chat(
     context: &Context,
     protect: ProtectionStatus,
-    chat_name: impl AsRef<str>,
-) -> Result<ChatId, Error> {
+    chat_name: &str,
+) -> Result<ChatId> {
     let chat_name = improve_single_line_input(chat_name);
     ensure!(!chat_name.is_empty(), "Invalid chat name");
 
     let draft_txt = stock_str::new_group_draft(context, &chat_name).await;
     let grpid = dc_create_id();
 
-    context
+    let row_id = context
         .sql
-        .execute(
-            sqlx::query(
-                "INSERT INTO chats
-            (type, name, grpid, param, created_timestamp)
-            VALUES(?, ?, ?, \'U=1\', ?);",
-            )
-            .bind(Chattype::Group)
-            .bind(chat_name)
-            .bind(&grpid)
-            .bind(time()),
+        .insert(
+            "INSERT INTO chats
+        (type, name, grpid, param, created_timestamp)
+        VALUES(?, ?, ?, \'U=1\', ?);",
+            paramsv![Chattype::Group, chat_name, grpid, time(),],
         )
         .await?;
-
-    let row_id = context.sql.get_rowid("chats", "grpid", grpid).await?;
 
     let chat_id = ChatId::new(u32::try_from(row_id)?);
     if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await {
@@ -2220,9 +2222,8 @@ pub(crate) async fn add_to_chat_contacts_table(
     match context
         .sql
         .execute(
-            sqlx::query("INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)")
-                .bind(chat_id)
-                .bind(contact_id as i32),
+            "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
+            paramsv![chat_id, contact_id as i32],
         )
         .await
     {
@@ -2247,9 +2248,8 @@ pub(crate) async fn remove_from_chat_contacts_table(
     match context
         .sql
         .execute(
-            sqlx::query("DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?")
-                .bind(chat_id)
-                .bind(contact_id as i32),
+            "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?",
+            paramsv![chat_id, contact_id as i32],
         )
         .await
     {
@@ -2281,7 +2281,7 @@ pub(crate) async fn add_contact_to_chat_ex(
     chat_id: ChatId,
     contact_id: u32,
     from_handshake: bool,
-) -> Result<bool, Error> {
+) -> Result<bool> {
     ensure!(!chat_id.is_special(), "can not add member to special chats");
     let contact = Contact::get_by_id(context, contact_id).await?;
     let mut msg = Message::default();
@@ -2364,20 +2364,18 @@ pub(crate) async fn add_contact_to_chat_ex(
     Ok(true)
 }
 
-pub(crate) async fn reset_gossiped_timestamp(
-    context: &Context,
-    chat_id: ChatId,
-) -> Result<(), Error> {
+pub(crate) async fn reset_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<()> {
     set_gossiped_timestamp(context, chat_id, 0).await
 }
 
 /// Get timestamp of the last gossip sent in the chat.
 /// Zero return value means that gossip was never sent.
-pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<i64, Error> {
-    let timestamp = context
+pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<i64> {
+    let timestamp: Option<i64> = context
         .sql
         .query_get_value(
-            sqlx::query("SELECT gossiped_timestamp FROM chats WHERE id=?;").bind(chat_id),
+            "SELECT gossiped_timestamp FROM chats WHERE id=?;",
+            paramsv![chat_id],
         )
         .await?;
     Ok(timestamp.unwrap_or_default())
@@ -2387,7 +2385,7 @@ pub(crate) async fn set_gossiped_timestamp(
     context: &Context,
     chat_id: ChatId,
     timestamp: i64,
-) -> Result<(), Error> {
+) -> Result<()> {
     ensure!(!chat_id.is_special(), "can not add member to special chats");
     info!(
         context,
@@ -2397,19 +2395,15 @@ pub(crate) async fn set_gossiped_timestamp(
     context
         .sql
         .execute(
-            sqlx::query("UPDATE chats SET gossiped_timestamp=? WHERE id=?;")
-                .bind(timestamp)
-                .bind(chat_id),
+            "UPDATE chats SET gossiped_timestamp=? WHERE id=?;",
+            paramsv![timestamp, chat_id],
         )
         .await?;
 
     Ok(())
 }
 
-pub(crate) async fn shall_attach_selfavatar(
-    context: &Context,
-    chat_id: ChatId,
-) -> Result<bool, Error> {
+pub(crate) async fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<bool> {
     // versions before 12/2019 already allowed to set selfavatar, however, it was never sent to others.
     // to avoid sending out previously set selfavatars unexpectedly we added this additional check.
     // it can be removed after some time.
@@ -2418,28 +2412,28 @@ pub(crate) async fn shall_attach_selfavatar(
     }
 
     let timestamp_some_days_ago = time() - DC_RESEND_USER_AVATAR_DAYS * 24 * 60 * 60;
-    let mut rows = context
+    let needs_attach = context
         .sql
-        .fetch(
-            sqlx::query(
-                "SELECT c.selfavatar_sent
+        .query_map(
+            "SELECT c.selfavatar_sent
            FROM chats_contacts cc
            LEFT JOIN contacts c ON c.id=cc.contact_id
           WHERE cc.chat_id=? AND cc.contact_id!=?;",
-            )
-            .bind(chat_id)
-            .bind(DC_CONTACT_ID_SELF),
+            paramsv![chat_id, DC_CONTACT_ID_SELF],
+            |row| Ok(row.get::<_, i64>(0)),
+            |rows| {
+                let mut needs_attach = false;
+                for row in rows {
+                    let row = row?;
+                    let selfavatar_sent = row?;
+                    if selfavatar_sent < timestamp_some_days_ago {
+                        needs_attach = true;
+                    }
+                }
+                Ok(needs_attach)
+            },
         )
         .await?;
-
-    let mut needs_attach = false;
-    while let Some(row) = rows.next().await {
-        let row = row?;
-        let selfavatar_sent: i64 = row.try_get(0)?;
-        if selfavatar_sent < timestamp_some_days_ago {
-            needs_attach = true;
-        }
-    }
     Ok(needs_attach)
 }
 
@@ -2450,68 +2444,48 @@ pub enum MuteDuration {
     Until(SystemTime),
 }
 
-impl sqlx::Type<sqlx::Sqlite> for MuteDuration {
-    fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
-        <i64 as sqlx::Type<_>>::type_info()
-    }
-
-    fn compatible(ty: &sqlx::sqlite::SqliteTypeInfo) -> bool {
-        <i64 as sqlx::Type<_>>::compatible(ty)
-    }
-}
-
-impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for MuteDuration {
-    fn encode_by_ref(
-        &self,
-        args: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>,
-    ) -> sqlx::encode::IsNull {
+impl rusqlite::types::ToSql for MuteDuration {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
         let duration: i64 = match &self {
             MuteDuration::NotMuted => 0,
             MuteDuration::Forever => -1,
-            MuteDuration::Until(when) => when
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .ok()
-                .and_then(|d| d.as_secs().try_into().ok())
-                .unwrap_or(0),
+            MuteDuration::Until(when) => {
+                let duration = when
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?;
+                i64::try_from(duration.as_secs())
+                    .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?
+            }
         };
-
-        args.push(sqlx::sqlite::SqliteArgumentValue::Int64(duration));
-
-        sqlx::encode::IsNull::No
+        let val = rusqlite::types::Value::Integer(duration);
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
     }
 }
 
-impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for MuteDuration {
-    fn decode(value: sqlx::sqlite::SqliteValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
-        let value: i64 = sqlx::Decode::decode(value)?;
+impl rusqlite::types::FromSql for MuteDuration {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
         // Negative values other than -1 should not be in the
         // database.  If found they'll be NotMuted.
-        match value {
+        match i64::column_result(value)? {
             0 => Ok(MuteDuration::NotMuted),
             -1 => Ok(MuteDuration::Forever),
             n if n > 0 => match SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(n as u64)) {
                 Some(t) => Ok(MuteDuration::Until(t)),
-                None => Err(Box::new(sqlx::error::Error::Decode(Box::new(
-                    crate::error::OutOfRangeError,
-                )))),
+                None => Err(rusqlite::types::FromSqlError::OutOfRange(n)),
             },
             _ => Ok(MuteDuration::NotMuted),
         }
     }
 }
 
-pub async fn set_muted(
-    context: &Context,
-    chat_id: ChatId,
-    duration: MuteDuration,
-) -> Result<(), Error> {
+pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
     if context
         .sql
         .execute(
-            sqlx::query("UPDATE chats SET muted_until=? WHERE id=?;")
-                .bind(duration)
-                .bind(chat_id),
+            "UPDATE chats SET muted_until=? WHERE id=?;",
+            paramsv![duration, chat_id],
         )
         .await
         .is_ok()
@@ -2527,7 +2501,7 @@ pub async fn remove_contact_from_chat(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
-) -> Result<(), Error> {
+) -> Result<()> {
     ensure!(
         !chat_id.is_special(),
         "bad chat_id, can not be special chat: {}",
@@ -2557,7 +2531,7 @@ pub async fn remove_contact_from_chat(
                     if chat.is_promoted() {
                         msg.viewtype = Viewtype::Text;
                         if contact.id == DC_CONTACT_ID_SELF {
-                            set_group_explicitly_left(context, chat.grpid).await?;
+                            set_group_explicitly_left(context, &chat.grpid).await?;
                             msg.text = Some(
                                 stock_str::msg_group_left(context, DC_CONTACT_ID_SELF as u32).await,
                             );
@@ -2599,11 +2573,14 @@ pub async fn remove_contact_from_chat(
     Ok(())
 }
 
-async fn set_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Result<(), Error> {
-    if !is_group_explicitly_left(context, grpid.as_ref()).await? {
+async fn set_group_explicitly_left(context: &Context, grpid: &str) -> Result<()> {
+    if !is_group_explicitly_left(context, grpid).await? {
         context
             .sql
-            .execute(sqlx::query("INSERT INTO leftgrps (grpid) VALUES(?);").bind(grpid.as_ref()))
+            .execute(
+                "INSERT INTO leftgrps (grpid) VALUES(?);",
+                paramsv![grpid.to_string()],
+            )
             .await?;
     }
 
@@ -2613,19 +2590,18 @@ async fn set_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) ->
 pub(crate) async fn is_group_explicitly_left(
     context: &Context,
     grpid: impl AsRef<str>,
-) -> Result<bool, Error> {
+) -> Result<bool> {
     let exists = context
         .sql
-        .exists(sqlx::query("SELECT COUNT(*) FROM leftgrps WHERE grpid=?;").bind(grpid.as_ref()))
+        .exists(
+            "SELECT COUNT(*) FROM leftgrps WHERE grpid=?;",
+            paramsv![grpid.as_ref()],
+        )
         .await?;
     Ok(exists)
 }
 
-pub async fn set_chat_name(
-    context: &Context,
-    chat_id: ChatId,
-    new_name: impl AsRef<str>,
-) -> Result<(), Error> {
+pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -> Result<()> {
     let new_name = improve_single_line_input(new_name);
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success = false;
@@ -2649,9 +2625,8 @@ pub async fn set_chat_name(
             if context
                 .sql
                 .execute(
-                    sqlx::query("UPDATE chats SET name=? WHERE id=?;")
-                        .bind(new_name.to_string())
-                        .bind(chat_id),
+                    "UPDATE chats SET name=? WHERE id=?;",
+                    paramsv![new_name.to_string(), chat_id],
                 )
                 .await
                 .is_ok()
@@ -2699,7 +2674,7 @@ pub async fn set_chat_profile_image(
     context: &Context,
     chat_id: ChatId,
     new_image: impl AsRef<str>, // XXX use PathBuf
-) -> Result<(), Error> {
+) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     ensure!(
@@ -2724,7 +2699,7 @@ pub async fn set_chat_profile_image(
         msg.param.remove(Param::Arg);
         msg.text = Some(stock_str::msg_grp_img_deleted(context, DC_CONTACT_ID_SELF as u32).await);
     } else {
-        let image_blob = match BlobObject::from_path(context, Path::new(new_image.as_ref())) {
+        let mut image_blob = match BlobObject::from_path(context, Path::new(new_image.as_ref())) {
             Ok(blob) => Ok(blob),
             Err(err) => match err {
                 BlobError::WrongBlobdir { .. } => {
@@ -2753,11 +2728,7 @@ pub async fn set_chat_profile_image(
     Ok(())
 }
 
-pub async fn forward_msgs(
-    context: &Context,
-    msg_ids: &[MsgId],
-    chat_id: ChatId,
-) -> Result<(), Error> {
+pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId) -> Result<()> {
     ensure!(!msg_ids.is_empty(), "empty msgs_ids: nothing to forward");
     ensure!(!chat_id.is_special(), "can not forward to special chat");
 
@@ -2769,20 +2740,21 @@ pub async fn forward_msgs(
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
         ensure!(chat.can_send(), "cannot send to {}", chat_id);
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len()).await;
-        let q = format!(
-            "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-            msg_ids.iter().map(|_| "?").join(",")
-        );
-        let mut query = sqlx::query(&q);
-        for v in msg_ids {
-            query = query.bind(v);
-        }
+        let ids = context
+            .sql
+            .query_map(
+                format!(
+                    "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
+                    msg_ids.iter().map(|_| "?").join(",")
+                ),
+                rusqlite::params_from_iter(msg_ids),
+                |row| row.get::<_, MsgId>(0),
+                |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+            )
+            .await?;
 
-        let mut rows = context.sql.fetch(query).await?;
-
-        while let Some(row) = rows.next().await {
-            let row = row?;
-            let src_msg_id: MsgId = row.try_get(0)?;
+        for id in ids {
+            let src_msg_id: MsgId = id;
             let msg = Message::load_from_db(context, src_msg_id).await;
             if msg.is_err() {
                 break;
@@ -2844,25 +2816,26 @@ pub async fn forward_msgs(
     Ok(())
 }
 
-pub(crate) async fn get_chat_contact_cnt(
-    context: &Context,
-    chat_id: ChatId,
-) -> Result<usize, Error> {
+pub(crate) async fn get_chat_contact_cnt(context: &Context, chat_id: ChatId) -> Result<usize> {
     let count = context
         .sql
-        .count(sqlx::query("SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;").bind(chat_id))
+        .count(
+            "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
+            paramsv![chat_id],
+        )
         .await?;
     Ok(count as usize)
 }
 
-pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize, Error> {
+pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
     if context.sql.is_open().await {
         // no database, no chats - this is no error (needed eg. for information)
         let count = context
             .sql
-            .count(sqlx::query(
+            .count(
                 "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
-            ))
+                paramsv![],
+            )
             .await?;
         Ok(count as usize)
     } else {
@@ -2874,24 +2847,23 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize, Error> {
 pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,
-) -> Result<(ChatId, bool, Blocked), sql::Error> {
-    let (chat_id, b, p) = context
+) -> Result<(ChatId, bool, Blocked)> {
+    context
         .sql
-        .fetch_one(
-            sqlx::query("SELECT id, blocked, protected FROM chats WHERE grpid=?;")
-                .bind(grpid.as_ref()),
+        .query_row(
+            "SELECT id, blocked, protected FROM chats WHERE grpid=?;",
+            paramsv![grpid.as_ref()],
+            |row| {
+                let chat_id = row.get::<_, ChatId>(0)?;
+
+                let b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
+                let p = row
+                    .get::<_, Option<ProtectionStatus>>(2)?
+                    .unwrap_or_default();
+                Ok((chat_id, p == ProtectionStatus::Protected, b))
+            },
         )
         .await
-        .and_then(|row| {
-            Ok((
-                row.try_get(0)?,
-                row.try_get::<Option<Blocked>, _>(1)?.unwrap_or_default(),
-                row.try_get::<Option<ProtectionStatus>, _>(2)?
-                    .unwrap_or_default(),
-            ))
-        })?;
-
-    Ok((chat_id, p == ProtectionStatus::Protected, b))
 }
 
 /// Adds a message to device chat.
@@ -2903,7 +2875,7 @@ pub async fn add_device_msg_with_importance(
     label: Option<&str>,
     msg: Option<&mut Message>,
     important: bool,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     ensure!(
         label.is_some() || msg.is_some(),
         "device-messages need label, msg or both"
@@ -2919,9 +2891,7 @@ pub async fn add_device_msg_with_importance(
     }
 
     if let Some(msg) = msg {
-        chat_id = create_or_lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE, Blocked::Not)
-            .await?
-            .0;
+        chat_id = ChatId::get_for_contact(context, DC_CONTACT_ID_DEVICE).await?;
 
         let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
         msg.try_calc_and_set_dimensions(context).await.ok();
@@ -2936,7 +2906,8 @@ pub async fn add_device_msg_with_importance(
         if let Some(last_msg_time) = context
             .sql
             .query_get_value(
-                sqlx::query("SELECT MAX(timestamp) FROM msgs WHERE chat_id=?").bind(chat_id),
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+                paramsv![chat_id],
             )
             .await?
         {
@@ -2945,11 +2916,10 @@ pub async fn add_device_msg_with_importance(
             }
         }
 
-        context
+        let row_id = context
             .sql
-            .execute(
-                sqlx::query(
-                    "INSERT INTO msgs (
+            .insert(
+                "INSERT INTO msgs (
             chat_id,
             from_id,
             to_id,
@@ -2961,35 +2931,32 @@ pub async fn add_device_msg_with_importance(
             param,
             rfc724_mid)
             VALUES (?,?,?,?,?,?,?,?,?,?,?);",
-                )
-                .bind(chat_id)
-                .bind(DC_CONTACT_ID_DEVICE as i32)
-                .bind(DC_CONTACT_ID_SELF as i32)
-                .bind(timestamp_sort)
-                .bind(timestamp_sent)
-                .bind(timestamp_sent)
-                .bind(
-                    // timestamp_sent equals timestamp_rcvd
+                paramsv![
+                    chat_id,
+                    DC_CONTACT_ID_DEVICE,
+                    DC_CONTACT_ID_SELF,
+                    timestamp_sort,
+                    timestamp_sent,
+                    timestamp_sent, // timestamp_sent equals timestamp_rcvd
                     msg.viewtype,
-                )
-                .bind(MessageState::InFresh)
-                .bind(msg.text.as_ref().cloned().unwrap_or_default())
-                .bind(msg.param.to_string())
-                .bind(&rfc724_mid),
+                    MessageState::InFresh,
+                    msg.text.as_ref().cloned().unwrap_or_default(),
+                    msg.param.to_string(),
+                    rfc724_mid,
+                ],
             )
             .await?;
 
-        let row_id = context
-            .sql
-            .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
-            .await?;
         msg_id = MsgId::new(u32::try_from(row_id)?);
     }
 
     if let Some(label) = label {
         context
             .sql
-            .execute(sqlx::query("INSERT INTO devmsglabels (label) VALUES (?);").bind(label))
+            .execute(
+                "INSERT INTO devmsglabels (label) VALUES (?);",
+                paramsv![label.to_string()],
+            )
             .await?;
     }
 
@@ -3008,15 +2975,18 @@ pub async fn add_device_msg(
     context: &Context,
     label: Option<&str>,
     msg: Option<&mut Message>,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     add_device_msg_with_importance(context, label, msg, false).await
 }
 
-pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool, Error> {
+pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool> {
     ensure!(!label.is_empty(), "empty label");
     let exists = context
         .sql
-        .exists(sqlx::query("SELECT COUNT(label) FROM devmsglabels WHERE label=?").bind(label))
+        .exists(
+            "SELECT COUNT(label) FROM devmsglabels WHERE label=?",
+            paramsv![label],
+        )
         .await?;
 
     Ok(exists)
@@ -3027,14 +2997,17 @@ pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result
 //   no wrong information are shown in the device chat
 // - deletion in `devmsglabels` makes sure,
 //   deleted messages are resetted and useful messages can be added again
-pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Result<(), Error> {
+pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Result<()> {
     context
         .sql
-        .execute(sqlx::query("DELETE FROM msgs WHERE from_id=?;").bind(DC_CONTACT_ID_DEVICE as i32))
+        .execute(
+            "DELETE FROM msgs WHERE from_id=?;",
+            paramsv![DC_CONTACT_ID_DEVICE],
+        )
         .await?;
     context
         .sql
-        .execute(sqlx::query("DELETE FROM devmsglabels;"))
+        .execute("DELETE FROM devmsglabels;", paramsv![])
         .await?;
     Ok(())
 }
@@ -3047,7 +3020,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     chat_id: ChatId,
     text: impl AsRef<str>,
     cmd: SystemMessage,
-) -> Result<MsgId, Error> {
+) -> Result<MsgId> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
     let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
 
@@ -3056,26 +3029,24 @@ pub(crate) async fn add_info_msg_with_cmd(
         param.set_cmd(cmd)
     }
 
-    context.sql.execute(
-        sqlx::query("INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid,ephemeral_timer, param) VALUES (?,?,?, ?,?,?, ?,?,?, ?);")
-            .bind(chat_id)
-            .bind(DC_CONTACT_ID_INFO as i32)
-            .bind(DC_CONTACT_ID_INFO as i32)
-            .bind(dc_create_smeared_timestamp(context).await)
-            .bind(Viewtype::Text)
-            .bind(MessageState::InNoticed)
-            .bind(text.as_ref().to_string())
-            .bind(&rfc724_mid)
-            .bind(ephemeral_timer)
-            .bind(param.to_string())
+    let row_id =
+    context.sql.insert(
+        "INSERT INTO msgs (chat_id,from_id,to_id,timestamp,type,state,txt,rfc724_mid,ephemeral_timer, param) VALUES (?,?,?, ?,?,?, ?,?,?, ?);",
+        paramsv![
+            chat_id,
+            DC_CONTACT_ID_INFO,
+            DC_CONTACT_ID_INFO,
+            dc_create_smeared_timestamp(context).await,
+            Viewtype::Text,
+            MessageState::InNoticed,
+            text.as_ref().to_string(),
+            rfc724_mid,
+            ephemeral_timer,
+            param.to_string(),
+        ]
     ).await?;
 
-    let row_id = context
-        .sql
-        .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
-        .await
-        .unwrap_or_default();
-    let msg_id = MsgId::new(u32::try_from(row_id)?);
+    let msg_id = MsgId::new(row_id.try_into()?);
     context.emit_event(EventType::MsgsChanged { chat_id, msg_id });
     Ok(msg_id)
 }
@@ -3182,7 +3153,7 @@ mod tests {
     async fn test_add_remove_contact_for_single() {
         let ctx = TestContext::new_alice().await;
         let bob = Contact::create(&ctx, "", "bob@f.br").await.unwrap();
-        let chat_id = create_by_contact_id(&ctx, bob).await.unwrap();
+        let chat_id = ChatId::create_for_contact(&ctx, bob).await.unwrap();
         let chat = Chat::load_from_db(&ctx, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Single);
         assert_eq!(get_chat_contacts(&ctx, chat.id).await.unwrap().len(), 1);
@@ -3381,10 +3352,9 @@ mod tests {
     async fn test_device_chat_cannot_sent() {
         let t = TestContext::new().await;
         t.update_device_chats().await.unwrap();
-        let (device_chat_id, _) =
-            create_or_lookup_by_contact_id(&t, DC_CONTACT_ID_DEVICE, Blocked::Not)
-                .await
-                .unwrap();
+        let device_chat_id = ChatId::get_for_contact(&t, DC_CONTACT_ID_DEVICE)
+            .await
+            .unwrap();
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
@@ -3624,11 +3594,15 @@ mod tests {
             .unwrap();
         assert_ne!(contact1, 0);
 
-        let chat_id = create_by_contact_id(&context.ctx, contact1).await.unwrap();
+        let chat_id = ChatId::create_for_contact(&context.ctx, contact1)
+            .await
+            .unwrap();
         assert!(!chat_id.is_special(), "chat_id too small {}", chat_id);
         let chat = Chat::load_from_db(&context.ctx, chat_id).await.unwrap();
 
-        let chat2_id = create_by_contact_id(&context.ctx, contact1).await.unwrap();
+        let chat2_id = ChatId::create_for_contact(&context.ctx, contact1)
+            .await
+            .unwrap();
         assert_eq!(chat2_id, chat_id);
         let chat2 = Chat::load_from_db(&context.ctx, chat2_id).await.unwrap();
 
@@ -3824,46 +3798,55 @@ mod tests {
         // create contact, then unblocked chat
         let contact_id = Contact::create(&ctx, "", "bob@foo.de").await.unwrap();
         assert_ne!(contact_id, 0);
-        let res = lookup_by_contact_id(&ctx, contact_id).await;
-        assert!(res.is_err());
+        let found = ChatId::lookup_by_contact(&ctx, contact_id).await.unwrap();
+        assert!(found.is_none());
 
-        let chat_id = create_by_contact_id(&ctx, contact_id).await.unwrap();
-        let (chat_id2, blocked) = lookup_by_contact_id(&ctx, contact_id).await.unwrap();
-        assert_eq!(chat_id, chat_id2);
-        assert_eq!(blocked, Blocked::Not);
+        let chat_id = ChatId::create_for_contact(&ctx, contact_id).await.unwrap();
+        let chat2 = ChatIdBlocked::lookup_by_contact(&ctx, contact_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(chat_id, chat2.id);
+        assert_eq!(chat2.blocked, Blocked::Not);
 
         // create contact, then blocked chat
         let contact_id = Contact::create(&ctx, "", "claire@foo.de").await.unwrap();
-        let (chat_id, _) = create_or_lookup_by_contact_id(&ctx, contact_id, Blocked::Manually)
+        let chat_id = ChatIdBlocked::get_for_contact(&ctx, contact_id, Blocked::Manually)
             .await
+            .unwrap()
+            .id;
+        let chat2 = ChatIdBlocked::lookup_by_contact(&ctx, contact_id)
+            .await
+            .unwrap()
             .unwrap();
-        let (chat_id2, blocked) = lookup_by_contact_id(&ctx, contact_id).await.unwrap();
-        assert_eq!(chat_id, chat_id2);
-        assert_eq!(blocked, Blocked::Manually);
+        assert_eq!(chat_id, chat2.id);
+        assert_eq!(chat2.blocked, Blocked::Manually);
 
-        // test nonexistent contact, and also check if reasonable defaults are used
-        let res = lookup_by_contact_id(&ctx, 1234).await;
-        assert!(res.is_err());
+        // test nonexistent contact
+        let found = ChatId::lookup_by_contact(&ctx, 1234).await.unwrap();
+        assert!(found.is_none());
 
-        let (chat_id, blocked) = lookup_by_contact_id(&ctx, 1234).await.unwrap_or_default();
-        assert_eq!(chat_id, ChatId::new(0));
-        assert_eq!(blocked, Blocked::Not);
+        let found = ChatIdBlocked::lookup_by_contact(&ctx, 1234).await.unwrap();
+        assert!(found.is_none());
     }
 
     #[async_std::test]
     async fn test_lookup_self_by_contact_id() {
         let ctx = TestContext::new_alice().await;
 
-        let res = lookup_by_contact_id(&ctx, DC_CONTACT_ID_SELF).await;
-        assert!(res.is_err());
-
-        ctx.update_device_chats().await.unwrap();
-        let (chat_id, blocked) = lookup_by_contact_id(&ctx, DC_CONTACT_ID_SELF)
+        let chat = ChatId::lookup_by_contact(&ctx, DC_CONTACT_ID_SELF)
             .await
             .unwrap();
-        assert!(!chat_id.is_special());
-        assert!(chat_id.is_self_talk(&ctx).await.unwrap());
-        assert_eq!(blocked, Blocked::Not);
+        assert!(chat.is_none());
+
+        ctx.update_device_chats().await.unwrap();
+        let chat = ChatIdBlocked::lookup_by_contact(&ctx, DC_CONTACT_ID_SELF)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!chat.id.is_special());
+        assert!(chat.id.is_self_talk(&ctx).await.unwrap());
+        assert_eq!(chat.blocked, Blocked::Not);
     }
 
     #[async_std::test]
@@ -3887,7 +3870,6 @@ mod tests {
             .unwrap();
         let alice_chat = Chat::load_from_db(&alice, alice_chat_id).await.unwrap();
 
-        println!("----- add_contact_to_chat");
         add_contact_to_chat(&alice, alice_chat_id, contact_id).await;
         assert_eq!(
             get_chat_contacts(&alice, alice_chat_id)
@@ -3896,11 +3878,9 @@ mod tests {
                 .len(),
             2
         );
-        println!("----- send_text_msg");
         send_text_msg(&alice, alice_chat_id, "hi!".to_string())
             .await
             .ok();
-        println!("----- get_chat_msgs");
         assert_eq!(
             get_chat_msgs(&alice, alice_chat_id, 0, None)
                 .await
@@ -3909,7 +3889,6 @@ mod tests {
             1
         );
 
-        println!("----- pop_sent_msg");
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
         let msg = alice.pop_sent_msg().await.payload();
         assert_eq!(msg.match_indices("Gr.").count(), 2);
@@ -3922,11 +3901,9 @@ mod tests {
             .unwrap();
         let msg = bob.get_last_msg().await;
 
-        println!("load from dbb");
         let bob_chat = Chat::load_from_db(&bob, msg.chat_id).await.unwrap();
         assert_eq!(bob_chat.grpid, alice_chat.grpid);
 
-        println!("chat loaded");
         // Bob answers - simulate a normal MUA by not setting `Chat-*`-headers;
         // moreover, Bob's SMTP-server also replaces the `Message-ID:`-header
         send_text_msg(&bob, bob_chat.id, "ho!".to_string())
@@ -3937,12 +3914,10 @@ mod tests {
         let msg = msg.replace("Chat-", "XXXX-");
         assert_eq!(msg.match_indices("Chat-").count(), 0);
 
-        println!("last receive start");
         // Alice receives this message - she can still detect the group by the `References:`-header
         dc_receive_imf(&alice, msg.as_bytes(), "INBOX", 2, false)
             .await
             .unwrap();
-        println!("----- last receie if");
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.chat_id, alice_chat_id);
         assert_eq!(msg.text, Some("ho!".to_string()));
@@ -3953,5 +3928,99 @@ mod tests {
                 .len(),
             2
         );
+    }
+
+    #[async_std::test]
+    async fn test_marknoticed_chat() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat = t.create_chat_with_contact("bob", "bob@example.org").await;
+
+        dc_receive_imf(
+            &t,
+            b"From: bob@example.org\n\
+                 To: alice@example.com\n\
+                 Message-ID: <1@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Fri, 23 Apr 2021 10:00:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), chat.id);
+        assert_ne!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
+        assert_eq!(chat.id.get_fresh_msg_cnt(&t).await?, 1);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 1);
+
+        let msgs = get_chat_msgs(&t, chat.id, 0, None).await?;
+        assert_eq!(msgs.len(), 1);
+        let msg_id = match msgs.first().unwrap() {
+            ChatItem::Message { msg_id } => *msg_id,
+            _ => MsgId::new_unset(),
+        };
+        let msg = message::Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.state, MessageState::InFresh);
+
+        marknoticed_chat(&t, chat.id).await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        let msg = message::Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.state, MessageState::InNoticed);
+        assert_eq!(chat.id.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 0);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_marknoticed_deaddrop_chat() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 0);
+
+        dc_receive_imf(
+            &t,
+            b"From: bob@example.org\n\
+                 To: alice@example.com\n\
+                 Message-ID: <1@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
+        let msgs = get_chat_msgs(&t, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        assert_eq!(msgs.len(), 1);
+        let msg_id = match msgs.first().unwrap() {
+            ChatItem::Message { msg_id } => *msg_id,
+            _ => MsgId::new_unset(),
+        };
+        let msg = message::Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.state, MessageState::InFresh);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 0); // deaddrop is excluded from global badge
+
+        marknoticed_chat(&t, DC_CHAT_ID_DEADDROP).await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 0);
+        let msg = message::Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.state, MessageState::InNoticed);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 0);
+
+        Ok(())
     }
 }

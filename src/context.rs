@@ -6,14 +6,12 @@ use std::ops::Deref;
 use std::time::{Instant, SystemTime};
 
 use anyhow::{bail, ensure, Result};
-use async_std::prelude::*;
 use async_std::{
     channel::{self, Receiver, Sender},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
     task,
 };
-use sqlx::Row;
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
@@ -91,7 +89,7 @@ pub struct RunningState {
 pub fn get_info() -> BTreeMap<&'static str, String> {
     let mut res = BTreeMap::new();
     res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
-    res.insert("sqlite_version", crate::sql::version().to_string());
+    res.insert("sqlite_version", rusqlite::version().to_string());
     res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
     res.insert("num_cpus", num_cpus::get().to_string());
     res.insert("level", "awesome".into());
@@ -290,7 +288,7 @@ impl Context {
             .unwrap_or_default();
         let journal_mode = self
             .sql
-            .query_get_value(sqlx::query("PRAGMA journal_mode;"))
+            .query_get_value("PRAGMA journal_mode;", paramsv![])
             .await?
             .unwrap_or_else(|| "unknown".to_string());
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await?;
@@ -299,12 +297,12 @@ impl Context {
 
         let prv_key_cnt = self
             .sql
-            .count(sqlx::query("SELECT COUNT(*) FROM keypairs;"))
+            .count("SELECT COUNT(*) FROM keypairs;", paramsv![])
             .await?;
 
         let pub_key_cnt = self
             .sql
-            .count(sqlx::query("SELECT COUNT(*) FROM acpeerstates;"))
+            .count("SELECT COUNT(*) FROM acpeerstates;", paramsv![])
             .await?;
         let fingerprint_str = match SignedPublicKey::load_self(self).await {
             Ok(key) => key.fingerprint().hex(),
@@ -431,8 +429,8 @@ impl Context {
     pub async fn get_fresh_msgs(&self) -> Result<Vec<MsgId>> {
         let list = self
             .sql
-            .fetch(
-                sqlx::query(concat!(
+            .query_map(
+                concat!(
                     "SELECT m.id",
                     " FROM msgs m",
                     " LEFT JOIN contacts ct",
@@ -446,13 +444,17 @@ impl Context {
                     "   AND c.blocked=0",
                     "   AND NOT(c.muted_until=-1 OR c.muted_until>?)",
                     " ORDER BY m.timestamp DESC,m.id DESC;"
-                ))
-                .bind(MessageState::InFresh)
-                .bind(time()),
+                ),
+                paramsv![MessageState::InFresh, time()],
+                |row| row.get::<_, MsgId>(0),
+                |rows| {
+                    let mut list = Vec::new();
+                    for row in rows {
+                        list.push(row?);
+                    }
+                    Ok(list)
+                },
             )
-            .await?
-            .map(|row| row?.try_get("id"))
-            .collect::<sqlx::Result<_>>()
             .await?;
         Ok(list)
     }
@@ -461,49 +463,55 @@ impl Context {
     ///
     /// If `chat_id` is provided this searches only for messages in this chat, if `chat_id`
     /// is `None` this searches messages from all chats.
-    pub async fn search_msgs(
-        &self,
-        chat_id: Option<ChatId>,
-        query: impl AsRef<str>,
-    ) -> Result<Vec<MsgId>> {
-        let real_query = query.as_ref().trim();
+    pub async fn search_msgs(&self, chat_id: Option<ChatId>, query: &str) -> Result<Vec<MsgId>> {
+        let real_query = query.trim();
         if real_query.is_empty() {
             return Ok(Vec::new());
         }
         let str_like_in_text = format!("%{}%", real_query);
-        let str_like_beg = format!("{}%", real_query);
+
+        let do_query = |query, params| {
+            self.sql.query_map(
+                query,
+                params,
+                |row| row.get::<_, MsgId>("id"),
+                |rows| {
+                    let mut ret = Vec::new();
+                    for id in rows {
+                        ret.push(id?);
+                    }
+                    Ok(ret)
+                },
+            )
+        };
 
         let list = if let Some(chat_id) = chat_id {
-            self.sql
-                .fetch(
-                    sqlx::query(
-                        "SELECT m.id AS id, m.timestamp AS timestamp
+            do_query(
+                "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
                  WHERE m.chat_id=?
                    AND m.hidden=0
                    AND ct.blocked=0
-                   AND (txt LIKE ? OR ct.name LIKE ?)
+                   AND txt LIKE ?
                  ORDER BY m.timestamp,m.id;",
-                    )
-                    .bind(chat_id)
-                    .bind(str_like_in_text)
-                    .bind(str_like_beg),
-                )
-                .await?
-                .map(|row| {
-                    let row = row?;
-                    let id = row.try_get::<MsgId, _>("id")?;
-                    Ok(id)
-                })
-                .collect::<sqlx::Result<Vec<MsgId>>>()
-                .await?
+                paramsv![chat_id, str_like_in_text],
+            )
+            .await?
         } else {
-            self.sql
-                .fetch(
-                    sqlx::query(
-                        "SELECT m.id AS id, m.timestamp AS timestamp
+            // For performance reasons results are sorted only by `id`, that is in the order of
+            // message reception.
+            //
+            // Unlike chat view, sorting by `timestamp` is not necessary but slows down the query by
+            // ~25% according to benchmarks.
+            //
+            // To speed up incremental search, where queries for few characters usually return lots
+            // of unwanted results that are discarded moments later, we added `LIMIT 1000`.
+            // According to some tests, this limit speeds up eg. 2 character searches by factor 10.
+            // The limit is documented and UI may add a hint when getting 1000 results.
+            do_query(
+                "SELECT m.id AS id, m.timestamp AS timestamp
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -513,47 +521,37 @@ impl Context {
                    AND m.hidden=0
                    AND c.blocked=0
                    AND ct.blocked=0
-                   AND (m.txt LIKE ? OR ct.name LIKE ?)
-                 ORDER BY m.timestamp DESC,m.id DESC;",
-                    )
-                    .bind(str_like_in_text)
-                    .bind(str_like_beg),
-                )
-                .await?
-                .map(|row| {
-                    let row = row?;
-                    let id = row.try_get::<MsgId, _>("id")?;
-                    Ok(id)
-                })
-                .collect::<sqlx::Result<Vec<MsgId>>>()
-                .await?
+                   AND m.txt LIKE ?
+                 ORDER BY m.id DESC LIMIT 1000",
+                paramsv![str_like_in_text],
+            )
+            .await?
         };
 
         Ok(list)
     }
 
-    pub async fn is_inbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+    pub async fn is_inbox(&self, folder_name: &str) -> Result<bool> {
         let inbox = self.get_config(Config::ConfiguredInboxFolder).await?;
-        Ok(inbox == Some(folder_name.as_ref().to_string()))
+        Ok(inbox.as_deref() == Some(folder_name))
     }
 
-    pub async fn is_sentbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+    pub async fn is_sentbox(&self, folder_name: &str) -> Result<bool> {
         let sentbox = self.get_config(Config::ConfiguredSentboxFolder).await?;
 
-        Ok(sentbox == Some(folder_name.as_ref().to_string()))
+        Ok(sentbox.as_deref() == Some(folder_name))
     }
 
-    pub async fn is_mvbox(&self, folder_name: impl AsRef<str>) -> Result<bool> {
+    pub async fn is_mvbox(&self, folder_name: &str) -> Result<bool> {
         let mvbox = self.get_config(Config::ConfiguredMvboxFolder).await?;
 
-        Ok(mvbox == Some(folder_name.as_ref().to_string()))
+        Ok(mvbox.as_deref() == Some(folder_name))
     }
 
-    pub async fn is_spam_folder(&self, folder_name: impl AsRef<str>) -> Result<bool> {
-        let is_spam = self.get_config(Config::ConfiguredSpamFolder).await?
-            == Some(folder_name.as_ref().to_string());
+    pub async fn is_spam_folder(&self, folder_name: &str) -> Result<bool> {
+        let spam = self.get_config(Config::ConfiguredSpamFolder).await?;
 
-        Ok(is_spam)
+        Ok(spam.as_deref() == Some(folder_name))
     }
 
     pub fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {
@@ -605,9 +603,13 @@ pub fn get_version_str() -> &'static str {
 mod tests {
     use super::*;
 
-    use crate::chat::{get_chat_contacts, get_chat_msgs, set_muted, Chat, MuteDuration};
+    use crate::chat::{
+        get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, ChatId, MuteDuration,
+    };
+    use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::dc_tools::dc_create_outgoing_rfc724_mid;
+    use crate::message::Message;
     use crate::test_utils::TestContext;
     use std::time::Duration;
     use strum::IntoEnumIterator;
@@ -735,9 +737,8 @@ mod tests {
         // we need to modify the database directly
         t.sql
             .execute(
-                sqlx::query("UPDATE chats SET muted_until=? WHERE id=?;")
-                    .bind(time() - 3600)
-                    .bind(bob.id),
+                "UPDATE chats SET muted_until=? WHERE id=?;",
+                paramsv![time() - 3600, bob.id],
             )
             .await
             .unwrap();
@@ -754,7 +755,10 @@ mod tests {
         // to test get_fresh_msgs() with invalid mute_until (everything < -1),
         // that results in "muted forever" by definition.
         t.sql
-            .execute(sqlx::query("UPDATE chats SET muted_until=-2 WHERE id=?;").bind(bob.id))
+            .execute(
+                "UPDATE chats SET muted_until=-2 WHERE id=?;",
+                paramsv![bob.id],
+            )
             .await
             .unwrap();
         let bob = Chat::load_from_db(&t, bob.id).await.unwrap();
@@ -878,5 +882,94 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[async_std::test]
+    async fn test_search_msgs() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let self_talk = ChatId::create_for_contact(&alice, DC_CONTACT_ID_SELF).await?;
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.org")
+            .await;
+
+        // Global search finds nothing.
+        let res = alice.search_msgs(None, "foo").await?;
+        assert!(res.is_empty());
+
+        // Search in chat with Bob finds nothing.
+        let res = alice.search_msgs(Some(chat.id), "foo").await?;
+        assert!(res.is_empty());
+
+        // Add messages to chat with Bob.
+        let mut msg1 = Message::new(Viewtype::Text);
+        msg1.set_text(Some("foobar".to_string()));
+        send_msg(&alice, chat.id, &mut msg1).await?;
+
+        let mut msg2 = Message::new(Viewtype::Text);
+        msg2.set_text(Some("barbaz".to_string()));
+        send_msg(&alice, chat.id, &mut msg2).await?;
+
+        // Global search with a part of text finds the message.
+        let res = alice.search_msgs(None, "ob").await?;
+        assert_eq!(res.len(), 1);
+
+        // Global search for "bar" matches both "foobar" and "barbaz".
+        let res = alice.search_msgs(None, "bar").await?;
+        assert_eq!(res.len(), 2);
+
+        // Message added later is returned first.
+        assert_eq!(res.get(0), Some(&msg2.id));
+        assert_eq!(res.get(1), Some(&msg1.id));
+
+        // Global search with longer text does not find any message.
+        let res = alice.search_msgs(None, "foobarbaz").await?;
+        assert!(res.is_empty());
+
+        // Search for random string finds nothing.
+        let res = alice.search_msgs(None, "abc").await?;
+        assert!(res.is_empty());
+
+        // Search in chat with Bob finds the message.
+        let res = alice.search_msgs(Some(chat.id), "foo").await?;
+        assert_eq!(res.len(), 1);
+
+        // Search in Saved Messages does not find the message.
+        let res = alice.search_msgs(Some(self_talk), "foo").await?;
+        assert!(res.is_empty());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_limit_search_msgs() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.org")
+            .await;
+
+        // Add 999 messages
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("foobar".to_string()));
+        for _ in 0..999 {
+            send_msg(&alice, chat.id, &mut msg).await?;
+        }
+        let res = alice.search_msgs(None, "foo").await?;
+        assert_eq!(res.len(), 999);
+
+        // Add one more message, no limit yet
+        send_msg(&alice, chat.id, &mut msg).await?;
+        let res = alice.search_msgs(None, "foo").await?;
+        assert_eq!(res.len(), 1000);
+
+        // Add one more message, that one is truncated then
+        send_msg(&alice, chat.id, &mut msg).await?;
+        let res = alice.search_msgs(None, "foo").await?;
+        assert_eq!(res.len(), 1000);
+
+        // In-chat should not be not limited
+        let res = alice.search_msgs(Some(chat.id), "foo").await?;
+        assert_eq!(res.len(), 1001);
+
+        Ok(())
     }
 }

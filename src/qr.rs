@@ -6,12 +6,13 @@ use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
-use crate::chat;
+use crate::chat::{self, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{addr_normalize, may_be_valid_addr, Contact, Origin};
 use crate::context::Context;
 use crate::key::Fingerprint;
+use crate::log::LogExt;
 use crate::lot::{Lot, LotState};
 use crate::message::Message;
 use crate::peerstate::Peerstate;
@@ -44,9 +45,7 @@ fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
 /// Check a scanned QR code.
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
-pub async fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
-    let qr = qr.as_ref();
-
+pub async fn check_qr(context: &Context, qr: &str) -> Lot {
     info!(context, "Scanned QR code: {}", qr);
 
     if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
@@ -114,7 +113,6 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         None
     };
 
-    // what is up with that param name?
     let name = if let Some(encoded_name) = param.get("n") {
         let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
         match percent_decode_str(&encoded_name).decode_utf8() {
@@ -155,21 +153,18 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         if let Some(peerstate) = peerstate {
             lot.state = LotState::QrFprOk;
 
-            lot.id = Contact::add_or_lookup(
-                context,
-                name,
-                peerstate.addr.clone(),
-                Origin::UnhandledQrScan,
-            )
-            .await
-            .map(|(id, _)| id)
-            .unwrap_or_default();
+            lot.id =
+                Contact::add_or_lookup(context, &name, &peerstate.addr, Origin::UnhandledQrScan)
+                    .await
+                    .map(|(id, _)| id)
+                    .unwrap_or_default();
 
-            let (id, _) = chat::create_or_lookup_by_contact_id(context, lot.id, Blocked::Deaddrop)
+            if let Ok(chat) = ChatIdBlocked::get_for_contact(context, lot.id, Blocked::Deaddrop)
                 .await
-                .unwrap_or_default();
-
-            chat::add_info_msg(context, id, format!("{} verified.", peerstate.addr)).await;
+                .log_err(context, "Failed to create (new) chat for contact")
+            {
+                chat::add_info_msg(context, chat.id, format!("{} verified.", peerstate.addr)).await;
+            }
         } else if let Some(addr) = addr {
             lot.state = LotState::QrFprMismatch;
             lot.id = match Contact::lookup_id_by_addr(context, &addr, Origin::Unknown).await {
@@ -284,7 +279,7 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
 }
 
 pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
-    match check_qr(context, &qr).await.state {
+    match check_qr(context, qr).await.state {
         LotState::QrAccount => set_account_from_qr(context, qr).await,
         LotState::QrWebrtcInstance => {
             let val = decode_webrtc_instance(context, qr).text2;
@@ -421,7 +416,7 @@ impl Lot {
     pub async fn from_address(context: &Context, name: String, addr: String) -> Self {
         let mut l = Lot::new();
         l.state = LotState::QrAddr;
-        l.id = match Contact::add_or_lookup(context, name, addr, Origin::UnhandledQrScan).await {
+        l.id = match Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan).await {
             Ok((id, _)) => id,
             Err(err) => return err.into(),
         };
@@ -675,7 +670,7 @@ mod tests {
 
         let res = check_qr(
             &ctx.ctx,
-            format!("OPENPGP4FPR:{}#a=alice@example.com", pub_key.fingerprint()),
+            &format!("OPENPGP4FPR:{}#a=alice@example.com", pub_key.fingerprint()),
         )
         .await;
         assert_eq!(res.get_state(), LotState::QrFprOk);

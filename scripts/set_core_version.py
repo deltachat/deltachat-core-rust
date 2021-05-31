@@ -82,9 +82,10 @@ def main():
     subprocess.call(["git", "add", "-u"])
     # subprocess.call(["cargo", "update", "-p", "deltachat"])
 
-    print("after commit make sure to: ")
+    print("after commit, on master make sure to: ")
     print("")
-    print("   git tag {}".format(newversion))
+    print("   git tag -a {}".format(newversion))
+    print("   git push origin {}".format(newversion))
     print("")
 
 

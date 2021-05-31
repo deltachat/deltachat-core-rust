@@ -9,14 +9,12 @@ use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
-use sqlx::Row;
 use thiserror::Error;
 
 use crate::config::Config;
 use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::dc_tools::{time, EmailAddress, InvalidEmailError};
-use crate::sql;
 
 // Re-export key types
 pub use crate::pgp::KeyPair;
@@ -32,8 +30,6 @@ pub enum Error {
     Pgp(#[from] pgp::errors::Error),
     #[error("Failed to generate PGP key: {}", _0)]
     Keygen(#[from] crate::pgp::PgpKeygenError),
-    #[error("Failed to load key: {}", _0)]
-    LoadKey(#[from] sql::Error),
     #[error("Failed to save generated key: {}", _0)]
     StoreKey(#[from] SaveKeyError),
     #[error("No address configured")]
@@ -42,8 +38,6 @@ pub enum Error {
     InvalidConfiguredAddr(#[from] InvalidEmailError),
     #[error("no data provided")]
     Empty,
-    #[error("db: {}", _0)]
-    Sql(#[from] sqlx::Error),
     #[error("{0}")]
     Other(#[from] anyhow::Error),
 }
@@ -123,17 +117,22 @@ impl DcKey for SignedPublicKey {
     async fn load_self(context: &Context) -> Result<Self::KeyType> {
         match context
             .sql
-            .fetch_optional(sqlx::query(
+            .query_row_optional(
                 r#"
             SELECT public_key
               FROM keypairs
              WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
                AND is_default=1;
             "#,
-            ))
+                paramsv![],
+                |row| {
+                    let bytes: Vec<u8> = row.get(0)?;
+                    Ok(bytes)
+                },
+            )
             .await?
         {
-            Some(row) => Self::from_slice(row.try_get(0)?),
+            Some(bytes) => Self::from_slice(&bytes),
             None => {
                 let keypair = generate_keypair(context).await?;
                 Ok(keypair.public)
@@ -165,17 +164,22 @@ impl DcKey for SignedSecretKey {
     async fn load_self(context: &Context) -> Result<Self::KeyType> {
         match context
             .sql
-            .fetch_optional(sqlx::query(
+            .query_row_optional(
                 r#"
             SELECT private_key
               FROM keypairs
              WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
                AND is_default=1;
             "#,
-            ))
+                paramsv![],
+                |row| {
+                    let bytes: Vec<u8> = row.get(0)?;
+                    Ok(bytes)
+                },
+            )
             .await?
         {
-            Some(row) => Self::from_slice(row.try_get(0)?),
+            Some(bytes) => Self::from_slice(&bytes),
             None => {
                 let keypair = generate_keypair(context).await?;
                 Ok(keypair.secret)
@@ -228,23 +232,26 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     // Check if the key appeared while we were waiting on the lock.
     match context
         .sql
-        .fetch_optional(
-            sqlx::query(
-                r#"
+        .query_row_optional(
+            r#"
         SELECT public_key, private_key
           FROM keypairs
          WHERE addr=?1
            AND is_default=1;
         "#,
-            )
-            .bind(addr.to_string()),
+            paramsv![addr],
+            |row| {
+                let pub_bytes: Vec<u8> = row.get(0)?;
+                let sec_bytes: Vec<u8> = row.get(1)?;
+                Ok((pub_bytes, sec_bytes))
+            },
         )
         .await?
     {
-        Some(row) => Ok(KeyPair {
+        Some((pub_bytes, sec_bytes)) => Ok(KeyPair {
             addr,
-            public: SignedPublicKey::from_slice(row.try_get(0)?)?,
-            secret: SignedSecretKey::from_slice(row.try_get(1)?)?,
+            public: SignedPublicKey::from_slice(&pub_bytes)?,
+            secret: SignedSecretKey::from_slice(&sec_bytes)?,
         }),
         None => {
             let start = std::time::SystemTime::now();
@@ -319,16 +326,15 @@ pub async fn store_self_keypair(
     context
         .sql
         .execute(
-            sqlx::query("DELETE FROM keypairs WHERE public_key=? OR private_key=?;")
-                .bind(&public_key)
-                .bind(&secret_key),
+            "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
+            paramsv![public_key, secret_key],
         )
         .await
         .map_err(|err| SaveKeyError::new("failed to remove old use of key", err))?;
     if default == KeyPairUse::Default {
         context
             .sql
-            .execute(sqlx::query("UPDATE keypairs SET is_default=0;"))
+            .execute("UPDATE keypairs SET is_default=0;", paramsv![])
             .await
             .map_err(|err| SaveKeyError::new("failed to clear default", err))?;
     }
@@ -343,15 +349,9 @@ pub async fn store_self_keypair(
     context
         .sql
         .execute(
-            sqlx::query(
-                "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
+            "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
                 VALUES (?,?,?,?,?);",
-            )
-            .bind(addr)
-            .bind(is_default)
-            .bind(&public_key)
-            .bind(&secret_key)
-            .bind(t),
+            paramsv![addr, is_default, public_key, secret_key, t],
         )
         .await
         .map_err(|err| SaveKeyError::new("failed to insert keypair", err))?;
@@ -625,7 +625,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 
         let nrows = || async {
             ctx.sql
-                .count(sqlx::query("SELECT COUNT(*) FROM keypairs;"))
+                .count("SELECT COUNT(*) FROM keypairs;", paramsv![])
                 .await
                 .unwrap()
         };

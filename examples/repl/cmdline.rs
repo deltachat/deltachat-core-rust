@@ -34,7 +34,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 1 {
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM jobs;"))
+            .execute("DELETE FROM jobs;", paramsv![])
             .await
             .unwrap();
         println!("(1) Jobs reset.");
@@ -42,7 +42,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 2 {
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM acpeerstates;"))
+            .execute("DELETE FROM acpeerstates;", paramsv![])
             .await
             .unwrap();
         println!("(2) Peerstates reset.");
@@ -50,7 +50,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 4 {
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM keypairs;"))
+            .execute("DELETE FROM keypairs;", paramsv![])
             .await
             .unwrap();
         println!("(4) Private keypairs reset.");
@@ -58,34 +58,35 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 8 {
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM contacts WHERE id>9;"))
+            .execute("DELETE FROM contacts WHERE id>9;", paramsv![])
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM chats WHERE id>9;"))
+            .execute("DELETE FROM chats WHERE id>9;", paramsv![])
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM chats_contacts;"))
+            .execute("DELETE FROM chats_contacts;", paramsv![])
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM msgs WHERE id>9;"))
+            .execute("DELETE FROM msgs WHERE id>9;", paramsv![])
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query(
+            .execute(
                 "DELETE FROM config WHERE keyname LIKE 'imap.%' OR keyname LIKE 'configured%';",
-            ))
+                paramsv![],
+            )
             .await
             .unwrap();
         context
             .sql()
-            .execute(sqlx::query("DELETE FROM leftgrps;"))
+            .execute("DELETE FROM leftgrps;", paramsv![])
             .await
             .unwrap();
         println!("(8) Rest but server config reset.");
@@ -456,20 +457,20 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "export-backup" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportBackup, &dir).await?;
+            imex(&context, ImexMode::ExportBackup, dir.as_ref()).await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            imex(&context, ImexMode::ImportBackup, arg1).await?;
+            imex(&context, ImexMode::ImportBackup, arg1.as_ref()).await?;
         }
         "export-keys" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportSelfKeys, &dir).await?;
+            imex(&context, ImexMode::ExportSelfKeys, dir.as_ref()).await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-keys" => {
-            imex(&context, ImexMode::ImportSelfKeys, arg1).await?;
+            imex(&context, ImexMode::ImportSelfKeys, arg1.as_ref()).await?;
         }
         "export-setup" => {
             let setup_code = create_setup_code(&context);
@@ -525,9 +526,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 None,
             )
             .await?;
-            let time_needed = std::time::SystemTime::now()
-                .duration_since(time_start)
-                .unwrap_or_default();
+            let time_needed = time_start.elapsed().unwrap_or_default();
 
             let cnt = chatlist.len();
             if cnt > 0 {
@@ -604,7 +603,11 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "Failed to select chat");
             let sel_chat = sel_chat.as_ref().unwrap();
 
-            let msglist = chat::get_chat_msgs(&context, sel_chat.get_id(), 0x1, None).await?;
+            let time_start = std::time::SystemTime::now();
+            let msglist =
+                chat::get_chat_msgs(&context, sel_chat.get_id(), DC_GCM_ADDDAYMARKER, None).await?;
+            let time_needed = time_start.elapsed().unwrap_or_default();
+
             let msglist: Vec<MsgId> = msglist
                 .into_iter()
                 .map(|x| match x {
@@ -659,12 +662,20 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 "{} messages.",
                 sel_chat.get_id().get_msg_cnt(&context).await?
             );
+
+            let time_noticed_start = std::time::SystemTime::now();
             chat::marknoticed_chat(&context, sel_chat.get_id()).await?;
+            let time_noticed_needed = time_noticed_start.elapsed().unwrap_or_default();
+
+            println!(
+                "{:?} to create this list, {:?} to mark all messages as noticed.",
+                time_needed, time_noticed_needed
+            );
         }
         "createchat" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
             let contact_id: u32 = arg1.parse()?;
-            let chat_id = chat::create_by_contact_id(&context, contact_id).await?;
+            let chat_id = ChatId::create_for_contact(&context, contact_id).await?;
 
             println!("Single#{} created successfully.", chat_id,);
         }
@@ -898,10 +909,13 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 None
             };
 
+            let time_start = std::time::SystemTime::now();
             let msglist = context.search_msgs(chat, arg1).await?;
+            let time_needed = time_start.elapsed().unwrap_or_default();
 
             log_msglist(&context, &msglist).await?;
             println!("{} messages.", msglist.len());
+            println!("{:?} to create this list", time_needed);
         }
         "draft" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
@@ -1045,7 +1059,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut msg_ids = vec![MsgId::new(0)];
             msg_ids[0] = MsgId::new(arg1.parse()?);
-            message::markseen_msgs(&context, msg_ids).await;
+            message::markseen_msgs(&context, msg_ids).await?;
         }
         "delmsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
@@ -1072,7 +1086,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             if !arg2.is_empty() {
                 let book = format!("{}\n{}", arg1, arg2);
-                Contact::add_address_book(&context, book).await?;
+                Contact::add_address_book(&context, &book).await?;
             } else {
                 Contact::create(&context, "", arg1).await?;
             }
