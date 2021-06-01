@@ -12,7 +12,7 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
-use crate::blob::BlobObject;
+use crate::{blob::BlobObject, quota::quota_usage_report_job};
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ChatItem};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, DC_CHAT_ID_DEADDROP};
@@ -90,6 +90,7 @@ impl Default for Thread {
 #[repr(u32)]
 pub enum Action {
     Unknown = 0,
+    GenerateQuotaUsageReport = 10,
 
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
@@ -131,6 +132,7 @@ impl From<Action> for Thread {
             ResyncFolders => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
             MoveMsg => Thread::Imap,
+            GenerateQuotaUsageReport => Thread::Imap,
 
             MaybeSendLocations => Thread::Smtp,
             MaybeSendLocationsEnded => Thread::Smtp,
@@ -839,6 +841,27 @@ impl Job {
             }
         }
     }
+
+    /// Generates a detailed report about the current Quota usage on the for deltachat relevant folders
+    /// and sends it to the user via [add_device_msg]
+    ///
+    /// It's a bit like the prepaid mobile carrier service menu/messages,
+    /// where you type a special number and then get a message back with your current balance.
+    async fn generate_quota_usage_report(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(err) = imap.connect_configured(context).await {
+            warn!(context, "could not connect: {:?}", err);
+            return Status::RetryLater;
+        }
+
+        let maybe_error: Result<()> = quota_usage_report_job(&context, imap).await;
+
+        if let Err(err) = maybe_error {
+            warn!(context, "check quota failed: {:?}", err);
+            return Status::RetryLater;
+        }
+
+        Status::Finished(Ok(()))
+    }
 }
 
 /// Delete all pending jobs with the given action.
@@ -1186,6 +1209,10 @@ async fn perform_job_action(
             sql::housekeeping(context).await.ok_or_log(context);
             Status::Finished(Ok(()))
         }
+        Action::GenerateQuotaUsageReport => {
+            job.generate_quota_usage_report(context, connection.inbox())
+                .await
+        }
     };
 
     info!(context, "Finished immediate try {} of job {}", tries, job);
@@ -1248,7 +1275,8 @@ pub async fn add(context: &Context, job: Job) {
             | Action::ResyncFolders
             | Action::MarkseenMsgOnImap
             | Action::FetchExistingMsgs
-            | Action::MoveMsg => {
+            | Action::MoveMsg
+            | Action::GenerateQuotaUsageReport => {
                 info!(context, "interrupt: imap");
                 context
                     .interrupt_inbox(InterruptInfo::new(false, None))

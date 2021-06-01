@@ -3,12 +3,13 @@
 //! uses [async-email/async-imap](https://github.com/async-email/async-imap)
 //! to implement connect, fetch, delete functionality with standard IMAP servers.
 
-use std::{cmp, cmp::max, collections::BTreeMap};
+use std::{borrow::Cow, cmp, cmp::max, collections::BTreeMap};
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{anyhow, bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
     types::{Fetch, Flag, Mailbox, Name, NameAttribute, UnsolicitedResponse},
+    imap_proto::{Quota, QuotaRoot},
 };
 use async_std::channel::Receiver;
 use async_std::prelude::*;
@@ -1391,6 +1392,26 @@ impl Imap {
             }
         }
         unsolicited_exists
+    }
+    
+    pub async fn check_for_quota_support(&mut self) -> Result<bool> {
+        if let Some(session) = self.session.as_mut() {
+            let capabilities = session.capabilities().await?;
+            Ok(capabilities.has_str("QUOTA"))
+        } else {
+            Err(anyhow!("Not connected to IMAP, no session"))
+        }
+    }
+
+    pub async fn get_quota_roots(
+        &mut self,
+        mailbox_name: &str,
+    ) -> Result<(Vec<QuotaRoot<'_>>, Vec<Quota<'_>>)> {
+        if let Some(session) = self.session.as_mut() {
+            let quota_roots = session.get_quota_root(Cow::Borrowed(mailbox_name)).await?;
+            Ok(quota_roots)
+        } else {
+            Err(anyhow!("Not connected to IMAP, no session"))
     }
 }
 

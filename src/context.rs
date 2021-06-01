@@ -13,18 +13,22 @@ use async_std::{
     task,
 };
 
-use crate::chat::{get_chat_cnt, ChatId};
-use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
 use crate::dc_tools::{duration_to_str, time};
 use crate::events::{Event, EventEmitter, EventType, Events};
+use crate::job;
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::scheduler::Scheduler;
 use crate::securejoin::Bob;
 use crate::sql::Sql;
+use crate::{
+    chat::{get_chat_cnt, ChatId},
+    job::Action,
+};
+use crate::{config::Config, param::Params};
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -558,6 +562,19 @@ impl Context {
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
         dbfile.with_file_name(blob_fname)
+    }
+
+    /// Generates a detailed report about the current Quota usage on the for deltachat relevant folders
+    /// and sends it to the user as devicemessage
+    ///
+    /// It's a bit like the prepaid mobile carrier service menu/messages,
+    /// where you type a special number and then get a message back with your current balance.
+    pub async fn request_quota_report(&self) {
+        job::add(
+            &self,
+            job::Job::new(Action::GenerateQuotaUsageReport, 0, Params::new(), 1),
+        )
+        .await;
     }
 }
 

@@ -214,6 +214,19 @@ void            dc_context_unref             (dc_context_t* context);
 
 
 /**
+ * Generates a detailed report about the current Quota usage on the for deltachat relevant folders
+ * and sends it to the user as devicemessage.
+ *
+ * It's a bit like the prepaid mobile carrier service menu/messages,
+ * where you type a special number and then get a message back with your current balance.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as created by dc_context_new().
+ */
+void            dc_request_quota_report      (dc_context_t* context);
+
+
+/**
  * Get the ID of a context object.
  * Each context has an ID assigned.
  * If the context was created through the dc_accounts_t account manager,
