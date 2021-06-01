@@ -259,6 +259,8 @@ class DirectImap:
         msg = '\n'.join([s.lstrip() for s in msg.splitlines()])
         self.conn.append(folder, msg)
 
-    def get_uid_by_message_id(self, folder, message_id):
-        self.select_folder(folder)
-        return self.conn.search(['HEADER', 'MESSAGE-ID', message_id])[0]
+    def get_uid_by_message_id(self, message_id):
+        msgs = self.conn.search(['HEADER', 'MESSAGE-ID', message_id])
+        if len(msgs) == 0:
+            raise Exception("Did not find message " + message_id + ", maybe you forgot to select the correct folder?")
+        return msgs[0]

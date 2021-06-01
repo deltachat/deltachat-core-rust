@@ -1370,7 +1370,8 @@ class TestOnlineAccount:
 
         ac1.stop_io()
         lp.sec("'Send out' the draft, i.e. move it to the Sent folder, and wait for DC to display it this time")
-        uid = ac1.direct_imap.get_uid_by_message_id("Drafts", "aepiors@example.org")
+        ac1.direct_imap.select_folder("Drafts")
+        uid = ac1.direct_imap.get_uid_by_message_id("aepiors@example.org")
         ac1.direct_imap.conn.move(uid, "Sent")
 
         ac1.start_io()
