@@ -12,8 +12,6 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
-use crate::{blob::BlobObject, quota::quota_usage_report_job};
-use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ChatItem};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, DC_CHAT_ID_DEADDROP};
 use crate::contact::{normalize_name, Contact, Modifier, Origin};
@@ -30,6 +28,14 @@ use crate::param::{Param, Params};
 use crate::scheduler::InterruptInfo;
 use crate::smtp::Smtp;
 use crate::sql;
+use crate::{
+    blob::BlobObject,
+    quota::{check_quota_job, quota_usage_report_job},
+};
+use crate::{
+    chat::{self, Chat, ChatId, ChatIdBlocked, ChatItem},
+    constants::DC_CHECK_QUOTA_FREQUENCY,
+};
 
 // results in ~3 weeks for the last backoff timespan
 const JOB_RETRIES: u32 = 17;
@@ -90,12 +96,15 @@ impl Default for Thread {
 #[repr(u32)]
 pub enum Action {
     Unknown = 0,
-    GenerateQuotaUsageReport = 10,
 
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
+    CheckQuota = 106,
     FetchExistingMsgs = 110,
     MarkseenMsgOnImap = 130,
+
+    // this is user initiated so it should have a fairly high priority
+    GenerateQuotaUsageReport = 140,
 
     // Moving message is prioritized lower than deletion so we don't
     // bother moving message if it is already scheduled for deletion.
@@ -127,6 +136,7 @@ impl From<Action> for Thread {
             Unknown => Thread::Unknown,
 
             Housekeeping => Thread::Imap,
+            CheckQuota => Thread::Imap,
             FetchExistingMsgs => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
             ResyncFolders => Thread::Imap,
@@ -853,11 +863,32 @@ impl Job {
             return Status::RetryLater;
         }
 
-        let maybe_error: Result<()> = quota_usage_report_job(&context, imap).await;
-
-        if let Err(err) = maybe_error {
+        if let Err(err) = quota_usage_report_job(&context, imap).await {
             warn!(context, "check quota failed: {:?}", err);
             return Status::RetryLater;
+        }
+
+        Status::Finished(Ok(()))
+    }
+
+    /// Regular quota check that should run once per day and inform the user when their account is running full
+    /// by posting a devicemessage suggesting to enable autodeletion.
+    async fn check_quota(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(err) = imap.connect_configured(context).await {
+            warn!(context, "could not connect: {:?}", err);
+            return Status::RetryLater;
+        }
+
+        if let Err(err) = check_quota_job(&context, imap).await {
+            warn!(context, "check quota failed: {:?}", err);
+            return Status::RetryLater;
+        }
+
+        if let Err(e) = context
+            .set_config(Config::LastQuotaCheck, Some(&time().to_string()))
+            .await
+        {
+            warn!(context, "Can't set config: {}", e);
         }
 
         Status::Finished(Ok(()))
@@ -1213,6 +1244,7 @@ async fn perform_job_action(
             job.generate_quota_usage_report(context, connection.inbox())
                 .await
         }
+        Action::CheckQuota => job.check_quota(context, connection.inbox()).await,
     };
 
     info!(context, "Finished immediate try {} of job {}", tries, job);
@@ -1276,7 +1308,8 @@ pub async fn add(context: &Context, job: Job) {
             | Action::MarkseenMsgOnImap
             | Action::FetchExistingMsgs
             | Action::MoveMsg
-            | Action::GenerateQuotaUsageReport => {
+            | Action::GenerateQuotaUsageReport
+            | Action::CheckQuota => {
                 info!(context, "interrupt: imap");
                 context
                     .interrupt_inbox(InterruptInfo::new(false, None))
@@ -1308,6 +1341,24 @@ async fn load_housekeeping_job(context: &Context) -> Option<Job> {
     if next_time <= time() {
         kill_action(context, Action::Housekeeping).await;
         Some(Job::new(Action::Housekeeping, 0, Params::new(), 0))
+    } else {
+        None
+    }
+}
+
+async fn load_check_quota_job(context: &Context) -> Option<Job> {
+    let last_time = match context.get_config_i64(Config::LastQuotaCheck).await {
+        Ok(last_time) => last_time,
+        Err(err) => {
+            warn!(context, "failed to load lastQuotaCheck config: {:?}", err);
+            return None;
+        }
+    };
+
+    let next_time = last_time + DC_CHECK_QUOTA_FREQUENCY;
+    if next_time <= time() {
+        kill_action(context, Action::CheckQuota).await;
+        Some(Job::new(Action::CheckQuota, 0, Params::new(), 10))
     } else {
         None
     }
@@ -1443,6 +1494,8 @@ LIMIT 1;
                     Some(job)
                 }
             } else if let Some(job) = load_imap_deletion_job(context).await.unwrap_or_default() {
+                Some(job)
+            } else if let Some(job) = load_check_quota_job(context).await {
                 Some(job)
             } else {
                 load_housekeeping_job(context).await
