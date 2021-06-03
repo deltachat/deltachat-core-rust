@@ -18,7 +18,18 @@ use crate::stock_str;
 
 /// The available configuration keys.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Display, EnumString, AsRefStr, EnumIter, EnumProperty,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Display,
+    EnumString,
+    AsRefStr,
+    EnumIter,
+    EnumProperty,
+    PartialOrd,
+    Ord,
 )]
 #[strum(serialize_all = "snake_case")]
 pub enum Config {

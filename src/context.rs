@@ -538,19 +538,16 @@ impl Context {
 
     pub async fn is_sentbox(&self, folder_name: &str) -> Result<bool> {
         let sentbox = self.get_config(Config::ConfiguredSentboxFolder).await?;
-
         Ok(sentbox.as_deref() == Some(folder_name))
     }
 
     pub async fn is_mvbox(&self, folder_name: &str) -> Result<bool> {
         let mvbox = self.get_config(Config::ConfiguredMvboxFolder).await?;
-
         Ok(mvbox.as_deref() == Some(folder_name))
     }
 
     pub async fn is_spam_folder(&self, folder_name: &str) -> Result<bool> {
         let spam = self.get_config(Config::ConfiguredSpamFolder).await?;
-
         Ok(spam.as_deref() == Some(folder_name))
     }
 
