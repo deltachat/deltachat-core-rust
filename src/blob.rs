@@ -458,7 +458,6 @@ impl<'a> BlobObject<'a> {
             max_bytes: Option<usize>,
             encoded: &mut Vec<u8>,
         ) -> anyhow::Result<bool> {
-            // encode_img(img, encoded)?; // TODO this would solve the other bug, but will be a problem if the image needs to be rotated down but not scaled down
             if let Some(max_bytes) = max_bytes {
                 encode_img(img, encoded)?;
                 if encoded.len() > max_bytes {
