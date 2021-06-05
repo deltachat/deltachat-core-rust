@@ -221,7 +221,7 @@ const CONTACT_COMMANDS: [&str; 9] = [
     "unblock",
     "listblocked",
 ];
-const MISC_COMMANDS: [&str; 10] = [
+const MISC_COMMANDS: [&str; 11] = [
     "getqr",
     "getbadqr",
     "checkqr",
@@ -232,6 +232,7 @@ const MISC_COMMANDS: [&str; 10] = [
     "quit",
     "help",
     "estimatedeletion",
+    "requestquotareport"
 ];
 
 impl Hinter for DcHelper {

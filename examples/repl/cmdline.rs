@@ -1216,6 +1216,9 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 seconds, device_cnt, server_cnt
             );
         }
+        "requestquotareport"=> {
+            context.request_quota_report().await;
+        }
         "" => (),
         _ => bail!("Unknown command: \"{}\" type ? for help.", arg0),
     }
