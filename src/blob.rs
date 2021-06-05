@@ -458,6 +458,7 @@ impl<'a> BlobObject<'a> {
             max_bytes: Option<usize>,
             encoded: &mut Vec<u8>,
         ) -> anyhow::Result<bool> {
+            // encode_img(img, encoded)?; // TODO this would solve the other bug, but will be a problem if the image needs to be rotated down but not scaled down
             if let Some(max_bytes) = max_bytes {
                 encode_img(img, encoded)?;
                 if encoded.len() > max_bytes {
@@ -617,7 +618,7 @@ mod tests {
 
     use super::*;
 
-    use crate::test_utils::TestContext;
+    use crate::{message::Message, test_utils::TestContext};
 
     #[async_std::test]
     async fn test_create() {
@@ -914,5 +915,50 @@ mod tests {
         );
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+    }
+
+    #[async_std::test]
+    async fn test_media_quality() -> anyhow::Result<()> {
+        for (media_quality_config, image_size) in vec![
+            (Some("0"), 1000), // BALANCED_IMAGE_SIZE > 1000, the original image size, so the image is not scaled down
+            (Some("1"), WORSE_IMAGE_SIZE),
+        ]
+        .into_iter()
+        {
+            let alice = TestContext::new_alice().await;
+            let bob = TestContext::new_bob().await;
+            alice
+                .set_config(Config::MediaQuality, media_quality_config)
+                .await?;
+
+            let file = alice.get_blobdir().join("file.jpg");
+            let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+            File::create(&file).await?.write_all(bytes).await?;
+
+            let img = image::open(&file)?;
+            assert_eq!(img.width(), 1000);
+            assert_eq!(img.height(), 1000);
+
+            let mut msg = Message::new(Viewtype::Image);
+            msg.set_file(file.to_str().unwrap(), None);
+            let chat = alice.create_chat(&bob).await;
+            let sent = alice.send_msg(chat.id, &mut msg).await;
+
+            let alice_msg = alice.get_last_msg().await;
+            assert_eq!(alice_msg.get_width() as u32, image_size);
+            assert_eq!(alice_msg.get_height() as u32, image_size);
+            let img = image::open(alice_msg.get_file(&alice).unwrap())?;
+            assert_eq!(img.width() as u32, image_size);
+            assert_eq!(img.height() as u32, image_size);
+
+            bob.recv_msg(&sent).await;
+            let bob_msg = bob.get_last_msg().await;
+            assert_eq!(bob_msg.get_width() as u32, image_size);
+            assert_eq!(bob_msg.get_height() as u32, image_size);
+            let img = image::open(bob_msg.get_file(&bob).unwrap())?;
+            assert_eq!(img.width() as u32, image_size);
+            assert_eq!(img.height() as u32, image_size);
+        }
+        Ok(())
     }
 }
