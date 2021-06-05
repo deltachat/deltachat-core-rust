@@ -452,7 +452,7 @@ impl<'a> BlobObject<'a> {
             img.write_to(encoded, image::ImageFormat::Jpeg)?;
             Ok(())
         }
-        fn encode_img_exceeds_bytes(
+        fn encoded_img_exceeds_bytes(
             context: &Context,
             img: &DynamicImage,
             max_bytes: Option<usize>,
@@ -478,7 +478,7 @@ impl<'a> BlobObject<'a> {
         let exceeds_width = img.width() > img_wh || img.height() > img_wh;
 
         let do_scale =
-            exceeds_width || encode_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
+            exceeds_width || encoded_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
         let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
         if do_scale || do_rotate {
@@ -501,7 +501,7 @@ impl<'a> BlobObject<'a> {
                 loop {
                     let new_img = img.thumbnail(img_wh, img_wh);
 
-                    if encode_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
+                    if encoded_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
                         if img_wh < 20 {
                             return Err(format_err!(
                                 "Failed to scale image to below {}B",
