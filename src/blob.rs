@@ -512,6 +512,10 @@ impl<'a> BlobObject<'a> {
 
                         img_wh = img_wh * 2 / 3;
                     } else {
+                        if encoded.is_empty() {
+                            encode_img(&new_img, &mut encoded)?;
+                        }
+
                         info!(
                             context,
                             "Final scaled-down image size: {}B ({}px)",
