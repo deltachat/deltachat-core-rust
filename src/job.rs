@@ -1347,7 +1347,10 @@ async fn load_housekeeping_job(context: &Context) -> Option<Job> {
 }
 
 async fn load_check_quota_job(context: &Context) -> Option<Job> {
-    // FIX ME This spams this job when offline and the job is not yet done for today
+    if action_exists(&context, Action::CheckQuota).await {
+        return None;
+    }
+
     let last_time = match context.get_config_i64(Config::LastQuotaCheck).await {
         Ok(last_time) => last_time,
         Err(err) => {
