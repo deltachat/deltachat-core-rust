@@ -232,7 +232,7 @@ const MISC_COMMANDS: [&str; 11] = [
     "quit",
     "help",
     "estimatedeletion",
-    "requestquotareport"
+    "requestquotareport",
 ];
 
 impl Hinter for DcHelper {

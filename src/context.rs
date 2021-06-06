@@ -571,7 +571,7 @@ impl Context {
     /// where you type a special number and then get a message back with your current balance.
     pub async fn request_quota_report(&self) {
         job::add(
-            &self,
+            self,
             job::Job::new(Action::GenerateQuotaUsageReport, 0, Params::new(), 1),
         )
         .await;

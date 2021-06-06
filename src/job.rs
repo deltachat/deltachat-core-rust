@@ -853,7 +853,7 @@ impl Job {
     }
 
     /// Generates a detailed report about the current Quota usage on the for deltachat relevant folders
-    /// and sends it to the user via [add_device_msg]
+    /// and sends it to the user via devicemessage
     ///
     /// It's a bit like the prepaid mobile carrier service menu/messages,
     /// where you type a special number and then get a message back with your current balance.
@@ -863,7 +863,7 @@ impl Job {
             return Status::RetryLater;
         }
 
-        if let Err(err) = quota_usage_report_job(&context, imap).await {
+        if let Err(err) = quota_usage_report_job(context, imap).await {
             warn!(context, "check quota failed: {:?}", err);
             return Status::RetryLater;
         }
@@ -879,7 +879,7 @@ impl Job {
             return Status::RetryLater;
         }
 
-        if let Err(err) = check_quota_job(&context, imap).await {
+        if let Err(err) = check_quota_job(context, imap).await {
             warn!(context, "check quota failed: {:?}", err);
             return Status::RetryLater;
         }
@@ -1347,7 +1347,7 @@ async fn load_housekeeping_job(context: &Context) -> Option<Job> {
 }
 
 async fn load_check_quota_job(context: &Context) -> Option<Job> {
-    if action_exists(&context, Action::CheckQuota).await {
+    if action_exists(context, Action::CheckQuota).await {
         return None;
     }
 

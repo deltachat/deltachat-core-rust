@@ -13,16 +13,21 @@ use crate::{
     message::Message,
 };
 
+/// Generates a detailed report about the current Quota usage on the for deltachat relevant folders
+/// and sends it to the user via [add_device_msg]
+///
+/// It's a bit like the prepaid mobile carrier service menu/messages,
+/// where you type a special number and then get a message back with your current balance.
 pub(crate) async fn quota_usage_report_job(context: &Context, imap: &mut Imap) -> Result<()> {
     // IDEA: OPTIMIZATION: check_for_quota_support could be cached in the config, would increase code complexity but decrease traffic a bit
     if imap.check_for_quota_support().await? {
-        let folders = get_watched_folders(&context).await;
+        let folders = get_watched_folders(context).await;
         let unique_quota_roots = get_unique_quota_roots_and_usage(folders, imap).await?;
 
         // build and send report message
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some(generate_report_message(&unique_quota_roots)?);
-        add_device_msg(&context, None, Some(&mut msg)).await?;
+        add_device_msg(context, None, Some(&mut msg)).await?;
     } else {
         warn!(
             context,
@@ -30,15 +35,13 @@ pub(crate) async fn quota_usage_report_job(context: &Context, imap: &mut Imap) -
         );
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("the email server does not support the quota extention".to_owned()); // todo stock string?
-        add_device_msg_with_importance(&context, None, Some(&mut msg), true).await?;
+        add_device_msg_with_importance(context, None, Some(&mut msg), true).await?;
     }
 
     Ok(())
 }
 
-fn generate_report_message(
-    unique_quota_roots: &Vec<(String, Vec<QuotaResource>)>,
-) -> Result<String> {
+fn generate_report_message(unique_quota_roots: &[(String, Vec<QuotaResource>)]) -> Result<String> {
     let mut message: String = "".to_owned();
     for (name, quota_resources) in unique_quota_roots {
         message.push_str(&format!("{}:\n", &name));
@@ -86,7 +89,7 @@ async fn get_unique_quota_roots_and_usage(
                     .iter()
                     .find(|q| &q.root_name == quota_root_name)
                     .map(|q| q.clone().into_owned())
-                    .ok_or(anyhow!("quota_root should have a quota"))?;
+                    .ok_or_else(|| anyhow!("quota_root should have a quota"))?;
                 match unique_quota_roots
                     .iter()
                     .find_position(|(root_name, _)| root_name == quota_root_name)
@@ -98,7 +101,7 @@ async fn get_unique_quota_roots_and_usage(
                     Some((position, ..)) => {
                         // replace old quotas, because between fetching quotaroots for folders,
                         // messages could be recieved and so the usage could have been changed
-                        unique_quota_roots[position].1 = quota.resources;
+                        unique_quota_roots.get_mut(position).unwrap().1 = quota.resources;
                     }
                 }
             }
@@ -108,7 +111,7 @@ async fn get_unique_quota_roots_and_usage(
 }
 
 fn get_highest_usage<'t>(
-    unique_quota_roots: &'t Vec<(String, Vec<QuotaResource<'t>>)>,
+    unique_quota_roots: &'t [(String, Vec<QuotaResource<'t>>)],
 ) -> Result<(u64, &'t String, &QuotaResource<'t>)> {
     let mut highest: Option<(u64, &'t String, &QuotaResource<'t>)> = None;
     for (name, resources) in unique_quota_roots {
@@ -128,7 +131,7 @@ fn get_highest_usage<'t>(
         }
     }
 
-    return Ok(highest.ok_or(anyhow!("no quota_resource found, this is unexpected"))?);
+    Ok(highest.ok_or_else(|| anyhow!("no quota_resource found, this is unexpected"))?)
 }
 
 pub(crate) async fn check_quota_job(context: &Context, imap: &mut Imap) -> Result<()> {
@@ -139,9 +142,9 @@ pub(crate) async fn check_quota_job(context: &Context, imap: &mut Imap) -> Resul
             "QuotaCheck: the email server does not support the quota extention"
         );
     } else {
-        let folders = get_watched_folders(&context).await;
+        let folders = get_watched_folders(context).await;
         let unique_quota_roots = get_unique_quota_roots_and_usage(folders, imap).await?;
-        if unique_quota_roots.len() == 0 {
+        if unique_quota_roots.is_empty() {
             bail!("no quota root");
         }
         // whats the highest quota
@@ -166,12 +169,12 @@ pub(crate) async fn check_quota_job(context: &Context, imap: &mut Imap) -> Resul
 
             let mut details_msg = Message::new(Viewtype::Text);
             details_msg.text = Some(generate_report_message(&unique_quota_roots)?);
-            add_device_msg(&context, None, Some(&mut details_msg)).await?;
+            add_device_msg(context, None, Some(&mut details_msg)).await?;
 
             // if yes post a device message informing the user that the mailbox is nearly full.
             let mut msg = Message::new(Viewtype::Text);
             msg.text = Some("Your mailbox on your email account is running full!\n Possible Solutions:\n - Delete old messages on the server\n- or enable \"Delete old messages from server\" in the deltachat settings\n- or upgrade your plan with your email provider\nIf you don't take action you will soon be unable to recieve messages.".to_owned()); // todo stock string?
-            add_device_msg_with_importance(&context, None, Some(&mut msg), true).await?;
+            add_device_msg_with_importance(context, None, Some(&mut msg), true).await?;
         }
     }
 
