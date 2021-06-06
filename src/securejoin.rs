@@ -253,17 +253,17 @@ async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum JoinError {
-    #[error("Unknown QR-code")]
+    #[error("Unknown QR-code: {0}")]
     QrCode(#[from] QrError),
     #[error("A setup-contact/secure-join protocol is already running")]
     AlreadyRunning,
     #[error("An \"ongoing\" process is already running")]
     OngoingRunning,
-    #[error("Failed to send handshake message")]
+    #[error("Failed to send handshake message: {0}")]
     SendMessage(#[from] SendMsgError),
     // Note that this can currently only occur if there is a bug in the QR/Lot code as this
     // is supposed to create a contact for us.
-    #[error("Unknown contact (this is a bug)")]
+    #[error("Unknown contact (this is a bug): {0}")]
     UnknownContact(#[source] anyhow::Error),
     // Note that this can only occur if we failed to create the chat correctly.
     #[error("Ongoing sender dropped (this is a bug)")]
