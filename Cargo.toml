@@ -78,7 +78,7 @@ uuid = { version = "0.8", features = ["serde", "v4"] }
 ansi_term = "0.12.0"
 async-std = { version = "1.9.0", features = ["unstable", "attributes"] }
 criterion = "0.3"
-futures-lite = "1.7.0"
+futures-lite = "1.12.0"
 log = "0.4.11"
 pretty_assertions = "0.7.2"
 pretty_env_logger = "0.4.0"
