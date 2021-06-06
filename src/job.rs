@@ -1499,10 +1499,10 @@ LIMIT 1;
                 }
             } else if let Some(job) = load_imap_deletion_job(context).await.unwrap_or_default() {
                 Some(job)
-            } else if let Some(job) = load_check_quota_job(context).await {
+            } else if let Some(job) = load_housekeeping_job(context).await {
                 Some(job)
             } else {
-                load_housekeeping_job(context).await
+                load_check_quota_job(context).await
             }
         }
         Thread::Smtp => job,
