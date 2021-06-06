@@ -66,7 +66,7 @@ sha-1 = "0.9.6"
 sha2 = "0.9.5"
 smallvec = "1.0.0"
 stop-token = "0.2.0"
-strum = "0.20.0"
+strum = "0.21.0"
 strum_macros = "0.21.1"
 surf = { version = "2.0.0-alpha.4", default-features = false, features = ["h1-client"] }
 thiserror = "1.0.25"
