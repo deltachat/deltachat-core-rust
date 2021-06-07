@@ -452,7 +452,7 @@ impl<'a> BlobObject<'a> {
             img.write_to(encoded, image::ImageFormat::Jpeg)?;
             Ok(())
         }
-        fn encode_img_exceeds_bytes(
+        fn encoded_img_exceeds_bytes(
             context: &Context,
             img: &DynamicImage,
             max_bytes: Option<usize>,
@@ -477,7 +477,7 @@ impl<'a> BlobObject<'a> {
         let exceeds_width = img.width() > img_wh || img.height() > img_wh;
 
         let do_scale =
-            exceeds_width || encode_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
+            exceeds_width || encoded_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
         let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
         if do_scale || do_rotate {
@@ -500,7 +500,7 @@ impl<'a> BlobObject<'a> {
                 loop {
                     let new_img = img.thumbnail(img_wh, img_wh);
 
-                    if encode_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
+                    if encoded_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
                         if img_wh < 20 {
                             return Err(format_err!(
                                 "Failed to scale image to below {}B",
@@ -511,6 +511,10 @@ impl<'a> BlobObject<'a> {
 
                         img_wh = img_wh * 2 / 3;
                     } else {
+                        if encoded.is_empty() {
+                            encode_img(&new_img, &mut encoded)?;
+                        }
+
                         info!(
                             context,
                             "Final scaled-down image size: {}B ({}px)",
@@ -617,7 +621,7 @@ mod tests {
 
     use super::*;
 
-    use crate::test_utils::TestContext;
+    use crate::{message::Message, test_utils::TestContext};
 
     #[async_std::test]
     async fn test_create() {
@@ -914,5 +918,50 @@ mod tests {
         );
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+    }
+
+    #[async_std::test]
+    async fn test_media_quality() -> anyhow::Result<()> {
+        for (media_quality_config, image_size) in vec![
+            (Some("0"), 1000), // BALANCED_IMAGE_SIZE > 1000, the original image size, so the image is not scaled down
+            (Some("1"), WORSE_IMAGE_SIZE),
+        ]
+        .into_iter()
+        {
+            let alice = TestContext::new_alice().await;
+            let bob = TestContext::new_bob().await;
+            alice
+                .set_config(Config::MediaQuality, media_quality_config)
+                .await?;
+
+            let file = alice.get_blobdir().join("file.jpg");
+            let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+            File::create(&file).await?.write_all(bytes).await?;
+
+            let img = image::open(&file)?;
+            assert_eq!(img.width(), 1000);
+            assert_eq!(img.height(), 1000);
+
+            let mut msg = Message::new(Viewtype::Image);
+            msg.set_file(file.to_str().unwrap(), None);
+            let chat = alice.create_chat(&bob).await;
+            let sent = alice.send_msg(chat.id, &mut msg).await;
+
+            let alice_msg = alice.get_last_msg().await;
+            assert_eq!(alice_msg.get_width() as u32, image_size);
+            assert_eq!(alice_msg.get_height() as u32, image_size);
+            let img = image::open(alice_msg.get_file(&alice).unwrap())?;
+            assert_eq!(img.width() as u32, image_size);
+            assert_eq!(img.height() as u32, image_size);
+
+            bob.recv_msg(&sent).await;
+            let bob_msg = bob.get_last_msg().await;
+            assert_eq!(bob_msg.get_width() as u32, image_size);
+            assert_eq!(bob_msg.get_height() as u32, image_size);
+            let img = image::open(bob_msg.get_file(&bob).unwrap())?;
+            assert_eq!(img.width() as u32, image_size);
+            assert_eq!(img.height() as u32, image_size);
+        }
+        Ok(())
     }
 }
