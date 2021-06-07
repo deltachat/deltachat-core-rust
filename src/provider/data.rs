@@ -876,6 +876,35 @@ static P_ROGERS_COM: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
+// systemausfall.org.md: systemausfall.org, solidaris.me
+static P_SYSTEMAUSFALL_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "systemausfall.org",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/systemausfall-org",
+    server: vec![
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "mail.systemausfall.org",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "mail.systemausfall.org",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
 // systemli.org.md: systemli.org
 static P_SYSTEMLI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
     id: "systemli.org",
@@ -989,6 +1018,23 @@ static P_TISCALI_IT: Lazy<Provider> = Lazy::new(|| Provider {
     strict_tls: true,
     max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
+});
+
+// tutanota.md: tutanota.com, tutanota.de, tutamail.com, tuta.io, keemail.me
+static P_TUTANOTA: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    id: "tutanota",
+    status: Status::Broken,
+    before_login_hint: "Tutanota does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to Tutanota.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/tutanota",
+    server: vec![
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+}
 });
 
 // ukr.net.md: ukr.net
@@ -1285,11 +1331,18 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("protonmail.ch", &*P_PROTONMAIL),
         ("riseup.net", &*P_RISEUP_NET),
         ("rogers.com", &*P_ROGERS_COM),
+        ("systemausfall.org", &*P_SYSTEMAUSFALL_ORG),
+        ("solidaris.me", &*P_SYSTEMAUSFALL_ORG),
         ("systemli.org", &*P_SYSTEMLI_ORG),
         ("t-online.de", &*P_T_ONLINE),
         ("magenta.de", &*P_T_ONLINE),
         ("testrun.org", &*P_TESTRUN),
         ("tiscali.it", &*P_TISCALI_IT),
+        ("tutanota.com", &*P_TUTANOTA),
+        ("tutanota.de", &*P_TUTANOTA),
+        ("tutamail.com", &*P_TUTANOTA),
+        ("tuta.io", &*P_TUTANOTA),
+        ("keemail.me", &*P_TUTANOTA),
         ("ukr.net", &*P_UKR_NET),
         ("undernet.uy", &*P_UNDERNET_UY),
         ("vfemail.net", &*P_VFEMAIL),
@@ -1389,10 +1442,12 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("protonmail", &*P_PROTONMAIL),
         ("riseup.net", &*P_RISEUP_NET),
         ("rogers.com", &*P_ROGERS_COM),
+        ("systemausfall.org", &*P_SYSTEMAUSFALL_ORG),
         ("systemli.org", &*P_SYSTEMLI_ORG),
         ("t-online", &*P_T_ONLINE),
         ("testrun", &*P_TESTRUN),
         ("tiscali.it", &*P_TISCALI_IT),
+        ("tutanota", &*P_TUTANOTA),
         ("ukr.net", &*P_UKR_NET),
         ("undernet.uy", &*P_UNDERNET_UY),
         ("vfemail", &*P_VFEMAIL),
@@ -1408,4 +1463,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 4, 10));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 6, 7));
