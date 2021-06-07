@@ -1,5 +1,28 @@
 # Changelog 
 
+## 1.56.0
+
+- fix downscaling images #2469
+
+- fix outgoing messages popping up in selfchat #2456
+
+- securejoin: display error reason if there is any #2470
+
+- do not allow deleting contacts with ongoing chats #2458
+
+- fix: ignore drafts folder when scanning #2454
+
+- fix: scan folders also when inbox is not watched #2446
+
+- update dependencies #2441 #2438 #2439 #2440 #2447 #2448 #2449 #2452 #2453 #2460 #2464 #2466
+
+- update provider-database #2471
+
+- refactorings #2459 #2457
+
+- improve tests and ci #2445 #2450 #2451
+
+
 ## 1.55.0
 
 - fix panic when receiving some HTML messages #2434
