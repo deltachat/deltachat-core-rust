@@ -14,6 +14,8 @@
 
 - fix: scan folders also when inbox is not watched #2446
 
+- more robust In-Reply-To parsing #2182
+
 - update dependencies #2441 #2438 #2439 #2440 #2447 #2448 #2449 #2452 #2453 #2460 #2464 #2466
 
 - update provider-database #2471
