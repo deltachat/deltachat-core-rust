@@ -3,7 +3,6 @@ use async_imap::imap_proto::{Quota, QuotaResource};
 use humansize::{file_size_opts, FileSize};
 use itertools::Itertools;
 
-use crate::constants::DC_QUOTA_WARN_THRESHOLD_PERCENTAGE;
 use crate::context::Context;
 use crate::imap::Imap;
 use crate::{
@@ -11,6 +10,13 @@ use crate::{
     constants::Viewtype,
     imap::scan_folders::get_watched_folders,
     message::Message,
+};
+use crate::{
+    constants::DC_QUOTA_WARN_THRESHOLD_PERCENTAGE,
+    stock_str::{
+        quota_mailbox_nearly_full, quota_not_supported, quota_resource_messages,
+        quota_resource_storage,
+    },
 };
 
 /// Generates a detailed report about the current Quota usage on the for deltachat relevant folders
@@ -26,7 +32,7 @@ pub(crate) async fn quota_usage_report_job(context: &Context, imap: &mut Imap) -
 
         // build and send report message
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(generate_report_message(&unique_quota_roots)?);
+        msg.text = Some(generate_report_message(&unique_quota_roots, context).await?);
         add_device_msg(context, None, Some(&mut msg)).await?;
     } else {
         warn!(
@@ -34,15 +40,21 @@ pub(crate) async fn quota_usage_report_job(context: &Context, imap: &mut Imap) -
             "the email server does not support the quota extention"
         );
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("the email server does not support the quota extention".to_owned()); // todo stock string?
+        msg.text = Some(quota_not_supported(context).await); // todo stock string?
         add_device_msg_with_importance(context, None, Some(&mut msg), true).await?;
     }
 
     Ok(())
 }
 
-fn generate_report_message(unique_quota_roots: &[(String, Vec<QuotaResource>)]) -> Result<String> {
+async fn generate_report_message(
+    unique_quota_roots: &[(String, Vec<QuotaResource<'static>>)],
+    context: &Context,
+) -> Result<String> {
     let mut message: String = "".to_owned();
+
+    let storage_stock_string = quota_resource_storage(context).await;
+    let messages_stock_string = quota_resource_messages(context).await;
     for (name, quota_resources) in unique_quota_roots {
         message.push_str(&format!("{}:\n", &name));
         use async_imap::imap_proto::QuotaResourceName::*;
@@ -52,8 +64,11 @@ fn generate_report_message(unique_quota_roots: &[(String, Vec<QuotaResource>)]) 
                     format!("[{}/{}] {}\n", resource.usage, resource.limit, name)
                 }
                 Message => {
-                    format!("{}/{} Messages\n", resource.usage, resource.limit)
-                } // TODO stockstring
+                    format!(
+                        "{}/{} {}\n",
+                        resource.usage, resource.limit, messages_stock_string
+                    )
+                }
                 Storage => {
                     let used = (resource.usage * 1024)
                         .file_size(file_size_opts::BINARY)
@@ -61,7 +76,7 @@ fn generate_report_message(unique_quota_roots: &[(String, Vec<QuotaResource>)]) 
                     let limit = (resource.limit * 1024)
                         .file_size(file_size_opts::BINARY)
                         .map_err(|err| anyhow!("{}", err))?;
-                    format!("{}/{} Storage\n", used, limit) // TODO stockstring
+                    format!("{}/{} {}\n", used, limit, storage_stock_string)
                 }
             });
         }
@@ -168,12 +183,12 @@ pub(crate) async fn check_quota_job(context: &Context, imap: &mut Imap) -> Resul
             );
 
             let mut details_msg = Message::new(Viewtype::Text);
-            details_msg.text = Some(generate_report_message(&unique_quota_roots)?);
+            details_msg.text = Some(generate_report_message(&unique_quota_roots, context).await?);
             add_device_msg(context, None, Some(&mut details_msg)).await?;
 
             // if yes post a device message informing the user that the mailbox is nearly full.
             let mut msg = Message::new(Viewtype::Text);
-            msg.text = Some("Your mailbox on your email account is running full!\n Possible Solutions:\n - Delete old messages on the server\n- or enable \"Delete old messages from server\" in the deltachat settings\n- or upgrade your plan with your email provider\nIf you don't take action you will soon be unable to recieve messages.".to_owned()); // todo stock string?
+            msg.text = Some(quota_mailbox_nearly_full(context).await);
             add_device_msg_with_importance(context, None, Some(&mut msg), true).await?;
         }
     }

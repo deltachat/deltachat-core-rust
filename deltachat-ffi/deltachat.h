@@ -5762,6 +5762,32 @@ void dc_event_unref(dc_event_t* event);
 /// Used in message summary text for notifications and chatlist.
 #define DC_STR_FORWARDED                  97
 
+/// "Your mailbox on your email account is running full! [...]"
+///
+/// Send as device message to the user when their mailbox is nearly full
+///
+/// The message is longer and also contains suggestions for possible solutions.
+#define DC_STR_QUOTA_MAILBOX_NEARLY_FULL  98
+
+/// "Your email server does not support the quota extension"
+///
+/// U
+#define DC_STR_QUOTA_NOT_SUPPORTED        99
+
+/// "Messages"
+///
+/// Used in the quota report message.
+///
+/// Example usage: 3912/6000 Messages
+#define DC_STR_QUOTA_MESSAGES            100
+
+/// "Storage"
+///
+/// Used in the quota report message.
+///
+/// Example usage: 169.33 MiB/1000 MiB Storage
+#define DC_STR_QUOTA_STORAGE             101
+
 /**
  * @}
  */

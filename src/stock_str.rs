@@ -261,6 +261,23 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Forwarded"))]
     Forwarded = 97,
+
+    #[strum(props(fallback = "Your mailbox on your email account is running full!\
+        \nPossible Solutions:\
+        \n- Delete old messages on the server\
+        \n- or enable \"Delete old messages from server\" in the deltachat settings\
+        \n- or upgrade your plan with your email provider\
+        \nIf you don't take action you will soon be unable to receive messages."))]
+    QuotaMailboxNearlyFull = 98,
+
+    #[strum(props(fallback = "Your email server does not support the quota extension"))]
+    QuotaNotSupported = 99,
+
+    #[strum(props(fallback = "Messages"))]
+    QuotaResourceMessages = 100,
+
+    #[strum(props(fallback = "Storage"))]
+    QuotaResourceStorage = 101,
 }
 
 impl StockMessage {
@@ -846,6 +863,26 @@ pub(crate) async fn msg_ephemeral_timer_weeks(
 /// Stock string: `Forwarded`.
 pub(crate) async fn forwarded(context: &Context) -> String {
     translated(context, StockMessage::Forwarded).await
+}
+
+/// Stock string: `QuotaMailboxNearlyFull`.
+pub(crate) async fn quota_mailbox_nearly_full(context: &Context) -> String {
+    translated(context, StockMessage::QuotaMailboxNearlyFull).await
+}
+
+/// Stock string: `QuotaNotSupported`.
+pub(crate) async fn quota_not_supported(context: &Context) -> String {
+    translated(context, StockMessage::QuotaNotSupported).await
+}
+
+/// Stock string: `QuotaResourceMessages`.
+pub(crate) async fn quota_resource_messages(context: &Context) -> String {
+    translated(context, StockMessage::QuotaResourceMessages).await
+}
+
+/// Stock string: `QuotaResourceStorage`.
+pub(crate) async fn quota_resource_storage(context: &Context) -> String {
+    translated(context, StockMessage::QuotaResourceStorage).await
 }
 
 impl Context {
