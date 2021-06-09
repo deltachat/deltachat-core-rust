@@ -236,14 +236,14 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbb2df4b37a99456360a9ab475b723e3a499d51e060ab1bdd8d7565d23dcb74b"
+source = "git+https://github.com/async-email/async-imap?branch=feat_socks5_support#18d4cb2d9cc8a3e7173bb20bd93859a1e5472747"
 dependencies = [
  "async-native-tls",
  "async-std",
  "base64 0.13.0",
  "byte-pool",
  "chrono",
+ "fast-socks5",
  "futures",
  "imap-proto",
  "lazy_static",
@@ -1131,6 +1131,7 @@ dependencies = [
  "email",
  "encoded-words",
  "escaper",
+ "fast-socks5",
  "futures",
  "futures-lite",
  "hex",
@@ -1502,6 +1503,19 @@ name = "fallible-streaming-iterator"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
+
+[[package]]
+name = "fast-socks5"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c1955b65d95243f547eb1d1ee6e5ce75ecf6daaeb72b08cd6c66e549d6d88e1"
+dependencies = [
+ "anyhow",
+ "async-std",
+ "futures",
+ "log",
+ "thiserror",
+]
 
 [[package]]
 name = "fast_chemail"

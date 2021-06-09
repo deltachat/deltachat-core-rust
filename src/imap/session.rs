@@ -3,6 +3,8 @@ use std::ops::{Deref, DerefMut};
 use async_imap::Session as ImapSession;
 use async_native_tls::TlsStream;
 use async_std::net::TcpStream;
+use async_std_resolver::proto::tcp::TcpClientConnect;
+use fast_socks5::client::Socks5Stream;
 
 #[derive(Debug)]
 pub(crate) struct Session {
@@ -17,6 +19,8 @@ pub(crate) trait SessionStream:
 impl SessionStream for TlsStream<Box<dyn SessionStream>> {}
 impl SessionStream for TlsStream<TcpStream> {}
 impl SessionStream for TcpStream {}
+impl SessionStream for Socks5Stream<TcpStream> {}
+
 
 impl Deref for Session {
     type Target = ImapSession<Box<dyn SessionStream>>;

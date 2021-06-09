@@ -1,10 +1,11 @@
-use std::ops::{Deref, DerefMut};
+use std::{ops::{Deref, DerefMut}, time::Duration};
 
 use async_imap::{
     error::{Error as ImapError, Result as ImapResult},
     Client as ImapClient,
 };
-use async_std::net::{self, TcpStream};
+use async_std::{future, net::{self, TcpStream}};
+use fast_socks5::client::{Config, Socks5Stream};
 
 use super::session::Session;
 use crate::login_param::dc_build_tls;
@@ -100,6 +101,29 @@ impl Client {
         let stream: Box<dyn SessionStream> = Box::new(TcpStream::connect(addr).await?);
 
         let mut client = ImapClient::new(stream);
+        let _greeting = client
+            .read_response()
+            .await
+            .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
+
+        Ok(Client {
+            is_secure: false,
+            inner: client,
+        })
+    }
+
+    pub async fn connect_socks5(target_addr: (String, u16), socks5_addr: (String, u16)) -> ImapResult<Self> {
+        let socks5_stream: Box<dyn SessionStream> = Box::new(future::timeout(
+                Duration::from_millis(5000),
+                Socks5Stream::connect(
+                    format!("{}:{}", socks5_addr.0, socks5_addr.1),
+                    target_addr.0,
+                    target_addr.1,
+                    Config::default()
+                )
+            ).await??);
+
+        let mut client = ImapClient::new(socks5_stream);
         let _greeting = client
             .read_response()
             .await
