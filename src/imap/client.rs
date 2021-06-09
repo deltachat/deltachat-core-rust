@@ -1,15 +1,23 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 
 use async_imap::{
     error::{Error as ImapError, Result as ImapResult},
     Client as ImapClient,
 };
+
+use async_smtp::ServerAddress;
 use async_std::net::{self, TcpStream};
 
 use super::session::Session;
-use crate::login_param::dc_build_tls;
+use crate::login_param::{dc_build_tls, Socks5Config};
 
 use super::session::SessionStream;
+
+/// IMAP write and read timeout in seconds.
+const IMAP_TIMEOUT: u64 = 30;
 
 #[derive(Debug)]
 pub(crate) struct Client {
@@ -100,6 +108,63 @@ impl Client {
         let stream: Box<dyn SessionStream> = Box::new(TcpStream::connect(addr).await?);
 
         let mut client = ImapClient::new(stream);
+        let _greeting = client
+            .read_response()
+            .await
+            .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
+
+        Ok(Client {
+            is_secure: false,
+            inner: client,
+        })
+    }
+
+    pub async fn connect_secure_socks5(
+        target_addr: &ServerAddress,
+        strict_tls: bool,
+        socks5_config: Socks5Config,
+    ) -> ImapResult<Self> {
+        let socks5_stream: Box<dyn SessionStream> = Box::new(
+            match socks5_config
+                .connect(target_addr, Some(Duration::from_secs(IMAP_TIMEOUT)))
+                .await
+            {
+                Ok(s) => s,
+                Err(e) => return ImapResult::Err(async_imap::error::Error::Bad(e.to_string())),
+            },
+        );
+
+        let tls = dc_build_tls(strict_tls);
+        let tls_stream: Box<dyn SessionStream> =
+            Box::new(tls.connect(target_addr.host.clone(), socks5_stream).await?);
+        let mut client = ImapClient::new(tls_stream);
+
+        let _greeting = client
+            .read_response()
+            .await
+            .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
+
+        Ok(Client {
+            is_secure: true,
+            inner: client,
+        })
+    }
+
+    pub async fn connect_insecure_socks5(
+        target_addr: &ServerAddress,
+        socks5_config: Socks5Config,
+    ) -> ImapResult<Self> {
+        let socks5_stream: Box<dyn SessionStream> = Box::new(
+            match socks5_config
+                .connect(target_addr, Some(Duration::from_secs(IMAP_TIMEOUT)))
+                .await
+            {
+                Ok(s) => s,
+                Err(e) => return ImapResult::Err(async_imap::error::Error::Bad(e.to_string())),
+            },
+        );
+
+        let mut client = ImapClient::new(socks5_stream);
         let _greeting = client
             .read_response()
             .await

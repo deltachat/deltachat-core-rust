@@ -5,11 +5,13 @@ pub mod send;
 use std::time::{Duration, SystemTime};
 
 use async_smtp::smtp::client::net::ClientTlsParameters;
-use async_smtp::{error, smtp, EmailAddress};
+use async_smtp::{error, smtp, EmailAddress, ServerAddress};
 
 use crate::constants::DC_LP_AUTH_OAUTH2;
 use crate::events::EventType;
-use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam};
+use crate::login_param::{
+    dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam, Socks5Config,
+};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::provider::Socket;
 use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
@@ -29,8 +31,6 @@ pub enum Error {
     },
     #[error("SMTP failed to connect: {0}")]
     ConnectionFailure(#[source] smtp::error::Error),
-    #[error("SMTP failed to setup connection: {0}")]
-    ConnectionSetupFailure(#[source] smtp::error::Error),
     #[error("SMTP oauth2 error {address}")]
     Oauth2 { address: String },
     #[error("TLS error {0}")]
@@ -106,6 +106,7 @@ impl Smtp {
         self.connect(
             context,
             &lp.smtp,
+            &lp.socks5_config,
             &lp.addr,
             lp.server_flags & DC_LP_AUTH_OAUTH2 != 0,
             lp.provider.map_or(false, |provider| provider.strict_tls),
@@ -118,6 +119,7 @@ impl Smtp {
         &mut self,
         context: &Context,
         lp: &ServerLoginParam,
+        socks5_config: &Option<Socks5Config>,
         addr: &str,
         oauth2: bool,
         provider_strict_tls: bool,
@@ -187,16 +189,19 @@ impl Smtp {
             _ => smtp::ClientSecurity::Wrapper(tls_parameters),
         };
 
-        let client = smtp::SmtpClient::with_security((domain.as_str(), port), security)
-            .await
-            .map_err(Error::ConnectionSetupFailure)?;
+        let client =
+            smtp::SmtpClient::with_security(ServerAddress::new(domain.to_string(), port), security);
 
-        let client = client
+        let mut client = client
             .smtp_utf8(true)
             .credentials(creds)
             .authentication_mechanism(mechanism)
             .connection_reuse(smtp::ConnectionReuseParameters::ReuseUnlimited)
             .timeout(Some(Duration::from_secs(SMTP_TIMEOUT)));
+
+        if let Some(socks5_config) = socks5_config {
+            client = client.use_socks5(socks5_config.to_async_smtp_socks5_config());
+        }
 
         let mut trans = client.into_transport();
         if let Err(err) = trans.connect().await {

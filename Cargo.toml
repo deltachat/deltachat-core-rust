@@ -18,7 +18,7 @@ ansi_term = { version = "0.12.1", optional = true }
 anyhow = "1.0.42"
 async-imap = { git = "https://github.com/async-email/async-imap" }
 async-native-tls = { version = "0.3.3" }
-async-smtp = { git = "https://github.com/async-email/async-smtp", rev="c8800625f7cf29f437143ac7e720ac2730a0962f" }
+async-smtp = { git = "https://github.com/async-email/async-smtp", branch="master", features = ["socks5"] }
 async-std-resolver = "0.20.3"
 async-std = { version = "~1.9.0", features = ["unstable"] }
 async-tar = "0.3.0"
@@ -72,6 +72,7 @@ thiserror = "1.0.26"
 toml = "0.5.6"
 url = "2.2.2"
 uuid = { version = "0.8", features = ["serde", "v4"] }
+fast-socks5 = "0.4.2"
 humansize = "1.1.1"
 
 [dev-dependencies]

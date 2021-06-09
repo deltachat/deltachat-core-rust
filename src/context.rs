@@ -289,6 +289,7 @@ impl Context {
         let request_msgs = message::get_request_msg_cnt(self).await as usize;
         let contacts = Contact::get_real_cnt(self).await? as usize;
         let is_configured = self.get_config_int(Config::Configured).await?;
+        let socks5_enabled = self.get_config_int(Config::Socks5Enabled).await?;
         let dbversion = self
             .sql
             .get_raw_config_int("dbversion")
@@ -357,6 +358,7 @@ impl Context {
                 .unwrap_or_else(|| "<unset>".to_string()),
         );
         res.insert("is_configured", is_configured.to_string());
+        res.insert("socks5_enabled", socks5_enabled.to_string());
         res.insert("entered_account_settings", l.to_string());
         res.insert("used_account_settings", l2.to_string());
         res.insert(
@@ -878,6 +880,10 @@ mod tests {
             "send_security",
             "server_flags",
             "smtp_certificate_checks",
+            "socks5_host",
+            "socks5_port",
+            "socks5_user",
+            "socks5_password",
         ];
         let t = TestContext::new().await;
         let info = t.get_info().await.unwrap();

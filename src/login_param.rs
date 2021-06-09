@@ -2,10 +2,17 @@
 
 use std::borrow::Cow;
 use std::fmt;
+use std::time::Duration;
 
 use crate::provider::{get_provider_by_id, Provider};
 use crate::{context::Context, provider::Socket};
 use anyhow::Result;
+
+use async_std::io;
+use async_std::net::TcpStream;
+
+pub use async_smtp::ServerAddress;
+use fast_socks5::client::Socks5Stream;
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, PartialEq, Eq)]
 #[repr(u32)]
@@ -45,12 +52,91 @@ pub struct ServerLoginParam {
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
+pub struct Socks5Config {
+    pub host: String,
+    pub port: u16,
+    pub user_password: Option<(String, String)>,
+}
+
+impl Socks5Config {
+    /// Reads SOCKS5 configuration from the database.
+    pub async fn from_database(context: &Context) -> Result<Option<Self>> {
+        let sql = &context.sql;
+
+        let enabled = sql
+            .get_raw_config_bool("socks5_enabled")
+            .await
+            .unwrap_or(false);
+        if enabled {
+            let host = sql.get_raw_config("socks5_host").await?.unwrap_or_default();
+            let port: u16 = sql
+                .get_raw_config_int("socks5_port")
+                .await?
+                .unwrap_or_default() as u16;
+            let user = sql.get_raw_config("socks5_user").await?.unwrap_or_default();
+            let password = sql
+                .get_raw_config("socks5_password")
+                .await?
+                .unwrap_or_default();
+
+            let socks5_config = Self {
+                host,
+                port,
+                user_password: if !user.is_empty() {
+                    Some((user, password))
+                } else {
+                    None
+                },
+            };
+            Ok(Some(socks5_config))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn connect(
+        &self,
+        target_addr: &ServerAddress,
+        timeout: Option<Duration>,
+    ) -> io::Result<Socks5Stream<TcpStream>> {
+        self.to_async_smtp_socks5_config()
+            .connect(target_addr, timeout)
+            .await
+    }
+
+    pub fn to_async_smtp_socks5_config(&self) -> async_smtp::smtp::Socks5Config {
+        async_smtp::smtp::Socks5Config {
+            host: self.host.clone(),
+            port: self.port,
+            user_password: self.user_password.clone(),
+        }
+    }
+}
+
+impl fmt::Display for Socks5Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "host:{},port:{},user_password:{}",
+            self.host,
+            self.port,
+            if let Some(user_password) = self.user_password.clone() {
+                format!("user: {}, password: ***", user_password.0)
+            } else {
+                "user: None".to_string()
+            }
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct LoginParam {
     pub addr: String,
     pub imap: ServerLoginParam,
     pub smtp: ServerLoginParam,
     pub server_flags: i32,
     pub provider: Option<&'static Provider>,
+    pub socks5_config: Option<Socks5Config>,
 }
 
 impl LoginParam {
@@ -130,6 +216,8 @@ impl LoginParam {
             .await?
             .and_then(|provider_id| get_provider_by_id(&provider_id));
 
+        let socks5_config = Socks5Config::from_database(context).await?;
+
         Ok(LoginParam {
             addr,
             imap: ServerLoginParam {
@@ -150,6 +238,7 @@ impl LoginParam {
             },
             provider,
             server_flags,
+            socks5_config,
         })
     }
 
@@ -334,6 +423,8 @@ mod tests {
             },
             server_flags: 0,
             provider: get_provider_by_id("example.com"),
+            // socks5_config is not saved by `save_to_database`, using default value
+            socks5_config: None,
         };
 
         param.save_to_database(&t, "foobar_").await?;

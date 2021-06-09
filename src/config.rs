@@ -48,6 +48,12 @@ pub enum Config {
     SmtpCertificateChecks,
     ServerFlags,
 
+    Socks5Enabled,
+    Socks5Host,
+    Socks5Port,
+    Socks5User,
+    Socks5Password,
+
     Displayname,
     Selfstatus,
     Selfavatar,

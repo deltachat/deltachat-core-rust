@@ -89,15 +89,17 @@ pub struct Provider {
 ///
 /// For compatibility, email address can be passed to this function
 /// instead of the domain.
-pub async fn get_provider_info(domain: &str) -> Option<&'static Provider> {
+pub async fn get_provider_info(domain: &str, skip_mx: bool) -> Option<&'static Provider> {
     let domain = domain.rsplitn(2, '@').next()?;
 
     if let Some(provider) = get_provider_by_domain(domain) {
         return Some(provider);
     }
 
-    if let Some(provider) = get_provider_by_mx(domain).await {
-        return Some(provider);
+    if !skip_mx {
+        if let Some(provider) = get_provider_by_mx(domain).await {
+            return Some(provider);
+        }
     }
 
     None
@@ -221,11 +223,17 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_provider_info() {
-        assert!(get_provider_info("").await.is_none());
-        assert!(get_provider_info("google.com").await.unwrap().id == "gmail");
+        assert!(get_provider_info("", false).await.is_none());
+        assert!(get_provider_info("google.com", false).await.unwrap().id == "gmail");
 
         // get_provider_info() accepts email addresses for backwards compatibility
-        assert!(get_provider_info("example@google.com").await.unwrap().id == "gmail");
+        assert!(
+            get_provider_info("example@google.com", false)
+                .await
+                .unwrap()
+                .id
+                == "gmail"
+        );
     }
 
     #[test]
