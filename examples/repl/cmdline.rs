@@ -372,6 +372,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  getlocations [<contact-id>]\n\
                  send <text>\n\
                  sendimage <file> [<text>]\n\
+                 sendsticker <file> [<text>]\n\
                  sendfile <file> [<text>]\n\
                  sendhtml <file for html-part> [<text for plain-part>]\n\
                  videochat\n\
@@ -865,12 +866,14 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "No chat selected.");
             chat::send_text_msg(&context, sel_chat.as_ref().unwrap().get_id(), "".into()).await?;
         }
-        "sendimage" | "sendfile" => {
+        "sendimage" | "sendsticker" | "sendfile" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No file given.");
 
             let mut msg = Message::new(if arg0 == "sendimage" {
                 Viewtype::Image
+            } else if arg0 == "sendsticker" {
+                Viewtype::Sticker
             } else {
                 Viewtype::File
             });
