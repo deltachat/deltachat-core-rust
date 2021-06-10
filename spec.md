@@ -401,6 +401,40 @@ it is fine if the location is detected on forwarding etc.
     </kml>
 
 
+# Stickers
+
+Stickers are send as normal images
+with the additional header `Chat-Content: sticker`.
+
+It is discouraged to send stickers together with user generated text,
+however, stickers can be used as a reply to a message
+and also the footer should be set as usual.
+
+    From: alice@example.org
+    To: bob@example.com
+    Chat-Version: 1.0
+    Chat-Content: sticker
+    Message-ID: Mr.12345uvwxyZ.0005@example.org
+    Subject: Message from Alice
+    Content-Type: multipart/mixed; boundary="==break=="
+
+    --==break==
+    Content-Type: text/plain
+
+    -- 
+    Hi there! I am using this new messenger!
+    --==break==
+    Content-Type: image/png
+    Content-Disposition: attachment; filename="sticker.png"
+
+    R0lGODlhpAGkAfe9AP+zd2eQkZhrI//z9v++PMb///+scrdDT3BtbtrZ2f/LQSsREcdIVf9 ...
+    --==break==--
+
+Typical sticker formats are `image/png`, `image/gif` and `image/webp`.
+Animated stickers are supported
+by just using an image format that supports animation.
+
+
 # Miscellaneous
 
 Messengers SHOULD use the header `In-Reply-To` as usual.
