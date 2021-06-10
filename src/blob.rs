@@ -952,8 +952,7 @@ mod tests {
         )
         .await
         .unwrap();
-
-        assert_correct_rotataion(&img_rotated);
+        assert_correct_rotation(&img_rotated);
 
         let mut bytes = vec![];
         img_rotated
@@ -970,18 +969,35 @@ mod tests {
         )
         .await
         .unwrap();
+        assert_correct_rotation(&img_rotated);
 
-        assert_correct_rotataion(&img_rotated);
+        let img_rotated = send_image_check_mediaquality(
+            Some("1"),
+            &bytes,
+            BALANCED_IMAGE_SIZE * 1800 / 2000,
+            BALANCED_IMAGE_SIZE,
+            0,
+            WORSE_IMAGE_SIZE * 1800 / 2000,
+            WORSE_IMAGE_SIZE,
+        )
+        .await
+        .unwrap();
+        assert_correct_rotation(&img_rotated);
 
         let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
         let img_rotated = send_image_check_mediaquality(Some("0"), bytes, 200, 180, 270, 180, 200)
             .await
             .unwrap();
+        assert_correct_rotation(&img_rotated);
 
-        assert_correct_rotataion(&img_rotated);
+        let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
+        let img_rotated = send_image_check_mediaquality(Some("1"), bytes, 200, 180, 270, 180, 200)
+            .await
+            .unwrap();
+        assert_correct_rotation(&img_rotated);
     }
 
-    fn assert_correct_rotataion(img: &DynamicImage) {
+    fn assert_correct_rotation(img: &DynamicImage) {
         // The test images are black in the bottom left corner after correctly applying
         // the EXIF orientation
 
