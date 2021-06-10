@@ -940,6 +940,7 @@ mod tests {
         .await
         .unwrap();
 
+        // The "-rotated" files are rotated by 270 degrees using the Exif metadata
         let bytes = include_bytes!("../test-data/image/rectangle2000x1800-rotated.jpg");
         let img_rotated = send_image_check_mediaquality(
             Some("0"),
