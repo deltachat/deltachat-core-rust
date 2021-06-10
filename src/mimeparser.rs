@@ -398,7 +398,7 @@ impl MimeMessage {
             if part.typ == Viewtype::Audio && self.get(HeaderDef::ChatVoiceMessage).is_some() {
                 part.typ = Viewtype::Voice;
             }
-            if part.typ == Viewtype::Image {
+            if part.typ == Viewtype::Image || part.typ == Viewtype::Gif {
                 if let Some(value) = self.get(HeaderDef::ChatContent) {
                     if value == "sticker" {
                         part.typ = Viewtype::Sticker;
