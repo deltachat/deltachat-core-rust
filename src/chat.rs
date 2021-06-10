@@ -3066,6 +3066,8 @@ mod tests {
     use crate::contact::Contact;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
+    use async_std::fs::File;
+    use async_std::prelude::*;
 
     #[async_std::test]
     async fn test_chat_info() {
@@ -4022,5 +4024,66 @@ mod tests {
         assert_eq!(t.get_fresh_msgs().await?.len(), 0);
 
         Ok(())
+    }
+
+    async fn test_sticker(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        let file = alice.get_blobdir().join(filename);
+        File::create(&file).await?.write_all(bytes).await?;
+
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+
+        let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
+        let mime = sent_msg.payload();
+        assert_eq!(mime.match_indices("Chat-Content: sticker").count(), 1);
+
+        bob.recv_msg(&sent_msg).await;
+        let msg = bob.get_last_msg().await;
+        assert_eq!(msg.chat_id, bob_chat.id);
+        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
+        assert_eq!(msg.get_filename(), Some(filename.to_string()));
+        assert_eq!(msg.get_width(), w);
+        assert_eq!(msg.get_height(), h);
+        assert!(msg.get_filebytes(&bob).await > 250);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_sticker_png() -> Result<()> {
+        test_sticker(
+            "sticker.png",
+            include_bytes!("../test-data/image/avatar64x64.png"),
+            64,
+            64,
+        )
+        .await
+    }
+
+    #[async_std::test]
+    async fn test_sticker_jpeg() -> Result<()> {
+        test_sticker(
+            "sticker.jpg",
+            include_bytes!("../test-data/image/avatar1000x1000.jpg"),
+            1000,
+            1000,
+        )
+        .await
+    }
+
+    #[async_std::test]
+    async fn test_sticker_gif() -> Result<()> {
+        test_sticker(
+            "sticker.gif",
+            include_bytes!("../test-data/image/image100x50.gif"),
+            100,
+            50,
+        )
+        .await
     }
 }
