@@ -435,9 +435,7 @@ Animated stickers are supported
 by just using an image format that supports animation.
 
 
-# Miscellaneous
-
-Messengers SHOULD use the header `In-Reply-To` as usual.
+# Voice messages
 
 Messengers SHOULD add a `Chat-Voice-message: 1` header
 if an attached audio file is a voice message.
@@ -450,6 +448,11 @@ This allows the receiver to show the time without knowing the file format.
     In-Reply-To: Gr.12345uvwxyZ.0005@domain
     Chat-Voice-Message: 1
     Chat-Duration: 10000
+
+
+# Miscellaneous
+
+Messengers SHOULD use the header `In-Reply-To` as usual.
 
 Messengers MAY send and receive Message Disposition Notifications
 (MDNs, [RFC 8098](https://tools.ietf.org/html/rfc8098),
@@ -471,4 +474,4 @@ as the sending time of the message as indicated by its Date header,
 or the time of first receipt if that date is in the future or unavailable.
 
 
-Copyright © 2017-2020 Delta Chat contributors.
+Copyright © 2017-2021 Delta Chat contributors.
