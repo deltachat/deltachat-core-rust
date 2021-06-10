@@ -1,6 +1,6 @@
 # chat-mail specification
 
-Version: 0.32.0
+Version: 0.33.0
 Status:  In-progress 
 Format:  [Semantic Line Breaks](https://sembr.org/)
 
@@ -301,9 +301,9 @@ to add a `Chat-Group-Avatar` only on image changes.
 
 A user MAY have a profile-image that MAY be distributed to their contacts.
 To change or set the profile-image,
-the messenger MUST attach an image file to a message
-and MUST add the header `Chat-User-Avatar`
-with the value set to the image name.
+the messenger MUST add the header `Chat-User-Avatar: base64:IMAGEDATA`.
+To bypass limits of headers, it is recommended not to use the outer header
+and to limit the size to 20k.
 
 To remove the profile-image,
 the messenger MUST add the header `Chat-User-Avatar: 0`.
@@ -320,19 +320,14 @@ The messenger SHOULD NOT send an explicit mail to normal MUAs.
     From: sender@domain
     To: rcpt@domain
     Chat-Version: 1.0
-    Chat-User-Avatar: photo.jpg
     Subject: Chat: Hello, ...
     Content-Type: multipart/mixed; boundary="==break=="
 
     --==break==
     Content-Type: text/plain
+    Chat-User-Avatar: base64:AKCgkJi3j4l5kjoldfUAKCgkJi3j4lldfHjgWICwgIEBQY ...
 
     Hello, I've changed my profile image.
-    --==break==
-    Content-Type: image/jpeg
-    Content-Disposition: attachment; filename="photo.jpg"
-
-    AKCgkJi3j4l5kjoldfUAKCgkJi3j4lldfHjgWICwgIEBQYFBA ...
     --==break==--
 
 The image format SHOULD be image/jpeg or image/png.
@@ -341,6 +336,11 @@ eg. there may be a `Chat-User-Avatar` and a `Chat-Group-Avatar` header
 in the same message.
 To save data, it is RECOMMENDED to add a `Chat-User-Avatar` header
 only on image changes.
+
+In older specs, the profile-image was sent as an attachment
+and `Chat-User-Avatar:` specified its name.
+However, it turned out that these attachements are kind of unuexpected to users,
+therefore the profile-image go to the header now.
 
 
 # Locations
