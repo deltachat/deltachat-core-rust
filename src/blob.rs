@@ -622,6 +622,7 @@ mod tests {
     use super::*;
 
     use crate::{message::Message, test_utils::TestContext};
+    use image::Pixel;
 
     #[async_std::test]
     async fn test_create() {
@@ -921,47 +922,129 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_media_quality() -> anyhow::Result<()> {
-        for (media_quality_config, image_size) in vec![
-            (Some("0"), 1000), // BALANCED_IMAGE_SIZE > 1000, the original image size, so the image is not scaled down
-            (Some("1"), WORSE_IMAGE_SIZE),
-        ]
-        .into_iter()
-        {
-            let alice = TestContext::new_alice().await;
-            let bob = TestContext::new_bob().await;
-            alice
-                .set_config(Config::MediaQuality, media_quality_config)
-                .await?;
+    async fn test_recode_image() {
+        let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        // BALANCED_IMAGE_SIZE > 1000, the original image size, so the image is not scaled down:
+        send_image_check_mediaquality(Some("0"), bytes, 1000, 1000, 0, 1000, 1000)
+            .await
+            .unwrap();
+        send_image_check_mediaquality(
+            Some("1"),
+            bytes,
+            1000,
+            1000,
+            0,
+            WORSE_IMAGE_SIZE,
+            WORSE_IMAGE_SIZE,
+        )
+        .await
+        .unwrap();
 
-            let file = alice.get_blobdir().join("file.jpg");
-            let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
-            File::create(&file).await?.write_all(bytes).await?;
+        let bytes = include_bytes!("../test-data/image/rectangle2000x1800-rotated.jpg");
+        let img_rotated = send_image_check_mediaquality(
+            Some("0"),
+            bytes,
+            2000,
+            1800,
+            270,
+            BALANCED_IMAGE_SIZE * 1800 / 2000,
+            BALANCED_IMAGE_SIZE,
+        )
+        .await
+        .unwrap();
 
-            let img = image::open(&file)?;
-            assert_eq!(img.width(), 1000);
-            assert_eq!(img.height(), 1000);
+        assert_correct_rotataion(&img_rotated);
 
-            let mut msg = Message::new(Viewtype::Image);
-            msg.set_file(file.to_str().unwrap(), None);
-            let chat = alice.create_chat(&bob).await;
-            let sent = alice.send_msg(chat.id, &mut msg).await;
+        let mut bytes = vec![];
+        img_rotated
+            .write_to(&mut bytes, image::ImageFormat::Jpeg)
+            .unwrap();
+        let img_rotated = send_image_check_mediaquality(
+            Some("0"),
+            &bytes,
+            BALANCED_IMAGE_SIZE * 1800 / 2000,
+            BALANCED_IMAGE_SIZE,
+            0,
+            BALANCED_IMAGE_SIZE * 1800 / 2000,
+            BALANCED_IMAGE_SIZE,
+        )
+        .await
+        .unwrap();
 
-            let alice_msg = alice.get_last_msg().await;
-            assert_eq!(alice_msg.get_width() as u32, image_size);
-            assert_eq!(alice_msg.get_height() as u32, image_size);
-            let img = image::open(alice_msg.get_file(&alice).unwrap())?;
-            assert_eq!(img.width() as u32, image_size);
-            assert_eq!(img.height() as u32, image_size);
+        assert_correct_rotataion(&img_rotated);
 
-            bob.recv_msg(&sent).await;
-            let bob_msg = bob.get_last_msg().await;
-            assert_eq!(bob_msg.get_width() as u32, image_size);
-            assert_eq!(bob_msg.get_height() as u32, image_size);
-            let img = image::open(bob_msg.get_file(&bob).unwrap())?;
-            assert_eq!(img.width() as u32, image_size);
-            assert_eq!(img.height() as u32, image_size);
-        }
-        Ok(())
+        let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
+        let img_rotated = send_image_check_mediaquality(Some("0"), bytes, 200, 180, 270, 180, 200)
+            .await
+            .unwrap();
+
+        assert_correct_rotataion(&img_rotated);
+    }
+
+    fn assert_correct_rotataion(img: &DynamicImage) {
+        // The test images are black in the bottom left corner after correctly applying
+        // the EXIF orientation
+
+        let [luma] = img.get_pixel(10, 10).to_luma().0;
+        assert_eq!(luma, 255);
+        let [luma] = img.get_pixel(img.width() - 10, 10).to_luma().0;
+        assert_eq!(luma, 255);
+        let [luma] = img
+            .get_pixel(img.width() - 10, img.height() - 10)
+            .to_luma()
+            .0;
+        assert_eq!(luma, 255);
+        let [luma] = img.get_pixel(10, img.height() - 10).to_luma().0;
+        assert_eq!(luma, 0);
+    }
+
+    async fn send_image_check_mediaquality(
+        media_quality_config: Option<&str>,
+        bytes: &[u8],
+        original_width: u32,
+        original_height: u32,
+        orientation: i32,
+        compressed_width: u32,
+        compressed_height: u32,
+    ) -> anyhow::Result<DynamicImage> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        alice
+            .set_config(Config::MediaQuality, media_quality_config)
+            .await?;
+        let file = alice.get_blobdir().join("file.jpg");
+
+        File::create(&file).await?.write_all(bytes).await?;
+        let img = image::open(&file)?;
+        assert_eq!(img.width(), original_width);
+        assert_eq!(img.height(), original_height);
+
+        let blob = BlobObject::new_from_path(&alice, &file).await?;
+        assert_eq!(blob.get_exif_orientation(&alice).unwrap_or(0), orientation);
+
+        let mut msg = Message::new(Viewtype::Image);
+        msg.set_file(file.to_str().unwrap(), None);
+        let chat = alice.create_chat(&bob).await;
+        let sent = alice.send_msg(chat.id, &mut msg).await;
+        let alice_msg = alice.get_last_msg().await;
+        assert_eq!(alice_msg.get_width() as u32, compressed_width);
+        assert_eq!(alice_msg.get_height() as u32, compressed_height);
+        let img = image::open(alice_msg.get_file(&alice).unwrap())?;
+        assert_eq!(img.width() as u32, compressed_width);
+        assert_eq!(img.height() as u32, compressed_height);
+
+        bob.recv_msg(&sent).await;
+        let bob_msg = bob.get_last_msg().await;
+        assert_eq!(bob_msg.get_width() as u32, compressed_width);
+        assert_eq!(bob_msg.get_height() as u32, compressed_height);
+        let file = bob_msg.get_file(&bob).unwrap();
+
+        let blob = BlobObject::new_from_path(&bob, &file).await?;
+        assert_eq!(blob.get_exif_orientation(&bob).unwrap_or(0), 0);
+
+        let img = image::open(file)?;
+        assert_eq!(img.width() as u32, compressed_width);
+        assert_eq!(img.height() as u32, compressed_height);
+        Ok(img)
     }
 }
