@@ -802,4 +802,21 @@ mod test {
 
         Ok(())
     }
+
+    #[async_std::test]
+    async fn test_migration_flags() -> Result<()> {
+        let t = TestContext::new().await;
+
+        // as migrations::run() was already executed on context creation,
+        // another call should not result in any action needed.
+        // this test catches some bugs where dbversion was forgotten to be persisted.
+        let (recalc_fingerprints, update_icons, disable_server_delete, recode_avatar) =
+            migrations::run(&t, &t.sql).await?;
+        assert!(!recalc_fingerprints);
+        assert!(!update_icons);
+        assert!(!disable_server_delete);
+        assert!(!recode_avatar);
+
+        Ok(())
+    }
 }
