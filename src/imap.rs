@@ -154,6 +154,10 @@ struct ImapConfig {
     /// True if the server has MOVE capability as defined in
     /// <https://tools.ietf.org/html/rfc6851>
     pub can_move: bool,
+
+    /// True if the server has QUOTA capability as defined in
+    /// https://tools.ietf.org/html/rfc2087
+    pub can_check_quota: bool,
 }
 
 impl Imap {
@@ -187,6 +191,7 @@ impl Imap {
             selected_folder_needs_expunge: false,
             can_idle: false,
             can_move: false,
+            can_check_quota: false,
         };
 
         let imap = Imap {
@@ -363,6 +368,7 @@ impl Imap {
                 Ok(caps) => {
                     self.config.can_idle = caps.has_str("IDLE");
                     self.config.can_move = caps.has_str("MOVE");
+                    self.config.can_check_quota = caps.has_str("QUOTA");
                     self.capabilities_determined = true;
                     Ok(())
                 }
@@ -374,6 +380,13 @@ impl Imap {
                 bail!("Can't determine server capabilities because connection was not established")
             }
         }
+    }
+
+    /// True if CAPABILITY command was run successfully once and config.can_* contain correct
+    /// values.
+    // This function exists to have a readonly way to access it
+    pub fn capabilities_determined(&self) -> bool {
+        self.capabilities_determined
     }
 
     /// Prepare for IMAP operation.
@@ -1394,20 +1407,13 @@ impl Imap {
         unsolicited_exists
     }
     
-    pub async fn check_for_quota_support(&mut self) -> Result<bool> {
-        if let Some(session) = self.session.as_mut() {
-            let capabilities = session.capabilities().await?;
-            Ok(capabilities.has_str("QUOTA"))
-        } else {
-            Err(anyhow!("Not connected to IMAP, no session"))
-        }
+    pub fn can_check_quota(&self) -> bool {
+        self.config.can_check_quota
     }
 
     pub async fn get_quota_roots(
-        &mut self,
         mailbox_name: &str,
     ) -> Result<(Vec<QuotaRoot<'_>>, Vec<Quota<'_>>)> {
-        if let Some(session) = self.session.as_mut() {
             let quota_roots = session.get_quota_root(Cow::Borrowed(mailbox_name)).await?;
             Ok(quota_roots)
         } else {

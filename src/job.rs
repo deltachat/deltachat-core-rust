@@ -858,7 +858,7 @@ impl Job {
     /// It's a bit like the prepaid mobile carrier service menu/messages,
     /// where you type a special number and then get a message back with your current balance.
     async fn generate_quota_usage_report(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.connect_configured(context).await {
+        if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }
@@ -874,7 +874,7 @@ impl Job {
     /// Regular quota check that should run once per day and inform the user when their account is running full
     /// by posting a devicemessage suggesting to enable autodeletion.
     async fn check_quota(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.connect_configured(context).await {
+        if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }

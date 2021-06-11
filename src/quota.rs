@@ -25,8 +25,11 @@ use crate::{
 /// It's a bit like the prepaid mobile carrier service menu/messages,
 /// where you type a special number and then get a message back with your current balance.
 pub(crate) async fn quota_usage_report_job(context: &Context, imap: &mut Imap) -> Result<()> {
-    // IDEA: OPTIMIZATION: check_for_quota_support could be cached in the config, would increase code complexity but decrease traffic a bit
-    if imap.check_for_quota_support().await? {
+    if !imap.capabilities_determined() {
+        bail!("imap is not ready");
+    }
+
+    if imap.can_check_quota() {
         let folders = get_watched_folders(context).await;
         let unique_quota_roots = get_unique_quota_roots_and_usage(folders, imap).await?;
 
@@ -150,8 +153,11 @@ fn get_highest_usage<'t>(
 }
 
 pub(crate) async fn check_quota_job(context: &Context, imap: &mut Imap) -> Result<()> {
-    // does server support quota
-    if !imap.check_for_quota_support().await? {
+    if !imap.capabilities_determined() {
+        bail!("imap is not ready");
+    }
+
+    if !imap.can_check_quota() {
         warn!(
             context,
             "QuotaCheck: the email server does not support the quota extention"
