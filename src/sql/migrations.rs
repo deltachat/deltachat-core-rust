@@ -167,7 +167,7 @@ CREATE TABLE tokens (
 ALTER TABLE acpeerstates ADD COLUMN verified_key;
 ALTER TABLE acpeerstates ADD COLUMN verified_key_fingerprint TEXT DEFAULT '';
 CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);"#,
-            38,
+            39,
         )
         .await?;
     }
@@ -454,7 +454,7 @@ paramsv![]
         info!(context, "[migration] v75");
         sql.execute_migration(
             "ALTER TABLE contacts ADD COLUMN status TEXT DEFAULT '';",
-            74,
+            75,
         )
         .await?;
     }
