@@ -198,7 +198,7 @@ impl Sql {
             }
         }
 
-        info!(context, "Opened {:?}.", dbfile);
+        info!(context, "Opened database {:?}.", dbfile);
 
         Ok(())
     }
@@ -806,6 +806,8 @@ mod test {
     #[async_std::test]
     async fn test_migration_flags() -> Result<()> {
         let t = TestContext::new().await;
+        let events = t.new_evtracker().await;
+        events.get_info_contains("Opened database").await;
 
         // as migrations::run() was already executed on context creation,
         // another call should not result in any action needed.
@@ -816,6 +818,20 @@ mod test {
         assert!(!update_icons);
         assert!(!disable_server_delete);
         assert!(!recode_avatar);
+
+        info!(&t, "test_migration_flags: XXX");
+
+        loop {
+            if let EventType::Info(info) = events.recv().await.unwrap() {
+                assert!(
+                    !info.contains("[migration]"),
+                    "Migrations were run twice, you probably forgot to update the db version"
+                );
+                if info.contains("test_migration_flags: XXX") {
+                    break;
+                }
+            }
+        }
 
         Ok(())
     }
