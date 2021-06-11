@@ -9,6 +9,7 @@ use std::{collections::BTreeMap, panic};
 use std::{fmt, thread};
 
 use ansi_term::Color;
+use async_std::channel::Receiver;
 use async_std::path::PathBuf;
 use async_std::sync::{Arc, RwLock};
 use async_std::{channel, pin::Pin};
@@ -181,6 +182,21 @@ impl TestContext {
     {
         let mut sinks = self.event_sinks.write().await;
         sinks.push(Box::new(move |evt| Box::pin(sink(evt))));
+    }
+
+    pub async fn new_evtracker(&self) -> EvTracker {
+        let (sender, receiver) = channel::unbounded();
+        let sender = Arc::new(sender);
+        self.add_event_sink(move |event| {
+            let sender = sender.clone();
+            async move {
+                sender.send(event.typ).await.ok();
+                // If sending fails, probably the EvTracker was simply dropped,
+                // so we call ok() to ignore the error
+            }
+        })
+        .await;
+        EvTracker(receiver)
     }
 
     /// Configure with alice@example.com.
@@ -565,6 +581,28 @@ pub fn bob_keypair() -> key::KeyPair {
         addr,
         public,
         secret,
+    }
+}
+
+pub struct EvTracker(Receiver<EventType>);
+
+impl EvTracker {
+    pub async fn get_info_contains(&self, s: &str) -> EventType {
+        loop {
+            let event = self.0.recv().await.unwrap();
+            if let EventType::Info(i) = &event {
+                if i.contains(s) {
+                    return event;
+                }
+            }
+        }
+    }
+}
+
+impl Deref for EvTracker {
+    type Target = Receiver<EventType>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
