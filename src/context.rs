@@ -578,7 +578,7 @@ impl Context {
     pub async fn request_quota_report(&self) {
         job::add(
             self,
-            job::Job::new(Action::GenerateQuotaUsageReport, 0, Params::new(), 1),
+            job::Job::new(Action::GenerateQuotaUsageReport, 0, Params::new(), 0),
         )
         .await;
     }
