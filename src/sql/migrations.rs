@@ -466,6 +466,7 @@ paramsv![]
     if dbversion < 77 {
         info!(context, "[migration] v77");
         recode_avatar = true;
+        sql.set_db_version(77).await?;
     }
 
     Ok((
