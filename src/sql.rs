@@ -806,8 +806,7 @@ mod test {
     #[async_std::test]
     async fn test_migration_flags() -> Result<()> {
         let t = TestContext::new().await;
-        let events = t.new_evtracker().await;
-        events.get_info_contains("Opened database").await;
+        t.evtracker.get_info_contains("Opened database").await;
 
         // as migrations::run() was already executed on context creation,
         // another call should not result in any action needed.
@@ -822,7 +821,7 @@ mod test {
         info!(&t, "test_migration_flags: XXX");
 
         loop {
-            if let EventType::Info(info) = events.recv().await.unwrap() {
+            if let EventType::Info(info) = t.evtracker.recv().await.unwrap() {
                 assert!(
                     !info.contains("[migration]"),
                     "Migrations were run twice, you probably forgot to update the db version"
