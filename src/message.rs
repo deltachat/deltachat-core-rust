@@ -1196,7 +1196,11 @@ pub async fn decide_on_contact_request(
             Err(e) => warn!(context, "decide_on_contact_request error: {}", e),
         },
 
-        (Block, false) => Contact::block(context, msg.from_id).await,
+        (Block, false) => {
+            if let Err(e) = Contact::block(context, msg.from_id).await {
+                warn!(context, "Can't block contact: {}", e);
+            }
+        }
         (Block, true) => {
             if !msg.chat_id.set_blocked(context, Blocked::Manually).await {
                 warn!(context, "Block mailing list failed.")

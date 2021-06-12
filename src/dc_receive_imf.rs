@@ -3018,7 +3018,9 @@ mod tests {
         assert_eq!(msgs.len(), 0);
 
         // Unblock contact and check if the next message arrives in real chat
-        Contact::unblock(&t, *blocked.first().unwrap()).await;
+        Contact::unblock(&t, *blocked.first().unwrap())
+            .await
+            .unwrap();
         let blocked = Contact::get_all_blocked(&t).await.unwrap();
         assert_eq!(blocked.len(), 0);
 

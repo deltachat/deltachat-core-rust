@@ -1737,9 +1737,13 @@ pub unsafe extern "C" fn dc_block_contact(
     let ctx = &*context;
     block_on(async move {
         if block == 0 {
-            Contact::unblock(&ctx, contact_id).await;
+            Contact::unblock(&ctx, contact_id)
+                .await
+                .ok_or_log_msg(&ctx, "Can't unblock contact");
         } else {
-            Contact::block(&ctx, contact_id).await;
+            Contact::block(&ctx, contact_id)
+                .await
+                .ok_or_log_msg(&ctx, "Can't block contact");
         }
     });
 }

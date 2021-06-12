@@ -236,13 +236,13 @@ impl Contact {
     }
 
     /// Block the given contact.
-    pub async fn block(context: &Context, id: u32) {
-        set_block_contact(context, id, true).await;
+    pub async fn block(context: &Context, id: u32) -> Result<()> {
+        set_block_contact(context, id, true).await
     }
 
     /// Unblock the given contact.
-    pub async fn unblock(context: &Context, id: u32) {
-        set_block_contact(context, id, false).await;
+    pub async fn unblock(context: &Context, id: u32) -> Result<()> {
+        set_block_contact(context, id, false).await
     }
 
     /// Add a single contact as a result of an _explicit_ user action.
@@ -270,7 +270,7 @@ impl Contact {
             }
         }
         if blocked {
-            Contact::unblock(context, contact_id).await;
+            Contact::unblock(context, contact_id).await?;
         }
 
         Ok(contact_id)
@@ -1162,56 +1162,58 @@ fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     }
 }
 
-async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
-    if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
-        return;
-    }
+async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) -> Result<()> {
+    ensure!(
+        contact_id > DC_CONTACT_ID_LAST_SPECIAL,
+        "Can't block special contact {}",
+        contact_id
+    );
 
-    if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-        if contact.blocked != new_blocking
-            && context
-                .sql
-                .execute(
-                    "UPDATE contacts SET blocked=? WHERE id=?;",
-                    paramsv![new_blocking as i32, contact_id as i32],
-                )
-                .await
-                .is_ok()
-        {
-            // also (un)block all chats with _only_ this contact - we do not delete them to allow a
-            // non-destructive blocking->unblocking.
-            // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
-            // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
-            // this would result in recreating the same group...)
-            if context
-                .sql
-                .execute(
-                    r#"
+    let contact = Contact::load_from_db(context, contact_id).await?;
+
+    if contact.blocked != new_blocking {
+        context
+            .sql
+            .execute(
+                "UPDATE contacts SET blocked=? WHERE id=?;",
+                paramsv![new_blocking as i32, contact_id as i32],
+            )
+            .await?;
+
+        // also (un)block all chats with _only_ this contact - we do not delete them to allow a
+        // non-destructive blocking->unblocking.
+        // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
+        // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
+        // this would result in recreating the same group...)
+        if context
+            .sql
+            .execute(
+                r#"
 UPDATE chats
 SET blocked=?
 WHERE type=? AND id IN (
   SELECT chat_id FROM chats_contacts WHERE contact_id=?
 );
 "#,
-                    paramsv![new_blocking, Chattype::Single, contact_id],
-                )
-                .await
-                .is_ok()
-            {
-                Contact::mark_noticed(context, contact_id).await;
-                context.emit_event(EventType::ContactsChanged(Some(contact_id)));
-            }
+                paramsv![new_blocking, Chattype::Single, contact_id],
+            )
+            .await
+            .is_ok()
+        {
+            Contact::mark_noticed(context, contact_id).await;
+            context.emit_event(EventType::ContactsChanged(Some(contact_id)));
+        }
 
-            // also unblock mailinglist
-            // if the contact is a mailinglist address explicitly created to allow unblocking
-            if !new_blocking && contact.origin == Origin::MailinglistAddress {
-                if let Ok((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, contact.addr).await
-                {
-                    chat_id.set_blocked(context, Blocked::Not).await;
-                }
+        // also unblock mailinglist
+        // if the contact is a mailinglist address explicitly created to allow unblocking
+        if !new_blocking && contact.origin == Origin::MailinglistAddress {
+            if let Ok((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, contact.addr).await {
+                chat_id.set_blocked(context, Blocked::Not).await;
             }
         }
     }
+
+    Ok(())
 }
 
 /// Set profile image for a contact.

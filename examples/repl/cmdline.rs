@@ -1137,12 +1137,12 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "block" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
             let contact_id = arg1.parse()?;
-            Contact::block(&context, contact_id).await;
+            Contact::block(&context, contact_id).await?;
         }
         "unblock" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
             let contact_id = arg1.parse()?;
-            Contact::unblock(&context, contact_id).await;
+            Contact::unblock(&context, contact_id).await?;
         }
         "listblocked" => {
             let contacts = Contact::get_all_blocked(&context).await?;
