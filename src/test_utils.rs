@@ -48,6 +48,7 @@ static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
 pub(crate) struct TestContext {
     pub ctx: Context,
     pub dir: TempDir,
+    pub evtracker: EvTracker,
     /// Counter for fake IMAP UIDs in [recv_msg], for private use in that function only.
     recv_idx: RwLock<u32>,
     /// Functions to call for events received.
@@ -104,6 +105,8 @@ impl TestContext {
         let event_sinks: Arc<RwLock<Vec<Box<EventSink>>>> = Arc::new(RwLock::new(Vec::new()));
         let sinks = Arc::clone(&event_sinks);
         let (poison_sender, poison_receiver) = channel::bounded(1);
+        let (evtracker_sender, evtracker_receiver) = channel::unbounded();
+
         async_std::task::spawn(async move {
             // Make sure that the test fails if there is a panic on this thread here:
             let current_id = task::current().id();
@@ -123,13 +126,15 @@ impl TestContext {
                         sink(event.clone()).await;
                     }
                 }
-                receive_event(event);
+                receive_event(&event);
+                evtracker_sender.send(event.typ).await.ok();
             }
         });
 
         Self {
             ctx,
             dir,
+            evtracker: EvTracker(evtracker_receiver),
             recv_idx: RwLock::new(0),
             event_sinks,
             poison_receiver,
@@ -182,21 +187,6 @@ impl TestContext {
     {
         let mut sinks = self.event_sinks.write().await;
         sinks.push(Box::new(move |evt| Box::pin(sink(evt))));
-    }
-
-    pub async fn new_evtracker(&self) -> EvTracker {
-        let (sender, receiver) = channel::unbounded();
-        let sender = Arc::new(sender);
-        self.add_event_sink(move |event| {
-            let sender = sender.clone();
-            async move {
-                sender.send(event.typ).await.ok();
-                // If sending fails, probably the EvTracker was simply dropped,
-                // so we call ok() to ignore the error
-            }
-        })
-        .await;
-        EvTracker(receiver)
     }
 
     /// Configure with alice@example.com.
@@ -629,12 +619,12 @@ pub(crate) async fn get_chat_msg(
 /// Pretty-print an event to stdout
 ///
 /// Done during tests this is captured by `cargo test` and associated with the test itself.
-fn receive_event(event: Event) {
+fn receive_event(event: &Event) {
     let green = Color::Green.normal();
     let yellow = Color::Yellow.normal();
     let red = Color::Red.normal();
 
-    let msg = match event.typ {
+    let msg = match &event.typ {
         EventType::Info(msg) => format!("INFO: {}", msg),
         EventType::SmtpConnected(msg) => format!("[SMTP_CONNECTED] {}", msg),
         EventType::ImapConnected(msg) => format!("[IMAP_CONNECTED] {}", msg),
