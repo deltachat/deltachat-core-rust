@@ -983,7 +983,7 @@ class TestOnlineAccount:
         chat2 = msg2.chat
         assert msg2 in chat2.get_messages()
         assert chat2.is_deaddrop()
-        assert chat2.count_fresh_messages() == 0
+        assert chat2.count_fresh_messages() == 1
         assert msg2.time_received >= msg1.time_sent
 
         lp.sec("create new chat with contact and verify it's proper")

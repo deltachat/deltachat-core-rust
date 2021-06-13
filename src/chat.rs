@@ -574,10 +574,26 @@ impl ChatId {
 
     /// Returns number of messages in a chat.
     pub async fn get_msg_cnt(self, context: &Context) -> Result<usize> {
-        let count = context
-            .sql
-            .count("SELECT COUNT(*) FROM msgs WHERE chat_id=?", paramsv![self])
-            .await?;
+        let count = if self.is_deaddrop() {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
+                    FROM msgs
+                    WHERE hidden=0
+                    AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
+                    paramsv![Blocked::Deaddrop],
+                )
+                .await?
+        } else {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*) FROM msgs WHERE hidden=0 AND chat_id=?",
+                    paramsv![self],
+                )
+                .await?
+        };
         Ok(count as usize)
     }
 
@@ -592,17 +608,31 @@ impl ChatId {
         // the times are average, no matter if there are fresh messages or not -
         // and have to be multiplied by the number of items shown at once on the chatlist,
         // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
-        let count = context
-            .sql
-            .count(
-                "SELECT COUNT(*)
+        let count = if self.is_deaddrop() {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
+                    FROM msgs
+                    WHERE state=?
+                    AND hidden=0
+                    AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
+                    paramsv![MessageState::InFresh, Blocked::Deaddrop],
+                )
+                .await?
+        } else {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
                 FROM msgs
-                WHERE state=10
+                WHERE state=?
                 AND hidden=0
                 AND chat_id=?;",
-                paramsv![self],
-            )
-            .await?;
+                    paramsv![MessageState::InFresh, self],
+                )
+                .await?
+        };
         Ok(count as usize)
     }
 
@@ -4005,6 +4035,8 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
         assert_eq!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
+        assert_eq!(DC_CHAT_ID_DEADDROP.get_msg_cnt(&t).await?, 1);
+        assert_eq!(DC_CHAT_ID_DEADDROP.get_fresh_msg_cnt(&t).await?, 1);
         let msgs = get_chat_msgs(&t, DC_CHAT_ID_DEADDROP, 0, None).await?;
         assert_eq!(msgs.len(), 1);
         let msg_id = match msgs.first().unwrap() {
