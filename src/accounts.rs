@@ -537,4 +537,85 @@ mod tests {
             assert_eq!(ids.get(i), Some(&expected_id));
         }
     }
+
+    #[async_std::test]
+    async fn test_accounts_ids_unique_increasing_and_persisted() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let p: PathBuf = dir.path().join("accounts").into();
+        let dummy_accounts = 10;
+
+        let (id0, id1, id2) = {
+            let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+            let ids = accounts.get_all().await;
+            assert_eq!(ids.len(), 1); // Accounts::new() creates a default account
+
+            let id0 = *ids.get(0).unwrap();
+            let ctx = accounts.get_account(id0).await.unwrap();
+            ctx.set_config(crate::config::Config::Addr, Some("one@example.org"))
+                .await?;
+
+            let id1 = accounts.add_account().await?;
+            let ctx = accounts.get_account(id1).await.unwrap();
+            ctx.set_config(crate::config::Config::Addr, Some("two@example.org"))
+                .await?;
+
+            // add and remove some accounts and force a gap (ids must not be reused)
+            for _ in 0..dummy_accounts {
+                let to_delete = accounts.add_account().await?;
+                accounts.remove_account(to_delete).await?;
+            }
+
+            let id2 = accounts.add_account().await?;
+            let ctx = accounts.get_account(id2).await.unwrap();
+            ctx.set_config(crate::config::Config::Addr, Some("three@example.org"))
+                .await?;
+
+            accounts.select_account(id1).await?;
+
+            (id0, id1, id2)
+        };
+        assert!(id0 > 0);
+        assert!(id1 > id0);
+        assert!(id2 > id1 + dummy_accounts);
+
+        let (id0_reopened, id1_reopened, id2_reopened) = {
+            let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+            let ctx = accounts.get_selected_account().await;
+            assert_eq!(
+                ctx.get_config(crate::config::Config::Addr).await?,
+                Some("two@example.org".to_string())
+            );
+
+            let ids = accounts.get_all().await;
+            assert_eq!(ids.len(), 3);
+
+            let id0 = *ids.get(0).unwrap();
+            let ctx = accounts.get_account(id0).await.unwrap();
+            assert_eq!(
+                ctx.get_config(crate::config::Config::Addr).await?,
+                Some("one@example.org".to_string())
+            );
+
+            let id1 = *ids.get(1).unwrap();
+            let t = accounts.get_account(id1).await.unwrap();
+            assert_eq!(
+                t.get_config(crate::config::Config::Addr).await?,
+                Some("two@example.org".to_string())
+            );
+
+            let id2 = *ids.get(2).unwrap();
+            let ctx = accounts.get_account(id2).await.unwrap();
+            assert_eq!(
+                ctx.get_config(crate::config::Config::Addr).await?,
+                Some("three@example.org".to_string())
+            );
+
+            (id0, id1, id2)
+        };
+        assert_eq!(id0, id0_reopened);
+        assert_eq!(id1, id1_reopened);
+        assert_eq!(id2, id2_reopened);
+
+        Ok(())
+    }
 }
