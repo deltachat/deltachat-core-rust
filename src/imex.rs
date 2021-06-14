@@ -612,8 +612,13 @@ async fn import_backup_old(context: &Context, backup_to_import: &Path) -> Result
 
     let mut all_files_extracted = true;
     for (processed_files_cnt, file_id) in file_ids.into_iter().enumerate() {
+        if context.shall_stop_ongoing().await {
+            all_files_extracted = false;
+            break;
+        }
+
         // Load a single blob into memory
-        let (file_name, file_blob) = context
+        match context
             .sql
             .query_row(
                 "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
@@ -624,12 +629,17 @@ async fn import_backup_old(context: &Context, backup_to_import: &Path) -> Result
                     Ok((file_name, file_blob))
                 },
             )
-            .await?;
-
-        if context.shall_stop_ongoing().await {
-            all_files_extracted = false;
-            break;
+            .await
+        {
+            Ok((file_name, file_blob)) => {
+                let path_filename = context.get_blobdir().join(file_name);
+                dc_write_file(context, &path_filename, &file_blob).await?;
+            }
+            Err(err) => {
+                error!(context, "Can't import file {}: {}", file_id, err);
+            }
         }
+
         let mut permille = processed_files_cnt * 1000 / total_files_cnt;
         if permille < 10 {
             permille = 10
@@ -638,12 +648,6 @@ async fn import_backup_old(context: &Context, backup_to_import: &Path) -> Result
             permille = 990
         }
         context.emit_event(EventType::ImexProgress(permille));
-        if file_blob.is_empty() {
-            continue;
-        }
-
-        let path_filename = context.get_blobdir().join(file_name);
-        dc_write_file(context, &path_filename, &file_blob).await?;
     }
 
     if all_files_extracted {
