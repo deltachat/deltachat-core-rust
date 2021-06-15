@@ -1244,6 +1244,8 @@ async fn lookup_chat_by_reply(
         if should_force_1to1_chat(context, to_ids, mime_parser, parent_chat.id, from_id).await? {
             return Ok((ChatId::new(0), Blocked::Not));
         }
+        // TODO if we remove these lines, the new test still passes
+        // because the fn just exits at `msg_grpid == parent_chat.grpid` above
 
         info!(
             context,
