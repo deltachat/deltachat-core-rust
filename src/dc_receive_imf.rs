@@ -1263,20 +1263,19 @@ async fn should_force_1to1_chat(
     group_chat_id: ChatId, // The group chat this message could be assigned to
     from_id: u32,
 ) -> Result<bool> {
-    // Usually we don't want to show private messages in the parent chat, but in the
+    // Usually we don't want to show private replies in the parent chat, but in the
     // 1:1 chat with the sender.
-    // This is to make sure that private replies are shown in the correct chat.
     //
     // There is one exception: Classical MUA replies to two-member groups
     // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
     // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
-    let classical_email = mime_parser.get(HeaderDef::ChatVersion).is_none();
 
     let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>();
     if !private_message {
         return Ok(false);
     }
 
+    let classical_email = mime_parser.get(HeaderDef::ChatVersion).is_none();
     if classical_email {
         let chat_contacts = chat::get_chat_contacts(context, group_chat_id).await?;
         if chat_contacts.len() == 2
