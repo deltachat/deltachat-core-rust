@@ -574,10 +574,26 @@ impl ChatId {
 
     /// Returns number of messages in a chat.
     pub async fn get_msg_cnt(self, context: &Context) -> Result<usize> {
-        let count = context
-            .sql
-            .count("SELECT COUNT(*) FROM msgs WHERE chat_id=?", paramsv![self])
-            .await?;
+        let count = if self.is_deaddrop() {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
+                    FROM msgs
+                    WHERE hidden=0
+                    AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
+                    paramsv![Blocked::Deaddrop],
+                )
+                .await?
+        } else {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*) FROM msgs WHERE hidden=0 AND chat_id=?",
+                    paramsv![self],
+                )
+                .await?
+        };
         Ok(count as usize)
     }
 
@@ -592,17 +608,31 @@ impl ChatId {
         // the times are average, no matter if there are fresh messages or not -
         // and have to be multiplied by the number of items shown at once on the chatlist,
         // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
-        let count = context
-            .sql
-            .count(
-                "SELECT COUNT(*)
+        let count = if self.is_deaddrop() {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
+                    FROM msgs
+                    WHERE state=?
+                    AND hidden=0
+                    AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
+                    paramsv![MessageState::InFresh, Blocked::Deaddrop],
+                )
+                .await?
+        } else {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
                 FROM msgs
-                WHERE state=10
+                WHERE state=?
                 AND hidden=0
                 AND chat_id=?;",
-                paramsv![self],
-            )
-            .await?;
+                    paramsv![MessageState::InFresh, self],
+                )
+                .await?
+        };
         Ok(count as usize)
     }
 
@@ -3066,6 +3096,8 @@ mod tests {
     use crate::contact::Contact;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
+    use async_std::fs::File;
+    use async_std::prelude::*;
 
     #[async_std::test]
     async fn test_chat_info() {
@@ -4003,6 +4035,8 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
         assert_eq!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
+        assert_eq!(DC_CHAT_ID_DEADDROP.get_msg_cnt(&t).await?, 1);
+        assert_eq!(DC_CHAT_ID_DEADDROP.get_fresh_msg_cnt(&t).await?, 1);
         let msgs = get_chat_msgs(&t, DC_CHAT_ID_DEADDROP, 0, None).await?;
         assert_eq!(msgs.len(), 1);
         let msg_id = match msgs.first().unwrap() {
@@ -4022,5 +4056,66 @@ mod tests {
         assert_eq!(t.get_fresh_msgs().await?.len(), 0);
 
         Ok(())
+    }
+
+    async fn test_sticker(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        let file = alice.get_blobdir().join(filename);
+        File::create(&file).await?.write_all(bytes).await?;
+
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+
+        let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
+        let mime = sent_msg.payload();
+        assert_eq!(mime.match_indices("Chat-Content: sticker").count(), 1);
+
+        bob.recv_msg(&sent_msg).await;
+        let msg = bob.get_last_msg().await;
+        assert_eq!(msg.chat_id, bob_chat.id);
+        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
+        assert_eq!(msg.get_filename(), Some(filename.to_string()));
+        assert_eq!(msg.get_width(), w);
+        assert_eq!(msg.get_height(), h);
+        assert!(msg.get_filebytes(&bob).await > 250);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_sticker_png() -> Result<()> {
+        test_sticker(
+            "sticker.png",
+            include_bytes!("../test-data/image/avatar64x64.png"),
+            64,
+            64,
+        )
+        .await
+    }
+
+    #[async_std::test]
+    async fn test_sticker_jpeg() -> Result<()> {
+        test_sticker(
+            "sticker.jpg",
+            include_bytes!("../test-data/image/avatar1000x1000.jpg"),
+            1000,
+            1000,
+        )
+        .await
+    }
+
+    #[async_std::test]
+    async fn test_sticker_gif() -> Result<()> {
+        test_sticker(
+            "sticker.gif",
+            include_bytes!("../test-data/image/image100x50.gif"),
+            100,
+            50,
+        )
+        .await
     }
 }

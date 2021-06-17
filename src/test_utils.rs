@@ -9,6 +9,7 @@ use std::{collections::BTreeMap, panic};
 use std::{fmt, thread};
 
 use ansi_term::Color;
+use async_std::channel::Receiver;
 use async_std::path::PathBuf;
 use async_std::sync::{Arc, RwLock};
 use async_std::{channel, pin::Pin};
@@ -47,6 +48,7 @@ static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
 pub(crate) struct TestContext {
     pub ctx: Context,
     pub dir: TempDir,
+    pub evtracker: EvTracker,
     /// Counter for fake IMAP UIDs in [recv_msg], for private use in that function only.
     recv_idx: RwLock<u32>,
     /// Functions to call for events received.
@@ -103,6 +105,8 @@ impl TestContext {
         let event_sinks: Arc<RwLock<Vec<Box<EventSink>>>> = Arc::new(RwLock::new(Vec::new()));
         let sinks = Arc::clone(&event_sinks);
         let (poison_sender, poison_receiver) = channel::bounded(1);
+        let (evtracker_sender, evtracker_receiver) = channel::unbounded();
+
         async_std::task::spawn(async move {
             // Make sure that the test fails if there is a panic on this thread here:
             let current_id = task::current().id();
@@ -122,13 +126,15 @@ impl TestContext {
                         sink(event.clone()).await;
                     }
                 }
-                receive_event(event);
+                receive_event(&event);
+                evtracker_sender.send(event.typ).await.ok();
             }
         });
 
         Self {
             ctx,
             dir,
+            evtracker: EvTracker(evtracker_receiver),
             recv_idx: RwLock::new(0),
             event_sinks,
             poison_receiver,
@@ -568,6 +574,28 @@ pub fn bob_keypair() -> key::KeyPair {
     }
 }
 
+pub struct EvTracker(Receiver<EventType>);
+
+impl EvTracker {
+    pub async fn get_info_contains(&self, s: &str) -> EventType {
+        loop {
+            let event = self.0.recv().await.unwrap();
+            if let EventType::Info(i) = &event {
+                if i.contains(s) {
+                    return event;
+                }
+            }
+        }
+    }
+}
+
+impl Deref for EvTracker {
+    type Target = Receiver<EventType>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Gets a specific message from a chat and asserts that the chat has a specific length.
 ///
 /// Panics if the length of the chat is not `asserted_msgs_count` or if the chat item at `index` is not a Message.
@@ -591,12 +619,12 @@ pub(crate) async fn get_chat_msg(
 /// Pretty-print an event to stdout
 ///
 /// Done during tests this is captured by `cargo test` and associated with the test itself.
-fn receive_event(event: Event) {
+fn receive_event(event: &Event) {
     let green = Color::Green.normal();
     let yellow = Color::Yellow.normal();
     let red = Color::Red.normal();
 
-    let msg = match event.typ {
+    let msg = match &event.typ {
         EventType::Info(msg) => format!("INFO: {}", msg),
         EventType::SmtpConnected(msg) => format!("[SMTP_CONNECTED] {}", msg),
         EventType::ImapConnected(msg) => format!("[IMAP_CONNECTED] {}", msg),

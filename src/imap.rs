@@ -8,13 +8,12 @@ use std::{cmp, cmp::max, collections::BTreeMap};
 use anyhow::{bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
-    types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
+    types::{Fetch, Flag, Mailbox, Name, NameAttribute},
 };
 use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
-use crate::chat;
 use crate::constants::{
     Chattype, ShowEmails, Viewtype, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
     DC_LP_AUTH_OAUTH2,
@@ -35,6 +34,7 @@ use crate::param::Params;
 use crate::provider::Socket;
 use crate::scheduler::InterruptInfo;
 use crate::stock_str;
+use crate::{chat, constants::DC_CONTACT_ID_SELF};
 use crate::{config::Config, scheduler::connectivity::ConnectivityStore};
 
 mod client;
@@ -92,6 +92,9 @@ pub struct Imap {
     interrupt: Option<stop_token::StopSource>,
     should_reconnect: bool,
     login_failed_once: bool,
+    /// True if CAPABILITY command was run successfully once and config.can_* contain correct
+    /// values.
+    capabilities_determined: bool,
     pub(crate) connectivity: ConnectivityStore,
 }
 
@@ -112,12 +115,25 @@ impl async_imap::Authenticator for OAuth2 {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum FolderMeaning {
     Unknown,
     Spam,
-    SentObjects,
+    Sent,
+    Drafts,
     Other,
+}
+
+impl FolderMeaning {
+    fn to_config(self) -> Option<Config> {
+        match self {
+            FolderMeaning::Unknown => None,
+            FolderMeaning::Spam => Some(Config::ConfiguredSpamFolder),
+            FolderMeaning::Sent => Some(Config::ConfiguredSentboxFolder),
+            FolderMeaning::Drafts => None,
+            FolderMeaning::Other => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -129,6 +145,7 @@ struct ImapConfig {
     pub selected_folder: Option<String>,
     pub selected_mailbox: Option<Mailbox>,
     pub selected_folder_needs_expunge: bool,
+
     pub can_idle: bool,
 
     /// True if the server has MOVE capability as defined in
@@ -136,60 +153,94 @@ struct ImapConfig {
     pub can_move: bool,
 }
 
-impl Default for ImapConfig {
-    fn default() -> Self {
-        ImapConfig {
-            addr: "".into(),
-            lp: Default::default(),
-            strict_tls: false,
-            oauth2: false,
+impl Imap {
+    /// Creates new disconnected IMAP client using the specific login parameters.
+    ///
+    /// `addr` is used to renew token if OAuth2 authentication is used.
+    pub async fn new(
+        lp: &ServerLoginParam,
+        addr: &str,
+        oauth2: bool,
+        provider_strict_tls: bool,
+        idle_interrupt: Receiver<InterruptInfo>,
+    ) -> Result<Self> {
+        if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
+            bail!("Incomplete IMAP connection parameters");
+        }
+
+        let strict_tls = match lp.certificate_checks {
+            CertificateChecks::Automatic => provider_strict_tls,
+            CertificateChecks::Strict => true,
+            CertificateChecks::AcceptInvalidCertificates
+            | CertificateChecks::AcceptInvalidCertificates2 => false,
+        };
+        let config = ImapConfig {
+            addr: addr.to_string(),
+            lp: lp.clone(),
+            strict_tls,
+            oauth2,
             selected_folder: None,
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
             can_idle: false,
             can_move: false,
-        }
-    }
-}
+        };
 
-impl Imap {
-    pub fn new(idle_interrupt: Receiver<InterruptInfo>) -> Self {
-        Imap {
+        let imap = Imap {
             idle_interrupt,
-            config: Default::default(),
-            session: Default::default(),
-            connected: Default::default(),
-            interrupt: Default::default(),
-            should_reconnect: Default::default(),
-            login_failed_once: Default::default(),
+            config,
+            session: None,
+            connected: false,
+            interrupt: None,
+            should_reconnect: false,
+            login_failed_once: false,
             connectivity: ConnectivityStore::new(),
+            capabilities_determined: false,
+        };
+
+        Ok(imap)
+    }
+
+    /// Creates new disconnected IMAP client using configured parameters.
+    pub async fn new_configured(
+        context: &Context,
+        idle_interrupt: Receiver<InterruptInfo>,
+    ) -> Result<Self> {
+        if !context.is_configured().await? {
+            bail!("IMAP Connect without configured params");
         }
-    }
 
-    pub fn is_connected(&self) -> bool {
-        self.connected
-    }
+        let param = LoginParam::from_database(context, "configured_").await?;
+        // the trailing underscore is correct
 
-    pub fn should_reconnect(&self) -> bool {
-        self.should_reconnect
-    }
-
-    pub async fn trigger_reconnect(&mut self, context: &Context) {
-        self.connectivity.set_connecting(context).await;
-        self.should_reconnect = true;
+        let imap = Self::new(
+            &param.imap,
+            &param.addr,
+            param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
+            param.provider.map_or(false, |provider| provider.strict_tls),
+            idle_interrupt,
+        )
+        .await?;
+        Ok(imap)
     }
 
     /// Connects or reconnects if needed.
     ///
-    /// It is safe to call this function if already connected, actions
-    /// are performed only as needed.
-    async fn try_setup_handle(&mut self, context: &Context) -> Result<()> {
+    /// It is safe to call this function if already connected, actions are performed only as needed.
+    ///
+    /// Does not emit network errors, can be used to try various parameters during
+    /// autoconfiguration.
+    ///
+    /// Calling this function is not enough to perform IMAP operations. Use [`Imap::prepare`]
+    /// instead if you are going to actually use connection rather than trying connection
+    /// parameters.
+    pub async fn connect(&mut self, context: &Context) -> Result<()> {
         if self.config.lp.server.is_empty() {
             bail!("IMAP operation attempted while it is torn down");
         }
 
         if self.should_reconnect() {
-            self.unsetup_handle(context).await;
+            self.disconnect(context).await;
             self.should_reconnect = false;
         } else if self.is_connected() {
             return Ok(());
@@ -259,6 +310,10 @@ impl Imap {
                 self.connected = true;
                 self.session = Some(session);
                 self.login_failed_once = false;
+                emit_event!(
+                    context,
+                    EventType::ImapConnected(format!("IMAP-LOGIN as {}", self.config.lp.user))
+                );
                 Ok(())
             }
 
@@ -295,20 +350,49 @@ impl Imap {
         }
     }
 
-    /// Connects or reconnects if not already connected.
+    /// Determine server capabilities if not done yet.
+    async fn determine_capabilities(&mut self) -> Result<()> {
+        if self.capabilities_determined {
+            return Ok(());
+        }
+
+        match &mut self.session {
+            Some(ref mut session) => match session.capabilities().await {
+                Ok(caps) => {
+                    self.config.can_idle = caps.has_str("IDLE");
+                    self.config.can_move = caps.has_str("MOVE");
+                    self.capabilities_determined = true;
+                    Ok(())
+                }
+                Err(err) => {
+                    bail!("CAPABILITY command error: {}", err);
+                }
+            },
+            None => {
+                bail!("Can't determine server capabilities because connection was not established")
+            }
+        }
+    }
+
+    /// Prepare for IMAP operation.
     ///
-    /// This function emits network error if it fails.  It should not
-    /// be used during configuration to avoid showing failed attempt
-    /// errors to the user.
-    async fn setup_handle(&mut self, context: &Context) -> Result<()> {
-        let res = self.try_setup_handle(context).await;
+    /// Ensure that IMAP client is connected, folders are created and IMAP capabilities are
+    /// determined.
+    ///
+    /// This function emits network error if it fails.  It should not be used during configuration
+    /// to avoid showing failed attempt errors to the user.
+    pub async fn prepare(&mut self, context: &Context) -> Result<()> {
+        let res = self.connect(context).await;
         if let Err(ref err) = res {
             self.connectivity.set_err(context, err).await;
         }
+
+        self.ensure_configured_folders(context, true).await?;
+        self.determine_capabilities().await?;
         res
     }
 
-    async fn unsetup_handle(&mut self, context: &Context) {
+    async fn disconnect(&mut self, context: &Context) {
         // Close folder if messages should be expunged
         if let Err(err) = self.close_folder(context).await {
             warn!(context, "failed to close folder: {:?}", err);
@@ -321,148 +405,22 @@ impl Imap {
             }
         }
         self.connected = false;
+        self.capabilities_determined = false;
         self.config.selected_folder = None;
         self.config.selected_mailbox = None;
     }
 
-    async fn free_connect_params(&mut self) {
-        let mut cfg = &mut self.config;
-
-        cfg.addr = "".into();
-        cfg.lp = Default::default();
-
-        cfg.can_idle = false;
-        cfg.can_move = false;
+    pub fn is_connected(&self) -> bool {
+        self.connected
     }
 
-    /// Connects to IMAP account using already-configured parameters.
-    ///
-    /// Emits network error if connection fails.
-    pub async fn connect_configured(&mut self, context: &Context) -> Result<()> {
+    pub fn should_reconnect(&self) -> bool {
+        self.should_reconnect
+    }
+
+    pub async fn trigger_reconnect(&mut self, context: &Context) {
         self.connectivity.set_connecting(context).await;
-        let res = self.connect_configured_inner(context).await;
-        if let Err(e) = &res {
-            self.connectivity.set_err(context, e).await;
-        }
-        res
-    }
-
-    pub async fn connect_configured_inner(&mut self, context: &Context) -> Result<()> {
-        if self.is_connected() && !self.should_reconnect() {
-            return Ok(());
-        }
-        if !context.is_configured().await? {
-            bail!("IMAP Connect without configured params");
-        }
-
-        let param = LoginParam::from_database(context, "configured_").await?;
-        // the trailing underscore is correct
-
-        if let Err(err) = self
-            .connect(
-                context,
-                &param.imap,
-                &param.addr,
-                param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
-                param.provider.map_or(false, |provider| provider.strict_tls),
-            )
-            .await
-        {
-            bail!("IMAP Connection Failed with params {}: {}", param, err);
-        } else {
-            self.ensure_configured_folders(context, true).await
-        }
-    }
-
-    /// Tries connecting to imap account using the specific login parameters.
-    ///
-    /// `addr` is used to renew token if OAuth2 authentication is used.
-    ///
-    /// Does not emit network errors, can be used to try various
-    /// parameters during autoconfiguration.
-    pub async fn connect(
-        &mut self,
-        context: &Context,
-        lp: &ServerLoginParam,
-        addr: &str,
-        oauth2: bool,
-        provider_strict_tls: bool,
-    ) -> Result<()> {
-        if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
-            bail!("Incomplete IMAP connection parameters");
-        }
-
-        {
-            let mut config = &mut self.config;
-            config.addr = addr.to_string();
-            config.lp = lp.clone();
-            config.strict_tls = match lp.certificate_checks {
-                CertificateChecks::Automatic => provider_strict_tls,
-                CertificateChecks::Strict => true,
-                CertificateChecks::AcceptInvalidCertificates
-                | CertificateChecks::AcceptInvalidCertificates2 => false,
-            };
-            config.oauth2 = oauth2;
-        }
-
-        if let Err(err) = self.try_setup_handle(context).await {
-            warn!(context, "try_setup_handle: {}", err);
-            self.free_connect_params().await;
-            return Err(err);
-        }
-
-        let teardown = match &mut self.session {
-            Some(ref mut session) => match session.capabilities().await {
-                Ok(caps) => {
-                    if !context.sql.is_open().await {
-                        warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.user,);
-                        true
-                    } else {
-                        let can_idle = caps.has_str("IDLE");
-                        let can_move = caps.has_str("MOVE");
-                        let caps_list = caps.iter().fold(String::new(), |s, c| {
-                            if let Capability::Atom(x) = c {
-                                s + &format!(" {}", x)
-                            } else {
-                                s + &format!(" {:?}", c)
-                            }
-                        });
-
-                        self.config.can_idle = can_idle;
-                        self.config.can_move = can_move;
-                        self.connected = true;
-                        emit_event!(
-                            context,
-                            EventType::ImapConnected(format!(
-                                "IMAP-LOGIN as {}, capabilities: {}",
-                                lp.user, caps_list,
-                            ))
-                        );
-                        false
-                    }
-                }
-                Err(err) => {
-                    info!(context, "CAPABILITY command error: {}", err);
-                    true
-                }
-            },
-            None => true,
-        };
-
-        if teardown {
-            self.disconnect(context).await;
-
-            warn!(
-                context,
-                "IMAP disconnected immediately after connecting due to error"
-            );
-        }
-        Ok(())
-    }
-
-    pub async fn disconnect(&mut self, context: &Context) {
-        self.unsetup_handle(context).await;
-        self.free_connect_params().await;
+        self.should_reconnect = true;
     }
 
     pub async fn fetch(&mut self, context: &Context, watch_folder: &str) -> Result<()> {
@@ -470,7 +428,7 @@ impl Imap {
             // probably shutdown
             bail!("IMAP operation attempted while it is torn down");
         }
-        self.setup_handle(context).await?;
+        self.prepare(context).await?;
         self.connectivity.set_working(context).await;
 
         while self
@@ -709,6 +667,7 @@ impl Imap {
                 current_uid,
                 &headers,
                 &msg_id,
+                msg.flags(),
                 folder,
                 show_emails,
             )
@@ -987,10 +946,6 @@ impl Imap {
         (last_uid, read_errors)
     }
 
-    pub async fn can_move(&self) -> bool {
-        self.config.can_move
-    }
-
     pub async fn mv(
         &mut self,
         context: &Context,
@@ -1015,7 +970,7 @@ impl Imap {
         let set = format!("{}", uid);
         let display_folder_id = format!("{}/{}", folder, uid);
 
-        if self.can_move().await {
+        if self.config.can_move {
             if let Some(ref mut session) = &mut self.session {
                 match session.uid_mv(&set, &dest_folder).await {
                     Ok(_) => {
@@ -1141,7 +1096,7 @@ impl Imap {
             // TODO: make INBOX/SENT/MVBOX perform the jobs on their
             // respective folders to avoid select_folder network traffic
             // and the involved error states
-            if let Err(err) = self.connect_configured(context).await {
+            if let Err(err) = self.prepare(context).await {
                 warn!(context, "prepare_imap_op failed: {}", err);
                 return Some(ImapActionResult::RetryLater);
             }
@@ -1313,9 +1268,8 @@ impl Imap {
 
             let mut delimiter = ".".to_string();
             let mut delimiter_is_default = true;
-            let mut sentbox_folder = None;
-            let mut spam_folder = None;
             let mut mvbox_folder = None;
+            let mut folder_configs = BTreeMap::new();
             let mut fallback_folder = get_fallback_folder(&delimiter);
 
             while let Some(folder) = folders.next().await {
@@ -1334,31 +1288,26 @@ impl Imap {
                 let folder_meaning = get_folder_meaning(&folder);
                 let folder_name_meaning = get_folder_meaning_by_name(folder.name());
                 if folder.name() == "DeltaChat" {
-                    // Always takes precendent
+                    // Always takes precedence
                     mvbox_folder = Some(folder.name().to_string());
                 } else if folder.name() == fallback_folder {
-                    // only set iff none has been already set
+                    // only set if none has been already set
                     if mvbox_folder.is_none() {
                         mvbox_folder = Some(folder.name().to_string());
                     }
-                } else if folder_meaning == FolderMeaning::SentObjects {
-                    // Always takes precedent
-                    sentbox_folder = Some(folder.name().to_string());
-                } else if folder_meaning == FolderMeaning::Spam {
-                    spam_folder = Some(folder.name().to_string());
-                } else if folder_name_meaning == FolderMeaning::SentObjects {
-                    // only set iff none has been already set
-                    if sentbox_folder.is_none() {
-                        sentbox_folder = Some(folder.name().to_string());
-                    }
-                } else if folder_name_meaning == FolderMeaning::Spam && spam_folder.is_none() {
-                    spam_folder = Some(folder.name().to_string());
+                } else if let Some(config) = folder_meaning.to_config() {
+                    // Always takes precedence
+                    folder_configs.insert(config, folder.name().to_string());
+                } else if let Some(config) = folder_name_meaning.to_config() {
+                    // only set if none has been already set
+                    folder_configs
+                        .entry(config)
+                        .or_insert_with(|| folder.name().to_string());
                 }
             }
             drop(folders);
 
             info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
-            info!(context, "sentbox folder is {:?}", sentbox_folder);
 
             if mvbox_folder.is_none() && create_mvbox {
                 info!(context, "Creating MVBOX-folder \"DeltaChat\"...",);
@@ -1406,15 +1355,8 @@ impl Imap {
                     .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                     .await?;
             }
-            if let Some(ref sentbox_folder) = sentbox_folder {
-                context
-                    .set_config(Config::ConfiguredSentboxFolder, Some(sentbox_folder))
-                    .await?;
-            }
-            if let Some(ref spam_folder) = spam_folder {
-                context
-                    .set_config(Config::ConfiguredSpamFolder, Some(spam_folder))
-                    .await?;
+            for (config, name) in folder_configs {
+                context.set_config(config, Some(&name)).await?;
             }
             context
                 .sql
@@ -1487,29 +1429,50 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
         "迷惑メール",
         "스팸",
     ];
+    const DRAFT_NAMES: &[&str] = &[
+        "Drafts",
+        "Kladder",
+        "Entw?rfe",
+        "Borradores",
+        "Brouillons",
+        "Bozze",
+        "Concepten",
+        "Wersje robocze",
+        "Rascunhos",
+        "Entwürfe",
+        "Koncepty",
+        "Kopie robocze",
+        "Taslaklar",
+        "Utkast",
+        "Πρόχειρα",
+        "Черновики",
+        "下書き",
+        "草稿",
+        "임시보관함",
+    ];
     let lower = folder_name.to_lowercase();
 
     if SENT_NAMES.iter().any(|s| s.to_lowercase() == lower) {
-        FolderMeaning::SentObjects
+        FolderMeaning::Sent
     } else if SPAM_NAMES.iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::Spam
+    } else if DRAFT_NAMES.iter().any(|s| s.to_lowercase() == lower) {
+        FolderMeaning::Drafts
     } else {
         FolderMeaning::Unknown
     }
 }
 
 fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
-    let special_names = vec!["\\Trash", "\\Drafts"];
-
     for attr in folder_name.attributes() {
         if let NameAttribute::Custom(ref label) = attr {
-            if special_names.iter().any(|s| *s == label) {
-                return FolderMeaning::Other;
-            } else if label == "\\Sent" {
-                return FolderMeaning::SentObjects;
-            } else if label == "\\Spam" || label == "\\Junk" {
-                return FolderMeaning::Spam;
-            }
+            match label.as_ref() {
+                "\\Trash" => return FolderMeaning::Other,
+                "\\Sent" => return FolderMeaning::Sent,
+                "\\Spam" | "\\Junk" => return FolderMeaning::Spam,
+                "\\Drafts" => return FolderMeaning::Drafts,
+                _ => {}
+            };
         }
     }
     FolderMeaning::Unknown
@@ -1627,6 +1590,7 @@ fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> 
 pub(crate) async fn prefetch_should_download(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
+    mut flags: impl Iterator<Item = Flag<'_>>,
     show_emails: ShowEmails,
 ) -> Result<bool> {
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
@@ -1664,12 +1628,17 @@ pub(crate) async fn prefetch_should_download(
         .get_header_value(HeaderDef::AutocryptSetupMessage)
         .is_some();
 
-    let (_contact_id, blocked_contact, origin) =
+    let (from_id, blocked_contact, origin) =
         from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
     // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
     // (prevent_rename is the last argument of from_field_to_contact_id())
-    let accepted_contact = origin.is_known();
 
+    if flags.any(|f| f == Flag::Draft) && from_id == DC_CONTACT_ID_SELF {
+        info!(context, "Ignoring draft message");
+        return Ok(false);
+    }
+
+    let accepted_contact = origin.is_known();
     let show = is_autocrypt_setup_message
         || match show_emails {
             ShowEmails::Off => is_chat_message || is_reply_to_chat_message,
@@ -1688,6 +1657,7 @@ async fn message_needs_processing(
     current_uid: u32,
     headers: &[mailparse::MailHeader<'_>],
     msg_id: &str,
+    flags: impl Iterator<Item = Flag<'_>>,
     folder: &str,
     show_emails: ShowEmails,
 ) -> bool {
@@ -1711,7 +1681,7 @@ async fn message_needs_processing(
     // we do not know the message-id
     // or the message-id is missing (in this case, we create one in the further process)
     // or some other error happened
-    let show = match prefetch_should_download(context, headers, show_emails).await {
+    let show = match prefetch_should_download(context, headers, flags, show_emails).await {
         Ok(show) => show,
         Err(err) => {
             warn!(context, "prefetch_should_download error: {}", err);
@@ -1874,25 +1844,16 @@ mod tests {
     use crate::test_utils::TestContext;
     #[test]
     fn test_get_folder_meaning_by_name() {
-        assert_eq!(
-            get_folder_meaning_by_name("Gesendet"),
-            FolderMeaning::SentObjects
-        );
-        assert_eq!(
-            get_folder_meaning_by_name("GESENDET"),
-            FolderMeaning::SentObjects
-        );
-        assert_eq!(
-            get_folder_meaning_by_name("gesendet"),
-            FolderMeaning::SentObjects
-        );
+        assert_eq!(get_folder_meaning_by_name("Gesendet"), FolderMeaning::Sent);
+        assert_eq!(get_folder_meaning_by_name("GESENDET"), FolderMeaning::Sent);
+        assert_eq!(get_folder_meaning_by_name("gesendet"), FolderMeaning::Sent);
         assert_eq!(
             get_folder_meaning_by_name("Messages envoyés"),
-            FolderMeaning::SentObjects
+            FolderMeaning::Sent
         );
         assert_eq!(
             get_folder_meaning_by_name("mEsSaGes envoyÉs"),
-            FolderMeaning::SentObjects
+            FolderMeaning::Sent
         );
         assert_eq!(get_folder_meaning_by_name("xxx"), FolderMeaning::Unknown);
         assert_eq!(get_folder_meaning_by_name("SPAM"), FolderMeaning::Spam);

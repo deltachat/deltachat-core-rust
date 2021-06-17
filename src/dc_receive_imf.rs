@@ -685,11 +685,26 @@ async fn add_parts(
             }
         }
 
-        if !context.is_sentbox(server_folder).await?
+        // If the message is outgoing AND there is no Received header AND it's not in the sentbox,
+        // then ignore the email.
+        //
+        // We only apply this heuristic to classical emails, as it is not reliable (some servers
+        // such as systemli.org in June 2021 remove their own Received headers on incoming mails)
+        // and we know Delta Chat never stores drafts on IMAP servers.
+        let is_draft = !context.is_sentbox(server_folder).await?
             && mime_parser.get(HeaderDef::Received).is_none()
-        {
+            && mime_parser.get(HeaderDef::ChatVersion).is_none();
+
+        // Mozilla Thunderbird does not set \Draft flag on "Templates", but sets
+        // X-Mozilla-Draft-Info header, which can be used to detect both drafts and templates
+        // created by Thunderbird.
+        //
+        // This check is not necessary now, but may become useful if the `Received:` header check
+        // is removed completely later.
+        let is_draft = is_draft || mime_parser.get(HeaderDef::XMozillaDraftInfo).is_some();
+
+        if is_draft {
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
-            // So: If it's outgoing AND there is no Received header AND it's not in the sentbox, then ignore the email.
             info!(context, "Email is probably just a draft (TRASH)");
             *chat_id = DC_CHAT_ID_TRASH;
             allow_creation = false;
@@ -2742,11 +2757,14 @@ mod tests {
 
         // Check that the ndn would be downloaded:
         let headers = mailparse::parse_mail(raw_ndn).unwrap().headers;
-        assert!(
-            crate::imap::prefetch_should_download(&t, &headers, ShowEmails::Off)
-                .await
-                .unwrap()
-        );
+        assert!(crate::imap::prefetch_should_download(
+            &t,
+            &headers,
+            std::iter::empty(),
+            ShowEmails::Off
+        )
+        .await
+        .unwrap());
 
         dc_receive_imf(&t, raw_ndn, "INBOX", 1, false)
             .await
@@ -3015,7 +3033,9 @@ mod tests {
         assert_eq!(msgs.len(), 0);
 
         // Unblock contact and check if the next message arrives in real chat
-        Contact::unblock(&t, *blocked.first().unwrap()).await;
+        Contact::unblock(&t, *blocked.first().unwrap())
+            .await
+            .unwrap();
         let blocked = Contact::get_all_blocked(&t).await.unwrap();
         assert_eq!(blocked.len(), 0);
 

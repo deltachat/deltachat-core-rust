@@ -198,7 +198,7 @@ impl Sql {
             }
         }
 
-        info!(context, "Opened {:?}.", dbfile);
+        info!(context, "Opened database {:?}.", dbfile);
 
         Ok(())
     }
@@ -799,6 +799,38 @@ mod test {
             .query_get_value("SELECT value FROM config WHERE keyname=?;", paramsv!("foo"))
             .await?;
         assert_eq!(value.unwrap(), "bar");
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_migration_flags() -> Result<()> {
+        let t = TestContext::new().await;
+        t.evtracker.get_info_contains("Opened database").await;
+
+        // as migrations::run() was already executed on context creation,
+        // another call should not result in any action needed.
+        // this test catches some bugs where dbversion was forgotten to be persisted.
+        let (recalc_fingerprints, update_icons, disable_server_delete, recode_avatar) =
+            migrations::run(&t, &t.sql).await?;
+        assert!(!recalc_fingerprints);
+        assert!(!update_icons);
+        assert!(!disable_server_delete);
+        assert!(!recode_avatar);
+
+        info!(&t, "test_migration_flags: XXX");
+
+        loop {
+            if let EventType::Info(info) = t.evtracker.recv().await.unwrap() {
+                assert!(
+                    !info.contains("[migration]"),
+                    "Migrations were run twice, you probably forgot to update the db version"
+                );
+                if info.contains("test_migration_flags: XXX") {
+                    break;
+                }
+            }
+        }
 
         Ok(())
     }

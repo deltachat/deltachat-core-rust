@@ -251,7 +251,16 @@ class DirectImap:
             return res
 
     def append(self, folder, msg):
+        """Upload a message to *folder*.
+        Trailing whitespace or a linebreak at the beginning will be removed automatically.
+        """
         if msg.startswith("\n"):
             msg = msg[1:]
         msg = '\n'.join([s.lstrip() for s in msg.splitlines()])
         self.conn.append(folder, msg)
+
+    def get_uid_by_message_id(self, message_id):
+        msgs = self.conn.search(['HEADER', 'MESSAGE-ID', message_id])
+        if len(msgs) == 0:
+            raise Exception("Did not find message " + message_id + ", maybe you forgot to select the correct folder?")
+        return msgs[0]

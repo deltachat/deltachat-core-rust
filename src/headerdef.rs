@@ -25,6 +25,12 @@ pub enum HeaderDef {
     /// we need to check that header as well.
     XMicrosoftOriginalMessageId,
 
+    /// Thunderbird header used to store Draft information.
+    ///
+    /// Thunderbird 78.11.0 does not set \Draft flag on messages saved as "Template", but sets this
+    /// header, so it can be used to ignore such messages.
+    XMozillaDraftInfo,
+
     ListId,
     References,
     InReplyTo,

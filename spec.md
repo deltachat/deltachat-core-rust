@@ -1,6 +1,6 @@
 # chat-mail specification
 
-Version: 0.32.0
+Version: 0.33.0
 Status:  In-progress 
 Format:  [Semantic Line Breaks](https://sembr.org/)
 
@@ -301,9 +301,9 @@ to add a `Chat-Group-Avatar` only on image changes.
 
 A user MAY have a profile-image that MAY be distributed to their contacts.
 To change or set the profile-image,
-the messenger MUST attach an image file to a message
-and MUST add the header `Chat-User-Avatar`
-with the value set to the image name.
+the messenger MUST add the header `Chat-User-Avatar: base64:IMAGEDATA`.
+To bypass limits of headers, it is recommended not to use the outer header
+and to limit the size to 20k.
 
 To remove the profile-image,
 the messenger MUST add the header `Chat-User-Avatar: 0`.
@@ -320,19 +320,14 @@ The messenger SHOULD NOT send an explicit mail to normal MUAs.
     From: sender@domain
     To: rcpt@domain
     Chat-Version: 1.0
-    Chat-User-Avatar: photo.jpg
     Subject: Chat: Hello, ...
     Content-Type: multipart/mixed; boundary="==break=="
 
     --==break==
     Content-Type: text/plain
+    Chat-User-Avatar: base64:AKCgkJi3j4l5kjoldfUAKCgkJi3j4lldfHjgWICwgIEBQY ...
 
     Hello, I've changed my profile image.
-    --==break==
-    Content-Type: image/jpeg
-    Content-Disposition: attachment; filename="photo.jpg"
-
-    AKCgkJi3j4l5kjoldfUAKCgkJi3j4lldfHjgWICwgIEBQYFBA ...
     --==break==--
 
 The image format SHOULD be image/jpeg or image/png.
@@ -341,6 +336,11 @@ eg. there may be a `Chat-User-Avatar` and a `Chat-Group-Avatar` header
 in the same message.
 To save data, it is RECOMMENDED to add a `Chat-User-Avatar` header
 only on image changes.
+
+In older specs, the profile-image was sent as an attachment
+and `Chat-User-Avatar:` specified its name.
+However, it turned out that these attachements are kind of unuexpected to users,
+therefore the profile-image go to the header now.
 
 
 # Locations
@@ -401,9 +401,41 @@ it is fine if the location is detected on forwarding etc.
     </kml>
 
 
-# Miscellaneous
+# Stickers
 
-Messengers SHOULD use the header `In-Reply-To` as usual.
+Stickers are send as normal images
+with the additional header `Chat-Content: sticker`.
+
+It is discouraged to send stickers together with user generated text,
+however, stickers can be used as a reply to a message
+and also the footer should be set as usual.
+
+    From: alice@example.org
+    To: bob@example.com
+    Chat-Version: 1.0
+    Chat-Content: sticker
+    Message-ID: Mr.12345uvwxyZ.0005@example.org
+    Subject: Message from Alice
+    Content-Type: multipart/mixed; boundary="==break=="
+
+    --==break==
+    Content-Type: text/plain
+
+    -- 
+    Hi there! I am using this new messenger!
+    --==break==
+    Content-Type: image/png
+    Content-Disposition: attachment; filename="sticker.png"
+
+    R0lGODlhpAGkAfe9AP+zd2eQkZhrI//z9v++PMb///+scrdDT3BtbtrZ2f/LQSsREcdIVf9 ...
+    --==break==--
+
+Typical sticker formats are `image/png`, `image/gif` and `image/webp`.
+Animated stickers are supported
+by just using an image format that supports animation.
+
+
+# Voice messages
 
 Messengers SHOULD add a `Chat-Voice-message: 1` header
 if an attached audio file is a voice message.
@@ -416,6 +448,11 @@ This allows the receiver to show the time without knowing the file format.
     In-Reply-To: Gr.12345uvwxyZ.0005@domain
     Chat-Voice-Message: 1
     Chat-Duration: 10000
+
+
+# Miscellaneous
+
+Messengers SHOULD use the header `In-Reply-To` as usual.
 
 Messengers MAY send and receive Message Disposition Notifications
 (MDNs, [RFC 8098](https://tools.ietf.org/html/rfc8098),
@@ -437,4 +474,4 @@ as the sending time of the message as indicated by its Date header,
 or the time of first receipt if that date is in the future or unavailable.
 
 
-Copyright © 2017-2020 Delta Chat contributors.
+Copyright © 2017-2021 Delta Chat contributors.

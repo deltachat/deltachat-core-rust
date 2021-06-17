@@ -1,6 +1,6 @@
 [package]
 name = "deltachat_ffi"
-version = "1.55.0"
+version = "1.56.0"
 description = "Deltachat FFI"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2018"
@@ -21,7 +21,7 @@ human-panic = "1.0.1"
 num-traits = "0.2.6"
 serde_json = "1.0"
 async-std = "1.9.0"
-anyhow = "1.0.40"
+anyhow = "1.0.41"
 thiserror = "1.0.25"
 rand = "0.7.3"
 

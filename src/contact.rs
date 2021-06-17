@@ -236,13 +236,13 @@ impl Contact {
     }
 
     /// Block the given contact.
-    pub async fn block(context: &Context, id: u32) {
-        set_block_contact(context, id, true).await;
+    pub async fn block(context: &Context, id: u32) -> Result<()> {
+        set_block_contact(context, id, true).await
     }
 
     /// Unblock the given contact.
-    pub async fn unblock(context: &Context, id: u32) {
-        set_block_contact(context, id, false).await;
+    pub async fn unblock(context: &Context, id: u32) -> Result<()> {
+        set_block_contact(context, id, false).await
     }
 
     /// Add a single contact as a result of an _explicit_ user action.
@@ -270,7 +270,7 @@ impl Contact {
             }
         }
         if blocked {
-            Contact::unblock(context, contact_id).await;
+            Contact::unblock(context, contact_id).await?;
         }
 
         Ok(contact_id)
@@ -860,7 +860,7 @@ impl Contact {
             "Can not delete special contact"
         );
 
-        let count_contacts = context
+        let count_chats = context
             .sql
             .count(
                 "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
@@ -868,19 +868,7 @@ impl Contact {
             )
             .await?;
 
-        let count_msgs = if count_contacts > 0 {
-            context
-                .sql
-                .count(
-                    "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
-                    paramsv![contact_id as i32, contact_id as i32],
-                )
-                .await?
-        } else {
-            0
-        };
-
-        if count_msgs == 0 {
+        if count_chats == 0 {
             match context
                 .sql
                 .execute(
@@ -902,9 +890,9 @@ impl Contact {
 
         info!(
             context,
-            "could not delete contact {}, there are {} messages with it", contact_id, count_msgs
+            "could not delete contact {}, there are {} chats with it", contact_id, count_chats
         );
-        bail!("Could not delete contact with messages in it");
+        bail!("Could not delete contact with ongoing chats");
     }
 
     /// Get a single contact object.  For a list, see eg. dc_get_contacts().
@@ -1174,56 +1162,58 @@ fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     }
 }
 
-async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
-    if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
-        return;
-    }
+async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) -> Result<()> {
+    ensure!(
+        contact_id > DC_CONTACT_ID_LAST_SPECIAL,
+        "Can't block special contact {}",
+        contact_id
+    );
 
-    if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-        if contact.blocked != new_blocking
-            && context
-                .sql
-                .execute(
-                    "UPDATE contacts SET blocked=? WHERE id=?;",
-                    paramsv![new_blocking as i32, contact_id as i32],
-                )
-                .await
-                .is_ok()
-        {
-            // also (un)block all chats with _only_ this contact - we do not delete them to allow a
-            // non-destructive blocking->unblocking.
-            // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
-            // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
-            // this would result in recreating the same group...)
-            if context
-                .sql
-                .execute(
-                    r#"
+    let contact = Contact::load_from_db(context, contact_id).await?;
+
+    if contact.blocked != new_blocking {
+        context
+            .sql
+            .execute(
+                "UPDATE contacts SET blocked=? WHERE id=?;",
+                paramsv![new_blocking as i32, contact_id as i32],
+            )
+            .await?;
+
+        // also (un)block all chats with _only_ this contact - we do not delete them to allow a
+        // non-destructive blocking->unblocking.
+        // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
+        // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
+        // this would result in recreating the same group...)
+        if context
+            .sql
+            .execute(
+                r#"
 UPDATE chats
 SET blocked=?
 WHERE type=? AND id IN (
   SELECT chat_id FROM chats_contacts WHERE contact_id=?
 );
 "#,
-                    paramsv![new_blocking, Chattype::Single, contact_id],
-                )
-                .await
-                .is_ok()
-            {
-                Contact::mark_noticed(context, contact_id).await;
-                context.emit_event(EventType::ContactsChanged(Some(contact_id)));
-            }
+                paramsv![new_blocking, Chattype::Single, contact_id],
+            )
+            .await
+            .is_ok()
+        {
+            Contact::mark_noticed(context, contact_id).await;
+            context.emit_event(EventType::ContactsChanged(Some(contact_id)));
+        }
 
-            // also unblock mailinglist
-            // if the contact is a mailinglist address explicitly created to allow unblocking
-            if !new_blocking && contact.origin == Origin::MailinglistAddress {
-                if let Ok((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, contact.addr).await
-                {
-                    chat_id.set_blocked(context, Blocked::Not).await;
-                }
+        // also unblock mailinglist
+        // if the contact is a mailinglist address explicitly created to allow unblocking
+        if !new_blocking && contact.origin == Origin::MailinglistAddress {
+            if let Ok((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, contact.addr).await {
+                chat_id.set_blocked(context, Blocked::Not).await;
             }
         }
     }
+
+    Ok(())
 }
 
 /// Set profile image for a contact.
@@ -1616,6 +1606,34 @@ mod tests {
         assert_eq!(contact.get_name(), stock_str::self_msg(&t).await);
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
+    }
+
+    #[async_std::test]
+    async fn test_delete() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        assert!(Contact::delete(&alice, DC_CONTACT_ID_SELF).await.is_err());
+
+        // Create Bob contact
+        let (contact_id, _) =
+            Contact::add_or_lookup(&alice, "Bob", "bob@example.net", Origin::ManuallyCreated)
+                .await
+                .unwrap();
+
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.net")
+            .await;
+
+        // Can't delete a contact with ongoing chats.
+        assert!(Contact::delete(&alice, contact_id).await.is_err());
+
+        // Delete chat.
+        chat.get_id().delete(&alice).await?;
+
+        // Can delete contact now.
+        Contact::delete(&alice, contact_id).await?;
+
+        Ok(())
     }
 
     #[async_std::test]

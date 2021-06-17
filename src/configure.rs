@@ -345,10 +345,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 600);
 
     // Configure IMAP
-    let (_s, r) = async_std::channel::bounded(1);
-    let mut imap = Imap::new(r);
 
-    let mut imap_configured = false;
+    let mut imap: Option<Imap> = None;
     let imap_servers: Vec<&ServerParams> = servers
         .iter()
         .filter(|params| params.protocol == Protocol::Imap)
@@ -361,18 +359,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         param.imap.port = imap_server.port;
         param.imap.security = imap_server.socket;
 
-        match try_imap_one_param(
-            ctx,
-            &param.imap,
-            &param.addr,
-            oauth2,
-            provider_strict_tls,
-            &mut imap,
-        )
-        .await
-        {
-            Ok(_) => {
-                imap_configured = true;
+        match try_imap_one_param(ctx, &param.imap, &param.addr, oauth2, provider_strict_tls).await {
+            Ok(configured_imap) => {
+                imap = Some(configured_imap);
                 break;
             }
             Err(e) => errors.push(e),
@@ -382,9 +371,10 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             600 + (800 - 600) * (1 + imap_server_index) / imap_servers_count
         );
     }
-    if !imap_configured {
-        bail!(nicer_configuration_error(ctx, errors).await);
-    }
+    let mut imap = match imap {
+        Some(imap) => imap,
+        None => bail!(nicer_configuration_error(ctx, errors).await),
+    };
 
     progress!(ctx, 850);
 
@@ -520,26 +510,38 @@ async fn try_imap_one_param(
     addr: &str,
     oauth2: bool,
     provider_strict_tls: bool,
-    imap: &mut Imap,
-) -> Result<(), ConfigurationError> {
+) -> Result<Imap, ConfigurationError> {
     let inf = format!(
         "imap: {}@{}:{} security={} certificate_checks={} oauth2={}",
         param.user, param.server, param.port, param.security, param.certificate_checks, oauth2
     );
     info!(context, "Trying: {}", inf);
 
-    if let Err(err) = imap
-        .connect(context, param, addr, oauth2, provider_strict_tls)
-        .await
-    {
-        info!(context, "failure: {}", err);
-        Err(ConfigurationError {
-            config: inf,
-            msg: err.to_string(),
-        })
-    } else {
-        info!(context, "success: {}", inf);
-        Ok(())
+    let (_s, r) = async_std::channel::bounded(1);
+
+    let mut imap = match Imap::new(param, addr, oauth2, provider_strict_tls, r).await {
+        Err(err) => {
+            info!(context, "failure: {}", err);
+            return Err(ConfigurationError {
+                config: inf,
+                msg: err.to_string(),
+            });
+        }
+        Ok(imap) => imap,
+    };
+
+    match imap.connect(context).await {
+        Err(err) => {
+            info!(context, "failure: {}", err);
+            return Err(ConfigurationError {
+                config: inf,
+                msg: err.to_string(),
+            });
+        }
+        Ok(()) => {
+            info!(context, "success: {}", inf);
+            return Ok(imap);
+        }
     }
 }
 
