@@ -3695,8 +3695,9 @@ pub unsafe extern "C" fn dc_accounts_get_selected_account(
     }
 
     let accounts = &*accounts;
-    let ctx = block_on(accounts.get_selected_account());
-    Box::into_raw(Box::new(ctx))
+    block_on(accounts.get_selected_account())
+        .map(|ctx| Box::into_raw(Box::new(ctx)))
+        .unwrap_or_else(std::ptr::null_mut)
 }
 
 #[no_mangle]

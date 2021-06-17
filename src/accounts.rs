@@ -65,14 +65,9 @@ impl Accounts {
     }
 
     /// Get the currently selected account.
-    pub async fn get_selected_account(&self) -> Context {
+    pub async fn get_selected_account(&self) -> Option<Context> {
         let id = self.config.get_selected_account().await;
-        self.accounts
-            .read()
-            .await
-            .get(&id)
-            .cloned()
-            .expect("inconsistent state")
+        self.accounts.read().await.get(&id).cloned()
     }
 
     /// Select the given account.
@@ -509,7 +504,7 @@ mod tests {
         assert_eq!(accounts.accounts.read().await.len(), 1);
         assert_eq!(accounts.config.get_selected_account().await, 1);
 
-        let ctx = accounts.get_selected_account().await;
+        let ctx = accounts.get_selected_account().await.unwrap();
         assert_eq!(
             "me@mail.com",
             ctx.get_config(crate::config::Config::Addr)
@@ -581,7 +576,7 @@ mod tests {
 
         let (id0_reopened, id1_reopened, id2_reopened) = {
             let accounts = Accounts::new("my_os".into(), p.clone()).await?;
-            let ctx = accounts.get_selected_account().await;
+            let ctx = accounts.get_selected_account().await.unwrap();
             assert_eq!(
                 ctx.get_config(crate::config::Config::Addr).await?,
                 Some("two@example.org".to_string())
