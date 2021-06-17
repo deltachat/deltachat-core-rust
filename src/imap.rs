@@ -92,9 +92,11 @@ pub struct Imap {
     interrupt: Option<stop_token::StopSource>,
     should_reconnect: bool,
     login_failed_once: bool,
+
     /// True if CAPABILITY command was run successfully once and config.can_* contain correct
     /// values.
     capabilities_determined: bool,
+
     pub(crate) connectivity: ConnectivityStore,
 }
 

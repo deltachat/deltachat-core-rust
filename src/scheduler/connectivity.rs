@@ -9,9 +9,11 @@ use crate::{context::Context, log::LogExt};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 pub enum Connectivity {
-    NotConnected = 0,
-    Connecting = 1,
-    Connected = 2,
+    NotConnected = 1000,
+    Connecting = 2000,
+    Working = 3000, // Fetching or sending messages
+    InterruptingIdle = 4000,
+    Connected = 5000,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
@@ -19,7 +21,8 @@ pub enum DetailedConnectivity {
     Error(String),
     Uninitialized,
     Connecting,
-    Working, // Fetching or sending messages
+    Working,
+    InterruptingIdle,
     Connected,
 }
 
@@ -113,12 +116,21 @@ impl fmt::Debug for ConnectivityStore {
 impl Context {
     /// Get the current connectivity, i.e. whether the device is connected to the IMAP server.
     /// One of:
-    /// - DC_CONNECTIVITY_NOT_CONNECTED (0): Show e.g. the string "Not connected" or a red dot
-    /// - DC_CONNECTIVITY_CONNECTING (1): Show e.g. the string "Connecting…" or a yellow dot
-    /// - DC_CONNECTIVITY_CONNECTED (2): Show e.g. the string "Connected" or a green dot
+    /// - DC_CONNECTIVITY_NOT_CONNECTED (1000-1999): Show e.g. the string "Not connected" or a red dot
+    /// - DC_CONNECTIVITY_CONNECTING (2000-2999): Show e.g. the string "Connecting…" or a yellow dot
+    /// - DC_CONNECTIVITY_WORKING (3000-3999): Show e.g. the string "Getting new messages" or a spinning wheel
+    /// - DC_CONNECTIVITY_INTERRUPTING_IDLE or DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string "Connected" or a green dot
+    ///
+    /// We don't use exact values but ranges here so that we can split up
+    /// states into multiple states in the future.
     ///
     /// Meant as a rough overview that can be shown
     /// e.g. in the title of the main screen.
+    ///
+    /// Also, you can use this to find out when the core is completely done with fetching:
+    /// - call dc_start_io() (in case IO was not running)
+    /// - call dc_maybe_network()
+    /// - wait until the connectivity is DC_CONNECTIVITY_CONNECTED (>=5000)
     ///
     /// If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
     pub async fn get_connectivity(&self) -> Connectivity {

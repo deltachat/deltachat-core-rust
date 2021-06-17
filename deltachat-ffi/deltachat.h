@@ -461,20 +461,31 @@ char*           dc_get_info                  (const dc_context_t* context);
 char*           dc_get_oauth2_url            (dc_context_t* context, const char* addr, const char* redirect_uri);
 
 
-#define DC_CONNECTIVITY_NOT_CONNECTED        0 
-#define DC_CONNECTIVITY_CONNECTING           1
-#define DC_CONNECTIVITY_CONNECTED            2 
+#define DC_CONNECTIVITY_NOT_CONNECTED        1000
+#define DC_CONNECTIVITY_CONNECTING           2000
+#define DC_CONNECTIVITY_WORKING              3000
+#define DC_CONNECTIVITY_INTERRUPTING_IDLE    4000
+#define DC_CONNECTIVITY_CONNECTED            5000
 
 
 /**
  * Get the current connectivity, i.e. whether the device is connected to the IMAP server.
  * One of:
- * - DC_CONNECTIVITY_NOT_CONNECTED (0): Show e.g. the string "Not connected" or a red dot
- * - DC_CONNECTIVITY_CONNECTING (1): Show e.g. the string "Connecting…" or a yellow dot
- * - DC_CONNECTIVITY_CONNECTED (2): Show e.g. the string "Connected" or a green dot
+ * - DC_CONNECTIVITY_NOT_CONNECTED (1000-1999): Show e.g. the string "Not connected" or a red dot
+ * - DC_CONNECTIVITY_CONNECTING (2000-2999): Show e.g. the string "Connecting…" or a yellow dot
+ * - DC_CONNECTIVITY_WORKING (3000-3999): Show e.g. the string "Getting new messages" or a spinning wheel
+ * - DC_CONNECTIVITY_INTERRUPTING_IDLE or DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string "Connected" or a green dot
+ *
+ * We don't use exact values but ranges here so that we can split up
+ * states into multiple states in the future.
  *
  * Meant as a rough overview that can be shown 
  * e.g. in the title of the main screen.
+ *
+ * Also, you can use this to find out when the core is completely done with fetching:
+ * - call dc_start_io() (in case IO was not running)
+ * - call dc_maybe_network()
+ * - wait until the connectivity is DC_CONNECTIVITY_CONNECTED (>=5000)
  *
  * If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
  *
