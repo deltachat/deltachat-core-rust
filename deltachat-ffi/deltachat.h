@@ -486,6 +486,11 @@ char*           dc_get_oauth2_url            (dc_context_t* context, const char*
  * - call dc_start_io() (in case IO was not running)
  * - call dc_maybe_network()
  * - wait until the connectivity is DC_CONNECTIVITY_CONNECTED (>=5000)
+ * That's also the reason why we have DC_CONNECTIVITY_INTERRUPTING_IDLE:
+ * When you call dc_maybe_network, the connectivity is immediately set to
+ * DC_CONNECTIVITY_INTERRUPTING_IDLE (without sending DC_EVENT_CONNECTIVITY_CHANGED).
+ * This way, you can be sure that as soon as the connectivity is DC_CONNECTIVITY_CONNECTED
+ * again, all emails were fetched.
  *
  * If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
  *

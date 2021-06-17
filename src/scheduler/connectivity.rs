@@ -33,6 +33,7 @@ impl DetailedConnectivity {
             DetailedConnectivity::Uninitialized => Connectivity::NotConnected,
             DetailedConnectivity::Connecting => Connectivity::Connecting,
             DetailedConnectivity::Working => Connectivity::Connected,
+            DetailedConnectivity::InterruptingIdle => Connectivity::InterruptingIdle,
             DetailedConnectivity::Connected => Connectivity::Connected,
         }
     }
@@ -43,7 +44,9 @@ impl DetailedConnectivity {
             DetailedConnectivity::Uninitialized => "🔴 Not started".to_string(),
             DetailedConnectivity::Connecting => "🟡 Connecting…".to_string(),
             DetailedConnectivity::Working => "⬇️ Getting new messages…".to_string(),
-            DetailedConnectivity::Connected => "🟢 Connected".to_string(),
+            DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
+                "🟢 Connected".to_string()
+            }
         }
     }
 
@@ -59,7 +62,7 @@ impl DetailedConnectivity {
             // We don't know any more than that the last message was sent successfully;
             // since sending the last message, connectivity could have changed, which we don't notice
             // until another message is sent
-            DetailedConnectivity::Connected => {
+            DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
                 "🟢 Your last message was sent successfully".to_string()
             }
         }
@@ -90,6 +93,19 @@ impl ConnectivityStore {
     }
     pub(crate) async fn set_working(&self, context: &Context) {
         self.set(context, DetailedConnectivity::Working).await;
+    }
+    /// Set the state to InterruptingIdle in case it was Connected before
+    /// because dc_maybe_network() was called
+    pub(crate) async fn idle_interrupted(&self) {
+        let mut lock = self.0.lock().await;
+        if *lock == DetailedConnectivity::Connected {
+            *lock = DetailedConnectivity::InterruptingIdle;
+        }
+        // We don't send a ConnectivityChanged event when setting the state to
+        // InterruptingIdle because the connectivity didn't actually change. We
+        // only distinguish between Connected and InterruptingIdle so that:
+        // After calling dc_maybe_network(), and then the connectivity is
+        // "Connected" again, we are done with fetching
     }
     pub(crate) async fn set_connected(&self, context: &Context) {
         self.set(context, DetailedConnectivity::Connected).await;

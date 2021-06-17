@@ -347,6 +347,10 @@ impl Scheduler {
                 .send(())
                 .await
                 .expect("mvbox start send, missing receiver");
+            // In get_connectivity() we return the worst connectivity of all folders so that if
+            // there is a problem with any folder, the user is notified about the problem.
+            // This means that if we just don't watch the mvbox, but there is no problem,
+            // we have to set the connectivity to "connected" i.e. "everything fine".
             mvbox_handlers
                 .connection
                 .connectivity
@@ -413,6 +417,19 @@ impl Scheduler {
     async fn maybe_network(&self) {
         if !self.is_running() {
             return;
+        }
+
+        if let Scheduler::Running {
+            inbox,
+            mvbox,
+            sentbox,
+            ..
+        } = &self
+        {
+            let states = [&inbox.state, &mvbox.state, &sentbox.state];
+            for s in &states {
+                s.connectivity.idle_interrupted().await;
+            }
         }
 
         self.interrupt_inbox(InterruptInfo::new(true, None))
