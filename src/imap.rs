@@ -429,7 +429,6 @@ impl Imap {
             bail!("IMAP operation attempted while it is torn down");
         }
         self.prepare(context).await?;
-        self.connectivity.set_working(context).await;
 
         while self
             .fetch_new_messages(context, &watch_folder, false)
@@ -680,6 +679,8 @@ impl Imap {
                 largest_uid_skipped = Some(current_uid);
             }
         }
+
+        self.connectivity.set_working(context).await;
 
         let (largest_uid_processed, error_cnt) = self
             .fetch_many_msgs(context, folder, uids, fetch_existing_msgs)
