@@ -770,7 +770,7 @@ mod test {
     /// existed and `PRAGMA` returned non-empty result.
     ///
     /// Statements were not finalized due to a bug in sqlx:
-    /// https://github.com/launchbadge/sqlx/issues/1147
+    /// <https://github.com/launchbadge/sqlx/issues/1147>
     #[async_std::test]
     async fn test_db_reopen() -> Result<()> {
         use tempfile::tempdir;

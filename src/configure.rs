@@ -453,7 +453,7 @@ async fn get_autoconfig(
 
     if let Ok(res) = moz_autoconfigure(
         ctx,
-        // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
+        // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see <https://releases.mozilla.org/pub/thunderbird/>,  which makes some sense
         &format!(
             "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
             &param_domain, &param_addr_urlencoded

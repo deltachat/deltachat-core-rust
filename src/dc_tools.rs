@@ -666,7 +666,7 @@ pub fn remove_subject_prefix(last_subject: &str) -> String {
         0
     } else {
         // "Antw:" is the longest abbreviation in
-        // https://en.wikipedia.org/wiki/List_of_email_subject_abbreviations#Abbreviations_in_other_languages,
+        // <https://en.wikipedia.org/wiki/List_of_email_subject_abbreviations#Abbreviations_in_other_languages>,
         // so look at the first _5_ characters:
         match last_subject.chars().take(5).position(|c| c == ':') {
             Some(prefix_end) => prefix_end + 1,

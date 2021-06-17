@@ -261,13 +261,13 @@ impl Job {
                         // instead of temporary ones.
                         let maybe_transient = match response.code {
                             // Sometimes servers send a permanent error when actually it is a temporary error
-                            // For documentation see https://tools.ietf.org/html/rfc3463
+                            // For documentation see <https://tools.ietf.org/html/rfc3463>
                             Code {
                                 category: Category::MailSystem,
                                 detail: Detail::Zero,
                                 ..
                             } => {
-                                // Ignore status code 5.5.0, see https://support.delta.chat/t/every-other-message-gets-stuck/877/2
+                                // Ignore status code 5.5.0, see <https://support.delta.chat/t/every-other-message-gets-stuck/877/2>
                                 // Maybe incorrectly configured Postfix milter with "reject" instead of "tempfail", which returns
                                 // "550 5.5.0 Service unavailable" instead of "451 4.7.1 Service unavailable - try again later".
                                 //
@@ -301,7 +301,7 @@ impl Job {
                                 // Sometimes we receive transient errors that should be permanent.
                                 // Any extended smtp status codes like x.1.1, x.1.2 or x.1.3 that we
                                 // receive as a transient error are misconfigurations of the smtp server.
-                                // See https://tools.ietf.org/html/rfc3463#section-3.2
+                                // See <https://tools.ietf.org/html/rfc3463#section-3.2>
                                 info!(context, "Smtp-job #{} Received extended status code {} for a transient error. This looks like a misconfigured smtp server, let's fail immediatly", self.job_id, first_word);
                                 Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
                             } else {
@@ -709,7 +709,7 @@ impl Job {
 
         // Make sure that if there now is a chat with a contact (created by an outgoing
         // message), then group contact requests from this contact should also be unblocked.
-        // See https://github.com/deltachat/deltachat-core-rust/issues/2097.
+        // See <https://github.com/deltachat/deltachat-core-rust/issues/2097>.
         for item in job_try!(chat::get_chat_msgs(context, DC_CHAT_ID_DEADDROP, 0, None).await) {
             if let ChatItem::Message { msg_id } = item {
                 let msg = match Message::load_from_db(context, msg_id).await {

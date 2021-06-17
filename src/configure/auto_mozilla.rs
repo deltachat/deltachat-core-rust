@@ -1,6 +1,6 @@
 //! # Thunderbird's Autoconfiguration implementation
 //!
-//! Documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration
+//! Documentation: <https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration>
 use quick_xml::events::{BytesStart, Event};
 
 use std::io::BufRead;

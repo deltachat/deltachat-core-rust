@@ -757,7 +757,7 @@ impl Message {
         } else if url.contains("$NOROOM") {
             // there are some usecases where a separate room is not needed to use a service
             // eg. if you let in people manually anyway, see discussion at
-            // https://support.delta.chat/t/videochat-with-webex/1412/4 .
+            // <https://support.delta.chat/t/videochat-with-webex/1412/4>.
             // hacks as hiding the room behind `#` are not reliable, therefore,
             // these services are supported by adding the string `$NOROOM` to the url.
             url.replace("$NOROOM", "")
@@ -1368,7 +1368,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         // before using viewtype other than Viewtype::File,
         // make sure, all target UIs support that type in the context of the used viewer/player.
         // if in doubt, it is better to default to Viewtype::File that passes handing to an external app.
-        // (cmp. https://developer.android.com/guide/topics/media/media-formats )
+        // (cmp. <https://developer.android.com/guide/topics/media/media-formats>)
         "3gp" => (Viewtype::Video, "video/3gpp"),
         "aac" => (Viewtype::Audio, "audio/aac"),
         "avi" => (Viewtype::Video, "video/x-msvideo"),

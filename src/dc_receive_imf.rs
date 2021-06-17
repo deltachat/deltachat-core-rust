@@ -128,7 +128,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // the other To:/Cc: in the 3rd pass)
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see
-    // https://github.com/deltachat/deltachat-core/issues/150)
+    // <https://github.com/deltachat/deltachat-core/issues/150>)
     //
     // If this is a mailing list email (i.e. list_id_header is some), don't change the displayname because in
     // a mailing list the sender displayname sometimes does not belong to the sender email address.
@@ -1963,7 +1963,7 @@ async fn check_verified_properties(
                 // - use the gossip-key as verified-key if there is no verified-key
                 // - OR if the verified-key does not match public-key or gossip-key
                 //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
-                //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
+                //   see <https://github.com/nextleap-project/countermitm/issues/46> for a discussion about this point)
                 if !is_verified
                     || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
                         && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
@@ -4009,7 +4009,7 @@ YEAAAAAA!.
 
     #[async_std::test]
     async fn test_dont_show_all_outgoing_msgs_in_self_chat() {
-        // Regression test for https://github.com/deltachat/deltachat-android/issues/1940:
+        // Regression test for <https://github.com/deltachat/deltachat-android/issues/1940>:
         // Some servers add a `Bcc: <Self>` header, which caused all outgoing messages to
         // be shown in the self-chat.
         let t = TestContext::new_alice().await;
