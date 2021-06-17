@@ -8,7 +8,6 @@ use async_std::{
 use crate::config::Config;
 use crate::context::Context;
 use crate::dc_tools::maybe_add_time_based_warnings;
-
 use crate::imap::Imap;
 use crate::job::{self, Thread};
 use crate::message::MsgId;
