@@ -173,9 +173,6 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
                 connection.connectivity.set_connecting(ctx).await;
-                // TODO/QUESTION Is the next line correct? I did this to prevent set_connected() below
-                // from being called if fetching failed; it totally makes sense to exit here
-                // if fetching failed instead of trying to IDLE, but maybe I am wrong?
                 return InterruptInfo::new(false, None);
             }
 
