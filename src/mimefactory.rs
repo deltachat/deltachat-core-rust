@@ -860,7 +860,7 @@ impl<'a> MimeFactory<'a> {
                 // This should prevent automatic replies,
                 // such as non-delivery reports.
                 //
-                // See https://tools.ietf.org/html/rfc3834
+                // See <https://tools.ietf.org/html/rfc3834>
                 //
                 // Adding this header without encryption leaks some
                 // information about the message contents, but it can
@@ -1395,7 +1395,7 @@ mod tests {
             Address::new_mailbox_with_name(display_name.to_string(), addr.to_string())
         );
 
-        // Addresses should not be unnecessarily be encoded, see https://github.com/deltachat/deltachat-core-rust/issues/1575:
+        // Addresses should not be unnecessarily be encoded, see <https://github.com/deltachat/deltachat-core-rust/issues/1575>:
         assert_eq!(s, "a space <x@y.org>");
     }
 
@@ -1859,7 +1859,7 @@ mod tests {
 
     #[test]
     fn test_no_empty_lines_in_header() {
-        // See https://github.com/deltachat/deltachat-core-rust/issues/2118
+        // See <https://github.com/deltachat/deltachat-core-rust/issues/2118>
         let to_tuples = [
             ("Nnnn", "nnn@ttttttttt.de"),
             ("😀 ttttttt", "ttttttt@rrrrrr.net"),

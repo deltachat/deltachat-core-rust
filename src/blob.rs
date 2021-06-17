@@ -74,7 +74,7 @@ impl<'a> BlobObject<'a> {
 
         // workaround a bug in async-std
         // (the executor does not handle blocking operation in Drop correctly,
-        // see https://github.com/async-rs/async-std/issues/900 )
+        // see <https://github.com/async-rs/async-std/issues/900>)
         let _ = file.flush().await;
 
         let blob = BlobObject {

@@ -42,7 +42,7 @@ mod tests {
     #[test]
     fn test_str_to_angle() {
         // Test against test vectors from
-        // https://xmpp.org/extensions/xep-0392.html#testvectors-fullrange-no-cvd
+        // <https://xmpp.org/extensions/xep-0392.html#testvectors-fullrange-no-cvd>
         assert!((str_to_angle("Romeo") - 327.255249).abs() < 1e-6);
         assert!((str_to_angle("juliet@capulet.lit") - 209.410400).abs() < 1e-6);
         assert!((str_to_angle("😺") - 331.199341).abs() < 1e-6);

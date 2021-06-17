@@ -247,8 +247,8 @@ fn render_message(lines: &[&str], is_cut_at_end: bool) -> String {
 fn is_empty_line(buf: &str) -> bool {
     buf.chars().all(char::is_whitespace)
     // for some time, this checked for `char <= ' '`,
-    // see discussion at: https://github.com/deltachat/deltachat-core-rust/pull/402#discussion_r317062392
-    // and https://github.com/deltachat/deltachat-core-rust/pull/2104/files#r538973613
+    // see discussion at: <https://github.com/deltachat/deltachat-core-rust/pull/402#discussion_r317062392>
+    // and <https://github.com/deltachat/deltachat-core-rust/pull/2104/files#r538973613>
 }
 
 fn is_quoted_headline(buf: &str) -> bool {
@@ -396,7 +396,7 @@ mod tests {
         assert!(!is_cut);
         assert_eq!(footer, None);
 
-        // Nonstandard footer sent by https://siju.es/
+        // Nonstandard footer sent by <https://siju.es/>
         let input = "Message text here\n---Desde mi teléfono con SIJÚ\n\nQuote here".to_string();
         let (plain, _, is_cut, _, footer) = simplify(input.clone(), false);
         assert_eq!(plain, "Message text here [...]");

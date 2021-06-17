@@ -86,7 +86,7 @@ impl<'a> PublicKeyTrait for SignedPublicKeyOrSubkey<'a> {
     }
 }
 
-/// Split data from PGP Armored Data as defined in https://tools.ietf.org/html/rfc4880#section-6.2.
+/// Split data from PGP Armored Data as defined in <https://tools.ietf.org/html/rfc4880#section-6.2>.
 ///
 /// Returns (type, headers, base64 encoded body).
 pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, String>, Vec<u8>)> {
