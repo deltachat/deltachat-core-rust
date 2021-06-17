@@ -30,19 +30,13 @@ impl Accounts {
         Accounts::open(dir).await
     }
 
-    /// Creates a new default structure, including a default account.
+    /// Creates a new default structure.
     pub async fn create(os_name: String, dir: &PathBuf) -> Result<()> {
         fs::create_dir_all(dir)
             .await
             .context("failed to create folder")?;
 
-        // create default account
-        let config = Config::new(os_name.clone(), dir).await?;
-        let account_config = config.new_account(dir).await?;
-
-        Context::new(os_name, account_config.dbfile().into(), account_config.id)
-            .await
-            .context("failed to create default account")?;
+        Config::new(os_name.clone(), dir).await?;
 
         Ok(())
     }
@@ -444,6 +438,8 @@ mod tests {
         let p: PathBuf = dir.path().join("accounts1").into();
 
         let accounts1 = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        accounts1.add_account().await.unwrap();
+
         let accounts2 = Accounts::open(p).await.unwrap();
 
         assert_eq!(accounts1.accounts.read().await.len(), 1);
@@ -466,7 +462,11 @@ mod tests {
         let p: PathBuf = dir.path().join("accounts").into();
 
         let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        assert_eq!(accounts.accounts.read().await.len(), 0);
+        assert_eq!(accounts.config.get_selected_account().await, 0);
 
+        let id = accounts.add_account().await.unwrap();
+        assert_eq!(id, 1);
         assert_eq!(accounts.accounts.read().await.len(), 1);
         assert_eq!(accounts.config.get_selected_account().await, 1);
 
@@ -489,8 +489,8 @@ mod tests {
         let p: PathBuf = dir.path().join("accounts").into();
 
         let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
-        assert_eq!(accounts.accounts.read().await.len(), 1);
-        assert_eq!(accounts.config.get_selected_account().await, 1);
+        assert_eq!(accounts.accounts.read().await.len(), 0);
+        assert_eq!(accounts.config.get_selected_account().await, 0);
 
         let extern_dbfile: PathBuf = dir.path().join("other").into();
         let ctx = Context::new("my_os".into(), extern_dbfile.clone(), 0)
@@ -506,8 +506,8 @@ mod tests {
             .migrate_account(extern_dbfile.clone())
             .await
             .unwrap();
-        assert_eq!(accounts.accounts.read().await.len(), 2);
-        assert_eq!(accounts.config.get_selected_account().await, 2);
+        assert_eq!(accounts.accounts.read().await.len(), 1);
+        assert_eq!(accounts.config.get_selected_account().await, 1);
 
         let ctx = accounts.get_selected_account().await;
         assert_eq!(
@@ -527,7 +527,7 @@ mod tests {
 
         let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
 
-        for expected_id in 2..10 {
+        for expected_id in 1..10 {
             let id = accounts.add_account().await.unwrap();
             assert_eq!(id, expected_id);
         }
@@ -546,8 +546,9 @@ mod tests {
 
         let (id0, id1, id2) = {
             let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+            accounts.add_account().await?;
             let ids = accounts.get_all().await;
-            assert_eq!(ids.len(), 1); // Accounts::new() creates a default account
+            assert_eq!(ids.len(), 1);
 
             let id0 = *ids.get(0).unwrap();
             let ctx = accounts.get_account(id0).await.unwrap();
