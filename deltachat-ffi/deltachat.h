@@ -2486,6 +2486,7 @@ dc_context_t*  dc_accounts_get_account          (dc_accounts_t* accounts, uint32
  *     unmanaged account-context as created by dc_context_new().
  *     Once you do no longer need the context-object, you have to call dc_context_unref() on it,
  *     which, however, will not close the account but only decrease a reference counter.
+ *     If there is no selected account, NULL is returned.
  */
 dc_context_t*  dc_accounts_get_selected_account (dc_accounts_t* accounts);
 
