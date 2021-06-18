@@ -252,7 +252,8 @@ impl Job {
         let status = match smtp.send(context, recipients, message, job_id).await {
             Err(crate::smtp::send::Error::SendError(err)) => {
                 // Remote error, retry later.
-                warn!(context, "SMTP failed to send: {:?}", err);
+                warn!(context, "SMTP failed to send: {:?}", &err);
+                smtp.connectivity.set_err(context, &err).await;
                 self.pending_error = Some(err.to_string());
 
                 let res = match err {
