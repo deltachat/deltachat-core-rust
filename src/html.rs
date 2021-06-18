@@ -248,7 +248,7 @@ impl MsgId {
         let rawmime = message::get_mime_headers(context, self).await?;
 
         if !rawmime.is_empty() {
-            match HtmlMsgParser::from_bytes(context, rawmime.as_bytes()).await {
+            match HtmlMsgParser::from_bytes(context, &rawmime).await {
                 Err(err) => {
                     warn!(context, "get_html: parser error: {}", err);
                     Ok(None)
@@ -424,10 +424,10 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     }
 
     #[async_std::test]
-    async fn test_get_html_empty() {
+    async fn test_get_html_invalid_msgid() {
         let t = TestContext::new().await;
         let msg_id = MsgId::new(100);
-        assert!(msg_id.get_html(&t).await.unwrap().is_none())
+        assert!(msg_id.get_html(&t).await.is_err())
     }
 
     #[async_std::test]
@@ -549,5 +549,27 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(msg.mime_modified);
         let html = msg.get_id().get_html(&bob).await.unwrap().unwrap();
         assert!(html.contains("<b>html</b> text"));
+    }
+
+    #[async_std::test]
+    async fn test_cp1252_html() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/cp1252-html.eml"),
+            "INBOX",
+            0,
+            false,
+        )
+        .await?;
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.viewtype, Viewtype::Text);
+        assert!(msg.text.as_ref().unwrap().contains("foo bar ä ö ü ß"));
+        assert!(msg.has_html());
+        let html = msg.get_id().get_html(&t).await?.unwrap();
+        println!("{}", html);
+        assert!(html.contains("foo bar ä ö ü ß"));
+        Ok(())
     }
 }

@@ -7,6 +7,7 @@ use anyhow::{ensure, format_err, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
+use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
@@ -1442,18 +1443,25 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
 /// only if `dc_set_config(context, "save_mime_headers", "1")`
 /// was called before.
 ///
-/// Returns an empty string if there are no headers saved for the given message,
+/// Returns an empty vector if there are no headers saved for the given message,
 /// e.g. because of save_mime_headers is not set
 /// or the message is not incoming.
-pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<String> {
+pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8>> {
     let headers = context
         .sql
-        .query_get_value(
+        .query_row(
             "SELECT mime_headers FROM msgs WHERE id=?;",
             paramsv![msg_id],
+            |row| {
+                row.get(0).or_else(|err| match row.get_ref(0)? {
+                    ValueRef::Null => Ok(Vec::new()),
+                    ValueRef::Text(text) => Ok(text.to_vec()),
+                    ValueRef::Blob(blob) => Ok(blob.to_vec()),
+                    ValueRef::Integer(_) | ValueRef::Real(_) => Err(err),
+                })
+            },
         )
-        .await?
-        .unwrap_or_default();
+        .await?;
     Ok(headers)
 }
 

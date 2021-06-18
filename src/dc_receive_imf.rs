@@ -942,12 +942,12 @@ async fn add_parts(
 
     let mime_headers = if save_mime_headers || save_mime_modified {
         if mime_parser.was_encrypted() && !mime_parser.decoded_data.is_empty() {
-            String::from_utf8_lossy(&mime_parser.decoded_data).to_string()
+            mime_parser.decoded_data.clone()
         } else {
-            String::from_utf8_lossy(imf_raw).to_string()
+            imf_raw.to_vec()
         }
     } else {
-        "".into()
+        Vec::new()
     };
 
     let sent_timestamp = *sent_timestamp;
@@ -1050,9 +1050,9 @@ INSERT INTO msgs
             part.bytes as isize,
             is_hidden,
             if (save_mime_headers || mime_modified) && !trash {
-                mime_headers.to_string()
+                mime_headers.clone()
             } else {
-                "".to_string()
+                Vec::new()
             },
             mime_in_reply_to,
             mime_references,
@@ -3661,8 +3661,9 @@ YEAAAAAA!.
         assert_eq!(msg.get_text(), Some("hi!".to_string()));
         assert!(!msg.get_showpadlock());
         let mime = message::get_mime_headers(&bob, msg.id).await?;
-        assert!(mime.contains("Received:"));
-        assert!(mime.contains("From:"));
+        let mime_str = String::from_utf8_lossy(&mime);
+        assert!(mime_str.contains("Received:"));
+        assert!(mime_str.contains("From:"));
 
         // another one, from bob to alice, that gets encrypted
         let chat_bob = bob.create_chat(&alice).await;
@@ -3672,8 +3673,9 @@ YEAAAAAA!.
         assert_eq!(msg.get_text(), Some("ho!".to_string()));
         assert!(msg.get_showpadlock());
         let mime = message::get_mime_headers(&alice, msg.id).await?;
-        assert!(mime.contains("Received:"));
-        assert!(mime.contains("From:"));
+        let mime_str = String::from_utf8_lossy(&mime);
+        assert!(mime_str.contains("Received:"));
+        assert!(mime_str.contains("From:"));
         Ok(())
     }
 
