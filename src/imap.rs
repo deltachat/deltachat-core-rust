@@ -230,9 +230,6 @@ impl Imap {
     ///
     /// It is safe to call this function if already connected, actions are performed only as needed.
     ///
-    /// Does not emit network errors, can be used to try various parameters during
-    /// autoconfiguration.
-    ///
     /// Calling this function is not enough to perform IMAP operations. Use [`Imap::prepare`]
     /// instead if you are going to actually use connection rather than trying connection
     /// parameters.
@@ -380,9 +377,6 @@ impl Imap {
     ///
     /// Ensure that IMAP client is connected, folders are created and IMAP capabilities are
     /// determined.
-    ///
-    /// This function emits network error if it fails.  It should not be used during configuration
-    /// to avoid showing failed attempt errors to the user.
     pub async fn prepare(&mut self, context: &Context) -> Result<()> {
         let res = self.connect(context).await;
         if let Err(ref err) = res {
