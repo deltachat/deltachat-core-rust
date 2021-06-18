@@ -340,7 +340,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    https://github.com/cracker0dks/basicwebrtc which some UIs have native support for.
  *                    The type `jitsi:` may be handled by external apps.
  *                    If no type is prefixed, the videochat is handled completely in a browser.
- * - `bot`          = Set to "1" if this is a bot. E.g. prevents adding the "Device messages" and "Saved messages" chats.
+ * - `bot`          = Set to "1" if this is a bot.
+ *                    Prevents adding the "Device messages" and "Saved messages" chats,
+ *                    adds Auto-Submitted header to outgoing messages.
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
@@ -3493,6 +3495,16 @@ int             dc_msg_get_duration           (const dc_msg_t* msg);
  */
 int             dc_msg_get_showpadlock        (const dc_msg_t* msg);
 
+/**
+ * Check if incoming message is a bot message, i.e. automatically submitted.
+ *
+ * Return value for outgoing messages is unspecified.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=message is submitted automatically, 0=message is not automatically submitted.
+ */
+int             dc_msg_is_bot                 (const dc_msg_t* msg); 
 
 /**
  * Get ephemeral timer duration for message.

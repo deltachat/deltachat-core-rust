@@ -60,6 +60,9 @@ pub enum Param {
     /// For Messages
     WantsMdn = b'r',
 
+    /// For Messages: a message with Auto-Submitted header ("bot").
+    Bot = b'b',
+
     /// For Messages: unset or 0=not forwarded,
     /// 1=forwarded from unknown msg_id, >9 forwarded from msg_id
     Forwarded = b'a',

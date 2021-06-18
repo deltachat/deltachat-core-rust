@@ -601,6 +601,11 @@ impl Message {
         self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
     }
 
+    /// Returns true if message is Auto-Submitted.
+    pub fn is_bot(&self) -> bool {
+        self.param.get_bool(Param::Bot).unwrap_or_default()
+    }
+
     pub fn get_ephemeral_timer(&self) -> EphemeralTimer {
         self.ephemeral_timer
     }
@@ -2865,6 +2870,52 @@ mod tests {
 
         markseen_msgs(&bob, vec![bob_msg.id]).await?;
         assert_state(&bob, bob_msg.id, MessageState::InSeen).await;
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_is_bot() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Alice receives a message from Bob the bot.
+        dc_receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: alice@example.com\n\
+                    Chat-Version: 1.0\n\
+                    Message-ID: <123@example.com>\n\
+                    Auto-Submitted: auto-generated\n\
+                    Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
+                    \n\
+                    hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_text().unwrap(), "hello".to_string());
+        assert!(msg.is_bot());
+
+        // Alice receives a message from Bob who is not the bot anymore.
+        dc_receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: alice@example.com\n\
+                    Chat-Version: 1.0\n\
+                    Message-ID: <456@example.com>\n\
+                    Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
+                    \n\
+                    hello again\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await?;
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_text().unwrap(), "hello again".to_string());
+        assert!(!msg.is_bot());
 
         Ok(())
     }
