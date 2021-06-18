@@ -72,6 +72,10 @@ CREATE TABLE msgs (
     timestamp_sent INTEGER DEFAULT 0,
     timestamp_rcvd INTEGER DEFAULT 0,
     hidden INTEGER DEFAULT 0,
+    -- mime_headers column actually contains BLOBs, i.e. it may
+    -- contain non-UTF8 MIME messages.  TEXT was a bad choice, but
+    -- thanks to SQLite 3 being dynamically typed, there is no need to
+    -- change column type.
     mime_headers TEXT,
     mime_in_reply_to TEXT,
     mime_references TEXT,

@@ -170,18 +170,30 @@ pub(crate) trait Strdup {
     unsafe fn strdup(&self) -> *mut libc::c_char;
 }
 
-impl<T: AsRef<str>> Strdup for T {
+impl Strdup for str {
     unsafe fn strdup(&self) -> *mut libc::c_char {
-        let tmp = CString::new_lossy(self.as_ref());
+        let tmp = CString::new_lossy(self);
         dc_strdup(tmp.as_ptr())
     }
 }
 
-// We can not implement for AsRef<OsStr> because we already implement
-// AsRev<str> and this conflicts.  So implement for Path directly.
+impl Strdup for String {
+    unsafe fn strdup(&self) -> *mut libc::c_char {
+        let s: &str = self;
+        s.strdup()
+    }
+}
+
 impl Strdup for std::path::Path {
     unsafe fn strdup(&self) -> *mut libc::c_char {
         let tmp = self.to_c_string().unwrap_or_else(|_| CString::default());
+        dc_strdup(tmp.as_ptr())
+    }
+}
+
+impl Strdup for [u8] {
+    unsafe fn strdup(&self) -> *mut libc::c_char {
+        let tmp = CString::new_lossy(self);
         dc_strdup(tmp.as_ptr())
     }
 }
