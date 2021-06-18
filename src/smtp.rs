@@ -29,7 +29,7 @@ pub enum Error {
     },
     #[error("SMTP: failed to connect: {0}")]
     ConnectionFailure(#[source] smtp::error::Error),
-    #[error("SMTP: failed to setup connection {0:?}")]
+    #[error("SMTP: failed to setup connection {0}")]
     ConnectionSetupFailure(#[source] smtp::error::Error),
     #[error("SMTP: oauth2 error {address}")]
     Oauth2Error { address: String },
