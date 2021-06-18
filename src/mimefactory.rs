@@ -491,6 +491,11 @@ impl<'a> MimeFactory<'a> {
                 "Auto-Submitted".to_string(),
                 "auto-replied".to_string(),
             ));
+        } else if context.get_config_bool(Config::Bot).await? {
+            headers.unprotected.push(Header::new(
+                "Auto-Submitted".to_string(),
+                "auto-generated".to_string(),
+            ));
         }
 
         if self.req_mdn {

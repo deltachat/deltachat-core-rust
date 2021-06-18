@@ -1430,6 +1430,33 @@ class TestOnlineAccount:
         # Majority prefers encryption now
         assert msg5.is_encrypted()
 
+    def test_bot(self, acfactory, lp):
+        """Test that bot messages can be identified as such"""
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1.set_config("bot", "0")
+        ac2.set_config("bot", "1")
+
+        lp.sec("ac1: create chat with ac2")
+        chat = acfactory.get_accepted_chat(ac1, ac2)
+
+        lp.sec("sending a message from ac1 to ac2")
+        text1 = "hello"
+        chat.send_text(text1)
+
+        lp.sec("wait for ac2 to receive a message")
+        msg_in = ac2._evtracker.wait_next_incoming_message()
+        assert msg_in.text == text1
+        assert not msg_in.is_bot()
+
+        lp.sec("sending a message from ac2 to ac1")
+        text2 = "reply"
+        msg_in.chat.send_text(text2)
+
+        lp.sec("wait for ac1 to receive a message")
+        msg_in = ac1._evtracker.wait_next_incoming_message()
+        assert msg_in.text == text2
+        assert msg_in.is_bot()
+
     def test_quote_encrypted(self, acfactory, lp):
         """Test that replies to encrypted messages with quotes are encrypted."""
         ac1, ac2 = acfactory.get_two_online_accounts()

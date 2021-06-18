@@ -498,6 +498,12 @@ impl MimeMessage {
 
             self.parts.push(part);
         }
+
+        if self.header.contains_key("auto-submitted") {
+            for part in &mut self.parts {
+                part.param.set(Param::Bot, "1");
+            }
+        }
     }
 
     async fn avatar_action_from_header(
