@@ -479,6 +479,27 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_accounts_remove_last() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let p: PathBuf = dir.path().join("accounts").into();
+
+        let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+        assert!(accounts.get_selected_account().await.is_none());
+        assert_eq!(accounts.config.get_selected_account().await, 0);
+
+        let id = accounts.add_account().await?;
+        assert!(accounts.get_selected_account().await.is_some());
+        assert_eq!(id, 1);
+        assert_eq!(accounts.accounts.read().await.len(), 1);
+        assert_eq!(accounts.config.get_selected_account().await, id);
+
+        accounts.remove_account(id).await?;
+        assert!(accounts.get_selected_account().await.is_none());
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_migrate_account() {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts").into();
