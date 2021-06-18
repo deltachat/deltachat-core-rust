@@ -3816,6 +3816,17 @@ pub unsafe extern "C" fn dc_accounts_import_account(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_connectivity(accounts: *mut dc_accounts_t) -> libc::c_int {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_connectivity()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+    block_on(async move { accounts.get_connectivity().await as u32 as libc::c_int })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_accounts_start_io(accounts: *mut dc_accounts_t) {
     if accounts.is_null() {
         eprintln!("ignoring careless call to dc_accounts_start_io()");

@@ -2560,6 +2560,21 @@ int            dc_accounts_select_account       (dc_accounts_t* accounts, uint32
 
 
 /**
+ * Get the lowest connectivity of all accounts managed by the account manager
+ * (this means: lower i.e. worse connectivities take priority).
+ *
+ * See dc_get_connectivity() for details.
+ *
+ * Unlike e.g. dc_maybe_network(), dc_get_connectivity() is also allowed to be
+ * called for accounts created by the accounts manager.
+ *
+ * @memberof dc_accounts_t
+ * @return The lowest connectivity of all accounts.
+ */
+int             dc_accounts_get_connectivity    (dc_accounts_t* accounts);
+
+
+/**
  * Start job and IMAP/SMTP tasks for all accounts managed by the account manager.
  * If IO is already running, nothing happens.
  * This is similar to dc_start_io(), which, however,

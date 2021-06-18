@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::BTreeMap;
 
 use async_std::fs;
@@ -11,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::context::Context;
 use crate::events::Event;
+use crate::scheduler::connectivity::Connectivity;
 
 /// Account manager, that can handle multiple accounts in a single place.
 #[derive(Debug, Clone)]
@@ -207,6 +209,18 @@ impl Accounts {
                 Err(err)
             }
         }
+    }
+
+    pub async fn get_connectivity(&self) -> Connectivity {
+        let accounts = &*self.accounts.read().await;
+        if accounts.is_empty() {
+            return Connectivity::NotConnected;
+        }
+        let mut res = Connectivity::Connected;
+        for account in accounts.values() {
+            res = min(res, account.get_connectivity().await);
+        }
+        res
     }
 
     pub async fn start_io(&self) {
