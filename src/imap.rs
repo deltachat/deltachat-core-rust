@@ -676,7 +676,9 @@ impl Imap {
             }
         }
 
-        self.connectivity.set_working(context).await;
+        if !uids.is_empty() {
+            self.connectivity.set_working(context).await;
+        }
 
         let (largest_uid_processed, error_cnt) = self
             .fetch_many_msgs(context, folder, uids, fetch_existing_msgs)
