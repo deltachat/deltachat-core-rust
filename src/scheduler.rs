@@ -172,7 +172,6 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             if let Err(err) = connection.fetch(ctx, &watch_folder).await {
                 connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
-                connection.connectivity.set_connecting(ctx).await;
                 return InterruptInfo::new(false, None);
             }
 
@@ -192,7 +191,6 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 match connection.idle(ctx, Some(watch_folder)).await {
                     Ok(v) => v,
                     Err(err) => {
-                        connection.connectivity.set_connecting(ctx).await;
                         connection.trigger_reconnect(ctx).await;
                         warn!(ctx, "{}", err);
                         InterruptInfo::new(false, None)

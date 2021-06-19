@@ -245,6 +245,8 @@ impl Imap {
             return Ok(());
         }
 
+        self.connectivity.set_connecting(context).await;
+
         let oauth2 = self.config.oauth2;
 
         let connection_res: ImapResult<Client> = if self.config.lp.security == Socket::Starttls
