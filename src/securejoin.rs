@@ -17,7 +17,7 @@ use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
-use crate::key::{self, DcKey, Fingerprint, SignedPublicKey};
+use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::message::Message;
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
@@ -354,12 +354,6 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
 #[derive(Debug, thiserror::Error)]
 #[error("Failed sending handshake message")]
 pub struct SendMsgError(#[from] anyhow::Error);
-
-impl From<key::Error> for SendMsgError {
-    fn from(source: key::Error) -> Self {
-        Self(anyhow::Error::new(source))
-    }
-}
 
 async fn send_handshake_msg(
     context: &Context,

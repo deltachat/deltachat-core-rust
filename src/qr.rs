@@ -86,11 +86,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
     };
     let fingerprint: Fingerprint = match fingerprint.parse() {
         Ok(fp) => fp,
-        Err(err) => {
-            return Error::new(err)
-                .context("Failed to parse fingerprint in QR code")
-                .into()
-        }
+        Err(err) => return err.context("Failed to parse fingerprint in QR code").into(),
     };
 
     let param: BTreeMap<&str, &str> = fragment

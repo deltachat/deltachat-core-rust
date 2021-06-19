@@ -9,7 +9,7 @@ use std::convert::TryFrom;
 
 use anyhow::Result;
 
-use crate::key::{Fingerprint, FingerprintError};
+use crate::key::Fingerprint;
 use crate::lot::{Lot, LotState};
 
 /// Represents the data from a QR-code scan.
@@ -103,8 +103,6 @@ impl TryFrom<Lot> for QrInvite {
 pub enum QrError {
     #[error("Unsupported protocol in QR-code")]
     UnsupportedProtocol,
-    #[error("Failed to read fingerprint")]
-    InvalidFingerprint(#[from] FingerprintError),
     #[error("Missing fingerprint")]
     MissingFingerprint,
     #[error("Missing invitenumber")]
