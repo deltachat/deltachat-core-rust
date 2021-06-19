@@ -1,17 +1,15 @@
 //! Verified contact protocol implementation as [specified by countermitm project](https://countermitm.readthedocs.io/en/stable/new.html#setup-contact-protocol).
 
 use std::convert::TryFrom;
-use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, bail, Context as _, Error, Result};
-use async_std::channel::Receiver;
+use anyhow::{bail, Context as _, Error, Result};
 use async_std::sync::Mutex;
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::{self, Chat, ChatId, ChatIdBlocked};
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
-use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_LAST_SPECIAL};
+use crate::constants::{Blocked, Chattype, Viewtype, DC_CONTACT_ID_LAST_SPECIAL};
 use crate::contact::{Contact, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::dc_tools::time;
@@ -81,8 +79,8 @@ enum StartedProtocolVariant {
     SetupContact,
     /// The secure-join protocol, to join a group.
     SecureJoin {
-        ongoing_receiver: Receiver<()>,
         group_id: String,
+        group_name: String,
     },
 }
 
@@ -110,16 +108,14 @@ impl Bob {
             *guard = None;
         }
         let variant = match invite {
-            QrInvite::Group { ref grpid, .. } => {
-                let receiver = context
-                    .alloc_ongoing()
-                    .await
-                    .map_err(|_| JoinError::OngoingRunning)?;
-                StartedProtocolVariant::SecureJoin {
-                    ongoing_receiver: receiver,
-                    group_id: grpid.clone(),
-                }
-            }
+            QrInvite::Group {
+                ref grpid,
+                ref name,
+                ..
+            } => StartedProtocolVariant::SecureJoin {
+                group_id: grpid.clone(),
+                group_name: name.clone(),
+            },
             _ => StartedProtocolVariant::SetupContact,
         };
         match BobState::start_protocol(context, invite).await {
@@ -313,39 +309,22 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
             Ok(chat_id)
         }
         StartedProtocolVariant::SecureJoin {
-            ongoing_receiver,
             group_id,
+            group_name,
         } => {
-            // for a group-join, wait until the protocol is finished and the group is created
-            ongoing_receiver
-                .recv()
-                .await
-                .map_err(|_| JoinError::OngoingSenderDropped)?;
-
-            // handle_securejoin_handshake() calls Context::stop_ongoing before the group
-            // chat is created (it is created after handle_securejoin_handshake() returns by
-            // dc_receive_imf()).  As a hack we just wait a bit for it to appear.
-
-            // If the protocol is aborted by Bob, this timeout will also happen.
-            let start = Instant::now();
-            let chatid = loop {
-                {
-                    match chat::get_chat_id_by_grpid(context, &group_id).await? {
-                        Some((chatid, _is_protected, _blocked)) => break chatid,
-                        None => {
-                            if start.elapsed() > Duration::from_secs(7) {
-                                context.free_ongoing().await;
-                                return Err(JoinError::Other(anyhow!(
-                                    "Ongoing sender dropped (this is a bug)"
-                                )));
-                            }
-                        }
-                    }
-                }
-                async_std::task::sleep(Duration::from_millis(50)).await;
-            };
-            context.free_ongoing().await;
-            Ok(chatid)
+            // for a group-join, also create the chat soon and let the verification run in background.
+            // however, the group will become usable only when the protocol has finished.
+            // XXX TODO: create record only if not yet exist
+            let chat_id = ChatId::create_multiuser_record(
+                context,
+                Chattype::Group,
+                group_id,
+                group_name,
+                Blocked::Not,
+                ProtectionStatus::Unprotected, // protection is added later as needed
+            )
+            .await?;
+            Ok(chat_id)
         }
     }
 }
@@ -947,6 +926,7 @@ mod tests {
     use crate::events::Event;
     use crate::peerstate::Peerstate;
     use crate::test_utils::TestContext;
+    use std::time::Duration;
 
     #[async_std::test]
     async fn test_setup_contact() -> Result<()> {
@@ -1347,7 +1327,6 @@ mod tests {
         };
 
         let sent = bob.pop_sent_msg().await;
-        assert!(bob.ctx.has_ongoing().await);
         assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
