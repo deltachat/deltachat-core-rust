@@ -94,8 +94,8 @@ impl ConnectivityStore {
     pub(crate) async fn set_working(&self, context: &Context) {
         self.set(context, DetailedConnectivity::Working).await;
     }
-    /// Set the state to InterruptingIdle in case it was Connected before
-    /// because dc_maybe_network() was called
+    /// Set the state to InterruptingIdle in case it was `Connected` before.
+    /// Called for all folders during `dc_maybe_network()`.
     pub(crate) async fn idle_interrupted(&self) {
         let mut lock = self.0.lock().await;
         if *lock == DetailedConnectivity::Connected {
@@ -103,9 +103,9 @@ impl ConnectivityStore {
         }
         // We don't send a ConnectivityChanged event when setting the state to
         // InterruptingIdle because the connectivity didn't actually change. We
-        // only distinguish between Connected and InterruptingIdle so that:
-        // After calling dc_maybe_network(), and then the connectivity is
-        // "Connected" again, we are done with fetching
+        // only distinguish between `Connected` and `InterruptingIdle` so that:
+        // After calling dc_maybe_network(), when the connectivity is
+        // `Connected` again, DC is done with fetching from all folders once.
     }
     pub(crate) async fn set_connected(&self, context: &Context) {
         self.set(context, DetailedConnectivity::Connected).await;
