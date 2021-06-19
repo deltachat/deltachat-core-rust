@@ -453,12 +453,12 @@ impl ChatId {
     /// Sets draft message.
     ///
     /// Passing `None` as message just deletes the draft
-    pub async fn set_draft(self, context: &Context, msg: Option<&mut Message>) -> Result<()> {
+    pub async fn set_draft(self, context: &Context, mut msg: Option<&mut Message>) -> Result<()> {
         if self.is_special() {
             return Ok(());
         }
 
-        let changed = match msg {
+        let changed = match &mut msg {
             None => self.maybe_delete_draft(context).await?,
             Some(msg) => self.set_draft_raw(context, msg).await?,
         };
@@ -466,7 +466,14 @@ impl ChatId {
         if changed {
             context.emit_event(EventType::MsgsChanged {
                 chat_id: self,
-                msg_id: MsgId::new(0),
+                msg_id: if msg.is_some() {
+                    match self.get_draft_msg_id(context).await? {
+                        Some(msg_id) => msg_id,
+                        None => MsgId::new(0),
+                    }
+                } else {
+                    MsgId::new(0)
+                },
             });
         }
 
