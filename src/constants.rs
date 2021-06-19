@@ -173,7 +173,7 @@ pub const DC_ELLIPSE: &str = "[...]";
 /// to keep bubbles and chat flow usable,
 /// and to avoid problems with controls using very long texts,
 /// we limit the text length to DC_DESIRED_TEXT_LEN.
-/// if the text is longer, the full text can be retrieved usind has_html()/get_html().
+/// if the text is longer, the full text can be retrieved using has_html()/get_html().
 ///
 /// we are using a bit less than DC_MAX_GET_TEXT_LEN to avoid cutting twice
 /// (a bit less as truncation may not be exact and ellipses may be added).
