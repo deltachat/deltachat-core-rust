@@ -27,11 +27,11 @@ pub enum Error {
         #[source]
         error: error::Error,
     },
-    #[error("SMTP: failed to connect: {0}")]
+    #[error("SMTP failed to connect: {0}")]
     ConnectionFailure(#[source] smtp::error::Error),
-    #[error("SMTP: failed to setup connection {0}")]
+    #[error("SMTP failed to setup connection: {0}")]
     ConnectionSetupFailure(#[source] smtp::error::Error),
-    #[error("SMTP: oauth2 error {address}")]
+    #[error("SMTP oauth2 error {address}")]
     Oauth2Error { address: String },
     #[error("TLS error {0}")]
     Tls(#[from] async_native_tls::Error),
