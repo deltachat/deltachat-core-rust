@@ -114,9 +114,8 @@ impl Smtp {
             )
             .await;
 
-        match &res {
-            Err(e) => self.connectivity.set_err(context, e).await,
-            Ok(_) => self.connectivity.set_connected(context).await,
+        if let Err(err) = &res {
+            self.connectivity.set_err(context, err).await;
         }
         res
     }

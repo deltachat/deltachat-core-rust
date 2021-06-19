@@ -249,6 +249,9 @@ impl Job {
             info!(context, "smtp-sending out mime message:");
             println!("{}", String::from_utf8_lossy(&message));
         }
+
+        smtp.connectivity.set_working(context).await;
+
         let status = match smtp.send(context, recipients, message, job_id).await {
             Err(crate::smtp::send::Error::SendError(err)) => {
                 // Remote error, retry later.
@@ -347,6 +350,7 @@ impl Job {
             }
             Ok(()) => {
                 job_try!(success_cb().await);
+                smtp.connectivity.set_connected(context).await;
                 Status::Finished(Ok(()))
             }
         };
