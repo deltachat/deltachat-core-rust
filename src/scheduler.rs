@@ -148,7 +148,7 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
         }
         Ok(None) => {
             info!(ctx, "Can not fetch inbox folder, not set");
-            connection.connectivity.set_connected(ctx).await;
+            connection.connectivity.set_not_configured(ctx).await;
         }
         Err(err) => {
             warn!(
@@ -203,7 +203,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             }
         }
         Ok(None) => {
-            connection.connectivity.set_connected(ctx).await;
+            connection.connectivity.set_not_configured(ctx).await;
             info!(ctx, "Can not watch {} folder, not set", folder);
             connection.fake_idle(ctx, None).await
         }
@@ -354,7 +354,7 @@ impl Scheduler {
             mvbox_handlers
                 .connection
                 .connectivity
-                .set_connected(&ctx)
+                .set_not_configured(&ctx)
                 .await
         }
 
@@ -377,7 +377,7 @@ impl Scheduler {
             sentbox_handlers
                 .connection
                 .connectivity
-                .set_connected(&ctx)
+                .set_not_configured(&ctx)
                 .await
         }
 

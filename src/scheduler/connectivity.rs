@@ -16,29 +16,40 @@ pub enum Connectivity {
     Connected = 5000,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
-pub enum DetailedConnectivity {
+// The order of the connectivities is important: worse connectivities (i.e. those at
+// the top) take priority. This means that e.g. if any folder has an error - usually
+// because there is no internet connection - the connectivity for the whole
+// account will be `Notconnected`.
+#[derive(Debug, Clone, PartialEq, Eq, EnumProperty)]
+enum DetailedConnectivity {
     Error(String),
     Uninitialized,
     Connecting,
     Working,
     InterruptingIdle,
     Connected,
+
+    /// The folder was configured not to be watched or configured_*_folder is not set
+    NotConfigured,
 }
 
 impl DetailedConnectivity {
-    pub fn to_basic(&self) -> Connectivity {
+    fn to_basic(&self) -> Option<Connectivity> {
         match self {
-            DetailedConnectivity::Error(_) => Connectivity::NotConnected,
-            DetailedConnectivity::Uninitialized => Connectivity::NotConnected,
-            DetailedConnectivity::Connecting => Connectivity::Connecting,
-            DetailedConnectivity::Working => Connectivity::Connected,
-            DetailedConnectivity::InterruptingIdle => Connectivity::InterruptingIdle,
-            DetailedConnectivity::Connected => Connectivity::Connected,
+            DetailedConnectivity::Error(_) => Some(Connectivity::NotConnected),
+            DetailedConnectivity::Uninitialized => Some(Connectivity::NotConnected),
+            DetailedConnectivity::Connecting => Some(Connectivity::Connecting),
+            DetailedConnectivity::Working => Some(Connectivity::Connected),
+            DetailedConnectivity::InterruptingIdle => Some(Connectivity::InterruptingIdle),
+            DetailedConnectivity::Connected => Some(Connectivity::Connected),
+
+            // Just don't return a connectivity, probably the folder is configured not to be
+            // watched or there is e.g. no "Sent" folder, so we are not interested in it
+            DetailedConnectivity::NotConfigured => None,
         }
     }
 
-    pub fn to_string_imap(&self, _context: &Context) -> String {
+    fn to_string_imap(&self, _context: &Context) -> String {
         match self {
             DetailedConnectivity::Error(e) => format!("🔴 Error: {}", e),
             DetailedConnectivity::Uninitialized => "🔴 Not started".to_string(),
@@ -47,10 +58,11 @@ impl DetailedConnectivity {
             DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
                 "🟢 Connected".to_string()
             }
+            DetailedConnectivity::NotConfigured => "🔴 Not configured".to_string(),
         }
     }
 
-    pub fn to_string_smtp(&self, _context: &Context) -> String {
+    fn to_string_smtp(&self, _context: &Context) -> String {
         match self {
             DetailedConnectivity::Error(e) => format!("🔴 Error: {}", e),
             DetailedConnectivity::Uninitialized => {
@@ -65,19 +77,20 @@ impl DetailedConnectivity {
             DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
                 "🟢 Your last message was sent successfully".to_string()
             }
+            DetailedConnectivity::NotConfigured => "🔴 Not configured".to_string(),
         }
     }
 }
 
 #[derive(Clone)]
-pub struct ConnectivityStore(Arc<Mutex<DetailedConnectivity>>);
+pub(crate) struct ConnectivityStore(Arc<Mutex<DetailedConnectivity>>);
 
 impl ConnectivityStore {
     pub(crate) fn new() -> Self {
         ConnectivityStore(Arc::new(Mutex::new(DetailedConnectivity::Uninitialized)))
     }
 
-    pub(crate) async fn set(&self, context: &Context, v: DetailedConnectivity) {
+    async fn set(&self, context: &Context, v: DetailedConnectivity) {
         {
             *self.0.lock().await = v;
         }
@@ -94,6 +107,13 @@ impl ConnectivityStore {
     pub(crate) async fn set_working(&self, context: &Context) {
         self.set(context, DetailedConnectivity::Working).await;
     }
+    pub(crate) async fn set_connected(&self, context: &Context) {
+        self.set(context, DetailedConnectivity::Connected).await;
+    }
+    pub(crate) async fn set_not_configured(&self, context: &Context) {
+        self.set(context, DetailedConnectivity::NotConfigured).await;
+    }
+
     /// Set the state to InterruptingIdle in case it was `Connected` before.
     /// Called for all folders during `dc_maybe_network()`.
     pub(crate) async fn idle_interrupted(&self) {
@@ -105,16 +125,14 @@ impl ConnectivityStore {
         // InterruptingIdle because the connectivity didn't actually change. We
         // only distinguish between `Connected` and `InterruptingIdle` so that:
         // After calling dc_maybe_network(), when the connectivity is
-        // `Connected` again, DC is done with fetching from all folders once.
-    }
-    pub(crate) async fn set_connected(&self, context: &Context) {
-        self.set(context, DetailedConnectivity::Connected).await;
+        // `Connected` again, the UI can be sure that DC is done with fetching
+        // from all folders once.
     }
 
-    pub(crate) async fn get_detailed(&self) -> DetailedConnectivity {
+    async fn get_detailed(&self) -> DetailedConnectivity {
         self.0.lock().await.deref().clone()
     }
-    pub(crate) async fn get_basic(&self) -> Connectivity {
+    async fn get_basic(&self) -> Option<Connectivity> {
         self.0.lock().await.to_basic()
     }
 }
@@ -163,12 +181,15 @@ impl Context {
                     // TODO/QUESTION get_basic() locks a mutex, and above we called `scheduler.read()`. This means
                     // that we will be holding two locks, which sounds like a great opportunity for
                     // a deadlock.
-                    // Below (commented out), I wrote another possible version of this code which first clones all the ConnectivityStore's
+                    // Below (commented out, slightly outdated), I wrote another possible
+                    // version of this code which first clones all the ConnectivityStore's
                     // (which are Arc's under the hood), then releases the scheduler-read-lock and only then
-                    // calls `get_basic()`. Would this be better?
+                    // calls `get_basic()`. Would this be better? Or don't I have to worry about deadlocks here at all?
                     // Same goes for get_connectivity_html().
 
-                    connectivities.push(s.connectivity.get_basic().await);
+                    if let Some(connectivity) = s.connectivity.get_basic().await {
+                        connectivities.push(connectivity);
+                    }
                 }
                 connectivities
                     .into_iter()
