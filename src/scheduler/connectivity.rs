@@ -39,7 +39,7 @@ impl DetailedConnectivity {
             DetailedConnectivity::Error(_) => Some(Connectivity::NotConnected),
             DetailedConnectivity::Uninitialized => Some(Connectivity::NotConnected),
             DetailedConnectivity::Connecting => Some(Connectivity::Connecting),
-            DetailedConnectivity::Working => Some(Connectivity::Connected),
+            DetailedConnectivity::Working => Some(Connectivity::Working),
             DetailedConnectivity::InterruptingIdle => Some(Connectivity::InterruptingIdle),
             DetailedConnectivity::Connected => Some(Connectivity::Connected),
 
