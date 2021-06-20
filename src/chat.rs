@@ -587,8 +587,9 @@ impl ChatId {
                     "SELECT COUNT(*)
                     FROM msgs
                     WHERE hidden=0
+                    AND from_id!=?
                     AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
-                    paramsv![Blocked::Deaddrop],
+                    paramsv![DC_CONTACT_ID_INFO, Blocked::Deaddrop],
                 )
                 .await?
         } else {
@@ -622,8 +623,9 @@ impl ChatId {
                     FROM msgs
                     WHERE state=?
                     AND hidden=0
+                    AND from_id!=?
                     AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
-                    paramsv![MessageState::InFresh, Blocked::Deaddrop],
+                    paramsv![MessageState::InFresh, DC_CONTACT_ID_INFO, Blocked::Deaddrop],
                 )
                 .await?
         } else {
