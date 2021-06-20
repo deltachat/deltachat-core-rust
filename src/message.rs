@@ -236,9 +236,9 @@ impl std::fmt::Display for MsgId {
 impl rusqlite::types::ToSql for MsgId {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
         if self.0 <= DC_MSG_ID_LAST_SPECIAL {
-            return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
-                InvalidMsgId,
-            )));
+            return Err(rusqlite::Error::ToSqlConversionFailure(
+                format_err!("Invalid MsgId").into(),
+            ));
         }
         let val = rusqlite::types::Value::Integer(self.0 as i64);
         let out = rusqlite::types::ToSqlOutput::Owned(val);
@@ -259,15 +259,6 @@ impl rusqlite::types::FromSql for MsgId {
         })
     }
 }
-
-/// Message ID was invalid.
-///
-/// This usually occurs when trying to use a message ID of
-/// [DC_MSG_ID_LAST_SPECIAL] or below in a situation where this is not
-/// possible.
-#[derive(Debug, thiserror::Error)]
-#[error("Invalid Message ID.")]
-pub struct InvalidMsgId;
 
 #[derive(
     Debug,
