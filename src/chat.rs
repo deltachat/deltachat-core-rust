@@ -1949,13 +1949,12 @@ pub async fn get_chat_msgs(
                       ON m.chat_id=chats.id
                LEFT JOIN contacts
                       ON m.from_id=contacts.id
-              WHERE m.from_id!=1  -- 1=DC_CONTACT_ID_SELF
-                AND m.from_id!=2  -- 2=DC_CONTACT_ID_INFO
+              WHERE m.from_id!=?
                 AND m.hidden=0
                 AND chats.blocked=2
                 AND contacts.blocked=0
               ORDER BY m.timestamp,m.id;",
-                paramsv![],
+                paramsv![DC_CONTACT_ID_INFO],
                 process_row,
                 process_rows,
             )
