@@ -730,9 +730,7 @@ async fn add_parts(
                 }
             }
             if chat_id.is_unset() && allow_creation {
-                let create_blocked = if MessengerMessage::No != is_dc_message
-                    && !Contact::is_blocked_load(context, to_id).await
-                {
+                let create_blocked = if !Contact::is_blocked_load(context, to_id).await {
                     Blocked::Not
                 } else {
                     Blocked::Deaddrop
@@ -4034,5 +4032,38 @@ Message content",
 
         let msg = t.get_last_msg().await;
         assert_ne!(msg.chat_id, t.get_self_chat().await.id);
+    }
+
+    #[async_std::test]
+    async fn test_outgoing_classic_mail_creates_chat() {
+        let alice = TestContext::new_alice().await;
+
+        // Alice enables classic emails.
+        alice
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        // Alice downloads outgoing classic email.
+        dc_receive_imf(
+            &alice,
+            b"Received: from [127.0.0.1]
+Subject: Subj
+Message-ID: <abcd@example.com>
+To: <bob@example.org>
+From: <alice@example.com>
+
+Message content",
+            "Sent",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Outgoing email should create a chat.
+        let msg = alice.get_last_msg().await;
+        assert_ne!(msg.chat_id, DC_CHAT_ID_DEADDROP);
+        assert_eq!(msg.get_text().unwrap(), "Subj – Message content");
     }
 }
