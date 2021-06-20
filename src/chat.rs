@@ -32,7 +32,7 @@ use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer a
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
 use crate::job::{self, Action};
-use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
+use crate::message::{self, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
@@ -1722,11 +1722,7 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
         let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
             for forward in forwards.split(' ') {
-                if let Ok(msg_id) = forward
-                    .parse::<u32>()
-                    .map_err(|_| InvalidMsgId)
-                    .map(MsgId::new)
-                {
+                if let Ok(msg_id) = forward.parse::<u32>().map(MsgId::new) {
                     if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
                         send_msg_inner(context, chat_id, &mut msg).await?;
                     };
