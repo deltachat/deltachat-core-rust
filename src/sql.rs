@@ -641,8 +641,12 @@ async fn maybe_add_from_param(
         paramsv![],
         |row| row.get::<_, String>(0),
         |rows| {
-            for row in rows {
-                let param: Params = row?.parse().unwrap_or_default();
+            // Rows that can't be parsed, for example if they are
+            // not UTF-8 strings, are ignored. It is possible
+            // when upgrading from C core to Rust core, which
+            // guarantees UTF-8 strings everywhere.
+            for row in rows.filter_map(|row| row.ok()) {
+                let param: Params = row.parse().unwrap_or_default();
                 if let Some(file) = param.get(param_id) {
                     maybe_add_file(files_in_use, file);
                 }
