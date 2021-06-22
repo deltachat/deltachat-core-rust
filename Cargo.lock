@@ -236,7 +236,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.5.0"
-source = "git+https://github.com/simon-laux/async-imap?branch=quota_support#5b5388100d6edeb88d351fc1d2abd08a2001a7fc"
+source = "git+https://github.com/simon-laux/async-imap?branch=quota_support#492ee4adb9ef54db2cf504f3dd49e5826d45818a"
 dependencies = [
  "async-native-tls",
  "async-std",
