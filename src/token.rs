@@ -69,7 +69,7 @@ pub async fn lookup(
             context
                 .sql
                 .query_get_value(
-                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
+                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=? ORDER BY timestamp DESC LIMIT 1;",
                     paramsv![namespace, chat_id],
                 )
                 .await?
@@ -79,7 +79,7 @@ pub async fn lookup(
             context
                 .sql
                 .query_get_value(
-                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=0;",
+                    "SELECT token FROM tokens WHERE namespc=? AND foreign_id=0 ORDER BY timestamp DESC LIMIT 1;",
                     paramsv![namespace],
                 )
                 .await?
