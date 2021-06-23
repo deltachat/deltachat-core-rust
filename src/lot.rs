@@ -110,6 +110,16 @@ pub enum LotState {
     /// text1=error string
     QrError = 400,
 
+    QrWithdrawVerifyContact = 500,
+
+    /// text1=groupname
+    QrWithdrawVerifyGroup = 502,
+
+    QrReviveVerifyContact = 510,
+
+    /// text1=groupname
+    QrReviveVerifyGroup = 512,
+
     // Message States
     MsgInFresh = 10,
     MsgInNoticed = 13,

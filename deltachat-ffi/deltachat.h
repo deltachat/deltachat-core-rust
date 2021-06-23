@@ -2076,6 +2076,10 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_TEXT                   330 // text1=text
 #define         DC_QR_URL                    332 // text1=URL
 #define         DC_QR_ERROR                  400 // text1=error string
+#define         DC_QR_WITHDRAW_VERIFYCONTACT 500
+#define         DC_QR_WITHDRAW_VERIFYGROUP   502 // text1=groupname
+#define         DC_QR_REVIVE_VERIFYCONTACT   510
+#define         DC_QR_REVIVE_VERIFYGROUP     512 // text1=groupname
 
 /**
  * Check a scanned QR code.
@@ -2097,6 +2101,12 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_TEXT with dc_lot_t::text1=Text
  * - DC_QR_URL with dc_lot_t::text1=URL
  * - DC_QR_ERROR with dc_lot_t::text1=Error string
+ * - DC_QR_WITHDRAW_VERIFYCONTACT, DC_QR_WITHDRAW_VERIFYGROUP
+ *   withdraw own qr-codes, with text1=groupname for groups
+ *   to actually withdraw, call dc_set_config_from_qr() with the code.
+ * - DC_QR_REVIVE_VERIFYCONTACT, DC_QR_REVIVE_VERIFYGROUP,
+ *   revive withdrawn qr-codes, with text1=groupname for groups,
+ *   to actually revive, call dc_set_config_from_qr() with the code.
  *
  * @memberof dc_context_t
  * @param context The context object.
