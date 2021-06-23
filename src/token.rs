@@ -111,3 +111,14 @@ pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> boo
         .await
         .unwrap_or_default()
 }
+
+pub async fn delete(context: &Context, namespace: Namespace, token: &str) -> Result<()> {
+    context
+        .sql
+        .execute(
+            "DELETE FROM tokens WHERE namespc=? AND token=?;",
+            paramsv![namespace, token],
+        )
+        .await?;
+    Ok(())
+}
