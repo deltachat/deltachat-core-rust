@@ -501,9 +501,12 @@ mod tests {
     use super::*;
 
     use crate::aheader::EncryptPreference;
+    use crate::chat::{create_group_chat, ProtectionStatus};
     use crate::key::DcKey;
     use crate::peerstate::ToSave;
+    use crate::securejoin::dc_get_securejoin_qr;
     use crate::test_utils::{alice_keypair, TestContext};
+    use anyhow::Result;
 
     #[async_std::test]
     async fn test_decode_http() {
@@ -778,6 +781,62 @@ mod tests {
         let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890").await;
         assert_eq!(res.get_state(), LotState::QrError);
         assert_eq!(res.get_id(), 0);
+    }
+
+    #[async_std::test]
+    async fn test_withdraw_verfifycontact() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let qr = dc_get_securejoin_qr(&alice, None).await.unwrap();
+
+        // scanning own verfify-contact code offers withdrawing
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrWithdrawVerifyContact);
+        assert!(check.text1.is_none());
+        set_config_from_qr(&alice, &qr).await?;
+
+        // scanning withdrawn verfify-contact code offers reviving
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrReviveVerifyContact);
+        assert!(check.text1.is_none());
+        set_config_from_qr(&alice, &qr).await?;
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrWithdrawVerifyContact);
+
+        // someone else always scans as ask-verify-contact
+        let bob = TestContext::new_bob().await;
+        let check = check_qr(&bob, &qr).await;
+        assert_eq!(check.state, LotState::QrAskVerifyContact);
+        assert!(check.text1.is_none());
+        assert!(set_config_from_qr(&bob, &qr).await.is_err());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_withdraw_verfifygroup() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
+        let qr = dc_get_securejoin_qr(&alice, Some(chat_id)).await.unwrap();
+
+        // scanning own verfify-group code offers withdrawing
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrWithdrawVerifyGroup);
+        assert_eq!(check.text1, Some("foo".to_string()));
+        set_config_from_qr(&alice, &qr).await?;
+
+        // scanning withdrawn verfify-group code offers reviving
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrReviveVerifyGroup);
+        assert_eq!(check.text1, Some("foo".to_string()));
+
+        // someone else always scans as ask-verify-group
+        let bob = TestContext::new_bob().await;
+        let check = check_qr(&bob, &qr).await;
+        assert_eq!(check.state, LotState::QrAskVerifyGroup);
+        assert_eq!(check.text1, Some("foo".to_string()));
+        assert!(set_config_from_qr(&bob, &qr).await.is_err());
+
+        Ok(())
     }
 
     #[async_std::test]
