@@ -31,8 +31,12 @@ impl Default for Namespace {
 /// Creates a new token and saves it into the database.
 ///
 /// Returns created token.
-pub async fn save(context: &Context, namespace: Namespace, foreign_id: Option<ChatId>) -> String {
-    let token = dc_create_id();
+pub async fn save(
+    context: &Context,
+    namespace: Namespace,
+    foreign_id: Option<ChatId>,
+    token: String,
+) -> String {
     match foreign_id {
         Some(foreign_id) => context
             .sql
@@ -93,7 +97,8 @@ pub async fn lookup_or_new(
         return token;
     }
 
-    save(context, namespace, foreign_id).await
+    let token = dc_create_id();
+    save(context, namespace, foreign_id, token).await
 }
 
 pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> bool {
