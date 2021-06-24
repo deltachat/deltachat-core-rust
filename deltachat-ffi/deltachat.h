@@ -2083,30 +2083,73 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 
 /**
  * Check a scanned QR code.
- * The function should be called after a QR code is scanned.
  * The function takes the raw text scanned and checks what can be done with it.
+ *
+ * The UI is supposed to show the result to the user.
+ * In case there are further actions possible,
+ * the UI has to ask the user before doing further steps.
  *
  * The QR code state is returned in dc_lot_t::state as:
  *
- * - DC_QR_ASK_VERIFYCONTACT with dc_lot_t::id=Contact ID
- * - DC_QR_ASK_VERIFYGROUP withdc_lot_t::text1=Group name
- * - DC_QR_FPR_OK with dc_lot_t::id=Contact ID
- * - DC_QR_FPR_MISMATCH with dc_lot_t::id=Contact ID
+ * - DC_QR_ASK_VERIFYCONTACT with dc_lot_t::id=Contact ID:
+ *   ask whether to verify the contact;
+ *   if so, start the protocol with dc_join_securejoin().
+ *
+ * - DC_QR_ASK_VERIFYGROUP withdc_lot_t::text1=Group name:
+ *   ask whether to join the group;
+ *   if so, start the protocol with dc_join_securejoin().
+ *
+ * - DC_QR_FPR_OK with dc_lot_t::id=Contact ID:
+ *   contact fingerprint verified,
+ *   ask the user if they want to start chatting;
+ *   if so, call dc_create_chat_by_contact_id().
+ *
+ * - DC_QR_FPR_MISMATCH with dc_lot_t::id=Contact ID:
+ *   scanned fingerprint does not match last seen fingerprint.
+ *
  * - DC_QR_FPR_WITHOUT_ADDR with dc_lot_t::test1=Formatted fingerprint
- * - DC_QR_ACCOUNT allows creation of an account, dc_lot_t::text1=domain
- * - DC_QR_WEBRTC_INSTANCE - a shared webrtc-instance
- *   that will be set if dc_set_config_from_qr() is called with the qr-code,
- *   dc_lot_t::text1=domain could be used to ask the user
- * - DC_QR_ADDR with dc_lot_t::id=Contact ID
- * - DC_QR_TEXT with dc_lot_t::text1=Text
- * - DC_QR_URL with dc_lot_t::text1=URL
- * - DC_QR_ERROR with dc_lot_t::text1=Error string
- * - DC_QR_WITHDRAW_VERIFYCONTACT, DC_QR_WITHDRAW_VERIFYGROUP
- *   withdraw own qr-codes, with text1=groupname for groups
- *   to actually withdraw, call dc_set_config_from_qr() with the code.
- * - DC_QR_REVIVE_VERIFYCONTACT, DC_QR_REVIVE_VERIFYGROUP,
- *   revive withdrawn qr-codes, with text1=groupname for groups,
- *   to actually revive, call dc_set_config_from_qr() with the code.
+ *   the scanned QR code contains a fingerprint but no email address;
+ *   suggest the user to establish an encrypted connection first.
+ *
+ * - DC_QR_ACCOUNT dc_lot_t::text1=domain:
+ *   ask the user if they want to create an account on the given domain,
+ *   if so, call dc_set_config_from_qr() and then dc_configure().
+ *
+ * - DC_QR_WEBRTC_INSTANCE with dc_lot_t::text1=domain:
+ *   ask the user if they want to use the given service for video chats;
+ *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_ADDR with dc_lot_t::id=Contact ID:
+ *   email-address scanned,
+ *   ask the user if they want to start chatting;
+ *   if so, call dc_create_chat_by_contact_id()
+ *
+ * - DC_QR_TEXT with dc_lot_t::text1=Text:
+ *   Text scanned,
+ *   ask the user eg. if they want copy to clipboard.
+ *
+ * - DC_QR_URL with dc_lot_t::text1=URL:
+ *   URL scanned,
+ *   ask the user eg. if they want to open a browser or copy to clipboard.
+ *
+ * - DC_QR_ERROR with dc_lot_t::text1=Error string:
+ *   show the error to the user.
+ *
+ * - DC_QR_WITHDRAW_VERIFYCONTACT:
+ *   ask the user if they want to withdraw the their own qr-code;
+ *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_WITHDRAW_VERIFYGROUP with text1=groupname:
+ *   ask the user if they want to withdraw the group-invite code;
+ *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_REVIVE_VERIFYCONTACT:
+ *   ask the user if they want to revive their withdrawn qr-code;
+ *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_REVIVE_VERIFYGROUP with text1=groupname:
+ *   ask the user if they want to revive the withdrawn group-invite code;
+ *   if so, call dc_set_config_from_qr().
  *
  * @memberof dc_context_t
  * @param context The context object.
