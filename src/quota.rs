@@ -106,7 +106,7 @@ async fn get_unique_quota_roots_and_usage(
                 let quota: Quota = quotas
                     .iter()
                     .find(|q| &q.root_name == quota_root_name)
-                    .map(|q| q.clone())
+                    .cloned()
                     .ok_or_else(|| anyhow!("quota_root should have a quota"))?;
                 match unique_quota_roots
                     .iter()
@@ -133,7 +133,7 @@ fn get_highest_usage<'t>(
     let mut highest: Option<(u64, &'t String, &QuotaResource)> = None;
     for (name, resources) in unique_quota_roots {
         for r in resources {
-            let usage_percent = r.usage.saturating_mul(100) / r.limit;
+            let usage_percent = r.get_usage_percentage();
             match highest {
                 None => {
                     highest = Some((usage_percent, name, r));
