@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Result};
-use async_imap::imap_proto::{Quota, QuotaResource};
+use async_imap::types::{Quota, QuotaResource};
 use humansize::{file_size_opts, FileSize};
 use itertools::Itertools;
 
@@ -51,7 +51,7 @@ pub(crate) async fn quota_usage_report_job(context: &Context, imap: &mut Imap) -
 }
 
 async fn generate_report_message(
-    unique_quota_roots: &[(String, Vec<QuotaResource<'static>>)],
+    unique_quota_roots: &[(String, Vec<QuotaResource>)],
     context: &Context,
 ) -> Result<String> {
     let mut message: String = "".to_owned();
@@ -60,7 +60,7 @@ async fn generate_report_message(
     let messages_stock_string = quota_resource_messages(context).await;
     for (name, quota_resources) in unique_quota_roots {
         message.push_str(&format!("{}:\n", &name));
-        use async_imap::imap_proto::QuotaResourceName::*;
+        use async_imap::types::QuotaResourceName::*;
         for resource in quota_resources {
             message.push_str(&match &resource.name {
                 Atom(name) => {
@@ -90,31 +90,30 @@ async fn generate_report_message(
 async fn get_unique_quota_roots_and_usage(
     folders: Vec<String>,
     imap: &mut Imap,
-) -> Result<Vec<(String, Vec<QuotaResource<'static>>)>> {
+) -> Result<Vec<(String, Vec<QuotaResource>)>> {
     // IDEA: OPTIMIZATION:
     // the unique quota roots of get_unique_quota_roots_and_usage could be cached and then the server could be asked for the quotas of those.
     // this would reduce incoming traffic and for most cases also outgoing traffic, because most email server share quota roots across folders/mailboxes.
     // Again at the cost of increasing code complexity and the question for how long it should be cached
     // IDEA2: maybe the provider db could also contain quota root names?
-    let mut unique_quota_roots: Vec<(String, Vec<QuotaResource<'static>>)> = Vec::new();
+    let mut unique_quota_roots: Vec<(String, Vec<QuotaResource>)> = Vec::new();
     for folder in folders {
         let (quota_roots, quotas) = &imap.get_quota_roots(&folder).await?;
         // if there are new quota roots found in this imap folder, add them to the list
         for qr_entries in quota_roots {
             for quota_root_name in &qr_entries.quota_root_names {
                 // the quota for that quota root
-                let quota: Quota<'static> = quotas
+                let quota: Quota = quotas
                     .iter()
                     .find(|q| &q.root_name == quota_root_name)
-                    .map(|q| q.clone().into_owned())
+                    .map(|q| q.clone())
                     .ok_or_else(|| anyhow!("quota_root should have a quota"))?;
                 match unique_quota_roots
                     .iter()
                     .find_position(|(root_name, _)| root_name == quota_root_name)
                 {
                     None => {
-                        unique_quota_roots
-                            .push((quota_root_name.clone().into_owned(), quota.resources));
+                        unique_quota_roots.push((quota_root_name.clone(), quota.resources));
                     }
                     Some((position, ..)) => {
                         // replace old quotas, because between fetching quotaroots for folders,
@@ -129,9 +128,9 @@ async fn get_unique_quota_roots_and_usage(
 }
 
 fn get_highest_usage<'t>(
-    unique_quota_roots: &'t [(String, Vec<QuotaResource<'t>>)],
-) -> Result<(u64, &'t String, &QuotaResource<'t>)> {
-    let mut highest: Option<(u64, &'t String, &QuotaResource<'t>)> = None;
+    unique_quota_roots: &'t [(String, Vec<QuotaResource>)],
+) -> Result<(u64, &'t String, &QuotaResource)> {
+    let mut highest: Option<(u64, &'t String, &QuotaResource)> = None;
     for (name, resources) in unique_quota_roots {
         for r in resources {
             let usage_percent = r.usage.saturating_mul(100) / r.limit;
@@ -139,11 +138,10 @@ fn get_highest_usage<'t>(
                 None => {
                     highest = Some((usage_percent, name, r));
                 }
-                Some((up, ..)) if up <= usage_percent => {
-                    highest = Some((usage_percent, name, r));
-                }
-                Some(_) => {
-                    unreachable!()
+                Some((up, ..)) => {
+                    if up <= usage_percent {
+                        highest = Some((usage_percent, name, r));
+                    }
                 }
             };
         }

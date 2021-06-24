@@ -8,8 +8,7 @@ use std::{cmp, cmp::max, collections::BTreeMap};
 use anyhow::{anyhow, bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
-    types::{Fetch, Flag, Mailbox, Name, NameAttribute, UnsolicitedResponse},
-    imap_proto::{Quota, QuotaRoot},
+    types::{Fetch, Flag, Mailbox, Name, NameAttribute, UnsolicitedResponse, Quota, QuotaRoot},
 };
 use async_std::channel::Receiver;
 use async_std::prelude::*;
@@ -1413,7 +1412,7 @@ impl Imap {
 
     pub async fn get_quota_roots(
         mailbox_name: &str,
-    ) -> Result<(Vec<QuotaRoot<'_>>, Vec<Quota<'_>>)> {
+    ) -> Result<(Vec<QuotaRoot>, Vec<Quota>)> {
         if let Some(session) = self.session.as_mut() {
             let quota_roots = session.get_quota_root(mailbox_name).await?;
             Ok(quota_roots)
