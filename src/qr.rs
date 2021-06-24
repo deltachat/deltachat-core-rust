@@ -202,12 +202,10 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
                         } else {
                             LotState::QrWithdrawVerifyGroup
                         }
+                    } else if lot.state == LotState::QrAskVerifyContact {
+                        LotState::QrReviveVerifyContact
                     } else {
-                        if lot.state == LotState::QrAskVerifyContact {
-                            LotState::QrReviveVerifyContact
-                        } else {
-                            LotState::QrReviveVerifyGroup
-                        }
+                        LotState::QrReviveVerifyGroup
                     }
             }
         }
