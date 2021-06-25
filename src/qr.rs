@@ -334,16 +334,16 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error
                 context,
                 token::Namespace::InviteNumber,
                 chat_id,
-                lot.invitenumber.unwrap_or_default(),
+                &lot.invitenumber.unwrap_or_default(),
             )
-            .await;
+            .await?;
             token::save(
                 context,
                 token::Namespace::Auth,
                 chat_id,
-                lot.auth.unwrap_or_default(),
+                &lot.auth.unwrap_or_default(),
             )
-            .await;
+            .await?;
             Ok(())
         }
         _ => bail!("qr code does not contain config: {}", qr),
