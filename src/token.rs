@@ -28,15 +28,13 @@ impl Default for Namespace {
     }
 }
 
-/// Creates a new token and saves it into the database.
-///
-/// Returns created token.
+/// Saves a token to the database.
 pub async fn save(
     context: &Context,
     namespace: Namespace,
     foreign_id: Option<ChatId>,
-    token: String,
-) -> String {
+    token: &str,
+) -> Result<()> {
     match foreign_id {
         Some(foreign_id) => context
             .sql
@@ -44,21 +42,29 @@ pub async fn save(
                 "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
                 paramsv![namespace, foreign_id, token, time()],
             )
-            .await
-            .ok(),
-        None => context
-            .sql
-            .execute(
-                "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);",
-                paramsv![namespace, token, time()],
-            )
-            .await
-            .ok(),
+            .await?,
+        None => {
+            context
+                .sql
+                .execute(
+                    "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);",
+                    paramsv![namespace, token, time()],
+                )
+                .await?
+        }
     };
 
-    token
+    Ok(())
 }
 
+/// Lookup most recently created token for a namespace/chat combination.
+///
+/// As there may be more than one valid token for a chat-id,
+/// (eg. when a qr code token is withdrawn, recreated and revived later),
+/// use lookup() for qr-code creation only;
+/// do not use lookup() to check for token validity.
+///
+/// To check if a given token is valid, use exists().
 pub async fn lookup(
     context: &Context,
     namespace: Namespace,
@@ -98,7 +104,8 @@ pub async fn lookup_or_new(
     }
 
     let token = dc_create_id();
-    save(context, namespace, foreign_id, token).await
+    save(context, namespace, foreign_id, &token).await.ok();
+    token
 }
 
 pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> bool {
