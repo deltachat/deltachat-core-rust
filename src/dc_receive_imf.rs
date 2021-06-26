@@ -2295,7 +2295,7 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert!(chats.get_chat_id(0).is_deaddrop());
-        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         assert!(!chat_id.is_special());
@@ -2330,7 +2330,7 @@ mod tests {
             .unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
-        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
@@ -2351,7 +2351,7 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert!(chats.get_chat_id(0).is_deaddrop());
-        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
@@ -2600,7 +2600,7 @@ mod tests {
         assert_eq!(contact.get_display_name(), "h2");
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let msg = Message::load_from_db(&t, chats.get_msg_id(0).unwrap())
+        let msg = Message::load_from_db(&t, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -2751,7 +2751,7 @@ mod tests {
         .unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap().unwrap();
 
         // Check that the ndn would be downloaded:
         let headers = mailparse::parse_mail(raw_ndn).unwrap().headers;
@@ -2801,7 +2801,7 @@ mod tests {
         .unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap().unwrap();
 
         let raw = include_bytes!("../test-data/message/gmail_ndn_group.eml");
         dc_receive_imf(&t, raw, "INBOX", 1, false).await.unwrap();
@@ -2834,7 +2834,7 @@ mod tests {
             .await
             .unwrap();
         let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap().unwrap();
         Message::load_from_db(context, msg_id).await.unwrap()
     }
 
@@ -2884,7 +2884,7 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
@@ -2957,7 +2957,7 @@ mod tests {
             .await
             .unwrap();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();

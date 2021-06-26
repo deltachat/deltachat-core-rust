@@ -1806,7 +1806,7 @@ mod tests {
 
         let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
 
-        let chat_id = chat::create_by_msg_id(context, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(context, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
 
