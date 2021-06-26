@@ -1797,7 +1797,7 @@ async fn create_multiuser_record(
             grpname.as_ref(),
             grpid.as_ref(),
             create_blocked,
-            time(),
+            dc_create_smeared_timestamp(context).await,
             create_protected,
         ],
     ).await?;
