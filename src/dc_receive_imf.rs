@@ -1193,7 +1193,12 @@ async fn calc_sort_timestamp(
         let last_msg_time: Option<i64> = context
             .sql
             .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
+                "SELECT MAX(timestamp)
+                 FROM (
+                     SELECT timestamp FROM msgs WHERE chat_id=?1 AND state>?2
+                     UNION
+                     SELECT created_timestamp AS timestamp FROM chats WHERE id=?1
+                 )",
                 paramsv![chat_id, MessageState::InFresh],
             )
             .await?;
