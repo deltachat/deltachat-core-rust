@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::{
-    Blocked, Chattype, VideochatType, Viewtype, DC_CHAT_ID_DEADDROP, DC_CHAT_ID_TRASH,
-    DC_CONTACT_ID_INFO, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_MAX_GET_INFO_LEN,
-    DC_MAX_GET_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
+    Blocked, Chattype, VideochatType, Viewtype, DC_CHAT_ID_TRASH, DC_CONTACT_ID_INFO,
+    DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_MAX_GET_INFO_LEN, DC_MAX_GET_TEXT_LEN,
+    DC_MSG_ID_LAST_SPECIAL,
 };
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
@@ -109,7 +109,7 @@ impl MsgId {
                     Ok(Some(ConfiguredInboxFolder))
                 }
             } else {
-                // Blocked/deaddrop message in the spam folder, leave it there
+                // Blocked or contact request message in the spam folder, leave it there
                 Ok(None)
             };
         }
@@ -520,19 +520,8 @@ impl Message {
         self.from_id
     }
 
-    /// get the chat-id,
-    /// if the message is a contact request, the DC_CHAT_ID_DEADDROP is returned.
+    /// Returns the chat ID.
     pub fn get_chat_id(&self) -> ChatId {
-        if self.chat_blocked != Blocked::Not {
-            DC_CHAT_ID_DEADDROP
-        } else {
-            self.chat_id
-        }
-    }
-
-    /// get the chat-id, also when the message is still a contact request.
-    /// DC_CHAT_ID_DEADDROP is never returned.
-    pub fn get_real_chat_id(&self) -> ChatId {
         self.chat_id
     }
 
@@ -959,13 +948,6 @@ impl Message {
     }
 }
 
-#[derive(Display, Debug, FromPrimitive)]
-pub enum ContactRequestDecision {
-    StartChat = 0,
-    Block = 1,
-    NotNow = 2,
-}
-
 #[derive(
     Debug,
     Clone,
@@ -1145,80 +1127,6 @@ impl Lot {
         self.timestamp = msg.get_timestamp();
         self.state = msg.state.into();
     }
-}
-
-/// Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
-///
-/// If the decision is `StartChat`, this will create a new chat and return the chat id.
-/// If the decision is `Block`, this will usually block the sender.
-/// If the decision is `NotNow`, this will usually mark all messages from this sender as read.
-///
-/// If the message belongs to a mailing list, makes sure that all messages from this mailing list are
-/// blocked or marked as noticed.
-///
-/// The user should be asked whether they want to chat with the _contact_ belonging to the message;
-/// the group names may be really weird when taken from the subject of implicit (= ad-hoc)
-/// groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
-///
-/// If the chat belongs to a mailing list, you can also ask
-/// "Would you like to read MAILING LIST NAME in Delta Chat?"
-/// (use `Message.get_real_chat_id()` to get the chat-id for the contact request
-/// and then `Chat.is_mailing_list()`, `Chat.get_name()` and so on)
-pub async fn decide_on_contact_request(
-    context: &Context,
-    msg_id: MsgId,
-    decision: ContactRequestDecision,
-) -> Option<ChatId> {
-    let msg = match Message::load_from_db(context, msg_id).await {
-        Ok(m) => m,
-        Err(e) => {
-            warn!(context, "Can't load message: {}", e);
-            return None;
-        }
-    };
-
-    let chat = match Chat::load_from_db(context, msg.chat_id).await {
-        Ok(c) => c,
-        Err(e) => {
-            warn!(context, "Can't load chat: {}", e);
-            return None;
-        }
-    };
-
-    let mut created_chat_id = None;
-    use ContactRequestDecision::*;
-    match (decision, chat.is_mailing_list()) {
-        (StartChat, _) => match chat::create_by_msg_id(context, msg.id).await {
-            Ok(id) => created_chat_id = Some(id),
-            Err(e) => warn!(context, "decide_on_contact_request error: {}", e),
-        },
-
-        (Block, false) => {
-            if let Err(e) = Contact::block(context, msg.from_id).await {
-                warn!(context, "Can't block contact: {}", e);
-            }
-        }
-        (Block, true) => {
-            if !msg.chat_id.set_blocked(context, Blocked::Manually).await {
-                warn!(context, "Block mailing list failed.")
-            }
-        }
-
-        (NotNow, false) => Contact::mark_noticed(context, msg.from_id).await,
-        (NotNow, true) => {
-            if let Err(e) = chat::marknoticed_chat(context, msg.chat_id).await {
-                warn!(context, "Marknoticed failed: {}", e)
-            }
-        }
-    }
-
-    // Multiple chats may have changed, so send 0s
-    // (performance is not so important because this function is not called very often)
-    context.emit_event(EventType::MsgsChanged {
-        chat_id: ChatId::new(0),
-        msg_id: MsgId::new(0),
-    });
-    created_chat_id
 }
 
 pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
@@ -1907,8 +1815,8 @@ async fn ndn_maybe_add_info_msg(
     Ok(())
 }
 
-/// The number of messages assigned to real chat (!=deaddrop, !=trash)
-pub async fn get_real_msg_cnt(context: &Context) -> usize {
+/// The number of messages assigned to unblocked chats
+pub async fn get_unblocked_msg_cnt(context: &Context) -> usize {
     match context
         .sql
         .count(
@@ -1921,13 +1829,14 @@ pub async fn get_real_msg_cnt(context: &Context) -> usize {
     {
         Ok(res) => res,
         Err(err) => {
-            error!(context, "dc_get_real_msg_cnt() failed. {}", err);
+            error!(context, "dc_get_unblocked_msg_cnt() failed. {}", err);
             0
         }
     }
 }
 
-pub async fn get_deaddrop_msg_cnt(context: &Context) -> usize {
+/// Returns the number of messages in contact request chats.
+pub async fn get_request_msg_cnt(context: &Context) -> usize {
     match context
         .sql
         .count(
@@ -1940,7 +1849,7 @@ pub async fn get_deaddrop_msg_cnt(context: &Context) -> usize {
     {
         Ok(res) => res,
         Err(err) => {
-            error!(context, "dc_get_deaddrop_msg_cnt() failed. {}", err);
+            error!(context, "dc_get_request_msg_cnt() failed. {}", err);
             0
         }
     }
@@ -2099,7 +2008,7 @@ mod tests {
     ];
 
     // These are the same as above, but all messages in Spam stay in Spam
-    const COMBINATIONS_DEADDROP: &[(&str, bool, bool, &str)] = &[
+    const COMBINATIONS_REQUEST: &[(&str, bool, bool, &str)] = &[
         ("INBOX", false, false, "INBOX"),
         ("INBOX", false, true, "INBOX"),
         ("INBOX", true, false, "INBOX"),
@@ -2132,8 +2041,8 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_needs_move_incoming_deaddrop() {
-        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_DEADDROP {
+    async fn test_needs_move_incoming_request() {
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_REQUEST {
             check_needs_move_combination(
                 folder,
                 *mvbox_move,
@@ -2682,10 +2591,7 @@ mod tests {
 
         // check chat-id of this message
         let msg = alice.get_last_msg().await;
-        assert!(msg.get_chat_id().is_deaddrop());
-        assert!(msg.get_chat_id().is_special());
-        assert!(!msg.get_real_chat_id().is_deaddrop());
-        assert!(!msg.get_real_chat_id().is_special());
+        assert!(!msg.get_chat_id().is_special());
         assert_eq!(msg.get_text().unwrap(), "hello".to_string());
     }
 
@@ -2746,33 +2652,31 @@ mod tests {
         msg.set_text(Some("this is the text!".to_string()));
 
         // alice sends to bob,
-        // bob does not know alice yet and messages go to bob's deaddrop
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
         bob.recv_msg(&alice.send_msg(alice_chat.id, &mut msg).await)
             .await;
         let msg1 = bob.get_last_msg().await;
+        let bob_chat_id = msg1.chat_id;
         bob.recv_msg(&alice.send_msg(alice_chat.id, &mut msg).await)
             .await;
         let msg2 = bob.get_last_msg().await;
         assert_eq!(msg1.chat_id, msg2.chat_id);
-        assert_ne!(msg1.chat_id, DC_CHAT_ID_DEADDROP);
         let chats = Chatlist::try_load(&bob, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
-        assert_eq!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
-        let msgs = chat::get_chat_msgs(&bob, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        let msgs = chat::get_chat_msgs(&bob, bob_chat_id, 0, None).await?;
         assert_eq!(msgs.len(), 2);
         assert_eq!(bob.get_fresh_msgs().await?.len(), 0);
 
-        // that has no effect in deaddrop
+        // that has no effect in contact request
         markseen_msgs(&bob, vec![msg1.id, msg2.id]).await?;
 
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
-        let msgs = chat::get_chat_msgs(&bob, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        let bob_chat = Chat::load_from_db(&bob, bob_chat_id).await?;
+        assert_eq!(bob_chat.blocked, Blocked::Request);
+
+        let msgs = chat::get_chat_msgs(&bob, bob_chat_id, 0, None).await?;
         assert_eq!(msgs.len(), 2);
-        let bob_chat_id =
-            decide_on_contact_request(&bob, msg2.get_id(), ContactRequestDecision::StartChat)
-                .await
-                .unwrap();
+        bob_chat_id.accept(&bob).await.unwrap();
 
         // bob sends to alice,
         // alice knows bob and messages appear in normal chat

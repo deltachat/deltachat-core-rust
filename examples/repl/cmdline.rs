@@ -17,7 +17,7 @@ use deltachat::imex::*;
 use deltachat::location;
 use deltachat::log::LogExt;
 use deltachat::lot::LotState;
-use deltachat::message::{self, ContactRequestDecision, Message, MessageState, MsgId};
+use deltachat::message::{self, Message, MessageState, MsgId};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
@@ -389,10 +389,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  protect <chat-id>\n\
                  unprotect <chat-id>\n\
                  delchat <chat-id>\n\
-                 ===========================Contact requests==\n\
-                 decidestartchat <msg-id>\n\
-                 decideblock <msg-id>\n\
-                 decidenotnow <msg-id>\n\
+                 accept <chat-id>\n\
+                 decline <chat-id>\n\
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
                  msginfo <msg-id>\n\
@@ -547,7 +545,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 for i in (0..cnt).rev() {
                     let chat = Chat::load_from_db(&context, chatlist.get_chat_id(i)).await?;
                     println!(
-                        "{}#{}: {} [{} fresh] {}{}{}",
+                        "{}#{}: {} [{} fresh] {}{}{}{}",
                         chat_prefix(&chat),
                         chat.get_id(),
                         chat.get_name(),
@@ -559,6 +557,11 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                             ChatVisibility::Pinned => "📌",
                         },
                         if chat.is_protected() { "🛡️" } else { "" },
+                        if chat.is_contact_request() {
+                            "🆕"
+                        } else {
+                            ""
+                        },
                     );
                     let lot = chatlist.get_summary(&context, i, Some(&chat)).await?;
                     let statestr = if chat.visibility == ChatVisibility::Archived {
@@ -688,35 +691,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let chat_id = ChatId::create_for_contact(&context, contact_id).await?;
 
             println!("Single#{} created successfully.", chat_id,);
-        }
-        "decidestartchat" | "createchatbymsg" => {
-            ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
-            let msg_id = MsgId::new(arg1.parse()?);
-            match message::decide_on_contact_request(
-                &context,
-                msg_id,
-                ContactRequestDecision::StartChat,
-            )
-            .await
-            {
-                Some(chat_id) => {
-                    let chat = Chat::load_from_db(&context, chat_id).await?;
-                    println!("{}#{} created successfully.", chat_prefix(&chat), chat_id);
-                }
-                None => println!("Cannot crate chat."),
-            }
-        }
-        "decidenotnow" => {
-            ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
-            let msg_id = MsgId::new(arg1.parse()?);
-            message::decide_on_contact_request(&context, msg_id, ContactRequestDecision::NotNow)
-                .await;
-        }
-        "decideblock" => {
-            ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
-            let msg_id = MsgId::new(arg1.parse()?);
-            message::decide_on_contact_request(&context, msg_id, ContactRequestDecision::Block)
-                .await;
         }
         "creategroup" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
@@ -1033,6 +1007,16 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
             chat_id.delete(&context).await?;
+        }
+        "accept" => {
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = ChatId::new(arg1.parse()?);
+            chat_id.accept(&context).await?;
+        }
+        "blockchat" => {
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = ChatId::new(arg1.parse()?);
+            chat_id.block(&context).await?;
         }
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");

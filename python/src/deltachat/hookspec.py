@@ -43,7 +43,7 @@ class PerAccount:
 
     @account_hookspec
     def ac_incoming_message(self, message):
-        """ Called on any incoming message (to deaddrop or chat). """
+        """ Called on any incoming message (both existing chats and contact requests). """
 
     @account_hookspec
     def ac_outgoing_message(self, message):

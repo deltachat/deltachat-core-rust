@@ -4,9 +4,9 @@ use anyhow::{bail, ensure, Result};
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
-    Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_DEADDROP,
-    DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF, DC_CONTACT_ID_UNDEFINED, DC_GCL_ADD_ALLDONE_HINT,
-    DC_GCL_ARCHIVED_ONLY, DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS,
+    Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CONTACT_ID_DEVICE,
+    DC_CONTACT_ID_SELF, DC_CONTACT_ID_UNDEFINED, DC_GCL_ADD_ALLDONE_HINT, DC_GCL_ARCHIVED_ONLY,
+    DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS,
 };
 use crate::contact::Contact;
 use crate::context::Context;
@@ -34,11 +34,8 @@ use crate::stock_str;
 /// and for each messages that is scrolled into view, dc_get_msg() is called then.
 ///
 /// Why no listflags?
-/// Without listflags, dc_get_chatlist() adds the deaddrop and the archive "link" automatically as needed.
-/// The UI can just render these items differently then. Although the deaddrop link is currently always the
-/// first entry and only present on new messages, there is the rough idea that it can be optionally always
-/// present and sorted into the list by date. Rendering the deaddrop in the described way
-/// would not add extra work in the UI then.
+/// Without listflags, dc_get_chatlist() adds the archive "link" automatically as needed.
+/// The UI can just render these items differently then.
 #[derive(Debug)]
 pub struct Chatlist {
     /// Stores pairs of `chat_id, message_id`
@@ -58,12 +55,6 @@ impl Chatlist {
     ///
     /// By default, the function adds some special entries to the list.
     /// These special entries can be identified by the ID returned by chatlist.get_chat_id():
-    /// - DC_CHAT_ID_DEADDROP (1) - this special chat is present if there are
-    ///   messages from addresses that have no relationship to the configured account.
-    ///   The last of these messages is represented by DC_CHAT_ID_DEADDROP and you can retrieve details
-    ///   about it with chatlist.get_msg_id(). Typically, the UI asks the user "Do you want to chat with NAME?"
-    ///   and offers the options "Start chat", "Block" and "Not now";
-    ///   The decision should be passed to dc_decide_on_contact_request().
     /// - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
     ///   archived *any* chat using dc_set_chat_visibility(). The UI should show a link as
     ///   "Show archived chats", if the user clicks this item, the UI should show a
@@ -79,9 +70,9 @@ impl Chatlist {
     ///   the pseudo-chat DC_CHAT_ID_ARCHIVED_LINK is added if there are *any* archived
     ///   chats
     /// - the flag DC_GCL_FOR_FORWARDING sorts "Saved messages" to the top of the chatlist
-    ///   and hides the device-chat,
+    ///   and hides the device-chat and contact requests
     ///   typically used on forwarding, may be combined with DC_GCL_NO_SPECIALS
-    /// - if the flag DC_GCL_NO_SPECIALS is set, deaddrop and archive link are not added
+    /// - if the flag DC_GCL_NO_SPECIALS is set, archive link is not added
     ///   to the list (may be used eg. for selecting chats on forwarding, the flag is
     ///   not needed when DC_GCL_ARCHIVED_ONLY is already set)
     /// - if the flag DC_GCL_ADD_ALLDONE_HINT is set, DC_CHAT_ID_ALLDONE_HINT
@@ -136,13 +127,8 @@ impl Chatlist {
         //   timestamp
         // - the list starts with the newest chats
         //
-        // nb: the query currently shows messages from blocked
-        // contacts in groups.  however, for normal-groups, this is
-        // okay as the message is also returned by dc_get_chat_msgs()
-        // (otherwise it would be hard to follow conversations, wa and
-        // tg do the same) for the deaddrop, however, they should
-        // really be hidden, however, _currently_ the deaddrop is not
-        // shown at all permanent in the chatlist.
+        // The query shows messages from blocked contacts in
+        // groups. Otherwise it would be hard to follow conversations.
         let mut ids = if let Some(query_contact_id) = query_contact_id {
             // show chats shared with a given contact
             context.sql.query_map(
@@ -157,7 +143,7 @@ impl Chatlist {
                                   AND (hidden=0 OR state=?1)
                                   ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9
-                   AND c.blocked=0
+                   AND c.blocked!=1
                    AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2)
                  GROUP BY c.id
                  ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
@@ -184,7 +170,7 @@ impl Chatlist {
                                   AND (hidden=0 OR state=?)
                                   ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9
-                   AND c.blocked=0
+                   AND c.blocked!=1
                    AND c.archived=1
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
@@ -218,7 +204,7 @@ impl Chatlist {
                                   AND (hidden=0 OR state=?1)
                                   ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9 AND c.id!=?2
-                   AND c.blocked=0
+                   AND c.blocked!=1
                    AND c.name LIKE ?3
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
@@ -236,7 +222,7 @@ impl Chatlist {
             } else {
                 ChatId::new(0)
             };
-            let mut ids = context.sql.query_map(
+            let ids = context.sql.query_map(
                 "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
@@ -248,22 +234,15 @@ impl Chatlist {
                                   AND (hidden=0 OR state=?1)
                                   ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9 AND c.id!=?2
-                   AND c.blocked=0
-                   AND NOT c.archived=?3
+                   AND (c.blocked=0 OR (c.blocked=2 AND NOT ?3))
+                   AND NOT c.archived=?4
                  GROUP BY c.id
-                 ORDER BY c.id=?4 DESC, c.archived=?5 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                paramsv![MessageState::OutDraft, skip_id, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
+                 ORDER BY c.id=?5 DESC, c.archived=?6 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                paramsv![MessageState::OutDraft, skip_id, flag_for_forwarding, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
                 process_row,
                 process_rows,
             ).await?;
             if !flag_no_specials {
-                if let Some(last_deaddrop_fresh_msg_id) =
-                    get_last_deaddrop_fresh_msg(context).await?
-                {
-                    if !flag_for_forwarding {
-                        ids.insert(0, (DC_CHAT_ID_DEADDROP, Some(last_deaddrop_fresh_msg_id)));
-                    }
-                }
                 add_archived_link_item = true;
             }
             ids
@@ -407,28 +386,6 @@ pub async fn dc_get_archived_cnt(context: &Context) -> Result<usize> {
     Ok(count)
 }
 
-async fn get_last_deaddrop_fresh_msg(context: &Context) -> Result<Option<MsgId>> {
-    // We have an index over the state-column, this should be
-    // sufficient as there are typically only few fresh messages.
-    let id = context
-        .sql
-        .query_get_value(
-            concat!(
-                "SELECT m.id",
-                " FROM msgs m",
-                " LEFT JOIN chats c",
-                "        ON c.id=m.chat_id",
-                " WHERE m.state=10",
-                "   AND m.hidden=0",
-                "   AND c.blocked=2",
-                " ORDER BY m.timestamp DESC, m.id DESC;"
-            ),
-            paramsv![],
-        )
-        .await?;
-    Ok(id)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -436,8 +393,6 @@ mod tests {
     use crate::chat::{create_group_chat, get_chat_contacts, ProtectionStatus};
     use crate::constants::Viewtype;
     use crate::dc_receive_imf::dc_receive_imf;
-    use crate::message;
-    use crate::message::ContactRequestDecision;
     use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;
 
@@ -547,7 +502,7 @@ mod tests {
     async fn test_search_single_chat() -> anyhow::Result<()> {
         let t = TestContext::new_alice().await;
 
-        // receive a one-to-one-message, accept contact request
+        // receive a one-to-one-message
         dc_receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
@@ -565,15 +520,13 @@ mod tests {
         .await?;
 
         let chats = Chatlist::try_load(&t, 0, Some("Bob Authname"), None).await?;
-        assert_eq!(chats.len(), 0);
+        // Contact request should be searchable
+        assert_eq!(chats.len(), 1);
 
         let msg = t.get_last_msg().await;
-        assert_eq!(msg.get_chat_id(), DC_CHAT_ID_DEADDROP);
+        let chat_id = msg.get_chat_id();
+        chat_id.accept(&t).await.unwrap();
 
-        let chat_id =
-            message::decide_on_contact_request(&t, msg.get_id(), ContactRequestDecision::StartChat)
-                .await
-                .unwrap();
         let contacts = get_chat_contacts(&t, chat_id).await?;
         let contact_id = *contacts.first().unwrap();
         let chat = Chat::load_from_db(&t, chat_id).await?;
@@ -611,7 +564,7 @@ mod tests {
     async fn test_search_single_chat_without_authname() -> anyhow::Result<()> {
         let t = TestContext::new_alice().await;
 
-        // receive a one-to-one-message without authname set, accept contact request
+        // receive a one-to-one-message without authname set
         dc_receive_imf(
             &t,
             b"From: bob@example.org\n\
@@ -629,10 +582,8 @@ mod tests {
         .await?;
 
         let msg = t.get_last_msg().await;
-        let chat_id =
-            message::decide_on_contact_request(&t, msg.get_id(), ContactRequestDecision::StartChat)
-                .await
-                .unwrap();
+        let chat_id = msg.get_chat_id();
+        chat_id.accept(&t).await.unwrap();
         let contacts = get_chat_contacts(&t, chat_id).await?;
         let contact_id = *contacts.first().unwrap();
         let chat = Chat::load_from_db(&t, chat_id).await?;

@@ -909,12 +909,11 @@ class TestOnlineAccount:
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message2"
 
-        lp.sec("ac2: check that the message arrive in deaddrop")
+        lp.sec("ac2: check that the message arrived in a chat")
         chat2 = msg_in.chat
         assert msg_in in chat2.get_messages()
         assert not msg_in.is_forwarded()
-        assert chat2.is_deaddrop()
-        assert chat2 == ac2.get_deaddrop_chat()
+        assert chat2.is_contact_request()
 
         lp.sec("ac2: create new chat and forward message to it")
         chat3 = ac2.create_group_chat("newgroup")
@@ -979,16 +978,16 @@ class TestOnlineAccount:
         assert not msg2.is_forwarded()
         assert msg2.get_sender_contact().display_name == ac1.get_config("displayname")
 
-        lp.sec("check the message arrived in contact-requests/deaddrop")
+        lp.sec("check the message arrived in contact request chat")
         chat2 = msg2.chat
         assert msg2 in chat2.get_messages()
-        assert chat2.is_deaddrop()
+        assert chat2.is_contact_request()
         assert chat2.count_fresh_messages() == 1
         assert msg2.time_received >= msg1.time_sent
 
         lp.sec("create new chat with contact and verify it's proper")
         chat2b = msg2.create_chat()
-        assert not chat2b.is_deaddrop()
+        assert not chat2b.is_contact_request()
         assert chat2b.count_fresh_messages() == 1
 
         lp.sec("mark chat as noticed")
@@ -1853,7 +1852,7 @@ class TestOnlineAccount:
 
         lp.sec("ac2: wait for receiving message and avatar from ac1")
         msg2 = ac2._evtracker.wait_next_messages_changed()
-        assert msg2.chat.is_deaddrop()
+        assert msg2.chat.is_contact_request()
         received_path = msg2.get_sender_contact().get_profile_image()
         assert open(received_path, "rb").read() == open(p, "rb").read()
 
@@ -1925,6 +1924,8 @@ class TestOnlineAccount:
         # note that if the above create_chat() would not
         # happen we would not receive a proper member_added event
         contact2 = chat.add_contact("devnull@testrun.org")
+        ev = in_list.get(timeout=10)
+        assert ev.action == "chat-modified"
         ev = in_list.get(timeout=10)
         assert ev.action == "chat-modified"
         ev = in_list.get(timeout=10)

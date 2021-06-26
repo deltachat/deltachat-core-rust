@@ -39,9 +39,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Voice message"))]
     VoiceMessage = 7,
 
-    #[strum(props(fallback = "Contact requests"))]
-    DeadDrop = 8,
-
     #[strum(props(fallback = "Image"))]
     Image = 9,
 
@@ -358,11 +355,6 @@ pub(crate) async fn draft(context: &Context) -> String {
 /// Stock string: `Voice message`.
 pub(crate) async fn voice_message(context: &Context) -> String {
     translated(context, StockMessage::VoiceMessage).await
-}
-
-/// Stock string: `Contact requests`.
-pub(crate) async fn dead_drop(context: &Context) -> String {
-    translated(context, StockMessage::DeadDrop).await
 }
 
 /// Stock string: `Image`.

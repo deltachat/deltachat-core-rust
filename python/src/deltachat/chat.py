@@ -50,6 +50,14 @@ class Chat(object):
         """
         lib.dc_delete_chat(self.account._dc_context, self.id)
 
+    def block(self):
+        """Block this chat."""
+        lib.dc_block_chat(self.account._dc_context, self.id)
+
+    def accept(self):
+        """Accept this contact request chat."""
+        lib.dc_accept_chat(self.account._dc_context, self.id)
+
     # ------  chat status/metadata API ------------------------------
 
     def is_group(self):
@@ -59,19 +67,19 @@ class Chat(object):
         """
         return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_GROUP
 
-    def is_deaddrop(self):
-        """ return true if this chat is a deaddrop chat.
-
-        :returns: True if chat is the deaddrop chat, False otherwise.
-        """
-        return self.id == const.DC_CHAT_ID_DEADDROP
-
     def is_muted(self):
         """ return true if this chat is muted.
 
         :returns: True if chat is muted, False otherwise.
         """
         return lib.dc_chat_is_muted(self._dc_chat)
+
+    def is_contact_request(self):
+        """ return True if this chat is a contact request chat.
+
+        :returns: True if chat is a contact request chat, False otherwise.
+        """
+        return lib.dc_chat_is_contact_request(self._dc_chat)
 
     def is_promoted(self):
         """ return True if this chat is promoted, i.e.
@@ -84,7 +92,7 @@ class Chat(object):
 
     def can_send(self):
         """Check if messages can be sent to a give chat.
-        This is not true eg. for the deaddrop or for the device-talk
+        This is not true eg. for the contact requests or for the device-talk
 
         :returns: True if the chat is writable, False otherwise
         """

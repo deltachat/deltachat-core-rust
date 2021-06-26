@@ -643,23 +643,6 @@ pub unsafe extern "C" fn dc_get_chatlist(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, msg_id: u32) -> u32 {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_create_chat_by_msg_id()");
-        return 0;
-    }
-    let ctx = &*context;
-
-    block_on(async move {
-        chat::create_by_msg_id(&ctx, MsgId::new(msg_id))
-            .await
-            .log_err(ctx, "Failed to create chat from msg_id")
-            .map(|id| id.to_u32())
-            .unwrap_or(0)
-    })
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_create_chat_by_contact_id(
     context: *mut dc_context_t,
     contact_id: u32,
@@ -1175,8 +1158,39 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
         ChatId::new(chat_id)
             .delete(&ctx)
             .await
-            .log_err(ctx, "Failed chat delete")
-            .unwrap_or(())
+            .ok_or_log_msg(ctx, "Failed chat delete");
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_block_chat(context: *mut dc_context_t, chat_id: u32) {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_block_chat()");
+        return;
+    }
+    let ctx = &*context;
+
+    block_on(async move {
+        ChatId::new(chat_id)
+            .block(&ctx)
+            .await
+            .ok_or_log_msg(ctx, "Failed chat block");
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accept_chat(context: *mut dc_context_t, chat_id: u32) {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_accept_chat()");
+        return;
+    }
+    let ctx = &*context;
+
+    block_on(async move {
+        ChatId::new(chat_id)
+            .accept(&ctx)
+            .await
+            .ok_or_log_msg(ctx, "Failed chat accept");
     })
 }
 
@@ -1567,17 +1581,6 @@ pub unsafe extern "C" fn dc_forward_msgs(
             .await
             .unwrap_or_log_default(&ctx, "Failed to forward message")
     })
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_marknoticed_contact(context: *mut dc_context_t, contact_id: u32) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_marknoticed_contact()");
-        return;
-    }
-    let ctx = &*context;
-
-    block_on(Contact::mark_noticed(&ctx, contact_id))
 }
 
 #[no_mangle]
@@ -2531,6 +2534,16 @@ pub unsafe extern "C" fn dc_chat_get_visibility(chat: *mut dc_chat_t) -> libc::c
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_chat_is_contact_request(chat: *mut dc_chat_t) -> libc::c_int {
+    if chat.is_null() {
+        eprintln!("ignoring careless call to dc_chat_is_contact_request()");
+        return 0;
+    }
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_contact_request() as libc::c_int
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat_t) -> libc::c_int {
     if chat.is_null() {
         eprintln!("ignoring careless call to dc_chat_is_unpromoted()");
@@ -2729,16 +2742,6 @@ pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg_t) -> u32 {
     }
     let ffi_msg = &*msg;
     ffi_msg.message.get_chat_id().to_u32()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_real_chat_id(msg: *mut dc_msg_t) -> u32 {
-    if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_get_real_chat_id()");
-        return 0;
-    }
-    let ffi_msg = &*msg;
-    ffi_msg.message.get_real_chat_id().to_u32()
 }
 
 #[no_mangle]
@@ -3094,32 +3097,6 @@ pub unsafe extern "C" fn dc_msg_get_videochat_url(msg: *mut dc_msg_t) -> *mut li
         .get_videochat_url()
         .unwrap_or_default()
         .strdup()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_decide_on_contact_request(
-    context: *mut dc_context_t,
-    msg_id: u32,
-    decision: libc::c_int,
-) -> u32 {
-    if context.is_null() || msg_id <= constants::DC_MSG_ID_LAST_SPECIAL as u32 {
-        eprintln!("ignoring careless call to dc_decide_on_contact_request()");
-    }
-    let ctx = &*context;
-
-    match from_prim(decision) {
-        None => {
-            warn!(ctx, "{} is not a valid decision, ignoring", decision);
-            0
-        }
-        Some(d) => block_on(message::decide_on_contact_request(
-            ctx,
-            MsgId::new(msg_id),
-            d,
-        ))
-        .unwrap_or_default()
-        .to_u32(),
-    }
 }
 
 #[no_mangle]

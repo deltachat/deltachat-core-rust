@@ -305,7 +305,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    DC_SHOW_EMAILS_ACCEPTED_CONTACTS (1)=
  *                    also show all mails of confirmed contacts,
  *                    DC_SHOW_EMAILS_ALL (2)=
- *                    also show mails of unconfirmed contacts in the deaddrop.
+ *                    also show mails of unconfirmed contacts.
  * - `key_gen_type` = DC_KEY_GEN_DEFAULT (0)=
  *                    generate recommended key type (default),
  *                    DC_KEY_GEN_RSA2048 (1)=
@@ -682,12 +682,6 @@ int             dc_preconfigure_keypair        (dc_context_t* context, const cha
  *
  * By default, the function adds some special entries to the list.
  * These special entries can be identified by the ID returned by dc_chatlist_get_chat_id():
- * - DC_CHAT_ID_DEADDROP (1) - this special chat is present if there are
- *   messages from addresses that have no relationship to the configured account.
- *   The last of these messages is represented by DC_CHAT_ID_DEADDROP and you can retrieve details
- *   about it with dc_chatlist_get_msg_id(). Typically, the UI asks the user "Do you want to chat with NAME?"
- *   and offers the options "Start chat", "Block" or "Not now".
- *   Call dc_decide_on_contact_request() when the user selected one of these options.
  * - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
  *   archived _any_ chat using dc_set_chat_visibility(). The UI should show a link as
  *   "Show archived chats", if the user clicks this item, the UI should show a
@@ -705,10 +699,10 @@ int             dc_preconfigure_keypair        (dc_context_t* context, const cha
  *       the pseudo-chat DC_CHAT_ID_ARCHIVED_LINK is added if there are _any_ archived
  *       chats
  *     - the flag DC_GCL_FOR_FORWARDING sorts "Saved messages" to the top of the chatlist
- *       and hides the "Device chat" and the deaddrop.
+ *       and hides the "Device chat" and contact requests.
  *       typically used on forwarding, may be combined with DC_GCL_NO_SPECIALS
  *       to also hide the archive link.
- *     - if the flag DC_GCL_NO_SPECIALS is set, deaddrop and archive link are not added
+ *     - if the flag DC_GCL_NO_SPECIALS is set, archive link is not added
  *       to the list (may be used e.g. for selecting chats on forwarding, the flag is
  *       not needed when DC_GCL_ARCHIVED_ONLY is already set)
  *     - if the flag DC_GCL_ADD_ALLDONE_HINT is set, DC_CHAT_ID_ALLDONE_HINT
@@ -729,41 +723,11 @@ dc_chatlist_t*  dc_get_chatlist              (dc_context_t* context, int flags, 
 // handle chats
 
 /**
- * Create a normal chat or a group chat by a messages ID that comes typically
- * from the deaddrop, DC_CHAT_ID_DEADDROP (1).
- *
- * If the given message ID already belongs to a normal chat or to a group chat,
- * the chat ID of this chat is returned and no new chat is created.
- * If a new chat is created, the given message ID is moved to this chat, however,
- * there may be more messages moved to the chat from the deaddrop. To get the
- * chat messages, use dc_get_chat_msgs().
- *
- * If the user is asked before creation, he should be
- * asked whether he wants to chat with the _contact_ belonging to the message;
- * the group names may be really weird when taken from the subject of implicit
- * groups and this may look confusing.
- *
- * Moreover, this function also scales up the origin of the contact belonging
- * to the message and, depending on the contacts origin, messages from the
- * same group may be shown or not - so, all in all, it is fine to show the
- * contact name only.
- *
- * @deprecated Deprecated 2021-02-07, use dc_decide_on_contact_request() instead
- * @memberof dc_context_t
- * @param context The context object as returned from dc_context_new().
- * @param msg_id The message ID to create the chat for.
- * @return The created or reused chat ID on success. 0 on errors.
- */
-uint32_t        dc_create_chat_by_msg_id     (dc_context_t* context, uint32_t msg_id);
-
-
-/**
  * Create a normal chat with a single user.  To create group chats,
  * see dc_create_group_chat().
  *
  * If a chat already exists, this ID is returned, otherwise a new chat is created;
- * this new chat may already contain messages, e.g. from the deaddrop, to get the
- * chat messages, use dc_get_chat_msgs().
+ * to get the chat messages, use dc_get_chat_msgs().
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -1135,7 +1099,7 @@ int             dc_estimate_deletion_cnt    (dc_context_t* context, int from_ser
  * or badge counters eg. on the app-icon.
  * The list is already sorted and starts with the most recent fresh message.
  *
- * Messages belonging to muted chats or to the deaddrop are not returned;
+ * Messages belonging to muted chats or to the contact requests are not returned;
  * these messages should not be notified
  * and also badge counters should not include these messages.
  *
@@ -1161,8 +1125,7 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
- * @param chat_id The chat ID of which all messages should be marked as being noticed
- *     (this also works for the virtual chat ID DC_CHAT_ID_DEADDROP).
+ * @param chat_id The chat ID of which all messages should be marked as being noticed.
  */
 void            dc_marknoticed_chat          (dc_context_t* context, uint32_t chat_id);
 
@@ -1271,6 +1234,31 @@ void            dc_set_chat_visibility       (dc_context_t* context, uint32_t ch
  */
 void            dc_delete_chat               (dc_context_t* context, uint32_t chat_id);
 
+/**
+ * Block a chat.
+ *
+ * Blocking 1:1 chats blocks the corresponding contact. Blocking
+ * mailing lists creates a pseudo-contact in the list of blocked
+ * contacts, so blocked mailing lists can be discovered and unblocked
+ * the same way as the contacts.  Blocking group chats deletes the
+ * chat without blocking any contacts, so it may pop up again later.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @param chat_id The ID of the chat to block.
+ */
+void            dc_block_chat                (dc_context_t* context, uint32_t chat_id);
+
+/**
+ * Accept a contact request chat.
+ *
+ * Use it to accept "contact request" chats as indicated by dc_chat_is_contact_request().
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @param chat_id The ID of the chat to accept.
+ */
+void            dc_accept_chat               (dc_context_t* context, uint32_t chat_id);
 
 /**
  * Get contact IDs belonging to a chat.
@@ -1281,8 +1269,6 @@ void            dc_delete_chat               (dc_context_t* context, uint32_t ch
  * - for group chats all members are returned, DC_CONTACT_ID_SELF is returned
  *   explicitly as it may happen that oneself gets removed from a still existing
  *   group
- *
- * - for the deaddrop, the list is empty
  *
  * - for mailing lists, the behavior is not documented currently, we will decide on that later.
  *   for now, the UI should not show the list for mailing lists.
@@ -1632,25 +1618,6 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
 
 
 /**
- * Mark all messages sent by the given contact as _noticed_.
- * This function is typically used to ignore a user in the deaddrop temporarily ("Not now" button).
- *
- * The contact is expected to belong to the deaddrop;
- * only one #DC_EVENT_MSGS_NOTICED with chat_id=DC_CHAT_ID_DEADDROP may be emitted.
- *
- * See also dc_marknoticed_chat() and dc_markseen_msgs()
- *
- * @deprecated Deprecated 2021-02-07, use dc_decide_on_contact_request() if the user just hit "Not now" on a button in the deaddrop,
- *      dc_marknoticed_chat() if the user has entered a chat
- *      and dc_markseen_msgs() if the user actually _saw_ a message.
- * @memberof dc_context_t
- * @param context The context object.
- * @param contact_id The contact ID of which all messages should be marked as noticed.
- */
-void            dc_marknoticed_contact       (dc_context_t* context, uint32_t contact_id);
-
-
-/**
  * Mark messages as presented to the user.
  * Typically, UIs call this function on scrolling through the chatlist,
  * when the messages are presented at least for a little moment.
@@ -1661,12 +1628,12 @@ void            dc_marknoticed_contact       (dc_context_t* context, uint32_t co
  *   (if dc_set_config()-options `mdns_enabled` is set)
  *   and the internal state is changed to DC_STATE_IN_SEEN to reflect these actions.
  *
- * - For the deaddrop, no IMAP or MNDs is done
- *   and the internal change is not changed therefore.
+ * - For contact requests, no IMAP or MDNs is done
+ *   and the internal state is not changed therefore.
  *   See also dc_marknoticed_chat().
  *
  * Moreover, timer is started for incoming ephemeral messages.
- * This also happens for messages in the deaddrop.
+ * This also happens for contact requests chats.
  *
  * One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.
  *
@@ -1691,53 +1658,6 @@ void            dc_markseen_msgs             (dc_context_t* context, const uint3
  *     When done, the object must be freed using dc_msg_unref().
  */
 dc_msg_t*       dc_get_msg                   (dc_context_t* context, uint32_t msg_id);
-
-
-#define DC_DECISION_START_CHAT 0
-#define DC_DECISION_BLOCK      1
-#define DC_DECISION_NOT_NOW    2
-
-
-/**
- * Call this when the user decided about a deaddrop message ("Do you want to chat with NAME?").
- *
- * Possible decisions are:
- * - DC_DECISION_START_CHAT (0)
- *   - This will create a new chat and return the chat id.
- * - DC_DECISION_BLOCK (1)
- *   - This will block the sender.
- *   - When a new message from the sender arrives,
- *     that will not result in a new contact request.
- *   - The blocked sender will be returned by dc_get_blocked_contacts()
- *     typically, the UI offers an option to unblock senders from there.
- * - DC_DECISION_NOT_NOW (2)
- *   - This will mark all messages from this sender as noticed.
- *   - That the contact request is removed from the chat list.
- *   - When a new message from the sender arrives,
- *     a new contact request with the new message will pop up in the chatlist.
- *   - The contact request stays available in the explicit deaddrop.
- *   - If the contact request is already noticed, nothing happens.
- *
- * If the message belongs to a mailing list,
- * the function makes sure that all messages
- * from the mailing list are blocked or marked as noticed.
- *
- * The user should be asked whether they want to chat with the _contact_ belonging to the message;
- * the group names may be really weird when taken from the subject of implicit (= ad-hoc)
- * groups and this may look confusing. Moreover, this function also scales up the origin of the contact.
- *
- * If the chat belongs to a mailing list, you can also ask
- * "Would you like to read MAILING LIST NAME?"
- * (use dc_msg_get_real_chat_id() to get the chat-id for the contact request
- * and then dc_chat_is_mailing_list(), dc_chat_get_name() and so on)
- *
- * @memberof dc_context_t
- * @param context The context object.
- * @param msg_id ID of Message to decide on.
- * @param decision One of the DC_DECISION_* values.
- * @return The chat id of the created chat, if any.
- */
-uint32_t        dc_decide_on_contact_request (dc_context_t* context, uint32_t msg_id, int decision);
 
 
 // handle contacts
@@ -2884,15 +2804,9 @@ int              dc_array_search_id          (const dc_array_t* array, uint32_t 
  * and for each messages that is scrolled into view, dc_get_msg() is called then.
  *
  * Why no listflags?
- * Without listflags, dc_get_chatlist() adds the deaddrop
- * and the archive "link" automatically as needed.
+ * Without listflags, dc_get_chatlist() adds
+ * the archive "link" automatically as needed.
  * The UI can just render these items differently then.
- * Although the deaddrop link is currently always the first entry
- * and only present on new messages,
- * there is the rough idea that it can be optionally always present
- * and sorted into the list by date.
- * Rendering the deaddrop in the described way
- * would not add extra work in the UI then.
  */
 
 
@@ -3033,7 +2947,6 @@ char*            dc_chat_get_info_json       (dc_context_t* context, size_t chat
  */
 
 
-#define         DC_CHAT_ID_DEADDROP          1 // virtual chat showing all messages belonging to chats flagged with chats.blocked=2
 #define         DC_CHAT_ID_TRASH             3 // messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
 #define         DC_CHAT_ID_ARCHIVED_LINK     6 // only an indicator in a chatlist
 #define         DC_CHAT_ID_ALLDONE_HINT      7 // only an indicator in a chatlist
@@ -3060,7 +2973,6 @@ void            dc_chat_unref                (dc_chat_t* chat);
  * Get chat ID. The chat ID is the ID under which the chat is filed in the database.
  *
  * Special IDs:
- * - DC_CHAT_ID_DEADDROP         (1) - Virtual chat containing messages which senders are not confirmed by the user.
  * - DC_CHAT_ID_ARCHIVED_LINK    (6) - A link at the end of the chatlist, if present the UI should show the button "Archived chats"-
  *
  * "Normal" chat IDs are larger than these special IDs (larger than DC_CHAT_ID_LAST_SPECIAL).
@@ -3153,6 +3065,25 @@ int             dc_chat_get_visibility       (const dc_chat_t* chat);
 
 
 /**
+ * Check if a chat is a contact request chat.
+ *
+ * UI should display such chats with a [New] badge in the chatlist.
+ *
+ * When such chat is opened, user should be presented with a set of
+ * options instead of the message composition area, for example:
+ * - Accept chat (dc_accept_chat())
+ * - Block chat (dc_block_chat())
+ * - Delete chat (dc_delete_chat())
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=chat is a contact request chat
+ *     0=chat is not a contact request chat
+ */
+int             dc_chat_is_contact_request   (const dc_chat_t* chat);
+
+
+/**
  * Check if a group chat is still unpromoted.
  *
  * After the creation with dc_create_group_chat() the chat is usually unpromoted
@@ -3205,7 +3136,7 @@ int             dc_chat_is_device_talk       (const dc_chat_t* chat);
 
 /**
  * Check if messages can be sent to a given chat.
- * This is not true e.g. for the deaddrop or for the device-talk, cmp. dc_chat_is_device_talk().
+ * This is not true e.g. for contact requests or for the device-talk, cmp. dc_chat_is_device_talk().
  *
  * Calling dc_send_msg() for these chats will fail
  * and the UI may decide to hide input controls therefore.
@@ -3349,28 +3280,12 @@ uint32_t        dc_msg_get_from_id            (const dc_msg_t* msg);
 /**
  * Get the ID of chat the message belongs to.
  * To get details about the chat, pass the returned ID to dc_get_chat().
- * If a message is still in the deaddrop, the ID DC_CHAT_ID_DEADDROP is returned
- * although internally another ID is used.
- * (to get that internal id, use dc_msg_get_real_chat_id())
  *
  * @memberof dc_msg_t
  * @param msg The message object.
  * @return The ID of the chat the message belongs to, 0 on errors.
  */
 uint32_t        dc_msg_get_chat_id            (const dc_msg_t* msg);
-
-
-/**
- * Get the ID of chat the message belongs to.
- * To get details about the chat, pass the returned ID to dc_get_chat().
- * In contrast to dc_msg_get_chat_id(), this function returns the chat-id also
- * for messages in the deaddrop.
- *
- * @memberof dc_msg_t
- * @param msg The message object.
- * @return The ID of the chat the message belongs to, 0 on errors.
- */
-uint32_t        dc_msg_get_real_chat_id       (const dc_msg_t* msg);
 
 
 /**
@@ -5404,11 +5319,6 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used in summaries.
 #define DC_STR_VOICEMESSAGE               7
-
-/// "Contact requests"
-///
-/// Used as the name for the corresponding chat.
-#define DC_STR_DEADDROP                   8
 
 /// "Image"
 ///

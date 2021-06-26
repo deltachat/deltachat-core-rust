@@ -17,9 +17,9 @@ use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, Viewtype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
-    DC_CHAT_ID_DEADDROP, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE,
-    DC_CONTACT_ID_INFO, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCM_ADDDAYMARKER,
-    DC_GCM_INFO_ONLY, DC_RESEND_USER_AVATAR_DAYS,
+    DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_INFO,
+    DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCM_ADDDAYMARKER, DC_GCM_INFO_ONLY,
+    DC_RESEND_USER_AVATAR_DAYS,
 };
 use crate::contact::{addr_cmp, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
@@ -113,15 +113,6 @@ impl ChatId {
         (0..=DC_CHAT_ID_LAST_SPECIAL.0).contains(&self.0)
     }
 
-    /// Chat ID which represents the deaddrop chat.
-    ///
-    /// This is a virtual chat showing all messages belonging to chats
-    /// flagged with [Blocked::Deaddrop].  Usually the UI will show
-    /// these messages as contact requests.
-    pub fn is_deaddrop(self) -> bool {
-        self == DC_CHAT_ID_DEADDROP
-    }
-
     /// Chat ID for messages which need to be deleted.
     ///
     /// Messages which should be deleted get this chat ID and are
@@ -180,14 +171,11 @@ impl ChatId {
     ///
     /// This should be used when **a user action** creates a chat 1:1, it ensures the chat
     /// exists and is unblocked and scales the [`Contact`]'s origin.
-    ///
-    /// If a chat was in the deaddrop unblocking is how it becomes a normal chat and it will
-    /// look to the user like the chat was newly created.
     pub async fn create_for_contact(context: &Context, contact_id: u32) -> Result<Self> {
         let chat_id = match ChatIdBlocked::lookup_by_contact(context, contact_id).await? {
             Some(chat) => {
                 if chat.blocked != Blocked::Not {
-                    chat.id.unblock(context).await;
+                    chat.id.unblock(context).await?;
                 }
                 chat.id
             }
@@ -227,23 +215,90 @@ impl ChatId {
         Ok(())
     }
 
-    pub async fn set_blocked(self, context: &Context, new_blocked: Blocked) -> bool {
+    /// Updates chat blocked status.
+    ///
+    /// Returns true if the value was modified.
+    async fn set_blocked(self, context: &Context, new_blocked: Blocked) -> Result<bool> {
         if self.is_special() {
-            warn!(context, "ignoring setting of Block-status for {}", self);
-            return false;
+            bail!("ignoring setting of Block-status for {}", self);
         }
-        context
+        let count = context
             .sql
             .execute(
-                "UPDATE chats SET blocked=? WHERE id=?;",
+                "UPDATE chats SET blocked=?1 WHERE id=?2 AND blocked != ?1",
                 paramsv![new_blocked, self],
             )
-            .await
-            .is_ok()
+            .await?;
+        Ok(count > 0)
     }
 
-    pub async fn unblock(self, context: &Context) {
-        self.set_blocked(context, Blocked::Not).await;
+    /// Blocks the chat as a result of explicit user action.
+    pub async fn block(self, context: &Context) -> Result<()> {
+        let chat = Chat::load_from_db(context, self).await?;
+
+        match chat.typ {
+            Chattype::Undefined => bail!("Can't block chat of undefined chattype"),
+            Chattype::Single => {
+                for contact_id in get_chat_contacts(context, self).await? {
+                    if contact_id != DC_CONTACT_ID_SELF {
+                        info!(
+                            context,
+                            "Blocking the contact {} to block 1:1 chat", contact_id
+                        );
+                        Contact::block(context, contact_id).await?;
+                    }
+                }
+            }
+            Chattype::Group => {
+                info!(context, "Can't block groups yet, deleting the chat");
+                self.delete(context).await?;
+            }
+            Chattype::Mailinglist => {
+                if self.set_blocked(context, Blocked::Manually).await? {
+                    context.emit_event(EventType::ChatModified(self));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Unblocks the chat.
+    pub async fn unblock(self, context: &Context) -> Result<()> {
+        self.set_blocked(context, Blocked::Not).await?;
+        Ok(())
+    }
+
+    /// Accept the contact request.
+    ///
+    /// Unblocks the chat and scales up origin of contacts.
+    pub async fn accept(self, context: &Context) -> Result<()> {
+        let chat = Chat::load_from_db(context, self).await?;
+
+        match chat.typ {
+            Chattype::Undefined => bail!("Can't accept chat of undefined chattype"),
+            Chattype::Single | Chattype::Group => {
+                // User has "created a chat" with all these contacts.
+                //
+                // Previously accepting a chat literally created a chat because unaccepted chats
+                // went to "contact requests" list rather than normal chatlist.
+                for contact_id in get_chat_contacts(context, self).await? {
+                    if contact_id != DC_CONTACT_ID_SELF {
+                        Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat)
+                            .await;
+                    }
+                }
+            }
+            Chattype::Mailinglist => {
+                // If the message is from a mailing list, the contacts are not counted as "known"
+            }
+        }
+
+        if self.set_blocked(context, Blocked::Not).await? {
+            context.emit_event(EventType::ChatModified(self));
+        }
+
+        Ok(())
     }
 
     /// Sets protection without sending a message.
@@ -580,27 +635,13 @@ impl ChatId {
 
     /// Returns number of messages in a chat.
     pub async fn get_msg_cnt(self, context: &Context) -> Result<usize> {
-        let count = if self.is_deaddrop() {
-            context
-                .sql
-                .count(
-                    "SELECT COUNT(*)
-                    FROM msgs
-                    WHERE hidden=0
-                    AND from_id!=?
-                    AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
-                    paramsv![DC_CONTACT_ID_INFO, Blocked::Deaddrop],
-                )
-                .await?
-        } else {
-            context
-                .sql
-                .count(
-                    "SELECT COUNT(*) FROM msgs WHERE hidden=0 AND chat_id=?",
-                    paramsv![self],
-                )
-                .await?
-        };
+        let count = context
+            .sql
+            .count(
+                "SELECT COUNT(*) FROM msgs WHERE hidden=0 AND chat_id=?",
+                paramsv![self],
+            )
+            .await?;
         Ok(count as usize)
     }
 
@@ -615,32 +656,17 @@ impl ChatId {
         // the times are average, no matter if there are fresh messages or not -
         // and have to be multiplied by the number of items shown at once on the chatlist,
         // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
-        let count = if self.is_deaddrop() {
-            context
-                .sql
-                .count(
-                    "SELECT COUNT(*)
-                    FROM msgs
-                    WHERE state=?
-                    AND hidden=0
-                    AND from_id!=?
-                    AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
-                    paramsv![MessageState::InFresh, DC_CONTACT_ID_INFO, Blocked::Deaddrop],
-                )
-                .await?
-        } else {
-            context
-                .sql
-                .count(
-                    "SELECT COUNT(*)
+        let count = context
+            .sql
+            .count(
+                "SELECT COUNT(*)
                 FROM msgs
                 WHERE state=?
                 AND hidden=0
                 AND chat_id=?;",
-                    paramsv![MessageState::InFresh, self],
-                )
-                .await?
-        };
+                paramsv![MessageState::InFresh, self],
+            )
+            .await?;
         Ok(count as usize)
     }
 
@@ -778,9 +804,7 @@ impl ChatId {
 
 impl std::fmt::Display for ChatId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.is_deaddrop() {
-            write!(f, "Chat#Deadrop")
-        } else if self.is_trash() {
+        if self.is_trash() {
             write!(f, "Chat#Trash")
         } else if self.is_archived_link() {
             write!(f, "Chat#ArchivedLink")
@@ -867,9 +891,7 @@ impl Chat {
             .await
             .context(format!("Failed loading chat {} from database", chat_id))?;
 
-        if chat.id.is_deaddrop() {
-            chat.name = stock_str::dead_drop(context).await;
-        } else if chat.id.is_archived_link() {
+        if chat.id.is_archived_link() {
             let tempname = stock_str::archived_chats(context).await;
             let cnt = dc_get_archived_cnt(context).await?;
             chat.name = format!("{} ({})", tempname, cnt);
@@ -918,6 +940,7 @@ impl Chat {
         !self.id.is_special()
             && !self.is_device_talk()
             && !self.is_mailing_list()
+            && !self.is_contact_request()
             && (self.typ == Chattype::Single
                 || is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await)
     }
@@ -1017,6 +1040,14 @@ impl Chat {
 
     pub fn get_visibility(&self) -> ChatVisibility {
         self.visibility
+    }
+
+    /// Returns true if chat is a contact request.
+    ///
+    /// Messages cannot be sent to such chat and read receipts are not
+    /// sent until the chat is manually unblocked.
+    pub fn is_contact_request(&self) -> bool {
+        self.blocked == Blocked::Request
     }
 
     pub fn is_unpromoted(&self) -> bool {
@@ -1353,56 +1384,10 @@ pub struct ChatInfo {
     /// Ephemeral message timer.
     pub ephemeral_timer: EphemeralTimer,
     // ToDo:
-    // - [ ] deaddrop,
     // - [ ] summary,
     // - [ ] lastUpdated,
     // - [ ] freshMessageCounter,
     // - [ ] email
-}
-
-/// Create a chat from a message ID.
-///
-/// Typically you'd do this for a message ID found in the
-/// [DC_CHAT_ID_DEADDROP] which turns the chat the message belongs to
-/// into a normal chat.  The chat can be a 1:1 chat or a group chat
-/// and all messages belonging to the chat will be moved from the
-/// deaddrop to the normal chat.
-///
-/// In reality the messages already belong to this chat as receive_imf
-/// always creates chat IDs appropriately, so this function really
-/// only unblocks the chat and "scales up" the origin of the contact
-/// the message is from.
-///
-/// If prompting the user before calling this function, they should be
-/// asked whether they want to chat with the **contact** the message
-/// is from and **not** the group name since this can be really weird
-/// and confusing when taken from subject of implicit groups.
-///
-/// # Returns
-///
-/// The "created" chat ID is returned.
-pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId> {
-    let msg = Message::load_from_db(context, msg_id).await?;
-    let chat = Chat::load_from_db(context, msg.chat_id).await?;
-    ensure!(
-        !chat.id.is_special(),
-        "Message can not belong to a special chat"
-    );
-    if chat.blocked != Blocked::Not {
-        chat.id.unblock(context).await;
-
-        // Sending with 0s as data since multiple messages may have changed.
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: ChatId::new(0),
-            msg_id: MsgId::new(0),
-        });
-    }
-
-    // If the message is from a mailing list, the contacts are not counted as "known"
-    if !chat.is_mailing_list() {
-        Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat).await;
-    }
-    Ok(chat.id)
 }
 
 pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<()> {
@@ -1942,27 +1927,7 @@ pub async fn get_chat_msgs(
         Ok(ret)
     };
 
-    let items = if chat_id.is_deaddrop() {
-        context
-            .sql
-            .query_map(
-                "SELECT m.id AS id, m.timestamp AS timestamp
-               FROM msgs m
-               LEFT JOIN chats
-                      ON m.chat_id=chats.id
-               LEFT JOIN contacts
-                      ON m.from_id=contacts.id
-              WHERE m.from_id!=?
-                AND m.hidden=0
-                AND chats.blocked=2
-                AND contacts.blocked=0
-              ORDER BY m.timestamp,m.id;",
-                paramsv![DC_CONTACT_ID_INFO],
-                process_row,
-                process_rows,
-            )
-            .await?
-    } else if (flags & DC_GCM_INFO_ONLY) != 0 {
+    let items = if (flags & DC_GCM_INFO_ONLY) != 0 {
         context
             .sql
             .query_map(
@@ -2021,31 +1986,6 @@ pub(crate) async fn marknoticed_chat_if_older_than(
 }
 
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {
-    // for the virtual deaddrop chat-id,
-    // mark all messages that will appear in the deaddrop as noticed
-    if chat_id.is_deaddrop() {
-        if context
-            .sql
-            .execute(
-                "UPDATE msgs
-                        SET state=?1
-                      WHERE state=?2
-                        AND hidden=0
-                        AND chat_id IN (SELECT id FROM chats WHERE blocked=?3);",
-                paramsv![
-                    MessageState::InNoticed,
-                    MessageState::InFresh,
-                    Blocked::Deaddrop
-                ],
-            )
-            .await?
-            > 0
-        {
-            context.emit_event(EventType::MsgsNoticed(chat_id));
-        }
-        return Ok(());
-    }
-
     // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
     // the additional SELECT statement may speed up things as no write-blocking is needed.
     let exists = context
@@ -2176,13 +2116,6 @@ pub async fn get_next_media(
 pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<u32>> {
     // Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
     // groupchat but the chats stays visible, moreover, this makes displaying lists easier)
-
-    if chat_id.is_deaddrop() {
-        return Ok(Vec::new());
-    }
-
-    // we could also create a list for all contacts in the deaddrop by searching contacts belonging to chats with
-    // chats.blocked=2, however, currently this is not needed
 
     let list = context
         .sql
@@ -3229,19 +3162,6 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_deaddrop_chat() {
-        let t = TestContext::new().await;
-        let chat = Chat::load_from_db(&t, DC_CHAT_ID_DEADDROP).await.unwrap();
-        assert_eq!(DC_CHAT_ID_DEADDROP.0, 1);
-        assert!(chat.id.is_deaddrop());
-        assert!(!chat.is_self_talk());
-        assert!(chat.visibility == ChatVisibility::Normal);
-        assert!(!chat.is_device_talk());
-        assert!(!chat.can_send(&t).await);
-        assert_eq!(chat.name, stock_str::dead_drop(&t).await);
-    }
-
-    #[async_std::test]
     async fn test_add_device_msg_unlabelled() {
         let t = TestContext::new().await;
 
@@ -3921,7 +3841,7 @@ mod tests {
         );
         send_text_msg(&alice, alice_chat_id, "hi!".to_string())
             .await
-            .ok();
+            .unwrap();
         assert_eq!(
             get_chat_msgs(&alice, alice_chat_id, 0, None)
                 .await
@@ -3945,11 +3865,14 @@ mod tests {
         let bob_chat = Chat::load_from_db(&bob, msg.chat_id).await.unwrap();
         assert_eq!(bob_chat.grpid, alice_chat.grpid);
 
+        // Bob accepts contact request.
+        bob_chat.id.unblock(&bob).await.unwrap();
+
         // Bob answers - simulate a normal MUA by not setting `Chat-*`-headers;
         // moreover, Bob's SMTP-server also replaces the `Message-ID:`-header
         send_text_msg(&bob, bob_chat.id, "ho!".to_string())
             .await
-            .ok();
+            .unwrap();
         let msg = bob.pop_sent_msg().await.payload();
         let msg = msg.replace("Message-ID: <Gr.", "Message-ID: <XXX");
         let msg = msg.replace("Chat-", "XXXX-");
@@ -3994,7 +3917,6 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
         assert_eq!(chats.get_chat_id(0), chat.id);
-        assert_ne!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
         assert_eq!(chat.id.get_fresh_msg_cnt(&t).await?, 1);
         assert_eq!(t.get_fresh_msgs().await?.len(), 1);
 
@@ -4020,7 +3942,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_marknoticed_deaddrop_chat() -> Result<()> {
+    async fn test_contact_request_fresh_messages() -> Result<()> {
         let t = TestContext::new_alice().await;
 
         let chats = Chatlist::try_load(&t, 0, None, None).await?;
@@ -4043,10 +3965,14 @@ mod tests {
 
         let chats = Chatlist::try_load(&t, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
-        assert_eq!(chats.get_chat_id(0), DC_CHAT_ID_DEADDROP);
-        assert_eq!(DC_CHAT_ID_DEADDROP.get_msg_cnt(&t).await?, 1);
-        assert_eq!(DC_CHAT_ID_DEADDROP.get_fresh_msg_cnt(&t).await?, 1);
-        let msgs = get_chat_msgs(&t, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        let chat_id = chats.get_chat_id(0);
+        assert!(Chat::load_from_db(&t, chat_id)
+            .await
+            .unwrap()
+            .is_contact_request());
+        assert_eq!(chat_id.get_msg_cnt(&t).await?, 1);
+        assert_eq!(chat_id.get_fresh_msg_cnt(&t).await?, 1);
+        let msgs = get_chat_msgs(&t, chat_id, 0, None).await?;
         assert_eq!(msgs.len(), 1);
         let msg_id = match msgs.first().unwrap() {
             ChatItem::Message { msg_id } => *msg_id,
@@ -4054,21 +3980,21 @@ mod tests {
         };
         let msg = message::Message::load_from_db(&t, msg_id).await?;
         assert_eq!(msg.state, MessageState::InFresh);
-        assert_eq!(t.get_fresh_msgs().await?.len(), 0); // deaddrop is excluded from global badge
 
-        marknoticed_chat(&t, DC_CHAT_ID_DEADDROP).await?;
+        // Contact requests are excluded from global badge.
+        assert_eq!(t.get_fresh_msgs().await?.len(), 0);
 
         let chats = Chatlist::try_load(&t, 0, None, None).await?;
-        assert_eq!(chats.len(), 0);
+        assert_eq!(chats.len(), 1);
         let msg = message::Message::load_from_db(&t, msg_id).await?;
-        assert_eq!(msg.state, MessageState::InNoticed);
+        assert_eq!(msg.state, MessageState::InFresh);
         assert_eq!(t.get_fresh_msgs().await?.len(), 0);
 
         Ok(())
     }
 
     #[async_std::test]
-    async fn test_classic_deaddrop_chat() -> Result<()> {
+    async fn test_classic_email_chat() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
         // Alice enables receiving classic emails.
@@ -4092,10 +4018,11 @@ mod tests {
         )
         .await?;
 
-        // There is one message in the contact requests chat.
-        assert_eq!(DC_CHAT_ID_DEADDROP.get_fresh_msg_cnt(&alice).await?, 1);
+        let msg = alice.get_last_msg().await;
+        let chat_id = msg.chat_id;
+        assert_eq!(chat_id.get_fresh_msg_cnt(&alice).await?, 1);
 
-        let msgs = get_chat_msgs(&alice, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        let msgs = get_chat_msgs(&alice, chat_id, 0, None).await?;
         assert_eq!(msgs.len(), 1);
 
         // Alice disables receiving classic emails.
@@ -4104,10 +4031,10 @@ mod tests {
             .await
             .unwrap();
 
-        // Already received classic email should still be in the contact requests.
-        assert_eq!(DC_CHAT_ID_DEADDROP.get_fresh_msg_cnt(&alice).await?, 1);
+        // Already received classic email should still be in the chat.
+        assert_eq!(chat_id.get_fresh_msg_cnt(&alice).await?, 1);
 
-        let msgs = get_chat_msgs(&alice, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        let msgs = get_chat_msgs(&alice, chat_id, 0, None).await?;
         assert_eq!(msgs.len(), 1);
 
         Ok(())
