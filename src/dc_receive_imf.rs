@@ -1399,9 +1399,26 @@ async fn create_or_lookup_group(
     set_better_msg(mime_parser, &better_msg);
 
     // check, if we have a chat with this group ID
-    let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
+    let (mut chat_id, is_protected, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
         .await
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
+    let create_protected = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
+        if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
+            warn!(context, "verification problem: {}", err);
+            let s = format!("{}. See 'Info' for more details", err);
+            mime_parser.repl_msg_by_error(&s);
+        }
+        ProtectionStatus::Protected
+    } else {
+        ProtectionStatus::Unprotected
+    };
+    if !chat_id.is_unset() && create_protected == ProtectionStatus::Protected && !is_protected {
+        chat_id
+            .inner_set_protection(context, create_protected)
+            .await?;
+        recreate_member_list = true; // TODO: is that needed?
+                                     // TODO: groupname / avatar may also need update
+    }
 
     // check if the group does not exist but should be created
     let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid)
@@ -1423,24 +1440,12 @@ async fn create_or_lookup_group(
                 || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
     {
         // group does not exist but should be created
-        let create_protected = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
-            if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
-            {
-                warn!(context, "verification problem: {}", err);
-                let s = format!("{}. See 'Info' for more details", err);
-                mime_parser.repl_msg_by_error(&s);
-            }
-            ProtectionStatus::Protected
-        } else {
-            ProtectionStatus::Unprotected
-        };
-
         if !allow_creation {
             info!(context, "creating group forbidden by caller");
             return Ok((ChatId::new(0), Blocked::Not));
         }
 
-        chat_id = create_multiuser_record(
+        chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Group,
             &grpid,
@@ -1656,7 +1661,7 @@ async fn create_or_lookup_mailinglist(
 
     if allow_creation {
         // list does not exist but should be created
-        match create_multiuser_record(
+        match ChatId::create_multiuser_record(
             context,
             Chattype::Mailinglist,
             &listid,
@@ -1763,7 +1768,7 @@ async fn create_adhoc_group(
         .get_subject()
         .unwrap_or_else(|| "Unnamed group".to_string());
 
-    let new_chat_id: ChatId = create_multiuser_record(
+    let new_chat_id = ChatId::create_multiuser_record(
         context,
         Chattype::Group,
         &grpid,
@@ -1779,39 +1784,6 @@ async fn create_adhoc_group(
     context.emit_event(EventType::ChatModified(new_chat_id));
 
     Ok(Some(new_chat_id))
-}
-
-async fn create_multiuser_record(
-    context: &Context,
-    chattype: Chattype,
-    grpid: impl AsRef<str>,
-    grpname: impl AsRef<str>,
-    create_blocked: Blocked,
-    create_protected: ProtectionStatus,
-) -> Result<ChatId> {
-    let row_id =
-    context.sql.insert(
-        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);",
-        paramsv![
-            chattype,
-            grpname.as_ref(),
-            grpid.as_ref(),
-            create_blocked,
-            time(),
-            create_protected,
-        ],
-    ).await?;
-
-    let chat_id = ChatId::new(u32::try_from(row_id)?);
-    info!(
-        context,
-        "Created group/mailinglist '{}' grpid={} as {}",
-        grpname.as_ref(),
-        grpid.as_ref(),
-        chat_id
-    );
-
-    Ok(chat_id)
 }
 
 /// Creates ad-hoc group ID.
