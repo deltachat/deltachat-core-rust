@@ -90,6 +90,32 @@ pub(crate) async fn dc_receive_imf_inner(
         return Ok(());
     }
 
+    let mut sent_timestamp = 0;
+    if let Some(value) = mime_parser.get(HeaderDef::Date) {
+        // is not yet checked against bad times! we do this later if we have the database information.
+        sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
+    }
+
+    let rfc724_mid = mime_parser.get_rfc724_mid().unwrap_or_else(||
+        // missing Message-IDs may come if the mail was set from this account with another
+        // client that relies in the SMTP server to generate one.
+        // true eg. for the Webmailer used in all-inkl-KAS
+        dc_create_incoming_rfc724_mid(&mime_parser));
+
+    // check, if the mail is already in our database - if so, just update the folder/uid
+    // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
+    // moved between folders. make sure, this check is done eg. before securejoin-processing) */
+    if let Some((old_server_folder, old_server_uid, _)) =
+        message::rfc724_mid_exists(context, &rfc724_mid).await?
+    {
+        if old_server_folder != server_folder || old_server_uid != server_uid {
+            message::update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
+        }
+
+        warn!(context, "Message already in DB");
+        return Ok(());
+    }
+
     // the function returns the number of created messages in the database
     let mut chat_id = ChatId::new(0);
     let mut hidden = false;
@@ -97,7 +123,6 @@ pub(crate) async fn dc_receive_imf_inner(
     let mut needs_delete_job = false;
     let mut insert_msg_id = MsgId::new_unset();
 
-    let mut sent_timestamp = 0;
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
 
@@ -115,11 +140,6 @@ pub(crate) async fn dc_receive_imf_inner(
             }
         }
     };
-
-    if let Some(value) = mime_parser.get(HeaderDef::Date) {
-        // is not yet checked against bad times! we do this later if we have the database information.
-        sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
-    }
 
     let prevent_rename =
         mime_parser.is_mailinglist_message() || mime_parser.get(HeaderDef::Sender).is_some();
@@ -156,16 +176,6 @@ pub(crate) async fn dc_receive_imf_inner(
     );
 
     // Add parts
-
-    let rfc724_mid = match mime_parser.get_rfc724_mid() {
-        Some(x) => x,
-        None => {
-            // missing Message-IDs may come if the mail was set from this account with another
-            // client that relies in the SMTP server to generate one.
-            // true eg. for the Webmailer used in all-inkl-KAS
-            dc_create_incoming_rfc724_mid(sent_timestamp, from_id, &to_ids)
-        }
-    };
     if mime_parser.parts.last().is_some() {
         if let Err(err) = add_parts(
             context,
@@ -384,20 +394,6 @@ async fn add_parts(
     let mut mime_in_reply_to = String::new();
     let mut mime_references = String::new();
     let mut incoming_origin = incoming_origin;
-
-    // check, if the mail is already in our database - if so, just update the folder/uid
-    // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
-    // moved between folders. make sure, this check is done eg. before securejoin-processing) */
-    if let Some((old_server_folder, old_server_uid, _)) =
-        message::rfc724_mid_exists(context, rfc724_mid).await?
-    {
-        if old_server_folder != server_folder || old_server_uid != server_uid {
-            message::update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
-        }
-
-        warn!(context, "Message already in DB");
-        return Ok(());
-    }
 
     let parent = get_parent_message(context, mime_parser).await?;
 
@@ -2103,18 +2099,25 @@ async fn add_or_lookup_contact_by_addr(
     Ok(row_id)
 }
 
-fn dc_create_incoming_rfc724_mid(
-    message_timestamp: i64,
-    contact_id_from: u32,
-    contact_ids_to: &ContactIds,
-) -> String {
-    /* create a deterministic rfc724_mid from input such that
-    repeatedly calling it with the same input results in the same Message-id */
-
-    let largest_id_to = contact_ids_to.iter().max().copied().unwrap_or_default();
+/// Creates fake Message-ID to identify the message in the database for
+/// messages which does not have one.
+///
+/// Concatenates Date:, From: and To: fields, then hashes them.
+fn dc_create_incoming_rfc724_mid(mime: &MimeMessage) -> String {
     format!(
-        "{}-{}-{}@stub",
-        message_timestamp, contact_id_from, largest_id_to
+        "{}@stub",
+        hex_hash(&format!(
+            "{}-{}-{}",
+            mime.get(HeaderDef::Date)
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            mime.get(HeaderDef::From_)
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            mime.get(HeaderDef::To)
+                .map(|s| s.to_string())
+                .unwrap_or_default()
+        ))
     )
 }
 
@@ -2177,23 +2180,20 @@ mod tests {
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
 
-    #[test]
-    fn test_dc_create_incoming_rfc724_mid() {
-        let mut members = ContactIds::new();
+    #[async_std::test]
+    async fn test_dc_create_incoming_rfc724_mid() {
+        let context = TestContext::new().await;
+        let raw = b"From: Alice <alice@example.com>\n\
+                    To: Bob <bob@example.org>\n\
+                    Subject: Some subject\n\
+                    hello\n";
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+
         assert_eq!(
-            dc_create_incoming_rfc724_mid(123, 45, &members),
-            "123-45-0@stub"
-        );
-        members.insert(7);
-        members.insert(3);
-        assert_eq!(
-            dc_create_incoming_rfc724_mid(123, 45, &members),
-            "123-45-7@stub"
-        );
-        members.insert(9);
-        assert_eq!(
-            dc_create_incoming_rfc724_mid(123, 45, &members),
-            "123-45-9@stub"
+            dc_create_incoming_rfc724_mid(&mimeparser),
+            "08d11318608d5191@stub"
         );
     }
 
@@ -4067,5 +4067,64 @@ Message content",
         let msg = alice.get_last_msg().await;
         assert_ne!(msg.chat_id, DC_CHAT_ID_DEADDROP);
         assert_eq!(msg.get_text().unwrap(), "Subj – Message content");
+    }
+
+    #[async_std::test]
+    async fn test_duplicate_message() -> Result<()> {
+        // Test that duplicate messages are ignored based on the Message-ID
+        let alice = TestContext::new_alice().await;
+
+        let bob_contact_id = Contact::add_or_lookup(
+            &alice,
+            "Bob",
+            "bob@example.org",
+            Origin::IncomingUnknownFrom,
+        )
+        .await?
+        .0;
+
+        let first_message = b"Received: from [127.0.0.1]
+Subject: First message
+Message-ID: <first@example.org>
+To: Alice <alice@example.com>
+From: Bob1 <bob@example.org>
+Chat-Version: 1.0
+
+Message content
+
+-- 
+First signature";
+
+        let second_message = b"Received: from [127.0.0.1]
+Subject: Second message
+Message-ID: <second@example.org>
+To: Alice <alice@example.com>
+From: Bob2 <bob@example.org>
+Chat-Version: 1.0
+
+Message content
+
+-- 
+Second signature";
+
+        dc_receive_imf(&alice, first_message, "Inbox", 1, false).await?;
+        let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
+        assert_eq!(contact.get_status(), "First signature");
+        assert_eq!(contact.get_display_name(), "Bob1");
+
+        dc_receive_imf(&alice, second_message, "Inbox", 2, false).await?;
+        let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
+        assert_eq!(contact.get_status(), "Second signature");
+        assert_eq!(contact.get_display_name(), "Bob2");
+
+        // Duplicate message, should be ignored
+        dc_receive_imf(&alice, first_message, "Inbox", 3, false).await?;
+
+        // No change because last message is duplicate of the first.
+        let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
+        assert_eq!(contact.get_status(), "Second signature");
+        assert_eq!(contact.get_display_name(), "Bob2");
+
+        Ok(())
     }
 }
