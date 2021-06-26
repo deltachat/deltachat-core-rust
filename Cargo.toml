@@ -16,7 +16,7 @@ deltachat_derive = { path = "./deltachat_derive" }
 
 ansi_term = { version = "0.12.1", optional = true }
 anyhow = "1.0.41"
-async-imap = { git="https://github.com/simon-laux/async-imap", branch="quota_support" }
+async-imap = { git = "https://github.com/async-email/async-imap" }
 async-native-tls = { version = "0.3.3" }
 async-smtp = { git = "https://github.com/async-email/async-smtp", rev="2275fd8d13e39b2c58d6605c786ff06ff9e05708" }
 async-std-resolver = "0.20.3"
