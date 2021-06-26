@@ -551,7 +551,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                         },
                         if chat.is_protected() { "🛡️" } else { "" },
                     );
-                    let lot = chatlist.get_summary(&context, i, Some(&chat)).await;
+                    let lot = chatlist.get_summary(&context, i, Some(&chat)).await?;
                     let statestr = if chat.visibility == ChatVisibility::Archived {
                         " [Archived]"
                     } else {

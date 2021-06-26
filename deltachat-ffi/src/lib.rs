@@ -2318,11 +2318,14 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
         return 0;
     }
     let ffi_list = &*chatlist;
-    ffi_list
-        .list
-        .get_msg_id(index as usize)
-        .map(|msg_id| msg_id.to_u32())
-        .unwrap_or(0)
+    let ctx = &*ffi_list.context;
+    match ffi_list.list.get_msg_id(index as usize) {
+        Ok(msg_id) => msg_id.map_or(0, |msg_id| msg_id.to_u32()),
+        Err(err) => {
+            warn!(ctx, "get_msg_id failed: {}", err);
+            0
+        }
+    }
 }
 
 #[no_mangle]
@@ -2348,7 +2351,9 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
         let lot = ffi_list
             .list
             .get_summary(&ctx, index as usize, maybe_chat)
-            .await;
+            .await
+            .log_err(ctx, "get_summary failed")
+            .unwrap_or_default();
         Box::into_raw(Box::new(lot))
     })
 }
@@ -2364,9 +2369,16 @@ pub unsafe extern "C" fn dc_chatlist_get_summary2(
         return ptr::null_mut();
     }
     let ctx = &*context;
+    let msg_id = if msg_id == 0 {
+        None
+    } else {
+        Some(MsgId::new(msg_id))
+    };
     block_on(async move {
-        let lot =
-            Chatlist::get_summary2(&ctx, ChatId::new(chat_id), MsgId::new(msg_id), None).await;
+        let lot = Chatlist::get_summary2(&ctx, ChatId::new(chat_id), msg_id, None)
+            .await
+            .log_err(ctx, "get_summary2 failed")
+            .unwrap_or_default();
         Box::into_raw(Box::new(lot))
     })
 }
