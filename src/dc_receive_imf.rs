@@ -90,11 +90,14 @@ pub(crate) async fn dc_receive_imf_inner(
         return Ok(());
     }
 
-    let mut sent_timestamp = 0;
-    if let Some(value) = mime_parser.get(HeaderDef::Date) {
-        // is not yet checked against bad times! we do this later if we have the database information.
-        sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
-    }
+    let mut sent_timestamp = if let Some(value) = mime_parser
+        .get(HeaderDef::Date)
+        .and_then(|value| mailparse::dateparse(value).ok())
+    {
+        value
+    } else {
+        dc_create_smeared_timestamp(context).await
+    };
 
     let rfc724_mid = mime_parser.get_rfc724_mid().unwrap_or_else(||
         // missing Message-IDs may come if the mail was set from this account with another
