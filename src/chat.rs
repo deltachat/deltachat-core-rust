@@ -1535,6 +1535,7 @@ impl ChatIdBlocked {
             _ => (),
         }
 
+        let created_timestamp = dc_create_smeared_timestamp(context).await;
         let chat_id = context
             .sql
             .transaction(move |transaction| {
@@ -1547,7 +1548,7 @@ impl ChatIdBlocked {
                         chat_name,
                         params.to_string(),
                         create_blocked as u8,
-                        time(),
+                        created_timestamp,
                     ],
                 )?;
                 let chat_id = ChatId::new(
@@ -2214,7 +2215,12 @@ pub async fn create_group_chat(
             "INSERT INTO chats
         (type, name, grpid, param, created_timestamp)
         VALUES(?, ?, ?, \'U=1\', ?);",
-            paramsv![Chattype::Group, chat_name, grpid, time(),],
+            paramsv![
+                Chattype::Group,
+                chat_name,
+                grpid,
+                dc_create_smeared_timestamp(context).await,
+            ],
         )
         .await?;
 
