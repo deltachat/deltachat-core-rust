@@ -61,16 +61,13 @@ class Message(object):
     def create_chat(self):
         """ create or get an existing chat (group) object for this message.
 
-        If the message is a deaddrop contact request
+        If the message is a contact request
         the sender will become an accepted contact.
 
         :returns: a :class:`deltachat.chat.Chat` object.
         """
-        from .chat import Chat
-        chat_id = lib.dc_create_chat_by_msg_id(self.account._dc_context, self.id)
-        ctx = self.account._dc_context
-        self._dc_msg = ffi.gc(lib.dc_get_msg(ctx, self.id), lib.dc_msg_unref)
-        return Chat(self.account, chat_id)
+        self.chat.accept()
+        return self.chat
 
     @props.with_doc
     def id(self):

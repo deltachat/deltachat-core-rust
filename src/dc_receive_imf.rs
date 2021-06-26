@@ -351,9 +351,6 @@ pub async fn from_field_to_contact_id(
             context,
             "mail has an empty From header: {:?}", from_address_list
         );
-        // if there is no from given, from_id stays 0 which is just fine. These messages
-        // are very rare, however, we have to add them to the database (they go to the
-        // "deaddrop" chat) to avoid a re-download from the server. See also [**]
 
         Ok((0, false, Origin::Unknown))
     }
@@ -463,8 +460,6 @@ async fn add_parts(
             .await
             .unwrap_or_default();
 
-        // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
-        // it might also be blocked and displayed in the deaddrop as a result
         if chat_id.is_unset() && mime_parser.failure_report.is_some() {
             *chat_id = DC_CHAT_ID_TRASH;
             info!(context, "Message belongs to an NDN (TRASH)",);
@@ -487,7 +482,7 @@ async fn add_parts(
                     id: _,
                     blocked: Blocked::Not,
                 }) => Blocked::Not,
-                _ => Blocked::Deaddrop,
+                _ => Blocked::Request,
             };
 
             let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
@@ -509,7 +504,7 @@ async fn add_parts(
                 && chat_id_blocked != Blocked::Not
                 && create_blocked == Blocked::Not
             {
-                new_chat_id.unblock(context).await;
+                new_chat_id.unblock(context).await?;
                 chat_id_blocked = Blocked::Not;
             }
         }
@@ -582,7 +577,7 @@ async fn add_parts(
             let create_blocked = if from_id == to_id {
                 Blocked::Not
             } else {
-                Blocked::Deaddrop
+                Blocked::Request
             };
 
             if let Some(chat) = test_normal_chat {
@@ -599,7 +594,7 @@ async fn add_parts(
             }
             if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
                 if Blocked::Not == create_blocked {
-                    chat_id.unblock(context).await;
+                    chat_id.unblock(context).await?;
                     chat_id_blocked = Blocked::Not;
                 } else if parent.is_some() {
                     // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
@@ -631,13 +626,13 @@ async fn add_parts(
             && show_emails != ShowEmails::All
         {
             state = MessageState::InNoticed;
-        } else if fetching_existing_messages && Blocked::Deaddrop == chat_id_blocked {
+        } else if fetching_existing_messages && Blocked::Request == chat_id_blocked {
             // The fetched existing message should be shown in the chatlist-contact-request because
             // a new user won't find the contact request in the menu
             state = MessageState::InFresh;
         }
 
-        let is_spam = (chat_id_blocked == Blocked::Deaddrop)
+        let is_spam = (chat_id_blocked == Blocked::Request)
             && !incoming_origin.is_known()
             && (is_dc_message == MessengerMessage::No)
             && context.is_spam_folder(server_folder).await?;
@@ -723,7 +718,7 @@ async fn add_parts(
                 chat_id_blocked = new_chat_id_blocked;
                 // automatically unblock chat when the user sends a message
                 if !chat_id.is_unset() && chat_id_blocked != Blocked::Not {
-                    new_chat_id.unblock(context).await;
+                    new_chat_id.unblock(context).await?;
                     chat_id_blocked = Blocked::Not;
                 }
             }
@@ -731,7 +726,7 @@ async fn add_parts(
                 let create_blocked = if !Contact::is_blocked_load(context, to_id).await {
                     Blocked::Not
                 } else {
-                    Blocked::Deaddrop
+                    Blocked::Request
                 };
                 if let Ok(chat) =
                     ChatIdBlocked::get_for_contact(context, to_id, create_blocked).await
@@ -744,7 +739,7 @@ async fn add_parts(
                     && Blocked::Not != chat_id_blocked
                     && Blocked::Not == create_blocked
                 {
-                    chat_id.unblock(context).await;
+                    chat_id.unblock(context).await?;
                     chat_id_blocked = Blocked::Not;
                 }
             }
@@ -766,7 +761,7 @@ async fn add_parts(
             }
 
             if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
-                chat_id.unblock(context).await;
+                chat_id.unblock(context).await?;
                 chat_id_blocked = Blocked::Not;
             }
         }
@@ -1689,14 +1684,14 @@ async fn create_or_lookup_mailinglist(
             Chattype::Mailinglist,
             &listid,
             &name,
-            Blocked::Deaddrop,
+            Blocked::Request,
             ProtectionStatus::Unprotected,
         )
         .await
         {
             Ok(chat_id) => {
                 chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
-                (chat_id, Blocked::Deaddrop)
+                (chat_id, Blocked::Request)
             }
             Err(e) => {
                 warn!(
@@ -1706,7 +1701,7 @@ async fn create_or_lookup_mailinglist(
                     &listid,
                     e.to_string()
                 );
-                (ChatId::new(0), Blocked::Deaddrop)
+                (ChatId::new(0), Blocked::Request)
             }
         }
     } else {
@@ -2159,9 +2154,8 @@ mod tests {
 
     use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
     use crate::chatlist::Chatlist;
-    use crate::constants::{DC_CHAT_ID_DEADDROP, DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
-    use crate::message::ContactRequestDecision::*;
-    use crate::message::{ContactRequestDecision, Message};
+    use crate::constants::{DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
+    use crate::message::Message;
     use crate::test_utils::{get_chat_msg, TestContext};
 
     #[test]
@@ -2322,11 +2316,11 @@ mod tests {
             .unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        assert!(chats.get_chat_id(0).is_deaddrop());
-        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap().unwrap())
-            .await
-            .unwrap();
+        let chat_id = chats.get_chat_id(0);
         assert!(!chat_id.is_special());
+        let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(chat.is_contact_request());
+        chat_id.accept(&t).await.unwrap();
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Single);
         assert_eq!(chat.name, "Bob");
@@ -2358,9 +2352,7 @@ mod tests {
             .unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
-        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap().unwrap())
-            .await
-            .unwrap();
+        let chat_id = chats.get_chat_id(0);
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(chat.name, "group with Alice, Bob and Claire");
@@ -2375,13 +2367,13 @@ mod tests {
             .await
             .unwrap();
 
-        // adhoc-group with unknown contacts with show_emails=all will show up in the deaddrop
+        // adhoc-group with unknown contacts with show_emails=all will show up in a single chat
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        assert!(chats.get_chat_id(0).is_deaddrop());
-        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap().unwrap())
-            .await
-            .unwrap();
+        let chat_id = chats.get_chat_id(0);
+        let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(chat.is_contact_request());
+        chat_id.accept(&t).await.unwrap();
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(chat.name, "group with Alice, Bob and Claire");
@@ -2526,8 +2518,8 @@ mod tests {
     #[async_std::test]
     async fn test_no_from() {
         // if there is no from given, from_id stays 0 which is just fine. These messages
-        // are very rare, however, we have to add them to the database (they go to the
-        // "deaddrop" chat) to avoid a re-download from the server. See also [**]
+        // are very rare, however, we have to add them to the database
+        // to avoid a re-download from the server.
 
         let t = TestContext::new_alice().await;
         let context = &t;
@@ -2912,9 +2904,8 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap().unwrap())
-            .await
-            .unwrap();
+        let chat_id = chats.get_chat_id(0);
+        chat_id.accept(&t).await.unwrap();
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
 
         assert!(chat.is_mailing_list());
@@ -2985,9 +2976,8 @@ mod tests {
             .await
             .unwrap();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap().unwrap())
-            .await
-            .unwrap();
+        let chat_id = chats.get_chat_id(0);
+        chat_id.accept(&t).await.unwrap();
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert_eq!(chat.name, "delta-dev");
 
@@ -2997,8 +2987,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_mailing_list_decide_block() {
-        let deaddrop = DC_CHAT_ID_DEADDROP;
+    async fn test_block_mailing_list() {
         let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
@@ -3010,36 +2999,31 @@ mod tests {
             .unwrap();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        assert_eq!(chats.get_chat_id(0), deaddrop); // Test that the message is shown in the deaddrop
+        let chat_id = chats.get_chat_id(0);
+        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert!(chat.is_contact_request());
 
-        let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-
-        // Answer "Block" on the contact request
-        message::decide_on_contact_request(&t.ctx, msg.get_id(), Block).await;
+        // Block the contact request.
+        chat_id.block(&t).await.unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
-        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None)
-            .await
-            .unwrap();
-        assert_eq!(msgs.len(), 0);
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 1, false)
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 2, false)
             .await
             .unwrap();
 
         // Test that the mailing list stays disappeared
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message is not shown
-        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None)
-            .await
-            .unwrap();
-        assert_eq!(msgs.len(), 0);
+
+        // Both messages are in the same blocked chat.
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
+        assert_eq!(msgs.len(), 2);
     }
 
     #[async_std::test]
     async fn test_mailing_list_decide_block_then_unblock() {
-        let deaddrop = DC_CHAT_ID_DEADDROP;
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3049,16 +3033,16 @@ mod tests {
         let blocked = Contact::get_all_blocked(&t).await.unwrap();
         assert_eq!(blocked.len(), 0);
 
-        // Answer "Block" on the contact request,
-        // this should add one blocked contact and deaddrop should be empty again
-        let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-        message::decide_on_contact_request(&t, msg.get_id(), Block).await;
+        // Block the contact request, this should add one blocked contact.
+        let msg = t.get_last_msg().await;
+        msg.chat_id.block(&t).await.unwrap();
+
         let blocked = Contact::get_all_blocked(&t).await.unwrap();
         assert_eq!(blocked.len(), 1);
-        let msgs = chat::get_chat_msgs(&t, deaddrop, 0, None).await.unwrap();
-        assert_eq!(msgs.len(), 0);
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 0); // Test that the message is not shown
 
-        // Unblock contact and check if the next message arrives in real chat
+        // Unblock contact and check if the next message arrives in a chat
         Contact::unblock(&t, *blocked.first().unwrap())
             .await
             .unwrap();
@@ -3069,16 +3053,12 @@ mod tests {
             .await
             .unwrap();
         let msg = t.get_last_msg().await;
-        assert_ne!(msg.chat_id, deaddrop);
         let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 2);
-        let msgs = chat::get_chat_msgs(&t, deaddrop, 0, None).await.unwrap();
-        assert_eq!(msgs.len(), 0);
     }
 
     #[async_std::test]
     async fn test_mailing_list_decide_not_now() {
-        let deaddrop = DC_CHAT_ID_DEADDROP;
         let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
@@ -3089,33 +3069,31 @@ mod tests {
             .await
             .unwrap();
 
-        let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
+        let msg = t.get_last_msg().await;
+        let chat_id = msg.get_chat_id();
 
-        // Answer "Not now" on the contact request
-        message::decide_on_contact_request(&t.ctx, msg.get_id(), NotNow).await;
+        // Open the chat and go back
+        chat::marknoticed_chat(&t.ctx, chat_id).await.unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        assert_eq!(chats.len(), 0); // Test that the message disappeared
-        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None)
-            .await
-            .unwrap();
-        assert_eq!(msgs.len(), 1); // ...but is still shown in the deaddrop
+        assert_eq!(chats.len(), 1); // Test that chat is still in the chatlist
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
+        assert_eq!(msgs.len(), 1); // ...and contains 1 message
 
         dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 1, false)
             .await
             .unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        assert_eq!(chats.len(), 1); // Test that the new mailing list message is shown again
-        let msgs = chat::get_chat_msgs(&t.ctx, deaddrop, 0, None)
-            .await
-            .unwrap();
+        assert_eq!(chats.len(), 1); // Test that the new mailing list message got into the same chat
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 2);
+        let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert!(chat.is_contact_request());
     }
 
     #[async_std::test]
     async fn test_mailing_list_decide_accept() {
-        let deaddrop = DC_CHAT_ID_DEADDROP;
         let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
@@ -3126,15 +3104,13 @@ mod tests {
             .await
             .unwrap();
 
-        let msg = get_chat_msg(&t, deaddrop, 0, 1).await;
-
-        // Answer "Start chat" on the contact request
-        message::decide_on_contact_request(&t.ctx, msg.get_id(), StartChat).await;
+        let msg = t.get_last_msg().await;
+        let chat_id = msg.get_chat_id();
+        chat_id.accept(&t).await.unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1); // Test that the message is shown
-        let chat_id = chats.get_chat_id(0);
-        assert_ne!(chat_id, deaddrop);
+        assert!(!chat_id.is_special());
 
         dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 1, false)
             .await
@@ -3168,10 +3144,7 @@ mod tests {
         .await
         .unwrap();
         let msg = t.get_last_msg().await;
-        let chat_id =
-            message::decide_on_contact_request(&t, msg.id, ContactRequestDecision::StartChat)
-                .await
-                .unwrap();
+        let chat_id = msg.get_chat_id();
         let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "mylist@bar.org");
@@ -3236,7 +3209,7 @@ mod tests {
         let msg = t.get_last_msg().await;
         let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Mailinglist);
-        assert_eq!(chat.blocked, Blocked::Deaddrop);
+        assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(
             chat.grpid,
             "399fc0402f1b154b67965632e.100761.list-id.mcsv.net"
@@ -3266,7 +3239,7 @@ mod tests {
         assert!(msg.has_html());
         let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Mailinglist);
-        assert_eq!(chat.blocked, Blocked::Deaddrop);
+        assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "1234ABCD-123LMNO.mailing.dhl.de");
         assert_eq!(chat.name, "DHL Paket");
     }
@@ -3293,7 +3266,7 @@ mod tests {
         assert!(msg.has_html());
         let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Mailinglist);
-        assert_eq!(chat.blocked, Blocked::Deaddrop);
+        assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "dpdde.mxmail.service.dpd.de");
         assert_eq!(chat.name, "DPD");
     }
@@ -3302,8 +3275,6 @@ mod tests {
     async fn test_mailing_list_with_mimepart_footer() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
-        let deaddrop = DC_CHAT_ID_DEADDROP;
-        assert_eq!(get_chat_msgs(&t, deaddrop, 0, None).await.unwrap().len(), 0);
 
         // the mailing list message contains two top-level texts.
         // the second text is a footer that is added by some mailing list software
@@ -3326,13 +3297,12 @@ mod tests {
         );
         assert!(msg.has_html());
         let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
-        assert_eq!(get_chat_msgs(&t, deaddrop, 0, None).await.unwrap().len(), 1);
         assert_eq!(
             get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap().len(),
             1
         );
         assert_eq!(chat.typ, Chattype::Mailinglist);
-        assert_eq!(chat.blocked, Blocked::Deaddrop);
+        assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "intern.lists.abc.de");
         assert_eq!(chat.name, "Intern");
     }
@@ -3539,7 +3509,7 @@ YEAAAAAA!.
         assert_eq!(msg.chat_id, reply_msg.chat_id);
 
         // Make sure we looked at real chat ID and do not just
-        // test that both messages got into deaddrop.
+        // test that both messages got into the same virtual chat.
         assert!(!msg.chat_id.is_special());
     }
 
@@ -3791,8 +3761,9 @@ YEAAAAAA!.
             .await
             .unwrap()
             .unwrap();
-        chat::create_by_msg_id(&claire, msg_id).await.unwrap();
+
         let msg = Message::load_from_db(&claire, msg_id).await.unwrap();
+        msg.chat_id.accept(&claire).await.unwrap();
         assert_eq!(msg.get_subject(), "i have a question");
         assert!(msg.get_text().unwrap().contains("hi support!"));
         let chat = Chat::load_from_db(&claire, msg.chat_id).await.unwrap();
@@ -3919,9 +3890,8 @@ YEAAAAAA!.
         )
         .await
         .unwrap();
-        let chat_id = chat::create_by_msg_id(&t, t.get_last_msg().await.id)
-            .await
-            .unwrap();
+        let chat_id = t.get_last_msg().await.chat_id;
+        chat_id.accept(&t).await.unwrap();
         let msg = get_chat_msg(&t, chat_id, 0, 1).await; // Make sure that the message is actually in the chat
         assert!(!msg.chat_id.is_special());
         assert_eq!(msg.text.unwrap(), "Hi – hello");
@@ -4093,7 +4063,6 @@ Message content",
 
         // Outgoing email should create a chat.
         let msg = alice.get_last_msg().await;
-        assert_ne!(msg.chat_id, DC_CHAT_ID_DEADDROP);
         assert_eq!(msg.get_text().unwrap(), "Subj – Message content");
     }
 

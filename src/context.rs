@@ -279,8 +279,8 @@ impl Context {
         let l2 = LoginParam::from_database(self, "configured_").await?;
         let displayname = self.get_config(Config::Displayname).await?;
         let chats = get_chat_cnt(self).await? as usize;
-        let real_msgs = message::get_real_msg_cnt(self).await as usize;
-        let deaddrop_msgs = message::get_deaddrop_msg_cnt(self).await as usize;
+        let unblocked_msgs = message::get_unblocked_msg_cnt(self).await as usize;
+        let request_msgs = message::get_request_msg_cnt(self).await as usize;
         let contacts = Contact::get_real_cnt(self).await? as usize;
         let is_configured = self.get_config_int(Config::Configured).await?;
         let dbversion = self
@@ -336,8 +336,8 @@ impl Context {
         // insert values
         res.insert("bot", self.get_config_int(Config::Bot).await?.to_string());
         res.insert("number_of_chats", chats.to_string());
-        res.insert("number_of_chat_messages", real_msgs.to_string());
-        res.insert("messages_in_contact_requests", deaddrop_msgs.to_string());
+        res.insert("number_of_chat_messages", unblocked_msgs.to_string());
+        res.insert("messages_in_contact_requests", request_msgs.to_string());
         res.insert("number_of_contacts", contacts.to_string());
         res.insert("database_dir", self.get_dbfile().display().to_string());
         res.insert("database_version", dbversion.to_string());
@@ -422,7 +422,7 @@ impl Context {
         Ok(res)
     }
 
-    /// Get a list of fresh, unmuted messages in any chat but deaddrop.
+    /// Get a list of fresh, unmuted messages in unblocked chats.
     ///
     /// The list starts with the most recent message
     /// and is typically used to show notifications.

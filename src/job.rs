@@ -13,9 +13,8 @@ use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
 use crate::blob::BlobObject;
-use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ChatItem};
+use crate::chat::{self, ChatId};
 use crate::config::Config;
-use crate::constants::{Blocked, Chattype, DC_CHAT_ID_DEADDROP};
 use crate::contact::{normalize_name, Contact, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, dc_read_file, time};
@@ -707,40 +706,6 @@ impl Job {
                         warn!(context, "Could not fetch messages, retrying: {:#}", e);
                         return Status::RetryLater;
                     };
-                }
-            }
-        }
-
-        // Make sure that if there now is a chat with a contact (created by an outgoing
-        // message), then group contact requests from this contact should also be unblocked.
-        // See <https://github.com/deltachat/deltachat-core-rust/issues/2097>.
-        for item in job_try!(chat::get_chat_msgs(context, DC_CHAT_ID_DEADDROP, 0, None).await) {
-            if let ChatItem::Message { msg_id } = item {
-                let msg = match Message::load_from_db(context, msg_id).await {
-                    Err(e) => {
-                        warn!(context, "can't get msg: {:#}", e);
-                        return Status::RetryLater;
-                    }
-                    Ok(m) => m,
-                };
-                let chat = match Chat::load_from_db(context, msg.chat_id).await {
-                    Err(e) => {
-                        warn!(context, "can't get chat: {:#}", e);
-                        return Status::RetryLater;
-                    }
-                    Ok(c) => c,
-                };
-                match chat.typ {
-                    Chattype::Group | Chattype::Mailinglist => {
-                        if let Ok(Some(one_to_one_chat)) =
-                            ChatIdBlocked::lookup_by_contact(context, msg.from_id).await
-                        {
-                            if one_to_one_chat.blocked == Blocked::Not {
-                                chat.id.unblock(context).await;
-                            }
-                        }
-                    }
-                    Chattype::Single | Chattype::Undefined => {}
                 }
             }
         }

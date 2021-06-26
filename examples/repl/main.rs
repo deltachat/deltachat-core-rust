@@ -167,14 +167,11 @@ const DB_COMMANDS: [&str; 10] = [
     "housekeeping",
 ];
 
-const CHAT_COMMANDS: [&str; 34] = [
+const CHAT_COMMANDS: [&str; 33] = [
     "listchats",
     "listarchived",
     "chat",
     "createchat",
-    "decidestartchat",
-    "decideblock",
-    "decidenotnow",
     "creategroup",
     "createverified",
     "addmember",
@@ -202,6 +199,8 @@ const CHAT_COMMANDS: [&str; 34] = [
     "protect",
     "unprotect",
     "delchat",
+    "accept",
+    "blockchat",
 ];
 const MESSAGE_COMMANDS: [&str; 6] = [
     "listmsgs",
