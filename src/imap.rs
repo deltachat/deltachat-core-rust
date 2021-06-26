@@ -766,6 +766,67 @@ impl Imap {
 
         // fetch messages with larger UID than the last one seen
         let set = format!("{}:*", uid_next);
+
+        // When these lines are uncommented, the test passes:
+
+        // let id = session
+        //     .run_command(&format!("UID FETCH {} {}", &set, PREFETCH_FLAGS))
+        //     .await?;
+        // let response = session.read_response().await;
+        // dbg!(id, &response);
+        // if let Some(Ok(r)) = response {
+        //     dbg!(r.parsed());
+        // }
+
+        // ... Alternatively, when these lines are uncommented, the test passes, too:
+
+        // let id = session.run_command("NOOP").await?;
+        // let response = session.read_response().await;
+        // dbg!(id, &response);
+        // if let Some(Ok(r)) = response {
+        //     dbg!(r.parsed());
+        // }
+        // // Gives:
+        // // [src/imap.rs:783] id = RequestId(
+        // //     "A0010",
+        // // )
+        // // [src/imap.rs:783] &response = Some(
+        // //     Ok(
+        // //         ResponseData {
+        // //             raw: 4096,
+        // //             response: MailboxData(
+        // //                 Exists(
+        // //                     1,
+        // //                 ),
+        // //             ),
+        // //         },
+        // //     ),
+        // // )
+        // // [src/imap.rs:785] r.parsed() = MailboxData(
+        // //     Exists(
+        // //         1,
+        // //     ),
+        // // )
+        // // So there probably is a problem with async_imap, I mean, that's definitely
+        // // not the correct answer to NOOP, maybe it was some unsolicited response
+        // // the server sent before
+
+        // ... Same when this line is uncommented:
+
+        // session.noop().await.ok();
+
+        // ... Or if these are uncommented:
+
+        // dbg!(
+        //     session
+        //         .uid_fetch(&set, PREFETCH_FLAGS)
+        //         .await
+        //         .map_err(|err| format_err!("IMAP Could not fetch: {}", err))?
+        //         .collect::<Vec<_>>()
+        //         .await
+        // );
+        // // Result: []
+
         let mut list = session
             .uid_fetch(set, PREFETCH_FLAGS)
             .await
@@ -773,11 +834,13 @@ impl Imap {
 
         let mut msgs = BTreeMap::new();
         while let Some(fetch) = list.next().await {
+            dbg!(&fetch);
             let msg = fetch?;
             if let Some(msg_uid) = msg.uid {
                 msgs.insert(msg_uid, msg);
             }
         }
+        dbg!(&msgs.keys());
         drop(list);
 
         // If the mailbox is not empty, results always include

@@ -2083,6 +2083,33 @@ class TestOnlineAccount:
             if ev.name == "DC_EVENT_INFO" and "INBOX: Idle entering wait-on-remote state" in ev.data2:
                 break  # DC is done with reading messages
 
+    def test_weird_maybenetwork_bug(self, acfactory, lp):
+        ac1 = acfactory.get_online_configuring_account(move=False)
+        ac2 = acfactory.get_online_configuring_account()
+        ac1.set_config("inbox_watch", "0")
+        ac1.set_config("scan_all_folders_debounce_secs", "0")
+
+        acfactory.wait_configure_and_start_io()
+        # Wait until each folder was selected once and we are IDLEing:
+        ac1._evtracker.get_info_contains("IMAP-fake-IDLE: no folder, waiting for interrupt")
+
+        # Send a message to ac1 and move it to the mvbox:
+        ac1.direct_imap.select_config_folder("inbox")
+        ac1.direct_imap.idle_start()
+        acfactory.get_accepted_chat(ac2, ac1).send_text("hello")
+        ac1.direct_imap.idle_check(terminate=True)
+
+        #ac1.stop_io()  # The test fails if this line is commented out, passes if it's uncommented
+        ac1.start_io()  # This line doesn't do anything if the previous line is commented out
+        # make sure that the message really arrived
+
+        lp.sec("Calling maybe_network")
+        ac1.maybe_network()
+        ac1._evtracker.get_info_contains("IMAP-fake-IDLE: no folder, waiting for interrupt")
+
+        msg = ac1.create_chat(ac2).get_messages()[0]
+        assert msg.text == "hello"
+
     def test_send_receive_locations(self, acfactory, lp):
         now = datetime.utcnow()
         ac1, ac2 = acfactory.get_two_online_accounts()
