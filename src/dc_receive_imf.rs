@@ -1204,8 +1204,8 @@ async fn calc_sort_timestamp(
             .await?;
 
         if let Some(last_msg_time) = last_msg_time {
-            if last_msg_time > sort_timestamp {
-                sort_timestamp = last_msg_time;
+            if last_msg_time >= sort_timestamp {
+                sort_timestamp = last_msg_time + 1;
             }
         }
     }
