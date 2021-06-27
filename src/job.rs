@@ -871,7 +871,8 @@ impl Job {
         Status::Finished(Ok(()))
     }
 
-    /// Regular quota check that should run once per day and inform the user when their account is running full
+    /// Regular quota check that should run once per CHECK_QUOTA_FREQUENCY
+    /// and inform the user when their account is running full
     /// by posting a devicemessage suggesting to enable autodeletion.
     async fn check_quota(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {

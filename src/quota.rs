@@ -18,7 +18,7 @@ use crate::{
 /// warn about a nearly full mailbox after this usage percentage is reached.
 pub const QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 90;
 
-/// Minutes until the quota will be checked again
+/// Seconds until the quota will be checked again
 pub const CHECK_QUOTA_FREQUENCY: i64 = 60 * 60 * 24;
 
 /// Generates a detailed report about the current Quota usage on the for deltachat relevant folders
