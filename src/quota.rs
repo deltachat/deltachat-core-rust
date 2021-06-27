@@ -150,7 +150,8 @@ fn get_highest_usage<'t>(
 }
 
 pub(crate) async fn check_quota_job(context: &Context, imap: &mut Imap) -> Result<()> {
-    if !imap.capabilities_determined() {
+    if let Err(err) = imap.prepare(context).await {
+        warn!(context, "could not connect: {:?}", err);
         bail!("imap is not ready");
     }
 

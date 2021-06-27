@@ -877,11 +877,6 @@ impl Job {
             warn!(context, "Can't set config: {}", e);
         }
 
-        if let Err(err) = imap.prepare(context).await {
-            warn!(context, "could not connect: {:?}", err);
-            return Status::RetryLater;
-        }
-
         if let Err(err) = check_quota_job(context, imap).await {
             warn!(context, "check quota failed: {:?}", err);
             return Status::RetryLater;
