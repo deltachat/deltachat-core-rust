@@ -875,6 +875,13 @@ impl Job {
     /// and inform the user when their account is running full
     /// by posting a devicemessage suggesting to enable autodeletion.
     async fn check_quota(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(e) = context
+            .set_config(Config::LastQuotaCheck, Some(&time().to_string()))
+            .await
+        {
+            warn!(context, "Can't set config: {}", e);
+        }
+
         if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
@@ -883,13 +890,6 @@ impl Job {
         if let Err(err) = check_quota_job(context, imap).await {
             warn!(context, "check quota failed: {:?}", err);
             return Status::RetryLater;
-        }
-
-        if let Err(e) = context
-            .set_config(Config::LastQuotaCheck, Some(&time().to_string()))
-            .await
-        {
-            warn!(context, "Can't set config: {}", e);
         }
 
         Status::Finished(Ok(()))
