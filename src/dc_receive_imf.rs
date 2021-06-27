@@ -240,7 +240,7 @@ pub(crate) async fn dc_receive_imf_inner(
                 context.emit_event(EventType::ChatModified(chat_id));
             }
             Err(err) => {
-                warn!(context, "reveive_imf cannot update profile image: {}", err);
+                warn!(context, "receive_imf cannot update profile image: {}", err);
             }
         };
     }
