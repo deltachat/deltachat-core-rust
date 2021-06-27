@@ -39,7 +39,7 @@ pub(crate) async fn quota_usage_report_job(context: &Context, imap: &mut Imap) -
         // build and send report message
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some(generate_report_message(&unique_quota_roots, context).await?);
-        add_device_msg(context, None, Some(&mut msg)).await?;
+        add_device_msg_with_importance(context, None, Some(&mut msg), true).await?;
     } else {
         warn!(
             context,
