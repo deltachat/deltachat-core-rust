@@ -419,6 +419,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  event <event-id to test>\n\
                  fileinfo <file>\n\
                  estimatedeletion <seconds>\n\
+                 requestquotareport\n\
                  clear -- clear screen\n\
                  exit or quit\n\
                  ============================================="

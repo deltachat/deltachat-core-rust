@@ -124,6 +124,7 @@ pub unsafe extern "C" fn dc_get_blobdir(context: *mut dc_context_t) -> *mut libc
 pub unsafe extern "C" fn dc_request_quota_report(context: *mut dc_context_t) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_request_quota_report()");
+        return;
     }
     let ctx = &*context;
     block_on(async move {
