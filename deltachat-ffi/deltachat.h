@@ -5778,14 +5778,14 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used in the quota report message.
 ///
-/// Example usage: 3912/6000 Messages
+/// Example usage: Messages: 3912/6000
 #define DC_STR_QUOTA_MESSAGES            100
 
 /// "Storage"
 ///
 /// Used in the quota report message.
 ///
-/// Example usage: 169.33 MiB/1000 MiB Storage
+/// Example usage: Storage: 169.33 MiB/1000 MiB
 #define DC_STR_QUOTA_STORAGE             101
 
 /**

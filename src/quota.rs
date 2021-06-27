@@ -68,8 +68,8 @@ async fn generate_report_message(
                 }
                 Message => {
                     format!(
-                        "{}/{} {}\n",
-                        resource.usage, resource.limit, messages_stock_string
+                        "{}: {}/{}\n",
+                        messages_stock_string, resource.usage, resource.limit
                     )
                 }
                 Storage => {
@@ -79,7 +79,7 @@ async fn generate_report_message(
                     let limit = (resource.limit * 1024)
                         .file_size(file_size_opts::BINARY)
                         .map_err(|err| anyhow!("{}", err))?;
-                    format!("{}/{} {}\n", used, limit, storage_stock_string)
+                    format!("{}: {}/{}\n", storage_stock_string, used, limit)
                 }
             });
         }
