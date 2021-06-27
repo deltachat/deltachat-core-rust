@@ -5771,7 +5771,7 @@ void dc_event_unref(dc_event_t* event);
 
 /// "Your email server does not support the quota extension"
 ///
-/// U
+/// Send as device message to the user when their email provider does not support the quota extention.
 #define DC_STR_QUOTA_NOT_SUPPORTED        99
 
 /// "Messages"
