@@ -1363,7 +1363,7 @@ async fn load_check_quota_job(context: &Context) -> Option<Job> {
     let next_time = last_time + CHECK_QUOTA_FREQUENCY;
     if next_time <= time() {
         kill_action(context, Action::CheckQuota).await;
-        Some(Job::new(Action::CheckQuota, 0, Params::new(), 10))
+        Some(Job::new(Action::CheckQuota, 0, Params::new(), 0))
     } else {
         None
     }
