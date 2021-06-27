@@ -123,12 +123,6 @@ pub const DC_RESEND_USER_AVATAR_DAYS: i64 = 14;
 // do not use too small value that will annoy users checking for nonexistant updates.
 pub const DC_OUTDATED_WARNING_DAYS: i64 = 365;
 
-/// warn about a nearly full mailbox after this usage percentage is reached.
-pub const DC_QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 90;
-
-/// Minutes until the quota will be checked again
-pub const DC_CHECK_QUOTA_FREQUENCY: i64 = 60 * 60 * 24;
-
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
 pub const DC_CHAT_ID_DEADDROP: ChatId = ChatId::new(1);
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)

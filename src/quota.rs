@@ -5,19 +5,21 @@ use itertools::Itertools;
 
 use crate::context::Context;
 use crate::imap::Imap;
+use crate::stock_str::{
+    quota_mailbox_nearly_full, quota_not_supported, quota_resource_messages, quota_resource_storage,
+};
 use crate::{
     chat::{add_device_msg, add_device_msg_with_importance},
     constants::Viewtype,
     imap::scan_folders::get_watched_folders,
     message::Message,
 };
-use crate::{
-    constants::DC_QUOTA_WARN_THRESHOLD_PERCENTAGE,
-    stock_str::{
-        quota_mailbox_nearly_full, quota_not_supported, quota_resource_messages,
-        quota_resource_storage,
-    },
-};
+
+/// warn about a nearly full mailbox after this usage percentage is reached.
+pub const QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 90;
+
+/// Minutes until the quota will be checked again
+pub const CHECK_QUOTA_FREQUENCY: i64 = 60 * 60 * 24;
 
 /// Generates a detailed report about the current Quota usage on the for deltachat relevant folders
 /// and sends it to the user via [add_device_msg]
@@ -177,13 +179,13 @@ pub(crate) async fn check_quota_job(context: &Context, imap: &mut Imap) -> Resul
             root_name
         );
         // check if highest usage percent reaches warning threshold
-        if usage_percentage >= DC_QUOTA_WARN_THRESHOLD_PERCENTAGE {
+        if usage_percentage >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
             // why log it? because then we can see it also in logs users might send us.
             warn!(
                 context,
                 "QuotaCheck: resource usage percentage({}%) higher than threshold({}%)",
                 usage_percentage,
-                DC_QUOTA_WARN_THRESHOLD_PERCENTAGE
+                QUOTA_WARN_THRESHOLD_PERCENTAGE
             );
 
             let mut details_msg = Message::new(Viewtype::Text);
