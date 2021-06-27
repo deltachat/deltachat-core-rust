@@ -53,7 +53,7 @@ async fn generate_report_message(
     unique_quota_roots: &[(String, Vec<QuotaResource>)],
     context: &Context,
 ) -> Result<String> {
-    let mut message: String = "".to_owned();
+    let mut message = String::new();
 
     let storage_stock_string = quota_resource_storage(context).await;
     let messages_stock_string = quota_resource_messages(context).await;
@@ -63,7 +63,7 @@ async fn generate_report_message(
         for resource in quota_resources {
             message.push_str(&match &resource.name {
                 Atom(name) => {
-                    format!("[{}/{}] {}\n", resource.usage, resource.limit, name)
+                    format!("{}: {}/{} \n", name, resource.usage, resource.limit)
                 }
                 Message => {
                     format!(
