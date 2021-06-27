@@ -27,7 +27,8 @@ pub const CHECK_QUOTA_FREQUENCY: i64 = 60 * 60 * 24;
 /// It's a bit like the prepaid mobile carrier service menu/messages,
 /// where you type a special number and then get a message back with your current balance.
 pub(crate) async fn quota_usage_report_job(context: &Context, imap: &mut Imap) -> Result<()> {
-    if !imap.capabilities_determined() {
+    if let Err(err) = imap.prepare(context).await {
+        warn!(context, "could not connect: {:?}", err);
         bail!("imap is not ready");
     }
 

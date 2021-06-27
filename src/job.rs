@@ -858,11 +858,6 @@ impl Job {
     /// It's a bit like the prepaid mobile carrier service menu/messages,
     /// where you type a special number and then get a message back with your current balance.
     async fn generate_quota_usage_report(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.prepare(context).await {
-            warn!(context, "could not connect: {:?}", err);
-            return Status::RetryLater;
-        }
-
         if let Err(err) = quota_usage_report_job(context, imap).await {
             warn!(context, "check quota failed: {:?}", err);
             return Status::RetryLater;
