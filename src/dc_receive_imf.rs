@@ -129,21 +129,6 @@ pub(crate) async fn dc_receive_imf_inner(
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
 
-    // helper method to handle early exit and memory cleanup
-    let cleanup = |context: &Context,
-                   create_event_to_send: &Option<CreateEvent>,
-                   created_db_entries: Vec<(ChatId, MsgId)>| {
-        if let Some(create_event_to_send) = create_event_to_send {
-            for (chat_id, msg_id) in created_db_entries {
-                let event = match create_event_to_send {
-                    CreateEvent::MsgsChanged => EventType::MsgsChanged { msg_id, chat_id },
-                    CreateEvent::IncomingMsg => EventType::IncomingMsg { msg_id, chat_id },
-                };
-                context.emit_event(event);
-            }
-        }
-    };
-
     let prevent_rename =
         mime_parser.is_mailinglist_message() || mime_parser.get(HeaderDef::Sender).is_some();
 
@@ -180,7 +165,7 @@ pub(crate) async fn dc_receive_imf_inner(
 
     // Add parts
     if mime_parser.parts.last().is_some() {
-        if let Err(err) = add_parts(
+        add_parts(
             context,
             &mut mime_parser,
             imf_raw,
@@ -203,10 +188,7 @@ pub(crate) async fn dc_receive_imf_inner(
             prevent_rename,
         )
         .await
-        {
-            cleanup(context, &create_event_to_send, created_db_entries);
-            bail!("add_parts error: {:?}", err);
-        }
+        .map_err(|err| err.context("add_parts error"))?;
     } else {
         // there are parts in this message, do some basic calculations so that the variables
         // are correct in the further processing
@@ -311,7 +293,15 @@ pub(crate) async fn dc_receive_imf_inner(
         "received message {} has Message-Id: {}", server_uid, rfc724_mid
     );
 
-    cleanup(context, &create_event_to_send, created_db_entries);
+    if let Some(create_event_to_send) = create_event_to_send {
+        for (chat_id, msg_id) in created_db_entries {
+            let event = match create_event_to_send {
+                CreateEvent::MsgsChanged => EventType::MsgsChanged { msg_id, chat_id },
+                CreateEvent::IncomingMsg => EventType::IncomingMsg { msg_id, chat_id },
+            };
+            context.emit_event(event);
+        }
+    }
 
     mime_parser
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
