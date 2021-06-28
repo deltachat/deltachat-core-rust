@@ -2412,7 +2412,7 @@ void dc_str_unref (char* str);
  * The account manager takes an directory
  * where all context-databases are placed in.
  * To add a context to the account manager,
- * use dc_accounts_add_account(), dc_accounts_import_account or dc_accounts_migrate_account().
+ * use dc_accounts_add_account() or dc_accounts_migrate_account().
  * All account information are persisted.
  * To remove a context from the account manager,
  * use dc_accounts_remove_account().
@@ -2455,21 +2455,6 @@ void           dc_accounts_unref                (dc_accounts_t* accounts);
  *     On errors, 0 is returned.
  */
 uint32_t       dc_accounts_add_account          (dc_accounts_t* accounts);
-
-
-/**
- * Import a tarfile-backup to the account manager.
- * On success, a new account is added to the account-manager,
- * with all the data provided by the backup-file.
- * Moreover, the newly created account will be the selected one.
- *
- * @memberof dc_accounts_t
- * @param accounts Account manager as created by dc_accounts_new().
- * @param tarfile Backup as created by dc_imex().
- * @return Account-id, use dc_accounts_get_account() to get the context object.
- *     On errors, 0 is returned.
- */
-uint32_t       dc_accounts_import_account       (dc_accounts_t* accounts, const char* tarfile);
 
 
 /**
