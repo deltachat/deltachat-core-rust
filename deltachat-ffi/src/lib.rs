@@ -3800,23 +3800,6 @@ pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *m
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_accounts_import_account(
-    accounts: *mut dc_accounts_t,
-    file: *const libc::c_char,
-) -> u32 {
-    if accounts.is_null() || file.is_null() {
-        eprintln!("ignoring careless call to dc_accounts_import_account()");
-        return 0;
-    }
-
-    let accounts = &*accounts;
-    let file = to_string_lossy(file);
-    block_on(accounts.import_account(async_std::path::PathBuf::from(file)))
-        .map(|_| 1)
-        .unwrap_or_else(|_| 0)
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_accounts_start_io(accounts: *mut dc_accounts_t) {
     if accounts.is_null() {
         eprintln!("ignoring careless call to dc_accounts_start_io()");

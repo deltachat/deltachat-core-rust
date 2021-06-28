@@ -179,25 +179,6 @@ impl Accounts {
         self.accounts.read().await.keys().copied().collect()
     }
 
-    /// Import a backup using a new account and selects it.
-    pub async fn import_account(&self, file: PathBuf) -> Result<u32> {
-        let old_id = self.config.get_selected_account().await;
-
-        let id = self.add_account().await?;
-        let ctx = self.get_account(id).await.expect("just added");
-
-        match crate::imex::imex(&ctx, crate::imex::ImexMode::ImportBackup, &file).await {
-            Ok(_) => Ok(id),
-            Err(err) => {
-                // remove temp account
-                self.remove_account(id).await?;
-                // set selection back
-                self.select_account(old_id).await?;
-                Err(err)
-            }
-        }
-    }
-
     pub async fn start_io(&self) {
         let accounts = &*self.accounts.read().await;
         for account in accounts.values() {
