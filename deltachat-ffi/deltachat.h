@@ -467,7 +467,8 @@ char*           dc_get_oauth2_url            (dc_context_t* context, const char*
 
 /**
  * Configure a context.
- * During configuration IO must not be started, if needed stop IO using dc_stop_io() first.
+ * During configuration IO must not be started,
+ * if needed stop IO using dc_accounts_stop_io() or dc_stop_io() first.
  * If the context is already configured,
  * this function will try to change the configuration.
  *
@@ -1878,7 +1879,8 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
 
 /**
  * Import/export things.
- * During backup import/export IO must not be started, if needed stop IO using dc_stop_io() first.
+ * During backup import/export IO must not be started,
+ * if needed stop IO using dc_accounts_stop_io() or dc_stop_io() first.
  * What to do is defined by the _what_ parameter which may be one of the following:
  *
  * - **DC_IMEX_EXPORT_BACKUP** (11) - Export a backup to the directory given as `param1`.
