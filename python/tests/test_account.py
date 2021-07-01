@@ -2058,7 +2058,8 @@ class TestOnlineAccount:
         ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
         ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTING, const.DC_CONNECTIVITY_CONNECTED)
 
-        lp.sec("Test that after calling start_io(), maybe_network() and waiting for connectivity `CONNECTED`, all messages are fetched")
+        lp.sec("Test that after calling start_io(), maybe_network() and waiting for connectivity `CONNECTED`, " +
+               "all messages are fetched")
 
         ac1.direct_imap.select_config_folder("inbox")
         ac1.direct_imap.idle_start()
@@ -2067,7 +2068,8 @@ class TestOnlineAccount:
         ac1.direct_imap.idle_check(terminate=True)
         ac1.maybe_network()
 
-        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE, const.DC_CONNECTIVITY_WORKING)
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE,
+                                                    const.DC_CONNECTIVITY_WORKING)
         ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
         msgs = ac1.create_chat(ac2).get_messages()
         assert len(msgs) == 1
@@ -2076,7 +2078,8 @@ class TestOnlineAccount:
         lp.sec("Test that the connectivity doesn't flicker to WORKING if there are no new messages")
 
         ac1.maybe_network()
-        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE, const.DC_CONNECTIVITY_CONNECTED)
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE,
+                                                    const.DC_CONNECTIVITY_CONNECTED)
 
         lp.sec("Test that the connectivity is NOT_CONNECTED if the password is wrong")
 

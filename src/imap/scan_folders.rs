@@ -69,7 +69,7 @@ impl Imap {
                         .await
                         .ok_or_log_msg(context, "Can't fetch new msgs in scanned folder");
 
-                    // If the server sent an EXISTS message during the fetch, we need to fetch again
+                    // If the server sent an unsocicited EXISTS during the fetch, we need to fetch again
                     if !self.server_sent_unsolicited_exists(context) {
                         break;
                     }
