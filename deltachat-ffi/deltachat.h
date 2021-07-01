@@ -5219,7 +5219,7 @@ void dc_event_unref(dc_event_t* event);
  * and possibly the connectivtiy HTML; see dc_get_connectivity() and
  * dc_get_connectivity_html() for details.
  */
-#define DC_EVENT_CONNECTIVITY_CHANGED             2062
+#define DC_EVENT_CONNECTIVITY_CHANGED             2100
 
 /**
  * @}

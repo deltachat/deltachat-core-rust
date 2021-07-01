@@ -320,6 +320,6 @@ pub enum EventType {
     /// This means that you should refresh the connectivity view
     /// and possibly the connectivtiy HTML; see dc_get_connectivity() and
     /// dc_get_connectivity_html() for details.
-    #[strum(props(id = "2062"))]
+    #[strum(props(id = "2100"))]
     ConnectivityChanged,
 }
