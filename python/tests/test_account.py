@@ -2081,6 +2081,19 @@ class TestOnlineAccount:
         ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE,
                                                     const.DC_CONNECTIVITY_CONNECTED)
 
+        lp.sec("Test that the connectivity doesn't flicker to WORKING if the sender of the message is blocked")
+        ac1.create_contact(ac2).block()
+
+        ac1.direct_imap.select_config_folder("inbox")
+        ac1.direct_imap.idle_start()
+        ac2.create_chat(ac1).send_text("Hi")
+
+        ac1.direct_imap.idle_check(terminate=True)
+        ac1.maybe_network()
+
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE,
+                                                    const.DC_CONNECTIVITY_CONNECTED)
+
         lp.sec("Test that the connectivity is NOT_CONNECTED if the password is wrong")
 
         ac1.set_config("configured_mail_pw", "abc")
@@ -2089,7 +2102,6 @@ class TestOnlineAccount:
         ac1.start_io()
         ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
         ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_NOT_CONNECTED)
-        print(ac1.get_connectivity_html())
 
     def test_fetch_deleted_msg(self, acfactory, lp):
         """This is a regression test: Messages with \\Deleted flag were downloaded again and again,

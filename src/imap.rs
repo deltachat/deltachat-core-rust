@@ -1624,7 +1624,7 @@ pub(crate) async fn prefetch_should_download(
     let is_reply_to_chat_message = parent.is_some();
     if let Some(parent) = &parent {
         let chat = chat::Chat::load_from_db(context, parent.get_chat_id()).await?;
-        if chat.typ == Chattype::Group {
+        if chat.typ == Chattype::Group && !chat.id.is_special() {
             // This might be a group command, like removing a group member.
             // We really need to fetch this to avoid inconsistent group state.
             return Ok(true);
