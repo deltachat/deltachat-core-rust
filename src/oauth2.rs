@@ -12,7 +12,7 @@ use crate::provider;
 use crate::provider::Oauth2Authorizer;
 
 const OAUTH2_GMAIL: Oauth2 = Oauth2 {
-    // see https://developers.google.com/identity/protocols/OAuth2InstalledApp
+    // see <https://developers.google.com/identity/protocols/OAuth2InstalledApp>
     client_id: "959970109878-4mvtgf6feshskf7695nfln6002mom908.apps.googleusercontent.com",
     get_code: "https://accounts.google.com/o/oauth2/auth?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline",
     init_token: "https://accounts.google.com/o/oauth2/token?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&code=$CODE&grant_type=authorization_code",
@@ -21,7 +21,7 @@ const OAUTH2_GMAIL: Oauth2 = Oauth2 {
 };
 
 const OAUTH2_YANDEX: Oauth2 = Oauth2 {
-    // see https://tech.yandex.com/oauth/doc/dg/reference/auto-code-client-docpage/
+    // see <https://tech.yandex.com/oauth/doc/dg/reference/auto-code-client-docpage/>
     client_id: "c4d0b6735fc8420a816d7e1303469341",
     get_code: "https://oauth.yandex.com/authorize?client_id=$CLIENT_ID&response_type=code&scope=mail%3Aimap_full%20mail%3Asmtp&force_confirm=true",
     init_token: "https://oauth.yandex.com/token?grant_type=authorization_code&code=$CODE&client_id=$CLIENT_ID&client_secret=58b8c6e94cf44fbe952da8511955dacf",
@@ -41,7 +41,7 @@ struct Oauth2 {
 /// OAuth 2 Access Token Response
 #[derive(Debug, Deserialize)]
 struct Response {
-    // Should always be there according to: https://www.oauth.com/oauth2-servers/access-tokens/access-token-response/
+    // Should always be there according to: <https://www.oauth.com/oauth2-servers/access-tokens/access-token-response/>
     // but previous code handled its abscense.
     access_token: Option<String>,
     token_type: String,
@@ -129,7 +129,7 @@ pub async fn dc_get_oauth2_access_token(
             };
 
         // to allow easier specification of different configurations,
-        // token_url is in GET-method-format, sth. as https://domain?param1=val1&param2=val2 -
+        // token_url is in GET-method-format, sth. as <https://domain?param1=val1&param2=val2> -
         // convert this to POST-format ...
         let mut parts = token_url.splitn(2, '?');
         let post_url = parts.next().unwrap_or_default();

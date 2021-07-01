@@ -184,7 +184,7 @@ pub async fn has_backup_old(context: &Context, dir_name: &Path) -> Result<String
                             "Found backup file {} which could not be opened: {}", name, e
                         );
                         // On some Android devices we can't open sql files that are not in our private directory
-                        // (see https://github.com/deltachat/deltachat-android/issues/1768). So, compare names
+                        // (see <https://github.com/deltachat/deltachat-android/issues/1768>). So, compare names
                         // to still find the newest backup.
                         let name: String = name.into();
                         if newest_backup_time == 0

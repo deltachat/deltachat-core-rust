@@ -4,45 +4,21 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Cursor;
 
+use anyhow::{format_err, Result};
 use async_trait::async_trait;
 use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
-use thiserror::Error;
 
 use crate::config::Config;
 use crate::constants::KeyGenType;
 use crate::context::Context;
-use crate::dc_tools::{time, EmailAddress, InvalidEmailError};
+use crate::dc_tools::{time, EmailAddress};
 
 // Re-export key types
 pub use crate::pgp::KeyPair;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
-
-/// Error type for deltachat key handling.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum Error {
-    #[error("Could not decode base64")]
-    Base64Decode(#[from] base64::DecodeError),
-    #[error("rPGP error: {}", _0)]
-    Pgp(#[from] pgp::errors::Error),
-    #[error("Failed to generate PGP key: {}", _0)]
-    Keygen(#[from] crate::pgp::PgpKeygenError),
-    #[error("Failed to save generated key: {}", _0)]
-    StoreKey(#[from] SaveKeyError),
-    #[error("No address configured")]
-    NoConfiguredAddr,
-    #[error("Configured address is invalid: {}", _0)]
-    InvalidConfiguredAddr(#[from] InvalidEmailError),
-    #[error("no data provided")]
-    Empty,
-    #[error("{0}")]
-    Other(#[from] anyhow::Error),
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
 
 /// Convenience trait for working with keys.
 ///
@@ -74,7 +50,8 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     /// the ASCII-armored representation.
     fn from_asc(data: &str) -> Result<(Self::KeyType, BTreeMap<String, String>)> {
         let bytes = data.as_bytes();
-        Self::KeyType::from_armor_single(Cursor::new(bytes)).map_err(Error::Pgp)
+        Self::KeyType::from_armor_single(Cursor::new(bytes))
+            .map_err(|err| format_err!("rPGP error: {}", err))
     }
 
     /// Load the users' default key from the database.
@@ -225,7 +202,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     let addr = context
         .get_config(Config::ConfiguredAddr)
         .await?
-        .ok_or(Error::NoConfiguredAddr)?;
+        .ok_or_else(|| format_err!("No address configured"))?;
     let addr = EmailAddress::new(&addr)?;
     let _guard = context.generating_key_mutex.lock().await;
 
@@ -284,24 +261,6 @@ pub enum KeyPairUse {
     ReadOnly,
 }
 
-/// Error saving a keypair to the database.
-#[derive(Debug, thiserror::Error)]
-#[error("SaveKeyError: {message}")]
-pub struct SaveKeyError {
-    message: String,
-    #[source]
-    cause: anyhow::Error,
-}
-
-impl SaveKeyError {
-    fn new(message: impl Into<String>, cause: impl Into<anyhow::Error>) -> Self {
-        Self {
-            message: message.into(),
-            cause: cause.into(),
-        }
-    }
-}
-
 /// Store the keypair as an owned keypair for addr in the database.
 ///
 /// This will save the keypair as keys for the given address.  The
@@ -318,7 +277,7 @@ pub async fn store_self_keypair(
     context: &Context,
     keypair: &KeyPair,
     default: KeyPairUse,
-) -> std::result::Result<(), SaveKeyError> {
+) -> Result<()> {
     // Everything should really be one transaction, more refactoring
     // is needed for that.
     let public_key = DcKey::to_bytes(&keypair.public);
@@ -330,13 +289,13 @@ pub async fn store_self_keypair(
             paramsv![public_key, secret_key],
         )
         .await
-        .map_err(|err| SaveKeyError::new("failed to remove old use of key", err))?;
+        .map_err(|err| err.context("failed to remove old use of key"))?;
     if default == KeyPairUse::Default {
         context
             .sql
             .execute("UPDATE keypairs SET is_default=0;", paramsv![])
             .await
-            .map_err(|err| SaveKeyError::new("failed to clear default", err))?;
+            .map_err(|err| err.context("failed to clear default"))?;
     }
     let is_default = match default {
         KeyPairUse::Default => true as i32,
@@ -354,7 +313,7 @@ pub async fn store_self_keypair(
             paramsv![addr, is_default, public_key, secret_key, t],
         )
         .await
-        .map_err(|err| SaveKeyError::new("failed to insert keypair", err))?;
+        .map_err(|err| err.context("failed to insert keypair"))?;
 
     Ok(())
 }
@@ -364,10 +323,10 @@ pub async fn store_self_keypair(
 pub struct Fingerprint(Vec<u8>);
 
 impl Fingerprint {
-    pub fn new(v: Vec<u8>) -> std::result::Result<Fingerprint, FingerprintError> {
+    pub fn new(v: Vec<u8>) -> Result<Fingerprint> {
         match v.len() {
             20 => Ok(Fingerprint(v)),
-            _ => Err(FingerprintError::WrongLength),
+            _ => Err(format_err!("Wrong fingerprint length")),
         }
     }
 
@@ -406,7 +365,7 @@ impl fmt::Display for Fingerprint {
 
 /// Parse a human-readable or otherwise formatted fingerprint.
 impl std::str::FromStr for Fingerprint {
-    type Err = FingerprintError;
+    type Err = anyhow::Error;
 
     fn from_str(input: &str) -> std::result::Result<Self, Self::Err> {
         let hex_repr: String = input
@@ -420,20 +379,10 @@ impl std::str::FromStr for Fingerprint {
     }
 }
 
-#[derive(Debug, Error)]
-pub enum FingerprintError {
-    #[error("Invalid hex characters")]
-    NotHex(#[from] hex::FromHexError),
-    #[error("Incorrect fingerprint lengths")]
-    WrongLength,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::{alice_keypair, TestContext};
-
-    use std::error::Error;
 
     use async_std::sync::Arc;
     use once_cell::sync::Lazy;
@@ -676,13 +625,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
             .unwrap();
         assert_eq!(fp, res);
 
-        let err = "1".parse::<Fingerprint>().err().unwrap();
-        match err {
-            FingerprintError::NotHex(_) => (),
-            _ => panic!("Wrong error"),
-        }
-        let src_err = err.source().unwrap().downcast_ref::<hex::FromHexError>();
-        assert_eq!(src_err, Some(&hex::FromHexError::OddLength));
+        assert!("1".parse::<Fingerprint>().is_err());
     }
 
     #[test]

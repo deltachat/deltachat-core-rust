@@ -32,19 +32,13 @@ impl Accounts {
         Accounts::open(dir).await
     }
 
-    /// Creates a new default structure, including a default account.
+    /// Creates a new default structure.
     pub async fn create(os_name: String, dir: &PathBuf) -> Result<()> {
         fs::create_dir_all(dir)
             .await
             .context("failed to create folder")?;
 
-        // create default account
-        let config = Config::new(os_name.clone(), dir).await?;
-        let account_config = config.new_account(dir).await?;
-
-        Context::new(os_name, account_config.dbfile().into(), account_config.id)
-            .await
-            .context("failed to create default account")?;
+        Config::new(os_name.clone(), dir).await?;
 
         Ok(())
     }
@@ -73,14 +67,9 @@ impl Accounts {
     }
 
     /// Get the currently selected account.
-    pub async fn get_selected_account(&self) -> Context {
+    pub async fn get_selected_account(&self) -> Option<Context> {
         let id = self.config.get_selected_account().await;
-        self.accounts
-            .read()
-            .await
-            .get(&id)
-            .cloned()
-            .expect("inconsistent state")
+        self.accounts.read().await.get(&id).cloned()
     }
 
     /// Select the given account.
@@ -190,25 +179,6 @@ impl Accounts {
     /// Get a list of all account ids.
     pub async fn get_all(&self) -> Vec<u32> {
         self.accounts.read().await.keys().copied().collect()
-    }
-
-    /// Import a backup using a new account and selects it.
-    pub async fn import_account(&self, file: PathBuf) -> Result<u32> {
-        let old_id = self.config.get_selected_account().await;
-
-        let id = self.add_account().await?;
-        let ctx = self.get_account(id).await.expect("just added");
-
-        match crate::imex::imex(&ctx, crate::imex::ImexMode::ImportBackup, &file).await {
-            Ok(_) => Ok(id),
-            Err(err) => {
-                // remove temp account
-                self.remove_account(id).await?;
-                // set selection back
-                self.select_account(old_id).await?;
-                Err(err)
-            }
-        }
     }
 
     pub async fn get_connectivity(&self) -> Connectivity {
@@ -458,6 +428,8 @@ mod tests {
         let p: PathBuf = dir.path().join("accounts1").into();
 
         let accounts1 = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        accounts1.add_account().await.unwrap();
+
         let accounts2 = Accounts::open(p).await.unwrap();
 
         assert_eq!(accounts1.accounts.read().await.len(), 1);
@@ -480,7 +452,11 @@ mod tests {
         let p: PathBuf = dir.path().join("accounts").into();
 
         let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        assert_eq!(accounts.accounts.read().await.len(), 0);
+        assert_eq!(accounts.config.get_selected_account().await, 0);
 
+        let id = accounts.add_account().await.unwrap();
+        assert_eq!(id, 1);
         assert_eq!(accounts.accounts.read().await.len(), 1);
         assert_eq!(accounts.config.get_selected_account().await, 1);
 
@@ -498,13 +474,34 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_accounts_remove_last() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let p: PathBuf = dir.path().join("accounts").into();
+
+        let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+        assert!(accounts.get_selected_account().await.is_none());
+        assert_eq!(accounts.config.get_selected_account().await, 0);
+
+        let id = accounts.add_account().await?;
+        assert!(accounts.get_selected_account().await.is_some());
+        assert_eq!(id, 1);
+        assert_eq!(accounts.accounts.read().await.len(), 1);
+        assert_eq!(accounts.config.get_selected_account().await, id);
+
+        accounts.remove_account(id).await?;
+        assert!(accounts.get_selected_account().await.is_none());
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_migrate_account() {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts").into();
 
         let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
-        assert_eq!(accounts.accounts.read().await.len(), 1);
-        assert_eq!(accounts.config.get_selected_account().await, 1);
+        assert_eq!(accounts.accounts.read().await.len(), 0);
+        assert_eq!(accounts.config.get_selected_account().await, 0);
 
         let extern_dbfile: PathBuf = dir.path().join("other").into();
         let ctx = Context::new("my_os".into(), extern_dbfile.clone(), 0)
@@ -520,10 +517,10 @@ mod tests {
             .migrate_account(extern_dbfile.clone())
             .await
             .unwrap();
-        assert_eq!(accounts.accounts.read().await.len(), 2);
-        assert_eq!(accounts.config.get_selected_account().await, 2);
+        assert_eq!(accounts.accounts.read().await.len(), 1);
+        assert_eq!(accounts.config.get_selected_account().await, 1);
 
-        let ctx = accounts.get_selected_account().await;
+        let ctx = accounts.get_selected_account().await.unwrap();
         assert_eq!(
             "me@mail.com",
             ctx.get_config(crate::config::Config::Addr)
@@ -541,7 +538,7 @@ mod tests {
 
         let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
 
-        for expected_id in 2..10 {
+        for expected_id in 1..10 {
             let id = accounts.add_account().await.unwrap();
             assert_eq!(id, expected_id);
         }
@@ -560,8 +557,9 @@ mod tests {
 
         let (id0, id1, id2) = {
             let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+            accounts.add_account().await?;
             let ids = accounts.get_all().await;
-            assert_eq!(ids.len(), 1); // Accounts::new() creates a default account
+            assert_eq!(ids.len(), 1);
 
             let id0 = *ids.get(0).unwrap();
             let ctx = accounts.get_account(id0).await.unwrap();
@@ -594,7 +592,7 @@ mod tests {
 
         let (id0_reopened, id1_reopened, id2_reopened) = {
             let accounts = Accounts::new("my_os".into(), p.clone()).await?;
-            let ctx = accounts.get_selected_account().await;
+            let ctx = accounts.get_selected_account().await.unwrap();
             assert_eq!(
                 ctx.get_config(crate::config::Config::Addr).await?,
                 Some("two@example.org".to_string())

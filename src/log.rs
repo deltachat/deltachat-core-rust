@@ -65,7 +65,7 @@ where
     /// Once it is, you can add `#[track_caller]` to helper functions that use one of the log helpers here
     /// so that the location of the caller can be seen in the log. (this won't work with the macros,
     /// like warn!(), since the file!() and line!() macros don't work with track_caller)  
-    /// See https://github.com/rust-lang/rust/issues/78840 for progress on this.
+    /// See <https://github.com/rust-lang/rust/issues/78840> for progress on this.
     #[track_caller]
     fn log_err(self, context: &Context, msg: &str) -> Result<T, E> {
         self.log_err_inner(context, Some(msg))

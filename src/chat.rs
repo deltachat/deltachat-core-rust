@@ -8,7 +8,6 @@ use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
-use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::aheader::EncryptPreference;
@@ -17,7 +16,7 @@ use crate::chatlist::dc_get_archived_cnt;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
-    Blocked, Chattype, ShowEmails, Viewtype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
+    Blocked, Chattype, Viewtype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
     DC_CHAT_ID_DEADDROP, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE,
     DC_CONTACT_ID_INFO, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCM_ADDDAYMARKER,
     DC_GCM_INFO_ONLY, DC_RESEND_USER_AVATAR_DAYS,
@@ -33,7 +32,7 @@ use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer a
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
 use crate::job::{self, Action};
-use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
+use crate::message::{self, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
@@ -453,12 +452,12 @@ impl ChatId {
     /// Sets draft message.
     ///
     /// Passing `None` as message just deletes the draft
-    pub async fn set_draft(self, context: &Context, msg: Option<&mut Message>) -> Result<()> {
+    pub async fn set_draft(self, context: &Context, mut msg: Option<&mut Message>) -> Result<()> {
         if self.is_special() {
             return Ok(());
         }
 
-        let changed = match msg {
+        let changed = match &mut msg {
             None => self.maybe_delete_draft(context).await?,
             Some(msg) => self.set_draft_raw(context, msg).await?,
         };
@@ -466,7 +465,14 @@ impl ChatId {
         if changed {
             context.emit_event(EventType::MsgsChanged {
                 chat_id: self,
-                msg_id: MsgId::new(0),
+                msg_id: if msg.is_some() {
+                    match self.get_draft_msg_id(context).await? {
+                        Some(msg_id) => msg_id,
+                        None => MsgId::new(0),
+                    }
+                } else {
+                    MsgId::new(0)
+                },
             });
         }
 
@@ -581,8 +587,9 @@ impl ChatId {
                     "SELECT COUNT(*)
                     FROM msgs
                     WHERE hidden=0
+                    AND from_id!=?
                     AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
-                    paramsv![Blocked::Deaddrop],
+                    paramsv![DC_CONTACT_ID_INFO, Blocked::Deaddrop],
                 )
                 .await?
         } else {
@@ -616,8 +623,9 @@ impl ChatId {
                     FROM msgs
                     WHERE state=?
                     AND hidden=0
+                    AND from_id!=?
                     AND chat_id IN (SELECT id FROM chats WHERE blocked=?)",
-                    paramsv![MessageState::InFresh, Blocked::Deaddrop],
+                    paramsv![MessageState::InFresh, DC_CONTACT_ID_INFO, Blocked::Deaddrop],
                 )
                 .await?
         } else {
@@ -1527,6 +1535,7 @@ impl ChatIdBlocked {
             _ => (),
         }
 
+        let created_timestamp = dc_create_smeared_timestamp(context).await;
         let chat_id = context
             .sql
             .transaction(move |transaction| {
@@ -1539,7 +1548,7 @@ impl ChatIdBlocked {
                         chat_name,
                         params.to_string(),
                         create_blocked as u8,
-                        time(),
+                        created_timestamp,
                     ],
                 )?;
                 let chat_id = ChatId::new(
@@ -1714,11 +1723,7 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
         let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
             for forward in forwards.split(' ') {
-                if let Ok(msg_id) = forward
-                    .parse::<u32>()
-                    .map_err(|_| InvalidMsgId)
-                    .map(MsgId::new)
-                {
+                if let Ok(msg_id) = forward.parse::<u32>().map(MsgId::new) {
                     if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
                         send_msg_inner(context, chat_id, &mut msg).await?;
                     };
@@ -1934,8 +1939,6 @@ pub async fn get_chat_msgs(
     };
 
     let items = if chat_id.is_deaddrop() {
-        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
-            .unwrap_or_default();
         context
             .sql
             .query_map(
@@ -1945,18 +1948,12 @@ pub async fn get_chat_msgs(
                       ON m.chat_id=chats.id
                LEFT JOIN contacts
                       ON m.from_id=contacts.id
-              WHERE m.from_id!=1  -- 1=DC_CONTACT_ID_SELF
-                AND m.from_id!=2  -- 2=DC_CONTACT_ID_INFO
+              WHERE m.from_id!=?
                 AND m.hidden=0
                 AND chats.blocked=2
                 AND contacts.blocked=0
-                AND m.msgrmsg>=?
               ORDER BY m.timestamp,m.id;",
-                paramsv![if show_emails == ShowEmails::All {
-                    0i32
-                } else {
-                    1i32
-                }],
+                paramsv![DC_CONTACT_ID_INFO],
                 process_row,
                 process_rows,
             )
@@ -2218,7 +2215,12 @@ pub async fn create_group_chat(
             "INSERT INTO chats
         (type, name, grpid, param, created_timestamp)
         VALUES(?, ?, ?, \'U=1\', ?);",
-            paramsv![Chattype::Group, chat_name, grpid, time(),],
+            paramsv![
+                Chattype::Group,
+                chat_name,
+                grpid,
+                dc_create_smeared_timestamp(context).await,
+            ],
         )
         .await?;
 
@@ -4054,6 +4056,52 @@ mod tests {
         let msg = message::Message::load_from_db(&t, msg_id).await?;
         assert_eq!(msg.state, MessageState::InNoticed);
         assert_eq!(t.get_fresh_msgs().await?.len(), 0);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_classic_deaddrop_chat() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Alice enables receiving classic emails.
+        alice
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        // Alice receives a classic (non-chat) message from Bob.
+        dc_receive_imf(
+            &alice,
+            b"From: bob@example.org\n\
+                 To: alice@example.com\n\
+                 Message-ID: <1@example.org>\n\
+                 Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        // There is one message in the contact requests chat.
+        assert_eq!(DC_CHAT_ID_DEADDROP.get_fresh_msg_cnt(&alice).await?, 1);
+
+        let msgs = get_chat_msgs(&alice, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        assert_eq!(msgs.len(), 1);
+
+        // Alice disables receiving classic emails.
+        alice
+            .set_config(Config::ShowEmails, Some("0"))
+            .await
+            .unwrap();
+
+        // Already received classic email should still be in the contact requests.
+        assert_eq!(DC_CHAT_ID_DEADDROP.get_fresh_msg_cnt(&alice).await?, 1);
+
+        let msgs = get_chat_msgs(&alice, DC_CHAT_ID_DEADDROP, 0, None).await?;
+        assert_eq!(msgs.len(), 1);
 
         Ok(())
     }

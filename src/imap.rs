@@ -151,7 +151,7 @@ struct ImapConfig {
     pub can_idle: bool,
 
     /// True if the server has MOVE capability as defined in
-    /// https://tools.ietf.org/html/rfc6851
+    /// <https://tools.ietf.org/html/rfc6851>
     pub can_move: bool,
 }
 
@@ -788,7 +788,7 @@ impl Imap {
         // at least one UID, even if last_seen_uid+1 is past
         // the last UID in the mailbox.  It happens because
         // uid:* is interpreted the same way as *:uid.
-        // See https://tools.ietf.org/html/rfc3501#page-61 for
+        // See <https://tools.ietf.org/html/rfc3501#page-61> for
         // standard reference. Therefore, sometimes we receive
         // already seen messages and have to filter them out.
         let new_msgs = msgs.split_off(&uid_next);
@@ -1401,7 +1401,7 @@ impl Imap {
 // CAVE: if possible, take care not to add a name here that is "sent" in one language
 // but sth. different in others - a hard job.
 fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
-    // source: https://stackoverflow.com/questions/2185391/localized-gmail-imap-folders
+    // source: <https://stackoverflow.com/questions/2185391/localized-gmail-imap-folders>
     const SENT_NAMES: &[&str] = &[
         "sent",
         "sentmail",
@@ -1731,7 +1731,7 @@ fn get_fallback_folder(delimiter: &str) -> String {
 }
 
 /// uid_next is the next unique identifier value from the last time we fetched a folder
-/// See https://tools.ietf.org/html/rfc3501#section-2.3.1.1
+/// See <https://tools.ietf.org/html/rfc3501#section-2.3.1.1>
 /// This function is used to update our uid_next after fetching messages.
 pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32) -> Result<()> {
     context
@@ -1746,7 +1746,7 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
 }
 
 /// uid_next is the next unique identifier value from the last time we fetched a folder
-/// See https://tools.ietf.org/html/rfc3501#section-2.3.1.1
+/// See <https://tools.ietf.org/html/rfc3501#section-2.3.1.1>
 /// This method returns the uid_next from the last time we fetched messages.
 /// We can compare this to the current uid_next to find out whether there are new messages
 /// and fetch from this value on to get all new messages.
@@ -1807,7 +1807,7 @@ pub async fn get_config_last_seen_uid<S: AsRef<str>>(
 }
 
 /// Builds a list of sequence/uid sets. The returned sets have each no more than around 1000
-/// characters because according to https://tools.ietf.org/html/rfc2683#section-3.2.1.5
+/// characters because according to <https://tools.ietf.org/html/rfc2683#section-3.2.1.5>
 /// command lines should not be much more than 1000 chars (servers should allow at least 8000 chars)
 fn build_sequence_sets(mut uids: Vec<u32>) -> Vec<String> {
     uids.sort_unstable();

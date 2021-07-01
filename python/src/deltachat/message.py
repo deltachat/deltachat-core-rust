@@ -141,6 +141,10 @@ class Message(object):
         """ return True if this message was encrypted. """
         return bool(lib.dc_msg_get_showpadlock(self._dc_msg))
 
+    def is_bot(self):
+        """ return True if this message is submitted automatically. """
+        return bool(lib.dc_msg_is_bot(self._dc_msg))
+
     def is_forwarded(self):
         """ return True if this message was forwarded. """
         return bool(lib.dc_msg_is_forwarded(self._dc_msg))

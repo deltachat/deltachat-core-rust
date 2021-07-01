@@ -3,7 +3,7 @@
 use anyhow::Result;
 
 use crate::context::Context;
-use crate::key::{self, DcKey};
+use crate::key::DcKey;
 
 /// An in-memory keyring.
 ///
@@ -27,14 +27,14 @@ where
     }
 
     /// Create a new keyring with the the user's secret key loaded.
-    pub async fn new_self(context: &Context) -> Result<Keyring<T>, key::Error> {
+    pub async fn new_self(context: &Context) -> Result<Keyring<T>> {
         let mut keyring: Keyring<T> = Keyring::new();
         keyring.load_self(context).await?;
         Ok(keyring)
     }
 
     /// Load the user's key into the keyring.
-    pub async fn load_self(&mut self, context: &Context) -> Result<(), key::Error> {
+    pub async fn load_self(&mut self, context: &Context) -> Result<()> {
         self.add(T::load_self(context).await?);
         Ok(())
     }

@@ -198,7 +198,7 @@ impl MimeMessage {
                         }
 
                         // Handle any gossip headers if the mail was encrypted.  See section
-                        // "3.6 Key Gossip" of https://autocrypt.org/autocrypt-spec-1.1.0.pdf
+                        // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
                         // but only if the mail was correctly signed:
                         if !signatures.is_empty() {
                             let gossip_headers =
@@ -220,7 +220,7 @@ impl MimeMessage {
                         let mut throwaway_from = from.clone();
 
                         // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
-                        // See https://github.com/deltachat/deltachat-core-rust/issues/1790.
+                        // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
                         headers.remove("subject");
 
                         MimeMessage::merge_headers(
@@ -498,6 +498,12 @@ impl MimeMessage {
 
             self.parts.push(part);
         }
+
+        if self.header.contains_key("auto-submitted") {
+            for part in &mut self.parts {
+                part.param.set(Param::Bot, "1");
+            }
+        }
     }
 
     async fn avatar_action_from_header(
@@ -731,7 +737,7 @@ impl MimeMessage {
                 The second body part contains the control information necessary to
                 verify the digital signature." We simply take the first body part and
                 skip the rest.  (see
-                https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
+                <https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html>
                 for background information why we use encrypted+signed) */
                 if let Some(first) = mail.subparts.get(0) {
                     any_part_added = self
@@ -1463,7 +1469,7 @@ fn get_mime_type(mail: &mailparse::ParsedMail<'_>) -> Result<(Mime, Viewtype)> {
         mime::VIDEO => Viewtype::Video,
         mime::MULTIPART => Viewtype::Unknown,
         mime::MESSAGE => {
-            // Enacapsulated messages, see https://www.w3.org/Protocols/rfc1341/7_3_Message.html
+            // Enacapsulated messages, see <https://www.w3.org/Protocols/rfc1341/7_3_Message.html>
             // Also used as part "message/disposition-notification" of "multipart/report", which, however, will
             // be handled separatedly.
             // I've not seen any messages using this, so we do not attach these parts (maybe they're used to attach replies,
@@ -2828,7 +2834,7 @@ On 2020-10-25, Bob wrote:
         .unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap().unwrap();
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
 
         assert_eq!(

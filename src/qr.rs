@@ -6,7 +6,7 @@ use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
-use crate::chat::{self, ChatIdBlocked};
+use crate::chat::{self, get_chat_id_by_grpid, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{addr_normalize, may_be_valid_addr, Contact, Origin};
@@ -16,6 +16,7 @@ use crate::log::LogExt;
 use crate::lot::{Lot, LotState};
 use crate::message::Message;
 use crate::peerstate::Peerstate;
+use crate::token;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
@@ -86,11 +87,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
     };
     let fingerprint: Fingerprint = match fingerprint.parse() {
         Ok(fp) => fp,
-        Err(err) => {
-            return Error::new(err)
-                .context("Failed to parse fingerprint in QR code")
-                .into()
-        }
+        Err(err) => return err.context("Failed to parse fingerprint in QR code").into(),
     };
 
     let param: BTreeMap<&str, &str> = fragment
@@ -193,6 +190,25 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         lot.fingerprint = Some(fingerprint);
         lot.invitenumber = invitenumber;
         lot.auth = auth;
+
+        // scanning own qr-code offers withdraw/revive instead of secure-join
+        if context.is_self_addr(&addr).await.unwrap_or_default() {
+            if let Some(ref invitenumber) = lot.invitenumber {
+                lot.state =
+                    if token::exists(context, token::Namespace::InviteNumber, &*invitenumber).await
+                    {
+                        if lot.state == LotState::QrAskVerifyContact {
+                            LotState::QrWithdrawVerifyContact
+                        } else {
+                            LotState::QrWithdrawVerifyGroup
+                        }
+                    } else if lot.state == LotState::QrAskVerifyContact {
+                        LotState::QrReviveVerifyContact
+                    } else {
+                        LotState::QrReviveVerifyGroup
+                    }
+            }
+        }
     } else {
         return format_err!("Missing address").into();
     }
@@ -279,13 +295,55 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
 }
 
 pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
-    match check_qr(context, qr).await.state {
+    let lot = check_qr(context, qr).await;
+    match lot.state {
         LotState::QrAccount => set_account_from_qr(context, qr).await,
         LotState::QrWebrtcInstance => {
             let val = decode_webrtc_instance(context, qr).text2;
             context
                 .set_config(Config::WebrtcInstance, val.as_deref())
                 .await?;
+            Ok(())
+        }
+        LotState::QrWithdrawVerifyContact | LotState::QrWithdrawVerifyGroup => {
+            token::delete(
+                context,
+                token::Namespace::InviteNumber,
+                lot.invitenumber.unwrap_or_default().as_str(),
+            )
+            .await?;
+            token::delete(
+                context,
+                token::Namespace::Auth,
+                lot.auth.unwrap_or_default().as_str(),
+            )
+            .await?;
+            Ok(())
+        }
+        LotState::QrReviveVerifyContact | LotState::QrReviveVerifyGroup => {
+            let chat_id = if lot.state == LotState::QrReviveVerifyContact {
+                None
+            } else {
+                Some(
+                    get_chat_id_by_grpid(context, &lot.text2.unwrap_or_default())
+                        .await?
+                        .0,
+                )
+            };
+            token::save(
+                context,
+                token::Namespace::InviteNumber,
+                chat_id,
+                &lot.invitenumber.unwrap_or_default(),
+            )
+            .await?;
+            token::save(
+                context,
+                token::Namespace::Auth,
+                chat_id,
+                &lot.auth.unwrap_or_default(),
+            )
+            .await?;
             Ok(())
         }
         _ => bail!("qr code does not contain config: {}", qr),
@@ -441,9 +499,12 @@ mod tests {
     use super::*;
 
     use crate::aheader::EncryptPreference;
+    use crate::chat::{create_group_chat, ProtectionStatus};
     use crate::key::DcKey;
     use crate::peerstate::ToSave;
+    use crate::securejoin::dc_get_securejoin_qr;
     use crate::test_utils::{alice_keypair, TestContext};
+    use anyhow::Result;
 
     #[async_std::test]
     async fn test_decode_http() {
@@ -718,6 +779,62 @@ mod tests {
         let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890").await;
         assert_eq!(res.get_state(), LotState::QrError);
         assert_eq!(res.get_id(), 0);
+    }
+
+    #[async_std::test]
+    async fn test_withdraw_verfifycontact() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let qr = dc_get_securejoin_qr(&alice, None).await.unwrap();
+
+        // scanning own verfify-contact code offers withdrawing
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrWithdrawVerifyContact);
+        assert!(check.text1.is_none());
+        set_config_from_qr(&alice, &qr).await?;
+
+        // scanning withdrawn verfify-contact code offers reviving
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrReviveVerifyContact);
+        assert!(check.text1.is_none());
+        set_config_from_qr(&alice, &qr).await?;
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrWithdrawVerifyContact);
+
+        // someone else always scans as ask-verify-contact
+        let bob = TestContext::new_bob().await;
+        let check = check_qr(&bob, &qr).await;
+        assert_eq!(check.state, LotState::QrAskVerifyContact);
+        assert!(check.text1.is_none());
+        assert!(set_config_from_qr(&bob, &qr).await.is_err());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_withdraw_verfifygroup() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
+        let qr = dc_get_securejoin_qr(&alice, Some(chat_id)).await.unwrap();
+
+        // scanning own verfify-group code offers withdrawing
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrWithdrawVerifyGroup);
+        assert_eq!(check.text1, Some("foo".to_string()));
+        set_config_from_qr(&alice, &qr).await?;
+
+        // scanning withdrawn verfify-group code offers reviving
+        let check = check_qr(&alice, &qr).await;
+        assert_eq!(check.state, LotState::QrReviveVerifyGroup);
+        assert_eq!(check.text1, Some("foo".to_string()));
+
+        // someone else always scans as ask-verify-group
+        let bob = TestContext::new_bob().await;
+        let check = check_qr(&bob, &qr).await;
+        assert_eq!(check.state, LotState::QrAskVerifyGroup);
+        assert_eq!(check.text1, Some("foo".to_string()));
+        assert!(set_config_from_qr(&bob, &qr).await.is_err());
+
+        Ok(())
     }
 
     #[async_std::test]

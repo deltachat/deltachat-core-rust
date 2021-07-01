@@ -15,27 +15,27 @@ use super::{Error, ServerParams};
 
 /// Result of parsing a single `Protocol` tag.
 ///
-/// https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/protocol-pox
+/// <https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/protocol-pox>
 #[derive(Debug)]
 struct ProtocolTag {
     /// Server type, such as "IMAP", "SMTP" or "POP3".
     ///
-    /// https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/type-pox
+    /// <https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/type-pox>
     pub typ: String,
 
     /// Server identifier, hostname or IP address for IMAP and SMTP.
     ///
-    /// https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/server-pox
+    /// <https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/server-pox>
     pub server: String,
 
     /// Network port.
     ///
-    /// https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/port-pox
+    /// <https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/port-pox>
     pub port: u16,
 
     /// Whether connection should be secure, "on" or "off", default is "on".
     ///
-    /// https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/ssl-pox
+    /// <https://docs.microsoft.com/en-us/exchange/client-developer/web-service-reference/ssl-pox>
     pub ssl: bool,
 }
 

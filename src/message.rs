@@ -7,6 +7,7 @@ use anyhow::{ensure, format_err, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
+use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
@@ -235,9 +236,9 @@ impl std::fmt::Display for MsgId {
 impl rusqlite::types::ToSql for MsgId {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
         if self.0 <= DC_MSG_ID_LAST_SPECIAL {
-            return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
-                InvalidMsgId,
-            )));
+            return Err(rusqlite::Error::ToSqlConversionFailure(
+                format_err!("Invalid MsgId").into(),
+            ));
         }
         let val = rusqlite::types::Value::Integer(self.0 as i64);
         let out = rusqlite::types::ToSqlOutput::Owned(val);
@@ -258,15 +259,6 @@ impl rusqlite::types::FromSql for MsgId {
         })
     }
 }
-
-/// Message ID was invalid.
-///
-/// This usually occurs when trying to use a message ID of
-/// [DC_MSG_ID_LAST_SPECIAL] or below in a situation where this is not
-/// possible.
-#[derive(Debug, thiserror::Error)]
-#[error("Invalid Message ID.")]
-pub struct InvalidMsgId;
 
 #[derive(
     Debug,
@@ -601,6 +593,11 @@ impl Message {
         self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
     }
 
+    /// Returns true if message is Auto-Submitted.
+    pub fn is_bot(&self) -> bool {
+        self.param.get_bool(Param::Bot).unwrap_or_default()
+    }
+
     pub fn get_ephemeral_timer(&self) -> EphemeralTimer {
         self.ephemeral_timer
     }
@@ -757,7 +754,7 @@ impl Message {
         } else if url.contains("$NOROOM") {
             // there are some usecases where a separate room is not needed to use a service
             // eg. if you let in people manually anyway, see discussion at
-            // https://support.delta.chat/t/videochat-with-webex/1412/4 .
+            // <https://support.delta.chat/t/videochat-with-webex/1412/4>.
             // hacks as hiding the room behind `#` are not reliable, therefore,
             // these services are supported by adding the string `$NOROOM` to the url.
             url.replace("$NOROOM", "")
@@ -1368,7 +1365,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         // before using viewtype other than Viewtype::File,
         // make sure, all target UIs support that type in the context of the used viewer/player.
         // if in doubt, it is better to default to Viewtype::File that passes handing to an external app.
-        // (cmp. https://developer.android.com/guide/topics/media/media-formats )
+        // (cmp. <https://developer.android.com/guide/topics/media/media-formats>)
         "3gp" => (Viewtype::Video, "video/3gpp"),
         "aac" => (Viewtype::Audio, "audio/aac"),
         "avi" => (Viewtype::Video, "video/x-msvideo"),
@@ -1442,18 +1439,25 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
 /// only if `dc_set_config(context, "save_mime_headers", "1")`
 /// was called before.
 ///
-/// Returns an empty string if there are no headers saved for the given message,
+/// Returns an empty vector if there are no headers saved for the given message,
 /// e.g. because of save_mime_headers is not set
 /// or the message is not incoming.
-pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<String> {
+pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8>> {
     let headers = context
         .sql
-        .query_get_value(
+        .query_row(
             "SELECT mime_headers FROM msgs WHERE id=?;",
             paramsv![msg_id],
+            |row| {
+                row.get(0).or_else(|err| match row.get_ref(0)? {
+                    ValueRef::Null => Ok(Vec::new()),
+                    ValueRef::Text(text) => Ok(text.to_vec()),
+                    ValueRef::Blob(blob) => Ok(blob.to_vec()),
+                    ValueRef::Integer(_) | ValueRef::Real(_) => Err(err),
+                })
+            },
         )
-        .await?
-        .unwrap_or_default();
+        .await?;
     Ok(headers)
 }
 
@@ -2865,6 +2869,52 @@ mod tests {
 
         markseen_msgs(&bob, vec![bob_msg.id]).await?;
         assert_state(&bob, bob_msg.id, MessageState::InSeen).await;
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_is_bot() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Alice receives a message from Bob the bot.
+        dc_receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: alice@example.com\n\
+                    Chat-Version: 1.0\n\
+                    Message-ID: <123@example.com>\n\
+                    Auto-Submitted: auto-generated\n\
+                    Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
+                    \n\
+                    hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_text().unwrap(), "hello".to_string());
+        assert!(msg.is_bot());
+
+        // Alice receives a message from Bob who is not the bot anymore.
+        dc_receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: alice@example.com\n\
+                    Chat-Version: 1.0\n\
+                    Message-ID: <456@example.com>\n\
+                    Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
+                    \n\
+                    hello again\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await?;
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_text().unwrap(), "hello again".to_string());
+        assert!(!msg.is_bot());
 
         Ok(())
     }

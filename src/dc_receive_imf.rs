@@ -90,6 +90,35 @@ pub(crate) async fn dc_receive_imf_inner(
         return Ok(());
     }
 
+    let mut sent_timestamp = if let Some(value) = mime_parser
+        .get(HeaderDef::Date)
+        .and_then(|value| mailparse::dateparse(value).ok())
+    {
+        value
+    } else {
+        dc_create_smeared_timestamp(context).await
+    };
+
+    let rfc724_mid = mime_parser.get_rfc724_mid().unwrap_or_else(||
+        // missing Message-IDs may come if the mail was set from this account with another
+        // client that relies in the SMTP server to generate one.
+        // true eg. for the Webmailer used in all-inkl-KAS
+        dc_create_incoming_rfc724_mid(&mime_parser));
+
+    // check, if the mail is already in our database - if so, just update the folder/uid
+    // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
+    // moved between folders. make sure, this check is done eg. before securejoin-processing) */
+    if let Some((old_server_folder, old_server_uid, _)) =
+        message::rfc724_mid_exists(context, &rfc724_mid).await?
+    {
+        if old_server_folder != server_folder || old_server_uid != server_uid {
+            message::update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
+        }
+
+        warn!(context, "Message already in DB");
+        return Ok(());
+    }
+
     // the function returns the number of created messages in the database
     let mut chat_id = ChatId::new(0);
     let mut hidden = false;
@@ -97,29 +126,8 @@ pub(crate) async fn dc_receive_imf_inner(
     let mut needs_delete_job = false;
     let mut insert_msg_id = MsgId::new_unset();
 
-    let mut sent_timestamp = 0;
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
-
-    // helper method to handle early exit and memory cleanup
-    let cleanup = |context: &Context,
-                   create_event_to_send: &Option<CreateEvent>,
-                   created_db_entries: Vec<(ChatId, MsgId)>| {
-        if let Some(create_event_to_send) = create_event_to_send {
-            for (chat_id, msg_id) in created_db_entries {
-                let event = match create_event_to_send {
-                    CreateEvent::MsgsChanged => EventType::MsgsChanged { msg_id, chat_id },
-                    CreateEvent::IncomingMsg => EventType::IncomingMsg { msg_id, chat_id },
-                };
-                context.emit_event(event);
-            }
-        }
-    };
-
-    if let Some(value) = mime_parser.get(HeaderDef::Date) {
-        // is not yet checked against bad times! we do this later if we have the database information.
-        sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
-    }
 
     let prevent_rename =
         mime_parser.is_mailinglist_message() || mime_parser.get(HeaderDef::Sender).is_some();
@@ -128,7 +136,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // the other To:/Cc: in the 3rd pass)
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see
-    // https://github.com/deltachat/deltachat-core/issues/150)
+    // <https://github.com/deltachat/deltachat-core/issues/150>)
     //
     // If this is a mailing list email (i.e. list_id_header is some), don't change the displayname because in
     // a mailing list the sender displayname sometimes does not belong to the sender email address.
@@ -156,18 +164,8 @@ pub(crate) async fn dc_receive_imf_inner(
     );
 
     // Add parts
-
-    let rfc724_mid = match mime_parser.get_rfc724_mid() {
-        Some(x) => x,
-        None => {
-            // missing Message-IDs may come if the mail was set from this account with another
-            // client that relies in the SMTP server to generate one.
-            // true eg. for the Webmailer used in all-inkl-KAS
-            dc_create_incoming_rfc724_mid(sent_timestamp, from_id, &to_ids)
-        }
-    };
     if mime_parser.parts.last().is_some() {
-        if let Err(err) = add_parts(
+        add_parts(
             context,
             &mut mime_parser,
             imf_raw,
@@ -190,10 +188,7 @@ pub(crate) async fn dc_receive_imf_inner(
             prevent_rename,
         )
         .await
-        {
-            cleanup(context, &create_event_to_send, created_db_entries);
-            bail!("add_parts error: {:?}", err);
-        }
+        .map_err(|err| err.context("add_parts error"))?;
     } else {
         // there are parts in this message, do some basic calculations so that the variables
         // are correct in the further processing
@@ -227,7 +222,7 @@ pub(crate) async fn dc_receive_imf_inner(
                 context.emit_event(EventType::ChatModified(chat_id));
             }
             Err(err) => {
-                warn!(context, "reveive_imf cannot update profile image: {}", err);
+                warn!(context, "receive_imf cannot update profile image: {}", err);
             }
         };
     }
@@ -298,7 +293,15 @@ pub(crate) async fn dc_receive_imf_inner(
         "received message {} has Message-Id: {}", server_uid, rfc724_mid
     );
 
-    cleanup(context, &create_event_to_send, created_db_entries);
+    if let Some(create_event_to_send) = create_event_to_send {
+        for (chat_id, msg_id) in created_db_entries {
+            let event = match create_event_to_send {
+                CreateEvent::MsgsChanged => EventType::MsgsChanged { msg_id, chat_id },
+                CreateEvent::IncomingMsg => EventType::IncomingMsg { msg_id, chat_id },
+            };
+            context.emit_event(event);
+        }
+    }
 
     mime_parser
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
@@ -384,20 +387,6 @@ async fn add_parts(
     let mut mime_in_reply_to = String::new();
     let mut mime_references = String::new();
     let mut incoming_origin = incoming_origin;
-
-    // check, if the mail is already in our database - if so, just update the folder/uid
-    // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
-    // moved between folders. make sure, this check is done eg. before securejoin-processing) */
-    if let Some((old_server_folder, old_server_uid, _)) =
-        message::rfc724_mid_exists(context, rfc724_mid).await?
-    {
-        if old_server_folder != server_folder || old_server_uid != server_uid {
-            message::update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
-        }
-
-        warn!(context, "Message already in DB");
-        return Ok(());
-    }
 
     let parent = get_parent_message(context, mime_parser).await?;
 
@@ -730,9 +719,7 @@ async fn add_parts(
                 }
             }
             if chat_id.is_unset() && allow_creation {
-                let create_blocked = if MessengerMessage::No != is_dc_message
-                    && !Contact::is_blocked_load(context, to_id).await
-                {
+                let create_blocked = if !Contact::is_blocked_load(context, to_id).await {
                     Blocked::Not
                 } else {
                     Blocked::Deaddrop
@@ -942,12 +929,12 @@ async fn add_parts(
 
     let mime_headers = if save_mime_headers || save_mime_modified {
         if mime_parser.was_encrypted() && !mime_parser.decoded_data.is_empty() {
-            String::from_utf8_lossy(&mime_parser.decoded_data).to_string()
+            mime_parser.decoded_data.clone()
         } else {
-            String::from_utf8_lossy(imf_raw).to_string()
+            imf_raw.to_vec()
         }
     } else {
-        "".into()
+        Vec::new()
     };
 
     let sent_timestamp = *sent_timestamp;
@@ -1050,9 +1037,9 @@ INSERT INTO msgs
             part.bytes as isize,
             is_hidden,
             if (save_mime_headers || mime_modified) && !trash {
-                mime_headers.to_string()
+                mime_headers.clone()
             } else {
-                "".to_string()
+                Vec::new()
             },
             mime_in_reply_to,
             mime_references,
@@ -1803,7 +1790,7 @@ async fn create_multiuser_record(
             grpname.as_ref(),
             grpid.as_ref(),
             create_blocked,
-            time(),
+            dc_create_smeared_timestamp(context).await,
             create_protected,
         ],
     ).await?;
@@ -1963,7 +1950,7 @@ async fn check_verified_properties(
                 // - use the gossip-key as verified-key if there is no verified-key
                 // - OR if the verified-key does not match public-key or gossip-key
                 //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
-                //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
+                //   see <https://github.com/nextleap-project/countermitm/issues/46> for a discussion about this point)
                 if !is_verified
                     || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
                         && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
@@ -2105,18 +2092,25 @@ async fn add_or_lookup_contact_by_addr(
     Ok(row_id)
 }
 
-fn dc_create_incoming_rfc724_mid(
-    message_timestamp: i64,
-    contact_id_from: u32,
-    contact_ids_to: &ContactIds,
-) -> String {
-    /* create a deterministic rfc724_mid from input such that
-    repeatedly calling it with the same input results in the same Message-id */
-
-    let largest_id_to = contact_ids_to.iter().max().copied().unwrap_or_default();
+/// Creates fake Message-ID to identify the message in the database for
+/// messages which does not have one.
+///
+/// Concatenates Date:, From: and To: fields, then hashes them.
+fn dc_create_incoming_rfc724_mid(mime: &MimeMessage) -> String {
     format!(
-        "{}-{}-{}@stub",
-        message_timestamp, contact_id_from, largest_id_to
+        "{}@stub",
+        hex_hash(&format!(
+            "{}-{}-{}",
+            mime.get(HeaderDef::Date)
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            mime.get(HeaderDef::From_)
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            mime.get(HeaderDef::To)
+                .map(|s| s.to_string())
+                .unwrap_or_default()
+        ))
     )
 }
 
@@ -2179,23 +2173,20 @@ mod tests {
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
 
-    #[test]
-    fn test_dc_create_incoming_rfc724_mid() {
-        let mut members = ContactIds::new();
+    #[async_std::test]
+    async fn test_dc_create_incoming_rfc724_mid() {
+        let context = TestContext::new().await;
+        let raw = b"From: Alice <alice@example.com>\n\
+                    To: Bob <bob@example.org>\n\
+                    Subject: Some subject\n\
+                    hello\n";
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+
         assert_eq!(
-            dc_create_incoming_rfc724_mid(123, 45, &members),
-            "123-45-0@stub"
-        );
-        members.insert(7);
-        members.insert(3);
-        assert_eq!(
-            dc_create_incoming_rfc724_mid(123, 45, &members),
-            "123-45-7@stub"
-        );
-        members.insert(9);
-        assert_eq!(
-            dc_create_incoming_rfc724_mid(123, 45, &members),
-            "123-45-9@stub"
+            dc_create_incoming_rfc724_mid(&mimeparser),
+            "08d11318608d5191@stub"
         );
     }
 
@@ -2297,7 +2288,7 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert!(chats.get_chat_id(0).is_deaddrop());
-        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         assert!(!chat_id.is_special());
@@ -2332,7 +2323,7 @@ mod tests {
             .unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
-        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
@@ -2353,7 +2344,7 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert!(chats.get_chat_id(0).is_deaddrop());
-        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
@@ -2602,7 +2593,7 @@ mod tests {
         assert_eq!(contact.get_display_name(), "h2");
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let msg = Message::load_from_db(&t, chats.get_msg_id(0).unwrap())
+        let msg = Message::load_from_db(&t, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -2753,7 +2744,7 @@ mod tests {
         .unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap().unwrap();
 
         // Check that the ndn would be downloaded:
         let headers = mailparse::parse_mail(raw_ndn).unwrap().headers;
@@ -2803,7 +2794,7 @@ mod tests {
         .unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap().unwrap();
 
         let raw = include_bytes!("../test-data/message/gmail_ndn_group.eml");
         dc_receive_imf(&t, raw, "INBOX", 1, false).await.unwrap();
@@ -2836,7 +2827,7 @@ mod tests {
             .await
             .unwrap();
         let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap().unwrap();
         Message::load_from_db(context, msg_id).await.unwrap()
     }
 
@@ -2886,7 +2877,7 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
@@ -2959,7 +2950,7 @@ mod tests {
             .await
             .unwrap();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
@@ -3661,8 +3652,9 @@ YEAAAAAA!.
         assert_eq!(msg.get_text(), Some("hi!".to_string()));
         assert!(!msg.get_showpadlock());
         let mime = message::get_mime_headers(&bob, msg.id).await?;
-        assert!(mime.contains("Received:"));
-        assert!(mime.contains("From:"));
+        let mime_str = String::from_utf8_lossy(&mime);
+        assert!(mime_str.contains("Received:"));
+        assert!(mime_str.contains("From:"));
 
         // another one, from bob to alice, that gets encrypted
         let chat_bob = bob.create_chat(&alice).await;
@@ -3672,8 +3664,9 @@ YEAAAAAA!.
         assert_eq!(msg.get_text(), Some("ho!".to_string()));
         assert!(msg.get_showpadlock());
         let mime = message::get_mime_headers(&alice, msg.id).await?;
-        assert!(mime.contains("Received:"));
-        assert!(mime.contains("From:"));
+        let mime_str = String::from_utf8_lossy(&mime);
+        assert!(mime_str.contains("Received:"));
+        assert!(mime_str.contains("From:"));
         Ok(())
     }
 
@@ -4009,7 +4002,7 @@ YEAAAAAA!.
 
     #[async_std::test]
     async fn test_dont_show_all_outgoing_msgs_in_self_chat() {
-        // Regression test for https://github.com/deltachat/deltachat-android/issues/1940:
+        // Regression test for <https://github.com/deltachat/deltachat-android/issues/1940>:
         // Some servers add a `Bcc: <Self>` header, which caused all outgoing messages to
         // be shown in the self-chat.
         let t = TestContext::new_alice().await;
@@ -4034,5 +4027,97 @@ Message content",
 
         let msg = t.get_last_msg().await;
         assert_ne!(msg.chat_id, t.get_self_chat().await.id);
+    }
+
+    #[async_std::test]
+    async fn test_outgoing_classic_mail_creates_chat() {
+        let alice = TestContext::new_alice().await;
+
+        // Alice enables classic emails.
+        alice
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
+
+        // Alice downloads outgoing classic email.
+        dc_receive_imf(
+            &alice,
+            b"Received: from [127.0.0.1]
+Subject: Subj
+Message-ID: <abcd@example.com>
+To: <bob@example.org>
+From: <alice@example.com>
+
+Message content",
+            "Sent",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Outgoing email should create a chat.
+        let msg = alice.get_last_msg().await;
+        assert_ne!(msg.chat_id, DC_CHAT_ID_DEADDROP);
+        assert_eq!(msg.get_text().unwrap(), "Subj – Message content");
+    }
+
+    #[async_std::test]
+    async fn test_duplicate_message() -> Result<()> {
+        // Test that duplicate messages are ignored based on the Message-ID
+        let alice = TestContext::new_alice().await;
+
+        let bob_contact_id = Contact::add_or_lookup(
+            &alice,
+            "Bob",
+            "bob@example.org",
+            Origin::IncomingUnknownFrom,
+        )
+        .await?
+        .0;
+
+        let first_message = b"Received: from [127.0.0.1]
+Subject: First message
+Message-ID: <first@example.org>
+To: Alice <alice@example.com>
+From: Bob1 <bob@example.org>
+Chat-Version: 1.0
+
+Message content
+
+-- 
+First signature";
+
+        let second_message = b"Received: from [127.0.0.1]
+Subject: Second message
+Message-ID: <second@example.org>
+To: Alice <alice@example.com>
+From: Bob2 <bob@example.org>
+Chat-Version: 1.0
+
+Message content
+
+-- 
+Second signature";
+
+        dc_receive_imf(&alice, first_message, "Inbox", 1, false).await?;
+        let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
+        assert_eq!(contact.get_status(), "First signature");
+        assert_eq!(contact.get_display_name(), "Bob1");
+
+        dc_receive_imf(&alice, second_message, "Inbox", 2, false).await?;
+        let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
+        assert_eq!(contact.get_status(), "Second signature");
+        assert_eq!(contact.get_display_name(), "Bob2");
+
+        // Duplicate message, should be ignored
+        dc_receive_imf(&alice, first_message, "Inbox", 3, false).await?;
+
+        // No change because last message is duplicate of the first.
+        let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
+        assert_eq!(contact.get_status(), "Second signature");
+        assert_eq!(contact.get_display_name(), "Bob2");
+
+        Ok(())
     }
 }

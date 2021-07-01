@@ -491,6 +491,11 @@ impl<'a> MimeFactory<'a> {
                 "Auto-Submitted".to_string(),
                 "auto-replied".to_string(),
             ));
+        } else if context.get_config_bool(Config::Bot).await? {
+            headers.unprotected.push(Header::new(
+                "Auto-Submitted".to_string(),
+                "auto-generated".to_string(),
+            ));
         }
 
         if self.req_mdn {
@@ -860,7 +865,7 @@ impl<'a> MimeFactory<'a> {
                 // This should prevent automatic replies,
                 // such as non-delivery reports.
                 //
-                // See https://tools.ietf.org/html/rfc3834
+                // See <https://tools.ietf.org/html/rfc3834>
                 //
                 // Adding this header without encryption leaks some
                 // information about the message contents, but it can
@@ -1395,7 +1400,7 @@ mod tests {
             Address::new_mailbox_with_name(display_name.to_string(), addr.to_string())
         );
 
-        // Addresses should not be unnecessarily be encoded, see https://github.com/deltachat/deltachat-core-rust/issues/1575:
+        // Addresses should not be unnecessarily be encoded, see <https://github.com/deltachat/deltachat-core-rust/issues/1575>:
         assert_eq!(s, "a space <x@y.org>");
     }
 
@@ -1801,7 +1806,7 @@ mod tests {
 
         let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
 
-        let chat_id = chat::create_by_msg_id(context, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(context, chats.get_msg_id(0).unwrap().unwrap())
             .await
             .unwrap();
 
@@ -1859,7 +1864,7 @@ mod tests {
 
     #[test]
     fn test_no_empty_lines_in_header() {
-        // See https://github.com/deltachat/deltachat-core-rust/issues/2118
+        // See <https://github.com/deltachat/deltachat-core-rust/issues/2118>
         let to_tuples = [
             ("Nnnn", "nnn@ttttttttt.de"),
             ("😀 ttttttt", "ttttttt@rrrrrr.net"),

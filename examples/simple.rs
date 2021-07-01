@@ -83,7 +83,7 @@ async fn main() {
     let chats = Chatlist::try_load(&ctx, 0, None, None).await.unwrap();
 
     for i in 0..chats.len() {
-        let msg = Message::load_from_db(&ctx, chats.get_msg_id(i).unwrap())
+        let msg = Message::load_from_db(&ctx, chats.get_msg_id(i).unwrap().unwrap())
             .await
             .unwrap();
         log::info!("[{}] msg: {:?}", i, msg);

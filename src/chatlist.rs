@@ -42,7 +42,7 @@ use crate::stock_str;
 #[derive(Debug)]
 pub struct Chatlist {
     /// Stores pairs of `chat_id, message_id`
-    ids: Vec<(ChatId, MsgId)>,
+    ids: Vec<(ChatId, Option<MsgId>)>,
 }
 
 impl Chatlist {
@@ -111,7 +111,7 @@ impl Chatlist {
 
         let process_row = |row: &rusqlite::Row| {
             let chat_id: ChatId = row.get(0)?;
-            let msg_id: MsgId = row.get(1).unwrap_or_default();
+            let msg_id: Option<MsgId> = row.get(1)?;
             Ok((chat_id, msg_id))
         };
 
@@ -261,7 +261,7 @@ impl Chatlist {
                     get_last_deaddrop_fresh_msg(context).await?
                 {
                     if !flag_for_forwarding {
-                        ids.insert(0, (DC_CHAT_ID_DEADDROP, last_deaddrop_fresh_msg_id));
+                        ids.insert(0, (DC_CHAT_ID_DEADDROP, Some(last_deaddrop_fresh_msg_id)));
                     }
                 }
                 add_archived_link_item = true;
@@ -271,9 +271,9 @@ impl Chatlist {
 
         if add_archived_link_item && dc_get_archived_cnt(context).await? > 0 {
             if ids.is_empty() && flag_add_alldone_hint {
-                ids.push((DC_CHAT_ID_ALLDONE_HINT, MsgId::new(0)));
+                ids.push((DC_CHAT_ID_ALLDONE_HINT, None));
             }
-            ids.push((DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0)));
+            ids.push((DC_CHAT_ID_ARCHIVED_LINK, None));
         }
 
         Ok(Chatlist { ids })
@@ -302,7 +302,7 @@ impl Chatlist {
     /// Get a single message ID of a chatlist.
     ///
     /// To get the message object from the message ID, use dc_get_msg().
-    pub fn get_msg_id(&self, index: usize) -> Result<MsgId> {
+    pub fn get_msg_id(&self, index: usize) -> Result<Option<MsgId>> {
         match self.ids.get(index) {
             Some((_chat_id, msg_id)) => Ok(*msg_id),
             None => bail!("Chatlist index out of range"),
@@ -323,18 +323,19 @@ impl Chatlist {
     /// - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
     /// - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
     //    0 if not applicable.
-    pub async fn get_summary(&self, context: &Context, index: usize, chat: Option<&Chat>) -> Lot {
+    pub async fn get_summary(
+        &self,
+        context: &Context,
+        index: usize,
+        chat: Option<&Chat>,
+    ) -> Result<Lot> {
         // The summary is created by the chat, not by the last message.
         // This is because we may want to display drafts here or stuff as
         // "is typing".
         // Also, sth. as "No messages" would not work if the summary comes from a message.
         let (chat_id, lastmsg_id) = match self.ids.get(index) {
             Some(ids) => ids,
-            None => {
-                let mut ret = Lot::new();
-                ret.text2 = Some("ErrBadChatlistIndex".to_string());
-                return Lot::new();
-            }
+            None => bail!("Chatlist index out of range"),
         };
 
         Chatlist::get_summary2(context, *chat_id, *lastmsg_id, chat).await
@@ -343,50 +344,50 @@ impl Chatlist {
     pub async fn get_summary2(
         context: &Context,
         chat_id: ChatId,
-        lastmsg_id: MsgId,
+        lastmsg_id: Option<MsgId>,
         chat: Option<&Chat>,
-    ) -> Lot {
+    ) -> Result<Lot> {
         let mut ret = Lot::new();
 
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
-        } else if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
+        } else {
+            let chat = Chat::load_from_db(context, chat_id).await?;
             chat_loaded = chat;
             &chat_loaded
-        } else {
-            return ret;
         };
 
-        let (lastmsg, lastcontact) =
-            if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id).await {
-                if lastmsg.from_id == DC_CONTACT_ID_SELF {
-                    (Some(lastmsg), None)
-                } else {
-                    match chat.typ {
-                        Chattype::Group | Chattype::Mailinglist => {
-                            let lastcontact =
-                                Contact::load_from_db(context, lastmsg.from_id).await.ok();
-                            (Some(lastmsg), lastcontact)
-                        }
-                        Chattype::Single | Chattype::Undefined => (Some(lastmsg), None),
-                    }
-                }
+        let (lastmsg, lastcontact) = if let Some(lastmsg_id) = lastmsg_id {
+            let lastmsg = Message::load_from_db(context, lastmsg_id).await?;
+            if lastmsg.from_id == DC_CONTACT_ID_SELF {
+                (Some(lastmsg), None)
             } else {
-                (None, None)
-            };
+                match chat.typ {
+                    Chattype::Group | Chattype::Mailinglist => {
+                        let lastcontact =
+                            Contact::load_from_db(context, lastmsg.from_id).await.ok();
+                        (Some(lastmsg), lastcontact)
+                    }
+                    Chattype::Single | Chattype::Undefined => (Some(lastmsg), None),
+                }
+            }
+        } else {
+            (None, None)
+        };
 
         if chat.id.is_archived_link() {
             ret.text2 = None;
-        } else if lastmsg.is_none() || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED
+        } else if let Some(mut lastmsg) =
+            lastmsg.filter(|msg| msg.from_id != DC_CONTACT_ID_UNDEFINED)
         {
-            ret.text2 = Some(stock_str::no_messages(context).await);
-        } else {
-            ret.fill(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context)
+            ret.fill(&mut lastmsg, chat, lastcontact.as_ref(), context)
                 .await;
+        } else {
+            ret.text2 = Some(stock_str::no_messages(context).await);
         }
 
-        ret
+        Ok(ret)
     }
 
     pub fn get_index_for_id(&self, id: ChatId) -> Option<usize> {
@@ -684,7 +685,7 @@ mod tests {
         chat_id1.set_draft(&t, Some(&mut msg)).await.unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let summary = chats.get_summary(&t, 0, None).await;
+        let summary = chats.get_summary(&t, 0, None).await.unwrap();
         assert_eq!(summary.get_text2().unwrap(), "foo: bar test"); // the linebreak should be removed from summary
     }
 }

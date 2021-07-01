@@ -2340,11 +2340,14 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
         return 0;
     }
     let ffi_list = &*chatlist;
-    ffi_list
-        .list
-        .get_msg_id(index as usize)
-        .map(|msg_id| msg_id.to_u32())
-        .unwrap_or(0)
+    let ctx = &*ffi_list.context;
+    match ffi_list.list.get_msg_id(index as usize) {
+        Ok(msg_id) => msg_id.map_or(0, |msg_id| msg_id.to_u32()),
+        Err(err) => {
+            warn!(ctx, "get_msg_id failed: {}", err);
+            0
+        }
+    }
 }
 
 #[no_mangle]
@@ -2370,7 +2373,9 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
         let lot = ffi_list
             .list
             .get_summary(&ctx, index as usize, maybe_chat)
-            .await;
+            .await
+            .log_err(ctx, "get_summary failed")
+            .unwrap_or_default();
         Box::into_raw(Box::new(lot))
     })
 }
@@ -2386,9 +2391,16 @@ pub unsafe extern "C" fn dc_chatlist_get_summary2(
         return ptr::null_mut();
     }
     let ctx = &*context;
+    let msg_id = if msg_id == 0 {
+        None
+    } else {
+        Some(MsgId::new(msg_id))
+    };
     block_on(async move {
-        let lot =
-            Chatlist::get_summary2(&ctx, ChatId::new(chat_id), MsgId::new(msg_id), None).await;
+        let lot = Chatlist::get_summary2(&ctx, ChatId::new(chat_id), msg_id, None)
+            .await
+            .log_err(ctx, "get_summary2 failed")
+            .unwrap_or_default();
         Box::into_raw(Box::new(lot))
     })
 }
@@ -2881,6 +2893,16 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg_t) -> libc::c_i
     }
     let ffi_msg = &*msg;
     ffi_msg.message.get_showpadlock() as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_bot(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_is_bot()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.is_bot() as libc::c_int
 }
 
 #[no_mangle]
@@ -3717,8 +3739,9 @@ pub unsafe extern "C" fn dc_accounts_get_selected_account(
     }
 
     let accounts = &*accounts;
-    let ctx = block_on(accounts.get_selected_account());
-    Box::into_raw(Box::new(ctx))
+    block_on(accounts.get_selected_account())
+        .map(|ctx| Box::into_raw(Box::new(ctx)))
+        .unwrap_or_else(std::ptr::null_mut)
 }
 
 #[no_mangle]
@@ -3796,23 +3819,6 @@ pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *m
     let array: dc_array_t = list.into();
 
     Box::into_raw(Box::new(array))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_accounts_import_account(
-    accounts: *mut dc_accounts_t,
-    file: *const libc::c_char,
-) -> u32 {
-    if accounts.is_null() || file.is_null() {
-        eprintln!("ignoring careless call to dc_accounts_import_account()");
-        return 0;
-    }
-
-    let accounts = &*accounts;
-    let file = to_string_lossy(file);
-    block_on(accounts.import_account(async_std::path::PathBuf::from(file)))
-        .map(|_| 1)
-        .unwrap_or_else(|_| 0)
 }
 
 #[no_mangle]

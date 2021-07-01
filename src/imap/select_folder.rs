@@ -26,7 +26,7 @@ impl Imap {
     /// Issues a CLOSE command to expunge selected folder.
     ///
     /// CLOSE is considerably faster than an EXPUNGE, see
-    /// https://tools.ietf.org/html/rfc3501#section-6.4.2
+    /// <https://tools.ietf.org/html/rfc3501#section-6.4.2>
     pub(super) async fn close_folder(&mut self, context: &Context) -> Result<()> {
         if let Some(ref folder) = self.config.selected_folder {
             info!(context, "Expunge messages in \"{}\".", folder);
@@ -92,7 +92,7 @@ impl Imap {
             if let Some(ref mut session) = &mut self.session {
                 let res = session.select(folder).await;
 
-                // https://tools.ietf.org/html/rfc3501#section-6.3.1
+                // <https://tools.ietf.org/html/rfc3501#section-6.3.1>
                 // says that if the server reports select failure we are in
                 // authenticated (not-select) state.
 

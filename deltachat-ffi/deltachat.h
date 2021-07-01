@@ -340,7 +340,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    https://github.com/cracker0dks/basicwebrtc which some UIs have native support for.
  *                    The type `jitsi:` may be handled by external apps.
  *                    If no type is prefixed, the videochat is handled completely in a browser.
- * - `bot`          = Set to "1" if this is a bot. E.g. prevents adding the "Device messages" and "Saved messages" chats.
+ * - `bot`          = Set to "1" if this is a bot.
+ *                    Prevents adding the "Device messages" and "Saved messages" chats,
+ *                    adds Auto-Submitted header to outgoing messages.
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
@@ -523,7 +525,8 @@ char*           dc_get_connectivity_html     (dc_context_t* context);
 
 /**
  * Configure a context.
- * During configuration IO must not be started, if needed stop IO using dc_stop_io() first.
+ * During configuration IO must not be started,
+ * if needed stop IO using dc_accounts_stop_io() or dc_stop_io() first.
  * If the context is already configured,
  * this function will try to change the configuration.
  *
@@ -1934,7 +1937,8 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
 
 /**
  * Import/export things.
- * During backup import/export IO must not be started, if needed stop IO using dc_stop_io() first.
+ * During backup import/export IO must not be started,
+ * if needed stop IO using dc_accounts_stop_io() or dc_stop_io() first.
  * What to do is defined by the _what_ parameter which may be one of the following:
  *
  * - **DC_IMEX_EXPORT_BACKUP** (11) - Export a backup to the directory given as `param1`.
@@ -2132,27 +2136,80 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_TEXT                   330 // text1=text
 #define         DC_QR_URL                    332 // text1=URL
 #define         DC_QR_ERROR                  400 // text1=error string
+#define         DC_QR_WITHDRAW_VERIFYCONTACT 500
+#define         DC_QR_WITHDRAW_VERIFYGROUP   502 // text1=groupname
+#define         DC_QR_REVIVE_VERIFYCONTACT   510
+#define         DC_QR_REVIVE_VERIFYGROUP     512 // text1=groupname
 
 /**
  * Check a scanned QR code.
- * The function should be called after a QR code is scanned.
  * The function takes the raw text scanned and checks what can be done with it.
+ *
+ * The UI is supposed to show the result to the user.
+ * In case there are further actions possible,
+ * the UI has to ask the user before doing further steps.
  *
  * The QR code state is returned in dc_lot_t::state as:
  *
- * - DC_QR_ASK_VERIFYCONTACT with dc_lot_t::id=Contact ID
- * - DC_QR_ASK_VERIFYGROUP withdc_lot_t::text1=Group name
- * - DC_QR_FPR_OK with dc_lot_t::id=Contact ID
- * - DC_QR_FPR_MISMATCH with dc_lot_t::id=Contact ID
+ * - DC_QR_ASK_VERIFYCONTACT with dc_lot_t::id=Contact ID:
+ *   ask whether to verify the contact;
+ *   if so, start the protocol with dc_join_securejoin().
+ *
+ * - DC_QR_ASK_VERIFYGROUP withdc_lot_t::text1=Group name:
+ *   ask whether to join the group;
+ *   if so, start the protocol with dc_join_securejoin().
+ *
+ * - DC_QR_FPR_OK with dc_lot_t::id=Contact ID:
+ *   contact fingerprint verified,
+ *   ask the user if they want to start chatting;
+ *   if so, call dc_create_chat_by_contact_id().
+ *
+ * - DC_QR_FPR_MISMATCH with dc_lot_t::id=Contact ID:
+ *   scanned fingerprint does not match last seen fingerprint.
+ *
  * - DC_QR_FPR_WITHOUT_ADDR with dc_lot_t::test1=Formatted fingerprint
- * - DC_QR_ACCOUNT allows creation of an account, dc_lot_t::text1=domain
- * - DC_QR_WEBRTC_INSTANCE - a shared webrtc-instance
- *   that will be set if dc_set_config_from_qr() is called with the qr-code,
- *   dc_lot_t::text1=domain could be used to ask the user
- * - DC_QR_ADDR with dc_lot_t::id=Contact ID
- * - DC_QR_TEXT with dc_lot_t::text1=Text
- * - DC_QR_URL with dc_lot_t::text1=URL
- * - DC_QR_ERROR with dc_lot_t::text1=Error string
+ *   the scanned QR code contains a fingerprint but no email address;
+ *   suggest the user to establish an encrypted connection first.
+ *
+ * - DC_QR_ACCOUNT dc_lot_t::text1=domain:
+ *   ask the user if they want to create an account on the given domain,
+ *   if so, call dc_set_config_from_qr() and then dc_configure().
+ *
+ * - DC_QR_WEBRTC_INSTANCE with dc_lot_t::text1=domain:
+ *   ask the user if they want to use the given service for video chats;
+ *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_ADDR with dc_lot_t::id=Contact ID:
+ *   email-address scanned,
+ *   ask the user if they want to start chatting;
+ *   if so, call dc_create_chat_by_contact_id()
+ *
+ * - DC_QR_TEXT with dc_lot_t::text1=Text:
+ *   Text scanned,
+ *   ask the user eg. if they want copy to clipboard.
+ *
+ * - DC_QR_URL with dc_lot_t::text1=URL:
+ *   URL scanned,
+ *   ask the user eg. if they want to open a browser or copy to clipboard.
+ *
+ * - DC_QR_ERROR with dc_lot_t::text1=Error string:
+ *   show the error to the user.
+ *
+ * - DC_QR_WITHDRAW_VERIFYCONTACT:
+ *   ask the user if they want to withdraw the their own qr-code;
+ *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_WITHDRAW_VERIFYGROUP with text1=groupname:
+ *   ask the user if they want to withdraw the group-invite code;
+ *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_REVIVE_VERIFYCONTACT:
+ *   ask the user if they want to revive their withdrawn qr-code;
+ *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_REVIVE_VERIFYGROUP with text1=groupname:
+ *   ask the user if they want to revive the withdrawn group-invite code;
+ *   if so, call dc_set_config_from_qr().
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -2415,7 +2472,7 @@ void dc_str_unref (char* str);
  * The account manager takes an directory
  * where all context-databases are placed in.
  * To add a context to the account manager,
- * use dc_accounts_add_account(), dc_accounts_import_account or dc_accounts_migrate_account().
+ * use dc_accounts_add_account() or dc_accounts_migrate_account().
  * All account information are persisted.
  * To remove a context from the account manager,
  * use dc_accounts_remove_account().
@@ -2458,21 +2515,6 @@ void           dc_accounts_unref                (dc_accounts_t* accounts);
  *     On errors, 0 is returned.
  */
 uint32_t       dc_accounts_add_account          (dc_accounts_t* accounts);
-
-
-/**
- * Import a tarfile-backup to the account manager.
- * On success, a new account is added to the account-manager,
- * with all the data provided by the backup-file.
- * Moreover, the newly created account will be the selected one.
- *
- * @memberof dc_accounts_t
- * @param accounts Account manager as created by dc_accounts_new().
- * @param tarfile Backup as created by dc_imex().
- * @return Account-id, use dc_accounts_get_account() to get the context object.
- *     On errors, 0 is returned.
- */
-uint32_t       dc_accounts_import_account       (dc_accounts_t* accounts, const char* tarfile);
 
 
 /**
@@ -2544,6 +2586,7 @@ dc_context_t*  dc_accounts_get_account          (dc_accounts_t* accounts, uint32
  *     unmanaged account-context as created by dc_context_new().
  *     Once you do no longer need the context-object, you have to call dc_context_unref() on it,
  *     which, however, will not close the account but only decrease a reference counter.
+ *     If there is no selected account, NULL is returned.
  */
 dc_context_t*  dc_accounts_get_selected_account (dc_accounts_t* accounts);
 
@@ -3566,6 +3609,16 @@ int             dc_msg_get_duration           (const dc_msg_t* msg);
  */
 int             dc_msg_get_showpadlock        (const dc_msg_t* msg);
 
+/**
+ * Check if incoming message is a bot message, i.e. automatically submitted.
+ *
+ * Return value for outgoing messages is unspecified.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=message is submitted automatically, 0=message is not automatically submitted.
+ */
+int             dc_msg_is_bot                 (const dc_msg_t* msg); 
 
 /**
  * Get ephemeral timer duration for message.
