@@ -574,6 +574,12 @@ class Account(object):
         """ Stop ongoing securejoin, configuration or other core jobs. """
         lib.dc_stop_ongoing_process(self._dc_context)
 
+    def get_connectivity(self):
+        return lib.dc_get_connectivity(self._dc_context)
+
+    def get_connectivity_html(self):
+        return from_dc_charpointer(lib.dc_get_connectivity_html(self._dc_context))
+
     def start_io(self):
         """ start this account's IO scheduling (Rust-core async scheduler)
 

@@ -112,6 +112,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                         if let Err(err) = connection.scan_folders(&ctx).await {
                             warn!(ctx, "{}", err);
                         }
+                        connection.connectivity.set_not_configured(&ctx).await;
                         connection.fake_idle(&ctx, None).await
                     };
                 }
@@ -148,7 +149,6 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
         }
         Ok(None) => {
             info!(ctx, "Can not fetch inbox folder, not set");
-            connection.connectivity.set_not_configured(ctx).await;
         }
         Err(err) => {
             warn!(
@@ -345,10 +345,6 @@ impl Scheduler {
                 .send(())
                 .await
                 .expect("mvbox start send, missing receiver");
-            // In get_connectivity() we return the worst connectivity of all folders so that if
-            // there is a problem with any folder, the user is notified about the problem.
-            // This means that if we just don't watch the mvbox, but there is no problem,
-            // we have to set the connectivity to "connected" i.e. "everything fine".
             mvbox_handlers
                 .connection
                 .connectivity
@@ -417,24 +413,13 @@ impl Scheduler {
             return;
         }
 
-        if let Scheduler::Running {
-            inbox,
-            mvbox,
-            sentbox,
-            ..
-        } = &self
-        {
-            let states = [&inbox.state, &mvbox.state, &sentbox.state];
-            for s in &states {
-                s.connectivity.idle_interrupted().await;
-            }
-        }
-
         self.interrupt_inbox(InterruptInfo::new(true, None))
             .join(self.interrupt_mvbox(InterruptInfo::new(true, None)))
             .join(self.interrupt_sentbox(InterruptInfo::new(true, None)))
             .join(self.interrupt_smtp(InterruptInfo::new(true, None)))
             .await;
+
+        connectivity::idle_interrupted(self).await;
     }
 
     async fn interrupt_inbox(&self, info: InterruptInfo) {

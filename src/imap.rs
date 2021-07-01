@@ -8,7 +8,7 @@ use std::{cmp, cmp::max, collections::BTreeMap};
 use anyhow::{bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
-    types::{Fetch, Flag, Mailbox, Name, NameAttribute},
+    types::{Fetch, Flag, Mailbox, Name, NameAttribute, UnsolicitedResponse},
 };
 use async_std::channel::Receiver;
 use async_std::prelude::*;
@@ -1366,6 +1366,31 @@ impl Imap {
         }
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
+    }
+
+    /// Return whether the server sent an unsolicited EXISTS response.
+    /// Drains all responses from `session.unsolicited_responses` in the process.
+    /// If this returns `true`, this means that new emails arrived and you should
+    /// fetch again, even if you just fetched.
+    fn server_sent_unsolicited_exists(&self, context: &Context) -> bool {
+        let session = match &self.session {
+            Some(s) => s,
+            None => return false,
+        };
+        let mut unsolicited_exists = false;
+        while let Ok(response) = session.unsolicited_responses.try_recv() {
+            match response {
+                UnsolicitedResponse::Exists(_) => {
+                    info!(
+                        context,
+                        "Need to fetch again, got unsolicited EXISTS {:?}", response
+                    );
+                    unsolicited_exists = true;
+                }
+                _ => info!(context, "ignoring unsolicited response {:?}", response),
+            }
+        }
+        unsolicited_exists
     }
 }
 

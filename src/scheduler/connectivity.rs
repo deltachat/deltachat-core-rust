@@ -1,4 +1,5 @@
 use core::fmt;
+use std::time::Duration;
 use std::{ops::Deref, sync::Arc};
 
 use async_std::sync::Mutex;
@@ -114,27 +115,48 @@ impl ConnectivityStore {
         self.set(context, DetailedConnectivity::NotConfigured).await;
     }
 
-    /// Set the state to InterruptingIdle in case it was `Connected` before.
-    /// Called for all folders during `dc_maybe_network()`.
-    pub(crate) async fn idle_interrupted(&self) {
-        let mut lock = self.0.lock().await;
-        if *lock == DetailedConnectivity::Connected {
-            *lock = DetailedConnectivity::InterruptingIdle;
-        }
-        // We don't send a ConnectivityChanged event when setting the state to
-        // InterruptingIdle because the connectivity didn't actually change. We
-        // only distinguish between `Connected` and `InterruptingIdle` so that:
-        // After calling dc_maybe_network(), when the connectivity is
-        // `Connected` again, the UI can be sure that DC is done with fetching
-        // from all folders once.
-    }
-
     async fn get_detailed(&self) -> DetailedConnectivity {
         self.0.lock().await.deref().clone()
     }
     async fn get_basic(&self) -> Option<Connectivity> {
         self.0.lock().await.to_basic()
     }
+}
+
+/// Set all folder states to InterruptingIdle in case they were `Connected` before.
+/// Called during `dc_maybe_network()`.
+pub(crate) async fn idle_interrupted(scheduler: &Scheduler) {
+    if let Scheduler::Running {
+        inbox,
+        mvbox,
+        sentbox,
+        ..
+    } = scheduler
+    {
+        let mut lock = inbox.state.connectivity.0.lock().await;
+        // For the inbox, we also have to set the connectivity to InterruptingIdle if it was
+        // NotConfigured before: If all folders are NotConfigured, dc_get_connectivity()
+        // returns Connected. But after dc_maybe_network(), dc_get_connectivity() must not
+        // return Connected until DC is completely done with fetching folders; this also
+        // includes scan_folders() which happens on the inbox thread.
+        if *lock == DetailedConnectivity::Connected || *lock == DetailedConnectivity::NotConfigured
+        {
+            *lock = DetailedConnectivity::InterruptingIdle;
+        }
+        drop(lock);
+
+        for state in &[&mvbox.state, &sentbox.state] {
+            let mut lock = state.connectivity.0.lock().await;
+            if *lock == DetailedConnectivity::Connected {
+                *lock = DetailedConnectivity::InterruptingIdle;
+            }
+        }
+    }
+    // We don't send a ConnectivityChanged event when setting the state to InterruptingIdle because
+    // the connectivity didn't actually change. We only distinguish between `Connected` and
+    // `InterruptingIdle` so that:
+    // After calling dc_maybe_network(), when the connectivity is `Connected` again, the UI can be
+    // sure that DC is done with fetching from all folders once.
 }
 
 impl fmt::Debug for ConnectivityStore {
@@ -194,7 +216,7 @@ impl Context {
                 connectivities
                     .into_iter()
                     .min()
-                    .unwrap_or(Connectivity::NotConnected)
+                    .unwrap_or(Connectivity::Connected)
             }
             Scheduler::Stopped => Connectivity::NotConnected,
         }

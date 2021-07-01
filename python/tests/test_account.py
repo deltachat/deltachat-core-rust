@@ -2015,6 +2015,42 @@ class TestOnlineAccount:
         assert msg_back.chat == chat
         assert chat.get_profile_image() is None
 
+    @pytest.mark.parametrize("inbox_watch", ["0", "1"])
+    def test_connectivity(self, acfactory, lp, inbox_watch):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1.set_config("inbox_watch", inbox_watch)
+        ac1.set_config("scan_all_folders_debounce_secs", "0")
+
+        ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTED)
+
+        lp.sec("Test stop_io() and start_io()")
+        ac1.stop_io()
+        ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_NOT_CONNECTED)
+
+        ac1.start_io()
+        ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTING, const.DC_CONNECTIVITY_CONNECTED)
+
+        lp.sec("Test that after calling start_io(), maybe_network() and waiting for connectivity `CONNECTED`, all messages are fetched")
+
+        ac1.direct_imap.select_config_folder("inbox")
+        ac1.direct_imap.idle_start()
+        ac2.create_chat(ac1).send_text("Hi")
+
+        ac1.direct_imap.idle_check(terminate=True)
+        ac1.maybe_network()
+
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE, const.DC_CONNECTIVITY_WORKING)
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
+        msgs = ac1.create_chat(ac2).get_messages()
+        assert len(msgs) == 1
+        assert msgs[0].text == "Hi"
+
+        lp.sec("Test that the connectivity doesn't flicker to WORKING if there are no new messages")
+
+        ac1.maybe_network()
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE, const.DC_CONNECTIVITY_CONNECTED)
+
     def test_fetch_deleted_msg(self, acfactory, lp):
         """This is a regression test: Messages with \\Deleted flag were downloaded again and again,
         hundreds of times, because uid_next was not updated.
