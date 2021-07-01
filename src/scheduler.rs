@@ -111,8 +111,10 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                     } else {
                         if let Err(err) = connection.scan_folders(&ctx).await {
                             warn!(ctx, "{}", err);
+                            connection.connectivity.set_err(&ctx, err).await;
+                        } else {
+                            connection.connectivity.set_not_configured(&ctx).await;
                         }
-                        connection.connectivity.set_not_configured(&ctx).await;
                         connection.fake_idle(&ctx, None).await
                     };
                 }

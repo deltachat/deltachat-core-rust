@@ -128,7 +128,7 @@ class FFIEventTracker:
             if current == expected_next:
                 return
             elif current != previous:
-                pytest.fail("Expected connectivity " + expected_next + " but got " + current)
+                raise Exception("Expected connectivity " + str(expected_next) + " but got " + str(current))
 
             self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
 

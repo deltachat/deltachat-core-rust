@@ -1,5 +1,4 @@
 use core::fmt;
-use std::time::Duration;
 use std::{ops::Deref, sync::Arc};
 
 use async_std::sync::Mutex;
@@ -287,14 +286,28 @@ impl Context {
                 for (folder, watch, state) in folders_states {
                     let w = self.get_config(*watch).await.ok_or_log(self);
 
+                    let mut folder_added = false;
                     if w.flatten() == Some("1".to_string()) {
-                        let f = self.get_config(*folder).await.ok_or_log(self);
+                        let f = self.get_config(*folder).await.ok_or_log(self).flatten();
 
-                        if let Some(foldername) = f.flatten() {
+                        if let Some(foldername) = f {
                             ret += "<li><b>&quot;";
                             ret += &foldername;
                             ret += "&quot;:</b> ";
                             ret += &state.connectivity.get_detailed().await.to_string_imap(self);
+                            ret += "</li>";
+
+                            folder_added = true;
+                        }
+                    }
+
+                    if !folder_added && folder == &Config::ConfiguredInboxFolder {
+                        let detailed = &state.connectivity.get_detailed().await;
+                        if let DetailedConnectivity::Error(_) = detailed {
+                            // On the inbox thread, we also do some other things like scan_folders and run jobs
+                            // so, maybe, the inbox is not watched, but something else went wrong
+                            ret += "<li>";
+                            ret += &detailed.to_string_imap(self);
                             ret += "</li>";
                         }
                     }

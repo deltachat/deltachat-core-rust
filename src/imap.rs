@@ -380,14 +380,14 @@ impl Imap {
     /// Ensure that IMAP client is connected, folders are created and IMAP capabilities are
     /// determined.
     pub async fn prepare(&mut self, context: &Context) -> Result<()> {
-        let res = self.connect(context).await;
-        if let Err(ref err) = res {
-            self.connectivity.set_err(context, err).await;
+        if let Err(err) = self.connect(context).await {
+            self.connectivity.set_err(context, &err).await;
+            return Err(err);
         }
 
         self.ensure_configured_folders(context, true).await?;
         self.determine_capabilities().await?;
-        res
+        Ok(())
     }
 
     async fn disconnect(&mut self, context: &Context) {
