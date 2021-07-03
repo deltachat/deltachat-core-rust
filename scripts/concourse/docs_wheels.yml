@@ -10,6 +10,7 @@ jobs:
 - name: doxygen
   plan:
   - get: deltachat-core-rust
+    trigger: true
 
   # Build Doxygen documentation
   - task: build-doxygen
