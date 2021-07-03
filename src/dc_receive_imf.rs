@@ -1241,7 +1241,7 @@ async fn lookup_chat_by_reply(
             return Ok((ChatId::new(0), Blocked::Not));
         }
 
-        if should_force_1to1_chat(context, to_ids, mime_parser, parent_chat.id, from_id).await? {
+        if is_probably_private_reply(context, to_ids, mime_parser, parent_chat.id, from_id).await? {
             return Ok((ChatId::new(0), Blocked::Not));
         }
         // TODO if we remove these lines, the new test still passes
@@ -1257,7 +1257,7 @@ async fn lookup_chat_by_reply(
     Ok((ChatId::new(0), Blocked::Not))
 }
 
-async fn should_force_1to1_chat(
+async fn is_probably_private_reply(
     context: &Context,
     to_ids: &indexmap::IndexSet<u32>,
     mime_parser: &MimeMessage,
@@ -1277,8 +1277,7 @@ async fn should_force_1to1_chat(
         return Ok(false);
     }
 
-    let classical_email = mime_parser.get(HeaderDef::ChatVersion).is_none();
-    if classical_email {
+    if !mime_parser.has_chat_version() {
         let chat_contacts = chat::get_chat_contacts(context, group_chat_id).await?;
         if chat_contacts.len() == 2
             && chat_contacts.contains(&DC_CONTACT_ID_SELF)
@@ -1358,7 +1357,11 @@ async fn create_or_lookup_group(
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
     // TODO is it a problem that I moved get_chat_id_by_grpid() up here?
 
-    if should_force_1to1_chat(context, to_ids, &mime_parser, chat_id, from_id).await? {
+    // For chat messages, we don't have to guess (is_*probably*_private_reply()) but we know for sure that
+    // they belong to the group because of the Chat-Group-Id or Message-Id header
+    if !mime_parser.has_chat_version()
+        && is_probably_private_reply(context, to_ids, mime_parser, chat_id, from_id).await?
+    {
         return Ok((ChatId::new(0), Blocked::Not));
     }
 
@@ -4146,12 +4149,11 @@ Second signature";
         Ok(())
     }
 
-    #[async_std::test]
-    async fn test_classical_private_reply() {
-        let alice = TestContext::new_alice().await;
+    async fn test_private_classicel_reply() {
+        let t = TestContext::new_alice().await;
 
         dc_receive_imf(
-            &alice,
+            &t,
             br#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
 Subject: =?utf-8?q?single_reply-to?=
 Chat-Group-ID: eJ_llQIXf0K
@@ -4160,19 +4162,12 @@ References: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
 Date: Fri, 28 May 2021 10:15:05 +0000
 Chat-Version: 1.0
 Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
-To: Hocuri <bob@example.com>, <claire@example.com>
+To: Bob <bob@example.com>, <claire@example.com>
 From: Alice <alice@example.com>
-Content-Type: multipart/mixed; boundary="OZANd3zUvwxJqnGEXFgDmczvsES4Ny"
-
---OZANd3zUvwxJqnGEXFgDmczvsES4Ny
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Content-Transfer-Encoding: quoted-printable
 
-Hello, I've just created the group "single reply-to" for us.
-
---OZANd3zUvwxJqnGEXFgDmczvsES4Ny--
-
-"#,
+Hello, I've just created the group "single reply-to" for us."#,
             "Inbox",
             1,
             false,
@@ -4180,8 +4175,17 @@ Hello, I've just created the group "single reply-to" for us.
         .await
         .unwrap();
 
+        let group_msg = t.get_last_msg().await;
+        assert_eq!(
+            group_msg.text.unwrap(),
+            "Hello, I've just created the group \"single reply-to\" for us."
+        );
+        let group_chat = Chat::load_from_db(&t, group_msg.chat_id).await.unwrap();
+        assert_eq!(group_chat.typ, Chattype::Group);
+        assert_eq!(group_chat.name, "single reply-to");
+
         dc_receive_imf(
-            &alice,
+            &t,
             br#"Subject: Re: single reply-to
 To: "Alice" <alice@example.com>
 References: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
@@ -4202,7 +4206,10 @@ Private reply"#,
         .await
         .unwrap();
 
-        alice.print_chat(ChatId::new(10)).await;
-        alice.print_chat(ChatId::new(11)).await;
+        let private_msg = t.get_last_msg().await;
+        assert_eq!(private_msg.text.unwrap(), "Private reply");
+        let private_chat = Chat::load_from_db(&t, private_msg.chat_id).await.unwrap();
+        assert_eq!(private_chat.typ, Chattype::Single);
+        assert_ne!(private_msg.chat_id, group_msg.chat_id);
     }
 }
