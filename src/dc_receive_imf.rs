@@ -474,7 +474,7 @@ async fn add_parts(
             // try to assign to a chat based on In-Reply-To/References:
 
             let (new_chat_id, new_chat_id_blocked) =
-                lookup_chat_by_reply(context, &mime_parser, from_id, to_ids).await?;
+                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?;
             *chat_id = new_chat_id;
             chat_id_blocked = new_chat_id_blocked;
         }
@@ -1208,6 +1208,7 @@ async fn calc_sort_timestamp(
 async fn lookup_chat_by_reply(
     context: &Context,
     mime_parser: &&mut MimeMessage,
+    parent: &Option<Message>,
     from_id: u32,
     to_ids: &ContactIds,
 ) -> Result<(ChatId, Blocked)> {
@@ -1216,59 +1217,77 @@ async fn lookup_chat_by_reply(
     // If this was a private message just to self, it was probably a private reply.
     // It should not go into the group then, but into the private chat.
 
-    let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>();
-    let classical_email = mime_parser.get(HeaderDef::ChatVersion).is_none();
+    if let Some(parent) = parent {
+        let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
-    if (!private_message) || classical_email {
-        if let Some(parent) = get_parent_message(context, mime_parser).await? {
-            let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
-            let chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
-
-            if let Some(msg_grpid) = try_getting_grpid(mime_parser) {
-                if msg_grpid == parent_chat.grpid {
-                    // This message will be assigned to this chat, anyway.
-                    // But if we assigned it now, create_or_lookup_group() will not be called
-                    // and group commands will not be executed.
-                    return Ok((ChatId::new(0), Blocked::Not));
-                }
-            }
-
-            if parent.error.is_some() {
-                // If the parent msg is undecipherable, then it may have been assigned to the wrong chat
-                // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
-                // We don't have any way of finding out whether a msg is undecipherable, so we check for
-                // error.is_some() instead.
+        if let Some(msg_grpid) = try_getting_grpid(mime_parser) {
+            if msg_grpid == parent_chat.grpid {
+                // This message will be assigned to this chat, anyway.
+                // But if we assigned it now, create_or_lookup_group() will not be called
+                // and group commands will not be executed.
                 return Ok((ChatId::new(0), Blocked::Not));
-            }
-
-            if parent_chat.id == DC_CHAT_ID_TRASH {
-                return Ok((ChatId::new(0), Blocked::Not));
-            }
-
-            // Usually we don't want to show private messages in the parent chat, but in the
-            // 1:1 chat with the sender.
-            // This is to make sure that private replies are shown in the correct chat.
-            //
-            // There is one exception: Classical MUA replies to two-member groups
-            // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
-            // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
-            if (!private_message)
-                || (classical_email
-                    && chat_contacts.len() == 2
-                    && chat_contacts.contains(&DC_CONTACT_ID_SELF)
-                    && chat_contacts.contains(&from_id))
-            {
-                info!(
-                    context,
-                    "Assigning message to {} as it's a reply to {}",
-                    parent_chat.id,
-                    parent.rfc724_mid
-                );
-                return Ok((parent_chat.id, parent_chat.blocked));
             }
         }
+
+        if parent.error.is_some() {
+            // If the parent msg is undecipherable, then it may have been assigned to the wrong chat
+            // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
+            // We don't have any way of finding out whether a msg is undecipherable, so we check for
+            // error.is_some() instead.
+            return Ok((ChatId::new(0), Blocked::Not));
+        }
+
+        if parent_chat.id == DC_CHAT_ID_TRASH {
+            return Ok((ChatId::new(0), Blocked::Not));
+        }
+
+        if should_force_1to1_chat(context, to_ids, mime_parser, parent_chat.id, from_id).await? {
+            return Ok((ChatId::new(0), Blocked::Not));
+        }
+
+        info!(
+            context,
+            "Assigning message to {} as it's a reply to {}", parent_chat.id, parent.rfc724_mid
+        );
+        return Ok((parent_chat.id, parent_chat.blocked));
     }
-    return Ok((ChatId::new(0), Blocked::Not));
+
+    Ok((ChatId::new(0), Blocked::Not))
+}
+
+async fn should_force_1to1_chat(
+    context: &Context,
+    to_ids: &indexmap::IndexSet<u32>,
+    mime_parser: &MimeMessage,
+    // TODO group_chat_id is not a good name as it's not always the group chat
+    group_chat_id: ChatId, // The group chat this message could be assigned to
+    from_id: u32,
+) -> Result<bool> {
+    // Usually we don't want to show private messages in the parent chat, but in the
+    // 1:1 chat with the sender.
+    // This is to make sure that private replies are shown in the correct chat.
+    //
+    // There is one exception: Classical MUA replies to two-member groups
+    // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
+    // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
+    let classical_email = mime_parser.get(HeaderDef::ChatVersion).is_none();
+
+    let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>();
+    if !private_message {
+        return Ok(false);
+    }
+
+    if classical_email {
+        let chat_contacts = chat::get_chat_contacts(context, group_chat_id).await?;
+        if chat_contacts.len() == 2
+            && chat_contacts.contains(&DC_CONTACT_ID_SELF)
+            && chat_contacts.contains(&from_id)
+        {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
 }
 
 /// This function tries to extract the group-id from the message and returns the
@@ -1332,6 +1351,16 @@ async fn create_or_lookup_group(
             });
     };
 
+    // check, if we have a chat with this group ID
+    let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
+        .await
+        .unwrap_or((ChatId::new(0), false, Blocked::Not));
+    // TODO is it a problem that I moved get_chat_id_by_grpid() up here?
+
+    if should_force_1to1_chat(context, to_ids, &mime_parser, chat_id, from_id).await? {
+        return Ok((ChatId::new(0), Blocked::Not));
+    }
+
     // now we have a grpid that is non-empty
     // but we might not know about this group
 
@@ -1390,11 +1419,6 @@ async fn create_or_lookup_group(
         }
     }
     set_better_msg(mime_parser, &better_msg);
-
-    // check, if we have a chat with this group ID
-    let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
-        .await
-        .unwrap_or((ChatId::new(0), false, Blocked::Not));
 
     // check if the group does not exist but should be created
     let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid)
@@ -4119,5 +4143,65 @@ Second signature";
         assert_eq!(contact.get_display_name(), "Bob2");
 
         Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_classical_private_reply() {
+        let alice = TestContext::new_alice().await;
+
+        dc_receive_imf(
+            &alice,
+            br#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+Subject: =?utf-8?q?single_reply-to?=
+Chat-Group-ID: eJ_llQIXf0K
+Chat-Group-Name: =?utf-8?q?single_reply-to?=
+References: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
+Date: Fri, 28 May 2021 10:15:05 +0000
+Chat-Version: 1.0
+Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
+To: Hocuri <bob@example.com>, <claire@example.com>
+From: Alice <alice@example.com>
+Content-Type: multipart/mixed; boundary="OZANd3zUvwxJqnGEXFgDmczvsES4Ny"
+
+--OZANd3zUvwxJqnGEXFgDmczvsES4Ny
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Content-Transfer-Encoding: quoted-printable
+
+Hello, I've just created the group "single reply-to" for us.
+
+--OZANd3zUvwxJqnGEXFgDmczvsES4Ny--
+
+"#,
+            "Inbox",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        dc_receive_imf(
+            &alice,
+            br#"Subject: Re: single reply-to
+To: "Alice" <alice@example.com>
+References: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
+ <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
+From: Bob <bob@example.com>
+Message-ID: <028674eb-77f9-4ad1-1c30-e93e18b891c8@testrun.org>
+Date: Fri, 28 May 2021 12:17:03 +0200
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:78.0) Gecko/20100101
+ Thunderbird/78.10.2
+MIME-Version: 1.0
+In-Reply-To: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
+
+Private reply"#,
+            "Inbox",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+
+        alice.print_chat(ChatId::new(10)).await;
+        alice.print_chat(ChatId::new(11)).await;
     }
 }
