@@ -3,6 +3,36 @@
 ## Unreleased
 
 ### API Changes
+
+- breaking change: removed deaddrop chat #2514
+
+  Contact request chats are not merged into a single virtual
+  "deaddrop" chat anymore. Instead, they are shown in the chatlist the
+  same way as other chats, but sending of messages to them is not
+  allowed and MDNs are not sent automatically until the chat is
+  "accepted" by the user.
+
+  New API:
+  - `dc_chat_is_contact_request()`: returns true if chat is a contact
+    request.  In this case an option to accept the chat via
+    `dc_accept_chat()` should be shown in the UI.
+  - `dc_accept_chat()`: unblock the chat or accept contact request
+  - `dc_block_chat()`: block the chat, currently works only for mailing
+    lists.
+
+  Removed API:
+  - `dc_create_chat_by_msg_id()`: deprecated 2021-02-07 in favor of
+    `dc_decide_on_contact_request()`
+  - `dc_marknoticed_contact()`: deprecated 2021-02-07 in favor of
+    `dc_decide_on_contact_request()`
+  - `dc_decide_on_contact_request()`: this call requires a message ID
+    from deaddrop chat as input. As deaddrop chat is removed, this
+    call can't be used anymore.
+  - `dc_msg_get_real_chat_id()`: use `dc_msg_get_chat_id()` instead, the
+    only difference between these calls was in handling of deaddrop
+    chat
+  - removed `DC_CHAT_ID_DEADDROP` and `DC_STR_DEADDROP` constants
+
 - breaking change: removed `DC_EVENT_ERROR_NETWORK` and `DC_STR_SERVER_RESPONSE`
   Instead, there is a new api `dc_get_connectivity()`
   and `dc_get_connectivity_html()`;
