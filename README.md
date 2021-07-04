@@ -11,7 +11,10 @@ To download and install the official compiler for the Rust programming language,
 ```
 $ curl https://sh.rustup.rs -sSf | sh
 ```
-
+You also need sqlite3 and the dev package `libsqlite3-dev`:
+```
+sudo apt install sqlite3 libsqlite3-dev
+```
 ## Using the CLI client
 
 Compile and run Delta Chat Core command line utility, using `cargo`:
