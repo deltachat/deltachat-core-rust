@@ -13,6 +13,8 @@ use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
+use deltachat::error::Error;
+use deltachat::export_chat::export_chat_to_zip;
 use deltachat::imex::*;
 use deltachat::location;
 use deltachat::log::LogExt;
@@ -388,6 +390,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  protect <chat-id>\n\
                  unprotect <chat-id>\n\
                  delchat <chat-id>\n\
+                 export-chat <chat-id> <destination-file>\n\
                  ===========================Contact requests==\n\
                  decidestartchat <msg-id>\n\
                  decideblock <msg-id>\n\
@@ -1024,6 +1027,13 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
             chat_id.delete(&context).await?;
+        }
+        "export-chat" => {
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            ensure!(!arg2.is_empty(), "Argument <destination file> missing.");
+            let chat_id = ChatId::new(arg1.parse()?);
+            // todo check if path is valid (dest dir exists) and ends in .zip
+            export_chat_to_zip(&context, chat_id, arg2).await;
         }
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
