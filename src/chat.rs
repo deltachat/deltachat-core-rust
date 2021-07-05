@@ -2799,8 +2799,8 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             // however, this turned out to be to confusing and unclear.
 
             if msg.get_viewtype() != Viewtype::Sticker {
-            msg.param
-                .set_int(Param::Forwarded, src_msg_id.to_u32() as i32);
+                msg.param
+                    .set_int(Param::Forwarded, src_msg_id.to_u32() as i32);
             }
 
             msg.param.remove(Param::GuaranteeE2ee);
@@ -4168,5 +4168,58 @@ mod tests {
             50,
         )
         .await
+    }
+
+    #[async_std::test]
+    async fn test_sticker_forward(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
+        let file_name = "sticker.jpg";
+        let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+
+        // sent a sticker from alice to bob
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        let file = alice.get_blobdir().join(file_name);
+        File::create(&file).await?.write_all(bytes).await?;
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+        let sent_msg = alice.send_msg(bob_chat.get_id(), &mut msg).await;
+        bob.recv_msg(&sent_msg).await;
+        let msg = bob.get_last_msg().await;
+
+        forward_msgs(&bob, &[msg.id], alice_chat.get_id())
+            .await
+            .unwrap();
+
+        let msg = alice.get_last_msg().await;
+        info!(alice, "{:?}", msg);
+        assert!(!msg.is_forwarded());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_forward(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("Hi Bob".to_owned()));
+        let sent_msg = alice.send_msg(bob_chat.get_id(), &mut msg).await;
+        bob.recv_msg(&sent_msg).await;
+        let msg = bob.get_last_msg().await;
+
+        forward_msgs(&bob, &[msg.id], alice_chat.get_id())
+            .await
+            .unwrap();
+
+        let msg = alice.get_last_msg().await;
+        assert!(msg.get_text().unwrap() == "Hi Bob");
+        assert!(msg.is_forwarded());
+        Ok(())
     }
 }
