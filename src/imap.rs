@@ -381,13 +381,6 @@ impl Imap {
         }
     }
 
-    /// True if CAPABILITY command was run successfully once and config.can_* contain correct
-    /// values.
-    // This function exists to have a readonly way to access it
-    pub fn capabilities_determined(&self) -> bool {
-        self.capabilities_determined
-    }
-
     /// Prepare for IMAP operation.
     ///
     /// Ensure that IMAP client is connected, folders are created and IMAP capabilities are
