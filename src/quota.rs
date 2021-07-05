@@ -90,11 +90,6 @@ async fn get_unique_quota_roots_and_usage(
     folders: Vec<String>,
     imap: &mut Imap,
 ) -> Result<Vec<(String, Vec<QuotaResource>)>> {
-    // IDEA: OPTIMIZATION:
-    // the unique quota roots of get_unique_quota_roots_and_usage could be cached and then the server could be asked for the quotas of those.
-    // this would reduce incoming traffic and for most cases also outgoing traffic, because most email server share quota roots across folders/mailboxes.
-    // Again at the cost of increasing code complexity and the question for how long it should be cached
-    // IDEA2: maybe the provider db could also contain quota root names?
     let mut unique_quota_roots: Vec<(String, Vec<QuotaResource>)> = Vec::new();
     for folder in folders {
         let (quota_roots, quotas) = &imap.get_quota_roots(&folder).await?;

@@ -877,6 +877,20 @@ impl Job {
             warn!(context, "Can't set config: {}", e);
         }
 
+        // check DisableQuotaCheck config here to make sure the change is instant. (user won't get the warning even if the job is already queued)
+        // also do it after setting the LastQuotaCheck to prevent looping
+        match context.get_config_bool(Config::DisableQuotaCheck).await {
+            Ok(true) => return Status::Finished(Ok(())),
+            Ok(false) => {}
+            Err(err) => {
+                warn!(
+                    context,
+                    "failed to load DisableQuotaCheck config: {:?}", err
+                );
+            }
+        }
+
+
         if let Err(err) = check_quota_job(context, imap).await {
             warn!(context, "check quota failed: {:?}", err);
             return Status::RetryLater;

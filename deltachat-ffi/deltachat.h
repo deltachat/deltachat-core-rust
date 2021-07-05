@@ -359,6 +359,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
+ * - `disable_quota_check` = Set to one to "1" disable the daily quotacheck.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
