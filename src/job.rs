@@ -890,7 +890,6 @@ impl Job {
             }
         }
 
-
         if let Err(err) = check_quota_job(context, imap).await {
             warn!(context, "check quota failed: {:?}", err);
             return Status::RetryLater;

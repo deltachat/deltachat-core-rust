@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use async_imap::types::{Quota, QuotaResource};
 use humansize::{file_size_opts, FileSize};
-use itertools::Itertools;
+use indexmap::IndexMap;
 
 use crate::context::Context;
 use crate::imap::Imap;
@@ -50,7 +50,7 @@ pub(crate) async fn quota_usage_report_job(context: &Context, imap: &mut Imap) -
 }
 
 async fn generate_report_message(
-    unique_quota_roots: &[(String, Vec<QuotaResource>)],
+    unique_quota_roots: &IndexMap<String, Vec<QuotaResource>>,
     context: &Context,
 ) -> Result<String> {
     let mut message = String::new();
@@ -63,7 +63,7 @@ async fn generate_report_message(
         for resource in quota_resources {
             message.push_str(&match &resource.name {
                 Atom(name) => {
-                    format!("{}: {}/{} \n", name, resource.usage, resource.limit)
+                    format!("{}: {}/{}\n", name, resource.usage, resource.limit)
                 }
                 Message => {
                     format!(
@@ -89,8 +89,8 @@ async fn generate_report_message(
 async fn get_unique_quota_roots_and_usage(
     folders: Vec<String>,
     imap: &mut Imap,
-) -> Result<Vec<(String, Vec<QuotaResource>)>> {
-    let mut unique_quota_roots: Vec<(String, Vec<QuotaResource>)> = Vec::new();
+) -> Result<IndexMap<String, Vec<QuotaResource>>> {
+    let mut unique_quota_roots: IndexMap<String, Vec<QuotaResource>> = IndexMap::new();
     for folder in folders {
         let (quota_roots, quotas) = &imap.get_quota_roots(&folder).await?;
         // if there are new quota roots found in this imap folder, add them to the list
@@ -102,19 +102,11 @@ async fn get_unique_quota_roots_and_usage(
                     .find(|q| &q.root_name == quota_root_name)
                     .cloned()
                     .ok_or_else(|| anyhow!("quota_root should have a quota"))?;
-                match unique_quota_roots
-                    .iter()
-                    .find_position(|(root_name, _)| root_name == quota_root_name)
-                {
-                    None => {
-                        unique_quota_roots.push((quota_root_name.clone(), quota.resources));
-                    }
-                    Some((position, ..)) => {
-                        // replace old quotas, because between fetching quotaroots for folders,
-                        // messages could be recieved and so the usage could have been changed
-                        unique_quota_roots.get_mut(position).unwrap().1 = quota.resources;
-                    }
-                }
+                // replace old quotas, because between fetching quotaroots for folders,
+                // messages could be recieved and so the usage could have been changed
+                *unique_quota_roots
+                    .entry(quota_root_name.clone())
+                    .or_insert(vec![]) = quota.resources;
             }
         }
     }
@@ -122,7 +114,7 @@ async fn get_unique_quota_roots_and_usage(
 }
 
 fn get_highest_usage<'t>(
-    unique_quota_roots: &'t [(String, Vec<QuotaResource>)],
+    unique_quota_roots: &'t IndexMap<String, Vec<QuotaResource>>,
 ) -> Result<(u64, &'t String, &QuotaResource)> {
     let mut highest: Option<(u64, &'t String, &QuotaResource)> = None;
     for (name, resources) in unique_quota_roots {
