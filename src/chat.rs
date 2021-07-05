@@ -2797,8 +2797,11 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             // we tested a sort of broadcast
             // by not marking own forwarded messages as such,
             // however, this turned out to be to confusing and unclear.
+
+            if msg.get_viewtype() != Viewtype::Sticker {
             msg.param
                 .set_int(Param::Forwarded, src_msg_id.to_u32() as i32);
+            }
 
             msg.param.remove(Param::GuaranteeE2ee);
             msg.param.remove(Param::ForcePlaintext);
