@@ -14,8 +14,8 @@ use crate::chat::ChatId;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
-    Blocked, Chattype, DC_CHAT_ID_DEADDROP, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_DEVICE_ADDR,
-    DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY,
+    Blocked, Chattype, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_DEVICE_ADDR, DC_CONTACT_ID_LAST_SPECIAL,
+    DC_CONTACT_ID_SELF, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY,
 };
 use crate::context::Context;
 use crate::dc_tools::{dc_get_abs_path, improve_single_line_input, EmailAddress};
@@ -277,20 +277,15 @@ impl Contact {
     }
 
     /// Mark messages from a contact as noticed.
-    /// The contact is expected to belong to the deaddrop,
-    /// therefore, DC_EVENT_MSGS_NOTICED(DC_CHAT_ID_DEADDROP) is emitted.
-    pub async fn mark_noticed(context: &Context, id: u32) {
-        if context
+    pub async fn mark_noticed(context: &Context, id: u32) -> Result<()> {
+        context
             .sql
             .execute(
                 "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
                 paramsv![MessageState::InNoticed, id as i32, MessageState::InFresh],
             )
-            .await
-            .is_ok()
-        {
-            context.emit_event(EventType::MsgsNoticed(DC_CHAT_ID_DEADDROP));
-        }
+            .await?;
+        Ok(())
     }
 
     /// Check if an e-mail address belongs to a known and unblocked contact.
@@ -1200,7 +1195,7 @@ WHERE type=? AND id IN (
             .await
             .is_ok()
         {
-            Contact::mark_noticed(context, contact_id).await;
+            Contact::mark_noticed(context, contact_id).await?;
             context.emit_event(EventType::ContactsChanged(Some(contact_id)));
         }
 
@@ -1208,7 +1203,7 @@ WHERE type=? AND id IN (
         // if the contact is a mailinglist address explicitly created to allow unblocking
         if !new_blocking && contact.origin == Origin::MailinglistAddress {
             if let Ok((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, contact.addr).await {
-                chat_id.set_blocked(context, Blocked::Not).await;
+                chat_id.unblock(context).await?;
             }
         }
     }

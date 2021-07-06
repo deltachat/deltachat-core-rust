@@ -267,10 +267,9 @@ impl Peerstate {
                 .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr])
                 .await?
             {
-                let chat_id =
-                    ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Deaddrop)
-                        .await?
-                        .id;
+                let chat_id = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
+                    .await?
+                    .id;
 
                 let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
 

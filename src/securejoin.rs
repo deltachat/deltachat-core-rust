@@ -501,7 +501,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 )
             })?;
         if chat.blocked != Blocked::Not {
-            chat.id.unblock(context).await;
+            chat.id.unblock(context).await?;
         }
         chat.id
     };
@@ -796,7 +796,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 )
             })?;
         if chat.blocked != Blocked::Not {
-            chat.id.unblock(context).await;
+            chat.id.unblock(context).await?;
         }
         chat.id
     };

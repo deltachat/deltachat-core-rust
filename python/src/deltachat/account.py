@@ -330,9 +330,6 @@ class Account(object):
         """ Create a 1:1 chat with Account, Contact or e-mail address. """
         return self.create_contact(obj).create_chat()
 
-    def _create_chat_by_message_id(self, msg_id):
-        return Chat(self, lib.dc_create_chat_by_msg_id(self._dc_context, msg_id))
-
     def create_group_chat(self, name, contacts=None, verified=False):
         """ create a new group chat object.
 
@@ -366,9 +363,6 @@ class Account(object):
             chat_id = lib.dc_chatlist_get_chat_id(dc_chatlist, i)
             chatlist.append(Chat(self, chat_id))
         return chatlist
-
-    def get_deaddrop_chat(self):
-        return Chat(self, const.DC_CHAT_ID_DEADDROP)
 
     def get_device_chat(self):
         return Contact(self, const.DC_CONTACT_ID_DEVICE).create_chat()

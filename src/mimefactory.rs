@@ -1806,9 +1806,8 @@ mod tests {
 
         let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
 
-        let chat_id = chat::create_by_msg_id(context, chats.get_msg_id(0).unwrap().unwrap())
-            .await
-            .unwrap();
+        let chat_id = chats.get_chat_id(0);
+        chat_id.accept(context).await.unwrap();
 
         let mut new_msg = Message::new(Viewtype::Text);
         new_msg.set_text(Some("Hi".to_string()));

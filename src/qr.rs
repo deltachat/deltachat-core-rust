@@ -156,7 +156,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
                     .map(|(id, _)| id)
                     .unwrap_or_default();
 
-            if let Ok(chat) = ChatIdBlocked::get_for_contact(context, lot.id, Blocked::Deaddrop)
+            if let Ok(chat) = ChatIdBlocked::get_for_contact(context, lot.id, Blocked::Request)
                 .await
                 .log_err(context, "Failed to create (new) chat for contact")
             {
