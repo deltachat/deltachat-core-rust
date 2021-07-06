@@ -115,7 +115,7 @@ name = "search_msgs"
 harness = false
 
 [features]
-default = []
+default = ["vendored"]
 internals = []
 repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term", "dirs"]
 vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored", "rusqlite/bundled"]

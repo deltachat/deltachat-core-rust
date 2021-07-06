@@ -2797,8 +2797,11 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             // we tested a sort of broadcast
             // by not marking own forwarded messages as such,
             // however, this turned out to be to confusing and unclear.
-            msg.param
-                .set_int(Param::Forwarded, src_msg_id.to_u32() as i32);
+
+            if msg.get_viewtype() != Viewtype::Sticker {
+                msg.param
+                    .set_int(Param::Forwarded, src_msg_id.to_u32() as i32);
+            }
 
             msg.param.remove(Param::GuaranteeE2ee);
             msg.param.remove(Param::ForcePlaintext);
@@ -4165,5 +4168,62 @@ mod tests {
             50,
         )
         .await
+    }
+
+    #[async_std::test]
+    async fn test_sticker_forward() -> Result<()> {
+        // create chats
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        // create sticker
+        let file_name = "sticker.jpg";
+        let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        let file = alice.get_blobdir().join(file_name);
+        File::create(&file).await?.write_all(bytes).await?;
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+
+        // send sticker to bob
+        let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
+        bob.recv_msg(&sent_msg).await;
+        let msg = bob.get_last_msg().await;
+
+        // forward said sticker to alice
+        forward_msgs(&bob, &[msg.id], bob_chat.get_id()).await?;
+        let forwarded_msg = bob.pop_sent_msg().await;
+        alice.recv_msg(&forwarded_msg).await;
+
+        // retrieve forwarded sticker which should not have forwarded-flag
+        let msg = alice.get_last_msg().await;
+
+        assert!(!msg.is_forwarded());
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_forward() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("Hi Bob".to_owned()));
+        let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
+        bob.recv_msg(&sent_msg).await;
+        let msg = bob.get_last_msg().await;
+
+        forward_msgs(&bob, &[msg.id], bob_chat.get_id()).await?;
+
+        let forwarded_msg = bob.pop_sent_msg().await;
+        alice.recv_msg(&forwarded_msg).await;
+
+        let msg = alice.get_last_msg().await;
+        assert!(msg.get_text().unwrap() == "Hi Bob");
+        assert!(msg.is_forwarded());
+        Ok(())
     }
 }
