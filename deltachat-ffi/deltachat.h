@@ -504,7 +504,7 @@ int             dc_get_connectivity          (dc_context_t* context);
 
 
 /**
- * Get an overview over the current connectivity, and possibly more statistics.
+ * Get an overview of the current connectivity, and possibly more statistics.
  * Meant to give the user more insight about the current status than
  * the basic connectivity info returned by dc_get_connectivity(); show this
  * e.g., if the user taps on said basic connectivity info.

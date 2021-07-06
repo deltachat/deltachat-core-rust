@@ -11,7 +11,8 @@ use crate::{context::Context, log::LogExt};
 pub enum Connectivity {
     NotConnected = 1000,
     Connecting = 2000,
-    Working = 3000, // Fetching or sending messages
+    /// Fetching or sending messages
+    Working = 3000,
     InterruptingIdle = 4000,
     Connected = 5000,
 }
@@ -31,6 +32,12 @@ enum DetailedConnectivity {
 
     /// The folder was configured not to be watched or configured_*_folder is not set
     NotConfigured,
+}
+
+impl Default for DetailedConnectivity {
+    fn default() -> Self {
+        DetailedConnectivity::Uninitialized
+    }
 }
 
 impl DetailedConnectivity {
@@ -82,14 +89,10 @@ impl DetailedConnectivity {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) struct ConnectivityStore(Arc<Mutex<DetailedConnectivity>>);
 
 impl ConnectivityStore {
-    pub(crate) fn new() -> Self {
-        ConnectivityStore(Arc::new(Mutex::new(DetailedConnectivity::Uninitialized)))
-    }
-
     async fn set(&self, context: &Context, v: DetailedConnectivity) {
         {
             *self.0.lock().await = v;
@@ -243,7 +246,7 @@ impl Context {
         //     .unwrap_or(BasicConnectivity::NotConnected)
     }
 
-    /// Get an overview over the current connectivity, and possibly more statistics.
+    /// Get an overview of the current connectivity, and possibly more statistics.
     /// Meant to give the user more insight about the current status than
     /// the basic connectivity info returned by dc_get_connectivity(); show this
     /// e.g., if the user taps on said basic connectivity info.

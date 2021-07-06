@@ -196,7 +196,7 @@ impl Imap {
             interrupt: None,
             should_reconnect: false,
             login_failed_once: false,
-            connectivity: ConnectivityStore::new(),
+            connectivity: Default::default(),
             capabilities_determined: false,
         };
 

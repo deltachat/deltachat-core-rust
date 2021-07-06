@@ -41,6 +41,7 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Default)]
 pub(crate) struct Smtp {
     transport: Option<smtp::SmtpTransport>,
 
@@ -58,12 +59,7 @@ pub(crate) struct Smtp {
 impl Smtp {
     /// Create a new Smtp instances.
     pub fn new() -> Self {
-        Self {
-            transport: None,
-            from: None,
-            last_success: None,
-            connectivity: ConnectivityStore::new(),
-        }
+        Default::default()
     }
 
     /// Disconnect the SMTP transport and drop it entirely.
