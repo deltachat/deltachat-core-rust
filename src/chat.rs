@@ -4172,31 +4172,36 @@ mod tests {
 
     #[async_std::test]
     async fn test_sticker_forward(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
-        let file_name = "sticker.jpg";
-        let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
-
-        // sent a sticker from alice to bob
+        // create chats
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
         let bob_chat = bob.create_chat(&alice).await;
 
+        // create sticker
+        let file_name = "sticker.jpg";
+        let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         let file = alice.get_blobdir().join(file_name);
         File::create(&file).await?.write_all(bytes).await?;
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file(file.to_str().unwrap(), None);
-        let sent_msg = alice.send_msg(bob_chat.get_id(), &mut msg).await;
+
+        // send sticker to bob
+        let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
         bob.recv_msg(&sent_msg).await;
         let msg = bob.get_last_msg().await;
 
-        forward_msgs(&bob, &[msg.id], alice_chat.get_id())
+        // forward said sticker to alice
+        forward_msgs(&bob, &[msg.id], bob_chat.get_id())
             .await
             .unwrap();
+        let forwarded_msg = bob.pop_sent_msg().await;
+        alice.recv_msg(&forwarded_msg).await;
 
+        // retrieve forwarded sticker which should not have forwarded-flag
         let msg = alice.get_last_msg().await;
-        info!(alice, "{:?}", msg);
-        assert!(!msg.is_forwarded());
 
+        assert!(!msg.is_forwarded());
         Ok(())
     }
 
@@ -4209,13 +4214,16 @@ mod tests {
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("Hi Bob".to_owned()));
-        let sent_msg = alice.send_msg(bob_chat.get_id(), &mut msg).await;
+        let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
         bob.recv_msg(&sent_msg).await;
         let msg = bob.get_last_msg().await;
 
-        forward_msgs(&bob, &[msg.id], alice_chat.get_id())
+        forward_msgs(&bob, &[msg.id], bob_chat.get_id())
             .await
             .unwrap();
+
+        let forwarded_msg = bob.pop_sent_msg().await;
+        alice.recv_msg(&forwarded_msg).await;
 
         let msg = alice.get_last_msg().await;
         assert!(msg.get_text().unwrap() == "Hi Bob");
