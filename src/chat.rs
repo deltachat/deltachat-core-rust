@@ -4193,8 +4193,7 @@ mod tests {
 
         // forward said sticker to alice
         forward_msgs(&bob, &[msg.id], bob_chat.get_id())
-            .await
-            .unwrap();
+            .await?;
         let forwarded_msg = bob.pop_sent_msg().await;
         alice.recv_msg(&forwarded_msg).await;
 
@@ -4219,8 +4218,7 @@ mod tests {
         let msg = bob.get_last_msg().await;
 
         forward_msgs(&bob, &[msg.id], bob_chat.get_id())
-            .await
-            .unwrap();
+            .await?;
 
         let forwarded_msg = bob.pop_sent_msg().await;
         alice.recv_msg(&forwarded_msg).await;
