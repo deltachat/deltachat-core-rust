@@ -4171,7 +4171,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_sticker_forward(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
+    async fn test_sticker_forward() -> Result<()> {
         // create chats
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -4205,7 +4205,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_forward(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
+    async fn test_forward() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
