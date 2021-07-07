@@ -289,6 +289,7 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                 None => {
                     // Fake Idle
                     info!(ctx, "smtp fake idle - started");
+                    connection.connectivity.set_connected(&ctx).await;
                     interrupt_info = idle_interrupt_receiver.recv().await.unwrap_or_default();
                     info!(ctx, "smtp fake idle - interrupted")
                 }

@@ -466,8 +466,7 @@ char*           dc_get_oauth2_url            (dc_context_t* context, const char*
 #define DC_CONNECTIVITY_NOT_CONNECTED        1000
 #define DC_CONNECTIVITY_CONNECTING           2000
 #define DC_CONNECTIVITY_WORKING              3000
-#define DC_CONNECTIVITY_INTERRUPTING_IDLE    4000
-#define DC_CONNECTIVITY_CONNECTED            5000
+#define DC_CONNECTIVITY_CONNECTED            4000
 
 
 /**
@@ -476,23 +475,13 @@ char*           dc_get_oauth2_url            (dc_context_t* context, const char*
  * - DC_CONNECTIVITY_NOT_CONNECTED (1000-1999): Show e.g. the string "Not connected" or a red dot
  * - DC_CONNECTIVITY_CONNECTING (2000-2999): Show e.g. the string "Connecting…" or a yellow dot
  * - DC_CONNECTIVITY_WORKING (3000-3999): Show e.g. the string "Getting new messages" or a spinning wheel
- * - DC_CONNECTIVITY_INTERRUPTING_IDLE or DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string "Connected" or a green dot
+ * - DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string "Connected" or a green dot
  *
  * We don't use exact values but ranges here so that we can split up
  * states into multiple states in the future.
  *
  * Meant as a rough overview that can be shown 
  * e.g. in the title of the main screen.
- *
- * Also, you can use this to find out when the core is completely done with fetching:
- * - call dc_start_io() (in case IO was not running)
- * - call dc_maybe_network()
- * - wait until the connectivity is DC_CONNECTIVITY_CONNECTED (>=5000)
- * That's also the reason why we have DC_CONNECTIVITY_INTERRUPTING_IDLE:
- * When you call dc_maybe_network, the connectivity is immediately set to
- * DC_CONNECTIVITY_INTERRUPTING_IDLE (without sending DC_EVENT_CONNECTIVITY_CHANGED).
- * This way, you can be sure that as soon as the connectivity is DC_CONNECTIVITY_CONNECTED
- * again, all emails were fetched.
  *
  * If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
  *
@@ -519,6 +508,13 @@ int             dc_get_connectivity          (dc_context_t* context);
  * @return An HTML page with some info about the current connectivity and status.
  */
 char*           dc_get_connectivity_html     (dc_context_t* context);
+
+
+/**
+ * Standalone version of dc_accounts_all_work_done().
+ * Only used by the python tests.
+ */
+int             dc_all_work_done             (dc_context_t* context);
 
 
 // connect
@@ -2603,18 +2599,20 @@ int            dc_accounts_select_account       (dc_accounts_t* accounts, uint32
 
 
 /**
- * Get the lowest connectivity of all accounts managed by the account manager
- * (this means: lower i.e. worse connectivities take priority).
+ * This is meant especially for iOS, because iOS needs to tell the system when its background work is done.
  *
- * See dc_get_connectivity() for details.
- *
- * Unlike e.g. dc_maybe_network(), dc_get_connectivity() is also allowed to be
- * called for accounts created by the accounts manager.
+ * iOS can:
+ * - call dc_start_io() (in case IO was not running)
+ * - call dc_maybe_network()
+ * - while dc_accounts_all_work_done() returns false:
+ *   -  Wait for DC_EVENT_CONNECTIVITY_CHANGED
  *
  * @memberof dc_accounts_t
- * @return The lowest connectivity of all accounts.
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return Whether all accounts finished their background work.
+ *      DC_EVENT_CONNECTIVITY_CHANGED will be sent when this turns to true.
  */
-int             dc_accounts_get_connectivity    (dc_accounts_t* accounts);
+int            dc_accounts_all_work_done        (dc_accounts_t* accounts);
 
 
 /**

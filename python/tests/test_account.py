@@ -2058,28 +2058,42 @@ class TestOnlineAccount:
         ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
         ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTING, const.DC_CONNECTIVITY_CONNECTED)
 
-        lp.sec("Test that after calling start_io(), maybe_network() and waiting for connectivity `CONNECTED`, " +
+        lp.sec("Test that after calling start_io(), maybe_network() and waiting for `all_work_done()`, " +
                "all messages are fetched")
 
         ac1.direct_imap.select_config_folder("inbox")
         ac1.direct_imap.idle_start()
         ac2.create_chat(ac1).send_text("Hi")
 
-        ac1.direct_imap.idle_check(terminate=True)
+        ac1.direct_imap.idle_check(terminate=False)
         ac1.maybe_network()
 
-        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE,
-                                                    const.DC_CONNECTIVITY_WORKING)
-        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
+        ac1._evtracker.wait_for_all_work_done()
         msgs = ac1.create_chat(ac2).get_messages()
         assert len(msgs) == 1
         assert msgs[0].text == "Hi"
 
+        lp.sec("Test that the connectivity changes to WORKING while new messages are fetched")
+
+        ac2.create_chat(ac1).send_text("Hi 2")
+
+        ac1.direct_imap.idle_check(terminate=True)
+        ac1.maybe_network()
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTED, const.DC_CONNECTIVITY_WORKING)
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
+
+        msgs = ac1.create_chat(ac2).get_messages()
+        assert len(msgs) == 2
+        assert msgs[1].text == "Hi 2"
+
         lp.sec("Test that the connectivity doesn't flicker to WORKING if there are no new messages")
 
         ac1.maybe_network()
-        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE,
-                                                    const.DC_CONNECTIVITY_CONNECTED)
+        while 1:
+            assert ac1.get_connectivity() == const.DC_CONNECTIVITY_CONNECTED
+            if ac1.all_work_done():
+                break
+            ac1._evtracker.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
 
         lp.sec("Test that the connectivity doesn't flicker to WORKING if the sender of the message is blocked")
         ac1.create_contact(ac2).block()
@@ -2091,8 +2105,11 @@ class TestOnlineAccount:
         ac1.direct_imap.idle_check(terminate=True)
         ac1.maybe_network()
 
-        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_INTERRUPTING_IDLE,
-                                                    const.DC_CONNECTIVITY_CONNECTED)
+        while 1:
+            assert ac1.get_connectivity() == const.DC_CONNECTIVITY_CONNECTED
+            if ac1.all_work_done():
+                break
+            ac1._evtracker.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
 
         lp.sec("Test that the connectivity is NOT_CONNECTED if the password is wrong")
 

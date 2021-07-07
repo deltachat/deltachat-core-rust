@@ -279,6 +279,16 @@ pub unsafe extern "C" fn dc_get_connectivity_html(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_all_work_done(context: *mut dc_context_t) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_all_work_done()");
+        return 0;
+    }
+    let ctx = &*context;
+    block_on(async move { ctx.all_work_done().await as libc::c_int })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_oauth2_url(
     context: *mut dc_context_t,
     addr: *const libc::c_char,
@@ -3822,14 +3832,13 @@ pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *m
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_accounts_get_connectivity(accounts: *mut dc_accounts_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_accounts_all_work_done(accounts: *mut dc_accounts_t) -> libc::c_int {
     if accounts.is_null() {
-        eprintln!("ignoring careless call to dc_accounts_get_connectivity()");
+        eprintln!("ignoring careless call to dc_accounts_all_work_done()");
         return 0;
     }
-
     let accounts = &*accounts;
-    block_on(async move { accounts.get_connectivity().await as u32 as libc::c_int })
+    block_on(async move { accounts.all_work_done().await as libc::c_int })
 }
 
 #[no_mangle]

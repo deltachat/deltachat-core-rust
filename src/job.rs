@@ -350,7 +350,6 @@ impl Job {
             }
             Ok(()) => {
                 job_try!(success_cb().await);
-                smtp.connectivity.set_connected(context).await;
                 Status::Finished(Ok(()))
             }
         };

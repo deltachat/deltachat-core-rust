@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::collections::BTreeMap;
 
 use async_std::fs;
@@ -12,7 +11,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::context::Context;
 use crate::events::Event;
-use crate::scheduler::connectivity::Connectivity;
 
 /// Account manager, that can handle multiple accounts in a single place.
 #[derive(Debug, Clone)]
@@ -181,16 +179,23 @@ impl Accounts {
         self.accounts.read().await.keys().copied().collect()
     }
 
-    pub async fn get_connectivity(&self) -> Connectivity {
-        let accounts = &*self.accounts.read().await;
-        if accounts.is_empty() {
-            return Connectivity::NotConnected;
+    /// This is meant especially for iOS, because iOS needs to tell the system when its background work is done.
+    ///
+    /// Returns whether all accounts finished their background work.
+    /// DC_EVENT_CONNECTIVITY_CHANGED will be sent when this turns to true.
+    ///
+    /// iOS can:
+    /// - call dc_start_io() (in case IO was not running)
+    /// - call dc_maybe_network()
+    /// - while dc_accounts_all_work_done() returns false:
+    ///   -  Wait for DC_EVENT_CONNECTIVITY_CHANGED
+    pub async fn all_work_done(&self) -> bool {
+        for account in self.accounts.read().await.values() {
+            if !account.all_work_done().await {
+                return false;
+            }
         }
-        let mut res = Connectivity::Connected;
-        for account in accounts.values() {
-            res = min(res, account.get_connectivity().await);
-        }
-        res
+        true
     }
 
     pub async fn start_io(&self) {

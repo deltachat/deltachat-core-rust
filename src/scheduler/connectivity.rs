@@ -13,8 +13,7 @@ pub enum Connectivity {
     Connecting = 2000,
     /// Fetching or sending messages
     Working = 3000,
-    InterruptingIdle = 4000,
-    Connected = 5000,
+    Connected = 4000,
 }
 
 // The order of the connectivities is important: worse connectivities (i.e. those at
@@ -47,7 +46,7 @@ impl DetailedConnectivity {
             DetailedConnectivity::Uninitialized => Some(Connectivity::NotConnected),
             DetailedConnectivity::Connecting => Some(Connectivity::Connecting),
             DetailedConnectivity::Working => Some(Connectivity::Working),
-            DetailedConnectivity::InterruptingIdle => Some(Connectivity::InterruptingIdle),
+            DetailedConnectivity::InterruptingIdle => Some(Connectivity::Connected),
             DetailedConnectivity::Connected => Some(Connectivity::Connected),
 
             // Just don't return a connectivity, probably the folder is configured not to be
@@ -87,6 +86,18 @@ impl DetailedConnectivity {
             DetailedConnectivity::NotConfigured => "🔴 Not configured".to_string(),
         }
     }
+
+    fn all_work_done(&self) -> bool {
+        match self {
+            DetailedConnectivity::Error(_) => true,
+            DetailedConnectivity::Uninitialized => false,
+            DetailedConnectivity::Connecting => false,
+            DetailedConnectivity::Working => false,
+            DetailedConnectivity::InterruptingIdle => false,
+            DetailedConnectivity::Connected => true,
+            DetailedConnectivity::NotConfigured => true,
+        }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -123,10 +134,14 @@ impl ConnectivityStore {
     async fn get_basic(&self) -> Option<Connectivity> {
         self.0.lock().await.to_basic()
     }
+    async fn get_all_work_done(&self) -> bool {
+        self.0.lock().await.all_work_done()
+    }
 }
 
 /// Set all folder states to InterruptingIdle in case they were `Connected` before.
-/// Called during `dc_maybe_network()`.
+/// Called during `dc_maybe_network()` to make sure that `dc_accounts_all_work_done()`
+/// returns false immediately after `dc_maybe_network()`.
 pub(crate) async fn idle_interrupted(scheduler: &Scheduler) {
     if let Scheduler::Running {
         inbox,
@@ -154,11 +169,8 @@ pub(crate) async fn idle_interrupted(scheduler: &Scheduler) {
             }
         }
     }
-    // We don't send a ConnectivityChanged event when setting the state to InterruptingIdle because
-    // the connectivity didn't actually change. We only distinguish between `Connected` and
-    // `InterruptingIdle` so that:
-    // After calling dc_maybe_network(), when the connectivity is `Connected` again, the UI can be
-    // sure that DC is done with fetching from all folders once.
+    // No need to send ConnectivityChanged, the user-facing connectivity doesn't change because
+    // of what we do here.
 }
 
 impl fmt::Debug for ConnectivityStore {
@@ -177,18 +189,13 @@ impl Context {
     /// - DC_CONNECTIVITY_NOT_CONNECTED (1000-1999): Show e.g. the string "Not connected" or a red dot
     /// - DC_CONNECTIVITY_CONNECTING (2000-2999): Show e.g. the string "Connecting…" or a yellow dot
     /// - DC_CONNECTIVITY_WORKING (3000-3999): Show e.g. the string "Getting new messages" or a spinning wheel
-    /// - DC_CONNECTIVITY_INTERRUPTING_IDLE or DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string "Connected" or a green dot
+    /// - DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string "Connected" or a green dot
     ///
     /// We don't use exact values but ranges here so that we can split up
     /// states into multiple states in the future.
     ///
     /// Meant as a rough overview that can be shown
     /// e.g. in the title of the main screen.
-    ///
-    /// Also, you can use this to find out when the core is completely done with fetching:
-    /// - call dc_start_io() (in case IO was not running)
-    /// - call dc_maybe_network()
-    /// - wait until the connectivity is DC_CONNECTIVITY_CONNECTED (>=5000)
     ///
     /// If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
     pub async fn get_connectivity(&self) -> Connectivity {
@@ -331,5 +338,26 @@ impl Context {
 
         ret += "</body></html>\n";
         ret
+    }
+
+    pub async fn all_work_done(&self) -> bool {
+        match &*self.scheduler.read().await {
+            Scheduler::Running {
+                inbox,
+                mvbox,
+                sentbox,
+                smtp,
+                ..
+            } => {
+                let states = [&inbox.state, &mvbox.state, &sentbox.state, &smtp.state];
+                for s in &states {
+                    if !s.connectivity.get_all_work_done().await {
+                        return false;
+                    }
+                }
+                true
+            }
+            Scheduler::Stopped => false,
+        }
     }
 }
