@@ -185,21 +185,6 @@ pub enum EventType {
     #[strum(props(id = "400"))]
     Error(String),
 
-    /// An action cannot be performed because there is no network available.
-    ///
-    /// The library will typically try over after a some time
-    /// and when dc_maybe_network() is called.
-    ///
-    /// Network errors should be reported to users in a non-disturbing way,
-    /// however, as network errors may come in a sequence,
-    /// it is not useful to raise each an every error to the user.
-    ///
-    /// Moreover, if the UI detects that the device is offline,
-    /// it is probably more useful to report this to the user
-    /// instead of the string from data2.
-    #[strum(props(id = "401"))]
-    ErrorNetwork(String),
-
     /// An action cannot be performed because the user is not in the group.
     /// Reported eg. after a call to
     /// dc_set_chat_name(), dc_set_chat_profile_image(),
@@ -330,4 +315,11 @@ pub enum EventType {
     ///     (Bob has verified alice and waits until Alice does the same for him)
     #[strum(props(id = "2061"))]
     SecurejoinJoinerProgress { contact_id: u32, progress: usize },
+
+    /// The connectivity to the server changed.
+    /// This means that you should refresh the connectivity view
+    /// and possibly the connectivtiy HTML; see dc_get_connectivity() and
+    /// dc_get_connectivity_html() for details.
+    #[strum(props(id = "2100"))]
+    ConnectivityChanged,
 }

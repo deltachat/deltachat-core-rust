@@ -111,6 +111,33 @@ class FFIEventTracker:
             if m is not None:
                 return m.groups()
 
+    def wait_for_connectivity(self, connectivity):
+        """Wait for the specified connectivity.
+        This only works reliably if the connectivity doesn't change
+        again too quickly, otherwise we might miss it."""
+        while 1:
+            if self.account.get_connectivity() == connectivity:
+                return
+            self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
+
+    def wait_for_connectivity_change(self, previous, expected_next):
+        """Wait until the connectivity changes to `expected_next`.
+        Fails the test if it changes to something else."""
+        while 1:
+            current = self.account.get_connectivity()
+            if current == expected_next:
+                return
+            elif current != previous:
+                raise Exception("Expected connectivity " + str(expected_next) + " but got " + str(current))
+
+            self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
+
+    def wait_for_all_work_done(self):
+        while 1:
+            if self.account.all_work_done():
+                return
+            self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
+
     def ensure_event_not_queued(self, event_name_regex):
         __tracebackhide__ = True
         rex = re.compile("(?:{}).*".format(event_name_regex))

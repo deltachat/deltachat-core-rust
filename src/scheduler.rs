@@ -13,6 +13,10 @@ use crate::job::{self, Thread};
 use crate::message::MsgId;
 use crate::smtp::Smtp;
 
+use self::connectivity::ConnectivityStore;
+
+pub(crate) mod connectivity;
+
 pub(crate) struct StopToken;
 
 /// Job and connection scheduler.
@@ -35,7 +39,9 @@ pub(crate) enum Scheduler {
 impl Context {
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
-        self.scheduler.read().await.maybe_network().await;
+        let lock = self.scheduler.read().await;
+        lock.maybe_network().await;
+        connectivity::idle_interrupted(lock).await;
     }
 
     pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
@@ -107,6 +113,9 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                     } else {
                         if let Err(err) = connection.scan_folders(&ctx).await {
                             warn!(ctx, "{}", err);
+                            connection.connectivity.set_err(&ctx, err).await;
+                        } else {
+                            connection.connectivity.set_not_configured(&ctx).await;
                         }
                         connection.fake_idle(&ctx, None).await
                     };
@@ -132,26 +141,24 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
     match ctx.get_config(Config::ConfiguredInboxFolder).await {
         Ok(Some(watch_folder)) => {
             if let Err(err) = connection.prepare(ctx).await {
-                error_network!(ctx, "{}", err);
+                warn!(ctx, "Could not connect: {}", err);
                 return;
             }
 
             // fetch
             if let Err(err) = connection.fetch(ctx, &watch_folder).await {
-                connection.trigger_reconnect();
+                connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
             }
         }
         Ok(None) => {
-            warn!(ctx, "Can not fetch inbox folder, not set");
-            connection.fake_idle(ctx, None).await;
+            info!(ctx, "Can not fetch inbox folder, not set");
         }
         Err(err) => {
             warn!(
                 ctx,
                 "Can not fetch inbox folder, failed to get config: {:?}", err
             );
-            connection.fake_idle(ctx, None).await;
         }
     }
 }
@@ -167,8 +174,9 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
 
             // fetch
             if let Err(err) = connection.fetch(ctx, &watch_folder).await {
-                connection.trigger_reconnect();
+                connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
+                return InterruptInfo::new(false, None);
             }
 
             if folder == Config::ConfiguredInboxFolder {
@@ -180,22 +188,25 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 }
             }
 
+            connection.connectivity.set_connected(ctx).await;
+
             // idle
             if connection.can_idle() {
-                connection
-                    .idle(ctx, Some(watch_folder))
-                    .await
-                    .unwrap_or_else(|err| {
-                        connection.trigger_reconnect();
+                match connection.idle(ctx, Some(watch_folder)).await {
+                    Ok(v) => v,
+                    Err(err) => {
+                        connection.trigger_reconnect(ctx).await;
                         warn!(ctx, "{}", err);
                         InterruptInfo::new(false, None)
-                    })
+                    }
+                }
             } else {
                 connection.fake_idle(ctx, Some(watch_folder)).await
             }
         }
         Ok(None) => {
-            warn!(ctx, "Can not watch {} folder, not set", folder);
+            connection.connectivity.set_not_configured(ctx).await;
+            info!(ctx, "Can not watch {} folder, not set", folder);
             connection.fake_idle(ctx, None).await
         }
         Err(err) => {
@@ -280,6 +291,7 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                 None => {
                     // Fake Idle
                     info!(ctx, "smtp fake idle - started");
+                    connection.connectivity.set_connected(&ctx).await;
                     interrupt_info = idle_interrupt_receiver.recv().await.unwrap_or_default();
                     info!(ctx, "smtp fake idle - interrupted")
                 }
@@ -338,6 +350,11 @@ impl Scheduler {
                 .send(())
                 .await
                 .expect("mvbox start send, missing receiver");
+            mvbox_handlers
+                .connection
+                .connectivity
+                .set_not_configured(&ctx)
+                .await
         }
 
         if ctx.get_config_bool(Config::SentboxWatch).await? {
@@ -356,6 +373,11 @@ impl Scheduler {
                 .send(())
                 .await
                 .expect("sentbox start send, missing receiver");
+            sentbox_handlers
+                .connection
+                .connectivity
+                .set_not_configured(&ctx)
+                .await
         }
 
         let smtp_handle = {
@@ -508,6 +530,8 @@ struct ConnectionState {
     stop_sender: Sender<()>,
     /// Channel to interrupt idle.
     idle_interrupt_sender: Sender<InterruptInfo>,
+    /// Mutex to pass connectivity info between IMAP/SMTP threads and the API
+    connectivity: ConnectivityStore,
 }
 
 impl ConnectionState {
@@ -550,6 +574,7 @@ impl SmtpConnectionState {
             shutdown_receiver,
             stop_sender,
             idle_interrupt_sender,
+            connectivity: handlers.connection.connectivity.clone(),
         };
 
         let conn = SmtpConnectionState { state };
@@ -597,6 +622,7 @@ impl ImapConnectionState {
             shutdown_receiver,
             stop_sender,
             idle_interrupt_sender,
+            connectivity: handlers.connection.connectivity.clone(),
         };
 
         let conn = ImapConnectionState { state };

@@ -2042,6 +2042,84 @@ class TestOnlineAccount:
         assert msg_back.chat == chat
         assert chat.get_profile_image() is None
 
+    @pytest.mark.parametrize("inbox_watch", ["0", "1"])
+    def test_connectivity(self, acfactory, lp, inbox_watch):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1.set_config("inbox_watch", inbox_watch)
+        ac1.set_config("scan_all_folders_debounce_secs", "0")
+
+        ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTED)
+
+        lp.sec("Test stop_io() and start_io()")
+        ac1.stop_io()
+        ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_NOT_CONNECTED)
+
+        ac1.start_io()
+        ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTING, const.DC_CONNECTIVITY_CONNECTED)
+
+        lp.sec("Test that after calling start_io(), maybe_network() and waiting for `all_work_done()`, " +
+               "all messages are fetched")
+
+        ac1.direct_imap.select_config_folder("inbox")
+        ac1.direct_imap.idle_start()
+        ac2.create_chat(ac1).send_text("Hi")
+
+        ac1.direct_imap.idle_check(terminate=False)
+        ac1.maybe_network()
+
+        ac1._evtracker.wait_for_all_work_done()
+        msgs = ac1.create_chat(ac2).get_messages()
+        assert len(msgs) == 1
+        assert msgs[0].text == "Hi"
+
+        lp.sec("Test that the connectivity changes to WORKING while new messages are fetched")
+
+        ac2.create_chat(ac1).send_text("Hi 2")
+
+        ac1.direct_imap.idle_check(terminate=True)
+        ac1.maybe_network()
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTED, const.DC_CONNECTIVITY_WORKING)
+        ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
+
+        msgs = ac1.create_chat(ac2).get_messages()
+        assert len(msgs) == 2
+        assert msgs[1].text == "Hi 2"
+
+        lp.sec("Test that the connectivity doesn't flicker to WORKING if there are no new messages")
+
+        ac1.maybe_network()
+        while 1:
+            assert ac1.get_connectivity() == const.DC_CONNECTIVITY_CONNECTED
+            if ac1.all_work_done():
+                break
+            ac1._evtracker.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
+
+        lp.sec("Test that the connectivity doesn't flicker to WORKING if the sender of the message is blocked")
+        ac1.create_contact(ac2).block()
+
+        ac1.direct_imap.select_config_folder("inbox")
+        ac1.direct_imap.idle_start()
+        ac2.create_chat(ac1).send_text("Hi")
+
+        ac1.direct_imap.idle_check(terminate=True)
+        ac1.maybe_network()
+
+        while 1:
+            assert ac1.get_connectivity() == const.DC_CONNECTIVITY_CONNECTED
+            if ac1.all_work_done():
+                break
+            ac1._evtracker.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
+
+        lp.sec("Test that the connectivity is NOT_CONNECTED if the password is wrong")
+
+        ac1.set_config("configured_mail_pw", "abc")
+        ac1.stop_io()
+        ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_NOT_CONNECTED)
+        ac1.start_io()
+        ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
+        ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_NOT_CONNECTED)
+
     def test_fetch_deleted_msg(self, acfactory, lp):
         """This is a regression test: Messages with \\Deleted flag were downloaded again and again,
         hundreds of times, because uid_next was not updated.
@@ -2758,7 +2836,6 @@ class TestOnlineConfigureFails:
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
-        ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
@@ -2766,7 +2843,6 @@ class TestOnlineConfigureFails:
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
-        ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
@@ -2774,4 +2850,3 @@ class TestOnlineConfigureFails:
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
-        ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR_NETWORK")

@@ -2,7 +2,6 @@ use super::Imap;
 
 use anyhow::{bail, format_err, Result};
 use async_imap::extensions::idle::IdleResponse;
-use async_imap::types::UnsolicitedResponse;
 use async_std::prelude::*;
 use std::time::{Duration, SystemTime};
 
@@ -32,24 +31,11 @@ impl Imap {
         let timeout = Duration::from_secs(23 * 60);
         let mut info = Default::default();
 
+        if self.server_sent_unsolicited_exists(context) {
+            return Ok(info);
+        }
+
         if let Some(session) = self.session.take() {
-            // if we have unsolicited responses we directly return
-            let mut unsolicited_exists = false;
-            while let Ok(response) = session.unsolicited_responses.try_recv() {
-                match response {
-                    UnsolicitedResponse::Exists(_) => {
-                        warn!(context, "skip idle, got unsolicited EXISTS {:?}", response);
-                        unsolicited_exists = true;
-                    }
-                    _ => info!(context, "ignoring unsolicited response {:?}", response),
-                }
-            }
-
-            if unsolicited_exists {
-                self.session = Some(session);
-                return Ok(info);
-            }
-
             if let Ok(info) = self.idle_interrupt.try_recv() {
                 info!(context, "skip idle, got interrupt {:?}", info);
                 self.session = Some(session);
@@ -181,7 +167,7 @@ impl Imap {
                         }
                         Err(err) => {
                             error!(context, "could not fetch from folder: {:#}", err);
-                            self.trigger_reconnect()
+                            self.trigger_reconnect(context).await;
                         }
                     }
                 }

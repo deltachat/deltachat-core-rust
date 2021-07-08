@@ -130,9 +130,6 @@ pub enum StockMessage {
     ))]
     CannotLogin = 60,
 
-    #[strum(props(fallback = "Could not connect to %1$s: %2$s"))]
-    ServerResponse = 61,
-
     #[strum(props(fallback = "%1$s by %2$s."))]
     MsgActionByUser = 62,
 
@@ -583,18 +580,6 @@ pub(crate) async fn cannot_login(context: &Context, user: impl AsRef<str>) -> St
         .replace1(user)
 }
 
-/// Stock string: `Could not connect to %1$s: %2$s`.
-pub(crate) async fn server_response(
-    context: &Context,
-    server: impl AsRef<str>,
-    details: impl AsRef<str>,
-) -> String {
-    translated(context, StockMessage::ServerResponse)
-        .await
-        .replace1(server)
-        .replace2(details)
-}
-
 /// Stock string: `%1$s by %2$s.`.
 pub(crate) async fn msg_action_by_user(
     context: &Context,
@@ -1000,10 +985,7 @@ mod tests {
     #[async_std::test]
     async fn test_stock_string_repl_str2() {
         let t = TestContext::new().await;
-        assert_eq!(
-            server_response(&t, "foo", "bar").await,
-            "Could not connect to foo: bar"
-        );
+        assert_eq!(msg_action_by_user(&t, "foo", "bar").await, "foo by bar.");
     }
 
     #[async_std::test]

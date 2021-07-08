@@ -8,13 +8,12 @@ use std::{cmp, cmp::max, collections::BTreeMap};
 use anyhow::{bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
-    types::{Fetch, Flag, Mailbox, Name, NameAttribute},
+    types::{Fetch, Flag, Mailbox, Name, NameAttribute, UnsolicitedResponse},
 };
 use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
-use crate::config::Config;
 use crate::constants::{
     Chattype, ShowEmails, Viewtype, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
     DC_LP_AUTH_OAUTH2,
@@ -36,6 +35,7 @@ use crate::provider::Socket;
 use crate::scheduler::InterruptInfo;
 use crate::stock_str;
 use crate::{chat, constants::DC_CONTACT_ID_SELF};
+use crate::{config::Config, scheduler::connectivity::ConnectivityStore};
 
 mod client;
 mod idle;
@@ -96,6 +96,8 @@ pub struct Imap {
     /// True if CAPABILITY command was run successfully once and config.can_* contain correct
     /// values.
     capabilities_determined: bool,
+
+    pub(crate) connectivity: ConnectivityStore,
 }
 
 #[derive(Debug)]
@@ -194,6 +196,7 @@ impl Imap {
             interrupt: None,
             should_reconnect: false,
             login_failed_once: false,
+            connectivity: Default::default(),
             capabilities_determined: false,
         };
 
@@ -227,9 +230,6 @@ impl Imap {
     ///
     /// It is safe to call this function if already connected, actions are performed only as needed.
     ///
-    /// Does not emit network errors, can be used to try various parameters during
-    /// autoconfiguration.
-    ///
     /// Calling this function is not enough to perform IMAP operations. Use [`Imap::prepare`]
     /// instead if you are going to actually use connection rather than trying connection
     /// parameters.
@@ -244,6 +244,8 @@ impl Imap {
         } else if self.is_connected() {
             return Ok(());
         }
+
+        self.connectivity.set_connecting(context).await;
 
         let oauth2 = self.config.oauth2;
 
@@ -343,7 +345,7 @@ impl Imap {
                     self.login_failed_once = true;
                 }
 
-                self.trigger_reconnect();
+                self.trigger_reconnect(context).await;
                 Err(format_err!("{}\n\n{}", message, err))
             }
         }
@@ -377,18 +379,15 @@ impl Imap {
     ///
     /// Ensure that IMAP client is connected, folders are created and IMAP capabilities are
     /// determined.
-    ///
-    /// This function emits network error if it fails.  It should not be used during configuration
-    /// to avoid showing failed attempt errors to the user.
     pub async fn prepare(&mut self, context: &Context) -> Result<()> {
-        let res = self.connect(context).await;
-        if let Err(ref err) = res {
-            emit_event!(context, EventType::ErrorNetwork(err.to_string()));
+        if let Err(err) = self.connect(context).await {
+            self.connectivity.set_err(context, &err).await;
+            return Err(err);
         }
 
         self.ensure_configured_folders(context, true).await?;
         self.determine_capabilities().await?;
-        res
+        Ok(())
     }
 
     async fn disconnect(&mut self, context: &Context) {
@@ -417,7 +416,8 @@ impl Imap {
         self.should_reconnect
     }
 
-    pub fn trigger_reconnect(&mut self) {
+    pub async fn trigger_reconnect(&mut self, context: &Context) {
+        self.connectivity.set_connecting(context).await;
         self.should_reconnect = true;
     }
 
@@ -678,6 +678,10 @@ impl Imap {
             }
         }
 
+        if !uids.is_empty() {
+            self.connectivity.set_working(context).await;
+        }
+
         let (largest_uid_processed, error_cnt) = self
             .fetch_many_msgs(context, folder, uids, fetch_existing_msgs)
             .await;
@@ -845,7 +849,7 @@ impl Imap {
 
         if self.session.is_none() {
             // we could not get a valid imap session, this should be retried
-            self.trigger_reconnect();
+            self.trigger_reconnect(context).await;
             warn!(context, "Could not get IMAP session");
             return (None, server_uids.len());
         }
@@ -1363,6 +1367,31 @@ impl Imap {
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
     }
+
+    /// Return whether the server sent an unsolicited EXISTS response.
+    /// Drains all responses from `session.unsolicited_responses` in the process.
+    /// If this returns `true`, this means that new emails arrived and you should
+    /// fetch again, even if you just fetched.
+    fn server_sent_unsolicited_exists(&self, context: &Context) -> bool {
+        let session = match &self.session {
+            Some(s) => s,
+            None => return false,
+        };
+        let mut unsolicited_exists = false;
+        while let Ok(response) = session.unsolicited_responses.try_recv() {
+            match response {
+                UnsolicitedResponse::Exists(_) => {
+                    info!(
+                        context,
+                        "Need to fetch again, got unsolicited EXISTS {:?}", response
+                    );
+                    unsolicited_exists = true;
+                }
+                _ => info!(context, "ignoring unsolicited response {:?}", response),
+            }
+        }
+        unsolicited_exists
+    }
 }
 
 /// Try to get the folder meaning by the name of the folder only used if the server does not support XLIST.
@@ -1595,7 +1624,7 @@ pub(crate) async fn prefetch_should_download(
     let is_reply_to_chat_message = parent.is_some();
     if let Some(parent) = &parent {
         let chat = chat::Chat::load_from_db(context, parent.get_chat_id()).await?;
-        if chat.typ == Chattype::Group {
+        if chat.typ == Chattype::Group && !chat.id.is_special() {
             // This might be a group command, like removing a group member.
             // We really need to fetch this to avoid inconsistent group state.
             return Ok(true);

@@ -57,9 +57,6 @@ fn receive_event(event: EventType) {
         EventType::Error(msg) => {
             error!("{}", msg);
         }
-        EventType::ErrorNetwork(msg) => {
-            error!("[NETWORK] msg={}", msg);
-        }
         EventType::ErrorSelfNotInGroup(msg) => {
             error!("[SELF_NOT_IN_GROUP] {}", msg);
         }

@@ -179,6 +179,25 @@ impl Accounts {
         self.accounts.read().await.keys().copied().collect()
     }
 
+    /// This is meant especially for iOS, because iOS needs to tell the system when its background work is done.
+    ///
+    /// Returns whether all accounts finished their background work.
+    /// DC_EVENT_CONNECTIVITY_CHANGED will be sent when this turns to true.
+    ///
+    /// iOS can:
+    /// - call dc_start_io() (in case IO was not running)
+    /// - call dc_maybe_network()
+    /// - while dc_accounts_all_work_done() returns false:
+    ///   -  Wait for DC_EVENT_CONNECTIVITY_CHANGED
+    pub async fn all_work_done(&self) -> bool {
+        for account in self.accounts.read().await.values() {
+            if !account.all_work_done().await {
+                return false;
+            }
+        }
+        true
+    }
+
     pub async fn start_io(&self) {
         let accounts = &*self.accounts.read().await;
         for account in accounts.values() {

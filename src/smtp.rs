@@ -8,12 +8,11 @@ use async_smtp::smtp::client::net::ClientTlsParameters;
 use async_smtp::{error, smtp, EmailAddress};
 
 use crate::constants::DC_LP_AUTH_OAUTH2;
-use crate::context::Context;
 use crate::events::EventType;
 use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::provider::Socket;
-use crate::stock_str;
+use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
 
 /// SMTP write and read timeout in seconds.
 const SMTP_TIMEOUT: u64 = 30;
@@ -28,11 +27,11 @@ pub enum Error {
         #[source]
         error: error::Error,
     },
-    #[error("SMTP: failed to connect: {0}")]
+    #[error("SMTP failed to connect: {0}")]
     ConnectionFailure(#[source] smtp::error::Error),
-    #[error("SMTP: failed to setup connection {0:?}")]
+    #[error("SMTP failed to setup connection: {0}")]
     ConnectionSetupFailure(#[source] smtp::error::Error),
-    #[error("SMTP: oauth2 error {address}")]
+    #[error("SMTP oauth2 error {address}")]
     Oauth2Error { address: String },
     #[error("TLS error {0}")]
     Tls(#[from] async_native_tls::Error),
@@ -53,6 +52,8 @@ pub(crate) struct Smtp {
     /// (eg connect or send succeeded). On initialization and disconnect
     /// it is set to None.
     last_success: Option<SystemTime>,
+
+    pub(crate) connectivity: ConnectivityStore,
 }
 
 impl Smtp {
@@ -97,6 +98,7 @@ impl Smtp {
             return Ok(());
         }
 
+        self.connectivity.set_connecting(context).await;
         let lp = LoginParam::from_database(context, "configured_").await?;
         let res = self
             .connect(
@@ -107,16 +109,10 @@ impl Smtp {
                 lp.provider.map_or(false, |provider| provider.strict_tls),
             )
             .await;
-        if let Err(ref err) = res {
-            let message = stock_str::server_response(
-                context,
-                format!("SMTP {}:{}", lp.smtp.server, lp.smtp.port),
-                err.to_string(),
-            )
-            .await;
 
-            context.emit_event(EventType::ErrorNetwork(message));
-        };
+        if let Err(err) = &res {
+            self.connectivity.set_err(context, err).await;
+        }
         res
     }
 

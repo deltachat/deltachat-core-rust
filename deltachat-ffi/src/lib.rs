@@ -257,6 +257,38 @@ fn render_info(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_connectivity(context: *const dc_context_t) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_connectivity()");
+        return 0;
+    }
+    let ctx = &*context;
+    block_on(async move { ctx.get_connectivity().await as u32 as libc::c_int })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_connectivity_html(
+    context: *const dc_context_t,
+) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_connectivity_html()");
+        return "".strdup();
+    }
+    let ctx = &*context;
+    block_on(async move { ctx.get_connectivity_html().await.strdup() })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_all_work_done(context: *mut dc_context_t) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_all_work_done()");
+        return 0;
+    }
+    let ctx = &*context;
+    block_on(async move { ctx.all_work_done().await as libc::c_int })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_oauth2_url(
     context: *mut dc_context_t,
     addr: *const libc::c_char,
@@ -368,7 +400,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
         | EventType::Error(_)
-        | EventType::ErrorNetwork(_)
+        | EventType::ConnectivityChanged
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
@@ -411,7 +443,6 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
         | EventType::Error(_)
-        | EventType::ErrorNetwork(_)
         | EventType::ErrorSelfNotInGroup(_)
         | EventType::ContactsChanged(_)
         | EventType::LocationChanged(_)
@@ -419,6 +450,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ImexProgress(_)
         | EventType::ImexFileWritten(_)
         | EventType::MsgsNoticed(_)
+        | EventType::ConnectivityChanged
         | EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
@@ -451,7 +483,6 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::DeletedBlobFile(msg)
         | EventType::Warning(msg)
         | EventType::Error(msg)
-        | EventType::ErrorNetwork(msg)
         | EventType::ErrorSelfNotInGroup(msg) => {
             let data2 = msg.to_c_string().unwrap_or_default();
             data2.into_raw()
@@ -468,6 +499,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::ImexProgress(_)
         | EventType::SecurejoinInviterProgress { .. }
         | EventType::SecurejoinJoinerProgress { .. }
+        | EventType::ConnectivityChanged
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {
@@ -3797,6 +3829,16 @@ pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *m
     let array: dc_array_t = list.into();
 
     Box::into_raw(Box::new(array))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_all_work_done(accounts: *mut dc_accounts_t) -> libc::c_int {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_all_work_done()");
+        return 0;
+    }
+    let accounts = &*accounts;
+    block_on(async move { accounts.all_work_done().await as libc::c_int })
 }
 
 #[no_mangle]

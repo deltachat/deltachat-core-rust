@@ -463,6 +463,60 @@ char*           dc_get_info                  (const dc_context_t* context);
 char*           dc_get_oauth2_url            (dc_context_t* context, const char* addr, const char* redirect_uri);
 
 
+#define DC_CONNECTIVITY_NOT_CONNECTED        1000
+#define DC_CONNECTIVITY_CONNECTING           2000
+#define DC_CONNECTIVITY_WORKING              3000
+#define DC_CONNECTIVITY_CONNECTED            4000
+
+
+/**
+ * Get the current connectivity, i.e. whether the device is connected to the IMAP server.
+ * One of:
+ * - DC_CONNECTIVITY_NOT_CONNECTED (1000-1999): Show e.g. the string "Not connected" or a red dot
+ * - DC_CONNECTIVITY_CONNECTING (2000-2999): Show e.g. the string "Connecting…" or a yellow dot
+ * - DC_CONNECTIVITY_WORKING (3000-3999): Show e.g. the string "Getting new messages" or a spinning wheel
+ * - DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string "Connected" or a green dot
+ *
+ * We don't use exact values but ranges here so that we can split up
+ * states into multiple states in the future.
+ *
+ * Meant as a rough overview that can be shown 
+ * e.g. in the title of the main screen.
+ *
+ * If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @return The current connectivity.
+ */
+int             dc_get_connectivity          (dc_context_t* context);
+
+
+/**
+ * Get an overview of the current connectivity, and possibly more statistics.
+ * Meant to give the user more insight about the current status than
+ * the basic connectivity info returned by dc_get_connectivity(); show this
+ * e.g., if the user taps on said basic connectivity info.
+ *
+ * If this page changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+ *
+ * This comes as an HTML from the core so that we can easily improve it
+ * and the improvement instantly reaches all UIs.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @return An HTML page with some info about the current connectivity and status.
+ */
+char*           dc_get_connectivity_html     (dc_context_t* context);
+
+
+/**
+ * Standalone version of dc_accounts_all_work_done().
+ * Only used by the python tests.
+ */
+int             dc_all_work_done             (dc_context_t* context);
+
+
 // connect
 
 /**
@@ -2542,6 +2596,23 @@ dc_context_t*  dc_accounts_get_selected_account (dc_accounts_t* accounts);
  * @return 1=success, 0=error
  */
 int            dc_accounts_select_account       (dc_accounts_t* accounts, uint32_t account_id);
+
+
+/**
+ * This is meant especially for iOS, because iOS needs to tell the system when its background work is done.
+ *
+ * iOS can:
+ * - call dc_start_io() (in case IO was not running)
+ * - call dc_maybe_network()
+ * - while dc_accounts_all_work_done() returns false:
+ *   -  Wait for DC_EVENT_CONNECTIVITY_CHANGED
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return Whether all accounts finished their background work.
+ *      DC_EVENT_CONNECTIVITY_CHANGED will be sent when this turns to true.
+ */
+int            dc_accounts_all_work_done        (dc_accounts_t* accounts);
 
 
 /**
@@ -4956,26 +5027,6 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * An action cannot be performed because there is no network available.
- *
- * The library will typically try over after a some time
- * and when dc_maybe_network() is called.
- *
- * Network errors should be reported to users in a non-disturbing way,
- * however, as network errors may come in a sequence,
- * it is not useful to raise each an every error to the user.
- *
- * Moreover, if the UI detects that the device is offline,
- * it is probably more useful to report this to the user
- * instead of the string from data2.
- *
- * @param data1 0
- * @param data2 (char*) Error string, always set, never NULL.
- */
-#define DC_EVENT_ERROR_NETWORK            401
-
-
-/**
  * An action cannot be performed because the user is not in the group.
  * Reported e.g. after a call to
  * dc_set_chat_name(), dc_set_chat_profile_image(),
@@ -5158,6 +5209,15 @@ void dc_event_unref(dc_event_t* event);
  *     (Bob has verified alice and waits until Alice does the same for him)
  */
 #define DC_EVENT_SECUREJOIN_JOINER_PROGRESS       2061
+
+
+/**
+ * The connectivity to the server changed.
+ * This means that you should refresh the connectivity view
+ * and possibly the connectivtiy HTML; see dc_get_connectivity() and
+ * dc_get_connectivity_html() for details.
+ */
+#define DC_EVENT_CONNECTIVITY_CHANGED             2100
 
 /**
  * @}
@@ -5485,13 +5545,6 @@ void dc_event_unref(dc_event_t* event);
 /// Used in error strings.
 /// - %1$s will be replaced by the failing login name
 #define DC_STR_CANNOT_LOGIN               60
-
-/// "Could not connect to %1$s: %2$s"
-///
-/// Used in error strings.
-/// - %1$s will be replaced by the failing server
-/// - %2$s by a the error message as returned from the server
-#define DC_STR_SERVER_RESPONSE            61
 
 /// "%1$s by %2$s"
 ///
