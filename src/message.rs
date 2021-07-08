@@ -1263,6 +1263,14 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
             ret += &format!("\nLast seen as: {}/{}", server_folder, msg.server_uid);
         }
     }
+    let hop_info: Option<String> = context
+        .sql
+        .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", paramsv![msg_id])
+        .await?;
+
+    if hop_info.is_some() {
+        ret.push_str(&hop_info.unwrap_or_else(|| "No Hop info".to_owned()));
+    }
 
     Ok(ret)
 }

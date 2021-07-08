@@ -965,7 +965,7 @@ INSERT INTO msgs
     txt, subject, txt_raw, param, 
     bytes, hidden, mime_headers, mime_in_reply_to,
     mime_references, mime_modified, error, ephemeral_timer,
-    ephemeral_timestamp
+    ephemeral_timestamp, hop_info
   )
   VALUES (
     ?, ?, ?, ?,
@@ -974,7 +974,7 @@ INSERT INTO msgs
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
-    ?
+    ?, ?
   );
 "#,
         )?;
@@ -1050,7 +1050,8 @@ INSERT INTO msgs
             mime_modified,
             part.error.take().unwrap_or_default(),
             ephemeral_timer,
-            ephemeral_timestamp
+            ephemeral_timestamp,
+            mime_parser.hop_info
         ])?;
         let row_id = conn.last_insert_rowid();
 
