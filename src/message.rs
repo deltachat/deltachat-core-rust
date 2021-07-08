@@ -1355,6 +1355,14 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
             ret += &format!("\nLast seen as: {}/{}", server_folder, msg.server_uid);
         }
     }
+    context
+        .sql
+        .query_get_value(
+            "SELECT hop_info FROM msgs WHERE msg_id=?;",
+            paramsv![msg_id],
+        )
+        .await?
+        .and_then(|hop_info: String| Some(ret.push_str(&hop_info)));
 
     Ok(ret)
 }

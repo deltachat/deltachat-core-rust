@@ -468,6 +468,11 @@ paramsv![]
         recode_avatar = true;
         sql.set_db_version(77).await?;
     }
+    if dbversion < 78 {
+        info!(context, "[migration] v77");
+        sql.execute_migration("ALTER TABLE msgs ADD COLUMN hop_info TEXT DEFAULT '';", 78)
+            .await?;
+    }
 
     Ok((
         recalc_fingerprints,
