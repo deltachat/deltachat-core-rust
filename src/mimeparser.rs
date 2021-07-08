@@ -1,20 +1,24 @@
-use std::{collections::{HashMap, HashSet}, str::from_utf8};
 use std::future::Future;
 use std::pin::Pin;
+use std::{
+    collections::{HashMap, HashSet},
+    str::from_utf8,
+};
 
 use anyhow::{bail, Result};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use lettre_email::mime::{self, Mime};
-use mailparse::{DispositionType, MailHeader, MailHeaderMap, SingleInfo, addrparse_header, headers::Headers};
+use mailparse::{
+    addrparse_header, headers::Headers, DispositionType, MailHeader, MailHeaderMap, SingleInfo,
+};
 use once_cell::sync::Lazy;
 
-use crate::{aheader::Aheader, dc_tools::{parse_receive_header}};
 use crate::blob::BlobObject;
 use crate::constants::{Viewtype, DC_DESIRED_TEXT_LEN, DC_ELLIPSE};
 use crate::contact::addr_normalize;
 use crate::context::Context;
-use crate::dc_tools::{dc_get_filemeta, dc_truncate};
+use crate::dc_tools::{dc_get_filemeta, dc_truncate, parse_receive_headers};
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::events::EventType;
@@ -27,6 +31,7 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::simplify;
 use crate::stock_str;
+use crate::{aheader::Aheader, dc_tools::parse_receive_header};
 
 /// A parsed MIME message.
 ///
@@ -77,6 +82,8 @@ pub struct MimeMessage {
     /// This is non-empty only if the message was actually encrypted.  It is used
     /// for e.g. late-parsing HTML.
     pub decoded_data: Vec<u8>,
+
+    pub(crate) hop_info: String,
 }
 
 #[derive(Debug, PartialEq)]
@@ -272,13 +279,14 @@ impl MimeMessage {
             footer: None,
             is_mime_modified: false,
             decoded_data: Vec::new(),
+
+            hop_info: parse_receive_headers(&mail.get_headers()),
         };
         parser.parse_mime_recursive(context, &mail, false).await?;
         parser.maybe_remove_bad_parts();
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context).await;
-        parser.parse_receive_headers(&mail.get_headers()); // create hop-string
 
         if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
@@ -291,20 +299,6 @@ impl MimeMessage {
         }
 
         Ok(parser)
-    }
-
-    /// parses "receive"-headers
-    fn parse_receive_headers(&mut self, headers: &Headers){
-        let headers = headers
-            .get_all_headers("Received")
-            .iter()
-            .filter_map(|header_map_item| from_utf8(header_map_item.get_value_raw()).ok())
-            .map(|header_value| parse_receive_header(header_value))
-            .collect::<Vec<_>>();
-            
-        let hop_str = headers.iter().map(|a| a.to_string()).join("\n\n");
-        
-        //TODO: Add hop_str to Message
     }
 
     /// Parses system messages.
@@ -435,13 +429,12 @@ impl MimeMessage {
         }
     }
 
-   
     async fn parse_headers(&mut self, context: &Context) {
         self.parse_system_message_headers(context);
         self.parse_avatar_headers(context).await;
         self.parse_videochat_headers();
         self.squash_attachment_parts();
-        
+
         if let Some(ref subject) = self.get_subject() {
             let mut prepend_subject = true;
             if !self.decrypting_failed {
