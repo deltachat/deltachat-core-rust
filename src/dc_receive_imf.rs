@@ -700,6 +700,15 @@ async fn add_parts(
         }
 
         if !to_ids.is_empty() {
+            if chat_id.is_unset() && !mime_parser.has_chat_version() {
+                // try to assign classical email to a chat based on In-Reply-To/References:
+
+                let (new_chat_id, new_chat_id_blocked) =
+                    lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?;
+                *chat_id = new_chat_id;
+                chat_id_blocked = new_chat_id_blocked;
+            }
+
             if chat_id.is_unset() {
                 let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                     context,
@@ -4278,7 +4287,6 @@ Message-ID: <Gr.iy1KCE2y65_.mH2TM52miv9@testrun.org>"
             )
             .await
             .unwrap();
-            t.print_chat(ChatId::new(10)).await;
             let group_msg = t.get_last_msg().await;
             assert_eq!(
                 group_msg.text.unwrap(),
@@ -4333,6 +4341,115 @@ Sent with my Delta Chat Messenger: https://delta.chat
             let private_chat = Chat::load_from_db(&t, private_msg.chat_id).await.unwrap();
             assert_eq!(private_chat.typ, Chattype::Single);
             assert_ne!(private_msg.chat_id, group_msg.chat_id);
+        }
+    }
+
+    #[async_std::test]
+    async fn test_chat_assignment_nonprivate_classical_reply() {
+        for outgoing_is_classical in &[true, false] {
+            let t = TestContext::new_alice().await;
+            t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+            dc_receive_imf(
+                &t,
+                format!(
+                    r#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+Subject: =?utf-8?q?single_reply-to?=
+{}
+To: Bob <bob@example.com>, <claire@example.com>
+From: Alice <alice@example.com>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Content-Transfer-Encoding: quoted-printable
+
+Hello, I've just created the group "single reply-to" for us."#,
+                    if *outgoing_is_classical {
+                        r"Message-ID: abcd@gmx.de"
+                    } else {
+                        r"Chat-Group-ID: eJ_llQIXf0K
+Chat-Group-Name: =?utf-8?q?single_reply-to?=
+References: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
+Chat-Version: 1.0
+Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>"
+                    }
+                )
+                .as_bytes(),
+                "Inbox",
+                1,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let group_msg = t.get_last_msg().await;
+            assert_eq!(
+                group_msg.text.unwrap(),
+                if *outgoing_is_classical {
+                    "single reply-to – Hello, I\'ve just created the group \"single reply-to\" for us."
+                } else {
+                    "Hello, I've just created the group \"single reply-to\" for us."
+                }
+            );
+            let group_chat = Chat::load_from_db(&t, group_msg.chat_id).await.unwrap();
+            assert_eq!(group_chat.typ, Chattype::Group);
+            assert_eq!(group_chat.name, "single reply-to");
+
+            // =============== Receive another outgoing message and check that it is put into the same chat ===============
+            dc_receive_imf(
+                &t,
+                format!(
+                    r#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+Subject: Out subj
+To: "Alice" <bob@example.com>, "Claire" <claire@example.com>
+From: Bob <alice@example.com>
+Message-ID: <outgoing@testrun.org>
+MIME-Version: 1.0
+In-Reply-To: <{0}>
+
+Outgoing reply to all"#,
+                    if *outgoing_is_classical {
+                        "abcd@gmx.de"
+                    } else {
+                        "Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de"
+                    }
+                )
+                .as_bytes(),
+                "Inbox",
+                2,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let reply = t.get_last_msg().await;
+            assert_eq!(reply.text.unwrap(), "Out subj – Outgoing reply to all");
+            let reply_chat = Chat::load_from_db(&t, reply.chat_id).await.unwrap();
+            assert_eq!(reply_chat.typ, Chattype::Group);
+            assert_eq!(reply.chat_id, group_msg.chat_id);
+
+            // =============== Receive an incoming message and check that it is put into the same chat ===============
+            dc_receive_imf(
+                &t,
+                br#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+Subject: In subj
+To: "Alice" <bob@example.com>, "Claire" <claire@example.com>
+From: Bob <alice@example.com>
+Message-ID: <xyz@testrun.org>
+MIME-Version: 1.0
+In-Reply-To: <outgoing@testrun.org>
+
+Reply to all"#,
+                "Inbox",
+                3,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let reply = t.get_last_msg().await;
+            assert_eq!(reply.text.unwrap(), "In subj – Reply to all");
+            let reply_chat = Chat::load_from_db(&t, reply.chat_id).await.unwrap();
+            assert_eq!(reply_chat.typ, Chattype::Group);
+            assert_eq!(reply.chat_id, group_msg.chat_id);
         }
     }
 }
