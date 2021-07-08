@@ -475,6 +475,10 @@ paramsv![]
         // this way, the app looks familiar after the contact request upgrade.
         info!(context, "[migration] v78");
         sql.execute_migration("UPDATE chats SET archived=1 WHERE blocked=2;", 78)
+    }
+    if dbversion < 79 {
+        info!(context, "[migration] v79");
+        sql.execute_migration("ALTER TABLE msgs ADD COLUMN hop_info TEXT DEFAULT '';", 79)
             .await?;
     }
     if dbversion < 79 {

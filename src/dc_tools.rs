@@ -5,6 +5,7 @@ use core::cmp::{max, min};
 use std::borrow::Cow;
 use std::fmt;
 use std::io::Cursor;
+use std::str::from_utf8;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
@@ -14,6 +15,10 @@ use async_std::{fs, io};
 
 use anyhow::{bail, Error};
 use chrono::{Local, TimeZone};
+use itertools::Itertools;
+use mailparse::dateparse;
+use mailparse::headers::Headers;
+use mailparse::MailHeaderMap;
 use rand::{thread_rng, Rng};
 
 use crate::chat::{add_device_msg, add_device_msg_with_importance};
@@ -668,6 +673,47 @@ pub fn remove_subject_prefix(last_subject: &str) -> String {
         .collect::<String>()
         .trim()
         .to_string()
+}
+
+// Types and methods to create hop-info for message-info
+
+fn extract_address_from_receive_header<'a>(header: &'a str, start: &str) -> Option<&'a str> {
+    let header_len = header.len();
+    header.find(start).and_then(|mut begin| {
+        begin += start.len();
+        let end = header.get(begin..)?.find(' ').unwrap_or(header_len);
+        header.get(begin..begin + end)
+    })
+}
+
+pub(crate) fn parse_receive_header(header: &str) -> String {
+    let mut hop_info = String::from("Hop:\n");
+
+    if let Ok(date) = dateparse(header) {
+        let date_obj = Local.timestamp(date, 0);
+        hop_info.push_str(&format!("Date: {}\n", date_obj.to_rfc2822()));
+    };
+
+    if let Some(from) = extract_address_from_receive_header(header, "from ") {
+        hop_info.push_str(&format!("From: {}\n", from));
+    }
+
+    if let Some(by) = extract_address_from_receive_header(header, "by ") {
+        hop_info.push_str(&format!("By: {}\n", by));
+    }
+    hop_info
+}
+
+/// parses "receive"-headers
+pub(crate) fn parse_receive_headers(headers: &Headers) -> String {
+    let headers = headers
+        .get_all_headers("Received")
+        .iter()
+        .filter_map(|header_map_item| from_utf8(header_map_item.get_value_raw()).ok())
+        .map(|header_value| parse_receive_header(header_value))
+        .collect::<Vec<_>>();
+
+    headers.iter().map(|a| a.to_string()).join("\n\n")
 }
 
 #[cfg(test)]
