@@ -39,7 +39,9 @@ pub(crate) enum Scheduler {
 impl Context {
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
-        self.scheduler.read().await.maybe_network().await;
+        let lock = self.scheduler.read().await;
+        lock.maybe_network().await;
+        connectivity::idle_interrupted(lock).await;
     }
 
     pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
@@ -421,8 +423,6 @@ impl Scheduler {
             .join(self.interrupt_sentbox(InterruptInfo::new(true, None)))
             .join(self.interrupt_smtp(InterruptInfo::new(true, None)))
             .await;
-
-        connectivity::idle_interrupted(self).await;
     }
 
     async fn interrupt_inbox(&self, info: InterruptInfo) {

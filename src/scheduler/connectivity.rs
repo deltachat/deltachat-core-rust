@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{ops::Deref, sync::Arc};
 
-use async_std::sync::Mutex;
+use async_std::sync::{Mutex, RwLockReadGuard};
 
 use crate::events::EventType;
 use crate::{config::Config, scheduler::Scheduler};
@@ -142,31 +142,39 @@ impl ConnectivityStore {
 /// Set all folder states to InterruptingIdle in case they were `Connected` before.
 /// Called during `dc_maybe_network()` to make sure that `dc_accounts_all_work_done()`
 /// returns false immediately after `dc_maybe_network()`.
-pub(crate) async fn idle_interrupted(scheduler: &Scheduler) {
-    if let Scheduler::Running {
-        inbox,
-        mvbox,
-        sentbox,
-        ..
-    } = scheduler
-    {
-        let mut lock = inbox.state.connectivity.0.lock().await;
-        // For the inbox, we also have to set the connectivity to InterruptingIdle if it was
-        // NotConfigured before: If all folders are NotConfigured, dc_get_connectivity()
-        // returns Connected. But after dc_maybe_network(), dc_get_connectivity() must not
-        // return Connected until DC is completely done with fetching folders; this also
-        // includes scan_folders() which happens on the inbox thread.
-        if *lock == DetailedConnectivity::Connected || *lock == DetailedConnectivity::NotConfigured
-        {
-            *lock = DetailedConnectivity::InterruptingIdle;
-        }
-        drop(lock);
+pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Scheduler>) {
+    let [inbox, mvbox, sentbox] = match &*scheduler {
+        Scheduler::Running {
+            inbox,
+            mvbox,
+            sentbox,
+            ..
+        } => [
+            inbox.state.connectivity.clone(),
+            mvbox.state.connectivity.clone(),
+            sentbox.state.connectivity.clone(),
+        ],
+        Scheduler::Stopped => return,
+    };
+    drop(scheduler);
 
-        for state in &[&mvbox.state, &sentbox.state] {
-            let mut lock = state.connectivity.0.lock().await;
-            if *lock == DetailedConnectivity::Connected {
-                *lock = DetailedConnectivity::InterruptingIdle;
-            }
+    let mut connectivity_lock = inbox.0.lock().await;
+    // For the inbox, we also have to set the connectivity to InterruptingIdle if it was
+    // NotConfigured before: If all folders are NotConfigured, dc_get_connectivity()
+    // returns Connected. But after dc_maybe_network(), dc_get_connectivity() must not
+    // return Connected until DC is completely done with fetching folders; this also
+    // includes scan_folders() which happens on the inbox thread.
+    if *connectivity_lock == DetailedConnectivity::Connected
+        || *connectivity_lock == DetailedConnectivity::NotConfigured
+    {
+        *connectivity_lock = DetailedConnectivity::InterruptingIdle;
+    }
+    drop(connectivity_lock);
+
+    for state in &[&mvbox, &sentbox] {
+        let mut connectivity_lock = state.0.lock().await;
+        if *connectivity_lock == DetailedConnectivity::Connected {
+            *connectivity_lock = DetailedConnectivity::InterruptingIdle;
         }
     }
     // No need to send ConnectivityChanged, the user-facing connectivity doesn't change because
@@ -199,58 +207,31 @@ impl Context {
     ///
     /// If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
     pub async fn get_connectivity(&self) -> Connectivity {
-        match &*self.scheduler.read().await {
+        let lock = self.scheduler.read().await;
+        let stores: Vec<_> = match &*lock {
             Scheduler::Running {
                 inbox,
                 mvbox,
                 sentbox,
                 ..
-            } => {
-                let states = [&inbox.state, &mvbox.state, &sentbox.state];
-                let mut connectivities = Vec::new();
-                for s in &states {
-                    // TODO/QUESTION get_basic() locks a mutex, and above we called `scheduler.read()`. This means
-                    // that we will be holding two locks, which sounds like a great opportunity for
-                    // a deadlock.
-                    // Below (commented out, slightly outdated), I wrote another possible
-                    // version of this code which first clones all the ConnectivityStore's
-                    // (which are Arc's under the hood), then releases the scheduler-read-lock and only then
-                    // calls `get_basic()`. Would this be better? Or don't I have to worry about deadlocks here at all?
-                    // Same goes for get_connectivity_html().
+            } => [&inbox.state, &mvbox.state, &sentbox.state]
+                .iter()
+                .map(|state| state.connectivity.clone())
+                .collect(),
+            Scheduler::Stopped => return Connectivity::NotConnected,
+        };
+        drop(lock);
 
-                    if let Some(connectivity) = s.connectivity.get_basic().await {
-                        connectivities.push(connectivity);
-                    }
-                }
-                connectivities
-                    .into_iter()
-                    .min()
-                    .unwrap_or(Connectivity::Connected)
+        let mut connectivities = Vec::new();
+        for s in stores {
+            if let Some(connectivity) = s.get_basic().await {
+                connectivities.push(connectivity);
             }
-            Scheduler::Stopped => Connectivity::NotConnected,
         }
-        // let mut stores = Vec::new();
-        // match &*self.scheduler.read().await {
-        //     Scheduler::Running {
-        //         inbox,
-        //         mvbox,
-        //         sentbox,
-        //         ..
-        //     } => {
-        //         for state in [&inbox.state, &mvbox.state, &sentbox.state].iter() {
-        //             stores.push(state.connectivity.clone())
-        //         }
-        //     }
-        //     Scheduler::Stopped => return BasicConnectivity::NotConnected,
-        // }
-        // let mut connectivities = Vec::new();
-        // for store in stores {
-        //     connectivities.push(store.get_basic().await);
-        // }
-        // connectivities
-        //     .into_iter()
-        //     .min()
-        //     .unwrap_or(BasicConnectivity::NotConnected)
+        connectivities
+            .into_iter()
+            .min()
+            .unwrap_or(Connectivity::Connected)
     }
 
     /// Get an overview of the current connectivity, and possibly more statistics.
@@ -266,98 +247,103 @@ impl Context {
         let mut ret =
             "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
 
-        match &*self.scheduler.read().await {
+        let lock = self.scheduler.read().await;
+        let (folders_states, smtp) = match &*lock {
             Scheduler::Running {
                 inbox,
                 mvbox,
                 sentbox,
                 smtp,
                 ..
-            } => {
-                let folders_states = &[
+            } => (
+                [
                     (
                         Config::ConfiguredInboxFolder,
                         Config::InboxWatch,
-                        &inbox.state,
+                        inbox.state.connectivity.clone(),
                     ),
                     (
                         Config::ConfiguredMvboxFolder,
                         Config::MvboxWatch,
-                        &mvbox.state,
+                        mvbox.state.connectivity.clone(),
                     ),
                     (
                         Config::ConfiguredSentboxFolder,
                         Config::SentboxWatch,
-                        &sentbox.state,
+                        sentbox.state.connectivity.clone(),
                     ),
-                ];
-
-                ret += "<div><h3>Incoming messages:</h3><ul>";
-                for (folder, watch, state) in folders_states {
-                    let w = self.get_config(*watch).await.ok_or_log(self);
-
-                    let mut folder_added = false;
-                    if w.flatten() == Some("1".to_string()) {
-                        let f = self.get_config(*folder).await.ok_or_log(self).flatten();
-
-                        if let Some(foldername) = f {
-                            ret += "<li><b>&quot;";
-                            ret += &foldername;
-                            ret += "&quot;:</b> ";
-                            ret += &state.connectivity.get_detailed().await.to_string_imap(self);
-                            ret += "</li>";
-
-                            folder_added = true;
-                        }
-                    }
-
-                    if !folder_added && folder == &Config::ConfiguredInboxFolder {
-                        let detailed = &state.connectivity.get_detailed().await;
-                        if let DetailedConnectivity::Error(_) = detailed {
-                            // On the inbox thread, we also do some other things like scan_folders and run jobs
-                            // so, maybe, the inbox is not watched, but something else went wrong
-                            ret += "<li>";
-                            ret += &detailed.to_string_imap(self);
-                            ret += "</li>";
-                        }
-                    }
-                }
-                ret += "</ul></div>";
-
-                ret += "<h3>Outgoing messages:</h3><ul style=\"list-style-type: none;\"><li>";
-                ret += &smtp
-                    .state
-                    .connectivity
-                    .get_detailed()
-                    .await
-                    .to_string_smtp(self);
-                ret += "</li></ul>";
+                ],
+                smtp.state.connectivity.clone(),
+            ),
+            Scheduler::Stopped => {
+                ret += "Not started</body></html>\n";
+                return ret;
             }
-            Scheduler::Stopped => {}
+        };
+        drop(lock);
+
+        ret += "<div><h3>Incoming messages:</h3><ul>";
+        for (folder, watch, state) in &folders_states {
+            let w = self.get_config(*watch).await.ok_or_log(self);
+
+            let mut folder_added = false;
+            if w.flatten() == Some("1".to_string()) {
+                let f = self.get_config(*folder).await.ok_or_log(self).flatten();
+
+                if let Some(foldername) = f {
+                    ret += "<li><b>&quot;";
+                    ret += &foldername;
+                    ret += "&quot;:</b> ";
+                    ret += &state.get_detailed().await.to_string_imap(self);
+                    ret += "</li>";
+
+                    folder_added = true;
+                }
+            }
+
+            if !folder_added && folder == &Config::ConfiguredInboxFolder {
+                let detailed = &state.get_detailed().await;
+                if let DetailedConnectivity::Error(_) = detailed {
+                    // On the inbox thread, we also do some other things like scan_folders and run jobs
+                    // so, maybe, the inbox is not watched, but something else went wrong
+                    ret += "<li>";
+                    ret += &detailed.to_string_imap(self);
+                    ret += "</li>";
+                }
+            }
         }
+        ret += "</ul></div>";
+
+        ret += "<h3>Outgoing messages:</h3><ul style=\"list-style-type: none;\"><li>";
+        ret += &smtp.get_detailed().await.to_string_smtp(self);
+        ret += "</li></ul>";
 
         ret += "</body></html>\n";
         ret
     }
 
     pub async fn all_work_done(&self) -> bool {
-        match &*self.scheduler.read().await {
+        let lock = self.scheduler.read().await;
+        let stores: Vec<_> = match &*lock {
             Scheduler::Running {
                 inbox,
                 mvbox,
                 sentbox,
                 smtp,
                 ..
-            } => {
-                let states = [&inbox.state, &mvbox.state, &sentbox.state, &smtp.state];
-                for s in &states {
-                    if !s.connectivity.get_all_work_done().await {
-                        return false;
-                    }
-                }
-                true
+            } => [&inbox.state, &mvbox.state, &sentbox.state, &smtp.state]
+                .iter()
+                .map(|state| state.connectivity.clone())
+                .collect(),
+            Scheduler::Stopped => return false,
+        };
+        drop(lock);
+
+        for s in &stores {
+            if !s.get_all_work_done().await {
+                return false;
             }
-            Scheduler::Stopped => false,
         }
+        true
     }
 }
