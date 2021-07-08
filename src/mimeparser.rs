@@ -1,16 +1,17 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, str::from_utf8};
 use std::future::Future;
 use std::pin::Pin;
 
 use anyhow::{bail, Result};
 use charset::Charset;
 use deltachat_derive::{FromSql, ToSql};
+use itertools::Itertools;
 use lettre_email::mime::{self, Mime};
-use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
+use mailparse::{DispositionType, MailHeader, MailHeaderMap, SingleInfo, addrparse_header, headers::Headers};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 
-use crate::aheader::Aheader;
+use crate::{aheader::Aheader, dc_tools::{parse_receive_header}};
 use crate::blob::BlobObject;
 use crate::constants::{Viewtype, DC_DESIRED_TEXT_LEN, DC_ELLIPSE};
 use crate::contact::addr_normalize;
@@ -279,6 +280,7 @@ impl MimeMessage {
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context).await;
+        parser.parse_receive_headers(&mail.get_headers()); // create hop-string
 
         if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
@@ -291,6 +293,20 @@ impl MimeMessage {
         }
 
         Ok(parser)
+    }
+
+    /// parses "receive"-headers
+    fn parse_receive_headers(&mut self, headers: &Headers){
+        let headers = headers
+            .get_all_headers("Received")
+            .iter()
+            .filter_map(|header_map_item| from_utf8(header_map_item.get_value_raw()).ok())
+            .map(|header_value| parse_receive_header(header_value))
+            .collect::<Vec<_>>();
+            
+        let hop_str = headers.iter().map(|a| a.to_string()).join("\n\n");
+        
+        //TODO: Add hop_str to Message
     }
 
     /// Parses system messages.
@@ -421,12 +437,13 @@ impl MimeMessage {
         }
     }
 
+   
     async fn parse_headers(&mut self, context: &Context) {
         self.parse_system_message_headers(context);
         self.parse_avatar_headers(context).await;
         self.parse_videochat_headers();
         self.squash_attachment_parts();
-
+        
         if let Some(ref subject) = self.get_subject() {
             let mut prepend_subject = true;
             if !self.decrypting_failed {
