@@ -8,7 +8,7 @@ use std::{cmp, cmp::max, collections::BTreeMap};
 use anyhow::{anyhow, bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
-    types::{Fetch, Flag, Mailbox, Name, NameAttribute, UnsolicitedResponse, Quota, QuotaRoot},
+    types::{Fetch, Flag, Mailbox, Name, NameAttribute, Quota, QuotaRoot, UnsolicitedResponse},
 };
 use async_std::channel::Receiver;
 use async_std::prelude::*;
@@ -1398,12 +1398,13 @@ impl Imap {
         }
         unsolicited_exists
     }
-    
+
     pub fn can_check_quota(&self) -> bool {
         self.config.can_check_quota
     }
 
     pub async fn get_quota_roots(
+        &mut self,
         mailbox_name: &str,
     ) -> Result<(Vec<QuotaRoot>, Vec<Quota>)> {
         if let Some(session) = self.session.as_mut() {
@@ -1411,6 +1412,7 @@ impl Imap {
             Ok(quota_roots)
         } else {
             Err(anyhow!("Not connected to IMAP, no session"))
+        }
     }
 }
 
