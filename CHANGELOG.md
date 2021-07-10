@@ -2,11 +2,52 @@
 
 ## Unreleased
 
-- possibly breaking change:
-  removed `DC_EVENT_ERROR_NETWORK` and `DC_STR_SERVER_RESPONSE`
+### Api Changes
+- breaking change: removed `DC_EVENT_ERROR_NETWORK` and `DC_STR_SERVER_RESPONSE`
   Instead, there is a new api `dc_get_connectivity()`
   and `dc_get_connectivity_html()`;
   `DC_EVENT_CONNECTIVITY_CHANGED` is emitted on changes
+
+- breaking change: removed `dc_accounts_import_account()`
+  Instead you need to add an account and call `dc_imex(DC_IMEX_IMPORT_BACKUP)` on its context
+
+- update account api, 2 new methods:
+  `int dc_all_work_done (dc_context_t* context);`
+  `int dc_accounts_all_work_done (dc_accounts_t* accounts);`
+
+- add api to check if a message was `Auto-Submitted`
+  cffi: `int dc_msg_is_bot (const dc_msg_t* msg);`
+  python: `Message.is_bot()`
+
+- `dc_context_t* dc_accounts_get_selected_account (dc_accounts_t* accounts);` now returns `NULL` if there is no selected account
+
+### Added
+- use Auto-Submitted: auto-generated header to identify bots #2502
+- allow sending stickers via repl tool
+- chat: make `get_msg_cnt()` and `get_fresh_msg_cnt()` work for deaddrop chat #2493
+- withdraw/revive own qr-codes #2512
+- add Connectivity view (a better api for getting the connection status) #2319
+
+### Changes
+- updated spec: new `Chat-User-Avatar` usage, `Chat-Content: sticker`, structure, year #2480
+- breaking: `Accounts::create` does not also create an default account anymore #2500
+- remove "forwarded" from stickers, as the primary way of getting stickers is by asking a bot and then forwarding them currently #2526
+
+## Removed
+- remove dc_accounts_import_account() api #2521
+- `DC_EVENT_ERROR_NETWORK` and `DC_STR_SERVER_RESPONSE`
+
+### Fixes
+- allow stickers with gif-images #2481
+- fix database migration #2486
+- do not count hidden messages in get_msg_cnt(). #2493
+- improve drafts detection #2489
+- fix panic when removing last, selected account from account manager #2500
+- set_draft's message-changed-event returns now draft's msg id instead of 0 #2304
+- avoid hiding outgoing classic emails #2505
+- fixes for message timestamps #2517
+- Do not process names, avatars, location XMLs, message signature
+etc. for duplicate messages. #2513
 
 ## 1.56.0
 
