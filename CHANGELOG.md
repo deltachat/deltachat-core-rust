@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-### Api Changes
+### API Changes
 - breaking change: removed `DC_EVENT_ERROR_NETWORK` and `DC_STR_SERVER_RESPONSE`
   Instead, there is a new api `dc_get_connectivity()`
   and `dc_get_connectivity_html()`;
