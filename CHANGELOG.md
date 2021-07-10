@@ -4,6 +4,7 @@
 
 ### API Changes
 - breaking change: removed `DC_EVENT_ERROR_NETWORK` and `DC_STR_SERVER_RESPONSE`
+
   Instead, there is a new api `dc_get_connectivity()`
   and `dc_get_connectivity_html()`;
   `DC_EVENT_CONNECTIVITY_CHANGED` is emitted on changes
@@ -27,6 +28,7 @@
 - chat: make `get_msg_cnt()` and `get_fresh_msg_cnt()` work for deaddrop chat #2493
 - withdraw/revive own qr-codes #2512
 - add Connectivity view (a better api for getting the connection status) #2319
+- add daily quota check job, which triggers a warning in device-chat if quota is running full. can be disabled via the `disable_quota_check` config.
 
 ### Changes
 - updated spec: new `Chat-User-Avatar` usage, `Chat-Content: sticker`, structure, copyright year #2480
