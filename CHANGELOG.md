@@ -35,7 +35,7 @@
 
 ## Removed
 - remove dc_accounts_import_account() api #2521
-- `DC_EVENT_ERROR_NETWORK` and `DC_STR_SERVER_RESPONSE`
+- `DC_EVENT_ERROR_NETWORK` and `DC_STR_SERVER_RESPONSE` #2319
 
 ### Fixes
 - allow stickers with gif-images #2481
