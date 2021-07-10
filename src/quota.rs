@@ -6,7 +6,8 @@ use indexmap::IndexMap;
 use crate::context::Context;
 use crate::imap::Imap;
 use crate::stock_str::{
-    quota_mailbox_nearly_full, quota_not_supported, quota_resource_messages, quota_resource_storage,
+    quota_mailbox_nearly_full, quota_not_supported, quota_resource_messages,
+    quota_resource_storage, quota_resource_usage,
 };
 use crate::{
     chat::{add_device_msg, add_device_msg_with_importance},
@@ -63,13 +64,22 @@ async fn generate_report_message(
         for resource in quota_resources {
             message.push_str(&match &resource.name {
                 Atom(name) => {
-                    format!("{}: {}/{}\n", name, resource.usage, resource.limit)
+                    quota_resource_usage(
+                        context,
+                        name,
+                        resource.usage.to_string(),
+                        resource.limit.to_string(),
+                    )
+                    .await
                 }
                 Message => {
-                    format!(
-                        "{}: {}/{}\n",
-                        messages_stock_string, resource.usage, resource.limit
+                    quota_resource_usage(
+                        context,
+                        &messages_stock_string,
+                        resource.usage.to_string(),
+                        resource.limit.to_string(),
                     )
+                    .await
                 }
                 Storage => {
                     let used = (resource.usage * 1024)
@@ -78,9 +88,10 @@ async fn generate_report_message(
                     let limit = (resource.limit * 1024)
                         .file_size(file_size_opts::BINARY)
                         .map_err(|err| anyhow!("{}", err))?;
-                    format!("{}: {}/{}\n", storage_stock_string, used, limit)
+                    quota_resource_usage(context, &storage_stock_string, used, limit).await
                 }
             });
+            message.push_str("\n");
         }
     }
     Ok(message)

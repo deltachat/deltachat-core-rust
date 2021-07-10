@@ -278,6 +278,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Storage"))]
     QuotaResourceStorage = 101,
+
+    #[strum(props(fallback = "%1$s: %2$s/%3$s"))]
+    QuotaResourceUsage = 102,
 }
 
 impl StockMessage {
@@ -319,6 +322,17 @@ trait StockStringMods: AsRef<str> + Sized {
             .replacen("%2$s", replacement.as_ref(), 1)
             .replacen("%2$d", replacement.as_ref(), 1)
             .replacen("%2$@", replacement.as_ref(), 1)
+    }
+
+    /// Substitutes the third replacement value if one is present.
+    ///
+    /// Be aware you probably should have also called [`StockStringMods::replace1`]
+    /// and [`StockStringMods::replace2`] if you are calling this.
+    fn replace3(&self, replacement: impl AsRef<str>) -> String {
+        self.as_ref()
+            .replacen("%3$s", replacement.as_ref(), 1)
+            .replacen("%3$d", replacement.as_ref(), 1)
+            .replacen("%3$@", replacement.as_ref(), 1)
     }
 
     /// Augments the message by saying it was performed by a user.
@@ -883,6 +897,20 @@ pub(crate) async fn quota_resource_messages(context: &Context) -> String {
 /// Stock string: `QuotaResourceStorage`.
 pub(crate) async fn quota_resource_storage(context: &Context) -> String {
     translated(context, StockMessage::QuotaResourceStorage).await
+}
+
+/// Stock string: `QuotaResourceUsage`.
+pub(crate) async fn quota_resource_usage(
+    context: &Context,
+    resource_name: impl AsRef<str>,
+    usage: impl AsRef<str>,
+    limit: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::QuotaResourceUsage)
+        .await
+        .replace1(resource_name)
+        .replace2(usage)
+        .replace3(limit)
 }
 
 impl Context {

@@ -5789,6 +5789,13 @@ void dc_event_unref(dc_event_t* event);
 /// Example usage: Storage: 169.33 MiB/1000 MiB
 #define DC_STR_QUOTA_STORAGE             101
 
+/// "%1$s: %2$s/%3$s"
+///
+/// The format Used in the quota report message.
+///
+/// Example usage: $type_name: $usage/$limit (see examples of DC_STR_QUOTA_MESSAGES and DC_STR_QUOTA_STORAGE)
+#define DC_STR_QUOTA_USAGE             102
+
 /**
  * @}
  */
