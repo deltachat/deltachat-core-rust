@@ -1264,12 +1264,13 @@ async fn lookup_chat_by_reply(
     Ok((ChatId::new(0), Blocked::Not))
 }
 
+/// If this method returns true, the message shall be assigned to the 1:1 chat with the sender.
+/// If it returns false, it shall be assigned to the parent chat.
 async fn is_probably_private_reply(
     context: &Context,
     to_ids: &indexmap::IndexSet<u32>,
     mime_parser: &MimeMessage,
-    // TODO group_chat_id is not a good name as it's not always the group chat
-    group_chat_id: ChatId, // The group chat this message could be assigned to
+    parent_chat_id: ChatId,
     from_id: u32,
 ) -> Result<bool> {
     // Usually we don't want to show private replies in the parent chat, but in the
@@ -1285,7 +1286,7 @@ async fn is_probably_private_reply(
     }
 
     if !mime_parser.has_chat_version() {
-        let chat_contacts = chat::get_chat_contacts(context, group_chat_id).await?;
+        let chat_contacts = chat::get_chat_contacts(context, parent_chat_id).await?;
         if chat_contacts.len() == 2
             && chat_contacts.contains(&DC_CONTACT_ID_SELF)
             && chat_contacts.contains(&from_id)
@@ -1362,7 +1363,6 @@ async fn create_or_lookup_group(
     let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
         .await
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
-    // TODO is it a problem that I moved get_chat_id_by_grpid() up here?
 
     // For chat messages, we don't have to guess (is_*probably*_private_reply()) but we know for sure that
     // they belong to the group because of the Chat-Group-Id or Message-Id header
@@ -4309,7 +4309,7 @@ In-Reply-To: <{0}>
 Date: Sat, 03 Jul 2021 20:00:26 +0000
 Chat-Version: 1.0
 Message-ID: <Mr.CJFwF5hwn8W.Pd-GGH5m32k@gmx.de>
-To: Hocuri <alice@example.com>
+To: <alice@example.com>
 From: <bob@example.com>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Content-Transfer-Encoding: quoted-printable
@@ -4399,8 +4399,8 @@ Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>"
                 format!(
                     r#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
 Subject: Out subj
-To: "Alice" <bob@example.com>, "Claire" <claire@example.com>
-From: Bob <alice@example.com>
+To: "Bob" <bob@example.com>, "Claire" <claire@example.com>
+From: Alice <alice@example.com>
 Message-ID: <outgoing@testrun.org>
 MIME-Version: 1.0
 In-Reply-To: <{0}>
@@ -4431,8 +4431,8 @@ Outgoing reply to all"#,
                 &t,
                 br#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
 Subject: In subj
-To: "Alice" <bob@example.com>, "Claire" <claire@example.com>
-From: Bob <alice@example.com>
+To: "Bob" <bob@example.com>, "Claire" <claire@example.com>
+From: alice <alice@example.com>
 Message-ID: <xyz@testrun.org>
 MIME-Version: 1.0
 In-Reply-To: <outgoing@testrun.org>
