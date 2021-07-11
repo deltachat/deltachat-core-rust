@@ -29,11 +29,11 @@
 - add Connectivity view (a better api for getting the connection status) #2319
 
 ### Changes
-- updated spec: new `Chat-User-Avatar` usage, `Chat-Content: sticker`, structure, year #2480
+- updated spec: new `Chat-User-Avatar` usage, `Chat-Content: sticker`, structure, copyright year #2480
 - breaking: `Accounts::create` does not also create an default account anymore #2500
 - remove "forwarded" from stickers, as the primary way of getting stickers is by asking a bot and then forwarding them currently #2526
 
-## Removed
+### Removed
 - remove dc_accounts_import_account() api #2521
 - `DC_EVENT_ERROR_NETWORK` and `DC_STR_SERVER_RESPONSE` #2319
 
