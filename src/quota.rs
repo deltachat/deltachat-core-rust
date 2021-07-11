@@ -91,7 +91,7 @@ async fn generate_report_message(
                     quota_resource_usage(context, &storage_stock_string, used, limit).await
                 }
             });
-            message.push_str("\n");
+            message.push('\n');
         }
     }
     Ok(message)
