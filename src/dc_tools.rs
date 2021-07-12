@@ -693,14 +693,14 @@ fn extract_address_from_receive_header<'a>(header: &'a str, start: &str) -> Opti
     header.find(start).and_then(|mut begin| {
         begin += start.len();
         let end = header.get(begin..)?.find(' ').unwrap_or(header_len);
-        Some(header.get(begin..begin + end)?)
+        header.get(begin..begin + end)
     })
 }
 
 pub(crate) fn parse_receive_header(header: &str) -> String {
     let mut hop_info = String::from("Hop:\n");
 
-    if let Some(date) = dateparse(header).ok() {
+    if let Ok(date) = dateparse(header) {
         let date_obj = Local.timestamp(date, 0);
         hop_info.push_str(&format!("Date: {}\n", date_obj.to_rfc2822()));
     };
