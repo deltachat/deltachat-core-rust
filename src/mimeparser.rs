@@ -1,17 +1,14 @@
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
-use std::{
-    collections::{HashMap, HashSet}
-};
 
 use anyhow::{bail, Result};
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-use mailparse::{
-    addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo,
-};
+use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
 
+use crate::aheader::Aheader;
 use crate::blob::BlobObject;
 use crate::constants::{Viewtype, DC_DESIRED_TEXT_LEN, DC_ELLIPSE};
 use crate::contact::addr_normalize;
@@ -29,7 +26,6 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::simplify;
 use crate::stock_str;
-use crate::{aheader::Aheader};
 
 /// A parsed MIME message.
 ///
