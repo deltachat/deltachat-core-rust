@@ -699,16 +699,15 @@ async fn add_parts(
             allow_creation = false;
         }
 
+        if chat_id.is_unset() && !mime_parser.has_chat_version() {
+            // try to assign classical email to a chat based on In-Reply-To/References:
+            let (new_chat_id, new_chat_id_blocked) =
+                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?;
+            *chat_id = new_chat_id;
+            chat_id_blocked = new_chat_id_blocked;
+        }
+
         if !to_ids.is_empty() {
-            if chat_id.is_unset() && !mime_parser.has_chat_version() {
-                // try to assign classical email to a chat based on In-Reply-To/References:
-
-                let (new_chat_id, new_chat_id_blocked) =
-                    lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?;
-                *chat_id = new_chat_id;
-                chat_id_blocked = new_chat_id_blocked;
-            }
-
             if chat_id.is_unset() {
                 let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                     context,
