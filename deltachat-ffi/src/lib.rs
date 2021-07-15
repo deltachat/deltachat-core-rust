@@ -2567,7 +2567,8 @@ pub unsafe extern "C" fn dc_chat_can_send(chat: *mut dc_chat_t) -> libc::c_int {
         return 0;
     }
     let ffi_chat = &*chat;
-    ffi_chat.chat.can_send() as libc::c_int
+    let cxt = &*ffi_chat.context;
+    block_on(ffi_chat.chat.can_send(cxt)) as libc::c_int
 }
 
 #[no_mangle]

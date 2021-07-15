@@ -2883,7 +2883,7 @@ mod tests {
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
 
         assert!(chat.is_mailing_list());
-        assert_eq!(chat.can_send(), false);
+        assert_eq!(chat.can_send(&t.ctx).await, false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(
             chat::get_chat_contacts(&t.ctx, chat_id)

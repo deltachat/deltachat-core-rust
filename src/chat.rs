@@ -544,7 +544,7 @@ impl ChatId {
         }
 
         let chat = Chat::load_from_db(context, self).await?;
-        if !chat.can_send() {
+        if !chat.can_send(context).await {
             bail!("Can't set a draft: Can't send");
         }
 
@@ -914,8 +914,12 @@ impl Chat {
     }
 
     /// Returns true if user can send messages to this chat.
-    pub fn can_send(&self) -> bool {
-        !self.id.is_special() && !self.is_device_talk() && !self.is_mailing_list()
+    pub async fn can_send(&self, context: &Context) -> bool {
+        !self.id.is_special()
+            && !self.is_device_talk()
+            && !self.is_mailing_list()
+            && (self.typ == Chattype::Single
+                || is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await)
     }
 
     pub async fn update_param(&mut self, context: &Context) -> Result<()> {
@@ -1674,7 +1678,7 @@ async fn prepare_msg_common(
     chat_id.unarchive(context).await?;
 
     let mut chat = Chat::load_from_db(context, chat_id).await?;
-    ensure!(chat.can_send(), "cannot send to {}", chat_id);
+    ensure!(chat.can_send(context).await, "cannot send to {}", chat_id);
 
     // The OutPreparing state is set by dc_prepare_msg() before it
     // calls this function and the message is left in the OutPreparing
@@ -2770,7 +2774,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
 
     chat_id.unarchive(context).await?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
-        ensure!(chat.can_send(), "cannot send to {}", chat_id);
+        ensure!(chat.can_send(context).await, "cannot send to {}", chat_id);
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len()).await;
         let ids = context
             .sql
@@ -3219,7 +3223,7 @@ mod tests {
         assert!(chat.is_self_talk());
         assert!(chat.visibility == ChatVisibility::Normal);
         assert!(!chat.is_device_talk());
-        assert!(chat.can_send());
+        assert!(chat.can_send(&t).await);
         assert_eq!(chat.name, stock_str::saved_messages(&t).await);
         assert!(chat.get_profile_image(&t).await.unwrap().is_some());
     }
@@ -3233,7 +3237,7 @@ mod tests {
         assert!(!chat.is_self_talk());
         assert!(chat.visibility == ChatVisibility::Normal);
         assert!(!chat.is_device_talk());
-        assert!(!chat.can_send());
+        assert!(!chat.can_send(&t).await);
         assert_eq!(chat.name, stock_str::dead_drop(&t).await);
     }
 
@@ -3311,7 +3315,7 @@ mod tests {
         assert_eq!(chat.get_type(), Chattype::Single);
         assert!(chat.is_device_talk());
         assert!(!chat.is_self_talk());
-        assert!(!chat.can_send());
+        assert!(!chat.can_send(&t).await);
 
         assert_eq!(chat.name, stock_str::device_messages(&t).await);
         assert!(chat.get_profile_image(&t).await.unwrap().is_some());
@@ -4224,6 +4228,32 @@ mod tests {
         let msg = alice.get_last_msg().await;
         assert!(msg.get_text().unwrap() == "Hi Bob");
         assert!(msg.is_forwarded());
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_can_send_group() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = Contact::create(&alice, "", "bob@f.br").await?;
+        let chat_id = ChatId::create_for_contact(&alice, bob).await?;
+        let chat = Chat::load_from_db(&alice, chat_id).await?;
+        assert!(chat.can_send(&alice).await);
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
+        assert_eq!(
+            Chat::load_from_db(&alice, chat_id)
+                .await?
+                .can_send(&alice)
+                .await,
+            true
+        );
+        remove_contact_from_chat(&alice, chat_id, DC_CONTACT_ID_SELF).await?;
+        assert_eq!(
+            Chat::load_from_db(&alice, chat_id)
+                .await?
+                .can_send(&alice)
+                .await,
+            false
+        );
         Ok(())
     }
 }
