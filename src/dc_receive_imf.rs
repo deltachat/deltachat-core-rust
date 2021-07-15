@@ -699,8 +699,9 @@ async fn add_parts(
             allow_creation = false;
         }
 
-        if chat_id.is_unset() && !mime_parser.has_chat_version() {
-            // try to assign classical email to a chat based on In-Reply-To/References:
+        if chat_id.is_unset() {
+            // try to assign to a chat based on In-Reply-To/References:
+
             let (new_chat_id, new_chat_id_blocked) =
                 lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?;
             *chat_id = new_chat_id;
