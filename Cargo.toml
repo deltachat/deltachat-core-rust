@@ -27,7 +27,6 @@ backtrace = "0.3.59"
 base64 = "0.13"
 bitflags = "1.1.0"
 byteorder = "1.3.1"
-charset = "0.1"
 chrono = "0.4.6"
 dirs = { version = "3.0.2", optional=true }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
@@ -42,7 +41,7 @@ kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2.97"
 log = {version = "0.4.8", optional = true }
-mailparse = "0.13.4"
+mailparse = "0.13.5"
 native-tls = "0.2.3"
 num_cpus = "1.13.0"
 num-derive = "0.3.0"
