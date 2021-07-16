@@ -332,23 +332,31 @@ impl Job {
             Err(crate::smtp::send::Error::Envelope(err)) => {
                 // Local error, job is invalid, do not retry.
                 smtp.disconnect().await;
-                warn!(context, "SMTP job is invalid: {}", err);
+                let msg = format!("SMTP job is invalid: {}", err);
+                warn!(context, "{}", msg);
+                smtp.connectivity.set_err(context, msg).await;
                 Status::Finished(Err(err.into()))
             }
             Err(crate::smtp::send::Error::NoTransport) => {
                 // Should never happen.
                 // It does not even make sense to disconnect here.
                 error!(context, "SMTP job failed because SMTP has no transport");
+                smtp.connectivity
+                    .set_err(context, "SMTP has no transport")
+                    .await;
                 Status::Finished(Err(format_err!("SMTP has not transport")))
             }
             Err(crate::smtp::send::Error::Other(err)) => {
                 // Local error, job is invalid, do not retry.
                 smtp.disconnect().await;
-                warn!(context, "unable to load job: {}", err);
+                let msg = format!("Unable to load job: {}", err);
+                warn!(context, "{}", msg);
+                smtp.connectivity.set_err(context, msg).await;
                 Status::Finished(Err(err))
             }
             Ok(()) => {
                 job_try!(success_cb().await);
+                smtp.connectivity.set_connected(context).await;
                 Status::Finished(Ok(()))
             }
         };
