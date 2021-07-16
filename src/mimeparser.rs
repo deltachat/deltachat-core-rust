@@ -3,12 +3,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use anyhow::{bail, Result};
-use charset::Charset;
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
-use percent_encoding::percent_decode_str;
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -1510,55 +1508,13 @@ fn get_attachment_filename(
     // `Content-Disposition: ... filename=...`
     let mut desired_filename = ct.params.get("filename").map(|s| s.to_string());
 
-    // try to get file name from
-    // `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
-    // encoded as CHARSET'LANG'test%2E%70%64%66 (key ends with `*`)
-    // or as "encoded-words" (key does not end with `*`)
     if desired_filename.is_none() {
-        let mut apostrophe_encoded = false;
-        desired_filename = ct
-            .params
-            .iter()
-            .filter(|(key, _value)| key.starts_with("filename*"))
-            .fold(None, |acc, (key, value)| {
-                if key.ends_with('*') {
-                    apostrophe_encoded = true;
-                }
-                if let Some(acc) = acc {
-                    Some(acc + value)
-                } else {
-                    Some(value.to_string())
-                }
-            });
-        if apostrophe_encoded {
-            if let Some(name) = desired_filename {
-                let mut parts = name.splitn(3, '\'');
-                desired_filename =
-                    if let (Some(charset), Some(value)) = (parts.next(), parts.last()) {
-                        let decoded_bytes = percent_decode_str(value);
-                        if charset.to_lowercase() == "utf-8" {
-                            Some(decoded_bytes.decode_utf8_lossy().to_string())
-                        } else {
-                            // encoded_words crate say, latin-1 is not reported; moreover, latin1 is a good default
-                            if let Some(charset) = Charset::for_label(charset.as_bytes())
-                                .or_else(|| Charset::for_label(b"latin1"))
-                            {
-                                let decoded_bytes = decoded_bytes.collect::<Vec<u8>>();
-                                let (utf8_str, _, _) = charset.decode(&*decoded_bytes);
-                                Some(utf8_str.into())
-                            } else {
-                                warn!(context, "latin1 encoding does not exist");
-                                None
-                            }
-                        }
-                    } else {
-                        warn!(context, "apostrophed encoding invalid: {}", name);
-                        // be graceful and just use the original name.
-                        // some MUA, including Delta Chat up to core1.50,
-                        // use `filename*` mistakenly for simple encoded-words without following rfc2231
-                        Some(name)
-                    }
-            }
+        if let Some(name) = ct.params.get("filename*").map(|s| s.to_string()) {
+            // be graceful and just use the original name.
+            // some MUA, including Delta Chat up to core1.50,
+            // use `filename*` mistakenly for simple encoded-words without following rfc2231
+            warn!(context, "apostrophed encoding invalid: {}", name);
+            desired_filename = Some(name);
         }
     }
 
@@ -1918,13 +1874,6 @@ mod tests {
         );
         let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
-    }
-
-    #[test]
-    fn test_charset_latin1() {
-        // make sure, latin1 exists under this name
-        // as we're using it as default in get_attachment_filename() for non-utf-8
-        assert!(Charset::for_label(b"latin1").is_some());
     }
 
     #[test]
