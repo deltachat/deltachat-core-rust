@@ -483,7 +483,7 @@ char*           dc_get_oauth2_url            (dc_context_t* context, const char*
  * Meant as a rough overview that can be shown 
  * e.g. in the title of the main screen.
  *
- * If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+ * If the connectivity changes, a #DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -498,7 +498,7 @@ int             dc_get_connectivity          (dc_context_t* context);
  * the basic connectivity info returned by dc_get_connectivity(); show this
  * e.g., if the user taps on said basic connectivity info.
  *
- * If this page changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+ * If this page changes, a #DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
  *
  * This comes as an HTML from the core so that we can easily improve it
  * and the improvement instantly reaches all UIs.
@@ -2605,12 +2605,12 @@ int            dc_accounts_select_account       (dc_accounts_t* accounts, uint32
  * - call dc_start_io() (in case IO was not running)
  * - call dc_maybe_network()
  * - while dc_accounts_all_work_done() returns false:
- *   -  Wait for DC_EVENT_CONNECTIVITY_CHANGED
+ *   -  Wait for #DC_EVENT_CONNECTIVITY_CHANGED
  *
  * @memberof dc_accounts_t
  * @param accounts Account manager as created by dc_accounts_new().
  * @return Whether all accounts finished their background work.
- *      DC_EVENT_CONNECTIVITY_CHANGED will be sent when this turns to true.
+ *      #DC_EVENT_CONNECTIVITY_CHANGED will be sent when this turns to true.
  */
 int            dc_accounts_all_work_done        (dc_accounts_t* accounts);
 
@@ -5216,6 +5216,9 @@ void dc_event_unref(dc_event_t* event);
  * This means that you should refresh the connectivity view
  * and possibly the connectivtiy HTML; see dc_get_connectivity() and
  * dc_get_connectivity_html() for details.
+ *
+ * @param data1 0
+ * @param data2 0
  */
 #define DC_EVENT_CONNECTIVITY_CHANGED             2100
 
