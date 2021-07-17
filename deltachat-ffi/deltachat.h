@@ -5775,26 +5775,27 @@ void dc_event_unref(dc_event_t* event);
 /// Send as device message to the user when their email provider does not support the quota extention.
 #define DC_STR_QUOTA_NOT_SUPPORTED        99
 
-/// "Messages"
+/// "Messages: %1$s/%2$s"
 ///
 /// Used in the quota report message.
 ///
 /// Example usage: Messages: 3912/6000
-#define DC_STR_QUOTA_MESSAGES            100
+#define DC_STR_QUOTA_MESSAGES_USAGE      100
 
-/// "Storage"
+/// "Storage: %1$s/%2$s"
 ///
 /// Used in the quota report message.
 ///
 /// Example usage: Storage: 169.33 MiB/1000 MiB
-#define DC_STR_QUOTA_STORAGE             101
+#define DC_STR_QUOTA_STORAGE_USAGE       101
 
 /// "%1$s: %2$s/%3$s"
 ///
-/// The format Used in the quota report message.
+/// Used in the quota report message, this is the the format used
+/// when the resource type is something different than message-count or storage.
 ///
-/// Example usage: $type_name: $usage/$limit (see examples of DC_STR_QUOTA_MESSAGES and DC_STR_QUOTA_STORAGE)
-#define DC_STR_QUOTA_USAGE             102
+/// Example usage: $type_name: $usage/$limit
+#define DC_STR_QUOTA_RESOURCE_USAGE      102
 
 /**
  * @}

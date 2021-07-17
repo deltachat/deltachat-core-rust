@@ -273,11 +273,11 @@ pub enum StockMessage {
     #[strum(props(fallback = "Your email server does not support the quota extension"))]
     QuotaNotSupported = 99,
 
-    #[strum(props(fallback = "Messages"))]
-    QuotaResourceMessages = 100,
+    #[strum(props(fallback = "Messages: %1$s/%2$s"))]
+    QuotaMessagesUsage = 100,
 
-    #[strum(props(fallback = "Storage"))]
-    QuotaResourceStorage = 101,
+    #[strum(props(fallback = "Storage: %1$s/%2$s"))]
+    QuotaStorageUsage = 101,
 
     #[strum(props(fallback = "%1$s: %2$s/%3$s"))]
     QuotaResourceUsage = 102,
@@ -889,14 +889,28 @@ pub(crate) async fn quota_not_supported(context: &Context) -> String {
     translated(context, StockMessage::QuotaNotSupported).await
 }
 
-/// Stock string: `QuotaResourceMessages`.
-pub(crate) async fn quota_resource_messages(context: &Context) -> String {
-    translated(context, StockMessage::QuotaResourceMessages).await
+/// Stock string: `QuotaMessagesUsage`.
+pub(crate) async fn quota_messages_usage(
+    context: &Context,
+    usage: impl AsRef<str>,
+    limit: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::QuotaMessagesUsage)
+        .await
+        .replace1(usage)
+        .replace2(limit)
 }
 
-/// Stock string: `QuotaResourceStorage`.
-pub(crate) async fn quota_resource_storage(context: &Context) -> String {
-    translated(context, StockMessage::QuotaResourceStorage).await
+/// Stock string: `QuotaStorageUsage`.
+pub(crate) async fn quota_storage_usage(
+    context: &Context,
+    usage: impl AsRef<str>,
+    limit: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::QuotaStorageUsage)
+        .await
+        .replace1(usage)
+        .replace2(limit)
 }
 
 /// Stock string: `QuotaResourceUsage`.

@@ -6,8 +6,8 @@ use indexmap::IndexMap;
 use crate::context::Context;
 use crate::imap::Imap;
 use crate::stock_str::{
-    quota_mailbox_nearly_full, quota_not_supported, quota_resource_messages,
-    quota_resource_storage, quota_resource_usage,
+    quota_mailbox_nearly_full, quota_messages_usage, quota_not_supported, quota_resource_usage,
+    quota_storage_usage,
 };
 use crate::{
     chat::{add_device_msg, add_device_msg_with_importance},
@@ -56,8 +56,6 @@ async fn generate_report_message(
 ) -> Result<String> {
     let mut message = String::new();
 
-    let storage_stock_string = quota_resource_storage(context).await;
-    let messages_stock_string = quota_resource_messages(context).await;
     for (name, quota_resources) in unique_quota_roots {
         message.push_str(&format!("{}:\n", &name));
         use async_imap::types::QuotaResourceName::*;
@@ -73,9 +71,8 @@ async fn generate_report_message(
                     .await
                 }
                 Message => {
-                    quota_resource_usage(
+                    quota_messages_usage(
                         context,
-                        &messages_stock_string,
                         resource.usage.to_string(),
                         resource.limit.to_string(),
                     )
@@ -88,7 +85,7 @@ async fn generate_report_message(
                     let limit = (resource.limit * 1024)
                         .file_size(file_size_opts::BINARY)
                         .map_err(|err| anyhow!("{}", err))?;
-                    quota_resource_usage(context, &storage_stock_string, used, limit).await
+                    quota_storage_usage(context, used, limit).await
                 }
             });
             message.push('\n');
