@@ -50,6 +50,7 @@
 - Do not process names, avatars, location XMLs, message signature
 etc. for duplicate messages. #2513
 - Fix `can_send` for users not in group #2479
+- Allow email addresses without dot in the domain part #2112
 
 ## 1.56.0
 
