@@ -156,6 +156,13 @@ pub enum Config {
     /// Timestamp of the last time housekeeping was run
     LastHousekeeping,
 
+    /// Timestamp of the last time check quota was run
+    LastQuotaCheck,
+
+    /// Allows the user to disable the quotacheck when their mailserver sends wrong quota resource usage.
+    /// So they don't get the warning message each day in that case.
+    DisableQuotaCheck,
+
     /// To how many seconds to debounce scan_all_folders. Used mainly in tests, to disable debouncing completely.
     #[strum(props(default = "60"))]
     ScanAllFoldersDebounceSecs,

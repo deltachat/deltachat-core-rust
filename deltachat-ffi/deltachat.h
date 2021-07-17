@@ -214,6 +214,19 @@ void            dc_context_unref             (dc_context_t* context);
 
 
 /**
+ * Generates a detailed report about the current Quota usage on the for deltachat relevant folders
+ * and sends it to the user as devicemessage.
+ *
+ * It's a bit like the prepaid mobile carrier service menu/messages,
+ * where you type a special number and then get a message back with your current balance.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as created by dc_context_new().
+ */
+void            dc_request_quota_report      (dc_context_t* context);
+
+
+/**
  * Get the ID of a context object.
  * Each context has an ID assigned.
  * If the context was created through the dc_accounts_t account manager,
@@ -346,6 +359,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
+ * - `disable_quota_check` = Set to one to "1" disable the daily quotacheck.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
@@ -5748,6 +5762,40 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used in message summary text for notifications and chatlist.
 #define DC_STR_FORWARDED                  97
+
+/// "Your mailbox on your email account is running full! [...]"
+///
+/// Send as device message to the user when their mailbox is nearly full
+///
+/// The message is longer and also contains suggestions for possible solutions.
+#define DC_STR_QUOTA_MAILBOX_NEARLY_FULL  98
+
+/// "Your email server does not support the quota extension"
+///
+/// Send as device message to the user when their email provider does not support the quota extention.
+#define DC_STR_QUOTA_NOT_SUPPORTED        99
+
+/// "Messages: %1$s/%2$s"
+///
+/// Used in the quota report message.
+///
+/// Example usage: Messages: 3912/6000
+#define DC_STR_QUOTA_MESSAGES_USAGE      100
+
+/// "Storage: %1$s/%2$s"
+///
+/// Used in the quota report message.
+///
+/// Example usage: Storage: 169.33 MiB/1000 MiB
+#define DC_STR_QUOTA_STORAGE_USAGE       101
+
+/// "%1$s: %2$s/%3$s"
+///
+/// Used in the quota report message, this is the the format used
+/// when the resource type is something different than message-count or storage.
+///
+/// Example usage: $type_name: $usage/$limit
+#define DC_STR_QUOTA_RESOURCE_USAGE      102
 
 /**
  * @}

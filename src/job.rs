@@ -12,8 +12,6 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
-use crate::blob::BlobObject;
-use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ChatItem};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, DC_CHAT_ID_DEADDROP};
 use crate::contact::{normalize_name, Contact, Modifier, Origin};
@@ -30,6 +28,14 @@ use crate::param::{Param, Params};
 use crate::scheduler::InterruptInfo;
 use crate::smtp::Smtp;
 use crate::sql;
+use crate::{
+    blob::BlobObject,
+    quota::{check_quota_job, quota_usage_report_job},
+};
+use crate::{
+    chat::{self, Chat, ChatId, ChatIdBlocked, ChatItem},
+    quota::CHECK_QUOTA_FREQUENCY,
+};
 
 // results in ~3 weeks for the last backoff timespan
 const JOB_RETRIES: u32 = 17;
@@ -93,8 +99,12 @@ pub enum Action {
 
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
+    CheckQuota = 106,
     FetchExistingMsgs = 110,
     MarkseenMsgOnImap = 130,
+
+    // this is user initiated so it should have a fairly high priority
+    GenerateQuotaUsageReport = 140,
 
     // Moving message is prioritized lower than deletion so we don't
     // bother moving message if it is already scheduled for deletion.
@@ -126,11 +136,13 @@ impl From<Action> for Thread {
             Unknown => Thread::Unknown,
 
             Housekeeping => Thread::Imap,
+            CheckQuota => Thread::Imap,
             FetchExistingMsgs => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
             ResyncFolders => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
             MoveMsg => Thread::Imap,
+            GenerateQuotaUsageReport => Thread::Imap,
 
             MaybeSendLocations => Thread::Smtp,
             MaybeSendLocationsEnded => Thread::Smtp,
@@ -839,6 +851,52 @@ impl Job {
             }
         }
     }
+
+    /// Generates a detailed report about the current Quota usage on the for deltachat relevant folders
+    /// and sends it to the user via devicemessage
+    ///
+    /// It's a bit like the prepaid mobile carrier service menu/messages,
+    /// where you type a special number and then get a message back with your current balance.
+    async fn generate_quota_usage_report(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(err) = quota_usage_report_job(context, imap).await {
+            warn!(context, "check quota failed: {:?}", err);
+            return Status::RetryLater;
+        }
+
+        Status::Finished(Ok(()))
+    }
+
+    /// Regular quota check that should run once per CHECK_QUOTA_FREQUENCY
+    /// and inform the user when their account is running full
+    /// by posting a devicemessage suggesting to enable autodeletion.
+    async fn check_quota(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(e) = context
+            .set_config(Config::LastQuotaCheck, Some(&time().to_string()))
+            .await
+        {
+            warn!(context, "Can't set config: {}", e);
+        }
+
+        // check DisableQuotaCheck config here to make sure the change is instant. (user won't get the warning even if the job is already queued)
+        // also do it after setting the LastQuotaCheck to prevent looping
+        match context.get_config_bool(Config::DisableQuotaCheck).await {
+            Ok(true) => return Status::Finished(Ok(())),
+            Ok(false) => {}
+            Err(err) => {
+                warn!(
+                    context,
+                    "failed to load DisableQuotaCheck config: {:?}", err
+                );
+            }
+        }
+
+        if let Err(err) = check_quota_job(context, imap).await {
+            warn!(context, "check quota failed: {:?}", err);
+            return Status::RetryLater;
+        }
+
+        Status::Finished(Ok(()))
+    }
 }
 
 /// Delete all pending jobs with the given action.
@@ -1186,6 +1244,11 @@ async fn perform_job_action(
             sql::housekeeping(context).await.ok_or_log(context);
             Status::Finished(Ok(()))
         }
+        Action::GenerateQuotaUsageReport => {
+            job.generate_quota_usage_report(context, connection.inbox())
+                .await
+        }
+        Action::CheckQuota => job.check_quota(context, connection.inbox()).await,
     };
 
     info!(context, "Finished immediate try {} of job {}", tries, job);
@@ -1248,7 +1311,9 @@ pub async fn add(context: &Context, job: Job) {
             | Action::ResyncFolders
             | Action::MarkseenMsgOnImap
             | Action::FetchExistingMsgs
-            | Action::MoveMsg => {
+            | Action::MoveMsg
+            | Action::GenerateQuotaUsageReport
+            | Action::CheckQuota => {
                 info!(context, "interrupt: imap");
                 context
                     .interrupt_inbox(InterruptInfo::new(false, None))
@@ -1280,6 +1345,28 @@ async fn load_housekeeping_job(context: &Context) -> Option<Job> {
     if next_time <= time() {
         kill_action(context, Action::Housekeeping).await;
         Some(Job::new(Action::Housekeeping, 0, Params::new(), 0))
+    } else {
+        None
+    }
+}
+
+async fn load_check_quota_job(context: &Context) -> Option<Job> {
+    if action_exists(context, Action::CheckQuota).await {
+        return None;
+    }
+
+    let last_time = match context.get_config_i64(Config::LastQuotaCheck).await {
+        Ok(last_time) => last_time,
+        Err(err) => {
+            warn!(context, "failed to load lastQuotaCheck config: {:?}", err);
+            return None;
+        }
+    };
+
+    let next_time = last_time + CHECK_QUOTA_FREQUENCY;
+    if next_time <= time() {
+        kill_action(context, Action::CheckQuota).await;
+        Some(Job::new(Action::CheckQuota, 0, Params::new(), 0))
     } else {
         None
     }
@@ -1416,8 +1503,10 @@ LIMIT 1;
                 }
             } else if let Some(job) = load_imap_deletion_job(context).await.unwrap_or_default() {
                 Some(job)
+            } else if let Some(job) = load_housekeeping_job(context).await {
+                Some(job)
             } else {
-                load_housekeeping_job(context).await
+                load_check_quota_job(context).await
             }
         }
         Thread::Smtp => job,

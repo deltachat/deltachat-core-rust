@@ -261,6 +261,26 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Forwarded"))]
     Forwarded = 97,
+
+    #[strum(props(fallback = "Your mailbox on your email account is running full!\
+        \nPossible Solutions:\
+        \n- Delete old messages on the server\
+        \n- or enable \"Delete old messages from server\" in the deltachat settings\
+        \n- or upgrade your plan with your email provider\
+        \nIf you don't take action you will soon be unable to receive messages."))]
+    QuotaMailboxNearlyFull = 98,
+
+    #[strum(props(fallback = "Your email server does not support the quota extension"))]
+    QuotaNotSupported = 99,
+
+    #[strum(props(fallback = "Messages: %1$s/%2$s"))]
+    QuotaMessagesUsage = 100,
+
+    #[strum(props(fallback = "Storage: %1$s/%2$s"))]
+    QuotaStorageUsage = 101,
+
+    #[strum(props(fallback = "%1$s: %2$s/%3$s"))]
+    QuotaResourceUsage = 102,
 }
 
 impl StockMessage {
@@ -302,6 +322,17 @@ trait StockStringMods: AsRef<str> + Sized {
             .replacen("%2$s", replacement.as_ref(), 1)
             .replacen("%2$d", replacement.as_ref(), 1)
             .replacen("%2$@", replacement.as_ref(), 1)
+    }
+
+    /// Substitutes the third replacement value if one is present.
+    ///
+    /// Be aware you probably should have also called [`StockStringMods::replace1`]
+    /// and [`StockStringMods::replace2`] if you are calling this.
+    fn replace3(&self, replacement: impl AsRef<str>) -> String {
+        self.as_ref()
+            .replacen("%3$s", replacement.as_ref(), 1)
+            .replacen("%3$d", replacement.as_ref(), 1)
+            .replacen("%3$@", replacement.as_ref(), 1)
     }
 
     /// Augments the message by saying it was performed by a user.
@@ -846,6 +877,54 @@ pub(crate) async fn msg_ephemeral_timer_weeks(
 /// Stock string: `Forwarded`.
 pub(crate) async fn forwarded(context: &Context) -> String {
     translated(context, StockMessage::Forwarded).await
+}
+
+/// Stock string: `QuotaMailboxNearlyFull`.
+pub(crate) async fn quota_mailbox_nearly_full(context: &Context) -> String {
+    translated(context, StockMessage::QuotaMailboxNearlyFull).await
+}
+
+/// Stock string: `QuotaNotSupported`.
+pub(crate) async fn quota_not_supported(context: &Context) -> String {
+    translated(context, StockMessage::QuotaNotSupported).await
+}
+
+/// Stock string: `QuotaMessagesUsage`.
+pub(crate) async fn quota_messages_usage(
+    context: &Context,
+    usage: impl AsRef<str>,
+    limit: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::QuotaMessagesUsage)
+        .await
+        .replace1(usage)
+        .replace2(limit)
+}
+
+/// Stock string: `QuotaStorageUsage`.
+pub(crate) async fn quota_storage_usage(
+    context: &Context,
+    usage: impl AsRef<str>,
+    limit: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::QuotaStorageUsage)
+        .await
+        .replace1(usage)
+        .replace2(limit)
+}
+
+/// Stock string: `QuotaResourceUsage`.
+pub(crate) async fn quota_resource_usage(
+    context: &Context,
+    resource_name: impl AsRef<str>,
+    usage: impl AsRef<str>,
+    limit: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::QuotaResourceUsage)
+        .await
+        .replace1(resource_name)
+        .replace2(usage)
+        .replace3(limit)
 }
 
 impl Context {

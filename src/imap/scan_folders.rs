@@ -93,7 +93,7 @@ impl Imap {
     }
 }
 
-async fn get_watched_folders(context: &Context) -> Vec<String> {
+pub(crate) async fn get_watched_folders(context: &Context) -> Vec<String> {
     let mut res = Vec::new();
     let folder_watched_configured = &[
         (Config::SentboxWatch, Config::ConfiguredSentboxFolder),

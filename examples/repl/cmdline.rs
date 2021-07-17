@@ -419,6 +419,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  event <event-id to test>\n\
                  fileinfo <file>\n\
                  estimatedeletion <seconds>\n\
+                 requestquotareport\n\
                  clear -- clear screen\n\
                  exit or quit\n\
                  ============================================="
@@ -1215,6 +1216,9 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 "estimated count of messages older than {} seconds:\non device: {}\non server: {}",
                 seconds, device_cnt, server_cnt
             );
+        }
+        "requestquotareport" => {
+            context.request_quota_report().await;
         }
         "" => (),
         _ => bail!("Unknown command: \"{}\" type ? for help.", arg0),
