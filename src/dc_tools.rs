@@ -608,19 +608,8 @@ impl FromStr for EmailAddress {
                 if local.is_empty() {
                     return err("empty string is not valid for local part");
                 }
-                if domain.len() <= 3 {
-                    return err("domain is too short");
-                }
-                let dot = domain.find('.');
-                match dot {
-                    None => {
-                        return err("invalid domain");
-                    }
-                    Some(dot_idx) => {
-                        if dot_idx >= domain.len() - 2 {
-                            return err("invalid domain");
-                        }
-                    }
+                if domain.is_empty() {
+                    return err("missing domain after '@'");
                 }
                 Ok(EmailAddress {
                     local: (*local).to_string(),
@@ -825,12 +814,19 @@ mod tests {
                 domain: "domain.tld".into(),
             }
         );
+        assert_eq!(
+            "user@localhost".parse::<EmailAddress>().unwrap(),
+            EmailAddress {
+                local: "user".into(),
+                domain: "localhost".into()
+            }
+        );
         assert_eq!("uuu".parse::<EmailAddress>().is_ok(), false);
         assert_eq!("dd.tt".parse::<EmailAddress>().is_ok(), false);
-        assert_eq!("tt.dd@uu".parse::<EmailAddress>().is_ok(), false);
-        assert_eq!("u@d".parse::<EmailAddress>().is_ok(), false);
-        assert_eq!("u@d.".parse::<EmailAddress>().is_ok(), false);
-        assert_eq!("u@d.t".parse::<EmailAddress>().is_ok(), false);
+        assert!("tt.dd@uu".parse::<EmailAddress>().is_ok());
+        assert!("u@d".parse::<EmailAddress>().is_ok());
+        assert!("u@d.".parse::<EmailAddress>().is_ok());
+        assert!("u@d.t".parse::<EmailAddress>().is_ok());
         assert_eq!(
             "u@d.tt".parse::<EmailAddress>().unwrap(),
             EmailAddress {
@@ -838,7 +834,7 @@ mod tests {
                 domain: "d.tt".into(),
             }
         );
-        assert_eq!("u@tt".parse::<EmailAddress>().is_ok(), false);
+        assert!("u@tt".parse::<EmailAddress>().is_ok());
         assert_eq!("@d.tt".parse::<EmailAddress>().is_ok(), false);
     }
 

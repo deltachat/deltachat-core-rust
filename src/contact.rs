@@ -1390,12 +1390,12 @@ mod tests {
         assert_eq!(may_be_valid_addr("user@domain.tld"), true);
         assert_eq!(may_be_valid_addr("uuu"), false);
         assert_eq!(may_be_valid_addr("dd.tt"), false);
-        assert_eq!(may_be_valid_addr("tt.dd@uu"), false);
-        assert_eq!(may_be_valid_addr("u@d"), false);
-        assert_eq!(may_be_valid_addr("u@d."), false);
-        assert_eq!(may_be_valid_addr("u@d.t"), false);
+        assert_eq!(may_be_valid_addr("tt.dd@uu"), true);
+        assert_eq!(may_be_valid_addr("u@d"), true);
+        assert_eq!(may_be_valid_addr("u@d."), true);
+        assert_eq!(may_be_valid_addr("u@d.t"), true);
         assert_eq!(may_be_valid_addr("u@d.tt"), true);
-        assert_eq!(may_be_valid_addr("u@.tt"), false);
+        assert_eq!(may_be_valid_addr("u@.tt"), true);
         assert_eq!(may_be_valid_addr("@d.tt"), false);
         assert_eq!(may_be_valid_addr("<da@d.tt"), false);
         assert_eq!(may_be_valid_addr("sk <@d.tt>"), false);
@@ -1837,9 +1837,6 @@ mod tests {
             .is_err());
         assert!(Contact::create(&t, "", "dskjfdslksadklj.dk").await.is_err());
         assert!(Contact::create(&t, "", "dskjfdslk@sadklj.dk>")
-            .await
-            .is_err());
-        assert!(Contact::create(&t, "", "dskjf@dslk@sadkljdk")
             .await
             .is_err());
         assert!(Contact::create(&t, "", "dskjf dslk@d.e").await.is_err());
