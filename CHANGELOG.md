@@ -32,6 +32,7 @@
 - updated spec: new `Chat-User-Avatar` usage, `Chat-Content: sticker`, structure, copyright year #2480
 - breaking: `Accounts::create` does not also create an default account anymore #2500
 - remove "forwarded" from stickers, as the primary way of getting stickers is by asking a bot and then forwarding them currently #2526
+- mimeparser: use mailparse to parse RFC 2231 filenames #2543
 
 ### Removed
 - remove dc_accounts_import_account() api #2521
@@ -48,6 +49,7 @@
 - fixes for message timestamps #2517
 - Do not process names, avatars, location XMLs, message signature
 etc. for duplicate messages. #2513
+- Fix `can_send` for users not in group #2479
 
 ## 1.56.0
 
