@@ -474,7 +474,7 @@ async fn add_parts(
             // try to assign to a chat based on In-Reply-To/References:
 
             let (new_chat_id, new_chat_id_blocked) =
-                lookup_chat_by_reply(context, &mime_parser, from_id, to_ids).await?;
+                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?;
             *chat_id = new_chat_id;
             chat_id_blocked = new_chat_id_blocked;
         }
@@ -697,6 +697,15 @@ async fn add_parts(
             info!(context, "Email is probably just a draft (TRASH)");
             *chat_id = DC_CHAT_ID_TRASH;
             allow_creation = false;
+        }
+
+        if chat_id.is_unset() {
+            // try to assign to a chat based on In-Reply-To/References:
+
+            let (new_chat_id, new_chat_id_blocked) =
+                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?;
+            *chat_id = new_chat_id;
+            chat_id_blocked = new_chat_id_blocked;
         }
 
         if !to_ids.is_empty() {
@@ -1208,6 +1217,7 @@ async fn calc_sort_timestamp(
 async fn lookup_chat_by_reply(
     context: &Context,
     mime_parser: &&mut MimeMessage,
+    parent: &Option<Message>,
     from_id: u32,
     to_ids: &ContactIds,
 ) -> Result<(ChatId, Blocked)> {
@@ -1216,59 +1226,76 @@ async fn lookup_chat_by_reply(
     // If this was a private message just to self, it was probably a private reply.
     // It should not go into the group then, but into the private chat.
 
-    let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>();
-    let classical_email = mime_parser.get(HeaderDef::ChatVersion).is_none();
+    if let Some(parent) = parent {
+        let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
-    if (!private_message) || classical_email {
-        if let Some(parent) = get_parent_message(context, mime_parser).await? {
-            let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
-            let chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
-
-            if let Some(msg_grpid) = try_getting_grpid(mime_parser) {
-                if msg_grpid == parent_chat.grpid {
-                    // This message will be assigned to this chat, anyway.
-                    // But if we assigned it now, create_or_lookup_group() will not be called
-                    // and group commands will not be executed.
-                    return Ok((ChatId::new(0), Blocked::Not));
-                }
-            }
-
-            if parent.error.is_some() {
-                // If the parent msg is undecipherable, then it may have been assigned to the wrong chat
-                // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
-                // We don't have any way of finding out whether a msg is undecipherable, so we check for
-                // error.is_some() instead.
+        if let Some(msg_grpid) = try_getting_grpid(mime_parser) {
+            if msg_grpid == parent_chat.grpid {
+                // This message will be assigned to this chat, anyway.
+                // But if we assigned it now, create_or_lookup_group() will not be called
+                // and group commands will not be executed.
                 return Ok((ChatId::new(0), Blocked::Not));
-            }
-
-            if parent_chat.id == DC_CHAT_ID_TRASH {
-                return Ok((ChatId::new(0), Blocked::Not));
-            }
-
-            // Usually we don't want to show private messages in the parent chat, but in the
-            // 1:1 chat with the sender.
-            // This is to make sure that private replies are shown in the correct chat.
-            //
-            // There is one exception: Classical MUA replies to two-member groups
-            // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
-            // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
-            if (!private_message)
-                || (classical_email
-                    && chat_contacts.len() == 2
-                    && chat_contacts.contains(&DC_CONTACT_ID_SELF)
-                    && chat_contacts.contains(&from_id))
-            {
-                info!(
-                    context,
-                    "Assigning message to {} as it's a reply to {}",
-                    parent_chat.id,
-                    parent.rfc724_mid
-                );
-                return Ok((parent_chat.id, parent_chat.blocked));
             }
         }
+
+        if parent.error.is_some() {
+            // If the parent msg is undecipherable, then it may have been assigned to the wrong chat
+            // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
+            // We don't have any way of finding out whether a msg is undecipherable, so we check for
+            // error.is_some() instead.
+            return Ok((ChatId::new(0), Blocked::Not));
+        }
+
+        if parent_chat.id == DC_CHAT_ID_TRASH {
+            return Ok((ChatId::new(0), Blocked::Not));
+        }
+
+        if is_probably_private_reply(context, to_ids, mime_parser, parent_chat.id, from_id).await? {
+            return Ok((ChatId::new(0), Blocked::Not));
+        }
+
+        info!(
+            context,
+            "Assigning message to {} as it's a reply to {}", parent_chat.id, parent.rfc724_mid
+        );
+        return Ok((parent_chat.id, parent_chat.blocked));
     }
-    return Ok((ChatId::new(0), Blocked::Not));
+
+    Ok((ChatId::new(0), Blocked::Not))
+}
+
+/// If this method returns true, the message shall be assigned to the 1:1 chat with the sender.
+/// If it returns false, it shall be assigned to the parent chat.
+async fn is_probably_private_reply(
+    context: &Context,
+    to_ids: &indexmap::IndexSet<u32>,
+    mime_parser: &MimeMessage,
+    parent_chat_id: ChatId,
+    from_id: u32,
+) -> Result<bool> {
+    // Usually we don't want to show private replies in the parent chat, but in the
+    // 1:1 chat with the sender.
+    //
+    // There is one exception: Classical MUA replies to two-member groups
+    // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
+    // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
+
+    let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>();
+    if !private_message {
+        return Ok(false);
+    }
+
+    if !mime_parser.has_chat_version() {
+        let chat_contacts = chat::get_chat_contacts(context, parent_chat_id).await?;
+        if chat_contacts.len() == 2
+            && chat_contacts.contains(&DC_CONTACT_ID_SELF)
+            && chat_contacts.contains(&from_id)
+        {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
 }
 
 /// This function tries to extract the group-id from the message and returns the
@@ -1332,6 +1359,19 @@ async fn create_or_lookup_group(
             });
     };
 
+    // check, if we have a chat with this group ID
+    let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
+        .await
+        .unwrap_or((ChatId::new(0), false, Blocked::Not));
+
+    // For chat messages, we don't have to guess (is_*probably*_private_reply()) but we know for sure that
+    // they belong to the group because of the Chat-Group-Id or Message-Id header
+    if !mime_parser.has_chat_version()
+        && is_probably_private_reply(context, to_ids, mime_parser, chat_id, from_id).await?
+    {
+        return Ok((ChatId::new(0), Blocked::Not));
+    }
+
     // now we have a grpid that is non-empty
     // but we might not know about this group
 
@@ -1390,11 +1430,6 @@ async fn create_or_lookup_group(
         }
     }
     set_better_msg(mime_parser, &better_msg);
-
-    // check, if we have a chat with this group ID
-    let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
-        .await
-        .unwrap_or((ChatId::new(0), false, Blocked::Not));
 
     // check if the group does not exist but should be created
     let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid)
@@ -4119,5 +4154,302 @@ Second signature";
         assert_eq!(contact.get_display_name(), "Bob2");
 
         Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_chat_assignment_private_classical_reply() {
+        for outgoing_is_classical in &[true, false] {
+            let t = TestContext::new_alice().await;
+            t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+            dc_receive_imf(
+                &t,
+                format!(
+                    r#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+Subject: =?utf-8?q?single_reply-to?=
+{}
+Date: Fri, 28 May 2021 10:15:05 +0000
+To: Bob <bob@example.com>, <claire@example.com>
+From: Alice <alice@example.com>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Content-Transfer-Encoding: quoted-printable
+
+Hello, I've just created the group "single reply-to" for us."#,
+                    if *outgoing_is_classical {
+                        r"Message-ID: abcd@gmx.de"
+                    } else {
+                        r"Chat-Group-ID: eJ_llQIXf0K
+Chat-Group-Name: =?utf-8?q?single_reply-to?=
+References: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
+Chat-Version: 1.0
+Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>"
+                    }
+                )
+                .as_bytes(),
+                "Inbox",
+                1,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let group_msg = t.get_last_msg().await;
+            assert_eq!(
+                group_msg.text.unwrap(),
+                if *outgoing_is_classical {
+                    "single reply-to – Hello, I\'ve just created the group \"single reply-to\" for us."
+                } else {
+                    "Hello, I've just created the group \"single reply-to\" for us."
+                }
+            );
+            let group_chat = Chat::load_from_db(&t, group_msg.chat_id).await.unwrap();
+            assert_eq!(group_chat.typ, Chattype::Group);
+            assert_eq!(group_chat.name, "single reply-to");
+
+            dc_receive_imf(
+                &t,
+                format!(
+                    r#"Subject: Re: single reply-to
+To: "Alice" <alice@example.com>
+References: <{0}>
+ <{0}>
+From: Bob <bob@example.com>
+Message-ID: <028674eb-77f9-4ad1-1c30-e93e18b891c8@testrun.org>
+Date: Fri, 28 May 2021 12:17:03 +0200
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:78.0) Gecko/20100101
+ Thunderbird/78.10.2
+MIME-Version: 1.0
+In-Reply-To: <{0}>
+
+Private reply"#,
+                    if *outgoing_is_classical {
+                        "abcd@gmx.de"
+                    } else {
+                        "Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de"
+                    }
+                )
+                .as_bytes(),
+                "Inbox",
+                2,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let private_msg = t.get_last_msg().await;
+            assert_eq!(private_msg.text.unwrap(), "Private reply");
+            let private_chat = Chat::load_from_db(&t, private_msg.chat_id).await.unwrap();
+            assert_eq!(private_chat.typ, Chattype::Single);
+            assert_ne!(private_msg.chat_id, group_msg.chat_id);
+        }
+    }
+
+    #[async_std::test]
+    async fn test_chat_assignment_private_chat_reply() {
+        for (outgoing_is_classical, outgoing_has_multiple_recipients) in
+            &[(true, true), (false, true), (false, false)]
+        {
+            let t = TestContext::new_alice().await;
+            t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+            dc_receive_imf(
+                &t,
+                format!(
+                    r#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+Subject: =?utf-8?q?single_reply-to?=
+{}
+Date: Fri, 28 May 2021 10:15:05 +0000
+To: Bob <bob@example.com>{}
+From: Alice <alice@example.com>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Content-Transfer-Encoding: quoted-printable
+
+Hello, I've just created the group "single reply-to" for us."#,
+                    if *outgoing_is_classical {
+                        r"Message-ID: abcd@gmx.de"
+                    } else {
+                        r"Chat-Group-ID: eJ_llQIXf0K
+Chat-Group-Name: =?utf-8?q?single_reply-to?=
+References: <Gr.iy1KCE2y65_.mH2TM52miv9@testrun.org>
+Chat-Version: 1.0
+Message-ID: <Gr.iy1KCE2y65_.mH2TM52miv9@testrun.org>"
+                    },
+                    if *outgoing_has_multiple_recipients {
+                        ", <claire@example.com>"
+                    } else {
+                        ""
+                    }
+                )
+                .as_bytes(),
+                "Inbox",
+                1,
+                false,
+            )
+            .await
+            .unwrap();
+            let group_msg = t.get_last_msg().await;
+            assert_eq!(
+                group_msg.text.unwrap(),
+                if *outgoing_is_classical {
+                    "single reply-to – Hello, I\'ve just created the group \"single reply-to\" for us."
+                } else {
+                    "Hello, I've just created the group \"single reply-to\" for us."
+                }
+            );
+            let group_chat = Chat::load_from_db(&t, group_msg.chat_id).await.unwrap();
+            assert_eq!(group_chat.typ, Chattype::Group);
+            assert_eq!(group_chat.name, "single reply-to");
+
+            dc_receive_imf(
+                &t,
+                format!(
+                    r#"Subject: =?utf-8?q?Re=3A_single_reply-to?=
+MIME-Version: 1.0
+In-Reply-To: <{0}>
+Date: Sat, 03 Jul 2021 20:00:26 +0000
+Chat-Version: 1.0
+Message-ID: <Mr.CJFwF5hwn8W.Pd-GGH5m32k@gmx.de>
+To: <alice@example.com>
+From: <bob@example.com>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Content-Transfer-Encoding: quoted-printable
+
+> Hello, I've just created the group "single reply-to" for us.
+
+Private reply
+
+=2D-
+Sent with my Delta Chat Messenger: https://delta.chat
+
+"#,
+                    if *outgoing_is_classical {
+                        "abcd@gmx.de"
+                    } else {
+                        "Gr.iy1KCE2y65_.mH2TM52miv9@testrun.org"
+                    }
+                )
+                .as_bytes(),
+                "Inbox",
+                2,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let private_msg = t.get_last_msg().await;
+            assert_eq!(private_msg.text.unwrap(), "Private reply");
+            let private_chat = Chat::load_from_db(&t, private_msg.chat_id).await.unwrap();
+            assert_eq!(private_chat.typ, Chattype::Single);
+            assert_ne!(private_msg.chat_id, group_msg.chat_id);
+        }
+    }
+
+    #[async_std::test]
+    async fn test_chat_assignment_nonprivate_classical_reply() {
+        for outgoing_is_classical in &[true, false] {
+            let t = TestContext::new_alice().await;
+            t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+            dc_receive_imf(
+                &t,
+                format!(
+                    r#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+Subject: =?utf-8?q?single_reply-to?=
+{}
+To: Bob <bob@example.com>, <claire@example.com>
+From: Alice <alice@example.com>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+Content-Transfer-Encoding: quoted-printable
+
+Hello, I've just created the group "single reply-to" for us."#,
+                    if *outgoing_is_classical {
+                        r"Message-ID: abcd@gmx.de"
+                    } else {
+                        r"Chat-Group-ID: eJ_llQIXf0K
+Chat-Group-Name: =?utf-8?q?single_reply-to?=
+References: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>
+Chat-Version: 1.0
+Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>"
+                    }
+                )
+                .as_bytes(),
+                "Inbox",
+                1,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let group_msg = t.get_last_msg().await;
+            assert_eq!(
+                group_msg.text.unwrap(),
+                if *outgoing_is_classical {
+                    "single reply-to – Hello, I\'ve just created the group \"single reply-to\" for us."
+                } else {
+                    "Hello, I've just created the group \"single reply-to\" for us."
+                }
+            );
+            let group_chat = Chat::load_from_db(&t, group_msg.chat_id).await.unwrap();
+            assert_eq!(group_chat.typ, Chattype::Group);
+            assert_eq!(group_chat.name, "single reply-to");
+
+            // =============== Receive another outgoing message and check that it is put into the same chat ===============
+            dc_receive_imf(
+                &t,
+                format!(
+                    r#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+Subject: Out subj
+To: "Bob" <bob@example.com>, "Claire" <claire@example.com>
+From: Alice <alice@example.com>
+Message-ID: <outgoing@testrun.org>
+MIME-Version: 1.0
+In-Reply-To: <{0}>
+
+Outgoing reply to all"#,
+                    if *outgoing_is_classical {
+                        "abcd@gmx.de"
+                    } else {
+                        "Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de"
+                    }
+                )
+                .as_bytes(),
+                "Inbox",
+                2,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let reply = t.get_last_msg().await;
+            assert_eq!(reply.text.unwrap(), "Out subj – Outgoing reply to all");
+            let reply_chat = Chat::load_from_db(&t, reply.chat_id).await.unwrap();
+            assert_eq!(reply_chat.typ, Chattype::Group);
+            assert_eq!(reply.chat_id, group_msg.chat_id);
+
+            // =============== Receive an incoming message and check that it is put into the same chat ===============
+            dc_receive_imf(
+                &t,
+                br#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+Subject: In subj
+To: "Bob" <bob@example.com>, "Claire" <claire@example.com>
+From: alice <alice@example.com>
+Message-ID: <xyz@testrun.org>
+MIME-Version: 1.0
+In-Reply-To: <outgoing@testrun.org>
+
+Reply to all"#,
+                "Inbox",
+                3,
+                false,
+            )
+            .await
+            .unwrap();
+
+            let reply = t.get_last_msg().await;
+            assert_eq!(reply.text.unwrap(), "In subj – Reply to all");
+            let reply_chat = Chat::load_from_db(&t, reply.chat_id).await.unwrap();
+            assert_eq!(reply_chat.typ, Chattype::Group);
+            assert_eq!(reply.chat_id, group_msg.chat_id);
+        }
     }
 }
