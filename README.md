@@ -79,6 +79,16 @@ For more commands type:
 > help
 ```
 
+## Installing libdeltachat system wide
+
+```
+$ git clone https://github.com/deltachat/deltachat-core-rust.git
+$ cd deltachat-core-rust
+$ cmake -B build .
+$ cmake --build build
+$ sudo cmake --install build
+```
+
 ## Development
 
 ```sh
