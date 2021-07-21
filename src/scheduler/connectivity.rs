@@ -292,9 +292,10 @@ impl Context {
 
                 if let Some(foldername) = f {
                     ret += "<li><b>&quot;";
-                    ret += &foldername;
+                    ret += &*escaper::encode_minimal(&foldername);
                     ret += "&quot;:</b> ";
-                    ret += &state.get_detailed().await.to_string_imap(self);
+                    ret +=
+                        &*escaper::encode_minimal(&state.get_detailed().await.to_string_imap(self));
                     ret += "</li>";
 
                     folder_added = true;
@@ -307,7 +308,7 @@ impl Context {
                     // On the inbox thread, we also do some other things like scan_folders and run jobs
                     // so, maybe, the inbox is not watched, but something else went wrong
                     ret += "<li>";
-                    ret += &detailed.to_string_imap(self);
+                    ret += &*escaper::encode_minimal(&detailed.to_string_imap(self));
                     ret += "</li>";
                 }
             }
@@ -315,7 +316,7 @@ impl Context {
         ret += "</ul></div>";
 
         ret += "<h3>Outgoing messages:</h3><ul style=\"list-style-type: none;\"><li>";
-        ret += &smtp.get_detailed().await.to_string_smtp(self);
+        ret += &*escaper::encode_minimal(&smtp.get_detailed().await.to_string_smtp(self));
         ret += "</li></ul>";
 
         ret += "</body></html>\n";
