@@ -245,7 +245,7 @@ impl Context {
     /// and the improvement instantly reaches all UIs.
     pub async fn get_connectivity_html(&self) -> String {
         let mut ret =
-            "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
+            "<!DOCTYPE html>\n<html><head><meta charset=\"UTF-8\" /><meta name=\"viewport\" content=\"initial-scale=1.0\" /></head><body>\n".to_string();
 
         let lock = self.scheduler.read().await;
         let (folders_states, smtp) = match &*lock {
@@ -282,7 +282,7 @@ impl Context {
         };
         drop(lock);
 
-        ret += "<div><h3>Incoming messages:</h3><ul>";
+        ret += "<h3>Incoming messages</h3><ul>";
         for (folder, watch, state) in &folders_states {
             let w = self.get_config(*watch).await.ok_or_log(self);
 
@@ -291,9 +291,9 @@ impl Context {
                 let f = self.get_config(*folder).await.ok_or_log(self).flatten();
 
                 if let Some(foldername) = f {
-                    ret += "<li><b>&quot;";
+                    ret += "<li><b>";
                     ret += &*escaper::encode_minimal(&foldername);
-                    ret += "&quot;:</b> ";
+                    ret += ":</b> ";
                     ret +=
                         &*escaper::encode_minimal(&state.get_detailed().await.to_string_imap(self));
                     ret += "</li>";
@@ -313,9 +313,9 @@ impl Context {
                 }
             }
         }
-        ret += "</ul></div>";
+        ret += "</ul>";
 
-        ret += "<h3>Outgoing messages:</h3><ul style=\"list-style-type: none;\"><li>";
+        ret += "<h3>Outgoing messages</h3><ul><li>";
         ret += &*escaper::encode_minimal(&smtp.get_detailed().await.to_string_smtp(self));
         ret += "</li></ul>";
 
