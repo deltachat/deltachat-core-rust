@@ -351,6 +351,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  configure\n\
                  connect\n\
                  disconnect\n\
+                 connectivity\n\
                  maybenetwork\n\
                  housekeeping\n\
                  help imex (Import/Export)\n\
@@ -510,6 +511,14 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "info" => {
             println!("{:#?}", context.get_info().await);
+        }
+        "connectivity" => {
+            let file = dirs::home_dir()
+                .unwrap_or_default()
+                .join("connectivity.html");
+            let html = context.get_connectivity_html().await;
+            fs::write(&file, html)?;
+            println!("Report written to: {:#?}", file);
         }
         "maybenetwork" => {
             context.maybe_network().await;

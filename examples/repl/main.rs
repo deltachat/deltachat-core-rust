@@ -154,7 +154,7 @@ const IMEX_COMMANDS: [&str; 12] = [
     "stop",
 ];
 
-const DB_COMMANDS: [&str; 9] = [
+const DB_COMMANDS: [&str; 10] = [
     "info",
     "set",
     "get",
@@ -162,6 +162,7 @@ const DB_COMMANDS: [&str; 9] = [
     "configure",
     "connect",
     "disconnect",
+    "connectivity",
     "maybenetwork",
     "housekeeping",
 ];

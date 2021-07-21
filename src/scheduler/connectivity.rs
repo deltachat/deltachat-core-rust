@@ -55,35 +55,47 @@ impl DetailedConnectivity {
         }
     }
 
+    fn to_icon(&self) -> String {
+        match self {
+            DetailedConnectivity::Error(_)
+            | DetailedConnectivity::Uninitialized
+            | DetailedConnectivity::NotConfigured => "<span class=\"red dot\"></span>".to_string(),
+            DetailedConnectivity::Connecting => "<span class=\"yellow dot\"></span>".to_string(),
+            DetailedConnectivity::Working
+            | DetailedConnectivity::InterruptingIdle
+            | DetailedConnectivity::Connected => "<span class=\"green dot\"></span>".to_string(),
+        }
+    }
+
     fn to_string_imap(&self, _context: &Context) -> String {
         match self {
-            DetailedConnectivity::Error(e) => format!("🔴 Error: {}", e),
-            DetailedConnectivity::Uninitialized => "🔴 Not started".to_string(),
-            DetailedConnectivity::Connecting => "🟡 Connecting…".to_string(),
-            DetailedConnectivity::Working => "⬇️ Getting new messages…".to_string(),
+            DetailedConnectivity::Error(e) => format!("Error: {}", e),
+            DetailedConnectivity::Uninitialized => "Not started".to_string(),
+            DetailedConnectivity::Connecting => "Connecting…".to_string(),
+            DetailedConnectivity::Working => "Getting new messages…".to_string(),
             DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
-                "🟢 Connected".to_string()
+                "Connected".to_string()
             }
-            DetailedConnectivity::NotConfigured => "🔴 Not configured".to_string(),
+            DetailedConnectivity::NotConfigured => "Not configured".to_string(),
         }
     }
 
     fn to_string_smtp(&self, _context: &Context) -> String {
         match self {
-            DetailedConnectivity::Error(e) => format!("🔴 Error: {}", e),
+            DetailedConnectivity::Error(e) => format!("Error: {}", e),
             DetailedConnectivity::Uninitialized => {
                 "(You did not try to send a message recently)".to_string()
             }
-            DetailedConnectivity::Connecting => "🟡 Connecting…".to_string(),
-            DetailedConnectivity::Working => "⬆️ Sending…".to_string(),
+            DetailedConnectivity::Connecting => "Connecting…".to_string(),
+            DetailedConnectivity::Working => "Sending…".to_string(),
 
             // We don't know any more than that the last message was sent successfully;
             // since sending the last message, connectivity could have changed, which we don't notice
             // until another message is sent
             DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
-                "🟢 Your last message was sent successfully".to_string()
+                "Your last message was sent successfully".to_string()
             }
-            DetailedConnectivity::NotConfigured => "🔴 Not configured".to_string(),
+            DetailedConnectivity::NotConfigured => "Not configured".to_string(),
         }
     }
 
@@ -244,8 +256,36 @@ impl Context {
     /// This comes as an HTML from the core so that we can easily improve it
     /// and the improvement instantly reaches all UIs.
     pub async fn get_connectivity_html(&self) -> String {
-        let mut ret =
-            "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
+        let mut ret = r#"<!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="initial-scale=1.0" />
+                <style>
+                    ul {
+                        list-style-type: none;
+                        padding-left: 1em;
+                    }
+
+                    .dot {
+                        height: 0.9em; width: 0.9em;
+                        border-radius: 50%;
+                        display: inline-block;
+                        position: relative; left: -0.1em; top: 0.1em;
+                    }
+                    .red {
+                        background-color: #f33b2d;
+                    }
+                    .green {
+                        background-color: #34c759;
+                    }
+                    .yellow {
+                        background-color: #fdc625;
+                    }
+                </style>
+            </head>
+            <body>"#
+            .to_string();
 
         let lock = self.scheduler.read().await;
         let (folders_states, smtp) = match &*lock {
@@ -282,7 +322,7 @@ impl Context {
         };
         drop(lock);
 
-        ret += "<div><h3>Incoming messages:</h3><ul>";
+        ret += "<h3>Incoming messages</h3><ul>";
         for (folder, watch, state) in &folders_states {
             let w = self.get_config(*watch).await.ok_or_log(self);
 
@@ -291,10 +331,13 @@ impl Context {
                 let f = self.get_config(*folder).await.ok_or_log(self).flatten();
 
                 if let Some(foldername) = f {
-                    ret += "<li><b>&quot;";
-                    ret += &foldername;
-                    ret += "&quot;:</b> ";
-                    ret += &state.get_detailed().await.to_string_imap(self);
+                    let detailed = &state.get_detailed().await;
+                    ret += "<li>";
+                    ret += &*detailed.to_icon();
+                    ret += " <b>";
+                    ret += &*escaper::encode_minimal(&foldername);
+                    ret += ":</b> ";
+                    ret += &*escaper::encode_minimal(&*detailed.to_string_imap(self));
                     ret += "</li>";
 
                     folder_added = true;
@@ -307,15 +350,20 @@ impl Context {
                     // On the inbox thread, we also do some other things like scan_folders and run jobs
                     // so, maybe, the inbox is not watched, but something else went wrong
                     ret += "<li>";
-                    ret += &detailed.to_string_imap(self);
+                    ret += &*detailed.to_icon();
+                    ret += " ";
+                    ret += &*escaper::encode_minimal(&detailed.to_string_imap(self));
                     ret += "</li>";
                 }
             }
         }
-        ret += "</ul></div>";
+        ret += "</ul>";
 
-        ret += "<h3>Outgoing messages:</h3><ul style=\"list-style-type: none;\"><li>";
-        ret += &smtp.get_detailed().await.to_string_smtp(self);
+        ret += "<h3>Outgoing messages</h3><ul><li>";
+        let detailed = smtp.get_detailed().await;
+        ret += &*detailed.to_icon();
+        ret += " ";
+        ret += &*escaper::encode_minimal(&detailed.to_string_smtp(self));
         ret += "</li></ul>";
 
         ret += "</body></html>\n";
