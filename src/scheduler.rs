@@ -44,6 +44,13 @@ impl Context {
         connectivity::idle_interrupted(lock).await;
     }
 
+    /// Indicate that the network likely is lost.
+    pub async fn maybe_network_lost(&self) {
+        let lock = self.scheduler.read().await;
+        lock.maybe_network_lost().await;
+        connectivity::idle_interrupted(lock).await;
+    }
+
     pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
         self.scheduler.read().await.interrupt_inbox(info).await;
     }
@@ -422,6 +429,18 @@ impl Scheduler {
             .join(self.interrupt_mvbox(InterruptInfo::new(true, None)))
             .join(self.interrupt_sentbox(InterruptInfo::new(true, None)))
             .join(self.interrupt_smtp(InterruptInfo::new(true, None)))
+            .await;
+    }
+
+    async fn maybe_network_lost(&self) {
+        if !self.is_running() {
+            return;
+        }
+
+        self.interrupt_inbox(InterruptInfo::new(false, None))
+            .join(self.interrupt_mvbox(InterruptInfo::new(false, None)))
+            .join(self.interrupt_sentbox(InterruptInfo::new(false, None)))
+            .join(self.interrupt_smtp(InterruptInfo::new(false, None)))
             .await;
     }
 

@@ -219,6 +219,13 @@ impl Accounts {
         }
     }
 
+    pub async fn maybe_network_lost(&self) {
+        let accounts = &*self.accounts.read().await;
+        for account in accounts.values() {
+            account.maybe_network_lost().await;
+        }
+    }
+
     /// Unified event emitter.
     pub async fn get_event_emitter(&self) -> EventEmitter {
         let emitters: Vec<_> = self
