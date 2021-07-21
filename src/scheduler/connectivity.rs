@@ -59,10 +59,10 @@ impl DetailedConnectivity {
         match self {
             DetailedConnectivity::Error(e) => format!("🔴 Error: {}", e),
             DetailedConnectivity::Uninitialized => "🔴 Not started".to_string(),
-            DetailedConnectivity::Connecting => "🟡 Connecting…".to_string(),
+            DetailedConnectivity::Connecting => "⌛ Connecting…".to_string(),
             DetailedConnectivity::Working => "⬇️ Getting new messages…".to_string(),
             DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
-                "🟢 Connected".to_string()
+                "✅ Connected".to_string()
             }
             DetailedConnectivity::NotConfigured => "🔴 Not configured".to_string(),
         }
@@ -74,14 +74,14 @@ impl DetailedConnectivity {
             DetailedConnectivity::Uninitialized => {
                 "(You did not try to send a message recently)".to_string()
             }
-            DetailedConnectivity::Connecting => "🟡 Connecting…".to_string(),
+            DetailedConnectivity::Connecting => "⌛ Connecting…".to_string(),
             DetailedConnectivity::Working => "⬆️ Sending…".to_string(),
 
             // We don't know any more than that the last message was sent successfully;
             // since sending the last message, connectivity could have changed, which we don't notice
             // until another message is sent
             DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
-                "🟢 Your last message was sent successfully".to_string()
+                "✅ Your last message was sent successfully".to_string()
             }
             DetailedConnectivity::NotConfigured => "🔴 Not configured".to_string(),
         }
