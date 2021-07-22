@@ -193,6 +193,27 @@ pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Scheduler>) 
     // of what we do here.
 }
 
+/// Set the connectivity to "Not connected" after a call to dc_maybe_network_lost().
+/// If we did not do this, the connectivity would stay "Connected" for quite a long time
+/// after `maybe_network_lost()` was called.
+pub(crate) async fn maybe_network_lost(
+    context: &Context,
+    scheduler: RwLockReadGuard<'_, Scheduler>,
+) {
+    let inbox = match &*scheduler {
+        Scheduler::Running { inbox, .. } => inbox.state.connectivity.clone(),
+        Scheduler::Stopped => return,
+    };
+    drop(scheduler);
+
+    let mut connectivity_lock = inbox.0.lock().await;
+    if !matches!(*connectivity_lock, DetailedConnectivity::Error(_)) {
+        *connectivity_lock = DetailedConnectivity::Error("Connection lost".to_string());
+    }
+    drop(connectivity_lock);
+    context.emit_event(EventType::ConnectivityChanged);
+}
+
 impl fmt::Debug for ConnectivityStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(guard) = self.0.try_lock() {

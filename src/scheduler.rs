@@ -48,7 +48,7 @@ impl Context {
     pub async fn maybe_network_lost(&self) {
         let lock = self.scheduler.read().await;
         lock.maybe_network_lost().await;
-        connectivity::idle_interrupted(lock).await;
+        connectivity::maybe_network_lost(self, lock).await;
     }
 
     pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
