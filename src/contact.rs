@@ -698,6 +698,8 @@ impl Contact {
             ret.push(DC_CONTACT_ID_SELF);
         }
 
+        ret.dedup();
+
         Ok(ret)
     }
 
