@@ -2651,6 +2651,21 @@ void           dc_accounts_maybe_network        (dc_accounts_t* accounts);
 
 
 /**
+ * This function can be called when there is a hint that the network is lost.
+ * This is similar to dc_accounts_maybe_network(), however,
+ * it does not retry job processing.
+ *
+ * dc_accounts_maybe_network_lost() is needed only on systems
+ * where the core cannot find out the connectivity loss on its own, eg. iOS.
+ * The function is not needed on Android, MacOS, Windows or Linux.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ */
+void           dc_accounts_maybe_network_lost    (dc_accounts_t* accounts);
+
+
+/**
  * Create the event emitter that is used to receive events.
  *
  * The library will emit various @ref DC_EVENT events as "new message", "message read" etc.

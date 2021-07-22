@@ -3867,12 +3867,23 @@ pub unsafe extern "C" fn dc_accounts_stop_io(accounts: *mut dc_accounts_t) {
 #[no_mangle]
 pub unsafe extern "C" fn dc_accounts_maybe_network(accounts: *mut dc_accounts_t) {
     if accounts.is_null() {
-        eprintln!("ignoring careless call to dc_accounts_mabye_network()");
+        eprintln!("ignoring careless call to dc_accounts_maybe_network()");
         return;
     }
 
     let accounts = &*accounts;
     block_on(accounts.maybe_network());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_maybe_network_lost(accounts: *mut dc_accounts_t) {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_maybe_network_lost()");
+        return;
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.maybe_network_lost());
 }
 
 pub type dc_accounts_event_emitter_t = deltachat::accounts::EventEmitter;
