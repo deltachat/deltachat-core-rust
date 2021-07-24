@@ -323,19 +323,18 @@ dependencies = [
 
 [[package]]
 name = "async-smtp"
-version = "0.3.4"
-source = "git+https://github.com/async-email/async-smtp?rev=2275fd8d13e39b2c58d6605c786ff06ff9e05708#2275fd8d13e39b2c58d6605c786ff06ff9e05708"
+version = "0.4.0"
+source = "git+https://github.com/async-email/async-smtp?rev=c8800625f7cf29f437143ac7e720ac2730a0962f#c8800625f7cf29f437143ac7e720ac2730a0962f"
 dependencies = [
  "async-native-tls",
  "async-std",
  "async-trait",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bufstream",
- "fast_chemail",
  "hostname 0.1.5",
  "log",
  "nom 5.1.2",
- "pin-project 0.4.27",
+ "pin-project 1.0.5",
  "pin-utils",
  "serde",
  "serde_derive",
