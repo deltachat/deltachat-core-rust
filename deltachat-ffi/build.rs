@@ -22,7 +22,9 @@ fn main() {
         url = env::var("CARGO_PKG_HOMEPAGE").unwrap_or_else(|_| "".to_string()),
         version = env::var("CARGO_PKG_VERSION").unwrap(),
         libs_priv = libs_priv,
-        prefix = env::var("PREFIX").unwrap_or_else(|_| "/usr/local".to_string()),
+        prefix = env::var("PREFIX").unwrap(),
+        libdir = env::var("LIBDIR").unwrap(),
+        includedir = env::var("INCLUDEDIR").unwrap(),
     );
 
     fs::create_dir_all(target_path.join("pkgconfig")).unwrap();
