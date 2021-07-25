@@ -18,6 +18,7 @@ pub struct Accounts {
     dir: PathBuf,
     config: Config,
     accounts: Arc<RwLock<BTreeMap<u32, Context>>>,
+    emitter: EventEmitter,
 }
 
 impl Accounts {
@@ -52,10 +53,17 @@ impl Accounts {
         let config = Config::from_file(config_file).await?;
         let accounts = config.load_accounts().await?;
 
+        let emitters: Vec<_> = accounts
+            .iter()
+            .map(|(_id, a)| a.get_event_emitter())
+            .collect();
+        let emitter = EventEmitter(Arc::new(RwLock::new(futures::stream::select_all(emitters))));
+
         Ok(Self {
             dir,
             config,
             accounts: Arc::new(RwLock::new(accounts)),
+            emitter,
         })
     }
 
@@ -83,6 +91,7 @@ impl Accounts {
         let account_config = self.config.new_account(&self.dir).await?;
 
         let ctx = Context::new(os_name, account_config.dbfile().into(), account_config.id).await?;
+        self.emitter.0.write().await.push(ctx.get_event_emitter());
         self.accounts.write().await.insert(account_config.id, ctx);
 
         Ok(account_config.id)
@@ -228,20 +237,12 @@ impl Accounts {
 
     /// Unified event emitter.
     pub async fn get_event_emitter(&self) -> EventEmitter {
-        let emitters: Vec<_> = self
-            .accounts
-            .read()
-            .await
-            .iter()
-            .map(|(_id, a)| a.get_event_emitter())
-            .collect();
-
-        EventEmitter(futures::stream::select_all(emitters))
+        self.emitter.clone()
     }
 }
 
-#[derive(Debug)]
-pub struct EventEmitter(futures::stream::SelectAll<crate::events::EventEmitter>);
+#[derive(Debug, Clone)]
+pub struct EventEmitter(Arc<RwLock<futures::stream::SelectAll<crate::events::EventEmitter>>>);
 
 impl EventEmitter {
     /// Blocking recv of an event. Return `None` if all `Sender`s have been droped.
@@ -249,9 +250,9 @@ impl EventEmitter {
         async_std::task::block_on(self.recv())
     }
 
-    /// Async recv of an event. Return `None` if all `Sender`s have been droped.
+    /// Async recv of an event. Return `None` if all `Sender`s have been dropped.
     pub async fn recv(&mut self) -> Option<Event> {
-        self.0.next().await
+        self.0.write().await.next().await
     }
 }
 
@@ -262,7 +263,7 @@ impl async_std::stream::Stream for EventEmitter {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        std::pin::Pin::new(&mut self.0).poll_next(cx)
+        std::pin::Pin::new(&mut self).poll_next(cx)
     }
 }
 
