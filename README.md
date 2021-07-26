@@ -86,7 +86,7 @@ $ git clone https://github.com/deltachat/deltachat-core-rust.git
 $ cd deltachat-core-rust
 $ cmake -B build . -DCMAKE_INSTALL_PREFIX=/usr
 $ cmake --build build
-$ sudo cmake --install build 
+$ sudo cmake --install build
 ```
 
 ## Development
