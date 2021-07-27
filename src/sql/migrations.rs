@@ -468,6 +468,22 @@ paramsv![]
         recode_avatar = true;
         sql.set_db_version(77).await?;
     }
+    if dbversion < 78 {
+        // move requests but the last one to "Archived Chats";
+        // this way, the app looks familiar after the contact request upgrade.
+        info!(context, "[migration] v78");
+        sql.execute_migration(
+            "UPDATE chats
+                SET archived=1
+              WHERE blocked=2
+                AND id!=COALESCE((SELECT chat_id FROM msgs m
+                        LEFT JOIN chats c ON c.id=m.chat_id
+                            WHERE m.state=10 AND m.hidden=0 AND c.blocked=2
+                         ORDER BY m.timestamp DESC, m.id DESC), 0);",
+            78,
+        )
+        .await?;
+    }
 
     Ok((
         recalc_fingerprints,
