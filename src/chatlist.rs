@@ -4,7 +4,7 @@ use anyhow::{bail, ensure, Result};
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
-    Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CONTACT_ID_DEVICE,
+    Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CONTACT_ID_DEVICE,
     DC_CONTACT_ID_SELF, DC_CONTACT_ID_UNDEFINED, DC_GCL_ADD_ALLDONE_HINT, DC_GCL_ARCHIVED_ONLY,
     DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS,
 };
@@ -379,8 +379,8 @@ pub async fn dc_get_archived_cnt(context: &Context) -> Result<usize> {
     let count = context
         .sql
         .count(
-            "SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;",
-            paramsv![],
+            "SELECT COUNT(*) FROM chats WHERE blocked!=? AND archived=?;",
+            paramsv![Blocked::Manually, ChatVisibility::Archived],
         )
         .await?;
     Ok(count)
