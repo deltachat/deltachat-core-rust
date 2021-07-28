@@ -64,7 +64,7 @@ Please feel free to contact us through a github issue or by e-mail and we'll sen
 
     export DCC_NEW_TMP_EMAIL=<URL you got from us>
 
-With this account-creation setting, pytest runs create ephemeral e-mail accounts on the http://testrun.org server.  These accounts exists only for one 1hour and then are removed completely.
+With this account-creation setting, pytest runs create ephemeral e-mail accounts on the http://testrun.org server.  These accounts exists only for one hour and then are removed completely.
 One hour is enough to invoke pytest and run all offline and online tests:
 
     pytest
