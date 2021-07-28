@@ -8,6 +8,23 @@ use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
 
+// 163.md: 163.com
+static P_163: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    id: "163",
+    status: Status::Broken,
+    before_login_hint: "163 Mail does not work since it forces the email clients to connect with an IMAP ID, which is currently not the case of Delta Chat.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/163",
+    server: vec![
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+}
+});
+
 // aktivix.org.md: aktivix.org
 static P_AKTIVIX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
     id: "aktivix.org",
@@ -597,8 +614,7 @@ static P_I3_NET: Lazy<Provider> = Lazy::new(|| Provider {
 static P_ICLOUD: Lazy<Provider> = Lazy::new(|| Provider {
     id: "icloud",
     status: Status::Preparation,
-    before_login_hint:
-        "You must create an app-specific password for Delta Chat before you can login.",
+    before_login_hint: "You must create an app-specific password for Delta Chat before login.",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/icloud",
     server: vec![
@@ -651,7 +667,7 @@ static P_KONTENT_COM: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
-// mail.ru.md: mail.ru, inbox.ru, bk.ru, list.ru
+// mail.ru.md: mail.ru, inbox.ru, internet.ru, bk.ru, list.ru
 static P_MAIL_RU: Lazy<Provider> = Lazy::new(|| {
     Provider {
     id: "mail.ru",
@@ -660,6 +676,8 @@ static P_MAIL_RU: Lazy<Provider> = Lazy::new(|| {
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/mail-ru",
     server: vec![
+        Server { protocol: Imap, socket: Ssl, hostname: "imap.mail.ru", port: 993, username_pattern: Email },
+        Server { protocol: Smtp, socket: Ssl, hostname: "smtp.mail.ru", port: 465, username_pattern: Email },
     ],
     config_defaults: None,
     strict_tls: true,
@@ -773,6 +791,35 @@ static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
+// naver.md: naver.com
+static P_NAVER: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "naver",
+    status: Status::Preparation,
+    before_login_hint: "Manually enabling IMAP/SMTP is required.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/naver",
+    server: vec![
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "imap.naver.com",
+            port: 993,
+            username_pattern: Emaillocalpart,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Starttls,
+            hostname: "smtp.naver.com",
+            port: 587,
+            username_pattern: Email,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
 // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
 static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| Provider {
     id: "outlook.com",
@@ -802,7 +849,7 @@ static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
-// posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
+// posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.it, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
 static P_POSTEO: Lazy<Provider> = Lazy::new(|| Provider {
     id: "posteo",
     status: Status::Ok,
@@ -840,6 +887,25 @@ static P_PROTONMAIL: Lazy<Provider> = Lazy::new(|| {
     after_login_hint: "To use Delta Chat with Protonmail, the IMAP bridge must be running in the background. If you have connectivity issues, double check whether it works as expected.",
     overview_page: "https://providers.delta.chat/protonmail",
     server: vec![
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+}
+});
+
+// qq.md: qq.com, foxmail.com
+static P_QQ: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    id: "qq",
+    status: Status::Preparation,
+    before_login_hint: "Manually enabling IMAP/SMTP and creating an app-specific password for Delta Chat are required.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/qq",
+    server: vec![
+        Server { protocol: Imap, socket: Ssl, hostname: "imap.qq.com", port: 993, username_pattern: Emaillocalpart },
+        Server { protocol: Smtp, socket: Starttls, hostname: "smtp.qq.com", port: 465, username_pattern: Email },
     ],
     config_defaults: None,
     strict_tls: true,
@@ -1094,6 +1160,35 @@ static P_VFEMAIL: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
+// vivaldi.md: vivaldi.net
+static P_VIVALDI: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "vivaldi",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/vivaldi",
+    server: vec![
+        Server {
+            protocol: Imap,
+            socket: Starttls,
+            hostname: "imap.vivaldi.net",
+            port: 143,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Starttls,
+            hostname: "smtp.vivaldi.net",
+            port: 587,
+            username_pattern: Email,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
 // vodafone.de.md: vodafone.de, vodafonemail.de
 static P_VODAFONE_DE: Lazy<Provider> = Lazy::new(|| Provider {
     id: "vodafone.de",
@@ -1220,8 +1315,38 @@ static P_ZIGGO_NL: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
+// zoho.md: zohomail.eu, zoho.com
+static P_ZOHO: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "zoho",
+    status: Status::Preparation,
+    before_login_hint: "To use Zoho Mail, you have to turn on IMAP in the Zoho Mail backend.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/zoho",
+    server: vec![
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "imap.zoho.eu",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "smtp.zoho.eu",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
 pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
     [
+        ("163.com", &*P_163),
         ("aktivix.org", &*P_AKTIVIX_ORG),
         ("aol.com", &*P_AOL),
         ("arcor.de", &*P_ARCOR_DE),
@@ -1267,12 +1392,14 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("kontent.com", &*P_KONTENT_COM),
         ("mail.ru", &*P_MAIL_RU),
         ("inbox.ru", &*P_MAIL_RU),
+        ("internet.ru", &*P_MAIL_RU),
         ("bk.ru", &*P_MAIL_RU),
         ("list.ru", &*P_MAIL_RU),
         ("mailbox.org", &*P_MAILBOX_ORG),
         ("secure.mailbox.org", &*P_MAILBOX_ORG),
         ("mailo.com", &*P_MAILO_COM),
         ("nauta.cu", &*P_NAUTA_CU),
+        ("naver.com", &*P_NAVER),
         ("hotmail.com", &*P_OUTLOOK_COM),
         ("outlook.com", &*P_OUTLOOK_COM),
         ("office365.com", &*P_OUTLOOK_COM),
@@ -1302,6 +1429,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("posteo.ie", &*P_POSTEO),
         ("posteo.in", &*P_POSTEO),
         ("posteo.is", &*P_POSTEO),
+        ("posteo.it", &*P_POSTEO),
         ("posteo.jp", &*P_POSTEO),
         ("posteo.la", &*P_POSTEO),
         ("posteo.li", &*P_POSTEO),
@@ -1329,6 +1457,8 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("posteo.us", &*P_POSTEO),
         ("protonmail.com", &*P_PROTONMAIL),
         ("protonmail.ch", &*P_PROTONMAIL),
+        ("qq.com", &*P_QQ),
+        ("foxmail.com", &*P_QQ),
         ("riseup.net", &*P_RISEUP_NET),
         ("rogers.com", &*P_ROGERS_COM),
         ("systemausfall.org", &*P_SYSTEMAUSFALL_ORG),
@@ -1346,6 +1476,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("ukr.net", &*P_UKR_NET),
         ("undernet.uy", &*P_UNDERNET_UY),
         ("vfemail.net", &*P_VFEMAIL),
+        ("vivaldi.net", &*P_VIVALDI),
         ("vodafone.de", &*P_VODAFONE_DE),
         ("vodafonemail.de", &*P_VODAFONE_DE),
         ("web.de", &*P_WEB_DE),
@@ -1398,6 +1529,8 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("ya.ru", &*P_YANDEX_RU),
         ("narod.ru", &*P_YANDEX_RU),
         ("ziggo.nl", &*P_ZIGGO_NL),
+        ("zohomail.eu", &*P_ZOHO),
+        ("zoho.com", &*P_ZOHO),
     ]
     .iter()
     .copied()
@@ -1406,6 +1539,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
 
 pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
     [
+        ("163", &*P_163),
         ("aktivix.org", &*P_AKTIVIX_ORG),
         ("aol", &*P_AOL),
         ("arcor.de", &*P_ARCOR_DE),
@@ -1437,9 +1571,11 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("mailbox.org", &*P_MAILBOX_ORG),
         ("mailo.com", &*P_MAILO_COM),
         ("nauta.cu", &*P_NAUTA_CU),
+        ("naver", &*P_NAVER),
         ("outlook.com", &*P_OUTLOOK_COM),
         ("posteo", &*P_POSTEO),
         ("protonmail", &*P_PROTONMAIL),
+        ("qq", &*P_QQ),
         ("riseup.net", &*P_RISEUP_NET),
         ("rogers.com", &*P_ROGERS_COM),
         ("systemausfall.org", &*P_SYSTEMAUSFALL_ORG),
@@ -1451,11 +1587,13 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("ukr.net", &*P_UKR_NET),
         ("undernet.uy", &*P_UNDERNET_UY),
         ("vfemail", &*P_VFEMAIL),
+        ("vivaldi", &*P_VIVALDI),
         ("vodafone.de", &*P_VODAFONE_DE),
         ("web.de", &*P_WEB_DE),
         ("yahoo", &*P_YAHOO),
         ("yandex.ru", &*P_YANDEX_RU),
         ("ziggo.nl", &*P_ZIGGO_NL),
+        ("zoho", &*P_ZOHO),
     ]
     .iter()
     .copied()
@@ -1463,4 +1601,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 6, 7));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 7, 28));
