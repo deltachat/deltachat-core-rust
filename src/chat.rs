@@ -3994,6 +3994,48 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_contact_request_archive() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        dc_receive_imf(
+            &t,
+            b"From: bob@example.org\n\
+                 To: alice@example.com\n\
+                 Message-ID: <2@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        let chat_id = chats.get_chat_id(0);
+        assert!(Chat::load_from_db(&t, chat_id).await?.is_contact_request());
+        assert_eq!(dc_get_archived_cnt(&t).await?, 0);
+
+        // archive request without accepting or blocking
+        chat_id.set_visibility(&t, ChatVisibility::Archived).await?;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        let chat_id = chats.get_chat_id(0);
+        assert!(chat_id.is_archived_link());
+        assert_eq!(dc_get_archived_cnt(&t).await?, 1);
+
+        let chats = Chatlist::try_load(&t, DC_GCL_ARCHIVED_ONLY, None, None).await?;
+        assert_eq!(chats.len(), 1);
+        let chat_id = chats.get_chat_id(0);
+        assert!(Chat::load_from_db(&t, chat_id).await?.is_contact_request());
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_classic_email_chat() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
