@@ -58,12 +58,13 @@ end-to-end tests that require accounts on real e-mail servers.
 running "live" tests with temporary accounts
 ---------------------------------------------
 
-If you want to run live functional tests you can set ``DCC_NEW_TMP_EMAIL``::
+If you want to run live functional tests you can set ``DCC_NEW_TMP_EMAIL`` to a URL that creates e-mail accounts.  Most developers use https://testrun.org URLS created and managed by [mailadm](https://mailadm.readthedocs.io/en/latest/).
 
-    export DCC_NEW_TMP_EMAIL=https://testrun.org/new_email?t=1h_4w4r8h7y9nmcdsy
+Please feel free to contact us through a github issue or by e-mail and we'll send you a URL that you can then use for functional tests like this:
 
-With this, pytest runs create ephemeral e-mail accounts on the http://testrun.org server.
-These accounts exists for one 1hour and then are removed completely.
+    export DCC_NEW_TMP_EMAIL=<URL you got from us>
+
+With this account-creation setting, pytest runs create ephemeral e-mail accounts on the http://testrun.org server.  These accounts exists only for one hour and then are removed completely.
 One hour is enough to invoke pytest and run all offline and online tests:
 
     pytest
