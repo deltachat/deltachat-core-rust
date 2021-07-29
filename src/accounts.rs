@@ -78,7 +78,7 @@ impl Accounts {
         self.accounts.read().await.get(&id).cloned()
     }
 
-    /// Get the currently selected account's id or None if no account is selected
+    /// Returns the currently selected account's id or None if no account is selected.
     pub async fn get_selected_account_id(&self) -> Option<u32> {
         match self.config.get_selected_account().await {
             0 => None,
