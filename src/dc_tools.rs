@@ -728,7 +728,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        chat::ChatItem, config::Config, dc_receive_imf::dc_receive_imf, message::get_msg_info,
+        config::Config, dc_receive_imf::dc_receive_imf, message::get_msg_info,
         test_utils::TestContext,
     };
 
