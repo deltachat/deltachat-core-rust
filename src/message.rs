@@ -1172,7 +1172,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     }
     if let Some(ref server_folder) = msg.server_folder {
         if !server_folder.is_empty() {
-            ret += &format!("\nLast seen as: {}/{}", server_folder, msg.server_uid);
+            ret += &format!("\nLast seen as: {}/{}\n", server_folder, msg.server_uid);
         }
     }
     let hop_info: Option<String> = context
