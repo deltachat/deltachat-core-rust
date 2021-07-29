@@ -1417,33 +1417,37 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
     }
 
     let conn = context.sql.get_conn().await?;
-    let mut stmt = conn.prepare_cached(concat!(
-        "SELECT",
-        "    m.chat_id AS chat_id,",
-        "    m.state AS state,",
-        "    c.blocked AS blocked",
-        " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-        " WHERE m.id=? AND m.chat_id>9"
-    ))?;
+    let msgs = async_std::task::spawn_blocking(move || -> Result<_> {
+        let mut stmt = conn.prepare_cached(concat!(
+            "SELECT",
+            "    m.chat_id AS chat_id,",
+            "    m.state AS state,",
+            "    c.blocked AS blocked",
+            " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
+            " WHERE m.id=? AND m.chat_id>9"
+        ))?;
 
-    let mut msgs = Vec::with_capacity(msg_ids.len());
-    for id in msg_ids.into_iter() {
-        let query_res = stmt.query_row(paramsv![id], |row| {
-            Ok((
-                row.get::<_, ChatId>("chat_id")?,
-                row.get::<_, MessageState>("state")?,
-                row.get::<_, Option<Blocked>>("blocked")?
-                    .unwrap_or_default(),
-            ))
-        });
-        if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
-            continue;
+        let mut msgs = Vec::with_capacity(msg_ids.len());
+        for id in msg_ids.into_iter() {
+            let query_res = stmt.query_row(paramsv![id], |row| {
+                Ok((
+                    row.get::<_, ChatId>("chat_id")?,
+                    row.get::<_, MessageState>("state")?,
+                    row.get::<_, Option<Blocked>>("blocked")?
+                        .unwrap_or_default(),
+                ))
+            });
+            if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
+                continue;
+            }
+            let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
+            msgs.push((id, chat_id, state, blocked));
         }
-        let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
-        msgs.push((id, chat_id, state, blocked));
-    }
-    drop(stmt);
-    drop(conn);
+        drop(stmt);
+        drop(conn);
+        Ok(msgs)
+    })
+    .await?;
 
     let mut updated_chat_ids = BTreeMap::new();
 
