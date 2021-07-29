@@ -472,7 +472,7 @@ paramsv![]
         // move requests to "Archived Chats",
         // this way, the app looks familiar after the contact request upgrade.
         info!(context, "[migration] v78");
-        sql.execute_migration("UPDATE chats SET archived=1 WHERE blocked=2;", 78)
+        sql.execute_migration("UPDATE chats SET archived=1 WHERE blocked=2;", 78).await?;
     }
     if dbversion < 79 {
         info!(context, "[migration] v79");
