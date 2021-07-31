@@ -2044,15 +2044,7 @@ pub async fn get_chat_media(
                 },
             ],
             |row| row.get::<_, MsgId>(0),
-            |ids| {
-                let mut ret = Vec::new();
-                for id in ids {
-                    if let Ok(msg_id) = id {
-                        ret.push(msg_id)
-                    }
-                }
-                Ok(ret)
-            },
+            |ids| Ok(ids.flatten().collect()),
         )
         .await?;
     Ok(list)

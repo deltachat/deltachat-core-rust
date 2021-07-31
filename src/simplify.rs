@@ -153,8 +153,8 @@ fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>)
         let quoted_text = lines[l_last..first_quoted_line]
             .iter()
             .map(|s| {
-                s.strip_prefix(">")
-                    .map_or(*s, |u| u.strip_prefix(" ").unwrap_or(u))
+                s.strip_prefix('>')
+                    .map_or(*s, |u| u.strip_prefix(' ').unwrap_or(u))
             })
             .join("\n");
         if l_last > 1 && is_empty_line(lines[l_last - 1]) {
@@ -199,8 +199,8 @@ fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>) {
                 lines[first_quoted_line..last_quoted_line + 1]
                     .iter()
                     .map(|s| {
-                        s.strip_prefix(">")
-                            .map_or(*s, |u| u.strip_prefix(" ").unwrap_or(u))
+                        s.strip_prefix('>')
+                            .map_or(*s, |u| u.strip_prefix(' ').unwrap_or(u))
                     })
                     .join("\n"),
             ),

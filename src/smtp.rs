@@ -32,7 +32,7 @@ pub enum Error {
     #[error("SMTP failed to setup connection: {0}")]
     ConnectionSetupFailure(#[source] smtp::error::Error),
     #[error("SMTP oauth2 error {address}")]
-    Oauth2Error { address: String },
+    Oauth2 { address: String },
     #[error("TLS error {0}")]
     Tls(#[from] async_native_tls::Error),
     #[error("{0}")]
@@ -159,7 +159,7 @@ impl Smtp {
             let send_pw = &lp.password;
             let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false).await?;
             if access_token.is_none() {
-                return Err(Error::Oauth2Error {
+                return Err(Error::Oauth2 {
                     address: addr.to_string(),
                 });
             }

@@ -252,7 +252,7 @@ impl Job {
         smtp.connectivity.set_working(context).await;
 
         let status = match smtp.send(context, recipients, message, job_id).await {
-            Err(crate::smtp::send::Error::SendError(err)) => {
+            Err(crate::smtp::send::Error::SmtpSend(err)) => {
                 // Remote error, retry later.
                 warn!(context, "SMTP failed to send: {:?}", &err);
                 smtp.connectivity.set_err(context, &err).await;
@@ -329,7 +329,7 @@ impl Job {
 
                 res
             }
-            Err(crate::smtp::send::Error::EnvelopeError(err)) => {
+            Err(crate::smtp::send::Error::Envelope(err)) => {
                 // Local error, job is invalid, do not retry.
                 smtp.disconnect().await;
                 warn!(context, "SMTP job is invalid: {}", err);
@@ -1022,16 +1022,9 @@ pub(crate) enum Connection<'a> {
 }
 
 pub(crate) async fn load_imap_deletion_job(context: &Context) -> Result<Option<Job>> {
-    let res = if let Some(msg_id) = load_imap_deletion_msgid(context).await? {
-        Some(Job::new(
-            Action::DeleteMsgOnImap,
-            msg_id.to_u32(),
-            Params::new(),
-            0,
-        ))
-    } else {
-        None
-    };
+    let res = load_imap_deletion_msgid(context)
+        .await?
+        .map(|msg_id| Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), Params::new(), 0));
     Ok(res)
 }
 

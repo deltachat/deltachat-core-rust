@@ -533,14 +533,14 @@ async fn try_imap_one_param(
     match imap.connect(context).await {
         Err(err) => {
             info!(context, "failure: {}", err);
-            return Err(ConfigurationError {
+            Err(ConfigurationError {
                 config: inf,
                 msg: err.to_string(),
-            });
+            })
         }
         Ok(()) => {
             info!(context, "success: {}", inf);
-            return Ok(imap);
+            Ok(imap)
         }
     }
 }
@@ -618,10 +618,10 @@ pub enum Error {
     },
 
     #[error("Failed to get URL: {0}")]
-    ReadUrlError(#[from] self::read_url::Error),
+    ReadUrl(#[from] self::read_url::Error),
 
     #[error("Number of redirection is exceeded")]
-    RedirectionError,
+    Redirection,
 }
 
 #[cfg(test)]
