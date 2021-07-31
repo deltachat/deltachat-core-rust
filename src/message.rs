@@ -1689,8 +1689,7 @@ pub async fn handle_mdn(
                 "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=? AND contact_id=?;",
                 paramsv![msg_id, from_id as i32,],
             )
-            .await
-            .unwrap_or_default();
+            .await?;
 
         if !mdn_already_in_table {
             context
@@ -1699,8 +1698,7 @@ pub async fn handle_mdn(
                     "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?);",
                     paramsv![msg_id, from_id as i32, timestamp_sent],
                 )
-                .await
-                .unwrap_or_default(); // TODO: better error handling
+                .await?;
         }
 
         // Normal chat? that's quite easy.
