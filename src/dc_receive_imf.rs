@@ -371,8 +371,6 @@ async fn add_parts(
     let mut state: MessageState;
     let mut chat_id = ChatId::new(0);
     let mut chat_id_blocked = Blocked::Not;
-    let mut mime_in_reply_to = String::new();
-    let mut mime_references = String::new();
     let mut incoming_origin = incoming_origin;
 
     let parent = get_parent_message(context, mime_parser).await?;
@@ -895,13 +893,15 @@ async fn add_parts(
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
     let save_mime_headers = context.get_config_bool(Config::SaveMimeHeaders).await?;
-    if let Some(raw) = mime_parser.get(HeaderDef::InReplyTo) {
-        mime_in_reply_to = raw.clone();
-    }
 
-    if let Some(raw) = mime_parser.get(HeaderDef::References) {
-        mime_references = raw.clone();
-    }
+    let mime_in_reply_to = mime_parser
+        .get(HeaderDef::InReplyTo)
+        .cloned()
+        .unwrap_or_default();
+    let mime_references = mime_parser
+        .get(HeaderDef::References)
+        .cloned()
+        .unwrap_or_default();
 
     // fine, so far.  now, split the message into simple parts usable as "short messages"
     // and add them to the database (mails sent by other messenger clients should result
