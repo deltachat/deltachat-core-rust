@@ -104,6 +104,10 @@ pub(crate) async fn dc_receive_imf_inner(
         // client that relies in the SMTP server to generate one.
         // true eg. for the Webmailer used in all-inkl-KAS
         dc_create_incoming_rfc724_mid(&mime_parser));
+    info!(
+        context,
+        "received message {} has Message-Id: {}", server_uid, rfc724_mid
+    );
 
     // check, if the mail is already in our database - if so, just update the folder/uid
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
@@ -171,7 +175,7 @@ pub(crate) async fn dc_receive_imf_inner(
         server_folder,
         server_uid,
         &to_ids,
-        &rfc724_mid,
+        rfc724_mid,
         &mut sent_timestamp,
         from_id,
         &mut hidden,
@@ -282,11 +286,6 @@ pub(crate) async fn dc_receive_imf_inner(
         }
     }
 
-    info!(
-        context,
-        "received message {} has Message-Id: {}", server_uid, rfc724_mid
-    );
-
     if let Some(create_event_to_send) = create_event_to_send {
         for (chat_id, msg_id) in created_db_entries {
             let event = match create_event_to_send {
@@ -360,7 +359,7 @@ async fn add_parts(
     server_folder: &str,
     server_uid: u32,
     to_ids: &ContactIds,
-    rfc724_mid: &str,
+    rfc724_mid: String,
     sent_timestamp: &mut i64,
     from_id: u32,
     hidden: &mut bool,
@@ -937,9 +936,6 @@ async fn add_parts(
     let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
     let chat_id = chat_id;
-
-    // TODO: can this clone be avoided?
-    let rfc724_mid = rfc724_mid.to_string();
 
     let mut is_hidden = is_hidden;
     let mut ids = Vec::with_capacity(parts.len());
