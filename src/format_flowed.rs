@@ -104,13 +104,13 @@ pub fn unformat_flowed(text: &str, delsp: bool) -> String {
 
     for line in text.split('\n') {
         // Revert space-stuffing
-        let line = line.strip_prefix(" ").unwrap_or(line);
+        let line = line.strip_prefix(' ').unwrap_or(line);
 
         if !skip_newline {
             result.push('\n');
         }
 
-        if let Some(line) = line.strip_suffix(" ") {
+        if let Some(line) = line.strip_suffix(' ') {
             // Flowed line
             result += line;
             if !delsp {

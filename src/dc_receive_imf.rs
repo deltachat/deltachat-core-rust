@@ -913,7 +913,7 @@ async fn add_parts(
 
     let subject = mime_parser.get_subject().unwrap_or_default();
 
-    let mut parts = std::mem::replace(&mut mime_parser.parts, Vec::new());
+    let mut parts = std::mem::take(&mut mime_parser.parts);
     let is_system_message = mime_parser.is_system_message;
 
     // if indicated by the parser,

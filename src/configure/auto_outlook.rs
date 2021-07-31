@@ -203,7 +203,7 @@ pub(crate) async fn outlk_autodiscover(
             }
         }
     }
-    Err(Error::RedirectionError)
+    Err(Error::Redirection)
 }
 
 #[cfg(test)]

@@ -25,16 +25,20 @@ pub(crate) struct ServerParams {
 }
 
 impl ServerParams {
-    fn expand_usernames(mut self, addr: &str) -> Vec<ServerParams> {
+    fn expand_usernames(self, addr: &str) -> Vec<ServerParams> {
         let mut res = Vec::new();
 
         if self.username.is_empty() {
-            self.username = addr.to_string();
-            res.push(self.clone());
+            res.push(Self {
+                username: addr.to_string(),
+                ..self.clone()
+            });
 
             if let Some(at) = addr.find('@') {
-                self.username = addr.split_at(at).0.to_string();
-                res.push(self);
+                res.push(Self {
+                    username: addr.split_at(at).0.to_string(),
+                    ..self
+                });
             }
         } else {
             res.push(self)
@@ -42,24 +46,28 @@ impl ServerParams {
         res
     }
 
-    fn expand_hostnames(mut self, param_domain: &str) -> Vec<ServerParams> {
-        let mut res = Vec::new();
+    fn expand_hostnames(self, param_domain: &str) -> Vec<ServerParams> {
         if self.hostname.is_empty() {
-            self.hostname = param_domain.to_string();
-            res.push(self.clone());
-
-            self.hostname = match self.protocol {
-                Protocol::Imap => "imap.".to_string() + param_domain,
-                Protocol::Smtp => "smtp.".to_string() + param_domain,
-            };
-            res.push(self.clone());
-
-            self.hostname = "mail.".to_string() + param_domain;
-            res.push(self);
+            vec![
+                Self {
+                    hostname: param_domain.to_string(),
+                    ..self.clone()
+                },
+                Self {
+                    hostname: match self.protocol {
+                        Protocol::Imap => "imap.".to_string() + param_domain,
+                        Protocol::Smtp => "smtp.".to_string() + param_domain,
+                    },
+                    ..self.clone()
+                },
+                Self {
+                    hostname: "mail.".to_string() + param_domain,
+                    ..self
+                },
+            ]
         } else {
-            res.push(self);
+            vec![self]
         }
-        res
     }
 
     fn expand_ports(mut self) -> Vec<ServerParams> {
@@ -78,39 +86,47 @@ impl ServerParams {
             }
         }
 
-        let mut res = Vec::new();
         if self.port == 0 {
             // Neither port nor security is set.
             //
             // Try common secure combinations.
 
-            // Try STARTTLS
-            self.socket = Socket::Starttls;
-            self.port = match self.protocol {
-                Protocol::Imap => 143,
-                Protocol::Smtp => 587,
-            };
-            res.push(self.clone());
-
-            // Try TLS
-            self.socket = Socket::Ssl;
-            self.port = match self.protocol {
-                Protocol::Imap => 993,
-                Protocol::Smtp => 465,
-            };
-            res.push(self);
+            vec![
+                // Try STARTTLS
+                Self {
+                    socket: Socket::Starttls,
+                    port: match self.protocol {
+                        Protocol::Imap => 143,
+                        Protocol::Smtp => 587,
+                    },
+                    ..self.clone()
+                },
+                // Try TLS
+                Self {
+                    socket: Socket::Ssl,
+                    port: match self.protocol {
+                        Protocol::Imap => 993,
+                        Protocol::Smtp => 465,
+                    },
+                    ..self
+                },
+            ]
         } else if self.socket == Socket::Automatic {
-            // Try TLS over user-provided port.
-            self.socket = Socket::Ssl;
-            res.push(self.clone());
-
-            // Try STARTTLS over user-provided port.
-            self.socket = Socket::Starttls;
-            res.push(self);
+            vec![
+                // Try TLS over user-provided port.
+                Self {
+                    socket: Socket::Ssl,
+                    ..self.clone()
+                },
+                // Try STARTTLS over user-provided port.
+                Self {
+                    socket: Socket::Starttls,
+                    ..self
+                },
+            ]
         } else {
-            res.push(self);
+            vec![self]
         }
-        res
     }
 }
 

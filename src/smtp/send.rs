@@ -14,9 +14,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Envelope error: {}", _0)]
-    EnvelopeError(#[from] async_smtp::error::Error),
+    Envelope(#[from] async_smtp::error::Error),
     #[error("Send error: {}", _0)]
-    SendError(#[from] async_smtp::smtp::error::Error),
+    SmtpSend(#[from] async_smtp::smtp::error::Error),
     #[error("SMTP has no transport")]
     NoTransport,
     #[error("{}", _0)]
@@ -46,8 +46,7 @@ impl Smtp {
             let recipients = recipients_chunk.to_vec();
             let recipients_display = recipients.iter().map(|x| x.to_string()).join(",");
 
-            let envelope =
-                Envelope::new(self.from.clone(), recipients).map_err(Error::EnvelopeError)?;
+            let envelope = Envelope::new(self.from.clone(), recipients).map_err(Error::Envelope)?;
             let mail = SendableEmail::new(
                 envelope,
                 format!("{}", job_id), // only used for internal logging
@@ -60,7 +59,7 @@ impl Smtp {
                 transport
                     .send_with_timeout(mail, Some(&Duration::from_secs(timeout)))
                     .await
-                    .map_err(Error::SendError)?;
+                    .map_err(Error::SmtpSend)?;
 
                 context.emit_event(EventType::SmtpMessageSent(format!(
                     "Message len={} was smtp-sent to {}",
