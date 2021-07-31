@@ -123,7 +123,6 @@ pub(crate) async fn dc_receive_imf_inner(
     let mut hidden = false;
 
     let mut needs_delete_job = false;
-    let mut insert_msg_id = MsgId::new_unset();
 
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
@@ -178,7 +177,6 @@ pub(crate) async fn dc_receive_imf_inner(
         &mut hidden,
         seen,
         &mut needs_delete_job,
-        &mut insert_msg_id,
         &mut created_db_entries,
         &mut create_event_to_send,
         fetching_existing_messages,
@@ -186,6 +184,12 @@ pub(crate) async fn dc_receive_imf_inner(
     )
     .await
     .map_err(|err| err.context("add_parts error"))?;
+
+    let insert_msg_id = if let Some((_chat_id, msg_id)) = created_db_entries.last() {
+        *msg_id
+    } else {
+        MsgId::new_unset()
+    };
 
     if mime_parser.location_kml.is_some() || mime_parser.message_kml.is_some() {
         save_locations(
@@ -362,7 +366,6 @@ async fn add_parts(
     hidden: &mut bool,
     seen: bool,
     needs_delete_job: &mut bool,
-    insert_msg_id: &mut MsgId,
     created_db_entries: &mut Vec<(ChatId, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
     fetching_existing_messages: bool,
@@ -1048,10 +1051,6 @@ INSERT INTO msgs
         ids.push(MsgId::new(u32::try_from(row_id)?));
     }
     drop(conn);
-
-    if let Some(id) = ids.iter().last() {
-        *insert_msg_id = *id;
-    }
 
     if !is_hidden {
         chat_id.unarchive(context).await?;
