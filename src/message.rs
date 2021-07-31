@@ -14,8 +14,7 @@ use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, VideochatType, Viewtype, DC_CHAT_ID_TRASH, DC_CONTACT_ID_INFO,
-    DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_MAX_GET_INFO_LEN, DC_MAX_GET_TEXT_LEN,
-    DC_MSG_ID_LAST_SPECIAL,
+    DC_CONTACT_ID_SELF, DC_MAX_GET_INFO_LEN, DC_MAX_GET_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
 };
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
@@ -1638,10 +1637,6 @@ pub async fn handle_mdn(
     rfc724_mid: &str,
     timestamp_sent: i64,
 ) -> Result<Option<(ChatId, MsgId)>> {
-    if from_id <= DC_CONTACT_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
-        return Ok(None);
-    }
-
     let res = context
         .sql
         .query_row_optional(
