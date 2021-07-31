@@ -164,38 +164,30 @@ pub(crate) async fn dc_receive_imf_inner(
     );
 
     // Add parts
-    if mime_parser.parts.last().is_some() {
-        add_parts(
-            context,
-            &mut mime_parser,
-            imf_raw,
-            incoming,
-            incoming_origin,
-            server_folder,
-            server_uid,
-            &to_ids,
-            &rfc724_mid,
-            &mut sent_timestamp,
-            from_id,
-            &mut hidden,
-            &mut chat_id,
-            seen,
-            &mut needs_delete_job,
-            &mut insert_msg_id,
-            &mut created_db_entries,
-            &mut create_event_to_send,
-            fetching_existing_messages,
-            prevent_rename,
-        )
-        .await
-        .map_err(|err| err.context("add_parts error"))?;
-    } else {
-        // there are parts in this message, do some basic calculations so that the variables
-        // are correct in the further processing
-        if sent_timestamp > time() {
-            sent_timestamp = time()
-        }
-    }
+    add_parts(
+        context,
+        &mut mime_parser,
+        imf_raw,
+        incoming,
+        incoming_origin,
+        server_folder,
+        server_uid,
+        &to_ids,
+        &rfc724_mid,
+        &mut sent_timestamp,
+        from_id,
+        &mut hidden,
+        &mut chat_id,
+        seen,
+        &mut needs_delete_job,
+        &mut insert_msg_id,
+        &mut created_db_entries,
+        &mut create_event_to_send,
+        fetching_existing_messages,
+        prevent_rename,
+    )
+    .await
+    .map_err(|err| err.context("add_parts error"))?;
 
     if mime_parser.location_kml.is_some() || mime_parser.message_kml.is_some() {
         save_locations(
