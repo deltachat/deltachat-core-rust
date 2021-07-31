@@ -388,7 +388,9 @@ async fn add_parts(
         MessengerMessage::No
     };
     // incoming non-chat messages may be discarded
-    let mut allow_creation = true;
+
+    let is_mdn = !mime_parser.mdn_reports.is_empty();
+    let mut allow_creation = !is_mdn;
     let show_emails =
         ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?).unwrap_or_default();
     if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage
@@ -784,7 +786,6 @@ async fn add_parts(
     };
 
     let location_kml_is = mime_parser.location_kml.is_some();
-    let is_mdn = !mime_parser.mdn_reports.is_empty();
 
     // Apply ephemeral timer changes to the chat.
     //
@@ -4405,5 +4406,39 @@ Reply to all"#,
             assert_eq!(reply_chat.typ, Chattype::Group);
             assert_eq!(reply.chat_id, group_msg.chat_id);
         }
+    }
+
+    /// Test that read receipts don't create chats.
+    #[async_std::test]
+    async fn test_read_receipts_dont_create_chats() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+
+        // Alice sends a message to Bob.
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
+        bob.recv_msg(&alice.send_text(alice_chat.id, "Message").await)
+            .await;
+        let received_msg = bob.get_last_msg().await;
+
+        // Alice deletes the chat.
+        alice_chat.id.delete(&alice).await?;
+        let chats = Chatlist::try_load(&alice, 0, None, None).await?;
+        assert_eq!(chats.len(), 0);
+
+        // Bob sends a read receipt.
+        let mdn_mimefactory =
+            crate::mimefactory::MimeFactory::from_mdn(&bob, &received_msg, vec![]).await?;
+        let rendered_mdn = mdn_mimefactory.render(&bob).await?;
+        let mdn_body = rendered_mdn.message;
+
+        // Alice receives the read receipt.
+        dc_receive_imf(&alice, &mdn_body, "INBOX", 1, false).await?;
+
+        // Chat should not pop up in the chatlist.
+        let chats = Chatlist::try_load(&alice, 0, None, None).await?;
+        assert_eq!(chats.len(), 0);
+
+        Ok(())
     }
 }
