@@ -1644,7 +1644,7 @@ pub async fn handle_mdn(
 
     let res = context
         .sql
-        .query_row(
+        .query_row_optional(
             concat!(
                 "SELECT",
                 "    m.id AS msg_id,",
@@ -1665,75 +1665,82 @@ pub async fn handle_mdn(
                 ))
             },
         )
-        .await;
-    if let Err(ref err) = res {
-        info!(context, "Failed to select MDN {:?}", err);
-    }
+        .await?;
 
-    if let Ok((msg_id, chat_id, chat_type, msg_state)) = res {
-        let mut read_by_all = false;
+    let (msg_id, chat_id, chat_type, msg_state) = if let Some(res) = res {
+        res
+    } else {
+        info!(
+            context,
+            "handle_mdn found no message with Message-ID {:?} sent by us in the database",
+            rfc724_mid
+        );
+        return Ok(None);
+    };
 
-        if msg_state == MessageState::OutPreparing
-            || msg_state == MessageState::OutPending
-            || msg_state == MessageState::OutDelivered
-        {
-            let mdn_already_in_table = context
+    let mut read_by_all = false;
+    if msg_state == MessageState::OutPreparing
+        || msg_state == MessageState::OutPending
+        || msg_state == MessageState::OutDelivered
+    {
+        let mdn_already_in_table = context
+            .sql
+            .exists(
+                "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=? AND contact_id=?;",
+                paramsv![msg_id, from_id as i32,],
+            )
+            .await
+            .unwrap_or_default();
+
+        if !mdn_already_in_table {
+            context
                 .sql
-                .exists(
-                    "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=? AND contact_id=?;",
-                    paramsv![msg_id, from_id as i32,],
-                )
-                .await
-                .unwrap_or_default();
-
-            if !mdn_already_in_table {
-                context.sql.execute(
+                .execute(
                     "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?);",
                     paramsv![msg_id, from_id as i32, timestamp_sent],
                 )
-                    .await
-                           .unwrap_or_default(); // TODO: better error handling
-            }
+                .await
+                .unwrap_or_default(); // TODO: better error handling
+        }
 
-            // Normal chat? that's quite easy.
-            if chat_type == Chattype::Single {
+        // Normal chat? that's quite easy.
+        if chat_type == Chattype::Single {
+            update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await;
+            read_by_all = true;
+        } else {
+            // send event about new state
+            let ist_cnt = context
+                .sql
+                .count(
+                    "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",
+                    paramsv![msg_id],
+                )
+                .await?;
+
+            // Groupsize:  Min. MDNs
+            // 1 S         n/a
+            // 2 SR        1
+            // 3 SRR       2
+            // 4 SRRR      2
+            // 5 SRRRR     3
+            // 6 SRRRRR    3
+            //
+            // (S=Sender, R=Recipient)
+
+            // for rounding, SELF is already included!
+            let soll_cnt = (chat::get_chat_contact_cnt(context, chat_id).await? + 1) / 2;
+            if ist_cnt >= soll_cnt {
                 update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await;
                 read_by_all = true;
-            } else {
-                // send event about new state
-                let ist_cnt = context
-                    .sql
-                    .count(
-                        "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",
-                        paramsv![msg_id],
-                    )
-                    .await?;
-
-                // Groupsize:  Min. MDNs
-                // 1 S         n/a
-                // 2 SR        1
-                // 3 SRR       2
-                // 4 SRRR      2
-                // 5 SRRRR     3
-                // 6 SRRRRR    3
-                //
-                // (S=Sender, R=Recipient)
-
-                // for rounding, SELF is already included!
-                let soll_cnt = (chat::get_chat_contact_cnt(context, chat_id).await? + 1) / 2;
-                if ist_cnt >= soll_cnt {
-                    update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await;
-                    read_by_all = true;
-                } // else wait for more receipts
-            }
+            } // else wait for more receipts
         }
-        return if read_by_all {
-            Ok(Some((chat_id, msg_id)))
-        } else {
-            Ok(None)
-        };
     }
-    Ok(None)
+
+    if read_by_all {
+        Ok(Some((chat_id, msg_id)))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Marks a message as failed after an ndn (non-delivery-notification) arrived.
