@@ -371,7 +371,7 @@ async fn add_parts(
     prevent_rename: bool,
 ) -> Result<ChatId> {
     let mut state: MessageState;
-    let mut chat_id = ChatId::new(0);
+    let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
     let mut incoming_origin = incoming_origin;
 
@@ -400,7 +400,7 @@ async fn add_parts(
         match show_emails {
             ShowEmails::Off => {
                 info!(context, "Classical email not shown (TRASH)");
-                chat_id = DC_CHAT_ID_TRASH;
+                chat_id = Some(DC_CHAT_ID_TRASH);
                 allow_creation = false;
             }
             ShowEmails::AcceptedContacts => allow_creation = false,
@@ -425,7 +425,7 @@ async fn add_parts(
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get(HeaderDef::SecureJoin).is_some() {
             is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
-            chat_id = ChatId::new(0);
+            chat_id = None;
             allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, from_id).await {
                 Ok(securejoin::HandshakeMessage::Done) => {
@@ -441,9 +441,8 @@ async fn add_parts(
                     // process messages as "member added" normally
                 }
                 Err(err) => {
-                    *hidden = true;
                     warn!(context, "Error in Secure-Join message handling: {}", err);
-                    return Ok(chat_id);
+                    return Ok(DC_CHAT_ID_TRASH);
                 }
             }
         }
@@ -452,21 +451,23 @@ async fn add_parts(
             .await
             .unwrap_or_default();
 
-        if chat_id.is_unset() && mime_parser.failure_report.is_some() {
-            chat_id = DC_CHAT_ID_TRASH;
+        if chat_id.is_none() && mime_parser.failure_report.is_some() {
+            chat_id = Some(DC_CHAT_ID_TRASH);
             info!(context, "Message belongs to an NDN (TRASH)",);
         }
 
-        if chat_id.is_unset() {
+        if chat_id.is_none() {
             // try to assign to a chat based on In-Reply-To/References:
 
-            let (new_chat_id, new_chat_id_blocked) =
-                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?;
-            chat_id = new_chat_id;
-            chat_id_blocked = new_chat_id_blocked;
+            if let Some((new_chat_id, new_chat_id_blocked)) =
+                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?
+            {
+                chat_id = Some(new_chat_id);
+                chat_id_blocked = new_chat_id_blocked;
+            }
         }
 
-        if chat_id.is_unset() {
+        if chat_id.is_none() {
             // try to create a group
 
             let create_blocked = match test_normal_chat {
@@ -477,7 +478,7 @@ async fn add_parts(
                 _ => Blocked::Request,
             };
 
-            let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
+            if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
                 &mut mime_parser,
                 if test_normal_chat.is_none() {
@@ -489,63 +490,69 @@ async fn add_parts(
                 from_id,
                 to_ids,
             )
-            .await?;
-            chat_id = new_chat_id;
-            chat_id_blocked = new_chat_id_blocked;
-            if !chat_id.is_unset()
-                && chat_id_blocked != Blocked::Not
-                && create_blocked == Blocked::Not
+            .await?
             {
-                new_chat_id.unblock(context).await?;
-                chat_id_blocked = Blocked::Not;
+                chat_id = Some(new_chat_id);
+                chat_id_blocked = new_chat_id_blocked;
+                if chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not {
+                    new_chat_id.unblock(context).await?;
+                    chat_id_blocked = Blocked::Not;
+                }
             }
         }
 
         // In lookup_chat_by_reply() and create_or_lookup_group(), it can happen that the message is put into a chat
         // but the From-address is not a member of this chat.
-        if !chat_id.is_unset() && !chat::is_contact_in_chat(context, chat_id, from_id as u32).await
-        {
-            let chat = Chat::load_from_db(context, chat_id).await?;
-            if chat.is_protected() {
-                let s = stock_str::unknown_sender_for_chat(context).await;
-                mime_parser.repl_msg_by_error(s);
-            } else if let Some(from) = mime_parser.from.first() {
-                // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
-                // to the sender's name, indicating to the user that he/she is not part of the group.
-                let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
-                for part in mime_parser.parts.iter_mut() {
-                    part.param.set(Param::OverrideSenderDisplayname, name);
+        if let Some(chat_id) = chat_id {
+            if !chat::is_contact_in_chat(context, chat_id, from_id as u32).await {
+                let chat = Chat::load_from_db(context, chat_id).await?;
+                if chat.is_protected() {
+                    let s = stock_str::unknown_sender_for_chat(context).await;
+                    mime_parser.repl_msg_by_error(s);
+                } else if let Some(from) = mime_parser.from.first() {
+                    // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
+                    // to the sender's name, indicating to the user that he/she is not part of the group.
+                    let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
+                    for part in mime_parser.parts.iter_mut() {
+                        part.param.set(Param::OverrideSenderDisplayname, name);
+                    }
                 }
             }
         }
 
-        if chat_id.is_unset() {
+        if chat_id.is_none() {
             // check if the message belongs to a mailing list
             match mime_parser.get_mailinglist_type() {
                 MailinglistType::ListIdBased => {
                     if let Some(list_id) = mime_parser.get(HeaderDef::ListId) {
-                        let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
-                            context,
-                            allow_creation,
-                            list_id,
-                            mime_parser,
-                        )
-                        .await;
-                        chat_id = new_chat_id;
-                        chat_id_blocked = new_chat_id_blocked;
+                        if let Some((new_chat_id, new_chat_id_blocked)) =
+                            create_or_lookup_mailinglist(
+                                context,
+                                allow_creation,
+                                list_id,
+                                mime_parser,
+                            )
+                            .await
+                        {
+                            chat_id = Some(new_chat_id);
+                            chat_id_blocked = new_chat_id_blocked;
+                        }
                     }
                 }
                 MailinglistType::SenderBased => {
                     if let Some(sender) = mime_parser.get(HeaderDef::Sender) {
-                        let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
-                            context,
-                            allow_creation,
-                            sender,
-                            mime_parser,
-                        )
-                        .await;
-                        chat_id = new_chat_id;
-                        chat_id_blocked = new_chat_id_blocked;
+                        if let Some((new_chat_id, new_chat_id_blocked)) =
+                            create_or_lookup_mailinglist(
+                                context,
+                                allow_creation,
+                                sender,
+                                mime_parser,
+                            )
+                            .await
+                        {
+                            chat_id = Some(new_chat_id);
+                            chat_id_blocked = new_chat_id_blocked;
+                        }
                     }
                 }
                 MailinglistType::None => {}
@@ -564,7 +571,7 @@ async fn add_parts(
             }
         }
 
-        if chat_id.is_unset() {
+        if chat_id.is_none() {
             // try to create a normal chat
             let create_blocked = if from_id == to_id {
                 Blocked::Not
@@ -573,39 +580,38 @@ async fn add_parts(
             };
 
             if let Some(chat) = test_normal_chat {
-                chat_id = chat.id;
+                chat_id = Some(chat.id);
                 chat_id_blocked = chat.blocked;
             } else if allow_creation {
                 if let Ok(chat) = ChatIdBlocked::get_for_contact(context, from_id, create_blocked)
                     .await
                     .log_err(context, "Failed to get (new) chat for contact")
                 {
-                    chat_id = chat.id;
+                    chat_id = Some(chat.id);
                     chat_id_blocked = chat.blocked;
                 }
             }
-            if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
-                if Blocked::Not == create_blocked {
-                    chat_id.unblock(context).await?;
-                    chat_id_blocked = Blocked::Not;
-                } else if parent.is_some() {
-                    // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
-                    // the contact requests will pop up and this should be just fine.
-                    Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo).await;
-                    info!(
-                        context,
-                        "Message is a reply to a known message, mark sender as known.",
-                    );
-                    if !incoming_origin.is_known() {
-                        incoming_origin = Origin::IncomingReplyTo;
+
+            if let Some(chat_id) = chat_id {
+                if Blocked::Not != chat_id_blocked {
+                    if Blocked::Not == create_blocked {
+                        chat_id.unblock(context).await?;
+                        chat_id_blocked = Blocked::Not;
+                    } else if parent.is_some() {
+                        // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
+                        // the contact requests will pop up and this should be just fine.
+                        Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo)
+                            .await;
+                        info!(
+                            context,
+                            "Message is a reply to a known message, mark sender as known.",
+                        );
+                        if !incoming_origin.is_known() {
+                            incoming_origin = Origin::IncomingReplyTo;
+                        }
                     }
                 }
             }
-        }
-        if chat_id.is_unset() {
-            // maybe from_id is null or sth. else is suspicious, move message to trash
-            chat_id = DC_CHAT_ID_TRASH;
-            info!(context, "No chat id for incoming msg (TRASH)")
         }
 
         // if the chat_id is blocked,
@@ -629,7 +635,7 @@ async fn add_parts(
             && (is_dc_message == MessengerMessage::No)
             && context.is_spam_folder(server_folder).await?;
         if is_spam {
-            chat_id = DC_CHAT_ID_TRASH;
+            chat_id = Some(DC_CHAT_ID_TRASH);
             info!(context, "Message is probably spam (TRASH)");
         }
     } else {
@@ -643,7 +649,7 @@ async fn add_parts(
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get(HeaderDef::SecureJoin).is_some() {
             is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
-            chat_id = ChatId::new(0);
+            chat_id = None;
             allow_creation = true;
             match observe_securejoin_on_other_device(context, mime_parser, to_id).await {
                 Ok(securejoin::HandshakeMessage::Done)
@@ -654,9 +660,8 @@ async fn add_parts(
                     // process messages as "member added" normally
                 }
                 Err(err) => {
-                    *hidden = true;
                     warn!(context, "Error in Secure-Join watching: {}", err);
-                    return Ok(chat_id);
+                    return Ok(DC_CHAT_ID_TRASH);
                 }
             }
         }
@@ -682,22 +687,24 @@ async fn add_parts(
         if is_draft {
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
             info!(context, "Email is probably just a draft (TRASH)");
-            chat_id = DC_CHAT_ID_TRASH;
+            chat_id = Some(DC_CHAT_ID_TRASH);
             allow_creation = false;
         }
 
-        if chat_id.is_unset() {
+        if chat_id.is_none() {
             // try to assign to a chat based on In-Reply-To/References:
 
-            let (new_chat_id, new_chat_id_blocked) =
-                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?;
-            chat_id = new_chat_id;
-            chat_id_blocked = new_chat_id_blocked;
+            if let Some((new_chat_id, new_chat_id_blocked)) =
+                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?
+            {
+                chat_id = Some(new_chat_id);
+                chat_id_blocked = new_chat_id_blocked;
+            }
         }
 
         if !to_ids.is_empty() {
-            if chat_id.is_unset() {
-                let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
+            if chat_id.is_none() {
+                if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
                     &mut mime_parser,
                     allow_creation,
@@ -705,16 +712,18 @@ async fn add_parts(
                     from_id,
                     to_ids,
                 )
-                .await?;
-                chat_id = new_chat_id;
-                chat_id_blocked = new_chat_id_blocked;
-                // automatically unblock chat when the user sends a message
-                if !chat_id.is_unset() && chat_id_blocked != Blocked::Not {
-                    new_chat_id.unblock(context).await?;
-                    chat_id_blocked = Blocked::Not;
+                .await?
+                {
+                    chat_id = Some(new_chat_id);
+                    chat_id_blocked = new_chat_id_blocked;
+                    // automatically unblock chat when the user sends a message
+                    if chat_id_blocked != Blocked::Not {
+                        new_chat_id.unblock(context).await?;
+                        chat_id_blocked = Blocked::Not;
+                    }
                 }
             }
-            if chat_id.is_unset() && allow_creation {
+            if chat_id.is_none() && allow_creation {
                 let create_blocked = if !Contact::is_blocked_load(context, to_id).await {
                     Blocked::Not
                 } else {
@@ -723,16 +732,15 @@ async fn add_parts(
                 if let Ok(chat) =
                     ChatIdBlocked::get_for_contact(context, to_id, create_blocked).await
                 {
-                    chat_id = chat.id;
+                    chat_id = Some(chat.id);
                     chat_id_blocked = chat.blocked;
                 }
 
-                if !chat_id.is_unset()
-                    && Blocked::Not != chat_id_blocked
-                    && Blocked::Not == create_blocked
-                {
-                    chat_id.unblock(context).await?;
-                    chat_id_blocked = Blocked::Not;
+                if let Some(chat_id) = chat_id {
+                    if Blocked::Not != chat_id_blocked && Blocked::Not == create_blocked {
+                        chat_id.unblock(context).await?;
+                        chat_id_blocked = Blocked::Not;
+                    }
                 }
             }
         }
@@ -740,7 +748,7 @@ async fn add_parts(
             && to_ids.len() == 1
             && to_ids.contains(&DC_CONTACT_ID_SELF);
 
-        if chat_id.is_unset() && self_sent {
+        if chat_id.is_none() && self_sent {
             // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
             // maybe an Autocrypt Setup Message
             if let Ok(chat) =
@@ -748,26 +756,29 @@ async fn add_parts(
                     .await
                     .log_err(context, "Failed to get (new) chat for contact")
             {
-                chat_id = chat.id;
+                chat_id = Some(chat.id);
                 chat_id_blocked = chat.blocked;
             }
 
-            if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
-                chat_id.unblock(context).await?;
-                chat_id_blocked = Blocked::Not;
+            if let Some(chat_id) = chat_id {
+                if Blocked::Not != chat_id_blocked {
+                    chat_id.unblock(context).await?;
+                    chat_id_blocked = Blocked::Not;
+                }
             }
-        }
-        if chat_id.is_unset() {
-            chat_id = DC_CHAT_ID_TRASH;
-            info!(context, "No chat id for outgoing message (TRASH)")
         }
     }
 
     if fetching_existing_messages && mime_parser.decrypting_failed {
-        chat_id = DC_CHAT_ID_TRASH;
+        chat_id = Some(DC_CHAT_ID_TRASH);
         // We are only gathering old messages on first start. We do not want to add loads of non-decryptable messages to the chats.
         info!(context, "Existing non-decipherable message. (TRASH)");
     }
+
+    let chat_id = chat_id.unwrap_or_else(|| {
+        info!(context, "No chat id for message (TRASH)");
+        DC_CHAT_ID_TRASH
+    });
 
     // Extract ephemeral timer from the message.
     let mut ephemeral_timer = if let Some(value) = mime_parser.get(HeaderDef::EphemeralTimer) {
@@ -936,7 +947,6 @@ async fn add_parts(
 
     let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
-    let chat_id = chat_id;
 
     let mut is_hidden = is_hidden;
     let mut ids = Vec::with_capacity(parts.len());
@@ -1201,7 +1211,7 @@ async fn lookup_chat_by_reply(
     parent: &Option<Message>,
     from_id: u32,
     to_ids: &ContactIds,
-) -> Result<(ChatId, Blocked)> {
+) -> Result<Option<(ChatId, Blocked)>> {
     // Try to assign message to the same chat as the parent message.
 
     // If this was a private message just to self, it was probably a private reply.
@@ -1215,7 +1225,7 @@ async fn lookup_chat_by_reply(
                 // This message will be assigned to this chat, anyway.
                 // But if we assigned it now, create_or_lookup_group() will not be called
                 // and group commands will not be executed.
-                return Ok((ChatId::new(0), Blocked::Not));
+                return Ok(None);
             }
         }
 
@@ -1224,25 +1234,25 @@ async fn lookup_chat_by_reply(
             // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
             // We don't have any way of finding out whether a msg is undecipherable, so we check for
             // error.is_some() instead.
-            return Ok((ChatId::new(0), Blocked::Not));
+            return Ok(None);
         }
 
         if parent_chat.id == DC_CHAT_ID_TRASH {
-            return Ok((ChatId::new(0), Blocked::Not));
+            return Ok(None);
         }
 
         if is_probably_private_reply(context, to_ids, mime_parser, parent_chat.id, from_id).await? {
-            return Ok((ChatId::new(0), Blocked::Not));
+            return Ok(None);
         }
 
         info!(
             context,
             "Assigning message to {} as it's a reply to {}", parent_chat.id, parent.rfc724_mid
         );
-        return Ok((parent_chat.id, parent_chat.blocked));
+        return Ok(Some((parent_chat.id, parent_chat.blocked)));
     }
 
-    Ok((ChatId::new(0), Blocked::Not))
+    Ok(None)
 }
 
 /// If this method returns true, the message shall be assigned to the 1:1 chat with the sender.
@@ -1299,7 +1309,7 @@ async fn create_or_lookup_group(
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &ContactIds,
-) -> Result<(ChatId, Blocked)> {
+) -> Result<Option<(ChatId, Blocked)>> {
     let mut chat_id_blocked = Blocked::Not;
     let mut recreate_member_list = false;
     let mut send_EVENT_CHAT_MODIFIED = false;
@@ -1324,16 +1334,12 @@ async fn create_or_lookup_group(
         }
         if !allow_creation {
             info!(context, "creating ad-hoc group prevented from caller");
-            return Ok((ChatId::new(0), Blocked::Not));
+            return Ok(None);
         }
 
         return create_adhoc_group(context, mime_parser, create_blocked, &member_ids)
             .await
-            .map(|chat_id| {
-                chat_id
-                    .map(|chat_id| (chat_id, create_blocked))
-                    .unwrap_or((ChatId::new(0), Blocked::Not))
-            })
+            .map(|chat_id| chat_id.map(|chat_id| (chat_id, create_blocked)))
             .map_err(|err| {
                 info!(context, "could not create adhoc-group: {:?}", err);
                 err
@@ -1341,16 +1347,22 @@ async fn create_or_lookup_group(
     };
 
     // check, if we have a chat with this group ID
-    let (mut chat_id, _, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
-        .await
-        .unwrap_or((ChatId::new(0), false, Blocked::Not));
+    let mut chat_id = if let Ok((chat_id, _protected, _blocked)) =
+        chat::get_chat_id_by_grpid(context, &grpid).await
+    {
+        Some(chat_id)
+    } else {
+        None
+    };
 
     // For chat messages, we don't have to guess (is_*probably*_private_reply()) but we know for sure that
     // they belong to the group because of the Chat-Group-Id or Message-Id header
-    if !mime_parser.has_chat_version()
-        && is_probably_private_reply(context, to_ids, mime_parser, chat_id, from_id).await?
-    {
-        return Ok((ChatId::new(0), Blocked::Not));
+    if let Some(chat_id) = chat_id {
+        if !mime_parser.has_chat_version()
+            && is_probably_private_reply(context, to_ids, mime_parser, chat_id, from_id).await?
+        {
+            return Ok(None);
+        }
     }
 
     // now we have a grpid that is non-empty
@@ -1421,7 +1433,7 @@ async fn create_or_lookup_group(
         .await?
         .unwrap_or_default();
 
-    if chat_id.is_unset()
+    if chat_id.is_none()
             && !mime_parser.is_mailinglist_message()
             && !grpid.is_empty()
             && grpname.is_some()
@@ -1446,7 +1458,7 @@ async fn create_or_lookup_group(
 
         if !allow_creation {
             info!(context, "creating group forbidden by caller");
-            return Ok((ChatId::new(0), Blocked::Not));
+            return Ok(None);
         }
 
         chat_id = create_multiuser_record(
@@ -1458,6 +1470,7 @@ async fn create_or_lookup_group(
             create_protected,
         )
         .await
+        .map(Some)
         .unwrap_or_else(|err| {
             warn!(
                 context,
@@ -1467,7 +1480,7 @@ async fn create_or_lookup_group(
                 err,
             );
 
-            ChatId::new(0)
+            None
         });
 
         chat_id_blocked = create_blocked;
@@ -1486,22 +1499,22 @@ async fn create_or_lookup_group(
     }
 
     // again, check chat_id
-    if chat_id.is_special() {
-        if mime_parser.decrypting_failed {
-            // It is possible that the message was sent to a valid,
-            // yet unknown group, which was rejected because
-            // Chat-Group-Name, which is in the encrypted part, was
-            // not found. We can't create a properly named group in
-            // this case, so assign error message to 1:1 chat with the
-            // sender instead.
-            return Ok((ChatId::new(0), Blocked::Not));
-        } else {
-            // The message was decrypted successfully, but contains a late "quit" or otherwise
-            // unwanted message.
-            info!(context, "message belongs to unwanted group (TRASH)");
-            return Ok((DC_CHAT_ID_TRASH, chat_id_blocked));
-        }
-    }
+    let chat_id = if let Some(chat_id) = chat_id {
+        chat_id
+    } else if mime_parser.decrypting_failed {
+        // It is possible that the message was sent to a valid,
+        // yet unknown group, which was rejected because
+        // Chat-Group-Name, which is in the encrypted part, was
+        // not found. We can't create a properly named group in
+        // this case, so assign error message to 1:1 chat with the
+        // sender instead.
+        return Ok(None);
+    } else {
+        // The message was decrypted successfully, but contains a late "quit" or otherwise
+        // unwanted message.
+        info!(context, "message belongs to unwanted group (TRASH)");
+        return Ok(Some((DC_CHAT_ID_TRASH, chat_id_blocked)));
+    };
 
     // We have a valid chat_id > DC_CHAT_ID_LAST_SPECIAL.
 
@@ -1585,7 +1598,7 @@ async fn create_or_lookup_group(
     if send_EVENT_CHAT_MODIFIED {
         context.emit_event(EventType::ChatModified(chat_id));
     }
-    Ok((chat_id, chat_id_blocked))
+    Ok(Some((chat_id, chat_id_blocked)))
 }
 
 /// Create or lookup a mailing list chat.
@@ -1603,7 +1616,7 @@ async fn create_or_lookup_mailinglist(
     allow_creation: bool,
     list_id_header: &str,
     mime_parser: &MimeMessage,
-) -> (ChatId, Blocked) {
+) -> Option<(ChatId, Blocked)> {
     static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
     let (mut name, listid) = match LIST_ID.captures(list_id_header) {
         Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
@@ -1618,7 +1631,7 @@ async fn create_or_lookup_mailinglist(
     };
 
     if let Ok((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await {
-        return (chat_id, blocked);
+        return Some((chat_id, blocked));
     }
 
     // for mailchimp lists, the name in `ListId` is just a long number.
@@ -1677,7 +1690,7 @@ async fn create_or_lookup_mailinglist(
         {
             Ok(chat_id) => {
                 chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
-                (chat_id, Blocked::Request)
+                Some((chat_id, Blocked::Request))
             }
             Err(e) => {
                 warn!(
@@ -1687,12 +1700,12 @@ async fn create_or_lookup_mailinglist(
                     &listid,
                     e.to_string()
                 );
-                (ChatId::new(0), Blocked::Request)
+                None
             }
         }
     } else {
         info!(context, "creating list forbidden by caller");
-        (ChatId::new(0), Blocked::Not)
+        None
     }
 }
 
