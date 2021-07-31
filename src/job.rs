@@ -590,12 +590,13 @@ impl Job {
 
     /// Deletes a message on the server.
     ///
-    /// foreign_id is a MsgId pointing to a message in the trash chat
-    /// or a hidden message.
+    /// `foreign_id` is a MsgId.
     ///
-    /// This job removes the database record. If there are no more
-    /// records pointing to the same message on the server, the job
-    /// also removes the message on the server.
+    /// If the message is in the trash chat or hidden, this job
+    /// removes database record, otherwise it only clears the
+    /// `server_uid` column.  If there are no more records pointing to
+    /// the same message on the server, the job actually removes the
+    /// message on the server.
     async fn delete_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
