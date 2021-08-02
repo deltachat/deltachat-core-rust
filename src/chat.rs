@@ -1157,7 +1157,7 @@ impl Chat {
                 }
 
                 // the whole list of messages referenced may be huge;
-                // only use the oldest and and the parent message
+                // only use the oldest and the parent message
                 let parent_references = parent_references
                     .find(' ')
                     .and_then(|n| parent_references.get(..n))
@@ -1313,7 +1313,7 @@ impl rusqlite::types::FromSql for ChatVisibility {
                 2 => ChatVisibility::Pinned,
                 1 => ChatVisibility::Archived,
                 0 => ChatVisibility::Normal,
-                // fallback to to Normal for unknown values, may happen eg. on imports created by a newer version.
+                // fallback to Normal for unknown values, may happen eg. on imports created by a newer version.
                 _ => ChatVisibility::Normal,
             }
         })
