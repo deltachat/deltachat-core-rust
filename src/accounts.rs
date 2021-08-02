@@ -118,6 +118,7 @@ impl Accounts {
     /// Migrate an existing account into this structure.
     pub async fn migrate_account(&self, dbfile: PathBuf) -> Result<u32> {
         let blobdir = Context::derive_blobdir(&dbfile);
+        let walfile = Context::derive_walfile(&dbfile);
 
         ensure!(
             dbfile.exists().await,
@@ -141,6 +142,7 @@ impl Accounts {
 
         let new_dbfile = account_config.dbfile().into();
         let new_blobdir = Context::derive_blobdir(&new_dbfile);
+        let new_walfile = Context::derive_walfile(&new_dbfile);
 
         let res = {
             fs::create_dir_all(&account_config.dir)
@@ -152,6 +154,11 @@ impl Accounts {
             fs::rename(&blobdir, &new_blobdir)
                 .await
                 .context("failed to rename blobdir")?;
+            if walfile.exists().await {
+                fs::rename(&walfile, &new_walfile)
+                    .await
+                    .context("failed to rename walfile")?;
+            }
             Ok(())
         };
 

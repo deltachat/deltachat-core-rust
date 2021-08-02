@@ -559,6 +559,13 @@ impl Context {
         blob_fname.push("-blobs");
         dbfile.with_file_name(blob_fname)
     }
+
+    pub fn derive_walfile(dbfile: &PathBuf) -> PathBuf {
+        let mut wal_fname = OsString::new();
+        wal_fname.push(dbfile.file_name().unwrap_or_default());
+        wal_fname.push("-wal");
+        dbfile.with_file_name(wal_fname)
+    }
 }
 
 impl InnerContext {
