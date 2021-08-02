@@ -1,5 +1,14 @@
 # Changelog 
 
+
+## 1.58.0
+
+### Fixes
+
+- move WAL file together with database
+  and avoid using data if the database was not closed correctly before #2583
+
+
 ## 1.57.0
 
 ### API Changes
