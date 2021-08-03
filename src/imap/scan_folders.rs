@@ -42,6 +42,15 @@ impl Imap {
                 }
             };
 
+            // Gmail labels are not folders and should be skipped. For example,
+            // emails appear in the inbox and under "All Mail" as soon as it is
+            // received. The code used to wrongly conclude that the email had
+            // already been moved and left it in the inbox.
+            let folder_name = folder.name();
+            if folder_name.starts_with("[Gmail]") {
+                continue;
+            }
+
             let folder_meaning = get_folder_meaning(&folder);
             let folder_name_meaning = get_folder_meaning_by_name(folder.name());
 
