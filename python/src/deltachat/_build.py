@@ -8,9 +8,9 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
-import types
 
 import cffi
+import pkgconfig  # type: ignore
 
 
 def local_build_flags(projdir, target):
@@ -19,36 +19,31 @@ def local_build_flags(projdir, target):
     :param projdir: The root directory of the deltachat-core-rust project.
     :param target: The rust build target, `debug` or `release`.
     """
-    flags = types.SimpleNamespace()
+    flags = {}
     if platform.system() == 'Darwin':
-        flags.libs = ['resolv', 'dl']
-        flags.extra_link_args = [
+        flags['libraries'] = ['resolv', 'dl']
+        flags['extra_link_args'] = [
                 '-framework', 'CoreFoundation',
                 '-framework', 'CoreServices',
                 '-framework', 'Security',
         ]
     elif platform.system() == 'Linux':
-        flags.libs = ['rt', 'dl', 'm']
-        flags.extra_link_args = []
+        flags['libraries'] = ['rt', 'dl', 'm']
+        flags['extra_link_args'] = []
     else:
         raise NotImplementedError("Compilation not supported yet on Windows, can you help?")
     target_dir = os.environ.get("CARGO_TARGET_DIR")
     if target_dir is None:
         target_dir = os.path.join(projdir, 'target')
-    flags.objs = [os.path.join(target_dir, target, 'libdeltachat.a')]
-    assert os.path.exists(flags.objs[0]), flags.objs
-    flags.incs = [os.path.join(projdir, 'deltachat-ffi')]
+    flags['extra_objects'] = [os.path.join(target_dir, target, 'libdeltachat.a')]
+    assert os.path.exists(flags['extra_objects'][0]), flags['extra_objects']
+    flags['include_dirs'] = [os.path.join(projdir, 'deltachat-ffi')]
     return flags
 
 
 def system_build_flags():
     """Construct build flags for building against an installed libdeltachat."""
-    flags = types.SimpleNamespace()
-    flags.libs = ['deltachat']
-    flags.objs = []
-    flags.incs = []
-    flags.extra_link_args = []
-    return flags
+    return pkgconfig.parse('deltachat')
 
 
 def extract_functions(flags):
@@ -69,7 +64,7 @@ def extract_functions(flags):
             src_fp.write('#include <deltachat.h>')
         cc.preprocess(source=src_name,
                       output_file=dst_name,
-                      include_dirs=flags.incs,
+                      include_dirs=flags['include_dirs'],
                       macros=[('PY_CFFI', '1')])
         with open(dst_name, "r") as dst_fp:
             return dst_fp.read()
@@ -105,7 +100,7 @@ def find_header(flags):
         try:
             os.chdir(tmpdir)
             cc.compile(sources=["where.c"],
-                       include_dirs=flags.incs,
+                       include_dirs=flags['include_dirs'],
                        macros=[("PY_CFFI_INC", "1")])
         finally:
             os.chdir(cwd)
@@ -183,10 +178,7 @@ def ffibuilder():
                 return DC_EVENT_DATA2_IS_STRING(e);
             }
         """,
-        include_dirs=flags.incs,
-        libraries=flags.libs,
-        extra_objects=flags.objs,
-        extra_link_args=flags.extra_link_args,
+        **flags,
     )
     builder.cdef("""
         typedef int... time_t;
