@@ -496,6 +496,30 @@ impl Peerstate {
     }
 }
 
+/// Removes duplicate peerstates from `acpeerstates` database table.
+///
+/// Normally there should be no more than one peerstate per address.
+/// However, the database does not enforce this condition.
+///
+/// Previously there were bugs that caused creation of additional
+/// peerstates when existing peerstate could not be read due to a
+/// temporary database error or a failure to parse stored data.  This
+/// procedure fixes the problem by removing duplicate records.
+pub(crate) async fn deduplicate_peerstates(sql: &Sql) -> Result<()> {
+    sql.execute(
+        "DELETE FROM acpeerstates
+         WHERE id NOT IN (
+         SELECT MIN(id)
+         FROM acpeerstates
+         GROUP BY addr
+         )",
+        paramsv![],
+    )
+    .await?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
