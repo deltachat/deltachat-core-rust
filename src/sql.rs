@@ -20,7 +20,7 @@ use crate::dc_tools::{dc_delete_file, time};
 use crate::ephemeral::start_ephemeral_timers;
 use crate::message::Message;
 use crate::param::{Param, Params};
-use crate::peerstate::Peerstate;
+use crate::peerstate::{deduplicate_peerstates, Peerstate};
 use crate::stock_str;
 
 #[macro_export]
@@ -596,6 +596,10 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
             context,
             "Housekeeping: Cannot prune message tombstones: {}", err
         );
+    }
+
+    if let Err(err) = deduplicate_peerstates(&context.sql).await {
+        warn!(context, "Failed to deduplicate peerstates: {}", err)
     }
 
     context.schedule_quota_update().await?;
