@@ -6,6 +6,14 @@ resources:
     branch: master
     uri: https://github.com/deltachat/deltachat-core-rust.git
 
+- name: deltachat-core-rust-release
+  type: git
+  icon: github
+  source:
+    branch: master
+    uri: https://github.com/deltachat/deltachat-core-rust.git
+    tag_filter: "py-*"
+
 jobs:
 - name: doxygen
   plan:
@@ -58,12 +66,15 @@ jobs:
 - name: python-x86_64
   plan:
   - get: deltachat-core-rust
+  - get: deltachat-core-rust-release
+    trigger: true
 
   # Build manylinux image with additional dependencies
   - task: build-coredeps
     privileged: true
     config:
       inputs:
+        # Building the latest, not tagged coredeps
         - name: deltachat-core-rust
       image_resource:
         source:
@@ -86,7 +97,7 @@ jobs:
     image: coredeps-image
     config:
       inputs:
-        - name: deltachat-core-rust
+        - name: deltachat-core-rust-release
           path: .
       outputs:
         - name: py-docs
@@ -154,12 +165,15 @@ jobs:
 - name: python-aarch64
   plan:
   - get: deltachat-core-rust
+  - get: deltachat-core-rust-release
+    trigger: true
 
   # Build manylinux image with additional dependencies
   - task: build-coredeps
     privileged: true
     config:
       inputs:
+        # Building the latest, not tagged coredeps
         - name: deltachat-core-rust
       image_resource:
         source:
@@ -182,7 +196,7 @@ jobs:
     image: coredeps-image
     config:
       inputs:
-        - name: deltachat-core-rust
+        - name: deltachat-core-rust-release
           path: .
       outputs:
         - name: py-wheels
