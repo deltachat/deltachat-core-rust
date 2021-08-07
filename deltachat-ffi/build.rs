@@ -30,6 +30,6 @@ fn main() {
     fs::create_dir_all(target_path.join("pkgconfig")).unwrap();
     fs::File::create(target_path.join("pkgconfig").join("deltachat.pc"))
         .unwrap()
-        .write_all(&pkg_config.as_bytes())
+        .write_all(pkg_config.as_bytes())
         .unwrap();
 }

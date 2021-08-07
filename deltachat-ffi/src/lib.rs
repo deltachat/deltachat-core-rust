@@ -217,7 +217,7 @@ pub unsafe extern "C" fn dc_set_config_from_qr(
     let ctx = &*context;
 
     block_on(async move {
-        match qr::set_config_from_qr(&ctx, &qr).await {
+        match qr::set_config_from_qr(ctx, &qr).await {
             Ok(()) => 1,
             Err(err) => {
                 error!(ctx, "Failed to create account from QR code: {}", err);
@@ -303,7 +303,7 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     let redirect = to_string_lossy(redirect);
 
     block_on(async move {
-        match oauth2::dc_get_oauth2_url(&ctx, &addr, &redirect).await {
+        match oauth2::dc_get_oauth2_url(ctx, &addr, &redirect).await {
             Some(res) => res.strdup(),
             None => ptr::null_mut(),
         }
@@ -608,7 +608,7 @@ pub unsafe extern "C" fn dc_preconfigure_keypair(
             public,
             secret,
         };
-        key::store_self_keypair(&ctx, &keypair, key::KeyPairUse::Default).await?;
+        key::store_self_keypair(ctx, &keypair, key::KeyPairUse::Default).await?;
         Ok::<_, anyhow::Error>(1)
     })
     .log_err(ctx, "Failed to save keypair")
@@ -632,7 +632,7 @@ pub unsafe extern "C" fn dc_get_chatlist(
     let qi = if query_id == 0 { None } else { Some(query_id) };
 
     block_on(async move {
-        match chatlist::Chatlist::try_load(&ctx, flags as usize, qs.as_deref(), qi).await {
+        match chatlist::Chatlist::try_load(ctx, flags as usize, qs.as_deref(), qi).await {
             Ok(list) => {
                 let ffi_list = ChatlistWrapper { context, list };
                 Box::into_raw(Box::new(ffi_list))
@@ -654,7 +654,7 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
     let ctx = &*context;
 
     block_on(async move {
-        ChatId::create_for_contact(&ctx, contact_id)
+        ChatId::create_for_contact(ctx, contact_id)
             .await
             .log_err(ctx, "Failed to create chat from contact_id")
             .map(|id| id.to_u32())
@@ -674,7 +674,7 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     let ctx = &*context;
 
     block_on(async move {
-        ChatId::lookup_by_contact(&ctx, contact_id)
+        ChatId::lookup_by_contact(ctx, contact_id)
             .await
             .log_err(ctx, "Failed to get chat for contact_id")
             .unwrap_or_default() // unwraps the Result
@@ -697,9 +697,9 @@ pub unsafe extern "C" fn dc_prepare_msg(
     let ffi_msg: &mut MessageWrapper = &mut *msg;
 
     block_on(async move {
-        chat::prepare_msg(&ctx, ChatId::new(chat_id), &mut ffi_msg.message)
+        chat::prepare_msg(ctx, ChatId::new(chat_id), &mut ffi_msg.message)
             .await
-            .unwrap_or_log_default(&ctx, "Failed to prepare message")
+            .unwrap_or_log_default(ctx, "Failed to prepare message")
     })
     .to_u32()
 }
@@ -718,9 +718,9 @@ pub unsafe extern "C" fn dc_send_msg(
     let ffi_msg = &mut *msg;
 
     block_on(async move {
-        chat::send_msg(&ctx, ChatId::new(chat_id), &mut ffi_msg.message)
+        chat::send_msg(ctx, ChatId::new(chat_id), &mut ffi_msg.message)
             .await
-            .unwrap_or_log_default(&ctx, "Failed to send message")
+            .unwrap_or_log_default(ctx, "Failed to send message")
     })
     .to_u32()
 }
@@ -739,9 +739,9 @@ pub unsafe extern "C" fn dc_send_msg_sync(
     let ffi_msg = &mut *msg;
 
     block_on(async move {
-        chat::send_msg_sync(&ctx, ChatId::new(chat_id), &mut ffi_msg.message)
+        chat::send_msg_sync(ctx, ChatId::new(chat_id), &mut ffi_msg.message)
             .await
-            .unwrap_or_log_default(&ctx, "Failed to send message")
+            .unwrap_or_log_default(ctx, "Failed to send message")
     })
     .to_u32()
 }
@@ -760,10 +760,10 @@ pub unsafe extern "C" fn dc_send_text_msg(
     let text_to_send = to_string_lossy(text_to_send);
 
     block_on(async move {
-        chat::send_text_msg(&ctx, ChatId::new(chat_id), text_to_send)
+        chat::send_text_msg(ctx, ChatId::new(chat_id), text_to_send)
             .await
             .map(|msg_id| msg_id.to_u32())
-            .unwrap_or_log_default(&ctx, "Failed to send text message")
+            .unwrap_or_log_default(ctx, "Failed to send text message")
     })
 }
 
@@ -779,10 +779,10 @@ pub unsafe extern "C" fn dc_send_videochat_invitation(
     let ctx = &*context;
 
     block_on(async move {
-        chat::send_videochat_invitation(&ctx, ChatId::new(chat_id))
+        chat::send_videochat_invitation(ctx, ChatId::new(chat_id))
             .await
             .map(|msg_id| msg_id.to_u32())
-            .unwrap_or_log_default(&ctx, "Failed to send video chat invitation")
+            .unwrap_or_log_default(ctx, "Failed to send video chat invitation")
     })
 }
 
@@ -806,7 +806,7 @@ pub unsafe extern "C" fn dc_set_draft(
 
     block_on(async move {
         ChatId::new(chat_id)
-            .set_draft(&ctx, msg)
+            .set_draft(ctx, msg)
             .await
             .unwrap_or_log_default(ctx, "failed to set draft");
     });
@@ -831,9 +831,9 @@ pub unsafe extern "C" fn dc_add_device_msg(
     };
 
     block_on(async move {
-        chat::add_device_msg(&ctx, to_opt_string_lossy(label).as_deref(), msg)
+        chat::add_device_msg(ctx, to_opt_string_lossy(label).as_deref(), msg)
             .await
-            .unwrap_or_log_default(&ctx, "Failed to add device message")
+            .unwrap_or_log_default(ctx, "Failed to add device message")
     })
     .to_u32()
 }
@@ -850,7 +850,7 @@ pub unsafe extern "C" fn dc_was_device_msg_ever_added(
     let ctx = &mut *context;
 
     block_on(async move {
-        chat::was_device_msg_ever_added(&ctx, &to_string_lossy(label))
+        chat::was_device_msg_ever_added(ctx, &to_string_lossy(label))
             .await
             .unwrap_or(false) as libc::c_int
     })
@@ -865,7 +865,7 @@ pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context_t, chat_id: u32) 
     let ctx = &*context;
 
     block_on(async move {
-        match ChatId::new(chat_id).get_draft(&ctx).await {
+        match ChatId::new(chat_id).get_draft(ctx).await {
             Ok(Some(draft)) => {
                 let ffi_msg = MessageWrapper {
                     context,
@@ -902,7 +902,7 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
 
     block_on(async move {
         Box::into_raw(Box::new(
-            chat::get_chat_msgs(&ctx, ChatId::new(chat_id), flags, marker_flag)
+            chat::get_chat_msgs(ctx, ChatId::new(chat_id), flags, marker_flag)
                 .await
                 .unwrap_or_log_default(ctx, "failed to get chat msgs")
                 .into(),
@@ -920,7 +920,7 @@ pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context_t, chat_id: u32
 
     block_on(async move {
         ChatId::new(chat_id)
-            .get_msg_cnt(&ctx)
+            .get_msg_cnt(ctx)
             .await
             .unwrap_or_log_default(ctx, "failed to get msg count") as libc::c_int
     })
@@ -939,7 +939,7 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
 
     block_on(async move {
         ChatId::new(chat_id)
-            .get_fresh_msg_cnt(&ctx)
+            .get_fresh_msg_cnt(ctx)
             .await
             .unwrap_or_log_default(ctx, "failed to get fresh msg cnt") as libc::c_int
     })
@@ -996,7 +996,7 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
     let ctx = &*context;
 
     block_on(async move {
-        chat::marknoticed_chat(&ctx, ChatId::new(chat_id))
+        chat::marknoticed_chat(ctx, ChatId::new(chat_id))
             .await
             .log_err(ctx, "Failed marknoticed chat")
             .unwrap_or(())
@@ -1033,7 +1033,7 @@ pub unsafe extern "C" fn dc_get_chat_media(
     block_on(async move {
         Box::into_raw(Box::new(
             chat::get_chat_media(
-                &ctx,
+                ctx,
                 ChatId::new(chat_id),
                 msg_type,
                 or_msg_type2,
@@ -1074,7 +1074,7 @@ pub unsafe extern "C" fn dc_get_next_media(
 
     block_on(async move {
         chat::get_next_media(
-            &ctx,
+            ctx,
             MsgId::new(msg_id),
             direction,
             msg_type,
@@ -1106,7 +1106,7 @@ pub unsafe extern "C" fn dc_set_chat_protection(
     };
 
     block_on(async move {
-        match ChatId::new(chat_id).set_protection(&ctx, protect).await {
+        match ChatId::new(chat_id).set_protection(ctx, protect).await {
             Ok(()) => 1,
             Err(_) => 0,
         }
@@ -1139,7 +1139,7 @@ pub unsafe extern "C" fn dc_set_chat_visibility(
 
     block_on(async move {
         ChatId::new(chat_id)
-            .set_visibility(&ctx, visibility)
+            .set_visibility(ctx, visibility)
             .await
             .log_err(ctx, "Failed setting chat visibility")
             .unwrap_or(())
@@ -1156,7 +1156,7 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
 
     block_on(async move {
         ChatId::new(chat_id)
-            .delete(&ctx)
+            .delete(ctx)
             .await
             .ok_or_log_msg(ctx, "Failed chat delete");
     })
@@ -1172,7 +1172,7 @@ pub unsafe extern "C" fn dc_block_chat(context: *mut dc_context_t, chat_id: u32)
 
     block_on(async move {
         ChatId::new(chat_id)
-            .block(&ctx)
+            .block(ctx)
             .await
             .ok_or_log_msg(ctx, "Failed chat block");
     })
@@ -1188,7 +1188,7 @@ pub unsafe extern "C" fn dc_accept_chat(context: *mut dc_context_t, chat_id: u32
 
     block_on(async move {
         ChatId::new(chat_id)
-            .accept(&ctx)
+            .accept(ctx)
             .await
             .ok_or_log_msg(ctx, "Failed chat accept");
     })
@@ -1207,7 +1207,7 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
 
     block_on(async move {
         let arr = dc_array_t::from(
-            chat::get_chat_contacts(&ctx, ChatId::new(chat_id))
+            chat::get_chat_contacts(ctx, ChatId::new(chat_id))
                 .await
                 .unwrap_or_log_default(ctx, "Failed get_chat_contacts"),
         );
@@ -1254,7 +1254,7 @@ pub unsafe extern "C" fn dc_get_chat(context: *mut dc_context_t, chat_id: u32) -
     let ctx = &*context;
 
     block_on(async move {
-        match chat::Chat::load_from_db(&ctx, ChatId::new(chat_id)).await {
+        match chat::Chat::load_from_db(ctx, ChatId::new(chat_id)).await {
             Ok(chat) => {
                 let ffi_chat = ChatWrapper { context, chat };
                 Box::into_raw(Box::new(ffi_chat))
@@ -1283,7 +1283,7 @@ pub unsafe extern "C" fn dc_create_group_chat(
     };
 
     block_on(async move {
-        chat::create_group_chat(&ctx, protect, &to_string_lossy(name))
+        chat::create_group_chat(ctx, protect, &to_string_lossy(name))
             .await
             .log_err(ctx, "Failed to create group chat")
             .map(|id| id.to_u32())
@@ -1303,7 +1303,7 @@ pub unsafe extern "C" fn dc_is_contact_in_chat(
     }
     let ctx = &*context;
 
-    block_on(async move { chat::is_contact_in_chat(&ctx, ChatId::new(chat_id), contact_id).await })
+    block_on(async move { chat::is_contact_in_chat(ctx, ChatId::new(chat_id), contact_id).await })
         .into()
 }
 
@@ -1320,7 +1320,7 @@ pub unsafe extern "C" fn dc_add_contact_to_chat(
     let ctx = &*context;
 
     block_on(async move {
-        chat::add_contact_to_chat(&ctx, ChatId::new(chat_id), contact_id).await as libc::c_int
+        chat::add_contact_to_chat(ctx, ChatId::new(chat_id), contact_id).await as libc::c_int
     })
 }
 
@@ -1337,10 +1337,10 @@ pub unsafe extern "C" fn dc_remove_contact_from_chat(
     let ctx = &*context;
 
     block_on(async move {
-        chat::remove_contact_from_chat(&ctx, ChatId::new(chat_id), contact_id)
+        chat::remove_contact_from_chat(ctx, ChatId::new(chat_id), contact_id)
             .await
             .map(|_| 1)
-            .unwrap_or_log_default(&ctx, "Failed to remove contact")
+            .unwrap_or_log_default(ctx, "Failed to remove contact")
     })
 }
 
@@ -1358,10 +1358,10 @@ pub unsafe extern "C" fn dc_set_chat_name(
     let ctx = &*context;
 
     block_on(async move {
-        chat::set_chat_name(&ctx, ChatId::new(chat_id), &to_string_lossy(name))
+        chat::set_chat_name(ctx, ChatId::new(chat_id), &to_string_lossy(name))
             .await
             .map(|_| 1)
-            .unwrap_or_log_default(&ctx, "Failed to set chat name")
+            .unwrap_or_log_default(ctx, "Failed to set chat name")
     })
 }
 
@@ -1378,10 +1378,10 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
     let ctx = &*context;
 
     block_on(async move {
-        chat::set_chat_profile_image(&ctx, ChatId::new(chat_id), to_string_lossy(image))
+        chat::set_chat_profile_image(ctx, ChatId::new(chat_id), to_string_lossy(image))
             .await
             .map(|_| 1)
-            .unwrap_or_log_default(&ctx, "Failed to set profile image")
+            .unwrap_or_log_default(ctx, "Failed to set profile image")
     })
 }
 
@@ -1412,10 +1412,10 @@ pub unsafe extern "C" fn dc_set_chat_mute_duration(
     };
 
     block_on(async move {
-        chat::set_muted(&ctx, ChatId::new(chat_id), muteDuration)
+        chat::set_muted(ctx, ChatId::new(chat_id), muteDuration)
             .await
             .map(|_| 1)
-            .unwrap_or_log_default(&ctx, "Failed to set mute duration")
+            .unwrap_or_log_default(ctx, "Failed to set mute duration")
     })
 }
 
@@ -1432,11 +1432,11 @@ pub unsafe extern "C" fn dc_get_chat_encrinfo(
 
     block_on(async move {
         ChatId::new(chat_id)
-            .get_encryption_info(&ctx)
+            .get_encryption_info(ctx)
             .await
             .map(|s| s.strdup())
             .unwrap_or_else(|e| {
-                error!(&ctx, "{}", e);
+                error!(ctx, "{}", e);
                 ptr::null_mut()
             })
     })
@@ -1497,7 +1497,7 @@ pub unsafe extern "C" fn dc_get_msg_info(
     let ctx = &*context;
 
     block_on(async move {
-        message::get_msg_info(&ctx, MsgId::new(msg_id))
+        message::get_msg_info(ctx, MsgId::new(msg_id))
             .await
             .unwrap_or_log_default(ctx, "failed to get msg id")
             .strdup()
@@ -1515,7 +1515,7 @@ pub unsafe extern "C" fn dc_get_msg_html(
     }
     let ctx = &*context;
 
-    block_on(MsgId::new(msg_id).get_html(&ctx))
+    block_on(MsgId::new(msg_id).get_html(ctx))
         .unwrap_or_log_default(ctx, "Failed get_msg_html")
         .strdup()
 }
@@ -1532,7 +1532,7 @@ pub unsafe extern "C" fn dc_get_mime_headers(
     let ctx = &*context;
 
     block_on(async move {
-        let mime = message::get_mime_headers(&ctx, MsgId::new(msg_id))
+        let mime = message::get_mime_headers(ctx, MsgId::new(msg_id))
             .await
             .unwrap_or_log_default(ctx, "failed to get mime headers");
         if mime.is_empty() {
@@ -1555,7 +1555,7 @@ pub unsafe extern "C" fn dc_delete_msgs(
     let ctx = &*context;
     let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
 
-    block_on(message::delete_msgs(&ctx, &msg_ids))
+    block_on(message::delete_msgs(ctx, &msg_ids))
 }
 
 #[no_mangle]
@@ -1577,9 +1577,9 @@ pub unsafe extern "C" fn dc_forward_msgs(
     let ctx = &*context;
 
     block_on(async move {
-        chat::forward_msgs(&ctx, &msg_ids[..], ChatId::new(chat_id))
+        chat::forward_msgs(ctx, &msg_ids[..], ChatId::new(chat_id))
             .await
-            .unwrap_or_log_default(&ctx, "Failed to forward message")
+            .unwrap_or_log_default(ctx, "Failed to forward message")
     })
 }
 
@@ -1596,7 +1596,7 @@ pub unsafe extern "C" fn dc_markseen_msgs(
     let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
     let ctx = &*context;
 
-    block_on(message::markseen_msgs(&ctx, msg_ids))
+    block_on(message::markseen_msgs(ctx, msg_ids))
         .log_err(ctx, "failed dc_markseen_msgs() call")
         .ok();
 }
@@ -1610,19 +1610,19 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
     let ctx = &*context;
 
     block_on(async move {
-        let message = match message::Message::load_from_db(&ctx, MsgId::new(msg_id)).await {
+        let message = match message::Message::load_from_db(ctx, MsgId::new(msg_id)).await {
             Ok(msg) => msg,
             Err(e) => {
                 if msg_id <= constants::DC_MSG_ID_LAST_SPECIAL {
                     // C-core API returns empty messages, do the same
                     warn!(
-                        &ctx,
+                        ctx,
                         "dc_get_msg called with special msg_id={}, returning empty msg", msg_id
                     );
                     message::Message::default()
                 } else {
                     error!(
-                        &ctx,
+                        ctx,
                         "dc_get_msg could not retrieve msg_id {}: {}", msg_id, e
                     );
                     return ptr::null_mut();
@@ -1656,7 +1656,7 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     let ctx = &*context;
 
     block_on(async move {
-        Contact::lookup_id_by_addr(&ctx, to_string_lossy(addr), Origin::IncomingReplyTo)
+        Contact::lookup_id_by_addr(ctx, to_string_lossy(addr), Origin::IncomingReplyTo)
             .await
             .unwrap_or_log_default(ctx, "failed to lookup id")
             .unwrap_or(0)
@@ -1677,7 +1677,7 @@ pub unsafe extern "C" fn dc_create_contact(
     let name = to_string_lossy(name);
 
     block_on(async move {
-        Contact::create(&ctx, &name, &to_string_lossy(addr))
+        Contact::create(ctx, &name, &to_string_lossy(addr))
             .await
             .unwrap_or(0)
     })
@@ -1695,7 +1695,7 @@ pub unsafe extern "C" fn dc_add_address_book(
     let ctx = &*context;
 
     block_on(async move {
-        match Contact::add_address_book(&ctx, &to_string_lossy(addr_book)).await {
+        match Contact::add_address_book(ctx, &to_string_lossy(addr_book)).await {
             Ok(cnt) => cnt as libc::c_int,
             Err(_) => 0,
         }
@@ -1716,7 +1716,7 @@ pub unsafe extern "C" fn dc_get_contacts(
     let query = to_opt_string_lossy(query);
 
     block_on(async move {
-        match Contact::get_all(&ctx, flags, query).await {
+        match Contact::get_all(ctx, flags, query).await {
             Ok(contacts) => Box::into_raw(Box::new(dc_array_t::from(contacts))),
             Err(_) => ptr::null_mut(),
         }
@@ -1732,7 +1732,7 @@ pub unsafe extern "C" fn dc_get_blocked_cnt(context: *mut dc_context_t) -> libc:
     let ctx = &*context;
 
     block_on(async move {
-        Contact::get_all_blocked(&ctx)
+        Contact::get_all_blocked(ctx)
             .await
             .unwrap_or_log_default(ctx, "failed to get blocked count")
             .len() as libc::c_int
@@ -1751,9 +1751,9 @@ pub unsafe extern "C" fn dc_get_blocked_contacts(
 
     block_on(async move {
         Box::into_raw(Box::new(dc_array_t::from(
-            Contact::get_all_blocked(&ctx)
+            Contact::get_all_blocked(ctx)
                 .await
-                .log_err(&ctx, "Can't get blocked contacts")
+                .log_err(ctx, "Can't get blocked contacts")
                 .unwrap_or_default(),
         )))
     })
@@ -1772,13 +1772,13 @@ pub unsafe extern "C" fn dc_block_contact(
     let ctx = &*context;
     block_on(async move {
         if block == 0 {
-            Contact::unblock(&ctx, contact_id)
+            Contact::unblock(ctx, contact_id)
                 .await
-                .ok_or_log_msg(&ctx, "Can't unblock contact");
+                .ok_or_log_msg(ctx, "Can't unblock contact");
         } else {
-            Contact::block(&ctx, contact_id)
+            Contact::block(ctx, contact_id)
                 .await
-                .ok_or_log_msg(&ctx, "Can't block contact");
+                .ok_or_log_msg(ctx, "Can't block contact");
         }
     });
 }
@@ -1795,11 +1795,11 @@ pub unsafe extern "C" fn dc_get_contact_encrinfo(
     let ctx = &*context;
 
     block_on(async move {
-        Contact::get_encrinfo(&ctx, contact_id)
+        Contact::get_encrinfo(ctx, contact_id)
             .await
             .map(|s| s.strdup())
             .unwrap_or_else(|e| {
-                error!(&ctx, "{}", e);
+                error!(ctx, "{}", e);
                 ptr::null_mut()
             })
     })
@@ -1817,7 +1817,7 @@ pub unsafe extern "C" fn dc_delete_contact(
     let ctx = &*context;
 
     block_on(async move {
-        match Contact::delete(&ctx, contact_id).await {
+        match Contact::delete(ctx, contact_id).await {
             Ok(_) => 1,
             Err(_) => 0,
         }
@@ -1836,7 +1836,7 @@ pub unsafe extern "C" fn dc_get_contact(
     let ctx = &*context;
 
     block_on(async move {
-        Contact::get_by_id(&ctx, contact_id)
+        Contact::get_by_id(ctx, contact_id)
             .await
             .map(|contact| Box::into_raw(Box::new(ContactWrapper { context, contact })))
             .unwrap_or_else(|_| ptr::null_mut())
@@ -1866,7 +1866,7 @@ pub unsafe extern "C" fn dc_imex(
 
     if let Some(param1) = to_opt_string_lossy(param1) {
         spawn(async move {
-            imex::imex(&ctx, what, param1.as_ref())
+            imex::imex(ctx, what, param1.as_ref())
                 .await
                 .log_err(ctx, "IMEX failed")
         });
@@ -1887,12 +1887,12 @@ pub unsafe extern "C" fn dc_imex_has_backup(
     let ctx = &*context;
 
     block_on(async move {
-        match imex::has_backup(&ctx, to_string_lossy(dir).as_ref()).await {
+        match imex::has_backup(ctx, to_string_lossy(dir).as_ref()).await {
             Ok(res) => res.strdup(),
             Err(err) => {
                 // do not bubble up error to the user,
                 // the ui will expect that the file does not exist or cannot be accessed
-                warn!(&ctx, "dc_imex_has_backup: {}", err);
+                warn!(ctx, "dc_imex_has_backup: {}", err);
                 ptr::null_mut()
             }
         }
@@ -1908,10 +1908,10 @@ pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context_t) ->
     let ctx = &*context;
 
     block_on(async move {
-        match imex::initiate_key_transfer(&ctx).await {
+        match imex::initiate_key_transfer(ctx).await {
             Ok(res) => res.strdup(),
             Err(err) => {
-                error!(&ctx, "dc_initiate_key_transfer(): {}", err);
+                error!(ctx, "dc_initiate_key_transfer(): {}", err);
                 ptr::null_mut()
             }
         }
@@ -1934,12 +1934,12 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
     let ctx = &*context;
 
     block_on(async move {
-        match imex::continue_key_transfer(&ctx, MsgId::new(msg_id), &to_string_lossy(setup_code))
+        match imex::continue_key_transfer(ctx, MsgId::new(msg_id), &to_string_lossy(setup_code))
             .await
         {
             Ok(()) => 1,
             Err(err) => {
-                warn!(&ctx, "dc_continue_key_transfer: {}", err);
+                warn!(ctx, "dc_continue_key_transfer: {}", err);
                 0
             }
         }
@@ -1968,7 +1968,7 @@ pub unsafe extern "C" fn dc_check_qr(
     let ctx = &*context;
 
     block_on(async move {
-        let lot = qr::check_qr(&ctx, &to_string_lossy(qr)).await;
+        let lot = qr::check_qr(ctx, &to_string_lossy(qr)).await;
         Box::into_raw(Box::new(lot))
     })
 }
@@ -1990,7 +1990,7 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
     };
 
     block_on(async move {
-        securejoin::dc_get_securejoin_qr(&ctx, chat_id)
+        securejoin::dc_get_securejoin_qr(ctx, chat_id)
             .await
             .unwrap_or_else(|| "".to_string())
             .strdup()
@@ -2009,7 +2009,7 @@ pub unsafe extern "C" fn dc_join_securejoin(
     let ctx = &*context;
 
     block_on(async move {
-        securejoin::dc_join_securejoin(&ctx, &to_string_lossy(qr))
+        securejoin::dc_join_securejoin(ctx, &to_string_lossy(qr))
             .await
             .map(|chatid| chatid.to_u32())
             .log_err(ctx, "failed dc_join_securejoin() call")
@@ -2030,7 +2030,7 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
     let ctx = &*context;
 
     block_on(location::send_locations_to_chat(
-        &ctx,
+        ctx,
         ChatId::new(chat_id),
         seconds as i64,
     ));
@@ -2052,7 +2052,7 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
         Some(ChatId::new(chat_id))
     };
 
-    block_on(location::is_sending_locations_to_chat(&ctx, chat_id)) as libc::c_int
+    block_on(location::is_sending_locations_to_chat(ctx, chat_id)) as libc::c_int
 }
 
 #[no_mangle]
@@ -2068,7 +2068,7 @@ pub unsafe extern "C" fn dc_set_location(
     }
     let ctx = &*context;
 
-    block_on(location::set(&ctx, latitude, longitude, accuracy)) as _
+    block_on(location::set(ctx, latitude, longitude, accuracy)) as _
 }
 
 #[no_mangle]
@@ -2097,7 +2097,7 @@ pub unsafe extern "C" fn dc_get_locations(
 
     block_on(async move {
         let res = location::get_range(
-            &ctx,
+            ctx,
             chat_id,
             contact_id,
             timestamp_begin as i64,
@@ -2118,7 +2118,7 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
     let ctx = &*context;
 
     block_on(async move {
-        location::delete_all(&ctx)
+        location::delete_all(ctx)
             .await
             .log_err(ctx, "Failed to delete locations")
             .ok()
@@ -2385,7 +2385,7 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
     block_on(async move {
         let lot = ffi_list
             .list
-            .get_summary(&ctx, index as usize, maybe_chat)
+            .get_summary(ctx, index as usize, maybe_chat)
             .await
             .log_err(ctx, "get_summary failed")
             .unwrap_or_default();
@@ -2410,7 +2410,7 @@ pub unsafe extern "C" fn dc_chatlist_get_summary2(
         Some(MsgId::new(msg_id))
     };
     block_on(async move {
-        let lot = Chatlist::get_summary2(&ctx, ChatId::new(chat_id), msg_id, None)
+        let lot = Chatlist::get_summary2(ctx, ChatId::new(chat_id), msg_id, None)
             .await
             .log_err(ctx, "get_summary2 failed")
             .unwrap_or_default();
@@ -2496,7 +2496,7 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
     let ctx = &*ffi_chat.context;
 
     block_on(async move {
-        match ffi_chat.chat.get_profile_image(&ctx).await {
+        match ffi_chat.chat.get_profile_image(ctx).await {
             Ok(Some(p)) => p.to_string_lossy().strdup(),
             Ok(None) => ptr::null_mut(),
             Err(err) => {
@@ -2516,7 +2516,7 @@ pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
     let ffi_chat = &*chat;
     let ctx = &*ffi_chat.context;
 
-    block_on(ffi_chat.chat.get_color(&ctx)).unwrap_or_log_default(ctx, "Failed get_color")
+    block_on(ffi_chat.chat.get_color(ctx)).unwrap_or_log_default(ctx, "Failed get_color")
 }
 
 #[no_mangle]
@@ -2647,25 +2647,25 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
     let ctx = &*context;
 
     block_on(async move {
-        let chat = match chat::Chat::load_from_db(&ctx, ChatId::new(chat_id)).await {
+        let chat = match chat::Chat::load_from_db(ctx, ChatId::new(chat_id)).await {
             Ok(chat) => chat,
             Err(err) => {
-                error!(&ctx, "dc_get_chat_info_json() failed to load chat: {}", err);
+                error!(ctx, "dc_get_chat_info_json() failed to load chat: {}", err);
                 return "".strdup();
             }
         };
-        let info = match chat.get_info(&ctx).await {
+        let info = match chat.get_info(ctx).await {
             Ok(info) => info,
             Err(err) => {
                 error!(
-                    &ctx,
+                    ctx,
                     "dc_get_chat_info_json() failed to get chat info: {}", err
                 );
                 return "".strdup();
             }
         };
         serde_json::to_string(&info)
-            .unwrap_or_log_default(&ctx, "dc_get_chat_info_json() failed to serialise to json")
+            .unwrap_or_log_default(ctx, "dc_get_chat_info_json() failed to serialise to json")
             .strdup()
     })
 }
@@ -2866,7 +2866,7 @@ pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg_t) -> u64 {
     let ffi_msg = &*msg;
     let ctx = &*ffi_msg.context;
 
-    block_on(ffi_msg.message.get_filebytes(&ctx))
+    block_on(ffi_msg.message.get_filebytes(ctx))
 }
 
 #[no_mangle]
@@ -2958,7 +2958,7 @@ pub unsafe extern "C" fn dc_msg_get_summary(
     let ctx = &*ffi_msg.context;
 
     block_on(async move {
-        let lot = ffi_msg.message.get_summary(&ctx, maybe_chat).await;
+        let lot = ffi_msg.message.get_summary(ctx, maybe_chat).await;
         Box::into_raw(Box::new(lot))
     })
 }
@@ -2978,7 +2978,7 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
     block_on({
         ffi_msg
             .message
-            .get_summarytext(&ctx, approx_characters.try_into().unwrap_or_default())
+            .get_summarytext(ctx, approx_characters.try_into().unwrap_or_default())
     })
     .strdup()
 }
@@ -3118,7 +3118,7 @@ pub unsafe extern "C" fn dc_msg_get_setupcodebegin(msg: *mut dc_msg_t) -> *mut l
     let ffi_msg = &*msg;
     let ctx = &*ffi_msg.context;
 
-    block_on(ffi_msg.message.get_setupcodebegin(&ctx))
+    block_on(ffi_msg.message.get_setupcodebegin(ctx))
         .unwrap_or_default()
         .strdup()
 }
@@ -3230,7 +3230,7 @@ pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
     block_on({
         ffi_msg
             .message
-            .latefiling_mediasize(&ctx, width, height, duration)
+            .latefiling_mediasize(ctx, width, height, duration)
     });
 }
 
@@ -3410,7 +3410,7 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
     block_on(async move {
         ffi_contact
             .contact
-            .get_profile_image(&ctx)
+            .get_profile_image(ctx)
             .await
             .unwrap_or_log_default(ctx, "failed to get profile image")
             .map(|p| p.to_string_lossy().strdup())
@@ -3457,7 +3457,7 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
     let ffi_contact = &*contact;
     let ctx = &*ffi_contact.context;
 
-    block_on(async move { ffi_contact.contact.is_verified(&ctx).await as libc::c_int })
+    block_on(async move { ffi_contact.contact.is_verified(ctx).await as libc::c_int })
 }
 
 // dc_lot_t

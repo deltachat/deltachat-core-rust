@@ -17,15 +17,12 @@ use std::ptr;
 /// }
 /// ```
 unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
-    let ret: *mut libc::c_char;
-    if !s.is_null() {
-        ret = libc::strdup(s);
-        assert!(!ret.is_null());
+    let ret: *mut libc::c_char = if !s.is_null() {
+        libc::strdup(s)
     } else {
-        ret = libc::calloc(1, 1) as *mut libc::c_char;
-        assert!(!ret.is_null());
-    }
-
+        libc::calloc(1, 1) as *mut libc::c_char
+    };
+    assert!(!ret.is_null());
     ret
 }
 
