@@ -39,7 +39,7 @@ indexmap = "1.7.0"
 itertools = "0.10.1"
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
-libc = "0.2.97"
+libc = "0.2.98"
 log = {version = "0.4.8", optional = true }
 mailparse = "0.13.5"
 native-tls = "0.2.3"
