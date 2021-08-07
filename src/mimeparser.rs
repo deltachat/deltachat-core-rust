@@ -1347,7 +1347,9 @@ async fn update_gossip_peerstates(
                     peerstate = Some(p);
                 }
                 if let Some(peerstate) = peerstate {
-                    peerstate.handle_fingerprint_change(context).await?;
+                    peerstate
+                        .handle_fingerprint_change(context, message_time)
+                        .await?;
                 }
 
                 gossipped_addr.insert(header.addr.clone());

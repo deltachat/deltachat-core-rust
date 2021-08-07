@@ -19,8 +19,8 @@ use crate::constants::{
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::dc_tools::{
-    dc_get_filebytes, dc_get_filemeta, dc_gm2local_offset, dc_read_file, dc_timestamp_to_str,
-    dc_truncate, time,
+    dc_create_smeared_timestamp, dc_get_filebytes, dc_get_filemeta, dc_gm2local_offset,
+    dc_read_file, dc_timestamp_to_str, dc_truncate, time,
 };
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
@@ -1805,7 +1805,13 @@ async fn ndn_maybe_add_info_msg(
                 // Tell the user which of the recipients failed if we know that (because in
                 // a group, this might otherwise be unclear)
                 let text = stock_str::failed_sending_to(context, contact.get_display_name()).await;
-                chat::add_info_msg(context, chat_id, text).await;
+                chat::add_info_msg(
+                    context,
+                    chat_id,
+                    text,
+                    dc_create_smeared_timestamp(context).await,
+                )
+                .await;
                 context.emit_event(EventType::ChatModified(chat_id));
             }
         }

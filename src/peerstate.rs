@@ -260,7 +260,11 @@ impl Peerstate {
     }
 
     /// Adds a warning to the chat corresponding to peerstate if fingerprint has changed.
-    pub(crate) async fn handle_fingerprint_change(&self, context: &Context) -> Result<()> {
+    pub(crate) async fn handle_fingerprint_change(
+        &self,
+        context: &Context,
+        timestamp: i64,
+    ) -> Result<()> {
         if self.fingerprint_changed {
             if let Some(contact_id) = context
                 .sql
@@ -273,7 +277,7 @@ impl Peerstate {
 
                 let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
 
-                chat::add_info_msg(context, chat_id, msg).await;
+                chat::add_info_msg(context, chat_id, msg, timestamp).await;
                 emit_event!(context, EventType::ChatModified(chat_id));
             } else {
                 bail!("contact with peerstate.addr {:?} not found", &self.addr);

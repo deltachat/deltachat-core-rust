@@ -381,7 +381,14 @@ impl ChatId {
             msg.param.set_cmd(cmd);
             send_msg(context, self, &mut msg).await?;
         } else {
-            add_info_msg_with_cmd(context, self, msg_text, cmd).await?;
+            add_info_msg_with_cmd(
+                context,
+                self,
+                msg_text,
+                cmd,
+                dc_create_smeared_timestamp(context).await,
+            )
+            .await?;
         }
 
         Ok(())
@@ -2981,6 +2988,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     chat_id: ChatId,
     text: impl AsRef<str>,
     cmd: SystemMessage,
+    timestamp: i64,
 ) -> Result<MsgId> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
     let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
@@ -2997,7 +3005,7 @@ pub(crate) async fn add_info_msg_with_cmd(
             chat_id,
             DC_CONTACT_ID_INFO,
             DC_CONTACT_ID_INFO,
-            dc_create_smeared_timestamp(context).await,
+            timestamp,
             Viewtype::Text,
             MessageState::InNoticed,
             text.as_ref().to_string(),
@@ -3012,8 +3020,16 @@ pub(crate) async fn add_info_msg_with_cmd(
     Ok(msg_id)
 }
 
-pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
-    if let Err(e) = add_info_msg_with_cmd(context, chat_id, text, SystemMessage::Unknown).await {
+/// Adds info message with a given text and `timestamp` to the chat.
+pub(crate) async fn add_info_msg(
+    context: &Context,
+    chat_id: ChatId,
+    text: impl AsRef<str>,
+    timestamp: i64,
+) {
+    if let Err(e) =
+        add_info_msg_with_cmd(context, chat_id, text, SystemMessage::Unknown, timestamp).await
+    {
         warn!(context, "Could not add info msg: {}", e);
     }
 }
@@ -3637,7 +3653,7 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
-        add_info_msg(&t, chat_id, "foo info").await;
+        add_info_msg(&t, chat_id, "foo info", 200000).await;
 
         let msg = t.get_last_msg_in(chat_id).await;
         assert_eq!(msg.get_chat_id(), chat_id);
@@ -3658,6 +3674,7 @@ mod tests {
             chat_id,
             "foo bar info",
             SystemMessage::EphemeralTimerChanged,
+            10000,
         )
         .await
         .unwrap();

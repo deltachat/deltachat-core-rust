@@ -14,6 +14,7 @@ use crate::config::Config;
 use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_LAST_SPECIAL};
 use crate::contact::{Contact, Origin, VerifiedStatus};
 use crate::context::Context;
+use crate::dc_tools::time;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
@@ -864,7 +865,7 @@ async fn secure_connection_established(
         "?"
     };
     let msg = stock_str::contact_verified(context, addr).await;
-    chat::add_info_msg(context, contact_chat_id, msg).await;
+    chat::add_info_msg(context, contact_chat_id, msg, time()).await;
     emit_event!(context, EventType::ChatModified(contact_chat_id));
     info!(context, "StockMessage::ContactVerified posted to 1:1 chat");
 
@@ -888,7 +889,7 @@ async fn could_not_establish_secure_connection(
     )
     .await;
 
-    chat::add_info_msg(context, contact_chat_id, &msg).await;
+    chat::add_info_msg(context, contact_chat_id, &msg, time()).await;
     error!(
         context,
         "StockMessage::ContactNotVerified posted to 1:1 chat ({})", details

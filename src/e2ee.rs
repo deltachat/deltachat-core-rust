@@ -178,7 +178,9 @@ pub async fn try_decrypt(
     let mut signatures = HashSet::default();
 
     if let Some(ref mut peerstate) = peerstate {
-        peerstate.handle_fingerprint_change(context).await?;
+        peerstate
+            .handle_fingerprint_change(context, message_time)
+            .await?;
         if let Some(key) = &peerstate.public_key {
             public_keyring_for_validate.add(key.clone());
         } else if let Some(key) = &peerstate.gossip_key {

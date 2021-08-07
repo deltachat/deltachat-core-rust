@@ -190,7 +190,7 @@ impl Kml {
     }
 }
 
-// location streaming
+/// Enables location streaming in chat identified by `chat_id` for `seconds` seconds.
 pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds: i64) {
     let now = time();
     if !(seconds < 0 || chat_id.is_special()) {
@@ -221,7 +221,7 @@ pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds:
                     .unwrap_or_default();
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str = stock_str::msg_location_disabled(context).await;
-                chat::add_info_msg(context, chat_id, stock_str).await;
+                chat::add_info_msg(context, chat_id, stock_str, now).await;
             }
             context.emit_event(EventType::ChatModified(chat_id));
             if 0 != seconds {
@@ -716,7 +716,8 @@ pub(crate) async fn job_maybe_send_locations_ended(
             .await
     );
 
-    if !(send_begin != 0 && time() <= send_until) {
+    let now = time();
+    if !(send_begin != 0 && now <= send_until) {
         // still streaming -
         // may happen as several calls to dc_send_locations_to_chat()
         // do not un-schedule pending DC_MAYBE_SEND_LOC_ENDED jobs
@@ -735,7 +736,7 @@ pub(crate) async fn job_maybe_send_locations_ended(
             );
 
             let stock_str = stock_str::msg_location_disabled(context).await;
-            chat::add_info_msg(context, chat_id, stock_str).await;
+            chat::add_info_msg(context, chat_id, stock_str, now).await;
             context.emit_event(EventType::ChatModified(chat_id));
         }
     }

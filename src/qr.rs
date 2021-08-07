@@ -11,6 +11,7 @@ use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{addr_normalize, may_be_valid_addr, Contact, Origin};
 use crate::context::Context;
+use crate::dc_tools::time;
 use crate::key::Fingerprint;
 use crate::log::LogExt;
 use crate::lot::{Lot, LotState};
@@ -160,7 +161,13 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
                 .await
                 .log_err(context, "Failed to create (new) chat for contact")
             {
-                chat::add_info_msg(context, chat.id, format!("{} verified.", peerstate.addr)).await;
+                chat::add_info_msg(
+                    context,
+                    chat.id,
+                    format!("{} verified.", peerstate.addr),
+                    time(),
+                )
+                .await;
             }
         } else if let Some(addr) = addr {
             lot.state = LotState::QrFprMismatch;
