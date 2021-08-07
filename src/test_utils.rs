@@ -413,7 +413,7 @@ impl TestContext {
     // This code is mainly the same as `log_msglist` in `cmdline.rs`, so one day, we could
     // merge them to a public function in the `deltachat` crate.
     #[allow(dead_code)]
-    #[allow(clippy::clippy::indexing_slicing)]
+    #[allow(clippy::indexing_slicing)]
     pub async fn print_chat(&self, chat_id: ChatId) {
         let msglist = chat::get_chat_msgs(self, chat_id, 0x1, None).await.unwrap();
         let msglist: Vec<MsgId> = msglist
