@@ -7,7 +7,11 @@
     clippy::wildcard_imports,
     clippy::needless_borrow
 )]
-#![allow(clippy::match_bool, clippy::eval_order_dependence)]
+#![allow(
+    clippy::match_bool,
+    clippy::eval_order_dependence,
+    clippy::bool_assert_comparison
+)]
 
 #[macro_use]
 extern crate num_derive;
