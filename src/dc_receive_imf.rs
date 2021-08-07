@@ -798,6 +798,12 @@ async fn add_parts(
 
     let location_kml_is = mime_parser.location_kml.is_some();
 
+    // correct message_timestamp, it should not be used before,
+    // however, we cannot do this earlier as we need from_id to be set
+    let in_fresh = state == MessageState::InFresh;
+    let rcvd_timestamp = time();
+    let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, chat_id, in_fresh).await?;
+
     // Apply ephemeral timer changes to the chat.
     //
     // Only non-hidden timers are applied now. Timers from hidden
@@ -825,6 +831,7 @@ async fn add_parts(
                 context,
                 chat_id,
                 stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
+                sort_timestamp,
             )
             .await;
         }
@@ -868,6 +875,7 @@ async fn add_parts(
                             context,
                             chat_id,
                             format!("Cannot set protection: {}", e),
+                            sort_timestamp,
                         )
                         .await;
                         return Ok(chat_id); // do not return an error as this would result in retrying the message
@@ -882,12 +890,6 @@ async fn add_parts(
             }
         }
     }
-
-    // correct message_timestamp, it should not be used before,
-    // however, we cannot do this earlier as we need from_id to be set
-    let in_fresh = state == MessageState::InFresh;
-    let rcvd_timestamp = time();
-    let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, chat_id, in_fresh).await?;
 
     // Ensure replies to messages are sorted after the parent message.
     //
