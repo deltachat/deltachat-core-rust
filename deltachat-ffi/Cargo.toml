@@ -22,7 +22,7 @@ num-traits = "0.2.6"
 serde_json = "1.0"
 async-std = "1.9.0"
 anyhow = "1.0.42"
-thiserror = "1.0.25"
+thiserror = "1.0.26"
 rand = "0.7.3"
 
 [features]
