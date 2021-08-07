@@ -8,9 +8,11 @@ set -e -x
 #
 # Avoid using rustup here as it depends on reading /proc/self/exe and
 # has problems running under QEMU.
-curl "https://static.rust-lang.org/dist/rust-1.52.1-$(uname -m)-unknown-linux-gnu.tar.gz" | tar xz
-cd "rust-1.52.1-$(uname -m)-unknown-linux-gnu"
+RUST_VERSION=1.54.0
+
+curl "https://static.rust-lang.org/dist/rust-${RUST_VERSION}-$(uname -m)-unknown-linux-gnu.tar.gz" | tar xz
+cd "rust-${RUST_VERSION}-$(uname -m)-unknown-linux-gnu"
 ./install.sh --prefix=/usr --components=rustc,cargo,"rust-std-$(uname -m)-unknown-linux-gnu"
 rustc --version
 cd ..
-rm -fr "rust-1.52.1-$(uname -m)-unknown-linux-gnu"
+rm -fr "rust-${RUST_VERSION}-$(uname -m)-unknown-linux-gnu"

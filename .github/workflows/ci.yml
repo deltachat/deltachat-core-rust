@@ -18,7 +18,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.50.0
+          toolchain: stable
           override: true
       - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-            toolchain: 1.50.0
+            toolchain: stable
             components: clippy
             override: true
       - uses: actions-rs/clippy-check@v1
@@ -68,12 +68,23 @@ jobs:
     strategy:
       matrix:
         include:
+          # Currently used Rust version, same as in `rust-toolchain` file.
           - os: ubuntu-latest
-            rust: 1.50.0
-            python: 3.6
+            rust: 1.54.0
+            python: 3.9
           - os: windows-latest
-            rust: 1.50.0
+            rust: 1.54.0
             python: false # Python bindings compilation on Windows is not supported.
+
+          # Minimum Supported Rust Version = 1.48.0
+          # This is the Debian "bullseye" release version of Rust.
+          #
+          # Minimum Supported Python Version = 3.7
+          # This is the minimum version for which manylinux Python wheels are
+          # built.
+          - os: ubuntu-latest
+            rust: 1.48.0
+            python: 3.7
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@master

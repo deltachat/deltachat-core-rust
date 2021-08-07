@@ -3,9 +3,16 @@
 set -e -x
 
 # Install Rust
-curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain "1.50.0-$(uname -m)-unknown-linux-gnu" -y
-export PATH=/root/.cargo/bin:$PATH
-rustc --version
+#
+# Path from https://forge.rust-lang.org/infra/other-installation-methods.html
+#
+# Avoid using rustup here as it depends on reading /proc/self/exe and
+# has problems running under QEMU.
+RUST_VERSION=1.54.0
 
-# remove some 300-400 MB that we don't need for automated builds
-rm -rf "/root/.rustup/toolchains/1.50.0-$(uname -m)-unknown-linux-gnu/share"
+curl "https://static.rust-lang.org/dist/rust-${RUST_VERSION}-$(uname -m)-unknown-linux-gnu.tar.gz" | tar xz
+cd "rust-${RUST_VERSION}-$(uname -m)-unknown-linux-gnu"
+./install.sh --prefix=/usr --components=rustc,cargo,"rust-std-$(uname -m)-unknown-linux-gnu"
+rustc --version
+cd ..
+rm -fr "rust-${RUST_VERSION}-$(uname -m)-unknown-linux-gnu"
