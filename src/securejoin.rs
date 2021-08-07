@@ -3,7 +3,7 @@
 use std::convert::TryFrom;
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Context as _, Error, Result};
+use anyhow::{anyhow, bail, Context as _, Error, Result};
 use async_std::channel::Receiver;
 use async_std::sync::Mutex;
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
@@ -327,14 +327,14 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
             let start = Instant::now();
             let chatid = loop {
                 {
-                    match chat::get_chat_id_by_grpid(context, &group_id).await {
-                        Ok((chatid, _is_protected, _blocked)) => break chatid,
-                        Err(err) => {
+                    match chat::get_chat_id_by_grpid(context, &group_id).await? {
+                        Some((chatid, _is_protected, _blocked)) => break chatid,
+                        None => {
                             if start.elapsed() > Duration::from_secs(7) {
                                 context.free_ongoing().await;
-                                return Err(err
-                                    .context("Ongoing sender dropped (this is a bug)")
-                                    .into());
+                                return Err(JoinError::Other(anyhow!(
+                                    "Ongoing sender dropped (this is a bug)"
+                                )));
                             }
                         }
                     }
@@ -650,8 +650,8 @@ pub(crate) async fn handle_securejoin_handshake(
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-                match chat::get_chat_id_by_grpid(context, field_grpid).await {
-                    Ok((group_chat_id, _, _)) => {
+                match chat::get_chat_id_by_grpid(context, field_grpid).await? {
+                    Some((group_chat_id, _, _)) => {
                         if let Err(err) =
                             chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
                                 .await
@@ -659,12 +659,7 @@ pub(crate) async fn handle_securejoin_handshake(
                             error!(context, "failed to add contact: {}", err);
                         }
                     }
-                    Err(err) => {
-                        error!(context, "Chat {} not found: {}", &field_grpid, err);
-                        return Err(
-                            err.context(format!("Chat for group {} not found", &field_grpid))
-                        );
-                    }
+                    None => bail!("Chat {} not found", &field_grpid),
                 }
             } else {
                 // Alice -> Bob

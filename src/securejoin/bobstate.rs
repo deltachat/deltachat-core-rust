@@ -12,7 +12,7 @@ use anyhow::{Error, Result};
 use async_std::sync::MutexGuard;
 
 use crate::chat::{self, ChatId};
-use crate::constants::{Blocked, Viewtype};
+use crate::constants::Viewtype;
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
@@ -336,9 +336,10 @@ impl BobState {
                 // the very handshake message we're handling now.  But
                 // only after we have returned.  It does not impact
                 // the security invariants of secure-join however.
-                let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, grpid)
-                    .await
-                    .unwrap_or((ChatId::new(0), false, Blocked::Not));
+
+                let is_verified_group = chat::get_chat_id_by_grpid(context, grpid)
+                    .await?
+                    .map_or(false, |(_chat_id, is_protected, _blocked)| is_protected);
                 // when joining a non-verified group
                 // the vg-member-added message may be unencrypted
                 // when not all group members have keys or prefer encryption.

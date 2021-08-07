@@ -324,11 +324,9 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error
             let chat_id = if lot.state == LotState::QrReviveVerifyContact {
                 None
             } else {
-                Some(
-                    get_chat_id_by_grpid(context, &lot.text2.unwrap_or_default())
-                        .await?
-                        .0,
-                )
+                get_chat_id_by_grpid(context, &lot.text2.unwrap_or_default())
+                    .await?
+                    .map(|(chat_id, _protected, _blocked)| chat_id)
             };
             token::save(
                 context,

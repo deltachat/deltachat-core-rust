@@ -2808,10 +2808,10 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
 pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
     grpid: impl AsRef<str>,
-) -> Result<(ChatId, bool, Blocked)> {
+) -> Result<Option<(ChatId, bool, Blocked)>> {
     context
         .sql
-        .query_row(
+        .query_row_optional(
             "SELECT id, blocked, protected FROM chats WHERE grpid=?;",
             paramsv![grpid.as_ref()],
             |row| {
