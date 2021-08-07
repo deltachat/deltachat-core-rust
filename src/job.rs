@@ -148,7 +148,6 @@ pub struct Job {
     pub added_timestamp: i64,
     pub tries: u32,
     pub param: Params,
-    pub pending_error: Option<String>,
 }
 
 impl fmt::Display for Job {
@@ -169,7 +168,6 @@ impl Job {
             added_timestamp: timestamp,
             tries: 0,
             param,
-            pending_error: None,
         }
     }
 
@@ -251,12 +249,13 @@ impl Job {
 
         smtp.connectivity.set_working(context).await;
 
-        let status = match smtp.send(context, recipients, message, job_id).await {
+        let send_result = smtp.send(context, recipients, message, job_id).await;
+        smtp.last_send_error = send_result.as_ref().err().map(|e| e.to_string());
+
+        let status = match send_result {
             Err(crate::smtp::send::Error::SmtpSend(err)) => {
                 // Remote error, retry later.
                 warn!(context, "SMTP failed to send: {:?}", &err);
-                smtp.connectivity.set_err(context, &err).await;
-                self.pending_error = Some(err.to_string());
 
                 let res = match err {
                     async_smtp::smtp::error::Error::Permanent(ref response) => {
@@ -332,31 +331,23 @@ impl Job {
             Err(crate::smtp::send::Error::Envelope(err)) => {
                 // Local error, job is invalid, do not retry.
                 smtp.disconnect().await;
-                let msg = format!("SMTP job is invalid: {}", err);
-                warn!(context, "{}", msg);
-                smtp.connectivity.set_err(context, msg).await;
+                warn!(context, "SMTP job is invalid: {}", err);
                 Status::Finished(Err(err.into()))
             }
             Err(crate::smtp::send::Error::NoTransport) => {
                 // Should never happen.
                 // It does not even make sense to disconnect here.
                 error!(context, "SMTP job failed because SMTP has no transport");
-                smtp.connectivity
-                    .set_err(context, "SMTP has no transport")
-                    .await;
                 Status::Finished(Err(format_err!("SMTP has not transport")))
             }
             Err(crate::smtp::send::Error::Other(err)) => {
                 // Local error, job is invalid, do not retry.
                 smtp.disconnect().await;
-                let msg = format!("Unable to load job: {}", err);
-                warn!(context, "{}", msg);
-                smtp.connectivity.set_err(context, msg).await;
+                warn!(context, "unable to load job: {}", err);
                 Status::Finished(Err(err))
             }
             Ok(()) => {
                 job_try!(success_cb().await);
-                smtp.connectivity.set_connected(context).await;
                 Status::Finished(Ok(()))
             }
         };
@@ -373,6 +364,7 @@ impl Job {
         //  SMTP server, if not yet done
         if let Err(err) = smtp.connect_configured(context).await {
             warn!(context, "SMTP connection failure: {:?}", err);
+            smtp.last_send_error = Some(format!("SMTP connection failure: {:#}", err));
             return Status::RetryLater;
         }
 
@@ -415,6 +407,8 @@ impl Job {
                 }
                 Err(err) => {
                     warn!(context, "failed to check message existence: {:?}", err);
+                    smtp.last_send_error =
+                        Some(format!("failed to check message existence: {:#}", err));
                     return Status::RetryLater;
                 }
             }
@@ -529,6 +523,7 @@ impl Job {
         // connect to SMTP server, if not yet done
         if let Err(err) = smtp.connect_configured(context).await {
             warn!(context, "SMTP connection failure: {:?}", err);
+            smtp.last_send_error = Some(err.to_string());
             return Status::RetryLater;
         }
 
@@ -1329,7 +1324,6 @@ LIMIT 1;
                     added_timestamp: row.get("added_timestamp")?,
                     tries: row.get("tries")?,
                     param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
-                    pending_error: None,
                 };
 
                 Ok(job)
