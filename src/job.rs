@@ -249,7 +249,10 @@ impl Job {
 
         smtp.connectivity.set_working(context).await;
 
-        let status = match smtp.send(context, recipients, message, job_id).await {
+        let send_result = smtp.send(context, recipients, message, job_id).await;
+        smtp.last_send_error = send_result.as_ref().err().map(|e| e.to_string());
+
+        let status = match send_result {
             Err(crate::smtp::send::Error::SmtpSend(err)) => {
                 // Remote error, retry later.
                 warn!(context, "SMTP failed to send: {:?}", &err);
@@ -362,6 +365,7 @@ impl Job {
         //  SMTP server, if not yet done
         if let Err(err) = smtp.connect_configured(context).await {
             warn!(context, "SMTP connection failure: {:?}", err);
+            smtp.last_send_error = Some(err.to_string());
             return Status::RetryLater;
         }
 
@@ -404,6 +408,8 @@ impl Job {
                 }
                 Err(err) => {
                     warn!(context, "failed to check message existence: {:?}", err);
+                    smtp.last_send_error =
+                        Some(format!("failed to check message existence: {:#}", err));
                     return Status::RetryLater;
                 }
             }
@@ -518,6 +524,7 @@ impl Job {
         // connect to SMTP server, if not yet done
         if let Err(err) = smtp.connect_configured(context).await {
             warn!(context, "SMTP connection failure: {:?}", err);
+            smtp.last_send_error = Some(err.to_string());
             return Status::RetryLater;
         }
 

@@ -54,6 +54,8 @@ pub(crate) struct Smtp {
     last_success: Option<SystemTime>,
 
     pub(crate) connectivity: ConnectivityStore,
+
+    pub(crate) last_send_error: Option<String>,
 }
 
 impl Smtp {
