@@ -55,6 +55,7 @@ pub(crate) struct Smtp {
 
     pub(crate) connectivity: ConnectivityStore,
 
+    /// If sending the last message failed, contains the error message.
     pub(crate) last_send_error: Option<String>,
 }
 
@@ -102,20 +103,14 @@ impl Smtp {
 
         self.connectivity.set_connecting(context).await;
         let lp = LoginParam::from_database(context, "configured_").await?;
-        let res = self
-            .connect(
-                context,
-                &lp.smtp,
-                &lp.addr,
-                lp.server_flags & DC_LP_AUTH_OAUTH2 != 0,
-                lp.provider.map_or(false, |provider| provider.strict_tls),
-            )
-            .await;
-
-        if let Err(err) = &res {
-            self.connectivity.set_err(context, err).await;
-        }
-        res
+        self.connect(
+            context,
+            &lp.smtp,
+            &lp.addr,
+            lp.server_flags & DC_LP_AUTH_OAUTH2 != 0,
+            lp.provider.map_or(false, |provider| provider.strict_tls),
+        )
+        .await
     }
 
     /// Connect using the provided login params.

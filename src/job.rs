@@ -256,7 +256,6 @@ impl Job {
             Err(crate::smtp::send::Error::SmtpSend(err)) => {
                 // Remote error, retry later.
                 warn!(context, "SMTP failed to send: {:?}", &err);
-                smtp.connectivity.set_err(context, &err).await;
 
                 let res = match err {
                     async_smtp::smtp::error::Error::Permanent(ref response) => {
@@ -365,7 +364,7 @@ impl Job {
         //  SMTP server, if not yet done
         if let Err(err) = smtp.connect_configured(context).await {
             warn!(context, "SMTP connection failure: {:?}", err);
-            smtp.last_send_error = Some(err.to_string());
+            smtp.last_send_error = Some(format!("SMTP connection failure: {:#}", err));
             return Status::RetryLater;
         }
 

@@ -1281,6 +1281,7 @@ impl Chat {
             )
             .await?;
         schedule_ephemeral_task(context).await;
+
         Ok(MsgId::new(u32::try_from(msg_id)?))
     }
 }
