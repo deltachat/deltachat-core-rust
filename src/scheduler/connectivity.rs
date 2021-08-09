@@ -20,7 +20,7 @@ pub enum Connectivity {
 // the top) take priority. This means that e.g. if any folder has an error - usually
 // because there is no internet connection - the connectivity for the whole
 // account will be `Notconnected`.
-#[derive(Debug, Clone, PartialEq, Eq, EnumProperty)]
+#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd)]
 enum DetailedConnectivity {
     Error(String),
     Uninitialized,
@@ -191,6 +191,43 @@ pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Scheduler>) 
     }
     // No need to send ConnectivityChanged, the user-facing connectivity doesn't change because
     // of what we do here.
+}
+
+/// Set the connectivity to "Not connected" after a call to dc_maybe_network_lost().
+/// If we did not do this, the connectivity would stay "Connected" for quite a long time
+/// after `maybe_network_lost()` was called.
+pub(crate) async fn maybe_network_lost(
+    context: &Context,
+    scheduler: RwLockReadGuard<'_, Scheduler>,
+) {
+    let stores = match &*scheduler {
+        Scheduler::Running {
+            inbox,
+            mvbox,
+            sentbox,
+            ..
+        } => [
+            inbox.state.connectivity.clone(),
+            mvbox.state.connectivity.clone(),
+            sentbox.state.connectivity.clone(),
+        ],
+        Scheduler::Stopped => return,
+    };
+    drop(scheduler);
+
+    for store in &stores {
+        let mut connectivity_lock = store.0.lock().await;
+        if !matches!(
+            *connectivity_lock,
+            DetailedConnectivity::Uninitialized
+                | DetailedConnectivity::Error(_)
+                | DetailedConnectivity::NotConfigured,
+        ) {
+            *connectivity_lock = DetailedConnectivity::Error("Connection lost".to_string());
+        }
+        drop(connectivity_lock);
+    }
+    context.emit_event(EventType::ConnectivityChanged);
 }
 
 impl fmt::Debug for ConnectivityStore {
