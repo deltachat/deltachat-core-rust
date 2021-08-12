@@ -991,8 +991,8 @@ INSERT INTO msgs
             }
         }
 
-        let mime_modified =
-            save_mime_modified && !(part.msg.is_empty() && part.param.get(Param::Quote).is_none());
+        let part_is_empty = part.msg.is_empty() && part.param.get(Param::Quote).is_none();
+        let mime_modified = save_mime_modified && !part_is_empty;
         if mime_modified {
             // Avoid setting mime_modified for more than one part.
             save_mime_modified = false;
