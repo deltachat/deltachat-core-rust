@@ -991,7 +991,8 @@ INSERT INTO msgs
             }
         }
 
-        let mime_modified = save_mime_modified && !part.msg.is_empty();
+        let mime_modified =
+            save_mime_modified && !(part.msg.is_empty() && part.param.get(Param::Quote).is_none());
         if mime_modified {
             // Avoid setting mime_modified for more than one part.
             save_mime_modified = false;
@@ -4442,6 +4443,27 @@ Reply to all"#,
         // Chat should not pop up in the chatlist.
         let chats = Chatlist::try_load(&alice, 0, None, None).await?;
         assert_eq!(chats.len(), 0);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_gmx_forwarded_msg() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/gmx-forward.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let msg = t.get_last_msg().await;
+        assert!(msg.has_html());
+        assert_eq!(msg.id.get_html(&t).await?.unwrap(), "<html><head></head><body><div style=\"font-family: Verdana;font-size: 12.0px;\"><div>&nbsp;</div>\n\n<div>&nbsp;\n<div>&nbsp;\n<div data-darkreader-inline-border-left=\"\" name=\"quote\" style=\"margin: 10px 5px 5px 10px; padding: 10px 0px 10px 10px; border-left: 2px solid rgb(195, 217, 229); overflow-wrap: break-word; --darkreader-inline-border-left:#274759;\">\n<div style=\"margin:0 0 10px 0;\"><b>Gesendet:</b>&nbsp;Donnerstag, 12. August 2021 um 15:52 Uhr<br/>\n<b>Von:</b>&nbsp;&quot;Claire&quot; &lt;claire@example.org&gt;<br/>\n<b>An:</b>&nbsp;alice@example.com<br/>\n<b>Betreff:</b>&nbsp;subject</div>\n\n<div name=\"quoted-content\">bodytext</div>\n</div>\n</div>\n</div></div></body></html>\n\n");
 
         Ok(())
     }
