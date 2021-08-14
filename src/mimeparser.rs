@@ -276,7 +276,7 @@ impl MimeMessage {
         parser.maybe_remove_bad_parts();
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
-        parser.parse_headers(context).await;
+        parser.parse_headers(context).await?;
 
         if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
@@ -419,7 +419,7 @@ impl MimeMessage {
         }
     }
 
-    async fn parse_headers(&mut self, context: &Context) {
+    async fn parse_headers(&mut self, context: &Context) -> Result<()> {
         self.parse_system_message_headers(context);
         self.parse_avatar_headers(context).await;
         self.parse_videochat_headers();
@@ -464,15 +464,20 @@ impl MimeMessage {
         if !self.decrypting_failed && !self.parts.is_empty() {
             if let Some(ref dn_to) = self.chat_disposition_notification_to {
                 if let Some(from) = self.from.get(0) {
-                    if from.addr.to_lowercase() == dn_to.addr.to_lowercase() {
-                        if let Some(part) = self.parts.last_mut() {
-                            part.param.set_int(Param::WantsMdn, 1);
+                    // Check that the message is not outgoing.
+                    if !context.is_self_addr(&from.addr).await? {
+                        if from.addr.to_lowercase() == dn_to.addr.to_lowercase() {
+                            if let Some(part) = self.parts.last_mut() {
+                                part.param.set_int(Param::WantsMdn, 1);
+                            }
+                        } else {
+                            warn!(
+                                context,
+                                "{} requested a read receipt to {}, ignoring",
+                                from.addr,
+                                dn_to.addr
+                            );
                         }
-                    } else {
-                        warn!(
-                            context,
-                            "{} requested a read receipt to {}, ignoring", from.addr, dn_to.addr
-                        );
                     }
                 }
             }
@@ -502,6 +507,8 @@ impl MimeMessage {
                 part.param.set(Param::Bot, "1");
             }
         }
+
+        Ok(())
     }
 
     async fn avatar_action_from_header(
@@ -2951,6 +2958,38 @@ Some reply
         assert_eq!(msg.get_text().unwrap(), "Some reply");
         let quoted_message = msg.quoted_message(&t).await?.unwrap();
         assert_eq!(quoted_message.get_text().unwrap(), "Some quote.");
+
+        Ok(())
+    }
+
+    // Test that WantsMdn parameter is not set on outgoing messages.
+    #[async_std::test]
+    async fn test_outgoing_wants_mdn() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let raw = br###"Date: Thu, 28 Jan 2021 00:26:57 +0000
+Chat-Version: 1.0\n\
+Message-ID: <foobarbaz@example.org>
+To: Bob <bob@example.org>
+From: Alice <alice@example.com>
+Subject: subject
+Chat-Disposition-Notification-To: alice@example.com
+
+Message.
+"###;
+
+        // Bob receives message.
+        dc_receive_imf(&bob, raw, "INBOX", 1, false).await?;
+        let msg = bob.get_last_msg().await;
+        // Message is incoming.
+        assert!(msg.param.get_bool(Param::WantsMdn).unwrap());
+
+        // Alice receives copy-to-self.
+        dc_receive_imf(&alice, raw, "INBOX", 1, false).await?;
+        let msg = alice.get_last_msg().await;
+        // Message is outgoing, don't send read receipt to self.
+        assert!(msg.param.get_bool(Param::WantsMdn).is_none());
 
         Ok(())
     }
