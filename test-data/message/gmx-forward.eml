@@ -1,0 +1,70 @@
+Return-Path: <alice@example.com>
+Delivered-To: bob@example.org
+Received: from hq5.merlinux.eu
+	by hq5.merlinux.eu with LMTP
+	id GJ4eNagpFWF5UwAAPzvFDg
+	(envelope-from <alice@example.com>)
+	for <bob@example.org>; Thu, 12 Aug 2021 16:01:12 +0200
+Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
+	by hq5.merlinux.eu (Postfix) with ESMTPS id 3033227A0003
+	for <bob@example.org>; Thu, 12 Aug 2021 16:01:12 +0200 (CEST)
+Authentication-Results: hq5.merlinux.eu;
+	dkim=pass (1024-bit key; secure) header.d=gmx.net header.i=@gmx.net header.b="I/oyQzjt";
+	dkim-atps=neutral
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=gmx.net;
+	s=badeba3b8450; t=1628776871;
+	bh=yVNQf4XVEEjSt/PzPPM4F9JXYSv2/ynVmb/E4dc6Qpk=;
+	h=X-UI-Sender-Class:From:To:Subject:Date;
+	b=I/oyQzjtFVDJiKkKV2/9DimrUXwhNtrHc5sgFkO7HNz6sheW8t0+8WpL76AfLuUU2
+	 KZ/bCPyX3oItKl+31HZMoekrRnDyHiahsF1h3VrSzDXo3K0sk6nmZBjIQLuksGFW5i
+	 /+5TkQ+p79YB/HioYm08pewz08caHfCt3EqcuJik=
+X-UI-Sender-Class: 01bb95c1-4bf8-414a-932a-4f6e2808ef9c
+Received: from [193.96.224.73] ([193.96.224.73]) by web-mail.gmx.net
+ (3c-app-gmx-bap57.server.lan [172.19.172.127]) (via HTTP); Thu, 12 Aug 2021
+ 16:01:11 +0200
+MIME-Version: 1.0
+Message-ID: <trinity-18545f24-4f02-4dc8-9f80-8d2646646d03-1628776871644@3c-app-gmx-bap57>
+From: Alice <alice@example.com>
+To: bob@example.org
+Subject: Fw: subject
+Content-Type: text/html; charset=UTF-8
+Date: Thu, 12 Aug 2021 16:01:11 +0200
+Importance: normal
+Sensitivity: Normal
+X-UI-Message-Type: mail
+X-Priority: 3
+X-Provags-ID: V03:K1:vvJyGpka3W40JnBiz1FlxtNcdZw52KVodkX04BbaREoVau28F88gbimeb2Tm1t58pzQDe
+ HPoPiTTgz3Roj8GM/iIs4FqZxzcPiekR59a/GwFr16mPZQj+1cq6QOk144bXysBz3PHroQrc7Ctx
+ MtVLAY9w5+Lpuql24x9IqjA0eN2ytYrYYgX60d2FgU8CN/azK0bdEcsdyfwnAcf0bW9UY4ghE8Gt
+ hRe8z4WV6qEEzlhU+cI1uAixvNdQ6MFoi1oT7LdvfbUdcm1CBytWbbieGF1LjMa5Y+D4MZ3zUiiY
+ Ys=
+X-Spam-Flag: NO
+X-UI-Out-Filterresults: notjunk:1;V03:K0:pksZU4GoRZI=:jPKwLt7m9sSdgel28Ha/o7
+ UdLaJvQkSOD2tUGBq7n9rGeKT3opdBO5SWDRhn/qWLn+muPPYIjwmyE0XiGIjgTxLDJbY/LHL
+ bNWfcZ+geulQn9vH9muMcAW7ThwACRj3CCtWpc4y5ffTbo8VEinde4C4XFuhSUUdqyzu0GxYc
+ FklFTMlpL9ELxn5Mo3MaOnzznwrchd/2ogGzFz9wOtYUot+llyK+VLaylMeSSTIWbSLHwmA7l
+ MwsujGm4OvqP4VXSpVY2MecAGGwEvPsMQ/hfMgDsxRRm3sFsVZf6KFKcngZte0Nq6LZO9QU1x
+ tAmMgjZYPfOE+YSFiuKJ8E3YlsMk58HYTw/ON+m5T+lXSJeWVLA7sOgk9NKBGi2VzvrRz3YSg
+ MysXD8/h8PU7Rj7a2pttFyGxuN397xP3u1A+15LH5M2+AhUy4quzmxC0Ozb2chPdMJHgTO99e
+ 5tmLkyYeeREmSB89pFzyOHGghENBflocaDiCidgWm6pd1lfMMjMQ8bA3S/QpE8e913WGCWhVQ
+ uecX4FBK1VEl8WkE/0GQhY8+2mzBE0+Jo1LCKJtAo9h8bG2fNJkujOpKKvUoududAYuajaHuq
+ rVl6G/xOP8JB3FDDNhZQptleN3KU5qPqNYz0qYibUCJNadS6XlwrfkZReJOk3yHnbIUvB9IG1
+ WGu+K/8WtQaYtzmNtZLD3c7YzQZT4v5xzxQ3TtROawkGNGk4gYJTnAd1ZWOkBHEjcSLsYFVYg
+ nhkLeamJ3KnnkBMJromM0tc0PmSdb/hqD/8hkrWQFvK/nmdNm9+z8UCmCTSDV98UodcwpAkJB
+ D+/kEFR3Y5K904h2dhgmSbnqZAVEziDNT2TylwBnxrpvIKX5Xw=
+
+<html><head></head><body><div style="font-family: Verdana;font-size: 12.0px;"><div>&nbsp;</div>
+
+<div>&nbsp;
+<div>&nbsp;
+<div data-darkreader-inline-border-left="" name="quote" style="margin: 10px 5px 5px 10px; padding: 10px 0px 10px 10px; border-left: 2px solid rgb(195, 217, 229); overflow-wrap: break-word; --darkreader-inline-border-left:#274759;">
+<div style="margin:0 0 10px 0;"><b>Gesendet:</b>&nbsp;Donnerstag, 12. August 2021 um 15:52 Uhr<br/>
+<b>Von:</b>&nbsp;&quot;Claire&quot; &lt;claire@example.org&gt;<br/>
+<b>An:</b>&nbsp;alice@example.com<br/>
+<b>Betreff:</b>&nbsp;subject</div>
+
+<div name="quoted-content">bodytext</div>
+</div>
+</div>
+</div></div></body></html>
+
