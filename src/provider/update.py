@@ -96,7 +96,7 @@ def process_data(data, file):
                 raise TypeError("bad protocol")
 
             socket = s.get("socket", "").upper()
-            if socket != "STARTTLS" and socket != "SSL":
+            if socket != "STARTTLS" and socket != "SSL" and socket != "PLAIN":
                 raise TypeError("bad socket")
 
             username_pattern = s.get("username_pattern", "EMAIL").upper()
