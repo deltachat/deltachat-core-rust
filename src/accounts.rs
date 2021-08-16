@@ -179,6 +179,7 @@ impl Accounts {
                     account_config.id,
                 )
                 .await?;
+                self.emitter.add_account(&ctx).await?;
                 self.accounts.write().await.insert(account_config.id, ctx);
                 Ok(account_config.id)
             }
