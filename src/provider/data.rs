@@ -585,8 +585,8 @@ static P_HEY_COM: Lazy<Provider> = Lazy::new(|| {
 // i.ua.md: i.ua
 static P_I_UA: Lazy<Provider> = Lazy::new(|| Provider {
     id: "i.ua",
-    status: Status::Ok,
-    before_login_hint: "",
+    status: Status::Broken,
+    before_login_hint: "Протокол IMAP не предоставляется и не планируется.",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/i-ua",
     server: vec![],
@@ -684,6 +684,35 @@ static P_MAIL_RU: Lazy<Provider> = Lazy::new(|| {
     max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
 }
+});
+
+// mail2tor.md: mail2tor.com
+static P_MAIL2TOR: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "mail2tor",
+    status: Status::Preparation,
+    before_login_hint: "Tor is needed to connect to the email servers.",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/mail2tor",
+    server: vec![
+        Server {
+            protocol: Imap,
+            socket: Plain,
+            hostname: "g77kjrad6bafzzyldqvffq6kxlsgphcygptxhnn4xlnktfgaqshilmyd.onion",
+            port: 143,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Plain,
+            hostname: "xc7tgk2c5onxni2wsy76jslfsitxjbbptejnqhw6gy2ft7khpevhc7ad.onion",
+            port: 25,
+            username_pattern: Email,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
 });
 
 // mailbox.org.md: mailbox.org, secure.mailbox.org
@@ -1286,6 +1315,25 @@ static P_YANDEX_RU: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: Some(Oauth2Authorizer::Yandex),
 });
 
+// yggmail.md: yggmail
+static P_YGGMAIL: Lazy<Provider> = Lazy::new(|| {
+    Provider {
+    id: "yggmail",
+    status: Status::Preparation,
+    before_login_hint: "An Yggmail companion app needs to be installed on your device to access the Yggmail network.",
+    after_login_hint: "Make sure, the Yggmail companion app runs whenever you want to use this account. Note, that you usually cannot write from @yggmail addresses to normal e-mail-addresses (as @gmx.net). However, you can create another account in the normal e-mail-network for this purpose.",
+    overview_page: "https://providers.delta.chat/yggmail",
+    server: vec![
+        Server { protocol: Imap, socket: Plain, hostname: "localhost", port: 1143, username_pattern: Email },
+        Server { protocol: Smtp, socket: Plain, hostname: "localhost", port: 1025, username_pattern: Email },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+}
+});
+
 // ziggo.nl.md: ziggo.nl
 static P_ZIGGO_NL: Lazy<Provider> = Lazy::new(|| Provider {
     id: "ziggo.nl",
@@ -1395,6 +1443,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("internet.ru", &*P_MAIL_RU),
         ("bk.ru", &*P_MAIL_RU),
         ("list.ru", &*P_MAIL_RU),
+        ("mail2tor.com", &*P_MAIL2TOR),
         ("mailbox.org", &*P_MAILBOX_ORG),
         ("secure.mailbox.org", &*P_MAILBOX_ORG),
         ("mailo.com", &*P_MAILO_COM),
@@ -1528,6 +1577,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("yandex.ua", &*P_YANDEX_RU),
         ("ya.ru", &*P_YANDEX_RU),
         ("narod.ru", &*P_YANDEX_RU),
+        ("yggmail", &*P_YGGMAIL),
         ("ziggo.nl", &*P_ZIGGO_NL),
         ("zohomail.eu", &*P_ZOHO),
         ("zoho.com", &*P_ZOHO),
@@ -1568,6 +1618,7 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("kolst.com", &*P_KOLST_COM),
         ("kontent.com", &*P_KONTENT_COM),
         ("mail.ru", &*P_MAIL_RU),
+        ("mail2tor", &*P_MAIL2TOR),
         ("mailbox.org", &*P_MAILBOX_ORG),
         ("mailo.com", &*P_MAILO_COM),
         ("nauta.cu", &*P_NAUTA_CU),
@@ -1592,6 +1643,7 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("web.de", &*P_WEB_DE),
         ("yahoo", &*P_YAHOO),
         ("yandex.ru", &*P_YANDEX_RU),
+        ("yggmail", &*P_YGGMAIL),
         ("ziggo.nl", &*P_ZIGGO_NL),
         ("zoho", &*P_ZOHO),
     ]
@@ -1601,4 +1653,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 7, 28));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 8, 17));
