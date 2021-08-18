@@ -4,7 +4,10 @@ use std::{ops::Deref, sync::Arc};
 use async_std::sync::{Mutex, RwLockReadGuard};
 
 use crate::events::EventType;
-use crate::{config::Config, scheduler::Scheduler};
+use crate::imap::Imap;
+use crate::job::{Action, Status};
+use crate::param::Params;
+use crate::{config::Config, job, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
@@ -293,6 +296,12 @@ impl Context {
     /// This comes as an HTML from the core so that we can easily improve it
     /// and the improvement instantly reaches all UIs.
     pub async fn get_connectivity_html(&self) -> String {
+        job::add(
+            self,
+            job::Job::new(Action::GenerateQuotaUsageReport, 0, Params::new(), 0),
+        )
+        .await;
+
         let mut ret = r#"<!DOCTYPE html>
             <html>
             <head>
@@ -405,6 +414,15 @@ impl Context {
 
         ret += "</body></html>\n";
         ret
+    }
+
+    pub async fn generate_quota_usage_report(&self, imap: &mut Imap) -> Status {
+        if let Err(err) = imap.prepare(self).await {
+            warn!(self, "could not connect: {:?}", err);
+            return Status::RetryNow;
+        }
+
+        Status::Finished(Ok(()))
     }
 
     pub async fn all_work_done(&self) -> bool {

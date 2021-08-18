@@ -95,6 +95,9 @@ pub enum Action {
     FetchExistingMsgs = 110,
     MarkseenMsgOnImap = 130,
 
+    // this is user initiated so it should have a fairly high priority
+    GenerateQuotaUsageReport = 140,
+
     // Moving message is prioritized lower than deletion so we don't
     // bother moving message if it is already scheduled for deletion.
     MoveMsg = 200,
@@ -130,6 +133,7 @@ impl From<Action> for Thread {
             ResyncFolders => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
             MoveMsg => Thread::Imap,
+            GenerateQuotaUsageReport => Thread::Imap,
 
             MaybeSendLocations => Thread::Smtp,
             MaybeSendLocationsEnded => Thread::Smtp,
@@ -1148,6 +1152,11 @@ async fn perform_job_action(
             sql::housekeeping(context).await.ok_or_log(context);
             Status::Finished(Ok(()))
         }
+        Action::GenerateQuotaUsageReport => {
+            context
+                .generate_quota_usage_report(connection.inbox())
+                .await
+        }
     };
 
     info!(context, "Finished immediate try {} of job {}", tries, job);
@@ -1210,7 +1219,8 @@ pub async fn add(context: &Context, job: Job) {
             | Action::ResyncFolders
             | Action::MarkseenMsgOnImap
             | Action::FetchExistingMsgs
-            | Action::MoveMsg => {
+            | Action::MoveMsg
+            | Action::GenerateQuotaUsageReport => {
                 info!(context, "interrupt: imap");
                 context
                     .interrupt_inbox(InterruptInfo::new(false, None))
