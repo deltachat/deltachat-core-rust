@@ -4,9 +4,11 @@ use std::{ops::Deref, sync::Arc};
 use async_std::sync::{Mutex, RwLockReadGuard};
 
 use crate::events::EventType;
+use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::Imap;
 use crate::job::{Action, Status};
 use crate::param::Params;
+use crate::quota::get_unique_quota_roots_and_usage;
 use crate::{config::Config, job, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
 
@@ -420,6 +422,14 @@ impl Context {
         if let Err(err) = imap.prepare(self).await {
             warn!(self, "could not connect: {:?}", err);
             return Status::RetryNow;
+        }
+
+        if imap.can_check_quota() {
+            let folders = get_watched_folders(self).await;
+            let unique_quota_roots = get_unique_quota_roots_and_usage(folders, imap).await;
+            info!(self, "GOOOOOOOOOOOOOOOOOT: {:?}", unique_quota_roots);
+        } else {
+            info!(self, "GOOOOOOOOOOOOOOOOOT: nothing");
         }
 
         Status::Finished(Ok(()))
