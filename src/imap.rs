@@ -5,10 +5,10 @@
 
 use std::{cmp, cmp::max, collections::BTreeMap};
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{anyhow, bail, format_err, Context as _, Result};
 use async_imap::{
     error::Result as ImapResult,
-    types::{Fetch, Flag, Mailbox, Name, NameAttribute, UnsolicitedResponse},
+    types::{Fetch, Flag, Mailbox, Name, NameAttribute, Quota, QuotaRoot, UnsolicitedResponse},
 };
 use async_std::channel::Receiver;
 use async_std::prelude::*;
@@ -153,6 +153,10 @@ struct ImapConfig {
     /// True if the server has MOVE capability as defined in
     /// <https://tools.ietf.org/html/rfc6851>
     pub can_move: bool,
+
+    /// True if the server has QUOTA capability as defined in
+    /// <https://tools.ietf.org/html/rfc2087>
+    pub can_check_quota: bool,
 }
 
 impl Imap {
@@ -186,6 +190,7 @@ impl Imap {
             selected_folder_needs_expunge: false,
             can_idle: false,
             can_move: false,
+            can_check_quota: false,
         };
 
         let imap = Imap {
@@ -362,6 +367,7 @@ impl Imap {
                 Ok(caps) => {
                     self.config.can_idle = caps.has_str("IDLE");
                     self.config.can_move = caps.has_str("MOVE");
+                    self.config.can_check_quota = caps.has_str("QUOTA");
                     self.capabilities_determined = true;
                     Ok(())
                 }
@@ -1391,6 +1397,22 @@ impl Imap {
             }
         }
         unsolicited_exists
+    }
+
+    pub fn can_check_quota(&self) -> bool {
+        self.config.can_check_quota
+    }
+
+    pub async fn get_quota_roots(
+        &mut self,
+        mailbox_name: &str,
+    ) -> Result<(Vec<QuotaRoot>, Vec<Quota>)> {
+        if let Some(session) = self.session.as_mut() {
+            let quota_roots = session.get_quota_root(mailbox_name).await?;
+            Ok(quota_roots)
+        } else {
+            Err(anyhow!("Not connected to IMAP, no session"))
+        }
     }
 }
 
