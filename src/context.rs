@@ -25,6 +25,8 @@ use crate::message::{self, MessageState, MsgId};
 use crate::scheduler::Scheduler;
 use crate::securejoin::Bob;
 use crate::sql::Sql;
+use async_imap::types::QuotaResource;
+use indexmap::IndexMap;
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -61,6 +63,7 @@ pub struct InnerContext {
 
     pub(crate) scheduler: RwLock<Scheduler>,
     pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
+    pub(crate) recent_quota: RwLock<Option<Result<IndexMap<String, Vec<QuotaResource>>>>>,
 
     pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
@@ -139,6 +142,7 @@ impl Context {
             events: Events::default(),
             scheduler: RwLock::new(Scheduler::Stopped),
             ephemeral_task: RwLock::new(None),
+            recent_quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
         };

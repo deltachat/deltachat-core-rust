@@ -1,6 +1,7 @@
 use core::fmt;
 use std::{ops::Deref, sync::Arc};
 
+use anyhow::anyhow;
 use async_std::sync::{Mutex, RwLockReadGuard};
 
 use crate::events::EventType;
@@ -8,9 +9,13 @@ use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::Imap;
 use crate::job::{Action, Status};
 use crate::param::Params;
-use crate::quota::get_unique_quota_roots_and_usage;
+use crate::quota::{
+    get_unique_quota_roots_and_usage, QUOTA_ERROR_THRESHOLD_PERCENTAGE,
+    QUOTA_WARN_THRESHOLD_PERCENTAGE,
+};
 use crate::{config::Config, job, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
+use humansize::{file_size_opts, FileSize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 pub enum Connectivity {
@@ -414,6 +419,74 @@ impl Context {
         ret += &*escaper::encode_minimal(&detailed.to_string_smtp(self));
         ret += "</li></ul>";
 
+        ret += "<h3>Quota</h3><ul>";
+        let quota = self.recent_quota.read().await;
+        if let Some(quota) = &*quota {
+            match quota {
+                Ok(quota) => {
+                    for (root_name, resources) in quota {
+                        use async_imap::types::QuotaResourceName::*;
+                        for resource in resources {
+                            ret += "<li>";
+
+                            let usage_percent = resource.get_usage_percentage();
+                            if usage_percent >= QUOTA_ERROR_THRESHOLD_PERCENTAGE {
+                                ret += "<span class=\"red dot\"></span> ";
+                            } else if usage_percent >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
+                                ret += "<span class=\"yellow dot\"></span> ";
+                            } else {
+                                ret += "<span class=\"green dot\"></span> ";
+                            }
+
+                            // root name is empty eg. for gmail.
+                            // not sure, how that is used in the wild, for now, just prepend it to each resource name
+                            // and not use it as a headline or so.
+                            if !root_name.is_empty() {
+                                ret +=
+                                    &format!("<b>{}:</b> ", &*escaper::encode_minimal(&root_name));
+                            }
+
+                            ret += &match &resource.name {
+                                Atom(resource_name) => {
+                                    format!(
+                                        "<b>{}:</b> {} of {} used",
+                                        &*escaper::encode_minimal(resource_name),
+                                        resource.usage.to_string(),
+                                        resource.limit.to_string(),
+                                    )
+                                }
+                                Message => {
+                                    format!(
+                                        "<b>Messages:</b> {} of {} used",
+                                        resource.usage.to_string(),
+                                        resource.limit.to_string(),
+                                    )
+                                }
+                                Storage => {
+                                    let usage = (resource.usage * 1024)
+                                        .file_size(file_size_opts::BINARY)
+                                        .unwrap_or_default();
+                                    let limit = (resource.limit * 1024)
+                                        .file_size(file_size_opts::BINARY)
+                                        .unwrap_or_default();
+                                    format!("<b>Storage:</b> {} of {} used", usage, limit)
+                                }
+                            };
+                            ret += &format!(" ({}%)", usage_percent);
+
+                            ret += "</li>";
+                        }
+                    }
+                }
+                Err(e) => {
+                    ret += format!("<li>{}</li>", e).as_str();
+                }
+            }
+        } else {
+            ret += "<li>One moment...</li>";
+        }
+        ret += "</ul>";
+
         ret += "</body></html>\n";
         ret
     }
@@ -424,12 +497,12 @@ impl Context {
             return Status::RetryNow;
         }
 
+        let mut recent_quota = self.recent_quota.write().await;
         if imap.can_check_quota() {
             let folders = get_watched_folders(self).await;
-            let unique_quota_roots = get_unique_quota_roots_and_usage(folders, imap).await;
-            info!(self, "GOOOOOOOOOOOOOOOOOT: {:?}", unique_quota_roots);
+            *recent_quota = Some(get_unique_quota_roots_and_usage(folders, imap).await);
         } else {
-            info!(self, "GOOOOOOOOOOOOOOOOOT: nothing");
+            *recent_quota = Some(Err(anyhow!("Quota not supported by your provider.")));
         }
 
         Status::Finished(Ok(()))

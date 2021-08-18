@@ -4,6 +4,14 @@ use indexmap::IndexMap;
 
 use crate::imap::Imap;
 
+/// warn about a nearly full mailbox after this usage percentage is reached.
+/// quota icon is "yellow".
+pub const QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 80;
+
+// warning is already issued at QUOTA_WARN_THRESHOLD_PERCENTAGE,
+// this threshold only makes the quota icon "red".
+pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 99;
+
 pub(crate) async fn get_unique_quota_roots_and_usage(
     folders: Vec<String>,
     imap: &mut Imap,
