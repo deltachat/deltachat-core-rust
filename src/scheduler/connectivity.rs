@@ -307,7 +307,7 @@ impl Context {
         if *self.recent_quota_timestamp.read().await + QUOTA_MAX_AGE_SECONDS < time() {
             job::add(
                 self,
-                job::Job::new(Action::GenerateQuotaUsageReport, 0, Params::new(), 0),
+                job::Job::new(Action::UpdateRecentQuota, 0, Params::new(), 0),
             )
             .await;
         }
@@ -494,7 +494,7 @@ impl Context {
         ret
     }
 
-    pub async fn generate_quota_usage_report(&self, imap: &mut Imap) -> Status {
+    pub async fn update_recent_quota(&self, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(self).await {
             warn!(self, "could not connect: {:?}", err);
             return Status::RetryNow;
