@@ -1,18 +1,14 @@
 use core::fmt;
 use std::{ops::Deref, sync::Arc};
 
-use anyhow::anyhow;
 use async_std::sync::{Mutex, RwLockReadGuard};
 
 use crate::dc_tools::time;
 use crate::events::EventType;
-use crate::imap::scan_folders::get_watched_folders;
-use crate::imap::Imap;
-use crate::job::{Action, Status};
+use crate::job::Action;
 use crate::param::Params;
 use crate::quota::{
-    get_unique_quota_roots_and_usage, QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS,
-    QUOTA_WARN_THRESHOLD_PERCENTAGE,
+    QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
 };
 use crate::{config::Config, job, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
@@ -492,26 +488,6 @@ impl Context {
 
         ret += "</body></html>\n";
         ret
-    }
-
-    pub async fn update_recent_quota(&self, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.prepare(self).await {
-            warn!(self, "could not connect: {:?}", err);
-            return Status::RetryNow;
-        }
-
-        let mut recent_quota = self.recent_quota.write().await;
-        if imap.can_check_quota() {
-            let folders = get_watched_folders(self).await;
-            *recent_quota = Some(get_unique_quota_roots_and_usage(folders, imap).await);
-        } else {
-            *recent_quota = Some(Err(anyhow!("Quota not supported by your provider.")));
-        }
-
-        *self.recent_quota_timestamp.write().await = time();
-
-        self.emit_event(EventType::ConnectivityChanged);
-        Status::Finished(Ok(()))
     }
 
     pub async fn all_work_done(&self) -> bool {

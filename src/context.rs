@@ -64,7 +64,14 @@ pub struct InnerContext {
     pub(crate) scheduler: RwLock<Scheduler>,
     pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
 
+    /// Recently loaded quota information, if any.
+    /// Set to `None` if quota was never tried to load,
+    /// set to `Some(Err())` if the provider does not support quota or on other errors,
+    /// set to `Some(Ok())` for valid quota information.
+    /// Updated by `Action::UpdateRecentQuota`
     pub(crate) recent_quota: RwLock<Option<Result<IndexMap<String, Vec<QuotaResource>>>>>,
+
+    /// Time when `recent_quota` was modified.
     pub(crate) recent_quota_timestamp: RwLock<i64>,
 
     pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
