@@ -12,6 +12,10 @@ pub const QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 80;
 // this threshold only makes the quota icon "red".
 pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 99;
 
+// if recent_quota is older,
+// it is re-fetched on dc_get_connectivity_html()
+pub const QUOTA_MAX_AGE_SECONDS: i64 = 60;
+
 pub(crate) async fn get_unique_quota_roots_and_usage(
     folders: Vec<String>,
     imap: &mut Imap,

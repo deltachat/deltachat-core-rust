@@ -63,7 +63,9 @@ pub struct InnerContext {
 
     pub(crate) scheduler: RwLock<Scheduler>,
     pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
+
     pub(crate) recent_quota: RwLock<Option<Result<IndexMap<String, Vec<QuotaResource>>>>>,
+    pub(crate) recent_quota_timestamp: RwLock<i64>,
 
     pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
@@ -143,6 +145,7 @@ impl Context {
             scheduler: RwLock::new(Scheduler::Stopped),
             ephemeral_task: RwLock::new(None),
             recent_quota: RwLock::new(None),
+            recent_quota_timestamp: RwLock::new(0),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
         };
