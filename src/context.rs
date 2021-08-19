@@ -22,11 +22,10 @@ use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
+use crate::quota::QuotaInfo;
 use crate::scheduler::Scheduler;
 use crate::securejoin::Bob;
 use crate::sql::Sql;
-use async_imap::types::QuotaResource;
-use indexmap::IndexMap;
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -65,14 +64,8 @@ pub struct InnerContext {
     pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
 
     /// Recently loaded quota information, if any.
-    /// Set to `None` if quota was never tried to load,
-    /// set to `Some(Err())` if the provider does not support quota or on other errors,
-    /// set to `Some(Ok())` for valid quota information.
-    /// Updated by `Action::UpdateRecentQuota`
-    pub(crate) recent_quota: RwLock<Option<Result<IndexMap<String, Vec<QuotaResource>>>>>,
-
-    /// Time when `recent_quota` was modified.
-    pub(crate) recent_quota_timestamp: RwLock<i64>,
+    /// Set to `None` if quota was never tried to load.
+    pub(crate) quota: RwLock<Option<QuotaInfo>>,
 
     pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
@@ -151,8 +144,7 @@ impl Context {
             events: Events::default(),
             scheduler: RwLock::new(Scheduler::Stopped),
             ephemeral_task: RwLock::new(None),
-            recent_quota: RwLock::new(None),
-            recent_quota_timestamp: RwLock::new(0),
+            quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
         };

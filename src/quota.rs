@@ -6,8 +6,9 @@ use crate::context::Context;
 use crate::dc_tools::time;
 use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::Imap;
-use crate::job::Status;
-use crate::EventType;
+use crate::job::{Action, Status};
+use crate::param::Params;
+use crate::{job, EventType};
 
 /// warn about a nearly full mailbox after this usage percentage is reached.
 /// quota icon is "yellow".
@@ -17,9 +18,21 @@ pub const QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 80;
 // this threshold only makes the quota icon "red".
 pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 99;
 
-// if recent_quota is older,
+// if recent quota is older,
 // it is re-fetched on dc_get_connectivity_html()
 pub const QUOTA_MAX_AGE_SECONDS: i64 = 60;
+
+#[derive(Debug)]
+pub struct QuotaInfo {
+    /// Recently loaded quota information.
+    /// set to `Err()` if the provider does not support quota or on other errors,
+    /// set to `Ok()` for valid quota information.
+    /// Updated by `Action::UpdateRecentQuota`
+    pub(crate) recent: Result<IndexMap<String, Vec<QuotaResource>>>,
+
+    /// Timestamp when structure was modified.
+    pub(crate) modified: i64,
+}
 
 async fn get_unique_quota_roots_and_usage(
     folders: Vec<String>,
@@ -49,25 +62,36 @@ async fn get_unique_quota_roots_and_usage(
 }
 
 impl Context {
-    /// Updates `recent_quota` member, sets `recent_quota_timestamp` to the current time
+    // Adds a job to update `quota.recent`
+    pub(crate) async fn schedule_quota_update(&self) {
+        job::add(
+            self,
+            job::Job::new(Action::UpdateRecentQuota, 0, Params::new(), 0),
+        )
+        .await;
+    }
+
+    /// Updates `quota.recent`, sets `quota.modified` to the current time
     /// and emits an event to let the UIs update connectivity view.
     ///
     /// Called in response to `Action::UpdateRecentQuota`.
-    pub async fn update_recent_quota(&self, imap: &mut Imap) -> Status {
+    pub(crate) async fn update_recent_quota(&self, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(self).await {
             warn!(self, "could not connect: {:?}", err);
             return Status::RetryNow;
         }
 
-        let mut recent_quota = self.recent_quota.write().await;
-        if imap.can_check_quota() {
+        let quota = if imap.can_check_quota() {
             let folders = get_watched_folders(self).await;
-            *recent_quota = Some(get_unique_quota_roots_and_usage(folders, imap).await);
+            get_unique_quota_roots_and_usage(folders, imap).await
         } else {
-            *recent_quota = Some(Err(anyhow!("Quota not supported by your provider.")));
-        }
+            Err(anyhow!("Quota not supported by your provider."))
+        };
 
-        *self.recent_quota_timestamp.write().await = time();
+        *self.quota.write().await = Some(QuotaInfo {
+            recent: quota,
+            modified: time(),
+        });
 
         self.emit_event(EventType::ConnectivityChanged);
         Status::Finished(Ok(()))

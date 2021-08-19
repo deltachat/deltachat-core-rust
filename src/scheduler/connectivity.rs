@@ -5,12 +5,10 @@ use async_std::sync::{Mutex, RwLockReadGuard};
 
 use crate::dc_tools::time;
 use crate::events::EventType;
-use crate::job::Action;
-use crate::param::Params;
 use crate::quota::{
     QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
 };
-use crate::{config::Config, job, scheduler::Scheduler};
+use crate::{config::Config, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
 use humansize::{file_size_opts, FileSize};
 
@@ -300,14 +298,6 @@ impl Context {
     /// This comes as an HTML from the core so that we can easily improve it
     /// and the improvement instantly reaches all UIs.
     pub async fn get_connectivity_html(&self) -> String {
-        if *self.recent_quota_timestamp.read().await + QUOTA_MAX_AGE_SECONDS < time() {
-            job::add(
-                self,
-                job::Job::new(Action::UpdateRecentQuota, 0, Params::new(), 0),
-            )
-            .await;
-        }
-
         let mut ret = r#"<!DOCTYPE html>
             <html>
             <head>
@@ -419,9 +409,9 @@ impl Context {
         ret += "</li></ul>";
 
         ret += "<h3>Quota</h3><ul>";
-        let quota = self.recent_quota.read().await;
+        let quota = self.quota.read().await;
         if let Some(quota) = &*quota {
-            match quota {
+            match &quota.recent {
                 Ok(quota) => {
                     let roots_cnt = quota.len();
                     for (root_name, resources) in quota {
@@ -483,8 +473,13 @@ impl Context {
                     ret += format!("<li>{}</li>", e).as_str();
                 }
             }
+
+            if quota.modified + QUOTA_MAX_AGE_SECONDS < time() {
+                self.schedule_quota_update().await;
+            }
         } else {
             ret += "<li>One moment...</li>";
+            self.schedule_quota_update().await;
         }
         ret += "</ul>";
 
