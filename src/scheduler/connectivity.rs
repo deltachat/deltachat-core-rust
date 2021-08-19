@@ -423,6 +423,7 @@ impl Context {
         if let Some(quota) = &*quota {
             match quota {
                 Ok(quota) => {
+                    let roots_cnt = quota.len();
                     for (root_name, resources) in quota {
                         use async_imap::types::QuotaResourceName::*;
                         for resource in resources {
@@ -437,12 +438,13 @@ impl Context {
                                 ret += "<span class=\"green dot\"></span> ";
                             }
 
-                            // root name is empty eg. for gmail.
-                            // not sure, how that is used in the wild, for now, just prepend it to each resource name
-                            // and not use it as a headline or so.
-                            if !root_name.is_empty() {
+                            // root name is empty eg. for gmail and redundant eg. for riseup.
+                            // therefore, use it only if there are really several roots.
+                            if roots_cnt > 1 && !root_name.is_empty() {
                                 ret +=
-                                    &format!("<b>{}:</b> ", &*escaper::encode_minimal(&root_name));
+                                    &format!("<b>{}:</b> ", &*escaper::encode_minimal(root_name));
+                            } else {
+                                info!(self, "connectivity: root name hidden: \"{}\"", root_name);
                             }
 
                             ret += &match &resource.name {
