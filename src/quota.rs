@@ -64,6 +64,7 @@ async fn get_unique_quota_roots_and_usage(
 impl Context {
     // Adds a job to update `quota.recent`
     pub(crate) async fn schedule_quota_update(&self) {
+        job::kill_action(self, Action::UpdateRecentQuota).await;
         job::add(
             self,
             job::Job::new(Action::UpdateRecentQuota, 0, Params::new(), 0),
