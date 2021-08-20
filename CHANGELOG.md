@@ -1,5 +1,25 @@
 # Changelog 
 
+## 1.59.0
+
+### Added
+- add quota information to `dc_get_connectivity_html()`
+
+### Changes
+- refactorings #2592 #2570 #2581
+- add 'device chat about' to now existing status #2613
+- update provider database #2608
+
+### Fixes
+- provider database supports socket=PLAIN and dotless domains now #2604 #2608
+- add migrated accounts to events emitter #2607
+- fix forwarding quote-only mails #2600
+- do not set WantsMdn param for outgoing messages #2603
+- set timestamps for system messages #2593
+- do not treat gmail labels as folders #2587
+- avoid timing problems in `dc_maybe_network_lost()` #2551
+- only set smtp to "connected" if the last message was actually sent #2541
+
 
 ## 1.58.0
 
