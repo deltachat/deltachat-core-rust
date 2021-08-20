@@ -218,6 +218,7 @@ impl Contact {
         } else if contact_id == DC_CONTACT_ID_DEVICE {
             contact.name = stock_str::device_messages(context).await;
             contact.addr = DC_CONTACT_ID_DEVICE_ADDR.to_string();
+            contact.status = stock_str::device_messages_hint(context).await;
         }
         Ok(contact)
     }
