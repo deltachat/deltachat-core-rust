@@ -22,6 +22,7 @@ use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
+use crate::quota::QuotaInfo;
 use crate::scheduler::Scheduler;
 use crate::securejoin::Bob;
 use crate::sql::Sql;
@@ -61,6 +62,10 @@ pub struct InnerContext {
 
     pub(crate) scheduler: RwLock<Scheduler>,
     pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
+
+    /// Recently loaded quota information, if any.
+    /// Set to `None` if quota was never tried to load.
+    pub(crate) quota: RwLock<Option<QuotaInfo>>,
 
     pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
@@ -139,6 +144,7 @@ impl Context {
             events: Events::default(),
             scheduler: RwLock::new(Scheduler::Stopped),
             ephemeral_task: RwLock::new(None),
+            quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
         };

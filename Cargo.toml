@@ -16,7 +16,7 @@ deltachat_derive = { path = "./deltachat_derive" }
 
 ansi_term = { version = "0.12.1", optional = true }
 anyhow = "1.0.42"
-async-imap = "0.5.0"
+async-imap = { git = "https://github.com/async-email/async-imap" }
 async-native-tls = { version = "0.3.3" }
 async-smtp = { git = "https://github.com/async-email/async-smtp", rev="c8800625f7cf29f437143ac7e720ac2730a0962f" }
 async-std-resolver = "0.20.3"
@@ -72,6 +72,7 @@ thiserror = "1.0.26"
 toml = "0.5.6"
 url = "2.2.2"
 uuid = { version = "0.8", features = ["serde", "v4"] }
+humansize = "1.1.1"
 
 [dev-dependencies]
 ansi_term = "0.12.0"

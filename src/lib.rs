@@ -75,6 +75,7 @@ pub mod peerstate;
 pub mod pgp;
 pub mod provider;
 pub mod qr;
+pub mod quota;
 pub mod securejoin;
 mod simplify;
 mod smtp;
