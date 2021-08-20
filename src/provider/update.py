@@ -63,7 +63,7 @@ def process_data(data, file):
         raise TypeError("no domains found")
     for domain in data["domains"]:
         domain = cleanstr(domain)
-        if domain == "" or domain.count(".") < 1 or domain.lower() != domain:
+        if domain == "" or domain.lower() != domain:
             raise TypeError("bad domain: " + domain)
 
         global domains_set
@@ -84,7 +84,7 @@ def process_data(data, file):
         for s in data["server"]:
             hostname = cleanstr(s.get("hostname", ""))
             port = int(s.get("port", ""))
-            if hostname == "" or hostname.count(".") < 1 or port <= 0:
+            if hostname == "" or hostname.lower() != hostname or port <= 0:
                 raise TypeError("bad hostname or port")
 
             protocol = s.get("type", "").upper()
