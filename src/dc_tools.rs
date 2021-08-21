@@ -17,7 +17,7 @@ use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
 use crate::chat::{add_device_msg, add_device_msg_with_importance};
-use crate::constants::{Viewtype, DC_ELLIPSE, DC_OUTDATED_WARNING_DAYS};
+use crate::constants::{Viewtype, DC_ELLIPSIS, DC_OUTDATED_WARNING_DAYS};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::message::Message;
@@ -29,7 +29,7 @@ use crate::stock_str;
 #[allow(clippy::indexing_slicing)]
 pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
     let count = buf.chars().count();
-    if approx_chars > 0 && count > approx_chars + DC_ELLIPSE.len() {
+    if count > approx_chars + DC_ELLIPSIS.len() {
         let end_pos = buf
             .char_indices()
             .nth(approx_chars)
@@ -37,9 +37,9 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
             .unwrap_or_default();
 
         if let Some(index) = buf[..end_pos].rfind(|c| c == ' ' || c == '\n') {
-            Cow::Owned(format!("{}{}", &buf[..=index], DC_ELLIPSE))
+            Cow::Owned(format!("{}{}", &buf[..=index], DC_ELLIPSIS))
         } else {
-            Cow::Owned(format!("{}{}", &buf[..end_pos], DC_ELLIPSE))
+            Cow::Owned(format!("{}{}", &buf[..end_pos], DC_ELLIPSIS))
         }
     } else {
         Cow::Borrowed(buf)
@@ -711,10 +711,7 @@ mod tests {
         assert_eq!(dc_truncate("\n  hello \n world", 4), "\n  [...]");
 
         assert_eq!(dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 1), "𐠈[...]");
-        assert_eq!(
-            dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 0),
-            "𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ"
-        );
+        assert_eq!(dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 0), "[...]");
 
         // 9 characters, so no truncation
         assert_eq!(dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠", 6), "𑒀ὐ￠🜀\u{1e01b}A a🟠",);
