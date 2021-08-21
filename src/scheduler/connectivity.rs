@@ -8,7 +8,7 @@ use crate::events::EventType;
 use crate::quota::{
     QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
 };
-use crate::{config::Config, scheduler::Scheduler};
+use crate::{config::Config, dc_tools, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
 use anyhow::{anyhow, Result};
 use humansize::{file_size_opts, FileSize};
@@ -408,12 +408,23 @@ impl Context {
         ret += &*escaper::encode_minimal(&detailed.to_string_smtp(self));
         ret += "</li></ul>";
 
-        ret += "<h3>Quota</h3><ul>";
+        let domain = dc_tools::EmailAddress::new(
+            &self
+                .get_config(Config::ConfiguredAddr)
+                .await?
+                .unwrap_or_default(),
+        )?
+        .domain;
+        ret += &format!("<h3>Storage on {}</h3><ul>", domain);
         let quota = self.quota.read().await;
         if let Some(quota) = &*quota {
             match &quota.recent {
                 Ok(quota) => {
                     let roots_cnt = quota.len();
+                    let mut resources_cnt = 0;
+                    for (_, resources) in quota {
+                        resources_cnt += resources.len();
+                    }
                     for (root_name, resources) in quota {
                         use async_imap::types::QuotaResourceName::*;
                         for resource in resources {
@@ -437,9 +448,9 @@ impl Context {
                                 info!(self, "connectivity: root name hidden: \"{}\"", root_name);
                             }
 
-                            ret += &match &resource.name {
+                            match &resource.name {
                                 Atom(resource_name) => {
-                                    format!(
+                                    ret += &format!(
                                         "<b>{}:</b> {} of {} used",
                                         &*escaper::encode_minimal(resource_name),
                                         resource.usage.to_string(),
@@ -447,20 +458,23 @@ impl Context {
                                     )
                                 }
                                 Message => {
-                                    format!(
+                                    ret += &format!(
                                         "<b>Messages:</b> {} of {} used",
                                         resource.usage.to_string(),
                                         resource.limit.to_string(),
                                     )
                                 }
                                 Storage => {
+                                    if resources_cnt > 1 {
+                                        ret += "<b>Storage:</b> ";
+                                    }
                                     let usage = (resource.usage * 1024)
                                         .file_size(file_size_opts::BINARY)
                                         .unwrap_or_default();
                                     let limit = (resource.limit * 1024)
                                         .file_size(file_size_opts::BINARY)
                                         .unwrap_or_default();
-                                    format!("<b>Storage:</b> {} of {} used", usage, limit)
+                                    ret += &format!("{} of {} used", usage, limit)
                                 }
                             };
                             ret += &format!(" ({}%)", usage_percent);
