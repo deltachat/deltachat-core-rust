@@ -309,12 +309,28 @@ impl Context {
                         list-style-type: none;
                         padding-left: 1em;
                     }
-
                     .dot {
                         height: 0.9em; width: 0.9em;
+                        border: 1px solid #888;
                         border-radius: 50%;
                         display: inline-block;
                         position: relative; left: -0.1em; top: 0.1em;
+                    }
+                    .bar {
+                        width: 90%;
+                        border: 1px solid #888;
+                        border-radius: .5em;
+                        margin-top: .2em;
+                        margin-bottom: 1em;
+                        position: relative; left: -0.2em;
+                    }
+                    .progress {
+                        min-width:1.8em;
+                        height: 1em;
+                        border-radius: .45em;
+                        color: white;
+                        text-align: center;
+                        padding-bottom: 2px;
                     }
                     .red {
                         background-color: #f33b2d;
@@ -430,15 +446,6 @@ impl Context {
                         for resource in resources {
                             ret += "<li>";
 
-                            let usage_percent = resource.get_usage_percentage();
-                            if usage_percent >= QUOTA_ERROR_THRESHOLD_PERCENTAGE {
-                                ret += "<span class=\"red dot\"></span> ";
-                            } else if usage_percent >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
-                                ret += "<span class=\"yellow dot\"></span> ";
-                            } else {
-                                ret += "<span class=\"green dot\"></span> ";
-                            }
-
                             // root name is empty eg. for gmail and redundant eg. for riseup.
                             // therefore, use it only if there are really several roots.
                             if roots_cnt > 1 && !root_name.is_empty() {
@@ -477,7 +484,16 @@ impl Context {
                                     ret += &format!("{} of {} used", usage, limit)
                                 }
                             };
-                            ret += &format!(" ({}%)", usage_percent);
+
+                            let percent = resource.get_usage_percentage();
+                            let color = if percent >= QUOTA_ERROR_THRESHOLD_PERCENTAGE {
+                                "red"
+                            } else if percent >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
+                                "yellow"
+                            } else {
+                                "green"
+                            };
+                            ret += &format!("<div class=\"bar\"><div class=\"progress {}\" style=\"width: {}%\">{}%</div></div>", color, percent, percent);
 
                             ret += "</li>";
                         }
