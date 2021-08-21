@@ -10,6 +10,7 @@ use crate::quota::{
 };
 use crate::{config::Config, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
+use anyhow::{anyhow, Result};
 use humansize::{file_size_opts, FileSize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
@@ -297,7 +298,7 @@ impl Context {
     ///
     /// This comes as an HTML from the core so that we can easily improve it
     /// and the improvement instantly reaches all UIs.
-    pub async fn get_connectivity_html(&self) -> String {
+    pub async fn get_connectivity_html(&self) -> Result<String> {
         let mut ret = r#"<!DOCTYPE html>
             <html>
             <head>
@@ -358,8 +359,7 @@ impl Context {
                 smtp.state.connectivity.clone(),
             ),
             Scheduler::Stopped => {
-                ret += "Not started</body></html>\n";
-                return ret;
+                return Err(anyhow!("Not started"));
             }
         };
         drop(lock);
@@ -484,7 +484,7 @@ impl Context {
         ret += "</ul>";
 
         ret += "</body></html>\n";
-        ret
+        Ok(ret)
     }
 
     pub async fn all_work_done(&self) -> bool {

@@ -275,7 +275,15 @@ pub unsafe extern "C" fn dc_get_connectivity_html(
         return "".strdup();
     }
     let ctx = &*context;
-    block_on(async move { ctx.get_connectivity_html().await.strdup() })
+    block_on(async move {
+        match ctx.get_connectivity_html().await {
+            Ok(html) => html.strdup(),
+            Err(err) => {
+                error!(ctx, "Failed to get connectivity html: {}", err);
+                "".strdup()
+            }
+        }
+    })
 }
 
 #[no_mangle]
