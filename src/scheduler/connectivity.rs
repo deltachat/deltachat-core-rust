@@ -437,10 +437,6 @@ impl Context {
             match &quota.recent {
                 Ok(quota) => {
                     let roots_cnt = quota.len();
-                    let mut resources_cnt = 0;
-                    for (_, resources) in quota {
-                        resources_cnt += resources.len();
-                    }
                     for (root_name, resources) in quota {
                         use async_imap::types::QuotaResourceName::*;
                         for resource in resources {
@@ -455,9 +451,9 @@ impl Context {
                                 info!(self, "connectivity: root name hidden: \"{}\"", root_name);
                             }
 
-                            match &resource.name {
+                            ret += &match &resource.name {
                                 Atom(resource_name) => {
-                                    ret += &format!(
+                                    format!(
                                         "<b>{}:</b> {} of {} used",
                                         &*escaper::encode_minimal(resource_name),
                                         resource.usage.to_string(),
@@ -465,23 +461,26 @@ impl Context {
                                     )
                                 }
                                 Message => {
-                                    ret += &format!(
+                                    format!(
                                         "<b>Messages:</b> {} of {} used",
                                         resource.usage.to_string(),
                                         resource.limit.to_string(),
                                     )
                                 }
                                 Storage => {
-                                    if resources_cnt > 1 {
-                                        ret += "<b>Storage:</b> ";
-                                    }
+                                    // do not use a special title needed for "Storage":
+                                    // - it is usually shown directly under the "Storage" headline
+                                    // - by the units "1 MB of 10 MB used" there is some difference to eg. "Messages: 1 of 10 used"
+                                    // - the string is not longer than the other strings that way (minus title, plus units) -
+                                    //   additional linebreaks on small displays are unlikely therefore
+                                    // - most times, this is the only item anyway
                                     let usage = (resource.usage * 1024)
                                         .file_size(file_size_opts::BINARY)
                                         .unwrap_or_default();
                                     let limit = (resource.limit * 1024)
                                         .file_size(file_size_opts::BINARY)
                                         .unwrap_or_default();
-                                    ret += &format!("{} of {} used", usage, limit)
+                                    format!("{} of {} used", usage, limit)
                                 }
                             };
 
