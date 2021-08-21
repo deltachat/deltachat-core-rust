@@ -14,7 +14,7 @@ use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, VideochatType, Viewtype, DC_CHAT_ID_TRASH, DC_CONTACT_ID_INFO,
-    DC_CONTACT_ID_SELF, DC_MAX_GET_INFO_LEN, DC_MAX_GET_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
+    DC_CONTACT_ID_SELF, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
 };
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
@@ -541,9 +541,7 @@ impl Message {
     }
 
     pub fn get_text(&self) -> Option<String> {
-        self.text
-            .as_ref()
-            .map(|text| dc_truncate(text, DC_MAX_GET_TEXT_LEN).to_string())
+        self.text.as_ref().map(|s| s.to_string())
     }
 
     pub fn get_subject(&self) -> &str {
@@ -1142,7 +1140,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
         return Ok(ret);
     }
     let rawtxt = rawtxt.unwrap_or_default();
-    let rawtxt = dc_truncate(rawtxt.trim(), DC_MAX_GET_INFO_LEN);
+    let rawtxt = dc_truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
 
     let fts = dc_timestamp_to_str(msg.get_timestamp());
     ret += &format!("Sent: {}", fts);

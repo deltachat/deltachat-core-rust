@@ -3220,10 +3220,6 @@ int64_t          dc_chat_get_remaining_mute_duration (const dc_chat_t* chat);
 #define         DC_STATE_OUT_MDN_RCVD        28
 
 
-#define         DC_MAX_GET_TEXT_LEN          30000 // approx. max. length returned by dc_msg_get_text()
-#define         DC_MAX_GET_INFO_LEN          100000 // approx. max. length returned by dc_get_msg_info()
-
-
 /**
  * Create new message object. Message objects are needed e.g. for sending messages using
  * dc_send_msg().  Moreover, they are returned e.g. from dc_get_msg(),

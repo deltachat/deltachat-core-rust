@@ -165,36 +165,18 @@ pub const DC_MSG_ID_MARKER1: u32 = 1;
 pub const DC_MSG_ID_DAYMARKER: u32 = 9;
 pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 
-/// string that indicates sth. is left out or truncated
-pub const DC_ELLIPSE: &str = "[...]";
+/// String that indicates that something is left out or truncated.
+pub const DC_ELLIPSIS: &str = "[...]";
 
-/// to keep bubbles and chat flow usable,
-/// and to avoid problems with controls using very long texts,
-/// we limit the text length to DC_DESIRED_TEXT_LEN.
-/// if the text is longer, the full text can be retrieved using has_html()/get_html().
+/// Message length limit.
 ///
-/// we are using a bit less than DC_MAX_GET_TEXT_LEN to avoid cutting twice
-/// (a bit less as truncation may not be exact and ellipses may be added).
+/// To keep bubbles and chat flow usable and to avoid problems with controls using very long texts,
+/// we limit the text length to `DC_DESIRED_TEXT_LEN`.  If the text is longer, the full text can be
+/// retrieved using has_html()/get_html().
 ///
-/// note, that DC_DESIRED_TEXT_LEN and DC_MAX_GET_TEXT_LEN
-/// define max. number of bytes, _not_ unicode graphemes.
-/// in general, that seems to be okay for such an upper limit,
-/// esp. as calculating the number of graphemes is not simple
-/// (one graphemes may be a sequence of code points which is a sequence of bytes).
-/// also even if we have the exact number of graphemes,
-/// that would not always help on getting an idea about the screen space used
-/// (to keep bubbles and chat flow usable).
-///
-/// therefore, the number of bytes is only a very rough estimation,
-/// however, the ~30K seems to work okayish for a while,
-/// if it turns out, it is too few for some alphabet, we can still increase.
-pub const DC_DESIRED_TEXT_LEN: usize = 29_000;
-
-/// approx. max. length (number of bytes) returned by dc_msg_get_text()
-pub const DC_MAX_GET_TEXT_LEN: usize = 30_000;
-
-/// approx. max. length returned by dc_get_msg_info()
-pub const DC_MAX_GET_INFO_LEN: usize = 100_000;
+/// Note that for simplicity maximum length is defined as the number of Unicode Scalar Values (Rust
+/// `char`s), not Unicode Grapheme Clusters.
+pub const DC_DESIRED_TEXT_LEN: usize = 5000;
 
 pub const DC_CONTACT_ID_UNDEFINED: u32 = 0;
 pub const DC_CONTACT_ID_SELF: u32 = 1;
