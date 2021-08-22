@@ -1,4 +1,4 @@
-//! Context module
+//! Context module.
 
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;

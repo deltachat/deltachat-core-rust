@@ -1,3 +1,5 @@
+//! # Support for IMAP QUOTA extension.
+
 use anyhow::{anyhow, Result};
 use async_imap::types::{Quota, QuotaResource};
 use indexmap::IndexMap;

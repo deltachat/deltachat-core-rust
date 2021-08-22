@@ -1,4 +1,4 @@
-//! Location handling
+//! Location handling.
 use std::convert::TryFrom;
 
 use anyhow::{ensure, Error};

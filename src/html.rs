@@ -1,11 +1,12 @@
-///! # Get message as HTML.
-///!
-///! Use `Message.has_html()` to check if the UI shall render a
-///! corresponding button and `MsgId.get_html()` to get the full message.
-///!
-///! Even when the original mime-message is not HTML,
-///! `MsgId.get_html()` will return HTML -
-///! this allows nice quoting, handling linebreaks properly etc.
+//! # Get message as HTML.
+//!
+//! Use `Message.has_html()` to check if the UI shall render a
+//! corresponding button and `MsgId.get_html()` to get the full message.
+//!
+//! Even when the original mime-message is not HTML,
+//! `MsgId.get_html()` will return HTML -
+//! this allows nice quoting, handling linebreaks properly etc.
+
 use futures::future::FutureExt;
 use std::future::Future;
 use std::pin::Pin;

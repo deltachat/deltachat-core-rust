@@ -1,4 +1,4 @@
-//! Verified contact protocol implementation as [specified by countermitm project](https://countermitm.readthedocs.io/en/stable/new.html#setup-contact-protocol)
+//! Verified contact protocol implementation as [specified by countermitm project](https://countermitm.readthedocs.io/en/stable/new.html#setup-contact-protocol).
 
 use std::convert::TryFrom;
 use std::time::{Duration, Instant};

@@ -1,4 +1,4 @@
-//! # SQLite wrapper
+//! # SQLite wrapper.
 
 use async_std::path::Path;
 use async_std::sync::RwLock;

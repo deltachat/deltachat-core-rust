@@ -1,3 +1,5 @@
+//! # Account manager module.
+
 use std::collections::BTreeMap;
 
 use async_std::channel::{Receiver, Sender};
@@ -251,12 +253,13 @@ impl Accounts {
         }
     }
 
-    /// Unified event emitter.
+    /// Returns unified event emitter.
     pub async fn get_event_emitter(&self) -> EventEmitter {
         self.emitter.clone()
     }
 }
 
+/// Unified event emitter for multiple accounts.
 #[derive(Debug, Clone)]
 pub struct EventEmitter {
     /// Aggregate stream of events from all accounts.
@@ -324,6 +327,7 @@ impl async_std::stream::Stream for EventEmitter {
 pub const CONFIG_NAME: &str = "accounts.toml";
 pub const DB_NAME: &str = "dc.db";
 
+/// Account manager configuration file.
 #[derive(Debug, Clone)]
 pub struct Config {
     file: PathBuf,
@@ -398,7 +402,7 @@ impl Config {
     }
 
     /// Create a new account in the given root directory.
-    pub async fn new_account(&self, dir: &PathBuf) -> Result<AccountConfig> {
+    async fn new_account(&self, dir: &PathBuf) -> Result<AccountConfig> {
         let id = {
             let inner = &mut self.inner.write().await;
             let id = inner.next_id;
@@ -438,7 +442,7 @@ impl Config {
         self.sync().await
     }
 
-    pub async fn get_account(&self, id: u32) -> Option<AccountConfig> {
+    async fn get_account(&self, id: u32) -> Option<AccountConfig> {
         self.inner
             .read()
             .await
@@ -469,8 +473,9 @@ impl Config {
     }
 }
 
+/// Configuration of a single account.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AccountConfig {
+struct AccountConfig {
     /// Unique id.
     pub id: u32,
     /// Root directory for all data for this account.

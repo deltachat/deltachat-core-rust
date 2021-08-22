@@ -1,3 +1,5 @@
+//! Migrations module.
+
 use anyhow::Result;
 
 use crate::config::Config;

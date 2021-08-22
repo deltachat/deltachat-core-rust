@@ -1,4 +1,4 @@
-//! Cryptographic key module
+//! Cryptographic key module.
 
 use std::collections::BTreeMap;
 use std::fmt;

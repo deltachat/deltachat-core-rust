@@ -335,7 +335,7 @@ fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
     false
 }
 
-/// Check if a MIME structure contains a multipart/report part.
+/// Checks if a MIME structure contains a multipart/report part.
 ///
 /// As reports are often unencrypted, we do not reset the Autocrypt header in
 /// this case.

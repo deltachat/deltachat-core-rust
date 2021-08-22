@@ -1,4 +1,4 @@
-//! Implementation of Consistent Color Generation
+//! Implementation of Consistent Color Generation.
 //!
 //! Consistent Color Generation is defined in XEP-0392.
 //!

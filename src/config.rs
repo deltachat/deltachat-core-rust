@@ -1,4 +1,4 @@
-//! # Key-value configuration management
+//! # Key-value configuration management.
 
 use anyhow::Result;
 use strum::{EnumProperty, IntoEnumIterator};

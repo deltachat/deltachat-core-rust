@@ -1,3 +1,5 @@
+//! # Legacy generic return values for C API.
+
 use deltachat_derive::{FromSql, ToSql};
 
 use crate::key::Fingerprint;

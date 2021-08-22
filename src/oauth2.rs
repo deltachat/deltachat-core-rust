@@ -1,4 +1,4 @@
-//! OAuth 2 module
+//! OAuth 2 module.
 
 use std::collections::HashMap;
 

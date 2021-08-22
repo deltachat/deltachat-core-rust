@@ -1,4 +1,5 @@
-//! # Logging
+//! # Logging.
+
 use crate::context::Context;
 
 #[macro_export]

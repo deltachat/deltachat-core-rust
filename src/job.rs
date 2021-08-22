@@ -1,4 +1,4 @@
-//! # Job module
+//! # Job module.
 //!
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
