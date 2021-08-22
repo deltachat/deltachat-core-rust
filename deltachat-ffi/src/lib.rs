@@ -311,9 +311,12 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     let redirect = to_string_lossy(redirect);
 
     block_on(async move {
-        match oauth2::dc_get_oauth2_url(ctx, &addr, &redirect).await {
-            Some(res) => res.strdup(),
-            None => ptr::null_mut(),
+        match oauth2::dc_get_oauth2_url(ctx, &addr, &redirect)
+            .await
+            .log_err(ctx, "dc_get_oauth2_url failed")
+        {
+            Ok(Some(res)) => res.strdup(),
+            Ok(None) | Err(_) => ptr::null_mut(),
         }
     })
 }
@@ -3620,12 +3623,16 @@ pub unsafe extern "C" fn dc_provider_new_from_email(
         ctx.get_config_bool(config::Config::Socks5Enabled)
             .await
             .log_err(ctx, "Can't get config")
-            .unwrap_or_default()
     });
 
-    match block_on(provider::get_provider_info(addr.as_str(), socks5_enabled)) {
-        Some(provider) => provider,
-        None => ptr::null_mut(),
+    match socks5_enabled {
+        Ok(socks5_enabled) => {
+            match block_on(provider::get_provider_info(addr.as_str(), socks5_enabled)) {
+                Some(provider) => provider,
+                None => ptr::null_mut(),
+            }
+        }
+        Err(_) => ptr::null_mut(),
     }
 }
 

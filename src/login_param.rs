@@ -63,10 +63,7 @@ impl Socks5Config {
     pub async fn from_database(context: &Context) -> Result<Option<Self>> {
         let sql = &context.sql;
 
-        let enabled = sql
-            .get_raw_config_bool("socks5_enabled")
-            .await
-            .unwrap_or(false);
+        let enabled = sql.get_raw_config_bool("socks5_enabled").await?;
         if enabled {
             let host = sql.get_raw_config("socks5_host").await?.unwrap_or_default();
             let port: u16 = sql

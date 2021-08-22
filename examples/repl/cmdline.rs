@@ -1170,8 +1170,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(!arg1.is_empty(), "Argument <addr> missing.");
             let socks5_enabled = context
                 .get_config_bool(config::Config::Socks5Enabled)
-                .await
-                .unwrap_or_default();
+                .await?;
             match provider::get_provider_info(arg1, socks5_enabled).await {
                 Some(info) => {
                     println!("Information for provider belonging to {}:", arg1);
