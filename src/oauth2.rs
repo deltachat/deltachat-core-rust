@@ -56,26 +56,19 @@ pub async fn dc_get_oauth2_url(
     context: &Context,
     addr: &str,
     redirect_uri: &str,
-) -> Option<String> {
-    let socks5_enabled = context
-        .get_config_bool(Config::Socks5Enabled)
-        .await
-        .unwrap_or(false);
+) -> Result<Option<String>> {
+    let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
     if let Some(oauth2) = Oauth2::from_address(addr, socks5_enabled).await {
-        if context
+        context
             .sql
             .set_raw_config("oauth2_pending_redirect_uri", Some(redirect_uri))
-            .await
-            .is_err()
-        {
-            return None;
-        }
+            .await?;
         let oauth2_url = replace_in_uri(oauth2.get_code, "$CLIENT_ID", oauth2.client_id);
         let oauth2_url = replace_in_uri(&oauth2_url, "$REDIRECT_URI", redirect_uri);
 
-        Some(oauth2_url)
+        Ok(Some(oauth2_url))
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -85,10 +78,7 @@ pub async fn dc_get_oauth2_access_token(
     code: &str,
     regenerate: bool,
 ) -> Result<Option<String>> {
-    let socks5_enabled = context
-        .get_config_bool(Config::Socks5Enabled)
-        .await
-        .unwrap_or(false);
+    let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
     if let Some(oauth2) = Oauth2::from_address(addr, socks5_enabled).await {
         let lock = context.oauth2_mutex.lock().await;
 
@@ -234,10 +224,7 @@ pub async fn dc_get_oauth2_addr(
     addr: &str,
     code: &str,
 ) -> Result<Option<String>> {
-    let socks5_enabled = context
-        .get_config_bool(Config::Socks5Enabled)
-        .await
-        .unwrap_or(false);
+    let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
     let oauth2 = match Oauth2::from_address(addr, socks5_enabled).await {
         Some(o) => o,
         None => return Ok(None),
@@ -412,7 +399,9 @@ mod tests {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
         let redirect_uri = "chat.delta:/com.b44t.messenger";
-        let res = dc_get_oauth2_url(&ctx.ctx, addr, redirect_uri).await;
+        let res = dc_get_oauth2_url(&ctx.ctx, addr, redirect_uri)
+            .await
+            .unwrap();
 
         assert_eq!(res, Some("https://accounts.google.com/o/oauth2/auth?client_id=959970109878%2D4mvtgf6feshskf7695nfln6002mom908%2Eapps%2Egoogleusercontent%2Ecom&redirect_uri=chat%2Edelta%3A%2Fcom%2Eb44t%2Emessenger&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline".into()));
     }
