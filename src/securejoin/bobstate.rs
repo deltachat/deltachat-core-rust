@@ -236,7 +236,7 @@ impl BobState {
         context: &Context,
         mime_message: &MimeMessage,
     ) -> Result<Option<BobHandshakeStage>> {
-        let step = match mime_message.get(HeaderDef::SecureJoin) {
+        let step = match mime_message.get_header(HeaderDef::SecureJoin) {
             Some(step) => step,
             None => {
                 warn!(
@@ -362,7 +362,7 @@ impl BobState {
 
         if let QrInvite::Group { .. } = self.invite {
             let member_added = mime_message
-                .get(HeaderDef::ChatGroupMemberAdded)
+                .get_header(HeaderDef::ChatGroupMemberAdded)
                 .map(|s| s.as_str())
                 .ok_or_else(|| Error::msg("Missing Chat-Group-Member-Added header"))?;
             if !context.is_self_addr(member_added).await? {

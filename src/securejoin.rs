@@ -484,7 +484,7 @@ pub(crate) async fn handle_securejoin_handshake(
         return Err(Error::msg("Can not be called with special contact ID"));
     }
     let step = mime_message
-        .get(HeaderDef::SecureJoin)
+        .get_header(HeaderDef::SecureJoin)
         .context("Not a Secure-Join message")?;
 
     info!(
@@ -520,7 +520,7 @@ pub(crate) async fn handle_securejoin_handshake(
             // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
             // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
             // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
-            let invitenumber = match mime_message.get(HeaderDef::SecureJoinInvitenumber) {
+            let invitenumber = match mime_message.get_header(HeaderDef::SecureJoinInvitenumber) {
                 Some(n) => n,
                 None => {
                     warn!(context, "Secure-join denied (invitenumber missing)");
@@ -576,19 +576,19 @@ pub(crate) async fn handle_securejoin_handshake(
             ==========================================================*/
 
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-            let fingerprint: Fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint)
-            {
-                Some(fp) => fp.parse()?,
-                None => {
-                    could_not_establish_secure_connection(
-                        context,
-                        contact_chat_id,
-                        "Fingerprint not provided.",
-                    )
-                    .await?;
-                    return Ok(HandshakeMessage::Ignore);
-                }
-            };
+            let fingerprint: Fingerprint =
+                match mime_message.get_header(HeaderDef::SecureJoinFingerprint) {
+                    Some(fp) => fp.parse()?,
+                    None => {
+                        could_not_establish_secure_connection(
+                            context,
+                            contact_chat_id,
+                            "Fingerprint not provided.",
+                        )
+                        .await?;
+                        return Ok(HandshakeMessage::Ignore);
+                    }
+                };
             if !encrypted_and_signed(context, mime_message, Some(&fingerprint)) {
                 could_not_establish_secure_connection(
                     context,
@@ -609,7 +609,7 @@ pub(crate) async fn handle_securejoin_handshake(
             }
             info!(context, "Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
-            let auth_0 = match mime_message.get(HeaderDef::SecureJoinAuth) {
+            let auth_0 = match mime_message.get_header(HeaderDef::SecureJoinAuth) {
                 Some(auth) => auth,
                 None => {
                     could_not_establish_secure_connection(
@@ -644,7 +644,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 // the vg-member-added message is special:
                 // this is a normal Chat-Group-Member-Added message
                 // with an additional Secure-Join header
-                let field_grpid = match mime_message.get(HeaderDef::SecureJoinGroup) {
+                let field_grpid = match mime_message.get_header(HeaderDef::SecureJoinGroup) {
                     Some(s) => s.as_str(),
                     None => {
                         warn!(context, "Missing Secure-Join-Group header");
@@ -729,7 +729,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     inviter_progress!(context, contact_id, 800);
                     inviter_progress!(context, contact_id, 1000);
                     let field_grpid = mime_message
-                        .get(HeaderDef::SecureJoinGroup)
+                        .get_header(HeaderDef::SecureJoinGroup)
                         .map(|s| s.as_str())
                         .unwrap_or_else(|| "");
                     if let Err(err) = chat::get_chat_id_by_grpid(context, &field_grpid).await {
@@ -778,7 +778,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
         return Err(Error::msg("Can not be called with special contact ID"));
     }
     let step = mime_message
-        .get(HeaderDef::SecureJoin)
+        .get_header(HeaderDef::SecureJoin)
         .context("Not a Secure-Join message")?;
     info!(context, "observing secure-join message \'{}\'", step);
 
@@ -815,19 +815,19 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            let fingerprint: Fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint)
-            {
-                Some(fp) => fp.parse()?,
-                None => {
-                    could_not_establish_secure_connection(
+            let fingerprint: Fingerprint =
+                match mime_message.get_header(HeaderDef::SecureJoinFingerprint) {
+                    Some(fp) => fp.parse()?,
+                    None => {
+                        could_not_establish_secure_connection(
                         context,
                         contact_chat_id,
                         "Fingerprint not provided, please update Delta Chat on all your devices.",
                     )
                     .await?;
-                    return Ok(HandshakeMessage::Ignore);
-                }
-            };
+                        return Ok(HandshakeMessage::Ignore);
+                    }
+                };
             if mark_peer_as_verified(context, &fingerprint).await.is_err() {
                 could_not_establish_secure_connection(
                     context,
@@ -985,8 +985,8 @@ mod tests {
         assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
-        assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vc-request");
-        assert!(msg.get(HeaderDef::SecureJoinInvitenumber).is_some());
+        assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vc-request");
+        assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
 
         // Step 3: Alice receives vc-request, sends vc-auth-required
         alice.recv_msg(&sent).await;
@@ -994,7 +994,10 @@ mod tests {
         let sent = alice.pop_sent_msg().await;
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
-        assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vc-auth-required");
+        assert_eq!(
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
+            "vc-auth-required"
+        );
 
         // Step 4: Bob receives vc-auth-required, sends vc-request-with-auth
         bob.recv_msg(&sent).await;
@@ -1029,16 +1032,16 @@ mod tests {
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
-            msg.get(HeaderDef::SecureJoin).unwrap(),
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vc-request-with-auth"
         );
-        assert!(msg.get(HeaderDef::SecureJoinAuth).is_some());
+        assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
         let bob_fp = SignedPublicKey::load_self(&bob.ctx)
             .await
             .unwrap()
             .fingerprint();
         assert_eq!(
-            *msg.get(HeaderDef::SecureJoinFingerprint).unwrap(),
+            *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
         );
 
@@ -1087,7 +1090,7 @@ mod tests {
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
-            msg.get(HeaderDef::SecureJoin).unwrap(),
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vc-contact-confirm"
         );
 
@@ -1136,7 +1139,7 @@ mod tests {
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
-            msg.get(HeaderDef::SecureJoin).unwrap(),
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vc-contact-confirm-received"
         );
     }
@@ -1221,16 +1224,16 @@ mod tests {
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
-            msg.get(HeaderDef::SecureJoin).unwrap(),
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vc-request-with-auth"
         );
-        assert!(msg.get(HeaderDef::SecureJoinAuth).is_some());
+        assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
         let bob_fp = SignedPublicKey::load_self(&bob.ctx)
             .await
             .unwrap()
             .fingerprint();
         assert_eq!(
-            *msg.get(HeaderDef::SecureJoinFingerprint).unwrap(),
+            *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
         );
 
@@ -1262,7 +1265,7 @@ mod tests {
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
-            msg.get(HeaderDef::SecureJoin).unwrap(),
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vc-contact-confirm"
         );
 
@@ -1291,7 +1294,7 @@ mod tests {
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
-            msg.get(HeaderDef::SecureJoin).unwrap(),
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vc-contact-confirm-received"
         );
     }
@@ -1334,8 +1337,8 @@ mod tests {
         assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
-        assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vg-request");
-        assert!(msg.get(HeaderDef::SecureJoinInvitenumber).is_some());
+        assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vg-request");
+        assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
 
         // Step 3: Alice receives vg-request, sends vg-auth-required
         alice.recv_msg(&sent).await;
@@ -1343,7 +1346,10 @@ mod tests {
         let sent = alice.pop_sent_msg().await;
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
-        assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vg-auth-required");
+        assert_eq!(
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
+            "vg-auth-required"
+        );
 
         // Step 4: Bob receives vg-auth-required, sends vg-request-with-auth
         bob.recv_msg(&sent).await;
@@ -1378,16 +1384,16 @@ mod tests {
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
-            msg.get(HeaderDef::SecureJoin).unwrap(),
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vg-request-with-auth"
         );
-        assert!(msg.get(HeaderDef::SecureJoinAuth).is_some());
+        assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
         let bob_fp = SignedPublicKey::load_self(&bob.ctx)
             .await
             .unwrap()
             .fingerprint();
         assert_eq!(
-            *msg.get(HeaderDef::SecureJoinFingerprint).unwrap(),
+            *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
         );
 
@@ -1415,7 +1421,10 @@ mod tests {
         let sent = alice.pop_sent_msg().await;
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
-        assert_eq!(msg.get(HeaderDef::SecureJoin).unwrap(), "vg-member-added");
+        assert_eq!(
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
+            "vg-member-added"
+        );
 
         // Bob should not yet have Alice verified
         let contact_alice_id =
@@ -1442,7 +1451,7 @@ mod tests {
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
-            msg.get(HeaderDef::SecureJoin).unwrap(),
+            msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vg-member-added-received"
         );
 
