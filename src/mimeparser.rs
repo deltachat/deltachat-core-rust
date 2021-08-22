@@ -295,7 +295,7 @@ impl MimeMessage {
 
     /// Parses system messages.
     fn parse_system_message_headers(&mut self, context: &Context) {
-        if self.get(HeaderDef::AutocryptSetupMessage).is_some() {
+        if self.get_header(HeaderDef::AutocryptSetupMessage).is_some() {
             self.parts = self
                 .parts
                 .iter()
@@ -311,7 +311,7 @@ impl MimeMessage {
             } else {
                 warn!(context, "could not determine ASM mime-part");
             }
-        } else if let Some(value) = self.get(HeaderDef::ChatContent) {
+        } else if let Some(value) = self.get_header(HeaderDef::ChatContent) {
             if value == "location-streaming-enabled" {
                 self.is_system_message = SystemMessage::LocationStreamingEnabled;
             } else if value == "ephemeral-timer-changed" {
@@ -326,19 +326,19 @@ impl MimeMessage {
 
     /// Parses avatar action headers.
     async fn parse_avatar_headers(&mut self, context: &Context) {
-        if let Some(header_value) = self.get(HeaderDef::ChatGroupAvatar).cloned() {
+        if let Some(header_value) = self.get_header(HeaderDef::ChatGroupAvatar).cloned() {
             self.group_avatar = self.avatar_action_from_header(context, header_value).await;
         }
 
-        if let Some(header_value) = self.get(HeaderDef::ChatUserAvatar).cloned() {
+        if let Some(header_value) = self.get_header(HeaderDef::ChatUserAvatar).cloned() {
             self.user_avatar = self.avatar_action_from_header(context, header_value).await;
         }
     }
 
     fn parse_videochat_headers(&mut self) {
-        if let Some(value) = self.get(HeaderDef::ChatContent).cloned() {
+        if let Some(value) = self.get_header(HeaderDef::ChatContent).cloned() {
             if value == "videochat-invitation" {
-                let instance = self.get(HeaderDef::ChatWebrtcRoom).cloned();
+                let instance = self.get_header(HeaderDef::ChatWebrtcRoom).cloned();
                 if let Some(part) = self.parts.first_mut() {
                     part.typ = Viewtype::VideochatInvitation;
                     part.param
@@ -395,11 +395,12 @@ impl MimeMessage {
         }
 
         if let Some(mut part) = self.parts.pop() {
-            if part.typ == Viewtype::Audio && self.get(HeaderDef::ChatVoiceMessage).is_some() {
+            if part.typ == Viewtype::Audio && self.get_header(HeaderDef::ChatVoiceMessage).is_some()
+            {
                 part.typ = Viewtype::Voice;
             }
             if part.typ == Viewtype::Image || part.typ == Viewtype::Gif {
-                if let Some(value) = self.get(HeaderDef::ChatContent) {
+                if let Some(value) = self.get_header(HeaderDef::ChatContent) {
                     if value == "sticker" {
                         part.typ = Viewtype::Sticker;
                     }
@@ -409,7 +410,7 @@ impl MimeMessage {
                 || part.typ == Viewtype::Voice
                 || part.typ == Viewtype::Video
             {
-                if let Some(field_0) = self.get(HeaderDef::ChatDuration) {
+                if let Some(field_0) = self.get_header(HeaderDef::ChatDuration) {
                     let duration_ms = field_0.parse().unwrap_or_default();
                     if duration_ms > 0 && duration_ms < 24 * 60 * 60 * 1000 {
                         part.param.set_int(Param::Duration, duration_ms);
@@ -591,12 +592,12 @@ impl MimeMessage {
     }
 
     pub(crate) fn get_subject(&self) -> Option<String> {
-        self.get(HeaderDef::Subject)
+        self.get_header(HeaderDef::Subject)
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
     }
 
-    pub fn get(&self, headerdef: HeaderDef) -> Option<&String> {
+    pub fn get_header(&self, headerdef: HeaderDef) -> Option<&String> {
         self.header.get(headerdef.get_headername())
     }
 
@@ -1019,12 +1020,12 @@ impl MimeMessage {
     }
 
     pub(crate) fn get_mailinglist_type(&self) -> MailinglistType {
-        if self.get(HeaderDef::ListId).is_some() {
+        if self.get_header(HeaderDef::ListId).is_some() {
             return MailinglistType::ListIdBased;
-        } else if self.get(HeaderDef::Sender).is_some() {
+        } else if self.get_header(HeaderDef::Sender).is_some() {
             // the `Sender:`-header alone is no indicator for mailing list
             // as also used for bot-impersonation via `set_override_sender_name()`
-            if let Some(precedence) = self.get(HeaderDef::Precedence) {
+            if let Some(precedence) = self.get_header(HeaderDef::Precedence) {
                 if precedence == "list" || precedence == "bulk" {
                     return MailinglistType::SenderBased;
                 }
@@ -1050,8 +1051,8 @@ impl MimeMessage {
     }
 
     pub fn get_rfc724_mid(&self) -> Option<String> {
-        self.get(HeaderDef::XMicrosoftOriginalMessageId)
-            .or_else(|| self.get(HeaderDef::MessageId))
+        self.get_header(HeaderDef::XMicrosoftOriginalMessageId)
+            .or_else(|| self.get_header(HeaderDef::MessageId))
             .and_then(|msgid| parse_message_id(msgid).ok())
     }
 
@@ -1238,7 +1239,7 @@ impl MimeMessage {
     /// Also you should add a test in dc_receive_imf.rs (there already are lots of test_parse_ndn_* tests).
     #[allow(clippy::indexing_slicing)]
     async fn heuristically_parse_ndn(&mut self, context: &Context) {
-        let maybe_ndn = if let Some(from) = self.get(HeaderDef::From_) {
+        let maybe_ndn = if let Some(from) = self.get_header(HeaderDef::From_) {
             let from = from.to_ascii_lowercase();
             from.contains("mailer-daemon") || from.contains("mail-daemon")
         } else {
@@ -1313,7 +1314,7 @@ impl MimeMessage {
     /// database, returns None.
     pub async fn get_parent_timestamp(&self, context: &Context) -> Result<Option<i64>> {
         let parent_timestamp = if let Some(field) = self
-            .get(HeaderDef::InReplyTo)
+            .get_header(HeaderDef::InReplyTo)
             .and_then(|msgid| parse_message_id(msgid).ok())
         {
             context
@@ -1982,11 +1983,11 @@ mod tests {
             .unwrap();
 
         // non-overwritten headers do not bubble up
-        let of = mimeparser.get(HeaderDef::SecureJoinGroup).unwrap();
+        let of = mimeparser.get_header(HeaderDef::SecureJoinGroup).unwrap();
         assert_eq!(of, "no");
 
         // unknown headers do not bubble upwards
-        let of = mimeparser.get(HeaderDef::_TestHeader).unwrap();
+        let of = mimeparser.get_header(HeaderDef::_TestHeader).unwrap();
         assert_eq!(of, "Bar");
 
         // the following fields would bubble up
@@ -1995,13 +1996,15 @@ mod tests {
         // for Chat-Version, also the case-insensivity is tested.
         assert_eq!(mimeparser.get_subject(), Some("outer-subject".into()));
 
-        let of = mimeparser.get(HeaderDef::ChatVersion).unwrap();
+        let of = mimeparser.get_header(HeaderDef::ChatVersion).unwrap();
         assert_eq!(of, "0.0");
         assert_eq!(mimeparser.parts.len(), 1);
 
         // make sure, headers that are only allowed in the encrypted part
         // cannot be set from the outer part
-        assert!(mimeparser.get(HeaderDef::SecureJoinFingerprint).is_none());
+        assert!(mimeparser
+            .get_header(HeaderDef::SecureJoinFingerprint)
+            .is_none());
     }
 
     #[async_std::test]

@@ -93,7 +93,7 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     let mut sent_timestamp = if let Some(value) = mime_parser
-        .get(HeaderDef::Date)
+        .get_header(HeaderDef::Date)
         .and_then(|value| mailparse::dateparse(value).ok())
     {
         value
@@ -134,7 +134,7 @@ pub(crate) async fn dc_receive_imf_inner(
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
 
     let prevent_rename =
-        mime_parser.is_mailinglist_message() || mime_parser.get(HeaderDef::Sender).is_some();
+        mime_parser.is_mailinglist_message() || mime_parser.get_header(HeaderDef::Sender).is_some();
 
     // get From: (it can be an address list!) and check if it is known (for known From:'s we add
     // the other To:/Cc: in the 3rd pass)
@@ -425,7 +425,7 @@ async fn add_parts(
         to_id = DC_CONTACT_ID_SELF;
 
         // handshake may mark contacts as verified and must be processed before chats are created
-        if mime_parser.get(HeaderDef::SecureJoin).is_some() {
+        if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
             is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
             chat_id = None;
             allow_creation = true;
@@ -526,7 +526,7 @@ async fn add_parts(
             // check if the message belongs to a mailing list
             match mime_parser.get_mailinglist_type() {
                 MailinglistType::ListIdBased => {
-                    if let Some(list_id) = mime_parser.get(HeaderDef::ListId) {
+                    if let Some(list_id) = mime_parser.get_header(HeaderDef::ListId) {
                         if let Some((new_chat_id, new_chat_id_blocked)) =
                             create_or_lookup_mailinglist(
                                 context,
@@ -542,7 +542,7 @@ async fn add_parts(
                     }
                 }
                 MailinglistType::SenderBased => {
-                    if let Some(sender) = mime_parser.get(HeaderDef::Sender) {
+                    if let Some(sender) = mime_parser.get_header(HeaderDef::Sender) {
                         if let Some((new_chat_id, new_chat_id_blocked)) =
                             create_or_lookup_mailinglist(
                                 context,
@@ -649,7 +649,7 @@ async fn add_parts(
         to_id = to_ids.get_index(0).cloned().unwrap_or_default();
 
         // handshake may mark contacts as verified and must be processed before chats are created
-        if mime_parser.get(HeaderDef::SecureJoin).is_some() {
+        if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
             is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
             chat_id = None;
             allow_creation = true;
@@ -675,8 +675,8 @@ async fn add_parts(
         // such as systemli.org in June 2021 remove their own Received headers on incoming mails)
         // and we know Delta Chat never stores drafts on IMAP servers.
         let is_draft = !context.is_sentbox(server_folder).await?
-            && mime_parser.get(HeaderDef::Received).is_none()
-            && mime_parser.get(HeaderDef::ChatVersion).is_none();
+            && mime_parser.get_header(HeaderDef::Received).is_none()
+            && mime_parser.get_header(HeaderDef::ChatVersion).is_none();
 
         // Mozilla Thunderbird does not set \Draft flag on "Templates", but sets
         // X-Mozilla-Draft-Info header, which can be used to detect both drafts and templates
@@ -684,7 +684,10 @@ async fn add_parts(
         //
         // This check is not necessary now, but may become useful if the `Received:` header check
         // is removed completely later.
-        let is_draft = is_draft || mime_parser.get(HeaderDef::XMozillaDraftInfo).is_some();
+        let is_draft = is_draft
+            || mime_parser
+                .get_header(HeaderDef::XMozillaDraftInfo)
+                .is_some();
 
         if is_draft {
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
@@ -783,7 +786,8 @@ async fn add_parts(
     });
 
     // Extract ephemeral timer from the message.
-    let mut ephemeral_timer = if let Some(value) = mime_parser.get(HeaderDef::EphemeralTimer) {
+    let mut ephemeral_timer = if let Some(value) = mime_parser.get_header(HeaderDef::EphemeralTimer)
+    {
         match value.parse::<EphemeralTimer>() {
             Ok(timer) => timer,
             Err(err) => {
@@ -913,11 +917,11 @@ async fn add_parts(
     let save_mime_headers = context.get_config_bool(Config::SaveMimeHeaders).await?;
 
     let mime_in_reply_to = mime_parser
-        .get(HeaderDef::InReplyTo)
+        .get_header(HeaderDef::InReplyTo)
         .cloned()
         .unwrap_or_default();
     let mime_references = mime_parser
-        .get(HeaderDef::References)
+        .get_header(HeaderDef::References)
         .cloned()
         .unwrap_or_default();
 
@@ -1369,10 +1373,13 @@ async fn create_or_lookup_group(
     // now we have a grpid that is non-empty
     // but we might not know about this group
 
-    let grpname = mime_parser.get(HeaderDef::ChatGroupName).cloned();
+    let grpname = mime_parser.get_header(HeaderDef::ChatGroupName).cloned();
     let mut removed_id = None;
 
-    if let Some(removed_addr) = mime_parser.get(HeaderDef::ChatGroupMemberRemoved).cloned() {
+    if let Some(removed_addr) = mime_parser
+        .get_header(HeaderDef::ChatGroupMemberRemoved)
+        .cloned()
+    {
         removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
         match removed_id {
             Some(contact_id) => {
@@ -1386,12 +1393,14 @@ async fn create_or_lookup_group(
             None => warn!(context, "removed {:?} has no contact_id", removed_addr),
         }
     } else {
-        let field = mime_parser.get(HeaderDef::ChatGroupMemberAdded).cloned();
+        let field = mime_parser
+            .get_header(HeaderDef::ChatGroupMemberAdded)
+            .cloned();
         if let Some(added_member) = field {
             mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
             better_msg = stock_str::msg_add_member(context, &added_member, from_id).await;
             X_MrAddToGrp = Some(added_member);
-        } else if let Some(old_name) = mime_parser.get(HeaderDef::ChatGroupNameChanged) {
+        } else if let Some(old_name) = mime_parser.get_header(HeaderDef::ChatGroupNameChanged) {
             X_MrGrpNameChanged = true;
             better_msg = stock_str::msg_grp_name(
                 context,
@@ -1405,7 +1414,7 @@ async fn create_or_lookup_group(
             )
             .await;
             mime_parser.is_system_message = SystemMessage::GroupNameChanged;
-        } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent) {
+        } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
             if value == "group-avatar-changed" {
                 if let Some(avatar_action) = &mime_parser.group_avatar {
                     // this is just an explicit message containing the group-avatar,
@@ -1445,7 +1454,7 @@ async fn create_or_lookup_group(
                 || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
     {
         // group does not exist but should be created
-        let create_protected = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
+        let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "verification problem: {}", err);
@@ -1704,7 +1713,7 @@ async fn create_or_lookup_mailinglist(
 }
 
 fn try_getting_grpid(mime_parser: &MimeMessage) -> Option<String> {
-    if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupId) {
+    if let Some(optional_field) = mime_parser.get_header(HeaderDef::ChatGroupId) {
         return Some(optional_field.clone());
     }
 
@@ -1726,7 +1735,7 @@ fn try_getting_grpid(mime_parser: &MimeMessage) -> Option<String> {
 
 /// try extract a grpid from a message-id list header value
 fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<&str> {
-    let header = mime_parser.get(headerdef)?;
+    let header = mime_parser.get_header(headerdef)?;
     let parts = header
         .split(',')
         .map(str::trim)
@@ -1891,7 +1900,7 @@ async fn check_verified_properties(
 
     ensure!(mimeparser.was_encrypted(), "This message is not encrypted.");
 
-    if mimeparser.get(HeaderDef::ChatVerified).is_none() {
+    if mimeparser.get_header(HeaderDef::ChatVerified).is_none() {
         // we do not fail here currently, this would exclude (a) non-deltas
         // and (b) deltas with different protection views across multiple devices.
         // for group creation or protection enabled/disabled, however, Chat-Verified is respected.
@@ -2037,13 +2046,13 @@ async fn get_parent_message(
     context: &Context,
     mime_parser: &MimeMessage,
 ) -> Result<Option<Message>> {
-    if let Some(field) = mime_parser.get(HeaderDef::References) {
+    if let Some(field) = mime_parser.get_header(HeaderDef::References) {
         if let Some(msg) = get_rfc724_mid_in_list(context, field).await? {
             return Ok(Some(msg));
         }
     }
 
-    if let Some(field) = mime_parser.get(HeaderDef::InReplyTo) {
+    if let Some(field) = mime_parser.get_header(HeaderDef::InReplyTo) {
         if let Some(msg) = get_rfc724_mid_in_list(context, field).await? {
             return Ok(Some(msg));
         }
@@ -2124,13 +2133,13 @@ fn dc_create_incoming_rfc724_mid(mime: &MimeMessage) -> String {
         "{}@stub",
         hex_hash(&format!(
             "{}-{}-{}",
-            mime.get(HeaderDef::Date)
+            mime.get_header(HeaderDef::Date)
                 .map(|s| s.to_string())
                 .unwrap_or_default(),
-            mime.get(HeaderDef::From_)
+            mime.get_header(HeaderDef::From_)
                 .map(|s| s.to_string())
                 .unwrap_or_default(),
-            mime.get(HeaderDef::To)
+            mime.get_header(HeaderDef::To)
                 .map(|s| s.to_string())
                 .unwrap_or_default()
         ))
