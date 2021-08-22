@@ -640,7 +640,10 @@ pub unsafe extern "C" fn dc_get_chatlist(
     let qi = if query_id == 0 { None } else { Some(query_id) };
 
     block_on(async move {
-        match chatlist::Chatlist::try_load(ctx, flags as usize, qs.as_deref(), qi).await {
+        match chatlist::Chatlist::try_load(ctx, flags as usize, qs.as_deref(), qi)
+            .await
+            .log_err(ctx, "Failed to get chatlist")
+        {
             Ok(list) => {
                 let ffi_list = ChatlistWrapper { context, list };
                 Box::into_raw(Box::new(ffi_list))
