@@ -1,4 +1,4 @@
-//! # Messages and their identifiers
+//! # Messages and their identifiers.
 
 use std::collections::BTreeMap;
 use std::convert::TryInto;

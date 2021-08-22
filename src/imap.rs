@@ -1,4 +1,4 @@
-//! # Imap handling module
+//! # IMAP handling module.
 //!
 //! uses [async-email/async-imap](https://github.com/async-email/async-imap)
 //! to implement connect, fetch, delete functionality with standard IMAP servers.

@@ -1,3 +1,5 @@
+//! # Simplify incoming plaintext.
+
 use itertools::Itertools;
 
 // protect lines starting with `--` against being treated as a footer.
@@ -241,9 +243,7 @@ fn render_message(lines: &[&str], is_cut_at_end: bool) -> String {
     ret.replace("\u{200B}", "")
 }
 
-/**
- * Tools
- */
+/// Returns true if the line contains only whitespace.
 fn is_empty_line(buf: &str) -> bool {
     buf.chars().all(char::is_whitespace)
     // for some time, this checked for `char <= ' '`,

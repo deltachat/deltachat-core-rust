@@ -1,3 +1,5 @@
+//! # MIME message production.
+
 use std::convert::TryInto;
 
 use anyhow::{bail, ensure, format_err, Result};

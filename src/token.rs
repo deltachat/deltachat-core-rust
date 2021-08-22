@@ -1,4 +1,4 @@
-//! # Token module
+//! # Token module.
 //!
 //! Functions to read/write token from/to the database. A token is any string associated with a key.
 //!

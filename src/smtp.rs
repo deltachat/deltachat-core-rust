@@ -1,4 +1,4 @@
-//! # SMTP transport module
+//! # SMTP transport module.
 
 pub mod send;
 

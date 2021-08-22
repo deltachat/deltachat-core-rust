@@ -1,4 +1,4 @@
-//! # Import/export module
+//! # Import/export module.
 
 use std::any::Any;
 use std::ffi::OsStr;
@@ -66,15 +66,15 @@ pub enum ImexMode {
 
 /// Import/export things.
 ///
-/// What to do is defined by the *what* parameter.
+/// What to do is defined by the `what` parameter.
 ///
 /// During execution of the job,
 /// some events are sent out:
 ///
-/// - A number of #DC_EVENT_IMEX_PROGRESS events are sent and may be used to create
+/// - A number of `DC_EVENT_IMEX_PROGRESS` events are sent and may be used to create
 ///   a progress bar or stuff like that. Moreover, you'll be informed when the imex-job is done.
 ///
-/// - For each file written on export, the function sends #DC_EVENT_IMEX_FILE_WRITTEN
+/// - For each file written on export, the function sends `DC_EVENT_IMEX_FILE_WRITTEN`
 ///
 /// Only one import-/export-progress can run at the same time.
 /// To cancel an import-/export-progress, drop the future returned by this function.
@@ -204,6 +204,7 @@ pub async fn has_backup_old(context: &Context, dir_name: &Path) -> Result<String
     }
 }
 
+/// Initiates key transfer via Autocrypt Setup Message.
 pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
     use futures::future::FutureExt;
 
@@ -435,7 +436,7 @@ async fn decrypt_setup_file<T: std::io::Read + std::io::Seek>(
     Ok(plain_text)
 }
 
-pub fn normalize_setup_code(s: &str) -> String {
+fn normalize_setup_code(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {
         if ('0'..='9').contains(&c) {

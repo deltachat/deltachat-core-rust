@@ -1,13 +1,13 @@
-///! # format=flowed support
-///!
-///! Format=flowed is defined in
-///! [RFC 3676](https://tools.ietf.org/html/rfc3676).
-///!
-///! Older [RFC 2646](https://tools.ietf.org/html/rfc2646) is used
-///! during formatting, i.e., DelSp parameter introduced in RFC 3676
-///! is assumed to be set to "no".
-///!
-///! For received messages, DelSp parameter is honoured.
+//! # format=flowed support.
+//!
+//! Format=flowed is defined in
+//! [RFC 3676](https://tools.ietf.org/html/rfc3676).
+//!
+//! Older [RFC 2646](https://tools.ietf.org/html/rfc2646) is used
+//! during formatting, i.e., DelSp parameter introduced in RFC 3676
+//! is assumed to be set to "no".
+//!
+//! For received messages, DelSp parameter is honoured.
 
 /// Wraps line to 72 characters using format=flowed soft breaks.
 ///

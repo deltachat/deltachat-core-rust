@@ -1,4 +1,4 @@
-//! De-HTML
+//! De-HTML.
 //!
 //! A module to remove HTML tags from the email text
 

@@ -1,4 +1,4 @@
-//! # Autocrypt header module
+//! # Autocrypt header module.
 //!
 //! Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
 

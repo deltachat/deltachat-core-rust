@@ -1,4 +1,4 @@
-//! # Chat module
+//! # Chat module.
 
 use std::convert::{TryFrom, TryInto};
 use std::str::FromStr;
@@ -975,6 +975,7 @@ impl Chat {
         &self.name
     }
 
+    /// Returns profile image path for the chat.
     pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
@@ -1989,6 +1990,7 @@ pub(crate) async fn marknoticed_chat_if_older_than(
     Ok(())
 }
 
+/// Marks all messages in the chat as noticed.
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {
     // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
     // the additional SELECT statement may speed up things as no write-blocking is needed.
@@ -2109,6 +2111,7 @@ pub async fn get_next_media(
     Ok(ret)
 }
 
+/// Returns a vector of contact IDs for given chat ID.
 pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<u32>> {
     // Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
     // groupchat but the chats stays visible, moreover, this makes displaying lists easier)
@@ -2131,6 +2134,7 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec
     Ok(list)
 }
 
+/// Creates a group chat with a given `name`.
 pub async fn create_group_chat(
     context: &Context,
     protect: ProtectionStatus,
@@ -2178,7 +2182,7 @@ pub async fn create_group_chat(
     Ok(chat_id)
 }
 
-/// add a contact to the chats_contact table
+/// Adds a contact to the `chats_contacts` table.
 pub(crate) async fn add_to_chat_contacts_table(
     context: &Context,
     chat_id: ChatId,
@@ -2566,6 +2570,7 @@ pub(crate) async fn is_group_explicitly_left(
     Ok(exists)
 }
 
+/// Sets group or mailing list chat name.
 pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -> Result<()> {
     let new_name = improve_single_line_input(new_name);
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
@@ -2939,6 +2944,7 @@ pub async fn add_device_msg_with_importance(
     Ok(msg_id)
 }
 
+/// Adds a message to device chat.
 pub async fn add_device_msg(
     context: &Context,
     label: Option<&str>,

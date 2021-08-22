@@ -1,4 +1,5 @@
-///! Handle plain text together with some attributes.
+//! Handle plain text together with some attributes.
+
 use crate::simplify::split_lines;
 use once_cell::sync::Lazy;
 

@@ -1,4 +1,4 @@
-//! Email accounts autoconfiguration process module
+//! Email accounts autoconfiguration process module.
 
 mod auto_mozilla;
 mod auto_outlook;

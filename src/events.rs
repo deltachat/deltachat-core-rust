@@ -1,4 +1,4 @@
-//! # Events specification
+//! # Events specification.
 
 use std::ops::Deref;
 

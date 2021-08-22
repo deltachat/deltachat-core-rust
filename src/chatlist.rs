@@ -1,4 +1,4 @@
-//! # Chat list module
+//! # Chat list module.
 
 use anyhow::{bail, ensure, Result};
 

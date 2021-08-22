@@ -1,4 +1,4 @@
-//! # Blob directory management
+//! # Blob directory management.
 
 use core::cmp::max;
 use std::ffi::OsStr;

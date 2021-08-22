@@ -1,4 +1,4 @@
-//! [Provider database](https://providers.delta.chat/) module
+//! [Provider database](https://providers.delta.chat/) module.
 
 mod data;
 

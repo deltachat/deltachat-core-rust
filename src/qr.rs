@@ -1,4 +1,4 @@
-//! # QR code module
+//! # QR code module.
 
 use anyhow::{bail, ensure, format_err, Error};
 use once_cell::sync::Lazy;

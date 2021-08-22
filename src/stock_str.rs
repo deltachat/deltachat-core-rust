@@ -1,4 +1,4 @@
-//! Module to work with translatable stock strings
+//! Module to work with translatable stock strings.
 
 use std::future::Future;
 use std::pin::Pin;

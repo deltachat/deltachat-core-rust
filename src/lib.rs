@@ -1,3 +1,5 @@
+//! # Delta Chat Core Library.
+
 #![forbid(unsafe_code)]
 #![deny(
     clippy::correctness,
@@ -59,7 +61,7 @@ mod imap;
 pub mod imex;
 mod scheduler;
 #[macro_use]
-pub mod job;
+mod job;
 mod format_flowed;
 pub mod key;
 mod keyring;

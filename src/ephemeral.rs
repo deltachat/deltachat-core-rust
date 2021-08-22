@@ -1,4 +1,4 @@
-//! # Ephemeral messages
+//! # Ephemeral messages.
 //!
 //! Ephemeral messages are messages that have an Ephemeral-Timer
 //! header attached to them, which specifies time in seconds after

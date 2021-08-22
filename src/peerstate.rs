@@ -1,4 +1,4 @@
-//! # [Autocrypt Peer State](https://autocrypt.org/level1.html#peer-state-management) module
+//! # [Autocrypt Peer State](https://autocrypt.org/level1.html#peer-state-management) module.
 
 use std::collections::HashSet;
 use std::fmt;

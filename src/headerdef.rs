@@ -1,3 +1,5 @@
+//! # List of email headers.
+
 use crate::strum::AsStaticRef;
 use mailparse::{MailHeader, MailHeaderMap};
 

@@ -1,3 +1,5 @@
+//! # MIME message parsing module.
+
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;

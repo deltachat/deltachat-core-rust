@@ -1,3 +1,5 @@
+//! Internet Message Format reception pipeline.
+
 use std::convert::TryFrom;
 
 use anyhow::{bail, ensure, format_err, Result};
