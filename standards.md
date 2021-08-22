@@ -5,6 +5,7 @@ Some of the standards Delta Chat is based on:
 Tasks                            | Standards
 ---------------------------------|---------------------------------------------
 Transport                        | IMAP v4 ([RFC 3501](https://tools.ietf.org/html/rfc3501)), SMTP ([RFC 5321](https://tools.ietf.org/html/rfc5321)) and Internet Message Format (IMF, [RFC 5322](https://tools.ietf.org/html/rfc5322))
+Proxy                            | SOCKS5 ([RFC 1928](https://tools.ietf.org/html/rfc1928))
 Embedded media                   | MIME Document Series ([RFC 2045](https://tools.ietf.org/html/rfc2045), [RFC 2046](https://tools.ietf.org/html/rfc2046)), Content-Disposition Header ([RFC 2183](https://tools.ietf.org/html/rfc2183)), Multipart/Related ([RFC 2387](https://tools.ietf.org/html/rfc2387))
 Text and Quote encoding          | Fixed, Flowed ([RFC 3676](https://tools.ietf.org/html/rfc3676))
 Filename encoding                | Encoded Words ([RFC 2047](https://tools.ietf.org/html/rfc2047)), Encoded Word Extensions ([RFC 2231](https://tools.ietf.org/html/rfc2231))

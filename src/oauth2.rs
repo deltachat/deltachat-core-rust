@@ -6,6 +6,7 @@ use anyhow::Result;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
+use crate::config::Config;
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::provider;
@@ -56,7 +57,11 @@ pub async fn dc_get_oauth2_url(
     addr: &str,
     redirect_uri: &str,
 ) -> Option<String> {
-    if let Some(oauth2) = Oauth2::from_address(addr).await {
+    let socks5_enabled = context
+        .get_config_bool(Config::Socks5Enabled)
+        .await
+        .unwrap_or(false);
+    if let Some(oauth2) = Oauth2::from_address(addr, socks5_enabled).await {
         if context
             .sql
             .set_raw_config("oauth2_pending_redirect_uri", Some(redirect_uri))
@@ -80,7 +85,11 @@ pub async fn dc_get_oauth2_access_token(
     code: &str,
     regenerate: bool,
 ) -> Result<Option<String>> {
-    if let Some(oauth2) = Oauth2::from_address(addr).await {
+    let socks5_enabled = context
+        .get_config_bool(Config::Socks5Enabled)
+        .await
+        .unwrap_or(false);
+    if let Some(oauth2) = Oauth2::from_address(addr, socks5_enabled).await {
         let lock = context.oauth2_mutex.lock().await;
 
         // read generated token
@@ -225,7 +234,11 @@ pub async fn dc_get_oauth2_addr(
     addr: &str,
     code: &str,
 ) -> Result<Option<String>> {
-    let oauth2 = match Oauth2::from_address(addr).await {
+    let socks5_enabled = context
+        .get_config_bool(Config::Socks5Enabled)
+        .await
+        .unwrap_or(false);
+    let oauth2 = match Oauth2::from_address(addr, socks5_enabled).await {
         Some(o) => o,
         None => return Ok(None),
     };
@@ -253,13 +266,13 @@ pub async fn dc_get_oauth2_addr(
 }
 
 impl Oauth2 {
-    async fn from_address(addr: &str) -> Option<Self> {
+    async fn from_address(addr: &str, skip_mx: bool) -> Option<Self> {
         let addr_normalized = normalize_addr(addr);
         if let Some(domain) = addr_normalized
             .find('@')
             .map(|index| addr_normalized.split_at(index + 1).1)
         {
-            if let Some(oauth2_authorizer) = provider::get_provider_info(domain)
+            if let Some(oauth2_authorizer) = provider::get_provider_info(domain, skip_mx)
                 .await
                 .and_then(|provider| provider.oauth2_authorizer.as_ref())
             {
@@ -357,29 +370,29 @@ mod tests {
     #[async_std::test]
     async fn test_oauth_from_address() {
         assert_eq!(
-            Oauth2::from_address("hello@gmail.com").await,
+            Oauth2::from_address("hello@gmail.com", false).await,
             Some(OAUTH2_GMAIL)
         );
         assert_eq!(
-            Oauth2::from_address("hello@googlemail.com").await,
+            Oauth2::from_address("hello@googlemail.com", false).await,
             Some(OAUTH2_GMAIL)
         );
         assert_eq!(
-            Oauth2::from_address("hello@yandex.com").await,
+            Oauth2::from_address("hello@yandex.com", false).await,
             Some(OAUTH2_YANDEX)
         );
         assert_eq!(
-            Oauth2::from_address("hello@yandex.ru").await,
+            Oauth2::from_address("hello@yandex.ru", false).await,
             Some(OAUTH2_YANDEX)
         );
 
-        assert_eq!(Oauth2::from_address("hello@web.de").await, None);
+        assert_eq!(Oauth2::from_address("hello@web.de", false).await, None);
     }
 
     #[async_std::test]
     async fn test_oauth_from_mx() {
         assert_eq!(
-            Oauth2::from_address("hello@google.com").await,
+            Oauth2::from_address("hello@google.com", false).await,
             Some(OAUTH2_GMAIL)
         );
     }

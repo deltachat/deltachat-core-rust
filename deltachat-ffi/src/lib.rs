@@ -3614,7 +3614,16 @@ pub unsafe extern "C" fn dc_provider_new_from_email(
         return ptr::null();
     }
     let addr = to_string_lossy(addr);
-    match block_on(provider::get_provider_info(addr.as_str())) {
+
+    let ctx = &*context;
+    let socks5_enabled = block_on(async move {
+        ctx.get_config_bool(config::Config::Socks5Enabled)
+            .await
+            .log_err(ctx, "Can't get config")
+            .unwrap_or_default()
+    });
+
+    match block_on(provider::get_provider_info(addr.as_str(), socks5_enabled)) {
         Some(provider) => provider,
         None => ptr::null_mut(),
     }

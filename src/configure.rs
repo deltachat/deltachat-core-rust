@@ -14,6 +14,7 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::dc_tools::EmailAddress;
 use crate::imap::Imap;
+use crate::login_param::Socks5Config;
 use crate::login_param::{LoginParam, ServerLoginParam};
 use crate::message::Message;
 use crate::oauth2::dc_get_oauth2_addr;
@@ -170,12 +171,17 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         DC_LP_AUTH_NORMAL as i32
     };
 
+    let socks5_config = param.socks5_config.clone();
+    let socks5_enabled = socks5_config.is_some();
+
     let ctx2 = ctx.clone();
     let update_device_chats_handle = task::spawn(async move { ctx2.update_device_chats().await });
 
     // Step 1: Load the parameters and check email-address and password
 
-    if oauth2 {
+    // Do oauth2 only if socks5 is disabled. As soon as we have a http library that can do
+    // socks5 requests, this can work with socks5 too
+    if oauth2 && !socks5_enabled {
         // the used oauth2 addr may differ, check this.
         // if dc_get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
         progress!(ctx, 10);
@@ -217,7 +223,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             "checking internal provider-info for offline autoconfig"
         );
 
-        if let Some(provider) = provider::get_provider_info(&param_domain).await {
+        if let Some(provider) = provider::get_provider_info(&param_domain, socks5_enabled).await {
             param.provider = Some(provider);
             match provider.status {
                 provider::Status::Ok | provider::Status::Preparation => {
@@ -256,9 +262,16 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                 }
             }
         } else {
+            // Try receiving autoconfig
             info!(ctx, "no offline autoconfig found");
-            param_autoconfig =
-                get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await;
+            param_autoconfig = if socks5_enabled {
+                // Currently we can't do http requests through socks5, to not leak
+                // the ip, just don't do online autoconfig
+                info!(ctx, "socks5 enabled, skipping autoconfig");
+                None
+            } else {
+                get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await
+            }
         }
     } else {
         param_autoconfig = None;
@@ -320,6 +333,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             match try_smtp_one_param(
                 &context_smtp,
                 &smtp_param,
+                &socks5_config,
                 &smtp_addr,
                 oauth2,
                 provider_strict_tls,
@@ -359,7 +373,16 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         param.imap.port = imap_server.port;
         param.imap.security = imap_server.socket;
 
-        match try_imap_one_param(ctx, &param.imap, &param.addr, oauth2, provider_strict_tls).await {
+        match try_imap_one_param(
+            ctx,
+            &param.imap,
+            &param.socks5_config,
+            &param.addr,
+            oauth2,
+            provider_strict_tls,
+        )
+        .await
+        {
             Ok(configured_imap) => {
                 imap = Some(configured_imap);
                 break;
@@ -507,6 +530,7 @@ async fn get_autoconfig(
 async fn try_imap_one_param(
     context: &Context,
     param: &ServerLoginParam,
+    socks5_config: &Option<Socks5Config>,
     addr: &str,
     oauth2: bool,
     provider_strict_tls: bool,
@@ -519,7 +543,16 @@ async fn try_imap_one_param(
 
     let (_s, r) = async_std::channel::bounded(1);
 
-    let mut imap = match Imap::new(param, addr, oauth2, provider_strict_tls, r).await {
+    let mut imap = match Imap::new(
+        param,
+        socks5_config.clone(),
+        addr,
+        oauth2,
+        provider_strict_tls,
+        r,
+    )
+    .await
+    {
         Err(err) => {
             info!(context, "failure: {}", err);
             return Err(ConfigurationError {
@@ -548,19 +581,37 @@ async fn try_imap_one_param(
 async fn try_smtp_one_param(
     context: &Context,
     param: &ServerLoginParam,
+    socks5_config: &Option<Socks5Config>,
     addr: &str,
     oauth2: bool,
     provider_strict_tls: bool,
     smtp: &mut Smtp,
 ) -> Result<(), ConfigurationError> {
     let inf = format!(
-        "smtp: {}@{}:{} security={} certificate_checks={} oauth2={}",
-        param.user, param.server, param.port, param.security, param.certificate_checks, oauth2
+        "smtp: {}@{}:{} security={} certificate_checks={} oauth2={} socks5_config={}",
+        param.user,
+        param.server,
+        param.port,
+        param.security,
+        param.certificate_checks,
+        oauth2,
+        if let Some(socks5_config) = socks5_config {
+            socks5_config.to_string()
+        } else {
+            "None".to_string()
+        }
     );
     info!(context, "Trying: {}", inf);
 
     if let Err(err) = smtp
-        .connect(context, param, addr, oauth2, provider_strict_tls)
+        .connect(
+            context,
+            param,
+            socks5_config,
+            addr,
+            oauth2,
+            provider_strict_tls,
+        )
         .await
     {
         info!(context, "failure: {}", err);
