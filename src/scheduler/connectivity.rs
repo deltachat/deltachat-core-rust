@@ -8,8 +8,9 @@ use crate::events::EventType;
 use crate::quota::{
     QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
 };
-use crate::{config::Config, scheduler::Scheduler};
+use crate::{config::Config, dc_tools, scheduler::Scheduler};
 use crate::{context::Context, log::LogExt};
+use anyhow::{anyhow, Result};
 use humansize::{file_size_opts, FileSize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
@@ -297,7 +298,7 @@ impl Context {
     ///
     /// This comes as an HTML from the core so that we can easily improve it
     /// and the improvement instantly reaches all UIs.
-    pub async fn get_connectivity_html(&self) -> String {
+    pub async fn get_connectivity_html(&self) -> Result<String> {
         let mut ret = r#"<!DOCTYPE html>
             <html>
             <head>
@@ -308,12 +309,28 @@ impl Context {
                         list-style-type: none;
                         padding-left: 1em;
                     }
-
                     .dot {
                         height: 0.9em; width: 0.9em;
+                        border: 1px solid #888;
                         border-radius: 50%;
                         display: inline-block;
                         position: relative; left: -0.1em; top: 0.1em;
+                    }
+                    .bar {
+                        width: 90%;
+                        border: 1px solid #888;
+                        border-radius: .5em;
+                        margin-top: .2em;
+                        margin-bottom: 1em;
+                        position: relative; left: -0.2em;
+                    }
+                    .progress {
+                        min-width:1.8em;
+                        height: 1em;
+                        border-radius: .45em;
+                        color: white;
+                        text-align: center;
+                        padding-bottom: 2px;
                     }
                     .red {
                         background-color: #f33b2d;
@@ -358,8 +375,7 @@ impl Context {
                 smtp.state.connectivity.clone(),
             ),
             Scheduler::Stopped => {
-                ret += "Not started</body></html>\n";
-                return ret;
+                return Err(anyhow!("Not started"));
             }
         };
         drop(lock);
@@ -408,7 +424,14 @@ impl Context {
         ret += &*escaper::encode_minimal(&detailed.to_string_smtp(self));
         ret += "</li></ul>";
 
-        ret += "<h3>Quota</h3><ul>";
+        let domain = dc_tools::EmailAddress::new(
+            &self
+                .get_config(Config::ConfiguredAddr)
+                .await?
+                .unwrap_or_default(),
+        )?
+        .domain;
+        ret += &format!("<h3>Storage on {}</h3><ul>", domain);
         let quota = self.quota.read().await;
         if let Some(quota) = &*quota {
             match &quota.recent {
@@ -418,15 +441,6 @@ impl Context {
                         use async_imap::types::QuotaResourceName::*;
                         for resource in resources {
                             ret += "<li>";
-
-                            let usage_percent = resource.get_usage_percentage();
-                            if usage_percent >= QUOTA_ERROR_THRESHOLD_PERCENTAGE {
-                                ret += "<span class=\"red dot\"></span> ";
-                            } else if usage_percent >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
-                                ret += "<span class=\"yellow dot\"></span> ";
-                            } else {
-                                ret += "<span class=\"green dot\"></span> ";
-                            }
 
                             // root name is empty eg. for gmail and redundant eg. for riseup.
                             // therefore, use it only if there are really several roots.
@@ -454,16 +468,31 @@ impl Context {
                                     )
                                 }
                                 Storage => {
+                                    // do not use a special title needed for "Storage":
+                                    // - it is usually shown directly under the "Storage" headline
+                                    // - by the units "1 MB of 10 MB used" there is some difference to eg. "Messages: 1 of 10 used"
+                                    // - the string is not longer than the other strings that way (minus title, plus units) -
+                                    //   additional linebreaks on small displays are unlikely therefore
+                                    // - most times, this is the only item anyway
                                     let usage = (resource.usage * 1024)
                                         .file_size(file_size_opts::BINARY)
                                         .unwrap_or_default();
                                     let limit = (resource.limit * 1024)
                                         .file_size(file_size_opts::BINARY)
                                         .unwrap_or_default();
-                                    format!("<b>Storage:</b> {} of {} used", usage, limit)
+                                    format!("{} of {} used", usage, limit)
                                 }
                             };
-                            ret += &format!(" ({}%)", usage_percent);
+
+                            let percent = resource.get_usage_percentage();
+                            let color = if percent >= QUOTA_ERROR_THRESHOLD_PERCENTAGE {
+                                "red"
+                            } else if percent >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
+                                "yellow"
+                            } else {
+                                "green"
+                            };
+                            ret += &format!("<div class=\"bar\"><div class=\"progress {}\" style=\"width: {}%\">{}%</div></div>", color, percent, percent);
 
                             ret += "</li>";
                         }
@@ -484,7 +513,7 @@ impl Context {
         ret += "</ul>";
 
         ret += "</body></html>\n";
-        ret
+        Ok(ret)
     }
 
     pub async fn all_work_done(&self) -> bool {

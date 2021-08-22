@@ -514,9 +514,15 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let file = dirs::home_dir()
                 .unwrap_or_default()
                 .join("connectivity.html");
-            let html = context.get_connectivity_html().await;
-            fs::write(&file, html)?;
-            println!("Report written to: {:#?}", file);
+            match context.get_connectivity_html().await {
+                Ok(html) => {
+                    fs::write(&file, html)?;
+                    println!("Report written to: {:#?}", file);
+                }
+                Err(err) => {
+                    bail!("Failed to get connectivity html: {}", err);
+                }
+            }
         }
         "maybenetwork" => {
             context.maybe_network().await;
