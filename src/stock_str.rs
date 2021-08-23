@@ -264,7 +264,7 @@ pub enum StockMessage {
                     You may not be able to receive message when the storage is 100%% used.\n\n\
                     👉 Please check if you can delete old data in the provider's webinterface \
                     and consider to enable \"Settings / Delete Old Messages\". \
-                    You can revise your current storage usage anytime at \"Settings / Connectivity\"."
+                    You can check your current storage usage anytime at \"Settings / Connectivity\"."
     ))]
     QuotaExceedingMsgBody = 98,
 }
