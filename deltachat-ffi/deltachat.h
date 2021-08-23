@@ -5675,6 +5675,13 @@ void dc_event_unref(dc_event_t* event);
 /// Used in message summary text for notifications and chatlist.
 #define DC_STR_FORWARDED                  97
 
+/// "Quota exceeding, already %1$s%% used."
+///
+/// Used as device message text.
+///
+/// `%1$s` will be replaced by the percentage used
+#define DC_STR_QUOTA_EXCEEDING_MSG_BODY   98
+
 /**
  * @}
  */

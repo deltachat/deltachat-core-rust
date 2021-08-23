@@ -156,6 +156,10 @@ pub enum Config {
     #[strum(props(default = "0"))]
     NotifyAboutWrongPw,
 
+    /// Indicates, a warning about exceeding quota was shown recently.
+    /// Reset, when quota falls below threshold again.
+    QuotaWarned,
+
     /// address to webrtc instance to use for videochats
     WebrtcInstance,
 
