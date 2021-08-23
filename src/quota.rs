@@ -78,10 +78,10 @@ impl Context {
     /// and emits an event to let the UIs update connectivity view.
     ///
     /// Called in response to `Action::UpdateRecentQuota`.
-    pub(crate) async fn update_recent_quota(&self, imap: &mut Imap) -> Status {
+    pub(crate) async fn update_recent_quota(&self, imap: &mut Imap) -> Result<Status> {
         if let Err(err) = imap.prepare(self).await {
             warn!(self, "could not connect: {:?}", err);
-            return Status::RetryNow;
+            return Ok(Status::RetryNow);
         }
 
         let quota = if imap.can_check_quota() {
@@ -97,6 +97,6 @@ impl Context {
         });
 
         self.emit_event(EventType::ConnectivityChanged);
-        Status::Finished(Ok(()))
+        Ok(Status::Finished(Ok(())))
     }
 }
