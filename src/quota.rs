@@ -24,6 +24,12 @@ pub const QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 80;
 // this threshold only makes the quota icon "red".
 pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 99;
 
+/// if quota is below this value (again),
+/// QuotaExceeding is cleared.
+/// This value should be a bit below QUOTA_WARN_THRESHOLD_PERCENTAGE to
+/// avoid jittering and lots of warnings when quota is exactly at the warning threshold.
+pub const QUOTA_ALLCLEAR_PERCENTAGE: u64 = 75;
+
 // if recent quota is older,
 // it is re-fetched on dc_get_connectivity_html()
 pub const QUOTA_MAX_AGE_SECONDS: i64 = 60;
@@ -137,7 +143,7 @@ impl Context {
                             add_device_msg_with_importance(self, None, Some(&mut msg), true)
                                 .await?;
                         }
-                    } else {
+                    } else if highest <= QUOTA_ALLCLEAR_PERCENTAGE {
                         self.set_config(Config::QuotaExceeding, None).await?;
                     }
                 }
@@ -152,5 +158,22 @@ impl Context {
 
         self.emit_event(EventType::ConnectivityChanged);
         Ok(Status::Finished(Ok(())))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::quota::{
+        QUOTA_ALLCLEAR_PERCENTAGE, QUOTA_ERROR_THRESHOLD_PERCENTAGE,
+        QUOTA_WARN_THRESHOLD_PERCENTAGE,
+    };
+
+    #[async_std::test]
+    async fn test_quota_thresholds() -> anyhow::Result<()> {
+        assert!(QUOTA_ALLCLEAR_PERCENTAGE > 50);
+        assert!(QUOTA_ALLCLEAR_PERCENTAGE < QUOTA_WARN_THRESHOLD_PERCENTAGE);
+        assert!(QUOTA_WARN_THRESHOLD_PERCENTAGE < QUOTA_ERROR_THRESHOLD_PERCENTAGE);
+        assert!(QUOTA_ERROR_THRESHOLD_PERCENTAGE < 100);
+        Ok(())
     }
 }
