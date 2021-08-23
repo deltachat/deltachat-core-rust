@@ -424,8 +424,10 @@ impl Context {
                 .to_string(),
         );
         res.insert(
-            "quota_warned",
-            self.get_config_int(Config::QuotaWarned).await?.to_string(),
+            "quota_exceeding",
+            self.get_config_int(Config::QuotaExceeding)
+                .await?
+                .to_string(),
         );
 
         let elapsed = self.creation_time.elapsed();

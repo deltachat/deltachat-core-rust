@@ -128,8 +128,9 @@ impl Context {
             match get_highest_usage(&quota) {
                 Ok((highest, _, _)) => {
                     if highest >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
-                        if !self.get_config_bool(Config::QuotaWarned).await? {
-                            self.set_config_bool(Config::QuotaWarned, true).await?;
+                        if self.get_config_int(Config::QuotaExceeding).await? == 0 {
+                            self.set_config(Config::QuotaExceeding, Some(&highest.to_string()))
+                                .await?;
 
                             let mut msg = Message::new(Viewtype::Text);
                             msg.text = Some(stock_str::quota_exceeding(self, highest).await);
@@ -137,7 +138,7 @@ impl Context {
                                 .await?;
                         }
                     } else {
-                        self.set_config_bool(Config::QuotaWarned, false).await?;
+                        self.set_config(Config::QuotaExceeding, None).await?;
                     }
                 }
                 Err(err) => warn!(self, "cannot get highest quota usage: {:?}", err),

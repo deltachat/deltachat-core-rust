@@ -377,6 +377,9 @@ int             dc_set_config                (dc_context_t* context, const char*
  *                    an error (no warning as it should be shown to the user) is logged but the attachment is sent anyway.
  * - `sys.config_keys` = get a space-separated list of all config-keys available.
  *                    The config-keys are the keys that can be passed to the parameter `key` of this function.
+ * - `quota_exceeding` = 0: quota is unknown or in normal range;
+ *                    >=80: quota is about to exceed, the value is the concrete percentage,
+ *                    a device message is added when that happens, however, that value may still be interesting for bots.
  *
  * @memberof dc_context_t
  * @param context The context object. For querying system values, this can be NULL.
