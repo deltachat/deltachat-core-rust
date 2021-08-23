@@ -87,7 +87,7 @@ fn get_highest_usage<'t>(
         }
     }
 
-    Ok(highest.ok_or_else(|| anyhow!("no quota_resource found, this is unexpected"))?)
+    highest.ok_or_else(|| anyhow!("no quota_resource found, this is unexpected"))
 }
 
 impl Context {
@@ -125,7 +125,7 @@ impl Context {
         };
 
         if let Ok(quota) = &quota {
-            match get_highest_usage(&quota) {
+            match get_highest_usage(quota) {
                 Ok((highest, _, _)) => {
                     if highest >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
                         if self.get_config_int(Config::QuotaExceeding).await? == 0 {
