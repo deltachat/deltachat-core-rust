@@ -168,6 +168,7 @@ mod tests {
         QUOTA_WARN_THRESHOLD_PERCENTAGE,
     };
 
+    #[allow(clippy::assertions_on_constants)]
     #[async_std::test]
     async fn test_quota_thresholds() -> anyhow::Result<()> {
         assert!(QUOTA_ALLCLEAR_PERCENTAGE > 50);
