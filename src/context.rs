@@ -423,6 +423,12 @@ impl Context {
                 .await?
                 .to_string(),
         );
+        res.insert(
+            "quota_exceeding",
+            self.get_config_int(Config::QuotaExceeding)
+                .await?
+                .to_string(),
+        );
 
         let elapsed = self.creation_time.elapsed();
         res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));

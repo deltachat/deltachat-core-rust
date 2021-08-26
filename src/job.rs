@@ -1152,7 +1152,10 @@ async fn perform_job_action(
             sql::housekeeping(context).await.ok_or_log(context);
             Status::Finished(Ok(()))
         }
-        Action::UpdateRecentQuota => context.update_recent_quota(connection.inbox()).await,
+        Action::UpdateRecentQuota => match context.update_recent_quota(connection.inbox()).await {
+            Ok(status) => status,
+            Err(err) => Status::Finished(Err(err)),
+        },
     };
 
     info!(context, "Finished immediate try {} of job {}", tries, job);

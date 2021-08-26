@@ -258,6 +258,15 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Forwarded"))]
     Forwarded = 97,
+
+    #[strum(props(
+        fallback = "⚠️ Your provider's storage is about to exceed, already %1$s%% are used.\n\n\
+                    You may not be able to receive message when the storage is 100%% used.\n\n\
+                    👉 Please check if you can delete old data in the provider's webinterface \
+                    and consider to enable \"Settings / Delete Old Messages\". \
+                    You can check your current storage usage anytime at \"Settings / Connectivity\"."
+    ))]
+    QuotaExceedingMsgBody = 98,
 }
 
 impl StockMessage {
@@ -840,6 +849,14 @@ pub(crate) async fn forwarded(context: &Context) -> String {
     translated(context, StockMessage::Forwarded).await
 }
 
+/// Stock string: `⚠️ Your provider's storage is about to exceed...`.
+pub(crate) async fn quota_exceeding(context: &Context, highest_usage: u64) -> String {
+    translated(context, StockMessage::QuotaExceedingMsgBody)
+        .await
+        .replace1(format!("{}", highest_usage))
+        .replace("%%", "%")
+}
+
 impl Context {
     /// Set the stock string for the [StockMessage].
     ///
@@ -1021,6 +1038,16 @@ mod tests {
             msg_add_member(&t, "alice@example.com", contact_id,).await,
             "Member Alice (alice@example.com) added by Bob (bob@example.com)."
         );
+    }
+
+    #[async_std::test]
+    async fn test_quota_exceeding_stock_str() -> anyhow::Result<()> {
+        let t = TestContext::new().await;
+        let str = quota_exceeding(&t, 81).await;
+        assert!(str.contains("81% "));
+        assert!(str.contains("100% "));
+        assert!(!str.contains("%%"));
+        Ok(())
     }
 
     #[async_std::test]
