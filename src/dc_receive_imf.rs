@@ -21,6 +21,7 @@ use crate::context::Context;
 use crate::dc_tools::{
     dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time,
 };
+use crate::download::DownloadState;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -57,20 +58,36 @@ pub async fn dc_receive_imf(
     server_uid: u32,
     seen: bool,
 ) -> Result<()> {
-    dc_receive_imf_inner(context, imf_raw, server_folder, server_uid, seen, false).await
+    dc_receive_imf_inner(
+        context,
+        imf_raw,
+        server_folder,
+        server_uid,
+        seen,
+        None,
+        false,
+    )
+    .await
 }
 
+/// If `is_partial_download` is set, it contains the full message size in bytes.
+/// Do not confuse that with `replace_partial_download` that will be set when the full message is loaded later.
 pub(crate) async fn dc_receive_imf_inner(
     context: &Context,
     imf_raw: &[u8],
     server_folder: &str,
     server_uid: u32,
     seen: bool,
+    is_partial_download: Option<u32>,
     fetching_existing_messages: bool,
 ) -> Result<()> {
     info!(
         context,
-        "Receiving message {}/{}, seen={}...", server_folder, server_uid, seen
+        "Receiving message {}/{}, seen={}, partial={:?}...",
+        server_folder,
+        server_uid,
+        seen,
+        is_partial_download
     );
 
     if std::env::var(crate::DCC_MIME_DEBUG).unwrap_or_default() == "2" {
@@ -78,13 +95,14 @@ pub(crate) async fn dc_receive_imf_inner(
         println!("{}", String::from_utf8_lossy(imf_raw));
     }
 
-    let mut mime_parser = match MimeMessage::from_bytes(context, imf_raw).await {
-        Err(err) => {
-            warn!(context, "dc_receive_imf: can't parse MIME: {}", err);
-            return Ok(());
-        }
-        Ok(mime_parser) => mime_parser,
-    };
+    let mut mime_parser =
+        match MimeMessage::from_bytes_with_partial(context, imf_raw, is_partial_download).await {
+            Err(err) => {
+                warn!(context, "dc_receive_imf: can't parse MIME: {}", err);
+                return Ok(());
+            }
+            Ok(mime_parser) => mime_parser,
+        };
 
     // we can not add even an empty record if we have no info whatsoever
     if !mime_parser.has_headers() {
@@ -111,19 +129,31 @@ pub(crate) async fn dc_receive_imf_inner(
         "received message {} has Message-Id: {}", server_uid, rfc724_mid
     );
 
-    // check, if the mail is already in our database - if so, just update the folder/uid
-    // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
-    // moved between folders. make sure, this check is done eg. before securejoin-processing) */
-    if let Some((old_server_folder, old_server_uid, _)) =
+    // check, if the mail is already in our database.
+    // make sure, this check is done eg. before securejoin-processing)
+    let replace_partial_download = if let Some((old_server_folder, old_server_uid, old_msg_id)) =
         message::rfc724_mid_exists(context, &rfc724_mid).await?
     {
-        if old_server_folder != server_folder || old_server_uid != server_uid {
-            message::update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
+        let msg = Message::load_from_db(context, old_msg_id).await?;
+        if msg.get_download_state() != DownloadState::Done && is_partial_download.is_none() {
+            // the mesage was partially downloaded before and is fully downloaded now.
+            info!(
+                context,
+                "Message already partly in DB, replacing by full message."
+            );
+            old_msg_id.delete_from_db(context).await?;
+            true
+        } else {
+            // the message was probably moved around.
+            info!(context, "Message already in DB, updating folder/uid.");
+            if old_server_folder != server_folder || old_server_uid != server_uid {
+                message::update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
+            }
+            return Ok(());
         }
-
-        warn!(context, "Message already in DB");
-        return Ok(());
-    }
+    } else {
+        false
+    };
 
     // the function returns the number of created messages in the database
     let mut hidden = false;
@@ -181,7 +211,7 @@ pub(crate) async fn dc_receive_imf_inner(
         &mut sent_timestamp,
         from_id,
         &mut hidden,
-        seen,
+        seen || replace_partial_download,
         &mut needs_delete_job,
         &mut created_db_entries,
         &mut create_event_to_send,
@@ -237,6 +267,7 @@ pub(crate) async fn dc_receive_imf_inner(
     //
     // Ignore MDNs though, as they never contain the signature even if user has set it.
     if mime_parser.mdn_reports.is_empty()
+        && is_partial_download.is_none()
         && from_id != 0
         && context
             .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)

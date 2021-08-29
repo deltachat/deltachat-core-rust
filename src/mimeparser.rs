@@ -8,6 +8,7 @@ use anyhow::{bail, Result};
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
+use num_traits::ToPrimitive;
 use once_cell::sync::Lazy;
 
 use crate::aheader::Aheader;
@@ -17,6 +18,7 @@ use crate::contact::addr_normalize;
 use crate::context::Context;
 use crate::dc_tools::{dc_get_filemeta, dc_truncate};
 use crate::dehtml::dehtml;
+use crate::download::DownloadState;
 use crate::e2ee;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
@@ -28,6 +30,7 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::simplify;
 use crate::stock_str;
+use humansize::{file_size_opts, FileSize};
 
 /// A parsed MIME message.
 ///
@@ -136,6 +139,14 @@ const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";
 
 impl MimeMessage {
     pub async fn from_bytes(context: &Context, body: &[u8]) -> Result<Self> {
+        MimeMessage::from_bytes_with_partial(context, body, None).await
+    }
+
+    pub async fn from_bytes_with_partial(
+        context: &Context,
+        body: &[u8],
+        partial: Option<u32>,
+    ) -> Result<Self> {
         let mail = mailparse::parse_mail(body)?;
 
         let message_time = mail
@@ -274,7 +285,31 @@ impl MimeMessage {
             is_mime_modified: false,
             decoded_data: Vec::new(),
         };
-        parser.parse_mime_recursive(context, &mail, false).await?;
+
+        match partial {
+            None => {
+                parser.parse_mime_recursive(context, &mail, false).await?;
+            }
+            Some(org_bytes) => {
+                let mut params = Params::new();
+                params.set_int(
+                    Param::DownloadState,
+                    DownloadState::Available.to_i32().unwrap_or_default(),
+                );
+                parser.parts.push(Part {
+                    typ: Viewtype::Text,
+                    msg: format!(
+                        "[{} message]",
+                        org_bytes
+                            .file_size(file_size_opts::BINARY)
+                            .unwrap_or_default()
+                    ),
+                    param: params,
+                    ..Default::default()
+                });
+            }
+        };
+
         parser.maybe_remove_bad_parts();
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;

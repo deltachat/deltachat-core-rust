@@ -55,6 +55,7 @@ mod configure;
 pub mod constants;
 pub mod contact;
 pub mod context;
+pub mod download;
 mod e2ee;
 pub mod ephemeral;
 mod imap;

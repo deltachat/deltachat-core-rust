@@ -160,6 +160,9 @@ pub enum Param {
 
     /// For Chats: timestamp of protection settings update.
     ProtectionSettingsTimestamp = b'L',
+
+    /// For Messages: a value from `DownloadState` enum.
+    DownloadState = b'z',
 }
 
 /// An object for handling key=value parameter lists.

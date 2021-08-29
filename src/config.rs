@@ -170,6 +170,11 @@ pub enum Config {
     /// To how many seconds to debounce scan_all_folders. Used mainly in tests, to disable debouncing completely.
     #[strum(props(default = "60"))]
     ScanAllFoldersDebounceSecs,
+
+    /// Defines the max. size (in bytes) of messages downloaded automatically.
+    /// 0 = no limit.
+    #[strum(props(default = "0"))]
+    DownloadLimit,
 }
 
 impl Context {
