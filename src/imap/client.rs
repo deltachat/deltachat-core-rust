@@ -3,10 +3,9 @@ use std::{
     time::Duration,
 };
 
-use async_imap::{
-    error::{Error as ImapError, Result as ImapResult},
-    Client as ImapClient,
-};
+use anyhow::{Context as _, Result};
+
+use async_imap::Client as ImapClient;
 
 use async_smtp::ServerAddress;
 use async_std::net::{self, TcpStream};
@@ -40,24 +39,12 @@ impl DerefMut for Client {
 }
 
 impl Client {
-    pub async fn login(
-        self,
-        username: &str,
-        password: &str,
-    ) -> std::result::Result<Session, (ImapError, Self)> {
-        let Client { inner, is_secure } = self;
+    pub async fn login(self, username: &str, password: &str) -> Result<Session> {
+        let Client { inner, .. } = self;
         let session = inner
             .login(username, password)
             .await
-            .map_err(|(err, client)| {
-                (
-                    err,
-                    Client {
-                        is_secure,
-                        inner: client,
-                    },
-                )
-            })?;
+            .map_err(|(err, _client)| err)?;
         Ok(Session { inner: session })
     }
 
@@ -65,21 +52,12 @@ impl Client {
         self,
         auth_type: &str,
         authenticator: impl async_imap::Authenticator,
-    ) -> std::result::Result<Session, (ImapError, Self)> {
-        let Client { inner, is_secure } = self;
-        let session =
-            inner
-                .authenticate(auth_type, authenticator)
-                .await
-                .map_err(|(err, client)| {
-                    (
-                        err,
-                        Client {
-                            is_secure,
-                            inner: client,
-                        },
-                    )
-                })?;
+    ) -> Result<Session> {
+        let Client { inner, .. } = self;
+        let session = inner
+            .authenticate(auth_type, authenticator)
+            .await
+            .map_err(|(err, _client)| err)?;
         Ok(Session { inner: session })
     }
 
@@ -87,7 +65,7 @@ impl Client {
         addr: impl net::ToSocketAddrs,
         domain: &str,
         strict_tls: bool,
-    ) -> ImapResult<Self> {
+    ) -> Result<Self> {
         let stream = TcpStream::connect(addr).await?;
         let tls = dc_build_tls(strict_tls);
         let tls_stream: Box<dyn SessionStream> = Box::new(tls.connect(domain, stream).await?);
@@ -96,7 +74,7 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
-            .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
+            .context("failed to read greeting")?;
 
         Ok(Client {
             is_secure: true,
@@ -104,14 +82,14 @@ impl Client {
         })
     }
 
-    pub async fn connect_insecure(addr: impl net::ToSocketAddrs) -> ImapResult<Self> {
+    pub async fn connect_insecure(addr: impl net::ToSocketAddrs) -> Result<Self> {
         let stream: Box<dyn SessionStream> = Box::new(TcpStream::connect(addr).await?);
 
         let mut client = ImapClient::new(stream);
         let _greeting = client
             .read_response()
             .await
-            .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
+            .context("failed to read greeting")?;
 
         Ok(Client {
             is_secure: false,
@@ -123,15 +101,11 @@ impl Client {
         target_addr: &ServerAddress,
         strict_tls: bool,
         socks5_config: Socks5Config,
-    ) -> ImapResult<Self> {
+    ) -> Result<Self> {
         let socks5_stream: Box<dyn SessionStream> = Box::new(
-            match socks5_config
+            socks5_config
                 .connect(target_addr, Some(Duration::from_secs(IMAP_TIMEOUT)))
-                .await
-            {
-                Ok(s) => s,
-                Err(e) => return ImapResult::Err(async_imap::error::Error::Bad(e.to_string())),
-            },
+                .await?,
         );
 
         let tls = dc_build_tls(strict_tls);
@@ -142,7 +116,7 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
-            .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
+            .context("failed to read greeting")?;
 
         Ok(Client {
             is_secure: true,
@@ -153,22 +127,18 @@ impl Client {
     pub async fn connect_insecure_socks5(
         target_addr: &ServerAddress,
         socks5_config: Socks5Config,
-    ) -> ImapResult<Self> {
+    ) -> Result<Self> {
         let socks5_stream: Box<dyn SessionStream> = Box::new(
-            match socks5_config
+            socks5_config
                 .connect(target_addr, Some(Duration::from_secs(IMAP_TIMEOUT)))
-                .await
-            {
-                Ok(s) => s,
-                Err(e) => return ImapResult::Err(async_imap::error::Error::Bad(e.to_string())),
-            },
+                .await?,
         );
 
         let mut client = ImapClient::new(socks5_stream);
         let _greeting = client
             .read_response()
             .await
-            .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
+            .context("failed to read greeting")?;
 
         Ok(Client {
             is_secure: false,
@@ -176,7 +146,7 @@ impl Client {
         })
     }
 
-    pub async fn secure(self, domain: &str, strict_tls: bool) -> ImapResult<Client> {
+    pub async fn secure(self, domain: &str, strict_tls: bool) -> Result<Client> {
         if self.is_secure {
             Ok(self)
         } else {

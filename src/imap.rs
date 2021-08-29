@@ -6,9 +6,8 @@
 use std::{cmp, cmp::max, collections::BTreeMap};
 
 use anyhow::{anyhow, bail, format_err, Context as _, Result};
-use async_imap::{
-    error::Result as ImapResult,
-    types::{Fetch, Flag, Mailbox, Name, NameAttribute, Quota, QuotaRoot, UnsolicitedResponse},
+use async_imap::types::{
+    Fetch, Flag, Mailbox, Name, NameAttribute, Quota, QuotaRoot, UnsolicitedResponse,
 };
 use async_std::channel::Receiver;
 use async_std::prelude::*;
@@ -259,7 +258,7 @@ impl Imap {
 
         let oauth2 = self.config.oauth2;
 
-        let connection_res: ImapResult<Client> = if self.config.lp.security == Socket::Starttls
+        let connection_res: Result<Client> = if self.config.lp.security == Socket::Starttls
             || self.config.lp.security == Socket::Plain
         {
             let config = &mut self.config;
@@ -354,7 +353,7 @@ impl Imap {
                 Ok(())
             }
 
-            Err((err, _)) => {
+            Err(err) => {
                 let imap_user = self.config.lp.user.to_owned();
                 let message = stock_str::cannot_login(context, &imap_user).await;
 
