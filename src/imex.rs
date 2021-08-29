@@ -507,14 +507,16 @@ async fn import_backup(context: &Context, backup_to_import: &Path) -> Result<()>
     let archive = Archive::new(backup_file);
 
     let mut entries = archive.entries()?;
+    let mut last_progress = 0;
     while let Some(file) = entries.next().await {
         let f = &mut file?;
 
         let current_pos = f.raw_file_position();
         let progress = 1000 * current_pos / file_size;
-        if progress > 10 && progress < 1000 {
+        if progress != last_progress && progress > 10 && progress < 1000 {
             // We already emitted ImexProgress(10) above
             context.emit_event(EventType::ImexProgress(progress as usize));
+            last_progress = progress;
         }
 
         if f.path()?.file_name() == Some(OsStr::new(DBFILE_BACKUP_NAME)) {
@@ -737,6 +739,7 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
     let count = read_dir.len();
     let mut written_files = 0;
 
+    let mut last_progress = 0;
     for entry in read_dir.into_iter() {
         let entry = entry?;
         let name = entry.file_name();
@@ -754,9 +757,10 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
 
         written_files += 1;
         let progress = 1000 * written_files / count;
-        if progress > 10 && progress < 1000 {
+        if progress != last_progress && progress > 10 && progress < 1000 {
             // We already emitted ImexProgress(10) above
             emit_event!(context, EventType::ImexProgress(progress));
+            last_progress = progress;
         }
     }
 
