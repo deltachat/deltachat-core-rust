@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use async_std::channel::{Receiver, Sender};
+use async_std::channel::{self, Receiver, Sender};
 use async_std::fs;
 use async_std::path::PathBuf;
 use async_std::prelude::*;
@@ -22,6 +22,13 @@ pub struct Accounts {
     config: Config,
     accounts: Arc<RwLock<BTreeMap<u32, Context>>>,
     emitter: EventEmitter,
+
+    /// Sender side of the fake event channel.
+    ///
+    /// We never send any events over this channel, but hold it during the account manager lifetime
+    /// to prevent `EventEmitter` from returning `None` as long as account manager is alive, even if
+    /// it holds no accounts which could emit events.
+    fake_sender: Sender<crate::events::Event>,
 }
 
 impl Accounts {
@@ -57,6 +64,11 @@ impl Accounts {
         let accounts = config.load_accounts().await?;
 
         let emitter = EventEmitter::new();
+
+        // Fake event stream to prevent event emitter from closing.
+        let (fake_sender, fake_receiver) = channel::bounded(1);
+        emitter.sender.send(fake_receiver).await?;
+
         for account in accounts.values() {
             emitter.add_account(account).await?;
         }
@@ -66,6 +78,7 @@ impl Accounts {
             config,
             accounts: Arc::new(RwLock::new(accounts)),
             emitter,
+            fake_sender,
         })
     }
 
@@ -263,18 +276,18 @@ impl Accounts {
 #[derive(Debug, Clone)]
 pub struct EventEmitter {
     /// Aggregate stream of events from all accounts.
-    stream: Arc<RwLock<futures::stream::SelectAll<crate::events::EventEmitter>>>,
+    stream: Arc<RwLock<futures::stream::SelectAll<Receiver<crate::events::Event>>>>,
 
     /// Sender for the channel where new account emitters will be pushed.
-    sender: Sender<crate::events::EventEmitter>,
+    sender: Sender<Receiver<crate::events::Event>>,
 
     /// Receiver for the channel where new account emitters will be pushed.
-    receiver: Receiver<crate::events::EventEmitter>,
+    receiver: Receiver<Receiver<crate::events::Event>>,
 }
 
 impl EventEmitter {
     pub fn new() -> Self {
-        let (sender, receiver) = async_std::channel::unbounded();
+        let (sender, receiver) = channel::unbounded();
         Self {
             stream: Arc::new(RwLock::new(futures::stream::SelectAll::new())),
             sender,
@@ -302,7 +315,9 @@ impl EventEmitter {
 
     /// Add event emitter of a new account to the aggregate event emitter.
     pub async fn add_account(&self, context: &Context) -> Result<()> {
-        self.sender.send(context.get_event_emitter()).await?;
+        self.sender
+            .send(context.get_event_emitter().into_inner())
+            .await?;
         Ok(())
     }
 }
@@ -699,6 +714,32 @@ mod tests {
         assert_eq!(id0, id0_reopened);
         assert_eq!(id1, id1_reopened);
         assert_eq!(id2, id2_reopened);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_no_accounts_event_emitter() -> Result<()> {
+        let dir = tempfile::tempdir().unwrap();
+        let p: PathBuf = dir.path().join("accounts").into();
+
+        let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+
+        // Make sure there are no accounts.
+        assert_eq!(accounts.accounts.read().await.len(), 0);
+
+        // Create event emitter.
+        let mut event_emitter = accounts.get_event_emitter().await;
+
+        // Test that event emitter does not return `None` immediately.
+        let duration = std::time::Duration::from_millis(1);
+        assert!(async_std::future::timeout(duration, event_emitter.recv())
+            .await
+            .is_err());
+
+        // When account manager is dropped, event emitter is exhausted.
+        drop(accounts);
+        assert_eq!(event_emitter.recv().await?, None);
 
         Ok(())
     }
