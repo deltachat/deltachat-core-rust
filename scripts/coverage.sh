@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-if ! which grcov 2>/dev/null 1>&2; then
+if ! command -v grcov >/dev/null; then
     echo >&2 '`grcov` not found. Check README at https://github.com/mozilla/grcov for setup instructions.'
     echo >&2 'Run `cargo install grcov` to build `grcov` from source.'
     exit 1
