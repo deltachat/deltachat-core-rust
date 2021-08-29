@@ -1,5 +1,18 @@
 # Changelog 
 
+## 1.60.0
+
+### Added
+- add device message to warn about QUOTA #2621
+- add SOCKS5 support #2474 #2620
+
+### Changes
+- don't emit multiple events with the same import/export progress number #2639
+- reduce message length limit to 5000 chars #2615
+
+### Fixes
+- keep event emitter from closing when there are no accounts #2636
+
 ## 1.59.0
 
 ### Added
