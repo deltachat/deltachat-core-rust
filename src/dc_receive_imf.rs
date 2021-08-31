@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 
-use anyhow::{bail, ensure, format_err, Result};
+use anyhow::{bail, ensure, Result};
 use itertools::join;
 use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
@@ -210,27 +210,36 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
-        match contact::set_profile_image(
-            context,
-            from_id,
-            avatar_action,
-            mime_parser.was_encrypted(),
-        )
-        .await
+        if context
+            .update_contacts_timestamp(from_id, Param::AvatarTimestamp, sent_timestamp)
+            .await?
         {
-            Ok(()) => {
-                context.emit_event(EventType::ChatModified(chat_id));
-            }
-            Err(err) => {
-                warn!(context, "receive_imf cannot update profile image: {}", err);
-            }
-        };
+            match contact::set_profile_image(
+                context,
+                from_id,
+                avatar_action,
+                mime_parser.was_encrypted(),
+            )
+            .await
+            {
+                Ok(()) => {
+                    context.emit_event(EventType::ChatModified(chat_id));
+                }
+                Err(err) => {
+                    warn!(context, "receive_imf cannot update profile image: {}", err);
+                }
+            };
+        }
     }
 
     // Always update the status, even if there is no footer, to allow removing the status.
     //
     // Ignore MDNs though, as they never contain the signature even if user has set it.
-    if mime_parser.mdn_reports.is_empty() {
+    if mime_parser.mdn_reports.is_empty()
+        && context
+            .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)
+            .await?
+    {
         if let Err(err) = contact::set_status(
             context,
             from_id,
@@ -809,6 +818,7 @@ async fn add_parts(
     let in_fresh = state == MessageState::InFresh;
     let rcvd_timestamp = time();
     let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, chat_id, in_fresh).await?;
+    *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // Apply ephemeral timer changes to the chat.
     //
@@ -823,6 +833,9 @@ async fn add_parts(
             || parent.is_none()
             || parent.unwrap().ephemeral_timer != ephemeral_timer)
         && chat_id.get_ephemeral_timer(context).await? != ephemeral_timer
+        && chat_id
+            .update_timestamp(context, Param::EphemeralSettingsTimestamp, *sent_timestamp)
+            .await?
     {
         if let Err(err) = chat_id
             .inner_set_ephemeral_timer(context, ephemeral_timer)
@@ -909,8 +922,6 @@ async fn add_parts(
     let sort_timestamp = parent_timestamp.map_or(sort_timestamp, |parent_timestamp| {
         std::cmp::max(sort_timestamp, parent_timestamp)
     });
-
-    *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
@@ -1097,25 +1108,18 @@ INSERT INTO msgs
         }
     }
 
-    async fn update_last_subject(
-        context: &Context,
-        chat_id: ChatId,
-        mime_parser: &MimeMessage,
-    ) -> Result<()> {
-        let mut chat = Chat::load_from_db(context, chat_id).await?;
-        chat.param.set(
-            Param::LastSubject,
-            mime_parser
-                .get_subject()
-                .ok_or_else(|| format_err!("No subject in email"))?,
-        );
-        chat.update_param(context).await?;
-        Ok(())
-    }
+    // write the last subject even if empty -
+    // otherwise a reply may get an outdated subject.
     if !is_mdn {
-        update_last_subject(context, chat_id, mime_parser)
-            .await
-            .ok_or_log_msg(context, "Could not update LastSubject of chat");
+        let mut chat = Chat::load_from_db(context, chat_id).await?;
+        if chat
+            .param
+            .set_timestamp(Param::SubjectTimestamp, sent_timestamp)?
+        {
+            let subject = mime_parser.get_subject().unwrap_or_default();
+            chat.param.set(Param::LastSubject, subject);
+            chat.update_param(context).await?;
+        }
     }
 
     Ok(chat_id)
