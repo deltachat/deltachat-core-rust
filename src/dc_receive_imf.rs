@@ -19,7 +19,7 @@ use crate::constants::{
 use crate::contact::{addr_cmp, normalize_name, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::dc_tools::{
-    dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time, time,
+    dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time,
 };
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -419,6 +419,9 @@ async fn add_parts(
         }
     }
 
+    let rcvd_timestamp = dc_smeared_time(context).await;
+    *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
+
     // check if the message introduces a new chat:
     // - outgoing messages introduce a chat with the first to: address if they are sent by a messenger
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
@@ -492,6 +495,7 @@ async fn add_parts(
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
                 &mut mime_parser,
+                *sent_timestamp,
                 if test_normal_chat.is_none() {
                     allow_creation
                 } else {
@@ -721,6 +725,7 @@ async fn add_parts(
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
                     &mut mime_parser,
+                    *sent_timestamp,
                     allow_creation,
                     Blocked::Not,
                     from_id,
@@ -814,11 +819,9 @@ async fn add_parts(
     let location_kml_is = mime_parser.location_kml.is_some();
 
     // correct message_timestamp, it should not be used before,
-    // however, we cannot do this earlier as we need from_id to be set
+    // however, we cannot do this earlier as we need chat_id to be set
     let in_fresh = state == MessageState::InFresh;
-    let rcvd_timestamp = time();
     let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, chat_id, in_fresh).await?;
-    *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // Apply ephemeral timer changes to the chat.
     //
@@ -1318,6 +1321,7 @@ async fn is_probably_private_reply(
 async fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
+    sent_timestamp: i64,
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
@@ -1422,7 +1426,9 @@ async fn create_or_lookup_group(
             if value == "group-avatar-changed" {
                 if let Some(avatar_action) = &mime_parser.group_avatar {
                     // this is just an explicit message containing the group-avatar,
-                    // apart from that, the group-avatar is send along with various other messages
+                    // apart from that, the group-avatar is send along with various other messages.
+                    // we do not check Param::AvatarTimestamp here:
+                    // even if the avatar is already outdated, text/type of the message should be correct.
                     mime_parser.is_system_message = SystemMessage::GroupImageChanged;
                     better_msg = match avatar_action {
                         AvatarAction::Delete => {
@@ -1559,16 +1565,21 @@ async fn create_or_lookup_group(
     if let Some(avatar_action) = &mime_parser.group_avatar {
         info!(context, "group-avatar change for {}", chat_id);
         if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
-            match avatar_action {
-                AvatarAction::Change(profile_image) => {
-                    chat.param.set(Param::ProfileImage, profile_image);
-                }
-                AvatarAction::Delete => {
-                    chat.param.remove(Param::ProfileImage);
-                }
-            };
-            chat.update_param(context).await?;
-            send_EVENT_CHAT_MODIFIED = true;
+            if chat
+                .param
+                .set_timestamp(Param::AvatarTimestamp, sent_timestamp)?
+            {
+                match avatar_action {
+                    AvatarAction::Change(profile_image) => {
+                        chat.param.set(Param::ProfileImage, profile_image);
+                    }
+                    AvatarAction::Delete => {
+                        chat.param.remove(Param::ProfileImage);
+                    }
+                };
+                chat.update_param(context).await?;
+                send_EVENT_CHAT_MODIFIED = true;
+            }
         }
     }
 
