@@ -61,7 +61,9 @@ impl Params {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dc_receive_imf::dc_receive_imf;
     use crate::dc_tools::time;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_params_set_timestamp() -> Result<()> {
@@ -81,6 +83,51 @@ mod tests {
 
         assert!(!params.set_timestamp(Param::AvatarTimestamp, -1)?);
         assert_eq!(params.get_i64(Param::AvatarTimestamp), None);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_out_of_order_subject() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        dc_receive_imf(
+            &t,
+            b"From: Bob Authname <bob@example.org>\n\
+                 To: alice@example.com\n\
+                 Subject: updated subject\n\
+                 Message-ID: <msg2@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2021 23:37:57 +0000\n\
+                 \n\
+                 second message\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        dc_receive_imf(
+            &t,
+            b"From: Bob Authname <bob@example.org>\n\
+                 To: alice@example.com\n\
+                 Subject: original subject\n\
+                 Message-ID: <msg1@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2021 22:37:57 +0000\n\
+                 \n\
+                 first message\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await?;
+
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await?;
+        assert_eq!(
+            chat.param.get(Param::LastSubject).unwrap(),
+            "updated subject"
+        );
 
         Ok(())
     }
