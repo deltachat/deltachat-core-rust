@@ -1331,7 +1331,6 @@ async fn create_or_lookup_group(
     let mut recreate_member_list = false;
     let mut send_EVENT_CHAT_MODIFIED = false;
     let mut X_MrAddToGrp = None;
-    let mut X_MrGrpNameChanged = false;
     let mut better_msg: String = From::from("");
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
@@ -1409,7 +1408,6 @@ async fn create_or_lookup_group(
             better_msg = stock_str::msg_add_member(context, &added_member, from_id).await;
             X_MrAddToGrp = Some(added_member);
         } else if let Some(old_name) = mime_parser.get_header(HeaderDef::ChatGroupNameChanged) {
-            X_MrGrpNameChanged = true;
             better_msg = stock_str::msg_grp_name(
                 context,
                 old_name,
@@ -1541,9 +1539,16 @@ async fn create_or_lookup_group(
     // execute group commands
     if X_MrAddToGrp.is_some() {
         recreate_member_list = true;
-    } else if X_MrGrpNameChanged {
+    } else if mime_parser
+        .get_header(HeaderDef::ChatGroupNameChanged)
+        .is_some()
+    {
         if let Some(ref grpname) = grpname {
-            if grpname.len() < 200 {
+            if grpname.len() < 200
+                && chat_id
+                    .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+                    .await?
+            {
                 info!(context, "updating grpname for chat {}", chat_id);
                 if context
                     .sql

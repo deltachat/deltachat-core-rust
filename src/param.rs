@@ -151,6 +151,9 @@ pub enum Param {
 
     /// For Chats: timestamp of subject update.
     SubjectTimestamp = b'C',
+
+    /// For Chats: timestamp of group name update.
+    GroupNameTimestamp = b'g',
 }
 
 /// An object for handling key=value parameter lists.
