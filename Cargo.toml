@@ -39,7 +39,7 @@ indexmap = "1.7.0"
 itertools = "0.10.1"
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
-libc = "0.2.98"
+libc = "0.2.101"
 log = {version = "0.4.8", optional = true }
 mailparse = "0.13.5"
 native-tls = "0.2.3"
@@ -61,7 +61,7 @@ rustyline = { version = "8.2.0", optional = true }
 sanitize-filename = "0.3.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-sha-1 = "0.9.7"
+sha-1 = "0.9.8"
 sha2 = "0.9.5"
 smallvec = "1.0.0"
 stop-token = "0.2.0"
