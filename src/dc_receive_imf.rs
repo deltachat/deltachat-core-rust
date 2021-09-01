@@ -884,6 +884,10 @@ async fn add_parts(
         };
 
         if chat.is_protected() || new_status.is_some() {
+            // TODO: on partial downloads, do not try to check verified properties,
+            // eg. the Chat-Verified header is in the encrypted part and we would always get warnings.
+            // however, this seems not to be a big deal as we even show "failed verifications" messages in-chat -
+            // nothing else is done for "not yet downloaded content".
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "verification problem: {}", err);
@@ -892,15 +896,24 @@ async fn add_parts(
             } else {
                 // change chat protection only when verification check passes
                 if let Some(new_status) = new_status {
-                    if let Err(e) = chat_id.inner_set_protection(context, new_status).await {
-                        chat::add_info_msg(
+                    if chat_id
+                        .update_timestamp(
                             context,
-                            chat_id,
-                            format!("Cannot set protection: {}", e),
-                            sort_timestamp,
+                            Param::ProtectionSettingsTimestamp,
+                            *sent_timestamp,
                         )
-                        .await;
-                        return Ok(chat_id); // do not return an error as this would result in retrying the message
+                        .await?
+                    {
+                        if let Err(e) = chat_id.inner_set_protection(context, new_status).await {
+                            chat::add_info_msg(
+                                context,
+                                chat_id,
+                                format!("Cannot set protection: {}", e),
+                                sort_timestamp,
+                            )
+                            .await;
+                            return Ok(chat_id); // do not return an error as this would result in retrying the message
+                        }
                     }
                     set_better_msg(
                         mime_parser,

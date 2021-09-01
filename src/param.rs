@@ -157,6 +157,9 @@ pub enum Param {
 
     /// For Chats: timestamp of group name update.
     MemberListTimestamp = b'k',
+
+    /// For Chats: timestamp of protection settings update.
+    ProtectionSettingsTimestamp = b'L',
 }
 
 /// An object for handling key=value parameter lists.
