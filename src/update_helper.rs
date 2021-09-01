@@ -131,4 +131,69 @@ mod tests {
 
         Ok(())
     }
+
+    #[async_std::test]
+    async fn test_out_of_order_group_name() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        dc_receive_imf(
+            &t,
+            b"From: Bob Authname <bob@example.org>\n\
+                 To: alice@example.com\n\
+                 Message-ID: <msg1@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: abcde\n\
+                 Chat-Group-Name: initial name\n\
+                 Date: Sun, 22 Mar 2021 01:00:00 +0000\n\
+                 \n\
+                 first message\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await?;
+        assert_eq!(chat.name, "initial name");
+
+        dc_receive_imf(
+            &t,
+            b"From: Bob Authname <bob@example.org>\n\
+                 To: alice@example.com\n\
+                 Message-ID: <msg3@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: abcde\n\
+                 Chat-Group-Name: another name update\n\
+                 Chat-Group-Name-Changed: a name update\n\
+                 Date: Sun, 22 Mar 2021 03:00:00 +0000\n\
+                 \n\
+                 third message\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await?;
+        dc_receive_imf(
+            &t,
+            b"From: Bob Authname <bob@example.org>\n\
+                 To: alice@example.com\n\
+                 Message-ID: <msg2@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: abcde\n\
+                 Chat-Group-Name: a name update\n\
+                 Chat-Group-Name-Changed: initial name\n\
+                 Date: Sun, 22 Mar 2021 02:00:00 +0000\n\
+                 \n\
+                 second message\n",
+            "INBOX",
+            3,
+            false,
+        )
+        .await?;
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await?;
+        assert_eq!(chat.name, "another name update");
+
+        Ok(())
+    }
 }
