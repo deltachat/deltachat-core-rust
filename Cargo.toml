@@ -41,7 +41,7 @@ kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2.101"
 log = {version = "0.4.8", optional = true }
-mailparse = "0.13.5"
+mailparse = "0.13.6"
 native-tls = "0.2.8"
 num_cpus = "1.13.0"
 num-derive = "0.3.0"
