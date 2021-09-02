@@ -5,3 +5,13 @@ div.fragment {
 	border: 0;
 	padding: 1em;
 }
+
+code {
+	background-color: #e0e0e0;
+	padding-left: .5em;
+	padding-right: .5em;
+}
+
+li {
+	margin-bottom: .5em;
+}
