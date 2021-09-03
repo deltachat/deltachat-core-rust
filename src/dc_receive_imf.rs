@@ -1124,15 +1124,20 @@ INSERT INTO msgs
         }
     }
 
-    // write the last subject even if empty -
-    // otherwise a reply may get an outdated subject.
     if !is_mdn {
         let mut chat = Chat::load_from_db(context, chat_id).await?;
+
+        // In contrast to most other update-timestamps,
+        // use `sort_timestamp` instead of `sent_timestamp` for the subject-timestamp comparison.
+        // This way, `LastSubject` actually refers to the most recent message _shown_ in the chat.
         if chat
             .param
-            .set_timestamp(Param::SubjectTimestamp, sent_timestamp)?
+            .set_timestamp(Param::SubjectTimestamp, sort_timestamp)?
         {
+            // write the last subject even if empty -
+            // otherwise a reply may get an outdated subject.
             let subject = mime_parser.get_subject().unwrap_or_default();
+
             chat.param.set(Param::LastSubject, subject);
             chat.update_param(context).await?;
         }
