@@ -210,9 +210,10 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
-        if context
-            .update_contacts_timestamp(from_id, Param::AvatarTimestamp, sent_timestamp)
-            .await?
+        if from_id != 0
+            && context
+                .update_contacts_timestamp(from_id, Param::AvatarTimestamp, sent_timestamp)
+                .await?
         {
             match contact::set_profile_image(
                 context,
@@ -236,6 +237,7 @@ pub(crate) async fn dc_receive_imf_inner(
     //
     // Ignore MDNs though, as they never contain the signature even if user has set it.
     if mime_parser.mdn_reports.is_empty()
+        && from_id != 0
         && context
             .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)
             .await?

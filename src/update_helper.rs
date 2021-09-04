@@ -16,11 +16,10 @@ impl Context {
         scope: Param,
         new_timestamp: i64,
     ) -> Result<bool> {
-        if let Ok(mut contact) = Contact::load_from_db(self, contact_id).await {
-            if contact.param.set_timestamp(scope, new_timestamp)? {
-                contact.update_param(self).await?;
-                return Ok(true);
-            }
+        let mut contact = Contact::load_from_db(self, contact_id).await?;
+        if contact.param.set_timestamp(scope, new_timestamp)? {
+            contact.update_param(self).await?;
+            return Ok(true);
         }
         Ok(false)
     }
@@ -35,11 +34,10 @@ impl ChatId {
         scope: Param,
         new_timestamp: i64,
     ) -> Result<bool> {
-        if let Ok(mut chat) = Chat::load_from_db(context, *self).await {
-            if chat.param.set_timestamp(scope, new_timestamp)? {
-                chat.update_param(context).await?;
-                return Ok(true);
-            }
+        let mut chat = Chat::load_from_db(context, *self).await?;
+        if chat.param.set_timestamp(scope, new_timestamp)? {
+            chat.update_param(context).await?;
+            return Ok(true);
         }
         Ok(false)
     }
