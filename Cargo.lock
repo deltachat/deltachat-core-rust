@@ -2177,9 +2177,9 @@ dependencies = [
 
 [[package]]
 name = "mailparse"
-version = "0.13.5"
+version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c06f526fc13a50f46a3689a6f438cb833c59817c898bb40a3954f341ddf74ce1"
+checksum = "5ee6e1ca1c8396da58f8128176f6980dd57bec84c8670a479519d3655f2d6734"
 dependencies = [
  "base64 0.13.0",
  "charset",
@@ -2861,9 +2861,9 @@ dependencies = [
 
 [[package]]
 name = "quoted_printable"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47b080c5db639b292ac79cbd34be0cfc5d36694768d8341109634d90b86930e2"
+checksum = "1238256b09923649ec89b08104c4dfe9f6cb2fea734a5db5384e44916d59e9c5"
 
 [[package]]
 name = "r2d2"
