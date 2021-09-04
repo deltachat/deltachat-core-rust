@@ -4,4 +4,16 @@ div.fragment {
 	background-color: #e0e0e0;
 	border: 0;
 	padding: 1em;
+	border-radius: 6px;
+}
+
+code {
+	background-color: #e0e0e0;
+	padding-left: .5em;
+	padding-right: .5em;
+	border-radius: 6px;
+}
+
+li {
+	margin-bottom: .5em;
 }
