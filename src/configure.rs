@@ -319,7 +319,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .filter(|params| params.protocol == Protocol::Smtp)
         .cloned()
         .collect();
-    let provider_strict_tls = param.provider.map_or(false, |provider| provider.strict_tls);
+    let provider_strict_tls = param
+        .provider
+        .map_or(socks5_config.is_some(), |provider| provider.strict_tls);
 
     let smtp_config_task = task::spawn(async move {
         let mut smtp_configured = false;

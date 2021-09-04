@@ -228,7 +228,11 @@ impl Imap {
             param.socks5_config.clone(),
             &param.addr,
             param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
-            param.provider.map_or(false, |provider| provider.strict_tls),
+            param
+                .provider
+                .map_or(param.socks5_config.is_some(), |provider| {
+                    provider.strict_tls
+                }),
             idle_interrupt,
         )
         .await?;
