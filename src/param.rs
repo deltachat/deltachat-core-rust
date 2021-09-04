@@ -374,7 +374,7 @@ impl Params {
 
     /// Set the given paramter to the passed in `i64`.
     pub fn set_i64(&mut self, key: Param, value: i64) -> &mut Self {
-        self.set(key, format!("{}", value));
+        self.set(key, value.to_string());
         self
     }
 
