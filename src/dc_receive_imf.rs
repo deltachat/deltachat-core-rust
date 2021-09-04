@@ -1444,9 +1444,7 @@ async fn create_or_lookup_group(
             if value == "group-avatar-changed" {
                 if let Some(avatar_action) = &mime_parser.group_avatar {
                     // this is just an explicit message containing the group-avatar,
-                    // apart from that, the group-avatar is send along with various other messages.
-                    // we do not check Param::AvatarTimestamp here:
-                    // even if the avatar is already outdated, text/type of the message should be correct.
+                    // apart from that, the group-avatar is send along with various other messages
                     mime_parser.is_system_message = SystemMessage::GroupImageChanged;
                     better_msg = match avatar_action {
                         AvatarAction::Delete => {
