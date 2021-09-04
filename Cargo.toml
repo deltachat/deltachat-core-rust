@@ -61,7 +61,7 @@ rustyline = { version = "8.2.0", optional = true }
 sanitize-filename = "0.3.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-sha-1 = "0.9.7"
+sha-1 = "0.9.8"
 sha2 = "0.9.5"
 smallvec = "1.0.0"
 stop-token = "0.2.0"
