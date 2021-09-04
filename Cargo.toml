@@ -68,7 +68,7 @@ stop-token = "0.2.0"
 strum = "0.21.0"
 strum_macros = "0.21.1"
 surf = { version = "2.3.1", default-features = false, features = ["h1-client"] }
-thiserror = "1.0.26"
+thiserror = "1.0.28"
 toml = "0.5.6"
 url = "2.2.2"
 uuid = { version = "0.8", features = ["serde", "v4"] }
