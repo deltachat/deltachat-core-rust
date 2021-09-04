@@ -598,7 +598,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         );
     }
 
-    context.schedule_quota_update().await;
+    context.schedule_quota_update().await?;
 
     if let Err(e) = context
         .set_config(Config::LastHousekeeping, Some(&time().to_string()))

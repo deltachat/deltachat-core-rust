@@ -602,7 +602,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     );
                 }
             }
-            if location::is_sending_locations_to_chat(&context, None).await {
+            if location::is_sending_locations_to_chat(&context, None).await? {
                 println!("Location streaming enabled.");
             }
             println!("{} chats", cnt);
@@ -773,7 +773,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     &context,
                     Some(sel_chat.as_ref().unwrap().get_id())
                 )
-                .await,
+                .await?,
             );
         }
         "getlocations" => {
@@ -818,7 +818,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 sel_chat.as_ref().unwrap().get_id(),
                 seconds,
             )
-            .await;
+            .await?;
             println!(
                 "Locations will be sent to Chat#{} for {} seconds. Use 'setlocation <lat> <lng>' to play around.",
                 sel_chat.as_ref().unwrap().get_id(),
@@ -1067,7 +1067,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut ids = [MsgId::new(0); 1];
             ids[0] = MsgId::new(arg1.parse()?);
-            message::delete_msgs(&context, &ids).await;
+            message::delete_msgs(&context, &ids).await?;
         }
         "listcontacts" | "contacts" | "listverified" => {
             let contacts = Contact::get_all(

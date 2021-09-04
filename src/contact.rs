@@ -1109,15 +1109,19 @@ impl Contact {
             .unwrap_or_default()
     }
 
-    pub async fn scaleup_origin_by_id(context: &Context, contact_id: u32, origin: Origin) -> bool {
+    pub async fn scaleup_origin_by_id(
+        context: &Context,
+        contact_id: u32,
+        origin: Origin,
+    ) -> Result<()> {
         context
             .sql
             .execute(
                 "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
                 paramsv![origin, contact_id as i32, origin],
             )
-            .await
-            .is_ok()
+            .await?;
+        Ok(())
     }
 }
 

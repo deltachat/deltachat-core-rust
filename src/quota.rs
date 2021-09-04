@@ -98,13 +98,14 @@ fn get_highest_usage<'t>(
 
 impl Context {
     // Adds a job to update `quota.recent`
-    pub(crate) async fn schedule_quota_update(&self) {
-        job::kill_action(self, Action::UpdateRecentQuota).await;
+    pub(crate) async fn schedule_quota_update(&self) -> Result<()> {
+        job::kill_action(self, Action::UpdateRecentQuota).await?;
         job::add(
             self,
             job::Job::new(Action::UpdateRecentQuota, 0, Params::new(), 0),
         )
         .await;
+        Ok(())
     }
 
     /// Updates `quota.recent`, sets `quota.modified` to the current time

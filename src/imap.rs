@@ -583,7 +583,7 @@ impl Imap {
                         folder, old_uid_next, uid_next, new_uid_validity,
                     );
                     set_uid_next(context, folder, uid_next).await?;
-                    job::schedule_resync(context).await;
+                    job::schedule_resync(context).await?;
                 }
                 uid_next != old_uid_next // If uid_next changed, there are new emails
             } else {
@@ -636,7 +636,7 @@ impl Imap {
         set_uid_next(context, folder, new_uid_next).await?;
         set_uidvalidity(context, folder, new_uid_validity).await?;
         if old_uid_validity != 0 || old_uid_next != 0 {
-            job::schedule_resync(context).await;
+            job::schedule_resync(context).await?;
         }
         info!(
             context,

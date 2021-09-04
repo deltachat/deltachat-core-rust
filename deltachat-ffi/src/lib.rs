@@ -1570,6 +1570,8 @@ pub unsafe extern "C" fn dc_delete_msgs(
     let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
 
     block_on(message::delete_msgs(ctx, &msg_ids))
+        .log_err(ctx, "failed dc_delete_msgs() call")
+        .ok();
 }
 
 #[no_mangle]
@@ -2047,7 +2049,9 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
         ctx,
         ChatId::new(chat_id),
         seconds as i64,
-    ));
+    ))
+    .log_err(ctx, "Failed dc_send_locations_to_chat()")
+    .ok();
 }
 
 #[no_mangle]
@@ -2066,7 +2070,8 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
         Some(ChatId::new(chat_id))
     };
 
-    block_on(location::is_sending_locations_to_chat(ctx, chat_id)) as libc::c_int
+    block_on(location::is_sending_locations_to_chat(ctx, chat_id))
+        .unwrap_or_log_default(ctx, "Failed dc_is_sending_locations_to_chat()") as libc::c_int
 }
 
 #[no_mangle]
