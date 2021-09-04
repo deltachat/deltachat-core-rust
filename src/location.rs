@@ -1,7 +1,7 @@
 //! Location handling.
 use std::convert::TryFrom;
 
-use anyhow::{ensure, Error};
+use anyhow::{ensure, Result};
 use bitflags::bitflags;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
@@ -63,7 +63,7 @@ impl Kml {
         Default::default()
     }
 
-    pub fn parse(context: &Context, to_parse: &[u8]) -> Result<Self, Error> {
+    pub fn parse(context: &Context, to_parse: &[u8]) -> Result<Self> {
         ensure!(to_parse.len() <= 1024 * 1024, "kml-file is too large");
 
         let mut reader = quick_xml::Reader::from_reader(to_parse);
@@ -191,54 +191,55 @@ impl Kml {
 }
 
 /// Enables location streaming in chat identified by `chat_id` for `seconds` seconds.
-pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds: i64) {
+pub async fn send_locations_to_chat(
+    context: &Context,
+    chat_id: ChatId,
+    seconds: i64,
+) -> Result<()> {
+    ensure!(seconds >= 0);
+    ensure!(!chat_id.is_special());
     let now = time();
-    if !(seconds < 0 || chat_id.is_special()) {
-        let is_sending_locations_before =
-            is_sending_locations_to_chat(context, Some(chat_id)).await;
-        if context
-            .sql
-            .execute(
-                "UPDATE chats    \
-             SET locations_send_begin=?,        \
-             locations_send_until=?  \
-             WHERE id=?",
-                paramsv![
-                    if 0 != seconds { now } else { 0 },
-                    if 0 != seconds { now + seconds } else { 0 },
-                    chat_id,
-                ],
-            )
+    let is_sending_locations_before = is_sending_locations_to_chat(context, Some(chat_id)).await?;
+    context
+        .sql
+        .execute(
+            "UPDATE chats    \
+         SET locations_send_begin=?,        \
+         locations_send_until=?  \
+         WHERE id=?",
+            paramsv![
+                if 0 != seconds { now } else { 0 },
+                if 0 != seconds { now + seconds } else { 0 },
+                chat_id,
+            ],
+        )
+        .await?;
+    if 0 != seconds && !is_sending_locations_before {
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some(stock_str::msg_location_enabled(context).await);
+        msg.param.set_cmd(SystemMessage::LocationStreamingEnabled);
+        chat::send_msg(context, chat_id, &mut msg)
             .await
-            .is_ok()
-        {
-            if 0 != seconds && !is_sending_locations_before {
-                let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(stock_str::msg_location_enabled(context).await);
-                msg.param.set_cmd(SystemMessage::LocationStreamingEnabled);
-                chat::send_msg(context, chat_id, &mut msg)
-                    .await
-                    .unwrap_or_default();
-            } else if 0 == seconds && is_sending_locations_before {
-                let stock_str = stock_str::msg_location_disabled(context).await;
-                chat::add_info_msg(context, chat_id, stock_str, now).await;
-            }
-            context.emit_event(EventType::ChatModified(chat_id));
-            if 0 != seconds {
-                schedule_maybe_send_locations(context, false).await;
-                job::add(
-                    context,
-                    job::Job::new(
-                        job::Action::MaybeSendLocationsEnded,
-                        chat_id.to_u32(),
-                        Params::new(),
-                        seconds + 1,
-                    ),
-                )
-                .await;
-            }
-        }
+            .unwrap_or_default();
+    } else if 0 == seconds && is_sending_locations_before {
+        let stock_str = stock_str::msg_location_disabled(context).await;
+        chat::add_info_msg(context, chat_id, stock_str, now).await;
     }
+    context.emit_event(EventType::ChatModified(chat_id));
+    if 0 != seconds {
+        schedule_maybe_send_locations(context, false).await;
+        job::add(
+            context,
+            job::Job::new(
+                job::Action::MaybeSendLocationsEnded,
+                chat_id.to_u32(),
+                Params::new(),
+                seconds + 1,
+            ),
+        )
+        .await;
+    }
+    Ok(())
 }
 
 async fn schedule_maybe_send_locations(context: &Context, force_schedule: bool) {
@@ -255,25 +256,31 @@ async fn schedule_maybe_send_locations(context: &Context, force_schedule: bool) 
 ///
 /// If `chat_id` is `Some` only that chat is checked, otherwise returns `true` if any chat
 /// is sending locations.
-pub async fn is_sending_locations_to_chat(context: &Context, chat_id: Option<ChatId>) -> bool {
-    match chat_id {
-        Some(chat_id) => context
-            .sql
-            .exists(
-                "SELECT COUNT(id) FROM chats  WHERE id=?  AND locations_send_until>?;",
-                paramsv![chat_id, time()],
-            )
-            .await
-            .unwrap_or_default(),
-        None => context
-            .sql
-            .exists(
-                "SELECT COUNT(id) FROM chats  WHERE locations_send_until>?;",
-                paramsv![time()],
-            )
-            .await
-            .unwrap_or_default(),
-    }
+pub async fn is_sending_locations_to_chat(
+    context: &Context,
+    chat_id: Option<ChatId>,
+) -> Result<bool> {
+    let exists = match chat_id {
+        Some(chat_id) => {
+            context
+                .sql
+                .exists(
+                    "SELECT COUNT(id) FROM chats  WHERE id=?  AND locations_send_until>?;",
+                    paramsv![chat_id, time()],
+                )
+                .await?
+        }
+        None => {
+            context
+                .sql
+                .exists(
+                    "SELECT COUNT(id) FROM chats  WHERE locations_send_until>?;",
+                    paramsv![time()],
+                )
+                .await?
+        }
+    };
+    Ok(exists)
 }
 
 pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> bool {
@@ -288,7 +295,11 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
             "SELECT id FROM chats WHERE locations_send_until>?;",
             paramsv![time()],
             |row| row.get::<_, i32>(0),
-            |chats| chats.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+            |chats| {
+                chats
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(Into::into)
+            },
         )
         .await
     {
@@ -325,7 +336,7 @@ pub async fn get_range(
     contact_id: Option<u32>,
     timestamp_from: i64,
     mut timestamp_to: i64,
-) -> Result<Vec<Location>, Error> {
+) -> Result<Vec<Location>> {
     if timestamp_to == 0 {
         timestamp_to = time() + 10;
     }
@@ -400,7 +411,7 @@ fn is_marker(txt: &str) -> bool {
 }
 
 /// Deletes all locations from the database.
-pub async fn delete_all(context: &Context) -> Result<(), Error> {
+pub async fn delete_all(context: &Context) -> Result<()> {
     context
         .sql
         .execute("DELETE FROM locations;", paramsv![])
@@ -409,7 +420,7 @@ pub async fn delete_all(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32), Error> {
+pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)> {
     let mut last_added_location_id = 0;
 
     let self_addr = context
@@ -517,7 +528,7 @@ pub async fn set_kml_sent_timestamp(
     context: &Context,
     chat_id: ChatId,
     timestamp: i64,
-) -> Result<(), Error> {
+) -> Result<()> {
     context
         .sql
         .execute(
@@ -528,11 +539,7 @@ pub async fn set_kml_sent_timestamp(
     Ok(())
 }
 
-pub async fn set_msg_location_id(
-    context: &Context,
-    msg_id: MsgId,
-    location_id: u32,
-) -> Result<(), Error> {
+pub async fn set_msg_location_id(context: &Context, msg_id: MsgId, location_id: u32) -> Result<()> {
     context
         .sql
         .execute(
@@ -550,7 +557,7 @@ pub async fn save(
     contact_id: u32,
     locations: &[Location],
     independent: bool,
-) -> Result<u32, Error> {
+) -> Result<u32> {
     ensure!(!chat_id.is_special(), "Invalid chat id");
 
     let mut newest_timestamp = 0;
@@ -630,7 +637,7 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
             },
             |rows| {
                 rows.filter_map(|v| v.transpose())
-                    .collect::<Result<Vec<_>, _>>()
+                    .collect::<std::result::Result<Vec<_>, _>>()
                     .map_err(Into::into)
             },
         )

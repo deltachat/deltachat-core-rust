@@ -82,7 +82,11 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
         let mut jobs_loaded = 0;
         let mut info = InterruptInfo::default();
         loop {
-            match job::load_next(&ctx, Thread::Imap, &info).await {
+            match job::load_next(&ctx, Thread::Imap, &info)
+                .await
+                .ok()
+                .flatten()
+            {
                 Some(job) if jobs_loaded <= 20 => {
                     jobs_loaded += 1;
                     job::perform_job(&ctx, job::Connection::Inbox(&mut connection), job).await;
@@ -289,7 +293,11 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
 
         let mut interrupt_info = Default::default();
         loop {
-            match job::load_next(&ctx, Thread::Smtp, &interrupt_info).await {
+            match job::load_next(&ctx, Thread::Smtp, &interrupt_info)
+                .await
+                .ok()
+                .flatten()
+            {
                 Some(job) => {
                     info!(ctx, "executing smtp job");
                     job::perform_job(&ctx, job::Connection::Smtp(&mut connection), job).await;

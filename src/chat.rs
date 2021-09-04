@@ -183,7 +183,7 @@ impl ChatId {
                     || contact_id == DC_CONTACT_ID_SELF
                 {
                     let chat_id = ChatId::get_for_contact(context, contact_id).await?;
-                    Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat).await;
+                    Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat).await?;
                     chat_id
                 } else {
                     warn!(
@@ -284,7 +284,7 @@ impl ChatId {
                 for contact_id in get_chat_contacts(context, self).await? {
                     if contact_id != DC_CONTACT_ID_SELF {
                         Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat)
-                            .await;
+                            .await?;
                     }
                 }
             }
@@ -497,7 +497,7 @@ impl ChatId {
             chat_id: ChatId::new(0),
         });
 
-        job::kill_action(context, Action::Housekeeping).await;
+        job::kill_action(context, Action::Housekeeping).await?;
         let j = job::Job::new(Action::Housekeeping, 0, Params::new(), 10);
         job::add(context, j).await;
 
@@ -2450,19 +2450,15 @@ impl rusqlite::types::FromSql for MuteDuration {
 
 pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
-    if context
+    context
         .sql
         .execute(
             "UPDATE chats SET muted_until=? WHERE id=?;",
             paramsv![duration, chat_id],
         )
         .await
-        .is_ok()
-    {
-        context.emit_event(EventType::ChatModified(chat_id));
-    } else {
-        bail!("Failed to set mute duration, chat might not exist -");
-    }
+        .context(format!("Failed to set mute duration for {}", chat_id))?;
+    context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
 }
 
@@ -3252,7 +3248,9 @@ mod tests {
         assert!(chat.get_profile_image(&t).await.unwrap().is_some());
 
         // delete device message, make sure it is not added again
-        message::delete_msgs(&t, &[*msg1_id.as_ref().unwrap()]).await;
+        message::delete_msgs(&t, &[*msg1_id.as_ref().unwrap()])
+            .await
+            .unwrap();
         let msg1 = message::Message::load_from_db(&t, *msg1_id.as_ref().unwrap()).await;
         assert!(msg1.is_err() || msg1.unwrap().chat_id.is_trash());
         let msg3_id = add_device_msg(&t, Some("any-label"), Some(&mut msg2)).await;

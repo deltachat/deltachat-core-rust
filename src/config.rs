@@ -317,7 +317,7 @@ impl Context {
                     .set_raw_config(key, value)
                     .await
                     .map_err(Into::into);
-                job::schedule_resync(self).await;
+                job::schedule_resync(self).await?;
                 ret
             }
             _ => {

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 
-use anyhow::{ensure, format_err, Result};
+use anyhow::{ensure, format_err, Context as _, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -1366,16 +1366,16 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
     Ok(headers)
 }
 
-pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
+pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     for msg_id in msg_ids.iter() {
-        if let Ok(msg) = Message::load_from_db(context, *msg_id).await {
-            if msg.location_id > 0 {
-                delete_poi_location(context, msg.location_id).await;
-            }
+        let msg = Message::load_from_db(context, *msg_id).await?;
+        if msg.location_id > 0 {
+            delete_poi_location(context, msg.location_id).await;
         }
-        if let Err(err) = msg_id.trash(context).await {
-            error!(context, "Unable to trash message {}: {}", msg_id, err);
-        }
+        msg_id
+            .trash(context)
+            .await
+            .with_context(|| format!("Unable to trash message {}", msg_id))?;
         job::add(
             context,
             job::Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), Params::new(), 0),
@@ -1388,13 +1388,14 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
-        job::kill_action(context, Action::Housekeeping).await;
+        job::kill_action(context, Action::Housekeeping).await?;
         job::add(
             context,
             job::Job::new(Action::Housekeeping, 0, Params::new(), 10),
         )
         .await;
     }
+    Ok(())
 }
 
 async fn delete_poi_location(context: &Context, location_id: u32) -> bool {

@@ -603,7 +603,7 @@ async fn add_parts(
                         // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                         // the contact requests will pop up and this should be just fine.
                         Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo)
-                            .await;
+                            .await?;
                         info!(
                             context,
                             "Message is a reply to a known message, mark sender as known.",

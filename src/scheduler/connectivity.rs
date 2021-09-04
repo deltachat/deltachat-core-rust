@@ -504,11 +504,11 @@ impl Context {
             }
 
             if quota.modified + QUOTA_MAX_AGE_SECONDS < time() {
-                self.schedule_quota_update().await;
+                self.schedule_quota_update().await?;
             }
         } else {
             ret += "<li>One moment...</li>";
-            self.schedule_quota_update().await;
+            self.schedule_quota_update().await?;
         }
         ret += "</ul>";
 
