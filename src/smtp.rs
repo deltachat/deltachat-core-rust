@@ -109,7 +109,8 @@ impl Smtp {
             &lp.socks5_config,
             &lp.addr,
             lp.server_flags & DC_LP_AUTH_OAUTH2 != 0,
-            lp.provider.map_or(false, |provider| provider.strict_tls),
+            lp.provider
+                .map_or(lp.socks5_config.is_some(), |provider| provider.strict_tls),
         )
         .await
     }
