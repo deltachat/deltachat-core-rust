@@ -139,6 +139,27 @@ pub enum Param {
 
     /// For MDN-sending job
     MsgId = b'I',
+
+    /// For Contacts: timestamp of status (aka signature or footer) update.
+    StatusTimestamp = b'j',
+
+    /// For Contacts and Chats: timestamp of avatar update.
+    AvatarTimestamp = b'J',
+
+    /// For Chats: timestamp of status/signature/footer update.
+    EphemeralSettingsTimestamp = b'B',
+
+    /// For Chats: timestamp of subject update.
+    SubjectTimestamp = b'C',
+
+    /// For Chats: timestamp of group name update.
+    GroupNameTimestamp = b'g',
+
+    /// For Chats: timestamp of group name update.
+    MemberListTimestamp = b'k',
+
+    /// For Chats: timestamp of protection settings update.
+    ProtectionSettingsTimestamp = b'L',
 }
 
 /// An object for handling key=value parameter lists.
@@ -245,6 +266,11 @@ impl Params {
         self.get(key).and_then(|s| s.parse().ok())
     }
 
+    /// Get the given parameter and parse as `i64`.
+    pub fn get_i64(&self, key: Param) -> Option<i64> {
+        self.get(key).and_then(|s| s.parse().ok())
+    }
+
     /// Get the given parameter and parse as `bool`.
     pub fn get_bool(&self, key: Param) -> Option<bool> {
         self.get_int(key).map(|v| v != 0)
@@ -343,6 +369,12 @@ impl Params {
     /// Set the given paramter to the passed in `i32`.
     pub fn set_int(&mut self, key: Param, value: i32) -> &mut Self {
         self.set(key, format!("{}", value));
+        self
+    }
+
+    /// Set the given paramter to the passed in `i64`.
+    pub fn set_i64(&mut self, key: Param, value: i64) -> &mut Self {
+        self.set(key, value.to_string());
         self
     }
 

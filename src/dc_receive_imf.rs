@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 
-use anyhow::{bail, ensure, format_err, Result};
+use anyhow::{bail, ensure, Result};
 use itertools::join;
 use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
@@ -19,7 +19,7 @@ use crate::constants::{
 use crate::contact::{addr_cmp, normalize_name, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::dc_tools::{
-    dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time, time,
+    dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time,
 };
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -210,27 +210,38 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
-        match contact::set_profile_image(
-            context,
-            from_id,
-            avatar_action,
-            mime_parser.was_encrypted(),
-        )
-        .await
+        if from_id != 0
+            && context
+                .update_contacts_timestamp(from_id, Param::AvatarTimestamp, sent_timestamp)
+                .await?
         {
-            Ok(()) => {
-                context.emit_event(EventType::ChatModified(chat_id));
-            }
-            Err(err) => {
-                warn!(context, "receive_imf cannot update profile image: {}", err);
-            }
-        };
+            match contact::set_profile_image(
+                context,
+                from_id,
+                avatar_action,
+                mime_parser.was_encrypted(),
+            )
+            .await
+            {
+                Ok(()) => {
+                    context.emit_event(EventType::ChatModified(chat_id));
+                }
+                Err(err) => {
+                    warn!(context, "receive_imf cannot update profile image: {}", err);
+                }
+            };
+        }
     }
 
     // Always update the status, even if there is no footer, to allow removing the status.
     //
     // Ignore MDNs though, as they never contain the signature even if user has set it.
-    if mime_parser.mdn_reports.is_empty() {
+    if mime_parser.mdn_reports.is_empty()
+        && from_id != 0
+        && context
+            .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)
+            .await?
+    {
         if let Err(err) = contact::set_status(
             context,
             from_id,
@@ -410,6 +421,9 @@ async fn add_parts(
         }
     }
 
+    let rcvd_timestamp = dc_smeared_time(context).await;
+    *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
+
     // check if the message introduces a new chat:
     // - outgoing messages introduce a chat with the first to: address if they are sent by a messenger
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
@@ -483,6 +497,7 @@ async fn add_parts(
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
                 &mut mime_parser,
+                *sent_timestamp,
                 if test_normal_chat.is_none() {
                     allow_creation
                 } else {
@@ -712,6 +727,7 @@ async fn add_parts(
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
                     &mut mime_parser,
+                    *sent_timestamp,
                     allow_creation,
                     Blocked::Not,
                     from_id,
@@ -805,9 +821,8 @@ async fn add_parts(
     let location_kml_is = mime_parser.location_kml.is_some();
 
     // correct message_timestamp, it should not be used before,
-    // however, we cannot do this earlier as we need from_id to be set
+    // however, we cannot do this earlier as we need chat_id to be set
     let in_fresh = state == MessageState::InFresh;
-    let rcvd_timestamp = time();
     let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, chat_id, in_fresh).await?;
 
     // Apply ephemeral timer changes to the chat.
@@ -823,6 +838,9 @@ async fn add_parts(
             || parent.is_none()
             || parent.unwrap().ephemeral_timer != ephemeral_timer)
         && chat_id.get_ephemeral_timer(context).await? != ephemeral_timer
+        && chat_id
+            .update_timestamp(context, Param::EphemeralSettingsTimestamp, *sent_timestamp)
+            .await?
     {
         if let Err(err) = chat_id
             .inner_set_ephemeral_timer(context, ephemeral_timer)
@@ -868,6 +886,10 @@ async fn add_parts(
         };
 
         if chat.is_protected() || new_status.is_some() {
+            // TODO: on partial downloads, do not try to check verified properties,
+            // eg. the Chat-Verified header is in the encrypted part and we would always get warnings.
+            // however, this seems not to be a big deal as we even show "failed verifications" messages in-chat -
+            // nothing else is done for "not yet downloaded content".
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "verification problem: {}", err);
@@ -876,15 +898,24 @@ async fn add_parts(
             } else {
                 // change chat protection only when verification check passes
                 if let Some(new_status) = new_status {
-                    if let Err(e) = chat_id.inner_set_protection(context, new_status).await {
-                        chat::add_info_msg(
+                    if chat_id
+                        .update_timestamp(
                             context,
-                            chat_id,
-                            format!("Cannot set protection: {}", e),
-                            sort_timestamp,
+                            Param::ProtectionSettingsTimestamp,
+                            *sent_timestamp,
                         )
-                        .await;
-                        return Ok(chat_id); // do not return an error as this would result in retrying the message
+                        .await?
+                    {
+                        if let Err(e) = chat_id.inner_set_protection(context, new_status).await {
+                            chat::add_info_msg(
+                                context,
+                                chat_id,
+                                format!("Cannot set protection: {}", e),
+                                sort_timestamp,
+                            )
+                            .await;
+                            return Ok(chat_id); // do not return an error as this would result in retrying the message
+                        }
                     }
                     set_better_msg(
                         mime_parser,
@@ -909,8 +940,6 @@ async fn add_parts(
     let sort_timestamp = parent_timestamp.map_or(sort_timestamp, |parent_timestamp| {
         std::cmp::max(sort_timestamp, parent_timestamp)
     });
-
-    *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
@@ -1097,25 +1126,23 @@ INSERT INTO msgs
         }
     }
 
-    async fn update_last_subject(
-        context: &Context,
-        chat_id: ChatId,
-        mime_parser: &MimeMessage,
-    ) -> Result<()> {
-        let mut chat = Chat::load_from_db(context, chat_id).await?;
-        chat.param.set(
-            Param::LastSubject,
-            mime_parser
-                .get_subject()
-                .ok_or_else(|| format_err!("No subject in email"))?,
-        );
-        chat.update_param(context).await?;
-        Ok(())
-    }
     if !is_mdn {
-        update_last_subject(context, chat_id, mime_parser)
-            .await
-            .ok_or_log_msg(context, "Could not update LastSubject of chat");
+        let mut chat = Chat::load_from_db(context, chat_id).await?;
+
+        // In contrast to most other update-timestamps,
+        // use `sort_timestamp` instead of `sent_timestamp` for the subject-timestamp comparison.
+        // This way, `LastSubject` actually refers to the most recent message _shown_ in the chat.
+        if chat
+            .param
+            .update_timestamp(Param::SubjectTimestamp, sort_timestamp)?
+        {
+            // write the last subject even if empty -
+            // otherwise a reply may get an outdated subject.
+            let subject = mime_parser.get_subject().unwrap_or_default();
+
+            chat.param.set(Param::LastSubject, subject);
+            chat.update_param(context).await?;
+        }
     }
 
     Ok(chat_id)
@@ -1314,6 +1341,7 @@ async fn is_probably_private_reply(
 async fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
+    sent_timestamp: i64,
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
@@ -1323,7 +1351,6 @@ async fn create_or_lookup_group(
     let mut recreate_member_list = false;
     let mut send_EVENT_CHAT_MODIFIED = false;
     let mut X_MrAddToGrp = None;
-    let mut X_MrGrpNameChanged = false;
     let mut better_msg: String = From::from("");
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
@@ -1401,7 +1428,6 @@ async fn create_or_lookup_group(
             better_msg = stock_str::msg_add_member(context, &added_member, from_id).await;
             X_MrAddToGrp = Some(added_member);
         } else if let Some(old_name) = mime_parser.get_header(HeaderDef::ChatGroupNameChanged) {
-            X_MrGrpNameChanged = true;
             better_msg = stock_str::msg_grp_name(
                 context,
                 old_name,
@@ -1531,9 +1557,16 @@ async fn create_or_lookup_group(
     // execute group commands
     if X_MrAddToGrp.is_some() {
         recreate_member_list = true;
-    } else if X_MrGrpNameChanged {
+    } else if mime_parser
+        .get_header(HeaderDef::ChatGroupNameChanged)
+        .is_some()
+    {
         if let Some(ref grpname) = grpname {
-            if grpname.len() < 200 {
+            if grpname.len() < 200
+                && chat_id
+                    .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+                    .await?
+            {
                 info!(context, "updating grpname for chat {}", chat_id);
                 if context
                     .sql
@@ -1555,54 +1588,69 @@ async fn create_or_lookup_group(
     if let Some(avatar_action) = &mime_parser.group_avatar {
         info!(context, "group-avatar change for {}", chat_id);
         if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
-            match avatar_action {
-                AvatarAction::Change(profile_image) => {
-                    chat.param.set(Param::ProfileImage, profile_image);
-                }
-                AvatarAction::Delete => {
-                    chat.param.remove(Param::ProfileImage);
-                }
-            };
-            chat.update_param(context).await?;
-            send_EVENT_CHAT_MODIFIED = true;
+            if chat
+                .param
+                .update_timestamp(Param::AvatarTimestamp, sent_timestamp)?
+            {
+                match avatar_action {
+                    AvatarAction::Change(profile_image) => {
+                        chat.param.set(Param::ProfileImage, profile_image);
+                    }
+                    AvatarAction::Delete => {
+                        chat.param.remove(Param::ProfileImage);
+                    }
+                };
+                chat.update_param(context).await?;
+                send_EVENT_CHAT_MODIFIED = true;
+            }
         }
     }
 
     // add members to group/check members
     if recreate_member_list {
-        if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
-            // Members could have been removed while we were
-            // absent. We can't use existing member list and need to
-            // start from scratch.
-            context
-                .sql
-                .execute(
-                    "DELETE FROM chats_contacts WHERE chat_id=?;",
-                    paramsv![chat_id],
-                )
-                .await
-                .ok();
-
-            chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
-        }
-        if from_id > DC_CONTACT_ID_LAST_SPECIAL
-            && !Contact::addr_equals_contact(context, &self_addr, from_id).await
-            && !chat::is_contact_in_chat(context, chat_id, from_id).await
+        if chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?
         {
-            chat::add_to_chat_contacts_table(context, chat_id, from_id).await;
-        }
-        for &to_id in to_ids.iter() {
-            info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
-            if !Contact::addr_equals_contact(context, &self_addr, to_id).await
-                && !chat::is_contact_in_chat(context, chat_id, to_id).await
-            {
-                chat::add_to_chat_contacts_table(context, chat_id, to_id).await;
+            if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
+                // Members could have been removed while we were
+                // absent. We can't use existing member list and need to
+                // start from scratch.
+                context
+                    .sql
+                    .execute(
+                        "DELETE FROM chats_contacts WHERE chat_id=?;",
+                        paramsv![chat_id],
+                    )
+                    .await
+                    .ok();
+
+                chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
             }
+            if from_id > DC_CONTACT_ID_LAST_SPECIAL
+                && !Contact::addr_equals_contact(context, &self_addr, from_id).await
+                && !chat::is_contact_in_chat(context, chat_id, from_id).await
+            {
+                chat::add_to_chat_contacts_table(context, chat_id, from_id).await;
+            }
+            for &to_id in to_ids.iter() {
+                info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
+                if !Contact::addr_equals_contact(context, &self_addr, to_id).await
+                    && !chat::is_contact_in_chat(context, chat_id, to_id).await
+                {
+                    chat::add_to_chat_contacts_table(context, chat_id, to_id).await;
+                }
+            }
+            send_EVENT_CHAT_MODIFIED = true;
         }
-        send_EVENT_CHAT_MODIFIED = true;
     } else if let Some(contact_id) = removed_id {
-        chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await;
-        send_EVENT_CHAT_MODIFIED = true;
+        if chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?
+        {
+            chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await;
+            send_EVENT_CHAT_MODIFIED = true;
+        }
     }
 
     if send_EVENT_CHAT_MODIFIED {

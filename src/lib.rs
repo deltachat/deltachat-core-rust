@@ -83,6 +83,7 @@ mod simplify;
 mod smtp;
 pub mod stock_str;
 mod token;
+mod update_helper;
 #[macro_use]
 mod dehtml;
 mod color;
