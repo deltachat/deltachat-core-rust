@@ -3782,7 +3782,7 @@ pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -
         return 0;
     }
 
-    let accounts = &*accounts;
+    let accounts = &mut *accounts;
 
     block_on(accounts.add_account()).unwrap_or(0)
 }
@@ -3797,7 +3797,7 @@ pub unsafe extern "C" fn dc_accounts_remove_account(
         return 0;
     }
 
-    let accounts = &*accounts;
+    let accounts = &mut *accounts;
 
     block_on(accounts.remove_account(id))
         .map(|_| 1)
@@ -3814,7 +3814,7 @@ pub unsafe extern "C" fn dc_accounts_migrate_account(
         return 0;
     }
 
-    let accounts = &*accounts;
+    let accounts = &mut *accounts;
     let dbfile = to_string_lossy(dbfile);
 
     block_on(accounts.migrate_account(async_std::path::PathBuf::from(dbfile)))
