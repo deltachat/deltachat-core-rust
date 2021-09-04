@@ -16,11 +16,11 @@ use crate::context::Context;
 use crate::events::Event;
 
 /// Account manager, that can handle multiple accounts in a single place.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Accounts {
     dir: PathBuf,
     config: Config,
-    accounts: Arc<RwLock<BTreeMap<u32, Context>>>,
+    accounts: BTreeMap<u32, Context>,
     emitter: EventEmitter,
 
     /// Sender side of the fake event channel.
@@ -76,7 +76,7 @@ impl Accounts {
         Ok(Self {
             dir,
             config,
-            accounts: Arc::new(RwLock::new(accounts)),
+            accounts,
             emitter,
             fake_sender,
         })
@@ -84,13 +84,13 @@ impl Accounts {
 
     /// Get an account by its `id`:
     pub async fn get_account(&self, id: u32) -> Option<Context> {
-        self.accounts.read().await.get(&id).cloned()
+        self.accounts.get(&id).cloned()
     }
 
     /// Get the currently selected account.
     pub async fn get_selected_account(&self) -> Option<Context> {
         let id = self.config.get_selected_account().await;
-        self.accounts.read().await.get(&id).cloned()
+        self.accounts.get(&id).cloned()
     }
 
     /// Returns the currently selected account's id or None if no account is selected.
@@ -109,20 +109,20 @@ impl Accounts {
     }
 
     /// Add a new account.
-    pub async fn add_account(&self) -> Result<u32> {
+    pub async fn add_account(&mut self) -> Result<u32> {
         let os_name = self.config.os_name().await;
         let account_config = self.config.new_account(&self.dir).await?;
 
         let ctx = Context::new(os_name, account_config.dbfile().into(), account_config.id).await?;
         self.emitter.add_account(&ctx).await?;
-        self.accounts.write().await.insert(account_config.id, ctx);
+        self.accounts.insert(account_config.id, ctx);
 
         Ok(account_config.id)
     }
 
     /// Remove an account.
-    pub async fn remove_account(&self, id: u32) -> Result<()> {
-        let ctx = self.accounts.write().await.remove(&id);
+    pub async fn remove_account(&mut self, id: u32) -> Result<()> {
+        let ctx = self.accounts.remove(&id);
         ensure!(ctx.is_some(), "no account with this id: {}", id);
         let ctx = ctx.unwrap();
         ctx.stop_io().await;
@@ -139,7 +139,7 @@ impl Accounts {
     }
 
     /// Migrate an existing account into this structure.
-    pub async fn migrate_account(&self, dbfile: PathBuf) -> Result<u32> {
+    pub async fn migrate_account(&mut self, dbfile: PathBuf) -> Result<u32> {
         let blobdir = Context::derive_blobdir(&dbfile);
         let walfile = Context::derive_walfile(&dbfile);
 
@@ -195,7 +195,7 @@ impl Accounts {
                 )
                 .await?;
                 self.emitter.add_account(&ctx).await?;
-                self.accounts.write().await.insert(account_config.id, ctx);
+                self.accounts.insert(account_config.id, ctx);
                 Ok(account_config.id)
             }
             Err(err) => {
@@ -216,7 +216,7 @@ impl Accounts {
 
     /// Get a list of all account ids.
     pub async fn get_all(&self) -> Vec<u32> {
-        self.accounts.read().await.keys().copied().collect()
+        self.accounts.keys().copied().collect()
     }
 
     /// This is meant especially for iOS, because iOS needs to tell the system when its background work is done.
@@ -230,7 +230,7 @@ impl Accounts {
     /// - while dc_accounts_all_work_done() returns false:
     ///   -  Wait for DC_EVENT_CONNECTIVITY_CHANGED
     pub async fn all_work_done(&self) -> bool {
-        for account in self.accounts.read().await.values() {
+        for account in self.accounts.values() {
             if !account.all_work_done().await {
                 return false;
             }
@@ -239,29 +239,25 @@ impl Accounts {
     }
 
     pub async fn start_io(&self) {
-        let accounts = &*self.accounts.read().await;
-        for account in accounts.values() {
+        for account in self.accounts.values() {
             account.start_io().await;
         }
     }
 
     pub async fn stop_io(&self) {
-        let accounts = &*self.accounts.read().await;
-        for account in accounts.values() {
+        for account in self.accounts.values() {
             account.stop_io().await;
         }
     }
 
     pub async fn maybe_network(&self) {
-        let accounts = &*self.accounts.read().await;
-        for account in accounts.values() {
+        for account in self.accounts.values() {
             account.maybe_network().await;
         }
     }
 
     pub async fn maybe_network_lost(&self) {
-        let accounts = &*self.accounts.read().await;
-        for account in accounts.values() {
+        for account in self.accounts.values() {
             account.maybe_network_lost().await;
         }
     }
@@ -514,12 +510,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts1").into();
 
-        let accounts1 = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        let mut accounts1 = Accounts::new("my_os".into(), p.clone()).await.unwrap();
         accounts1.add_account().await.unwrap();
 
         let accounts2 = Accounts::open(p).await.unwrap();
 
-        assert_eq!(accounts1.accounts.read().await.len(), 1);
+        assert_eq!(accounts1.accounts.len(), 1);
         assert_eq!(accounts1.config.get_selected_account().await, 1);
 
         assert_eq!(accounts1.dir, accounts2.dir);
@@ -527,10 +523,7 @@ mod tests {
             &*accounts1.config.inner.read().await,
             &*accounts2.config.inner.read().await,
         );
-        assert_eq!(
-            accounts1.accounts.read().await.len(),
-            accounts2.accounts.read().await.len()
-        );
+        assert_eq!(accounts1.accounts.len(), accounts2.accounts.len());
     }
 
     #[async_std::test]
@@ -538,26 +531,26 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts").into();
 
-        let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
-        assert_eq!(accounts.accounts.read().await.len(), 0);
+        let mut accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        assert_eq!(accounts.accounts.len(), 0);
         assert_eq!(accounts.config.get_selected_account().await, 0);
 
         let id = accounts.add_account().await.unwrap();
         assert_eq!(id, 1);
-        assert_eq!(accounts.accounts.read().await.len(), 1);
+        assert_eq!(accounts.accounts.len(), 1);
         assert_eq!(accounts.config.get_selected_account().await, 1);
 
         let id = accounts.add_account().await.unwrap();
         assert_eq!(id, 2);
         assert_eq!(accounts.config.get_selected_account().await, id);
-        assert_eq!(accounts.accounts.read().await.len(), 2);
+        assert_eq!(accounts.accounts.len(), 2);
 
         accounts.select_account(1).await.unwrap();
         assert_eq!(accounts.config.get_selected_account().await, 1);
 
         accounts.remove_account(1).await.unwrap();
         assert_eq!(accounts.config.get_selected_account().await, 2);
-        assert_eq!(accounts.accounts.read().await.len(), 1);
+        assert_eq!(accounts.accounts.len(), 1);
     }
 
     #[async_std::test]
@@ -565,14 +558,14 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let p: PathBuf = dir.path().join("accounts").into();
 
-        let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+        let mut accounts = Accounts::new("my_os".into(), p.clone()).await?;
         assert!(accounts.get_selected_account().await.is_none());
         assert_eq!(accounts.config.get_selected_account().await, 0);
 
         let id = accounts.add_account().await?;
         assert!(accounts.get_selected_account().await.is_some());
         assert_eq!(id, 1);
-        assert_eq!(accounts.accounts.read().await.len(), 1);
+        assert_eq!(accounts.accounts.len(), 1);
         assert_eq!(accounts.config.get_selected_account().await, id);
 
         accounts.remove_account(id).await?;
@@ -586,8 +579,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts").into();
 
-        let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
-        assert_eq!(accounts.accounts.read().await.len(), 0);
+        let mut accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        assert_eq!(accounts.accounts.len(), 0);
         assert_eq!(accounts.config.get_selected_account().await, 0);
 
         let extern_dbfile: PathBuf = dir.path().join("other").into();
@@ -604,7 +597,7 @@ mod tests {
             .migrate_account(extern_dbfile.clone())
             .await
             .unwrap();
-        assert_eq!(accounts.accounts.read().await.len(), 1);
+        assert_eq!(accounts.accounts.len(), 1);
         assert_eq!(accounts.config.get_selected_account().await, 1);
 
         let ctx = accounts.get_selected_account().await.unwrap();
@@ -623,7 +616,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts").into();
 
-        let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        let mut accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
 
         for expected_id in 1..10 {
             let id = accounts.add_account().await.unwrap();
@@ -643,7 +636,7 @@ mod tests {
         let dummy_accounts = 10;
 
         let (id0, id1, id2) = {
-            let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+            let mut accounts = Accounts::new("my_os".into(), p.clone()).await?;
             accounts.add_account().await?;
             let ids = accounts.get_all().await;
             assert_eq!(ids.len(), 1);
@@ -726,7 +719,7 @@ mod tests {
         let accounts = Accounts::new("my_os".into(), p.clone()).await?;
 
         // Make sure there are no accounts.
-        assert_eq!(accounts.accounts.read().await.len(), 0);
+        assert_eq!(accounts.accounts.len(), 0);
 
         // Create event emitter.
         let mut event_emitter = accounts.get_event_emitter().await;
