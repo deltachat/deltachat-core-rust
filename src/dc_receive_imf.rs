@@ -212,6 +212,7 @@ pub(crate) async fn dc_receive_imf_inner(
         from_id,
         &mut hidden,
         seen || replace_partial_download,
+        is_partial_download,
         &mut needs_delete_job,
         &mut created_db_entries,
         &mut create_event_to_send,
@@ -408,6 +409,7 @@ async fn add_parts(
     from_id: u32,
     hidden: &mut bool,
     seen: bool,
+    is_partial_download: Option<u32>,
     needs_delete_job: &mut bool,
     created_db_entries: &mut Vec<(ChatId, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
@@ -907,8 +909,8 @@ async fn add_parts(
         ephemeral_timer = EphemeralTimer::Disabled;
     }
 
-    // if a chat is protected, check additional properties
-    if !chat_id.is_special() {
+    // if a chat is protected and the message is fully downloaded, check additional properties
+    if !chat_id.is_special() && is_partial_download.is_none() {
         let chat = Chat::load_from_db(context, chat_id).await?;
         let new_status = match mime_parser.is_system_message {
             SystemMessage::ChatProtectionEnabled => Some(ProtectionStatus::Protected),
@@ -917,10 +919,6 @@ async fn add_parts(
         };
 
         if chat.is_protected() || new_status.is_some() {
-            // TODO: on partial downloads, do not try to check verified properties,
-            // eg. the Chat-Verified header is in the encrypted part and we would always get warnings.
-            // however, this seems not to be a big deal as we even show "failed verifications" messages in-chat -
-            // nothing else is done for "not yet downloaded content".
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "verification problem: {}", err);
