@@ -1134,7 +1134,7 @@ INSERT INTO msgs
         // This way, `LastSubject` actually refers to the most recent message _shown_ in the chat.
         if chat
             .param
-            .set_timestamp(Param::SubjectTimestamp, sort_timestamp)?
+            .update_timestamp(Param::SubjectTimestamp, sort_timestamp)?
         {
             // write the last subject even if empty -
             // otherwise a reply may get an outdated subject.
@@ -1590,7 +1590,7 @@ async fn create_or_lookup_group(
         if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
             if chat
                 .param
-                .set_timestamp(Param::AvatarTimestamp, sent_timestamp)?
+                .update_timestamp(Param::AvatarTimestamp, sent_timestamp)?
             {
                 match avatar_action {
                     AvatarAction::Change(profile_image) => {

@@ -17,7 +17,7 @@ impl Context {
         new_timestamp: i64,
     ) -> Result<bool> {
         let mut contact = Contact::load_from_db(self, contact_id).await?;
-        if contact.param.set_timestamp(scope, new_timestamp)? {
+        if contact.param.update_timestamp(scope, new_timestamp)? {
             contact.update_param(self).await?;
             return Ok(true);
         }
@@ -35,7 +35,7 @@ impl ChatId {
         new_timestamp: i64,
     ) -> Result<bool> {
         let mut chat = Chat::load_from_db(context, *self).await?;
-        if chat.param.set_timestamp(scope, new_timestamp)? {
+        if chat.param.update_timestamp(scope, new_timestamp)? {
             chat.update_param(context).await?;
             return Ok(true);
         }
@@ -46,7 +46,7 @@ impl ChatId {
 impl Params {
     /// Updates a param's timestamp in memory, if reasonable.
     /// Returns true if the caller shall update the settings belonging to the scope.
-    pub(crate) fn set_timestamp(&mut self, scope: Param, new_timestamp: i64) -> Result<bool> {
+    pub(crate) fn update_timestamp(&mut self, scope: Param, new_timestamp: i64) -> Result<bool> {
         let old_timestamp = self.get_i64(scope).unwrap_or_default();
         if new_timestamp >= old_timestamp {
             self.set_i64(scope, new_timestamp);
@@ -64,22 +64,22 @@ mod tests {
     use crate::test_utils::TestContext;
 
     #[async_std::test]
-    async fn test_params_set_timestamp() -> Result<()> {
+    async fn test_params_update_timestamp() -> Result<()> {
         let mut params = Params::new();
         let ts = time();
 
-        assert!(params.set_timestamp(Param::LastSubject, ts)?);
-        assert!(params.set_timestamp(Param::LastSubject, ts)?); // same timestamp -> update
-        assert!(params.set_timestamp(Param::LastSubject, ts + 10)?);
-        assert!(!params.set_timestamp(Param::LastSubject, ts)?); // `ts` is now too old
-        assert!(!params.set_timestamp(Param::LastSubject, 0)?);
+        assert!(params.update_timestamp(Param::LastSubject, ts)?);
+        assert!(params.update_timestamp(Param::LastSubject, ts)?); // same timestamp -> update
+        assert!(params.update_timestamp(Param::LastSubject, ts + 10)?);
+        assert!(!params.update_timestamp(Param::LastSubject, ts)?); // `ts` is now too old
+        assert!(!params.update_timestamp(Param::LastSubject, 0)?);
         assert_eq!(params.get_i64(Param::LastSubject).unwrap(), ts + 10);
 
-        assert!(params.set_timestamp(Param::GroupNameTimestamp, 0)?); // stay unset -> update ...
-        assert!(params.set_timestamp(Param::GroupNameTimestamp, 0)?); // ... also on multiple calls
+        assert!(params.update_timestamp(Param::GroupNameTimestamp, 0)?); // stay unset -> update ...
+        assert!(params.update_timestamp(Param::GroupNameTimestamp, 0)?); // ... also on multiple calls
         assert_eq!(params.get_i64(Param::GroupNameTimestamp).unwrap(), 0);
 
-        assert!(!params.set_timestamp(Param::AvatarTimestamp, -1)?);
+        assert!(!params.update_timestamp(Param::AvatarTimestamp, -1)?);
         assert_eq!(params.get_i64(Param::AvatarTimestamp), None);
 
         Ok(())
