@@ -17,11 +17,13 @@ extern crate serde_json;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::fmt::Write;
+use std::ops::Deref;
 use std::ptr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
+use async_std::sync::RwLock;
 use async_std::task::{block_on, spawn};
 use num_traits::{FromPrimitive, ToPrimitive};
 
@@ -3688,8 +3690,29 @@ pub unsafe extern "C" fn dc_provider_unref(provider: *mut dc_provider_t) {
 
 // -- Accounts
 
+/// Reader-writer lock wrapper for accounts manager to guarantee thread safety when using
+/// `dc_accounts_t` in multiple threads at once.
+pub struct AccountsWrapper {
+    inner: RwLock<Accounts>,
+}
+
+impl Deref for AccountsWrapper {
+    type Target = RwLock<Accounts>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl AccountsWrapper {
+    fn new(accounts: Accounts) -> Self {
+        let inner = RwLock::new(accounts);
+        Self { inner }
+    }
+}
+
 /// Struct representing a list of deltachat accounts.
-pub type dc_accounts_t = Accounts;
+pub type dc_accounts_t = AccountsWrapper;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_accounts_new(
@@ -3712,7 +3735,7 @@ pub unsafe extern "C" fn dc_accounts_new(
     let accs = block_on(Accounts::new(os_name, as_path(dbfile).to_path_buf().into()));
 
     match accs {
-        Ok(accs) => Box::into_raw(Box::new(accs)),
+        Ok(accs) => Box::into_raw(Box::new(AccountsWrapper::new(accs))),
         Err(err) => {
             // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
             eprintln!("failed to create accounts: {:#}", err);
@@ -3744,7 +3767,7 @@ pub unsafe extern "C" fn dc_accounts_get_account(
     }
 
     let accounts = &*accounts;
-    block_on(accounts.get_account(id))
+    block_on(async move { accounts.read().await.get_account(id).await })
         .map(|ctx| Box::into_raw(Box::new(ctx)))
         .unwrap_or_else(std::ptr::null_mut)
 }
@@ -3759,7 +3782,7 @@ pub unsafe extern "C" fn dc_accounts_get_selected_account(
     }
 
     let accounts = &*accounts;
-    block_on(accounts.get_selected_account())
+    block_on(async move { accounts.read().await.get_selected_account().await })
         .map(|ctx| Box::into_raw(Box::new(ctx)))
         .unwrap_or_else(std::ptr::null_mut)
 }
@@ -3775,7 +3798,7 @@ pub unsafe extern "C" fn dc_accounts_select_account(
     }
 
     let accounts = &*accounts;
-    block_on(accounts.select_account(id))
+    block_on(async move { accounts.write().await.select_account(id).await })
         .map(|_| 1)
         .unwrap_or(0)
 }
@@ -3789,7 +3812,7 @@ pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -
 
     let accounts = &mut *accounts;
 
-    block_on(accounts.add_account()).unwrap_or(0)
+    block_on(async move { accounts.write().await.add_account().await }).unwrap_or(0)
 }
 
 #[no_mangle]
@@ -3804,7 +3827,7 @@ pub unsafe extern "C" fn dc_accounts_remove_account(
 
     let accounts = &mut *accounts;
 
-    block_on(accounts.remove_account(id))
+    block_on(async move { accounts.write().await.remove_account(id).await })
         .map(|_| 1)
         .unwrap_or_else(|_| 0)
 }
@@ -3822,9 +3845,15 @@ pub unsafe extern "C" fn dc_accounts_migrate_account(
     let accounts = &mut *accounts;
     let dbfile = to_string_lossy(dbfile);
 
-    block_on(accounts.migrate_account(async_std::path::PathBuf::from(dbfile)))
-        .map(|_| 1)
-        .unwrap_or_else(|_| 0)
+    block_on(async move {
+        accounts
+            .write()
+            .await
+            .migrate_account(async_std::path::PathBuf::from(dbfile))
+            .await
+    })
+    .map(|_| 1)
+    .unwrap_or_else(|_| 0)
 }
 
 #[no_mangle]
@@ -3835,7 +3864,7 @@ pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *m
     }
 
     let accounts = &*accounts;
-    let list = block_on(accounts.get_all());
+    let list = block_on(async move { accounts.read().await.get_all().await });
     let array: dc_array_t = list.into();
 
     Box::into_raw(Box::new(array))
@@ -3848,7 +3877,7 @@ pub unsafe extern "C" fn dc_accounts_all_work_done(accounts: *mut dc_accounts_t)
         return 0;
     }
     let accounts = &*accounts;
-    block_on(async move { accounts.all_work_done().await as libc::c_int })
+    block_on(async move { accounts.read().await.all_work_done().await as libc::c_int })
 }
 
 #[no_mangle]
@@ -3859,7 +3888,7 @@ pub unsafe extern "C" fn dc_accounts_start_io(accounts: *mut dc_accounts_t) {
     }
 
     let accounts = &*accounts;
-    block_on(accounts.start_io());
+    block_on(async move { accounts.read().await.start_io().await });
 }
 
 #[no_mangle]
@@ -3870,7 +3899,7 @@ pub unsafe extern "C" fn dc_accounts_stop_io(accounts: *mut dc_accounts_t) {
     }
 
     let accounts = &*accounts;
-    block_on(accounts.stop_io());
+    block_on(async move { accounts.read().await.stop_io().await });
 }
 
 #[no_mangle]
@@ -3881,7 +3910,7 @@ pub unsafe extern "C" fn dc_accounts_maybe_network(accounts: *mut dc_accounts_t)
     }
 
     let accounts = &*accounts;
-    block_on(accounts.maybe_network());
+    block_on(async move { accounts.read().await.maybe_network().await });
 }
 
 #[no_mangle]
@@ -3892,7 +3921,7 @@ pub unsafe extern "C" fn dc_accounts_maybe_network_lost(accounts: *mut dc_accoun
     }
 
     let accounts = &*accounts;
-    block_on(accounts.maybe_network_lost());
+    block_on(async move { accounts.write().await.maybe_network_lost().await });
 }
 
 pub type dc_accounts_event_emitter_t = deltachat::accounts::EventEmitter;
@@ -3907,7 +3936,7 @@ pub unsafe extern "C" fn dc_accounts_get_event_emitter(
     }
 
     let accounts = &*accounts;
-    let emitter = block_on(accounts.get_event_emitter());
+    let emitter = block_on(async move { accounts.read().await.get_event_emitter().await });
 
     Box::into_raw(Box::new(emitter))
 }
