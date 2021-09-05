@@ -1099,10 +1099,9 @@ impl Chat {
         if self.typ == Chattype::Group
             && !is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await
         {
-            emit_event!(
-                context,
-                EventType::ErrorSelfNotInGroup("Cannot send message; self not in group.".into())
-            );
+            context.emit_event(EventType::ErrorSelfNotInGroup(
+                "Cannot send message; self not in group.".into(),
+            ));
             bail!("Cannot set message; self not in group.");
         }
 
@@ -2273,12 +2272,9 @@ pub(crate) async fn add_contact_to_chat_ex(
 
     if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
         /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-        emit_event!(
-            context,
-            EventType::ErrorSelfNotInGroup(
-                "Cannot add contact to group; self not in group.".into()
-            )
-        );
+        context.emit_event(EventType::ErrorSelfNotInGroup(
+            "Cannot add contact to group; self not in group.".into(),
+        ));
         bail!("can not add contact because our account is not part of it");
     }
     if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
@@ -2485,12 +2481,9 @@ pub async fn remove_contact_from_chat(
     if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
         if chat.typ == Chattype::Group {
             if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
-                emit_event!(
-                    context,
-                    EventType::ErrorSelfNotInGroup(
-                        "Cannot remove contact from chat; self not in group.".into()
-                    )
-                );
+                context.emit_event(EventType::ErrorSelfNotInGroup(
+                    "Cannot remove contact from chat; self not in group.".into(),
+                ));
             } else {
                 if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
                     if chat.is_promoted() {
@@ -2582,10 +2575,9 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
         if chat.name == new_name {
             success = true;
         } else if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
-            emit_event!(
-                context,
-                EventType::ErrorSelfNotInGroup("Cannot set chat name; self not in group".into())
-            );
+            context.emit_event(EventType::ErrorSelfNotInGroup(
+                "Cannot set chat name; self not in group".into(),
+            ));
         } else {
             /* we should respect this - whatever we send to the group, it gets discarded anyway! */
             if context
@@ -2649,12 +2641,9 @@ pub async fn set_chat_profile_image(
     );
     /* we should respect this - whatever we send to the group, it gets discarded anyway! */
     if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
-        emit_event!(
-            context,
-            EventType::ErrorSelfNotInGroup(
-                "Cannot set chat profile image; self not in group.".into()
-            )
-        );
+        context.emit_event(EventType::ErrorSelfNotInGroup(
+            "Cannot set chat profile image; self not in group.".into(),
+        ));
         bail!("Failed to set profile image");
     }
     let mut msg = Message::new(Viewtype::Text);
@@ -2682,15 +2671,12 @@ pub async fn set_chat_profile_image(
     chat.update_param(context).await?;
     if chat.is_promoted() && !chat.is_mailing_list() {
         msg.id = send_msg(context, chat_id, &mut msg).await?;
-        emit_event!(
-            context,
-            EventType::MsgsChanged {
-                chat_id,
-                msg_id: msg.id
-            }
-        );
+        context.emit_event(EventType::MsgsChanged {
+            chat_id,
+            msg_id: msg.id,
+        });
     }
-    emit_event!(context, EventType::ChatModified(chat_id));
+    context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
 }
 
