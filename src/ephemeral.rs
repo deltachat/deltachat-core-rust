@@ -416,24 +416,18 @@ pub async fn schedule_ephemeral_task(context: &Context) {
             let context1 = context.clone();
             let ephemeral_task = task::spawn(async move {
                 async_std::task::sleep(duration).await;
-                emit_event!(
-                    context1,
-                    EventType::MsgsChanged {
-                        chat_id: ChatId::new(0),
-                        msg_id: MsgId::new(0)
-                    }
-                );
+                context1.emit_event(EventType::MsgsChanged {
+                    chat_id: ChatId::new(0),
+                    msg_id: MsgId::new(0),
+                });
             });
             *context.ephemeral_task.write().await = Some(ephemeral_task);
         } else {
             // Emit event immediately
-            emit_event!(
-                context,
-                EventType::MsgsChanged {
-                    chat_id: ChatId::new(0),
-                    msg_id: MsgId::new(0)
-                }
-            );
+            context.emit_event(EventType::MsgsChanged {
+                chat_id: ChatId::new(0),
+                msg_id: MsgId::new(0),
+            });
         }
     }
 }

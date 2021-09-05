@@ -759,7 +759,7 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
         let progress = 1000 * written_files / count;
         if progress != last_progress && progress > 10 && progress < 1000 {
             // We already emitted ImexProgress(10) above
-            emit_event!(context, EventType::ImexProgress(progress));
+            context.emit_event(EventType::ImexProgress(progress));
             last_progress = progress;
         }
     }

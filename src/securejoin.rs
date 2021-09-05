@@ -638,7 +638,7 @@ pub(crate) async fn handle_securejoin_handshake(
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited).await?;
             info!(context, "Auth verified.",);
             secure_connection_established(context, contact_chat_id).await?;
-            emit_event!(context, EventType::ContactsChanged(Some(contact_id)));
+            context.emit_event(EventType::ContactsChanged(Some(contact_id)));
             inviter_progress!(context, contact_id, 600);
             if join_vg {
                 // the vg-member-added message is special:
@@ -861,7 +861,7 @@ async fn secure_connection_established(
     };
     let msg = stock_str::contact_verified(context, addr).await;
     chat::add_info_msg(context, contact_chat_id, msg, time()).await;
-    emit_event!(context, EventType::ChatModified(contact_chat_id));
+    context.emit_event(EventType::ChatModified(contact_chat_id));
     info!(context, "StockMessage::ContactVerified posted to 1:1 chat");
 
     Ok(())

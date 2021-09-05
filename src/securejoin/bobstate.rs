@@ -358,7 +358,7 @@ impl BobState {
         mark_peer_as_verified(context, self.invite.fingerprint()).await?;
         Contact::scaleup_origin_by_id(context, self.invite.contact_id(), Origin::SecurejoinJoined)
             .await?;
-        emit_event!(context, EventType::ContactsChanged(None));
+        context.emit_event(EventType::ContactsChanged(None));
 
         if let QrInvite::Group { .. } = self.invite {
             let member_added = mime_message
