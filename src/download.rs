@@ -2,7 +2,6 @@
 
 use anyhow::{anyhow, Result};
 use deltachat_derive::{FromSql, ToSql};
-use num_traits::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
@@ -10,7 +9,7 @@ use crate::context::Context;
 use crate::imap::{Imap, ImapActionResult};
 use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId};
-use crate::param::{Param, Params};
+use crate::param::Params;
 use crate::{job_try, EventType};
 use std::cmp::max;
 
@@ -88,12 +87,14 @@ impl MsgId {
         context: &Context,
         download_state: DownloadState,
     ) -> Result<()> {
-        let mut msg = Message::load_from_db(context, self).await?;
-        msg.param.set_int(
-            Param::DownloadState,
-            download_state.to_i32().unwrap_or_default(),
-        );
-        msg.update_param(context).await;
+        let msg = Message::load_from_db(context, self).await?;
+        context
+            .sql
+            .execute(
+                "UPDATE msgs SET download_state=? WHERE id=?;",
+                paramsv![download_state, self],
+            )
+            .await?;
         context.emit_event(EventType::MsgsChanged {
             chat_id: msg.chat_id,
             msg_id: self,
@@ -105,8 +106,7 @@ impl MsgId {
 impl Message {
     /// Gets the download state of the message.
     pub fn get_download_state(&self) -> DownloadState {
-        DownloadState::from_i32(self.param.get_int(Param::DownloadState).unwrap_or_default())
-            .unwrap_or_default()
+        self.download_state
     }
 }
 
@@ -177,7 +177,10 @@ impl Imap {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::send_msg;
+    use crate::constants::Viewtype;
     use crate::test_utils::TestContext;
+    use num_traits::FromPrimitive;
 
     #[test]
     fn test_downloadstate_values() {
@@ -213,6 +216,31 @@ mod tests {
         for val in &["0", "-1", "-100", "", "foo"] {
             t.set_config(Config::DownloadLimit, Some(val)).await?;
             assert_eq!(t.get_download_limit().await?, 0);
+        }
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_update_download_state() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat = t.create_chat_with_contact("Bob", "bob@example.org").await;
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("Hi Bob".to_owned()));
+        let msg_id = send_msg(&t, chat.id, &mut msg).await?;
+        let msg = Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.get_download_state(), DownloadState::Done);
+
+        for s in &[
+            DownloadState::Available,
+            DownloadState::InProgress,
+            DownloadState::Failure,
+            DownloadState::Done,
+        ] {
+            msg_id.update_download_state(&t, *s).await?;
+            let msg = Message::load_from_db(&t, msg_id).await?;
+            assert_eq!(msg.get_download_state(), *s);
         }
 
         Ok(())

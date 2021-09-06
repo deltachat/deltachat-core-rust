@@ -21,6 +21,7 @@ use crate::dc_tools::{
     dc_create_smeared_timestamp, dc_get_filebytes, dc_get_filemeta, dc_gm2local_offset,
     dc_read_file, dc_timestamp_to_str, dc_truncate, time,
 };
+use crate::download::DownloadState;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::job::{self, Action};
@@ -296,6 +297,7 @@ pub struct Message {
     pub(crate) chat_id: ChatId,
     pub(crate) viewtype: Viewtype,
     pub(crate) state: MessageState,
+    pub(crate) download_state: DownloadState,
     pub(crate) hidden: bool,
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
@@ -350,6 +352,7 @@ impl Message {
                     "    m.ephemeral_timestamp AS ephemeral_timestamp,",
                     "    m.type AS type,",
                     "    m.state AS state,",
+                    "    m.download_state AS download_state,",
                     "    m.error AS error,",
                     "    m.msgrmsg AS msgrmsg,",
                     "    m.mime_modified AS mime_modified,",
@@ -401,6 +404,7 @@ impl Message {
                         ephemeral_timestamp: row.get("ephemeral_timestamp")?,
                         viewtype: row.get("type")?,
                         state: row.get("state")?,
+                        download_state: row.get("download_state")?,
                         error: Some(row.get::<_, String>("error")?)
                             .filter(|error| !error.is_empty()),
                         is_dc_message: row.get("msgrmsg")?,

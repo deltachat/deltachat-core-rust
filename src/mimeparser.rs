@@ -8,7 +8,6 @@ use anyhow::{bail, Result};
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
-use num_traits::ToPrimitive;
 use once_cell::sync::Lazy;
 
 use crate::aheader::Aheader;
@@ -18,7 +17,6 @@ use crate::contact::addr_normalize;
 use crate::context::Context;
 use crate::dc_tools::{dc_get_filemeta, dc_truncate};
 use crate::dehtml::dehtml;
-use crate::download::DownloadState;
 use crate::e2ee;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
@@ -291,11 +289,6 @@ impl MimeMessage {
                 parser.parse_mime_recursive(context, &mail, false).await?;
             }
             Some(org_bytes) => {
-                let mut params = Params::new();
-                params.set_int(
-                    Param::DownloadState,
-                    DownloadState::Available.to_i32().unwrap_or_default(),
-                );
                 parser.parts.push(Part {
                     typ: Viewtype::Text,
                     msg: format!(
@@ -304,7 +297,6 @@ impl MimeMessage {
                             .file_size(file_size_opts::BINARY)
                             .unwrap_or_default()
                     ),
-                    param: params,
                     ..Default::default()
                 });
             }
