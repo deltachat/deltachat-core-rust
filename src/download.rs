@@ -87,7 +87,7 @@ impl MsgId {
         Ok(())
     }
 
-    async fn update_download_state(
+    pub(crate) async fn update_download_state(
         self,
         context: &Context,
         download_state: DownloadState,

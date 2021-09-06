@@ -511,6 +511,8 @@ mod tests {
     use async_std::task::sleep;
 
     use super::*;
+    use crate::config::Config;
+    use crate::download::DownloadState;
     use crate::test_utils::TestContext;
     use crate::{
         chat::{self, Chat, ChatItem},
@@ -781,5 +783,59 @@ mod tests {
                 .unwrap();
             assert!(rawtxt.is_none_or_empty(), "{:?}", rawtxt);
         }
+    }
+
+    #[async_std::test]
+    async fn test_load_imap_deletion_msgid() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        const HOUR: i64 = 60 * 60;
+        let now = time();
+        for (id, timestamp, ephemeral_timestamp) in &[
+            (900, now - 2 * HOUR, 0),
+            (1000, now - 23 * HOUR - MIN_DELETE_SERVER_AFTER, 0),
+            (1010, now - 23 * HOUR, 0),
+            (1020, now - 21 * HOUR, 0),
+            (1030, now - 19 * HOUR, 0),
+            (2000, now - 18 * HOUR, now - HOUR),
+            (2020, now - 17 * HOUR, now + HOUR),
+        ] {
+            t.sql
+                .execute(
+                    "INSERT INTO msgs (id, server_uid, timestamp, ephemeral_timestamp) VALUES (?,?,?,?);",
+                    paramsv![id, id, timestamp, ephemeral_timestamp],
+                )
+                .await?;
+        }
+
+        assert_eq!(load_imap_deletion_msgid(&t).await?, Some(MsgId::new(2000)));
+
+        MsgId::new(2000).delete_from_db(&t).await?;
+        assert_eq!(load_imap_deletion_msgid(&t).await?, None);
+
+        t.set_config(Config::DeleteServerAfter, Some(&*(25 * HOUR).to_string()))
+            .await?;
+        assert_eq!(load_imap_deletion_msgid(&t).await?, Some(MsgId::new(1000)));
+
+        MsgId::new(1000)
+            .update_download_state(&t, DownloadState::Available)
+            .await?;
+        assert_eq!(load_imap_deletion_msgid(&t).await?, Some(MsgId::new(1000))); // delete downloadable anyway
+
+        MsgId::new(1000).delete_from_db(&t).await?;
+        assert_eq!(load_imap_deletion_msgid(&t).await?, None);
+
+        t.set_config(Config::DeleteServerAfter, Some(&*(22 * HOUR).to_string()))
+            .await?;
+        assert_eq!(load_imap_deletion_msgid(&t).await?, Some(MsgId::new(1010)));
+
+        MsgId::new(1010)
+            .update_download_state(&t, DownloadState::Available)
+            .await?;
+        assert_eq!(load_imap_deletion_msgid(&t).await?, None); // keep downloadable for now
+
+        MsgId::new(1010).delete_from_db(&t).await?;
+        assert_eq!(load_imap_deletion_msgid(&t).await?, None);
+
+        Ok(())
     }
 }
