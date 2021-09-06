@@ -15,7 +15,7 @@ use crate::blob::BlobObject;
 use crate::constants::{Viewtype, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS};
 use crate::contact::addr_normalize;
 use crate::context::Context;
-use crate::dc_tools::{dc_get_filemeta, dc_truncate};
+use crate::dc_tools::{dc_get_filemeta, dc_timestamp_to_str, dc_truncate, time};
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::events::EventType;
@@ -289,14 +289,19 @@ impl MimeMessage {
                 parser.parse_mime_recursive(context, &mail, false).await?;
             }
             Some(org_bytes) => {
+                let mut text = format!(
+                    "[{} message]",
+                    org_bytes
+                        .file_size(file_size_opts::BINARY)
+                        .unwrap_or_default()
+                );
+                if let Some(delete_server_after) = context.get_config_delete_server_after().await? {
+                    let until = dc_timestamp_to_str(time() + delete_server_after);
+                    text += &*format!(" [Download maximum available until {}]", until);
+                };
                 parser.parts.push(Part {
                     typ: Viewtype::Text,
-                    msg: format!(
-                        "[{} message]",
-                        org_bytes
-                            .file_size(file_size_opts::BINARY)
-                            .unwrap_or_default()
-                    ),
+                    msg: text,
                     ..Default::default()
                 });
             }
