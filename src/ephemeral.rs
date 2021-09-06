@@ -71,11 +71,13 @@ use crate::constants::{
 };
 use crate::context::Context;
 use crate::dc_tools::time;
+use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
 use crate::job;
 use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::stock_str;
+use std::cmp::max;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum Timer {
@@ -439,23 +441,32 @@ pub async fn schedule_ephemeral_task(context: &Context) {
 pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> anyhow::Result<Option<MsgId>> {
     let now = time();
 
-    let threshold_timestamp = match context.get_config_delete_server_after().await? {
-        None => 0,
-        Some(delete_server_after) => now - delete_server_after,
-    };
+    let (threshold_timestamp, threshold_timestamp_extended) =
+        match context.get_config_delete_server_after().await? {
+            None => (0, 0),
+            Some(delete_server_after) => (
+                now - delete_server_after,
+                now - max(delete_server_after, MIN_DELETE_SERVER_AFTER),
+            ),
+        };
 
     context
         .sql
         .query_row_optional(
             "SELECT id FROM msgs \
          WHERE ( \
-         timestamp < ? \
+         ((download_state = 0 AND timestamp < ?) OR (download_state != 0 AND timestamp < ?)) \
          OR (ephemeral_timestamp != 0 AND ephemeral_timestamp <= ?) \
          ) \
          AND server_uid != 0 \
          AND NOT id IN (SELECT foreign_id FROM jobs WHERE action = ?)
          LIMIT 1",
-            paramsv![threshold_timestamp, now, job::Action::DeleteMsgOnImap],
+            paramsv![
+                threshold_timestamp,
+                threshold_timestamp_extended,
+                now,
+                job::Action::DeleteMsgOnImap
+            ],
             |row| {
                 let msg_id: MsgId = row.get(0)?;
                 Ok(msg_id)

@@ -22,6 +22,11 @@ use std::cmp::max;
 /// they're catched by `MIN_DOWNLOAD_LIMIT`.
 const MIN_DOWNLOAD_LIMIT: u32 = 32768;
 
+/// If `delete_server_after` is set to small timeouts (eg. "at once"),
+/// the user might have no chance to actually download a message.
+/// `MIN_DELETE_SERVER_AFTER` increases the timeout in this case.
+pub const MIN_DELETE_SERVER_AFTER: i64 = 48 * 60 * 60;
+
 #[derive(
     Debug,
     Display,
