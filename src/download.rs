@@ -184,6 +184,7 @@ mod tests {
     use super::*;
     use crate::chat::send_msg;
     use crate::constants::Viewtype;
+    use crate::dc_receive_imf::dc_receive_imf_inner;
     use crate::test_utils::TestContext;
     use num_traits::FromPrimitive;
 
@@ -247,6 +248,52 @@ mod tests {
             let msg = Message::load_from_db(&t, msg_id).await?;
             assert_eq!(msg.get_download_state(), *s);
         }
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_partial_receive_imf() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        let header =
+            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+             From: bob@example.com\n\
+             To: alice@example.org\n\
+             Subject: foo\n\
+             Message-ID: <Mr.12345678901@example.com>\n\
+             Chat-Version: 1.0\n\
+             Date: Sun, 22 Mar 2020 22:37:57 +0000\
+             Content-Type: text/plain";
+
+        dc_receive_imf_inner(
+            &t,
+            &header.as_bytes(),
+            "INBOX",
+            1,
+            false,
+            Some(100000),
+            false,
+        )
+        .await?;
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.get_download_state(), DownloadState::Available);
+        assert_eq!(msg.get_subject(), "foo");
+
+        dc_receive_imf_inner(
+            &t,
+            format!("{}\n\n100k text...", header).as_bytes(),
+            "INBOX",
+            1,
+            false,
+            None,
+            false,
+        )
+        .await?;
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.get_download_state(), DownloadState::Done);
+        assert_eq!(msg.get_subject(), "foo");
+        assert_eq!(msg.get_text(), Some("100k text...".to_string()));
 
         Ok(())
     }
