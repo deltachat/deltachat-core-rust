@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(deltachat LANGUAGES C)
+include(GNUInstallDirs)
 
 find_program(CARGO cargo)
 
@@ -35,7 +36,6 @@ add_custom_target(
 	"target/release/pkgconfig/deltachat.pc"
 )
 
-include(GNUInstallDirs)
 install(FILES "deltachat-ffi/deltachat.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(FILES "target/release/libdeltachat.a" DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES "target/release/libdeltachat.so" DESTINATION ${CMAKE_INSTALL_LIBDIR})
