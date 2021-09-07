@@ -165,6 +165,11 @@ impl Context {
             return;
         }
 
+        if let Ok(false) = self.is_configured().await {
+            warn!(self, "can not start io on a context that is not configured");
+            return;
+        }
+
         {
             let l = &mut *self.inner.scheduler.write().await;
             if let Err(err) = l.start(self.clone()).await {
