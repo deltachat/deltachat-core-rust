@@ -17,6 +17,7 @@ use crate::contact::addr_normalize;
 use crate::context::Context;
 use crate::dc_tools::{dc_get_filemeta, dc_timestamp_to_str, dc_truncate, time};
 use crate::dehtml::dehtml;
+use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::e2ee;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
@@ -29,6 +30,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::simplify;
 use crate::stock_str;
 use humansize::{file_size_opts, FileSize};
+use std::cmp::max;
 
 /// A parsed MIME message.
 ///
@@ -300,7 +302,9 @@ impl MimeMessage {
                         .unwrap_or_default()
                 );
                 if let Some(delete_server_after) = context.get_config_delete_server_after().await? {
-                    let until = dc_timestamp_to_str(time() + delete_server_after);
+                    let until = dc_timestamp_to_str(
+                        time() + max(delete_server_after, MIN_DELETE_SERVER_AFTER),
+                    );
                     text += &*format!(" [Download maximum available until {}]", until);
                 };
                 parser.parts.push(Part {
