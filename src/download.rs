@@ -5,12 +5,15 @@ use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
+use crate::constants::Viewtype;
 use crate::context::Context;
+use crate::dc_tools::time;
 use crate::imap::{Imap, ImapActionResult};
 use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId};
+use crate::mimeparser::{MimeMessage, Part};
 use crate::param::Params;
-use crate::{job_try, EventType};
+use crate::{job_try, stock_str, EventType};
 use std::cmp::max;
 
 /// Download limits should not be used below `MIN_DOWNLOAD_LIMIT`.
@@ -177,6 +180,37 @@ impl Imap {
         }
 
         ImapActionResult::Success
+    }
+}
+
+impl MimeMessage {
+    pub(crate) async fn create_stub_from_partial_download(
+        &mut self,
+        context: &Context,
+        org_bytes: u32,
+    ) -> Result<()> {
+        let mut text = format!(
+            "[{}]",
+            stock_str::partial_download_msg_body(context, org_bytes).await
+        );
+        if let Some(delete_server_after) = context.get_config_delete_server_after().await? {
+            let until = stock_str::download_availability(
+                context,
+                time() + max(delete_server_after, MIN_DELETE_SERVER_AFTER),
+            )
+            .await;
+            text += format!(" [{}]", until).as_str();
+        };
+
+        info!(context, "Partial download: {}", text);
+
+        self.parts.push(Part {
+            typ: Viewtype::Text,
+            msg: text,
+            ..Default::default()
+        });
+
+        Ok(())
     }
 }
 

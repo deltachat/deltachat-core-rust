@@ -15,9 +15,8 @@ use crate::blob::BlobObject;
 use crate::constants::{Viewtype, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS};
 use crate::contact::addr_normalize;
 use crate::context::Context;
-use crate::dc_tools::{dc_get_filemeta, dc_timestamp_to_str, dc_truncate, time};
+use crate::dc_tools::{dc_get_filemeta, dc_truncate};
 use crate::dehtml::dehtml;
-use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::e2ee;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
@@ -29,8 +28,6 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::simplify;
 use crate::stock_str;
-use humansize::{file_size_opts, FileSize};
-use std::cmp::max;
 
 /// A parsed MIME message.
 ///
@@ -291,27 +288,13 @@ impl MimeMessage {
         };
 
         match partial {
+            Some(org_bytes) => {
+                parser
+                    .create_stub_from_partial_download(context, org_bytes)
+                    .await?;
+            }
             None => {
                 parser.parse_mime_recursive(context, &mail, false).await?;
-            }
-            Some(org_bytes) => {
-                let mut text = format!(
-                    "[{} message]",
-                    org_bytes
-                        .file_size(file_size_opts::BINARY)
-                        .unwrap_or_default()
-                );
-                if let Some(delete_server_after) = context.get_config_delete_server_after().await? {
-                    let until = dc_timestamp_to_str(
-                        time() + max(delete_server_after, MIN_DELETE_SERVER_AFTER),
-                    );
-                    text += &*format!(" [Download maximum available until {}]", until);
-                };
-                parser.parts.push(Part {
-                    typ: Viewtype::Text,
-                    msg: text,
-                    ..Default::default()
-                });
             }
         };
 
@@ -1483,9 +1466,9 @@ pub struct Part {
     pub msg_raw: Option<String>,
     pub bytes: usize,
     pub param: Params,
-    org_filename: Option<String>,
+    pub(crate) org_filename: Option<String>,
     pub error: Option<String>,
-    dehtml_failed: bool,
+    pub(crate) dehtml_failed: bool,
 
     /// the part is a child or a descendant of multipart/related.
     /// typically, these are images that are referenced from text/html part
@@ -1493,7 +1476,7 @@ pub struct Part {
     ///
     /// note that multipart/related may contain further multipart nestings
     /// and all of them needs to be marked with `is_related`.
-    is_related: bool,
+    pub(crate) is_related: bool,
 }
 
 /// return mimetype and viewtype for a parsed mail

@@ -83,11 +83,7 @@ pub(crate) async fn dc_receive_imf_inner(
 ) -> Result<()> {
     info!(
         context,
-        "Receiving message {}/{}, seen={}, partial={:?}...",
-        server_folder,
-        server_uid,
-        seen,
-        is_partial_download
+        "Receiving message {}/{}, seen={}...", server_folder, server_uid, seen
     );
 
     if std::env::var(crate::DCC_MIME_DEBUG).unwrap_or_default() == "2" {
