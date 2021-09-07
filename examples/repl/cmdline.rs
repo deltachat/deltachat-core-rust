@@ -190,7 +190,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         _ => "",
     };
 
-    let downloadstate = match msg.get_download_state() {
+    let downloadstate = match msg.download_state() {
         DownloadState::Done => "",
         DownloadState::Available => " [⬇ Download available]",
         DownloadState::InProgress => " [⬇ Download in progress...]️",

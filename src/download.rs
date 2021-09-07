@@ -57,8 +57,8 @@ impl Default for DownloadState {
 }
 
 impl Context {
-    // Gets validated download limit or `None` for "no limit".
-    pub(crate) async fn get_download_limit(&self) -> Result<Option<u32>> {
+    // Returns validated download limit or `None` for "no limit".
+    pub(crate) async fn download_limit(&self) -> Result<Option<u32>> {
         let download_limit = self.get_config_int(Config::DownloadLimit).await?;
         if download_limit <= 0 {
             Ok(None)
@@ -72,7 +72,7 @@ impl MsgId {
     /// Schedules full message download for partially downloaded message.
     pub async fn download_full(self, context: &Context) -> Result<()> {
         let msg = Message::load_from_db(context, self).await?;
-        match msg.get_download_state() {
+        match msg.download_state() {
             DownloadState::Done => return Err(anyhow!("Nothing to download.")),
             DownloadState::InProgress => return Err(anyhow!("Download already in progress.")),
             DownloadState::Available | DownloadState::Failure => {
@@ -110,8 +110,8 @@ impl MsgId {
 }
 
 impl Message {
-    /// Gets the download state of the message.
-    pub fn get_download_state(&self) -> DownloadState {
+    /// Returns the download state of the message.
+    pub fn download_state(&self) -> DownloadState {
         self.download_state
     }
 }
@@ -209,20 +209,20 @@ mod tests {
     async fn test_download_limit() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        assert_eq!(t.get_download_limit().await?, None);
+        assert_eq!(t.download_limit().await?, None);
 
         t.set_config(Config::DownloadLimit, Some("200000")).await?;
-        assert_eq!(t.get_download_limit().await?, Some(200000));
+        assert_eq!(t.download_limit().await?, Some(200000));
 
         t.set_config(Config::DownloadLimit, Some("20000")).await?;
-        assert_eq!(t.get_download_limit().await?, Some(MIN_DOWNLOAD_LIMIT));
+        assert_eq!(t.download_limit().await?, Some(MIN_DOWNLOAD_LIMIT));
 
         t.set_config(Config::DownloadLimit, None).await?;
-        assert_eq!(t.get_download_limit().await?, None);
+        assert_eq!(t.download_limit().await?, None);
 
         for val in &["0", "-1", "-100", "", "foo"] {
             t.set_config(Config::DownloadLimit, Some(val)).await?;
-            assert_eq!(t.get_download_limit().await?, None);
+            assert_eq!(t.download_limit().await?, None);
         }
 
         Ok(())
@@ -237,7 +237,7 @@ mod tests {
         msg.set_text(Some("Hi Bob".to_owned()));
         let msg_id = send_msg(&t, chat.id, &mut msg).await?;
         let msg = Message::load_from_db(&t, msg_id).await?;
-        assert_eq!(msg.get_download_state(), DownloadState::Done);
+        assert_eq!(msg.download_state(), DownloadState::Done);
 
         for s in &[
             DownloadState::Available,
@@ -247,7 +247,7 @@ mod tests {
         ] {
             msg_id.update_download_state(&t, *s).await?;
             let msg = Message::load_from_db(&t, msg_id).await?;
-            assert_eq!(msg.get_download_state(), *s);
+            assert_eq!(msg.download_state(), *s);
         }
 
         Ok(())
@@ -278,7 +278,7 @@ mod tests {
         )
         .await?;
         let msg = t.get_last_msg().await;
-        assert_eq!(msg.get_download_state(), DownloadState::Available);
+        assert_eq!(msg.download_state(), DownloadState::Available);
         assert_eq!(msg.get_subject(), "foo");
 
         dc_receive_imf_inner(
@@ -292,7 +292,7 @@ mod tests {
         )
         .await?;
         let msg = t.get_last_msg().await;
-        assert_eq!(msg.get_download_state(), DownloadState::Done);
+        assert_eq!(msg.download_state(), DownloadState::Done);
         assert_eq!(msg.get_subject(), "foo");
         assert_eq!(msg.get_text(), Some("100k text...".to_string()));
 

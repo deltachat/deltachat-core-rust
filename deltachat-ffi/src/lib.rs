@@ -2814,7 +2814,7 @@ pub unsafe extern "C" fn dc_msg_get_download_state(msg: *mut dc_msg_t) -> libc::
         return 0;
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_download_state() as libc::c_int
+    ffi_msg.message.download_state() as libc::c_int
 }
 
 #[no_mangle]

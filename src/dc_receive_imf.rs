@@ -135,7 +135,7 @@ pub(crate) async fn dc_receive_imf_inner(
         message::rfc724_mid_exists(context, &rfc724_mid).await?
     {
         let msg = Message::load_from_db(context, old_msg_id).await?;
-        if msg.get_download_state() != DownloadState::Done && is_partial_download.is_none() {
+        if msg.download_state() != DownloadState::Done && is_partial_download.is_none() {
             // the mesage was partially downloaded before and is fully downloaded now.
             info!(
                 context,

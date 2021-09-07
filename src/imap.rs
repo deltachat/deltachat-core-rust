@@ -655,7 +655,7 @@ impl Imap {
     ) -> Result<bool> {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
             .unwrap_or_default();
-        let download_limit = context.get_download_limit().await?;
+        let download_limit = context.download_limit().await?;
 
         let new_emails = self
             .select_with_uidvalidity(context, folder.as_ref())
