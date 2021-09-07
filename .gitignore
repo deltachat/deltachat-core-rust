@@ -28,3 +28,4 @@ deltachat-ffi/xml
 .rsynclist
 
 coverage/
+.DS_Store
