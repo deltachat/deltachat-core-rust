@@ -705,10 +705,15 @@ impl Imap {
             )
             .await
             {
-                if download_limit > 0 && msg.size.unwrap_or_default() > download_limit {
-                    uids_fetch_partially.push(current_uid);
-                } else {
-                    uids_fetch_fully.push(current_uid);
+                match download_limit {
+                    Some(download_limit) => {
+                        if msg.size.unwrap_or_default() > download_limit {
+                            uids_fetch_partially.push(current_uid);
+                        } else {
+                            uids_fetch_fully.push(current_uid)
+                        }
+                    }
+                    None => uids_fetch_fully.push(current_uid),
                 }
             } else if read_errors == 0 {
                 // If there were errors (`read_errors != 0`), stop updating largest_uid_skipped so that uid_next will

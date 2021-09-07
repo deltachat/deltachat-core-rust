@@ -57,13 +57,13 @@ impl Default for DownloadState {
 }
 
 impl Context {
-    // Gets validated download limit or 0 for "no limit".
-    pub(crate) async fn get_download_limit(&self) -> Result<u32> {
+    // Gets validated download limit or `None` for "no limit".
+    pub(crate) async fn get_download_limit(&self) -> Result<Option<u32>> {
         let download_limit = self.get_config_int(Config::DownloadLimit).await?;
         if download_limit <= 0 {
-            Ok(0)
+            Ok(None)
         } else {
-            Ok(max(MIN_DOWNLOAD_LIMIT, download_limit as u32))
+            Ok(Some(max(MIN_DOWNLOAD_LIMIT, download_limit as u32)))
         }
     }
 }
@@ -209,20 +209,20 @@ mod tests {
     async fn test_download_limit() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        assert_eq!(t.get_download_limit().await?, 0);
+        assert_eq!(t.get_download_limit().await?, None);
 
         t.set_config(Config::DownloadLimit, Some("200000")).await?;
-        assert_eq!(t.get_download_limit().await?, 200000);
+        assert_eq!(t.get_download_limit().await?, Some(200000));
 
         t.set_config(Config::DownloadLimit, Some("20000")).await?;
-        assert_eq!(t.get_download_limit().await?, MIN_DOWNLOAD_LIMIT);
+        assert_eq!(t.get_download_limit().await?, Some(MIN_DOWNLOAD_LIMIT));
 
         t.set_config(Config::DownloadLimit, None).await?;
-        assert_eq!(t.get_download_limit().await?, 0);
+        assert_eq!(t.get_download_limit().await?, None);
 
         for val in &["0", "-1", "-100", "", "foo"] {
             t.set_config(Config::DownloadLimit, Some(val)).await?;
-            assert_eq!(t.get_download_limit().await?, 0);
+            assert_eq!(t.get_download_limit().await?, None);
         }
 
         Ok(())
