@@ -140,6 +140,10 @@ impl MimeMessage {
         MimeMessage::from_bytes_with_partial(context, body, None).await
     }
 
+    /// Parse a mime message.
+    ///
+    /// If `partial` is set, it contains the full message size in bytes
+    /// and `body` contains the header only.
     pub async fn from_bytes_with_partial(
         context: &Context,
         body: &[u8],

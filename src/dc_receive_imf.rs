@@ -130,7 +130,7 @@ pub(crate) async fn dc_receive_imf_inner(
     );
 
     // check, if the mail is already in our database.
-    // make sure, this check is done eg. before securejoin-processing)
+    // make sure, this check is done eg. before securejoin-processing.
     let replace_partial_download = if let Some((old_server_folder, old_server_uid, old_msg_id)) =
         message::rfc724_mid_exists(context, &rfc724_mid).await?
     {

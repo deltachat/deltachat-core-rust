@@ -1606,9 +1606,9 @@ char*           dc_get_msg_html              (dc_context_t* context, uint32_t ms
   * that is shown by the UI in case dc_msg_get_download_state()
   * returns @ref DC_DOWNLOAD_AVAILABLE or @ref DC_DOWNLOAD_FAILURE.
   *
-  * One success, the type of the message may change.
+  * On success, the @ref DC_MSG "view type of the message" may change.
   * That may happen eg. in cases where the message was encrypted
-  * and the type could not be determinate without fully downloading.
+  * and the type could not be determined without fully downloading.
   * Downloaded content can be accessed as usual after download,
   * eg. using dc_msg_get_file().
   * If may also happen that additional messages appear by downloading,
@@ -1619,7 +1619,7 @@ char*           dc_get_msg_html              (dc_context_t* context, uint32_t ms
   *
   * @memberof dc_context_t
   * @param context The context object.
-  * @param msg_id Message-ID to download the content for.
+  * @param msg_id Message ID to download the content for.
   */
 void dc_download_full_msg (dc_context_t* context, int msg_id);
 
