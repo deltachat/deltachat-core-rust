@@ -3322,6 +3322,40 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_xt_local_mailing_list() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_xt_local_microsoft.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+            .await?;
+        let chat = Chat::load_from_db(&t, t.get_last_msg().await.chat_id).await?;
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.grpid, "96540.xt.local");
+        assert_eq!(chat.name, "Microsoft Store");
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_xt_local_spiegel.eml"),
+            "INBOX",
+            2,
+            false,
+        )
+        .await?;
+        let chat = Chat::load_from_db(&t, t.get_last_msg().await.chat_id).await?;
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.grpid, "121231234.xt.local");
+        assert_eq!(chat.name, "DER SPIEGEL Kundenservice");
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_mailing_list_with_mimepart_footer() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
