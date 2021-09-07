@@ -1076,6 +1076,14 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_partial_download_msg_body() -> anyhow::Result<()> {
+        let t = TestContext::new().await;
+        let str = partial_download_msg_body(&t, 1024 * 1024).await;
+        assert_eq!(str, "1 MiB message");
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_update_device_chats() {
         let t = TestContext::new().await;
         t.update_device_chats().await.ok();

@@ -184,6 +184,13 @@ impl Imap {
 }
 
 impl MimeMessage {
+    /// Creates a placeholder part and add that to `parts`.
+    ///
+    /// To create the placeholder, only the outermost header can be used,
+    /// the mime-structure itself is not available.
+    ///
+    /// The placeholder part currently contains a text with size and availability of the message;
+    /// in the future, we may do more advanced things as previews here.
     pub(crate) async fn create_stub_from_partial_download(
         &mut self,
         context: &Context,
@@ -314,6 +321,10 @@ mod tests {
         let msg = t.get_last_msg().await;
         assert_eq!(msg.download_state(), DownloadState::Available);
         assert_eq!(msg.get_subject(), "foo");
+        assert!(msg
+            .get_text()
+            .unwrap()
+            .contains(&stock_str::partial_download_msg_body(&t, 100000).await));
 
         dc_receive_imf_inner(
             &t,
