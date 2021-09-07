@@ -303,7 +303,7 @@ mod tests {
 
         dc_receive_imf_inner(
             &t,
-            &header.as_bytes(),
+            header.as_bytes(),
             "INBOX",
             1,
             false,
