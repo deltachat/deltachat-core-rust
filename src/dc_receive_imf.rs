@@ -827,37 +827,73 @@ async fn add_parts(
 
     // Apply ephemeral timer changes to the chat.
     //
-    // Only non-hidden timers are applied now. Timers from hidden
+    // Only non-hidden timers are applied. Timers from hidden
     // messages such as read receipts can be useful to detect
     // ephemeral timer support, but timer changes without visible
     // received messages may be confusing to the user.
     if !*hidden
         && !location_kml_is
         && !is_mdn
-        && (is_dc_message != MessengerMessage::Yes
-            || parent.is_none()
-            || parent.unwrap().ephemeral_timer != ephemeral_timer)
         && chat_id.get_ephemeral_timer(context).await? != ephemeral_timer
-        && chat_id
-            .update_timestamp(context, Param::EphemeralSettingsTimestamp, *sent_timestamp)
-            .await?
     {
-        if let Err(err) = chat_id
-            .inner_set_ephemeral_timer(context, ephemeral_timer)
-            .await
+        info!(
+            context,
+            "received new ephemeral timer value {:?} for chat {}, checking if it should be applied",
+            ephemeral_timer,
+            chat_id
+        );
+        if is_dc_message == MessengerMessage::Yes
+            && mime_parser
+                .parts
+                .get(0)
+                .and_then(|part| part.param.get(Param::Quote))
+                .is_none()
+            && parent.map(|p| p.ephemeral_timer) == Some(ephemeral_timer)
         {
+            // The message is a Delta Chat message without a quote, so it must be a reply to the
+            // last message in the chat as seen by the sender. The timer is the same in both the
+            // received message and its parent, so we know that the sender has not seen any change
+            // of the timer between these messages. As our timer value is different, it means the
+            // sender has not received some timer update that we have seen or sent ourselves, so we
+            // ignore incoming timer to prevent a rollback.
             warn!(
                 context,
-                "failed to modify timer for chat {}: {}", chat_id, err
+                "ignoring ephemeral timer change to {:?} for chat {} to avoid rollback",
+                ephemeral_timer,
+                chat_id
             );
-        } else if mime_parser.is_system_message != SystemMessage::EphemeralTimerChanged {
-            chat::add_info_msg(
+        } else if chat_id
+            .update_timestamp(context, Param::EphemeralSettingsTimestamp, *sent_timestamp)
+            .await?
+        {
+            if let Err(err) = chat_id
+                .inner_set_ephemeral_timer(context, ephemeral_timer)
+                .await
+            {
+                warn!(
+                    context,
+                    "failed to modify timer for chat {}: {}", chat_id, err
+                );
+            } else {
+                info!(
+                    context,
+                    "updated ephemeral timer to {:?} for chat {}", ephemeral_timer, chat_id
+                );
+                if mime_parser.is_system_message != SystemMessage::EphemeralTimerChanged {
+                    chat::add_info_msg(
+                        context,
+                        chat_id,
+                        stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
+                        sort_timestamp,
+                    )
+                    .await;
+                }
+            }
+        } else {
+            warn!(
                 context,
-                chat_id,
-                stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
-                sort_timestamp,
-            )
-            .await;
+                "ignoring ephemeral timer change to {:?} because it's outdated", ephemeral_timer
+            );
         }
     }
 
