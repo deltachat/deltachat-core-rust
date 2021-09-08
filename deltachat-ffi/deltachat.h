@@ -586,6 +586,14 @@ void            dc_configure                 (dc_context_t* context);
  * Typically, for unconfigured accounts, the user is prompted
  * to enter some settings and dc_configure() is called in a thread then.
  *
+ * A once successfully configured context cannot become unconfigured again;
+ * if a subsequent call to dc_configure() fails,
+ * the prior configuration is used.
+ *
+ * However, of course, also a configuration may stop working,
+ * as eg. the password was changed on the server.
+ * To check that use eg. dc_get_connectivity().
+ *
  * @memberof dc_context_t
  * @param context The context object.
  * @return 1=context is configured and can be used;
