@@ -1046,7 +1046,9 @@ INSERT INTO msgs
         } else {
             match ephemeral_timer {
                 EphemeralTimer::Disabled => 0,
-                EphemeralTimer::Enabled { duration } => rcvd_timestamp + i64::from(duration),
+                EphemeralTimer::Enabled { duration } => {
+                    rcvd_timestamp.saturating_add(duration.into())
+                }
             }
         };
 

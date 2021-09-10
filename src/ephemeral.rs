@@ -279,7 +279,7 @@ impl MsgId {
     /// Starts ephemeral message timer for the message if it is not started yet.
     pub(crate) async fn start_ephemeral_timer(self, context: &Context) -> anyhow::Result<()> {
         if let Timer::Enabled { duration } = self.ephemeral_timer(context).await? {
-            let ephemeral_timestamp = time() + i64::from(duration);
+            let ephemeral_timestamp = time().saturating_add(duration.into());
 
             context
                 .sql
