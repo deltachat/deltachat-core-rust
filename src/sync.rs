@@ -10,6 +10,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::{chat, stock_str, token};
 use anyhow::Result;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -47,7 +48,7 @@ impl Context {
             let chat_id = ChatId::create_for_contact(self, DC_CONTACT_ID_SELF).await?;
 
             let mut msg = Message {
-                chat_id: chat_id,
+                chat_id,
                 viewtype: Viewtype::Text,
                 text: Some(json),
                 hidden: true,
@@ -71,6 +72,83 @@ impl Context {
 
     /// Copies all sync items to a json string and clears the sync-table.
     async fn flush_sync_items(&self) -> Result<Option<String>> {
-        Ok(Some("TODO".to_string()))
+        let (ids, items) = self
+            .sql
+            .query_map(
+                "SELECT id, item FROM multi_device_sync ORDER BY id;",
+                paramsv![],
+                |row| Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?)),
+                |rows| {
+                    let mut ids = vec![];
+                    let mut items = String::default();
+                    for row in rows {
+                        let (id, item) = row?;
+                        ids.push(id);
+                        if !items.is_empty() {
+                            items.push_str(",\n");
+                        }
+                        items.push_str(&item);
+                    }
+                    Ok((ids, items))
+                },
+            )
+            .await?;
+
+        if items.is_empty() {
+            Ok(None)
+        } else {
+            // As new items may be added in between, delete only the rendered ones.
+            self.sql
+                .execute(
+                    format!(
+                        "DELETE FROM multi_device_sync WHERE id IN ({});",
+                        ids.iter().map(|x| x.to_string()).join(",")
+                    ),
+                    paramsv![],
+                )
+                .await?;
+            Ok(Some(format!("{{\"items\":[\n{}\n]}}", items)))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::sync::{SyncItem, TokenData};
+    use crate::test_utils::TestContext;
+    use crate::token::Namespace;
+
+    #[async_std::test]
+    async fn test_flush_sync_items() -> anyhow::Result<()> {
+        let t = TestContext::new_alice().await;
+
+        let x = t.flush_sync_items().await;
+        info!(t, "{:?}", x);
+        assert!(t.flush_sync_items().await?.is_none());
+
+        t.add_sync_item(SyncItem::AddToken(TokenData {
+            namespace: Namespace::Auth,
+            token: "testtoken".to_string(),
+            grpid: Some("group123".to_string()),
+        }))
+        .await?;
+        t.add_sync_item(SyncItem::DeleteToken(TokenData {
+            namespace: Namespace::InviteNumber,
+            token: "123!?\":.;{}".to_string(),
+            grpid: None,
+        }))
+        .await?;
+
+        assert_eq!(
+            t.flush_sync_items().await?.unwrap(),
+            r#"{"items":[
+{"AddToken":{"namespace":"Auth","token":"testtoken","grpid":"group123"}},
+{"DeleteToken":{"namespace":"InviteNumber","token":"123!?\":.;{}","grpid":null}}
+]}"#
+        );
+
+        assert!(t.flush_sync_items().await?.is_none());
+
+        Ok(())
     }
 }
