@@ -2997,4 +2997,74 @@ Message.
 
         Ok(())
     }
+
+    #[async_std::test]
+    async fn test_ignore_read_receipt_to_self() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Alice receives BCC-self copy of a message sent to Bob.
+        dc_receive_imf(
+            &alice,
+            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.com\n\
+                 To: bob@example.net\n\
+                 Subject: foo\n\
+                 Message-ID: first@example.com\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Disposition-Notification-To: alice@example.com\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n"
+                .as_bytes(),
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.state, MessageState::OutDelivered);
+
+        // Due to a bug in the old version running on the other device, Alice receives a read
+        // receipt from self.
+        dc_receive_imf(
+            &alice,
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@example.com\n\
+                 To: alice@example.com\n\
+                 Subject: message opened\n\
+                 Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
+                 Chat-Version: 1.0\n\
+                 Message-ID: second@example.com\n\
+                 Content-Type: multipart/report; report-type=disposition-notification; boundary=\"SNIPP\"\n\
+                 \n\
+                 \n\
+                 --SNIPP\n\
+                 Content-Type: text/plain; charset=utf-8\n\
+                 \n\
+                 Read receipts do not guarantee sth. was read.\n\
+                 \n\
+                 \n\
+                 --SNIPP\n\
+                 Content-Type: message/disposition-notification\n\
+                 \n\
+                 Original-Recipient: rfc822;bob@example.com\n\
+                 Final-Recipient: rfc822;bob@example.com\n\
+                 Original-Message-ID: <first@example.com>\n\
+                 Disposition: manual-action/MDN-sent-automatically; displayed\n\
+                 \n\
+                 \n\
+                 --SNIPP--"
+            .as_bytes(),
+            "INBOX",
+            2,
+            false,
+        )
+        .await?;
+
+        // Check that the state has not changed to `MessageState::OutMdnRcvd`.
+        let msg = Message::load_from_db(&alice, msg.id).await?;
+        assert_eq!(msg.state, MessageState::OutDelivered);
+
+        Ok(())
+    }
 }
