@@ -1222,7 +1222,7 @@ impl Chat {
         };
         let ephemeral_timestamp = match ephemeral_timer {
             EphemeralTimer::Disabled => 0,
-            EphemeralTimer::Enabled { duration } => time() + i64::from(duration),
+            EphemeralTimer::Enabled { duration } => time().saturating_add(duration.into()),
         };
 
         let new_mime_headers = if msg.has_html() {
