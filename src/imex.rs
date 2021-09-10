@@ -234,7 +234,7 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     msg = Message::default();
     msg.viewtype = Viewtype::File;
     msg.param.set(Param::File, setup_file_blob.as_name());
-
+    msg.subject = stock_str::ac_setup_msg_subject(context).await;
     msg.param
         .set(Param::MimeType, "application/autocrypt-setup");
     msg.param.set_cmd(SystemMessage::AutocryptSetupMessage);
