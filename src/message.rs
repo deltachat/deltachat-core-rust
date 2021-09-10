@@ -1636,6 +1636,17 @@ pub async fn handle_mdn(
     rfc724_mid: &str,
     timestamp_sent: i64,
 ) -> Result<Option<(ChatId, MsgId)>> {
+    if from_id == DC_CONTACT_ID_SELF {
+        warn!(
+            context,
+            "ignoring MDN sent to self, this is a bug on the sender device"
+        );
+
+        // This is not an error on our side,
+        // we successfully ignored an invalid MDN and return `Ok`.
+        return Ok(None);
+    }
+
     let res = context
         .sql
         .query_row_optional(
