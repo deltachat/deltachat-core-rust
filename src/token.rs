@@ -2,18 +2,32 @@
 //!
 //! Functions to read/write token from/to the database. A token is any string associated with a key.
 //!
-//! Tokens are used in countermitm verification protocols.
+//! Tokens are used in countermitm verification protocols
+//! and are synchronized across multiple devices.
 
 use anyhow::Result;
 use deltachat_derive::{FromSql, ToSql};
 
-use crate::chat::ChatId;
+use crate::chat::{Chat, ChatId};
 use crate::context::Context;
 use crate::dc_tools::{dc_create_id, time};
+use crate::sync::{SyncItem, TokenData};
+use serde::{Deserialize, Serialize};
 
 /// Token namespace
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    FromPrimitive,
+    ToPrimitive,
+    ToSql,
+    FromSql,
+    Serialize,
+    Deserialize,
 )]
 #[repr(u32)]
 pub enum Namespace {
@@ -34,15 +48,28 @@ pub async fn save(
     namespace: Namespace,
     foreign_id: Option<ChatId>,
     token: &str,
+    multi_device_sync: bool,
 ) -> Result<()> {
     match foreign_id {
-        Some(foreign_id) => context
-            .sql
-            .execute(
-                "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
-                paramsv![namespace, foreign_id, token, time()],
-            )
-            .await?,
+        Some(foreign_id) => {
+            context
+                .sql
+                .execute(
+                    "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
+                    paramsv![namespace, foreign_id, token, time()],
+                )
+                .await?;
+
+            if multi_device_sync {
+                context
+                    .add_sync_item(SyncItem::AddToken(TokenData {
+                        namespace,
+                        token: token.to_string(),
+                        grpid: Some(Chat::load_from_db(context, foreign_id).await?.grpid),
+                    }))
+                    .await?;
+            }
+        }
         None => {
             context
                 .sql
@@ -50,7 +77,17 @@ pub async fn save(
                     "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);",
                     paramsv![namespace, token, time()],
                 )
-                .await?
+                .await?;
+
+            if multi_device_sync {
+                context
+                    .add_sync_item(SyncItem::AddToken(TokenData {
+                        namespace,
+                        token: token.to_string(),
+                        grpid: None,
+                    }))
+                    .await?;
+            }
         }
     };
 
@@ -98,13 +135,16 @@ pub async fn lookup_or_new(
     context: &Context,
     namespace: Namespace,
     foreign_id: Option<ChatId>,
+    multi_device_sync: bool,
 ) -> String {
     if let Ok(Some(token)) = lookup(context, namespace, foreign_id).await {
         return token;
     }
 
     let token = dc_create_id();
-    save(context, namespace, foreign_id, &token).await.ok();
+    save(context, namespace, foreign_id, &token, multi_device_sync)
+        .await
+        .ok();
     token
 }
 
@@ -119,7 +159,12 @@ pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> boo
         .unwrap_or_default()
 }
 
-pub async fn delete(context: &Context, namespace: Namespace, token: &str) -> Result<()> {
+pub async fn delete(
+    context: &Context,
+    namespace: Namespace,
+    token: &str,
+    multi_device_sync: bool,
+) -> Result<()> {
     context
         .sql
         .execute(
@@ -127,5 +172,14 @@ pub async fn delete(context: &Context, namespace: Namespace, token: &str) -> Res
             paramsv![namespace, token],
         )
         .await?;
+    if multi_device_sync {
+        context
+            .add_sync_item(SyncItem::DeleteToken(TokenData {
+                namespace,
+                token: token.to_string(),
+                grpid: None,
+            }))
+            .await?;
+    }
     Ok(())
 }

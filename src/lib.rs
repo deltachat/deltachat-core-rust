@@ -82,6 +82,7 @@ pub mod securejoin;
 mod simplify;
 mod smtp;
 pub mod stock_str;
+mod sync;
 mod token;
 mod update_helper;
 #[macro_use]

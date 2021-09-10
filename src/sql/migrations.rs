@@ -487,6 +487,16 @@ paramsv![]
         )
         .await?;
     }
+    if dbversion < 80 {
+        info!(context, "[migration] v80");
+        sql.execute_migration(
+            r#"CREATE TABLE multi_device_sync (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+item TEXT DEFAULT '');"#,
+            80,
+        )
+        .await?;
+    }
 
     Ok((
         recalc_fingerprints,

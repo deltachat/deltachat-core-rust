@@ -124,6 +124,9 @@ pub enum SystemMessage {
     // Chat protection state changed
     ChatProtectionEnabled = 11,
     ChatProtectionDisabled = 12,
+
+    /// Self-sent-message that contains a json used for multi-device-sync.
+    SyncMessage = 20,
 }
 
 impl Default for SystemMessage {

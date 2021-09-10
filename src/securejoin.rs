@@ -171,8 +171,9 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> R
 
     // invitenumber will be used to allow starting the handshake,
     // auth will be used to verify the fingerprint
-    let invitenumber = token::lookup_or_new(context, token::Namespace::InviteNumber, group).await;
-    let auth = token::lookup_or_new(context, token::Namespace::Auth, group).await;
+    let invitenumber =
+        token::lookup_or_new(context, token::Namespace::InviteNumber, group, true).await;
+    let auth = token::lookup_or_new(context, token::Namespace::Auth, group, true).await;
     let self_addr = match context.get_config(Config::ConfiguredAddr).await {
         Ok(Some(addr)) => addr,
         Ok(None) => {

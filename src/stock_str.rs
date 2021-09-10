@@ -276,6 +276,9 @@ pub enum StockMessage {
     #[strum(props(fallback = "Download maximum available until %1$s"))]
     DownloadAvailability = 100,
 
+    #[strum(props(fallback = "Multi Device Synchronization"))]
+    SyncMsgSubject = 101,
+
     #[strum(props(fallback = "Incoming Messages"))]
     IncomingMessages = 103,
 
@@ -622,6 +625,11 @@ pub(crate) async fn ac_setup_msg_subject(context: &Context) -> String {
 /// Stock string: `This is the Autocrypt Setup Message used to transfer...`.
 pub(crate) async fn ac_setup_msg_body(context: &Context) -> String {
     translated(context, StockMessage::AcSetupMsgBody).await
+}
+
+/// Stock string: `Multi Device Synchronization`.
+pub(crate) async fn sync_msg_subject(context: &Context) -> String {
+    translated(context, StockMessage::SyncMsgSubject).await
 }
 
 /// Stock string: `Cannot login as \"%1$s\". Please check...`.

@@ -363,6 +363,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  connectivity\n\
                  maybenetwork\n\
                  housekeeping\n\
+                 multidevicesync\n\
                  help imex (Import/Export)\n\
                  ==============================Chat commands==\n\
                  listchats [<query>]\n\
@@ -540,6 +541,9 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "housekeeping" => {
             sql::housekeeping(&context).await.ok_or_log(&context);
+        }
+        "multidevicesync" => {
+            context.send_sync_msg().await.ok_or_log(&context);
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };
