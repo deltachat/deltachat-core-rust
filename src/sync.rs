@@ -123,6 +123,45 @@ impl Context {
         let sync_items: SyncItems = serde_json::from_str(&serialized)?;
         Ok(sync_items)
     }
+
+    /// Execute sync items.
+    ///
+    /// CAVE: When changing the code to handle other sync items,
+    /// take care that does not result in calls to `add_sync_item()`
+    /// as otherwise we would add in a dead-loop between two devices
+    /// sending message back and forth.
+    ///
+    /// If an error is returned, the caller shall not try over.
+    /// Therefore, errors should only be returned on database errors or so.
+    /// If eg. just an item cannot be deleted,
+    /// that should not hold off the other items to be executed.
+    async fn execute_sync_items(&self, items: &SyncItems) -> Result<()> {
+        for item in &items.items {
+            match item {
+                AddToken(token) => {
+                    let chat_id = if let Some(grpid) = &token.grpid {
+                        if let Some((chat_id, _, _)) =
+                            chat::get_chat_id_by_grpid(self, grpid).await?
+                        {
+                            Some(chat_id)
+                        } else {
+                            warn!(self, "Cannot assign token to unpromoted group '{}'.", grpid);
+                            // TODO: really ignore? we could also save grpid instead,
+                            // or do not send before promoted.
+                            continue;
+                        }
+                    } else {
+                        None
+                    };
+                    token::save(self, token.namespace, chat_id, &token.token, false).await?;
+                }
+                DeleteToken(token) => {
+                    token::delete(self, token.namespace, &token.token, false).await?
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -271,6 +310,35 @@ mod tests {
             )
             .await?;
         assert_eq!(sync_items.items.len(), 1);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_execute_sync_items() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        assert!(!token::exists(&t, Namespace::Auth, "yip-auth").await);
+
+        let sync_items = t
+            .parse_sync_items(
+                r#"{"items":[
+{"AddToken":{"namespace":"InviteNumber","token":"yip-in"}},
+{"DeleteToken":{"namespace":"Auth","token":"delete unexistant, shall continue"}},
+{"AddToken":{"namespace":"Auth","token":"yip-auth"}},
+{"AddToken":{"namespace":"Auth","token":"foo","grpid":"non-existant"}},
+{"AddToken":{"namespace":"Auth","token":"directly deleted"}},
+{"DeleteToken":{"namespace":"Auth","token":"directly deleted"}}
+]}"#
+                .to_string(),
+            )
+            .await?;
+        t.execute_sync_items(&sync_items).await?;
+
+        assert!(token::exists(&t, Namespace::InviteNumber, "yip-in").await);
+        assert!(token::exists(&t, Namespace::Auth, "yip-auth").await);
+        assert!(!token::exists(&t, Namespace::Auth, "non-existant").await);
+        assert!(!token::exists(&t, Namespace::Auth, "directly deleted").await);
 
         Ok(())
     }
