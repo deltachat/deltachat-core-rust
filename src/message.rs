@@ -6,7 +6,6 @@ use std::convert::TryInto;
 use anyhow::{ensure, format_err, Context as _, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
-use itertools::Itertools;
 use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
 
@@ -26,15 +25,11 @@ use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::log::LogExt;
-use crate::lot::{Lot, LotState, Meaning};
 use crate::mimeparser::{parse_message_id, FailureReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
 use crate::stock_str;
-
-// In practice, the user additionally cuts the string themselves
-// pixel-accurate.
-const SUMMARY_CHARACTERS: usize = 160;
+use crate::summary::{get_summarytext_by_raw, Summary};
 
 /// Message ID, including reserved IDs.
 ///
@@ -592,23 +587,21 @@ impl Message {
         self.ephemeral_timestamp
     }
 
-    pub async fn get_summary(&mut self, context: &Context, chat: Option<&Chat>) -> Lot {
-        let mut ret = Lot::new();
-
+    /// Returns message summary for display in the search results.
+    pub async fn get_summary(&mut self, context: &Context, chat: Option<&Chat>) -> Result<Summary> {
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
-        } else if let Ok(chat) = Chat::load_from_db(context, self.chat_id).await {
+        } else {
+            let chat = Chat::load_from_db(context, self.chat_id).await?;
             chat_loaded = chat;
             &chat_loaded
-        } else {
-            return ret;
         };
 
         let contact = if self.from_id != DC_CONTACT_ID_SELF {
             match chat.typ {
                 Chattype::Group | Chattype::Mailinglist => {
-                    Contact::get_by_id(context, self.from_id).await.ok()
+                    Some(Contact::get_by_id(context, self.from_id).await?)
                 }
                 Chattype::Single | Chattype::Undefined => None,
             }
@@ -616,9 +609,7 @@ impl Message {
             None
         };
 
-        ret.fill(self, chat, contact.as_ref(), context).await;
-
-        ret
+        Ok(Summary::new(context, self, chat, contact.as_ref()).await)
     }
 
     pub async fn get_summarytext(&self, context: &Context, approx_characters: usize) -> String {
@@ -1029,24 +1020,6 @@ impl std::fmt::Display for MessageState {
     }
 }
 
-impl From<MessageState> for LotState {
-    fn from(s: MessageState) -> Self {
-        use MessageState::*;
-        match s {
-            Undefined => LotState::Undefined,
-            InFresh => LotState::MsgInFresh,
-            InNoticed => LotState::MsgInNoticed,
-            InSeen => LotState::MsgInSeen,
-            OutPreparing => LotState::MsgOutPreparing,
-            OutDraft => LotState::MsgOutDraft,
-            OutPending => LotState::MsgOutPending,
-            OutFailed => LotState::MsgOutFailed,
-            OutDelivered => LotState::MsgOutDelivered,
-            OutMdnRcvd => LotState::MsgOutMdnRcvd,
-        }
-    }
-}
-
 impl MessageState {
     pub fn can_fail(self) -> bool {
         use MessageState::*;
@@ -1061,68 +1034,6 @@ impl MessageState {
             self,
             OutPreparing | OutDraft | OutPending | OutFailed | OutDelivered | OutMdnRcvd
         )
-    }
-}
-
-impl Lot {
-    /* library-internal */
-    /* in practice, the user additionally cuts the string himself pixel-accurate */
-    pub async fn fill(
-        &mut self,
-        msg: &mut Message,
-        chat: &Chat,
-        contact: Option<&Contact>,
-        context: &Context,
-    ) {
-        if msg.state == MessageState::OutDraft {
-            self.text1 = Some(stock_str::draft(context).await);
-            self.text1_meaning = Meaning::Text1Draft;
-        } else if msg.from_id == DC_CONTACT_ID_SELF {
-            if msg.is_info() || chat.is_self_talk() {
-                self.text1 = None;
-                self.text1_meaning = Meaning::None;
-            } else {
-                self.text1 = Some(stock_str::self_msg(context).await);
-                self.text1_meaning = Meaning::Text1Self;
-            }
-        } else {
-            match chat.typ {
-                Chattype::Group | Chattype::Mailinglist => {
-                    if msg.is_info() || contact.is_none() {
-                        self.text1 = None;
-                        self.text1_meaning = Meaning::None;
-                    } else {
-                        self.text1 = msg
-                            .get_override_sender_name()
-                            .or_else(|| contact.map(|contact| msg.get_sender_name(contact)));
-                        self.text1_meaning = Meaning::Text1Username;
-                    }
-                }
-                Chattype::Single | Chattype::Undefined => {
-                    self.text1 = None;
-                    self.text1_meaning = Meaning::None;
-                }
-            }
-        }
-
-        let mut text2 = get_summarytext_by_raw(
-            msg.viewtype,
-            msg.text.as_ref(),
-            msg.is_forwarded(),
-            &msg.param,
-            SUMMARY_CHARACTERS,
-            context,
-        )
-        .await;
-
-        if text2.is_empty() && msg.quoted_text().is_some() {
-            text2 = stock_str::reply_noun(context).await
-        }
-
-        self.text2 = Some(text2);
-
-        self.timestamp = msg.get_timestamp();
-        self.state = msg.state.into();
     }
 }
 
@@ -1489,88 +1400,6 @@ pub async fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageSt
         )
         .await
         .is_ok()
-}
-
-/// Returns a summary text.
-pub async fn get_summarytext_by_raw(
-    viewtype: Viewtype,
-    text: Option<impl AsRef<str>>,
-    was_forwarded: bool,
-    param: &Params,
-    approx_characters: usize,
-    context: &Context,
-) -> String {
-    let mut append_text = true;
-    let prefix = match viewtype {
-        Viewtype::Image => stock_str::image(context).await,
-        Viewtype::Gif => stock_str::gif(context).await,
-        Viewtype::Sticker => stock_str::sticker(context).await,
-        Viewtype::Video => stock_str::video(context).await,
-        Viewtype::Voice => stock_str::voice_message(context).await,
-        Viewtype::Audio | Viewtype::File => {
-            if param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-                append_text = false;
-                stock_str::ac_setup_msg_subject(context).await
-            } else {
-                let file_name: String = param
-                    .get_path(Param::File, context)
-                    .unwrap_or(None)
-                    .and_then(|path| {
-                        path.file_name()
-                            .map(|fname| fname.to_string_lossy().into_owned())
-                    })
-                    .unwrap_or_else(|| String::from("ErrFileName"));
-                let label = if viewtype == Viewtype::Audio {
-                    stock_str::audio(context).await
-                } else {
-                    stock_str::file(context).await
-                };
-                format!("{} – {}", label, file_name)
-            }
-        }
-        Viewtype::VideochatInvitation => {
-            append_text = false;
-            stock_str::videochat_invitation(context).await
-        }
-        _ => {
-            if param.get_cmd() != SystemMessage::LocationOnly {
-                "".to_string()
-            } else {
-                append_text = false;
-                stock_str::location(context).await
-            }
-        }
-    };
-
-    if !append_text {
-        return prefix;
-    }
-
-    let summary_content = if let Some(text) = text {
-        if text.as_ref().is_empty() {
-            prefix
-        } else if prefix.is_empty() {
-            dc_truncate(text.as_ref(), approx_characters).to_string()
-        } else {
-            let tmp = format!("{} – {}", prefix, text.as_ref());
-            dc_truncate(&tmp, approx_characters).to_string()
-        }
-    } else {
-        prefix
-    };
-
-    let summary = if was_forwarded {
-        let tmp = format!(
-            "{}: {}",
-            stock_str::forwarded(context).await,
-            summary_content
-        );
-        dc_truncate(&tmp, approx_characters).to_string()
-    } else {
-        summary_content
-    };
-
-    summary.split_whitespace().join(" ")
 }
 
 // as we do not cut inside words, this results in about 32-42 characters.
@@ -2237,203 +2066,6 @@ mod tests {
         let mut msg = Message::new(Viewtype::Text);
 
         assert!(chat::prepare_msg(ctx, chat.id, &mut msg).await.is_err());
-    }
-
-    #[async_std::test]
-    async fn test_get_summarytext_by_raw() {
-        let d = test::TestContext::new().await;
-        let ctx = &d.ctx;
-
-        let some_text = Some(" bla \t\n\tbla\n\t".to_string());
-        let empty_text = Some("".to_string());
-        let no_text: Option<String> = None;
-
-        let mut some_file = Params::new();
-        some_file.set(Param::File, "foo.bar");
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Text,
-                some_text.as_ref(),
-                false,
-                &Params::new(),
-                50,
-                ctx
-            )
-            .await,
-            "bla bla" // for simple text, the type is not added to the summary
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Image,
-                no_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx
-            )
-            .await,
-            "Image" // file names are not added for images
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Video,
-                no_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx
-            )
-            .await,
-            "Video" // file names are not added for videos
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(Viewtype::Gif, no_text.as_ref(), false, &some_file, 50, ctx,)
-                .await,
-            "GIF" // file names are not added for GIFs
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Sticker,
-                no_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx,
-            )
-            .await,
-            "Sticker" // file names are not added for stickers
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Voice,
-                empty_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx,
-            )
-            .await,
-            "Voice message" // file names are not added for voice messages, empty text is skipped
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Voice,
-                no_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx
-            )
-            .await,
-            "Voice message" // file names are not added for voice messages
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Voice,
-                some_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx
-            )
-            .await,
-            "Voice message \u{2013} bla bla" // `\u{2013}` explicitly checks for "EN DASH"
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Audio,
-                no_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx
-            )
-            .await,
-            "Audio \u{2013} foo.bar" // file name is added for audio
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Audio,
-                empty_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx,
-            )
-            .await,
-            "Audio \u{2013} foo.bar" // file name is added for audio, empty text is not added
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Audio,
-                some_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx
-            )
-            .await,
-            "Audio \u{2013} foo.bar \u{2013} bla bla" // file name and text added for audio
-        );
-
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::File,
-                some_text.as_ref(),
-                false,
-                &some_file,
-                50,
-                ctx
-            )
-            .await,
-            "File \u{2013} foo.bar \u{2013} bla bla" // file name is added for files
-        );
-
-        // Forwarded
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Text,
-                some_text.as_ref(),
-                true,
-                &Params::new(),
-                50,
-                ctx
-            )
-            .await,
-            "Forwarded: bla bla" // for simple text, the type is not added to the summary
-        );
-        assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::File,
-                some_text.as_ref(),
-                true,
-                &some_file,
-                50,
-                ctx
-            )
-            .await,
-            "Forwarded: File \u{2013} foo.bar \u{2013} bla bla"
-        );
-
-        let mut asm_file = Params::new();
-        asm_file.set(Param::File, "foo.bar");
-        asm_file.set_cmd(SystemMessage::AutocryptSetupMessage);
-        assert_eq!(
-            get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), false, &asm_file, 50, ctx)
-                .await,
-            "Autocrypt Setup Message" // file name is not added for autocrypt setup messages
-        );
     }
 
     #[async_std::test]

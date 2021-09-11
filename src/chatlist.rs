@@ -11,9 +11,9 @@ use crate::constants::{
 use crate::contact::Contact;
 use crate::context::Context;
 use crate::ephemeral::delete_expired_messages;
-use crate::lot::Lot;
 use crate::message::{Message, MessageState, MsgId};
 use crate::stock_str;
+use crate::summary::Summary;
 
 /// An object representing a single chatlist in memory.
 ///
@@ -288,26 +288,13 @@ impl Chatlist {
         }
     }
 
-    /// Get a summary for a chatlist index.
-    ///
-    /// The summary is returned by a dc_lot_t object with the following fields:
-    ///
-    /// - dc_lot_t::text1: contains the username or the strings "Me", "Draft" and so on.
-    ///   The string may be colored by having a look at text1_meaning.
-    ///   If there is no such name or it should not be displayed, the element is NULL.
-    /// - dc_lot_t::text1_meaning: one of DC_TEXT1_USERNAME, DC_TEXT1_SELF or DC_TEXT1_DRAFT.
-    ///   Typically used to show dc_lot_t::text1 with different colors. 0 if not applicable.
-    /// - dc_lot_t::text2: contains an excerpt of the message text or strings as
-    ///   "No messages".  May be NULL of there is no such text (eg. for the archive link)
-    /// - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
-    /// - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
-    //    0 if not applicable.
+    /// Returns a summary for a given chatlist index.
     pub async fn get_summary(
         &self,
         context: &Context,
         index: usize,
         chat: Option<&Chat>,
-    ) -> Result<Lot> {
+    ) -> Result<Summary> {
         // The summary is created by the chat, not by the last message.
         // This is because we may want to display drafts here or stuff as
         // "is typing".
@@ -320,14 +307,13 @@ impl Chatlist {
         Chatlist::get_summary2(context, *chat_id, *lastmsg_id, chat).await
     }
 
+    /// Returns a summary for a given chatlist item.
     pub async fn get_summary2(
         context: &Context,
         chat_id: ChatId,
         lastmsg_id: Option<MsgId>,
         chat: Option<&Chat>,
-    ) -> Result<Lot> {
-        let mut ret = Lot::new();
-
+    ) -> Result<Summary> {
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
@@ -344,9 +330,8 @@ impl Chatlist {
             } else {
                 match chat.typ {
                     Chattype::Group | Chattype::Mailinglist => {
-                        let lastcontact =
-                            Contact::load_from_db(context, lastmsg.from_id).await.ok();
-                        (Some(lastmsg), lastcontact)
+                        let lastcontact = Contact::load_from_db(context, lastmsg.from_id).await?;
+                        (Some(lastmsg), Some(lastcontact))
                     }
                     Chattype::Single | Chattype::Undefined => (Some(lastmsg), None),
                 }
@@ -356,17 +341,15 @@ impl Chatlist {
         };
 
         if chat.id.is_archived_link() {
-            ret.text2 = None;
-        } else if let Some(mut lastmsg) =
-            lastmsg.filter(|msg| msg.from_id != DC_CONTACT_ID_UNDEFINED)
-        {
-            ret.fill(&mut lastmsg, chat, lastcontact.as_ref(), context)
-                .await;
+            Ok(Default::default())
+        } else if let Some(lastmsg) = lastmsg.filter(|msg| msg.from_id != DC_CONTACT_ID_UNDEFINED) {
+            Ok(Summary::new(context, &lastmsg, chat, lastcontact.as_ref()).await)
         } else {
-            ret.text2 = Some(stock_str::no_messages(context).await);
+            Ok(Summary {
+                text: stock_str::no_messages(context).await,
+                ..Default::default()
+            })
         }
-
-        Ok(ret)
     }
 
     pub fn get_index_for_id(&self, id: ChatId) -> Option<usize> {
@@ -637,6 +620,6 @@ mod tests {
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         let summary = chats.get_summary(&t, 0, None).await.unwrap();
-        assert_eq!(summary.get_text2().unwrap(), "foo: bar test"); // the linebreak should be removed from summary
+        assert_eq!(summary.text, "foo: bar test"); // the linebreak should be removed from summary
     }
 }
