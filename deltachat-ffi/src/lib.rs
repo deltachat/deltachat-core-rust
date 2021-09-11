@@ -2404,13 +2404,13 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
     let ctx = &*ffi_list.context;
 
     block_on(async move {
-        let lot = ffi_list
+        let summary = ffi_list
             .list
             .get_summary(ctx, index as usize, maybe_chat)
             .await
             .log_err(ctx, "get_summary failed")
             .unwrap_or_default();
-        Box::into_raw(Box::new(lot))
+        Box::into_raw(Box::new(summary.into()))
     })
 }
 
@@ -2430,13 +2430,15 @@ pub unsafe extern "C" fn dc_chatlist_get_summary2(
     } else {
         Some(MsgId::new(msg_id))
     };
-    block_on(async move {
-        let lot = Chatlist::get_summary2(ctx, ChatId::new(chat_id), msg_id, None)
-            .await
-            .log_err(ctx, "get_summary2 failed")
-            .unwrap_or_default();
-        Box::into_raw(Box::new(lot))
-    })
+    let summary = block_on(Chatlist::get_summary2(
+        ctx,
+        ChatId::new(chat_id),
+        msg_id,
+        None,
+    ))
+    .log_err(ctx, "get_summary2 failed")
+    .unwrap_or_default();
+    Box::into_raw(Box::new(summary.into()))
 }
 
 #[no_mangle]
@@ -2978,10 +2980,10 @@ pub unsafe extern "C" fn dc_msg_get_summary(
     let ffi_msg = &mut *msg;
     let ctx = &*ffi_msg.context;
 
-    block_on(async move {
-        let lot = ffi_msg.message.get_summary(ctx, maybe_chat).await;
-        Box::into_raw(Box::new(lot))
-    })
+    let summary = block_on(async move { ffi_msg.message.get_summary(ctx, maybe_chat).await })
+        .log_err(ctx, "dc_msg_get_summary failed")
+        .unwrap_or_default();
+    Box::into_raw(Box::new(summary.into()))
 }
 
 #[no_mangle]

@@ -16,7 +16,6 @@ use deltachat::dc_tools::*;
 use deltachat::imex::*;
 use deltachat::location;
 use deltachat::log::LogExt;
-use deltachat::lot::LotState;
 use deltachat::message::{self, Message, MessageState, MsgId};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
@@ -569,26 +568,25 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                             ""
                         },
                     );
-                    let lot = chatlist.get_summary(&context, i, Some(&chat)).await?;
+                    let summary = chatlist.get_summary(&context, i, Some(&chat)).await?;
                     let statestr = if chat.visibility == ChatVisibility::Archived {
                         " [Archived]"
                     } else {
-                        match lot.get_state() {
-                            LotState::MsgOutPending => " o",
-                            LotState::MsgOutDelivered => " √",
-                            LotState::MsgOutMdnRcvd => " √√",
-                            LotState::MsgOutFailed => " !!",
+                        match summary.state {
+                            MessageState::OutPending => " o",
+                            MessageState::OutDelivered => " √",
+                            MessageState::OutMdnRcvd => " √√",
+                            MessageState::OutFailed => " !!",
                             _ => "",
                         }
                     };
-                    let timestr = dc_timestamp_to_str(lot.get_timestamp());
-                    let text1 = lot.get_text1();
-                    let text2 = lot.get_text2();
+                    let timestr = dc_timestamp_to_str(summary.timestamp);
                     println!(
-                        "{}{}{}{} [{}]{}",
-                        text1.unwrap_or(""),
-                        if text1.is_some() { ": " } else { "" },
-                        text2.unwrap_or(""),
+                        "{}{}{} [{}]{}",
+                        summary
+                            .prefix
+                            .map_or_else(String::new, |prefix| format!("{}: ", prefix)),
+                        summary.text,
                         statestr,
                         &timestr,
                         if chat.is_sending_locations() {

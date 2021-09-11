@@ -3,6 +3,8 @@
 use deltachat_derive::{FromSql, ToSql};
 
 use crate::key::Fingerprint;
+use crate::message::MessageState;
+use crate::summary::{Summary, SummaryPrefix};
 
 /// An object containing a set of values.
 /// The meaning of the values is defined by the function returning the object.
@@ -137,5 +139,42 @@ pub enum LotState {
 impl Default for LotState {
     fn default() -> Self {
         LotState::Undefined
+    }
+}
+
+impl From<MessageState> for LotState {
+    fn from(s: MessageState) -> Self {
+        use MessageState::*;
+        match s {
+            Undefined => LotState::Undefined,
+            InFresh => LotState::MsgInFresh,
+            InNoticed => LotState::MsgInNoticed,
+            InSeen => LotState::MsgInSeen,
+            OutPreparing => LotState::MsgOutPreparing,
+            OutDraft => LotState::MsgOutDraft,
+            OutPending => LotState::MsgOutPending,
+            OutFailed => LotState::MsgOutFailed,
+            OutDelivered => LotState::MsgOutDelivered,
+            OutMdnRcvd => LotState::MsgOutMdnRcvd,
+        }
+    }
+}
+
+impl From<Summary> for Lot {
+    fn from(summary: Summary) -> Self {
+        let (text1, text1_meaning) = match summary.prefix {
+            None => (None, Meaning::None),
+            Some(SummaryPrefix::Draft(text)) => (Some(text), Meaning::Text1Draft),
+            Some(SummaryPrefix::Username(username)) => (Some(username), Meaning::Text1Username),
+            Some(SummaryPrefix::Me(text)) => (Some(text), Meaning::Text1Self),
+        };
+        Self {
+            text1_meaning,
+            text1,
+            text2: Some(summary.text),
+            timestamp: summary.timestamp,
+            state: summary.state.into(),
+            ..Default::default()
+        }
     }
 }

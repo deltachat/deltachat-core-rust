@@ -89,6 +89,7 @@ mod dehtml;
 mod color;
 pub mod html;
 pub mod plaintext;
+pub mod summary;
 
 pub mod dc_receive_imf;
 pub mod dc_tools;
