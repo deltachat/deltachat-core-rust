@@ -8,6 +8,7 @@ use crate::dc_tools::dc_create_outgoing_rfc724_mid;
 use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
+use crate::sync::SyncItem::{AddToken, DeleteToken};
 use crate::{chat, stock_str, token};
 use anyhow::Result;
 use itertools::Itertools;
@@ -24,6 +25,11 @@ pub(crate) struct TokenData {
 pub(crate) enum SyncItem {
     AddToken(TokenData),
     DeleteToken(TokenData),
+}
+
+#[derive(Deserialize)]
+struct SyncItems {
+    items: Vec<SyncItem>,
 }
 
 impl Context {
@@ -70,9 +76,9 @@ impl Context {
         Ok(())
     }
 
-    /// Copies all sync items to a json string and clears the sync-table.
+    /// Copies all sync items to a JSON string and clears the sync-table.
     async fn flush_sync_items(&self) -> Result<Option<String>> {
-        let (ids, items) = self
+        let (ids, serialized) = self
             .sql
             .query_map(
                 "SELECT id, item FROM multi_device_sync ORDER BY id;",
@@ -80,21 +86,21 @@ impl Context {
                 |row| Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?)),
                 |rows| {
                     let mut ids = vec![];
-                    let mut items = String::default();
+                    let mut serialized = String::default();
                     for row in rows {
                         let (id, item) = row?;
                         ids.push(id);
-                        if !items.is_empty() {
-                            items.push_str(",\n");
+                        if !serialized.is_empty() {
+                            serialized.push_str(",\n");
                         }
-                        items.push_str(&item);
+                        serialized.push_str(&item);
                     }
-                    Ok((ids, items))
+                    Ok((ids, serialized))
                 },
             )
             .await?;
 
-        if items.is_empty() {
+        if ids.is_empty() {
             Ok(None)
         } else {
             // As new items may be added in between, delete only the rendered ones.
@@ -107,19 +113,27 @@ impl Context {
                     paramsv![],
                 )
                 .await?;
-            Ok(Some(format!("{{\"items\":[\n{}\n]}}", items)))
+            Ok(Some(format!("{{\"items\":[\n{}\n]}}", serialized)))
         }
+    }
+
+    /// Takes a JSON string created by `flush_sync_items()`
+    /// and construct `SyncItems` from it.
+    async fn parse_sync_items(&self, serialized: String) -> Result<SyncItems> {
+        let sync_items: SyncItems = serde_json::from_str(&serialized)?;
+        Ok(sync_items)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::sync::{SyncItem, TokenData};
+    use super::*;
     use crate::test_utils::TestContext;
     use crate::token::Namespace;
+    use anyhow::bail;
 
     #[async_std::test]
-    async fn test_flush_sync_items() -> anyhow::Result<()> {
+    async fn test_flush_sync_items() -> Result<()> {
         let t = TestContext::new_alice().await;
 
         let x = t.flush_sync_items().await;
@@ -139,8 +153,9 @@ mod tests {
         }))
         .await?;
 
+        let serialized = t.flush_sync_items().await?.unwrap();
         assert_eq!(
-            t.flush_sync_items().await?.unwrap(),
+            serialized,
             r#"{"items":[
 {"AddToken":{"namespace":"Auth","token":"testtoken","grpid":"group123"}},
 {"DeleteToken":{"namespace":"InviteNumber","token":"123!?\":.;{}","grpid":null}}
@@ -148,6 +163,114 @@ mod tests {
         );
 
         assert!(t.flush_sync_items().await?.is_none());
+
+        let sync_items = t.parse_sync_items(serialized).await?;
+        assert_eq!(sync_items.items.len(), 2);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_parse_sync_items() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        assert!(t
+            .parse_sync_items(r#"{bad json}"#.to_string())
+            .await
+            .is_err());
+
+        assert!(t
+            .parse_sync_items(r#"{"badname":[]}"#.to_string())
+            .await
+            .is_err());
+
+        assert!(t
+            .parse_sync_items(
+                r#"{"items":[{"AddToken":{"namespace":"BadEnumValue","token":"yip","grpid":null}}]}"#
+                    .to_string(),
+            )
+            .await.is_err());
+
+        assert!(t
+            .parse_sync_items(
+                r#"{"items":[{"AddToken":{"namespace":"Auth","token":123}}]}"#.to_string(),
+            )
+            .await
+            .is_err()); // `123` is invalid for `String`
+
+        assert!(t
+            .parse_sync_items(
+                r#"{"items":[{"AddToken":{"namespace":"Auth","token":true}}]}"#.to_string(),
+            )
+            .await
+            .is_err()); // `true` is invalid for `String`
+
+        assert!(t
+            .parse_sync_items(
+                r#"{"items":[{"AddToken":{"namespace":"Auth","token":[]}}]}"#.to_string(),
+            )
+            .await
+            .is_err()); // `[]` is invalid for `String`
+
+        assert!(t
+            .parse_sync_items(
+                r#"{"items":[{"AddToken":{"namespace":"Auth","token":{}}}]}"#.to_string(),
+            )
+            .await
+            .is_err()); // `{}` is invalid for `String`
+
+        assert!(t
+            .parse_sync_items(
+                r#"{"items":[{"AddToken":{"namespace":"Auth","grpid":null}}]}"#.to_string(),
+            )
+            .await
+            .is_err()); // missing field
+
+        // empty item list is okay
+        assert_eq!(
+            t.parse_sync_items(r#"{"items":[]}"#.to_string())
+                .await?
+                .items
+                .len(),
+            0
+        );
+
+        // to allow forward compatibility, additional fields should not break parsing
+        let sync_items = t
+            .parse_sync_items(
+                r#"{"items":[
+{"DeleteToken":{"namespace":"Auth","token":"yip","grpid":null}},
+{"AddToken":{"namespace":"Auth","token":"yip","additional":123,"grpid":null}}
+]}"#
+                .to_string(),
+            )
+            .await?;
+        assert_eq!(sync_items.items.len(), 2);
+
+        let sync_items = t
+            .parse_sync_items(
+                r#"{"items":[
+{"AddToken":{"namespace":"Auth","token":"yip","grpid":null}}
+],"additional":"field"}"#
+                    .to_string(),
+            )
+            .await?;
+        assert_eq!(sync_items.items.len(), 1);
+        if let AddToken(token) = sync_items.items.get(0).unwrap() {
+            assert_eq!(token.namespace, Namespace::Auth);
+            assert_eq!(token.token, "yip");
+            assert_eq!(token.grpid, None);
+        } else {
+            bail!("bad item");
+        }
+
+        // to allow backward compatibility, missing `Option<>` should not break parsing
+        let sync_items = t
+            .parse_sync_items(
+                r#"{"items":[{"AddToken":{"namespace":"Auth","token":"yip"}}]}"#.to_string(),
+            )
+            .await?;
+        assert_eq!(sync_items.items.len(), 1);
 
         Ok(())
     }
