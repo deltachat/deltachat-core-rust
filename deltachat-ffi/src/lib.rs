@@ -1659,13 +1659,9 @@ pub unsafe extern "C" fn dc_download_full_msg(context: *mut dc_context_t, msg_id
         return;
     }
     let ctx = &*context;
-    block_on(async move {
-        MsgId::new(msg_id)
-            .download_full(ctx)
-            .await
-            .log_err(ctx, "Failed to download message fully.")
-            .ok()
-    });
+    block_on(MsgId::new(msg_id).download_full(ctx))
+        .log_err(ctx, "Failed to download message fully.")
+        .ok();
 }
 
 #[no_mangle]
