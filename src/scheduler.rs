@@ -4,6 +4,7 @@ use async_std::{
     channel::{self, Receiver, Sender},
     task,
 };
+use governor;
 
 use crate::config::Config;
 use crate::context::Context;
@@ -70,6 +71,10 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
         shutdown_sender,
     } = inbox_handlers;
 
+    let quota = governor::Quota::per_minute(std::num::NonZeroU32::new(1).unwrap())
+        .allow_burst(std::num::NonZeroU32::new(5).unwrap());
+    let rate_limiter = governor::RateLimiter::direct(quota);
+
     let ctx1 = ctx.clone();
     let fut = async move {
         started
@@ -82,6 +87,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
         let mut jobs_loaded = 0;
         let mut info = InterruptInfo::default();
         loop {
+            rate_limiter.until_ready().await;
             match job::load_next(&ctx, Thread::Imap, &info)
                 .await
                 .ok()
@@ -247,6 +253,10 @@ async fn simple_imap_loop(
 
     let ctx1 = ctx.clone();
 
+    let quota = governor::Quota::per_minute(std::num::NonZeroU32::new(2).unwrap())
+        .allow_burst(std::num::NonZeroU32::new(5).unwrap());
+    let rate_limiter = governor::RateLimiter::direct(quota);
+
     let fut = async move {
         started
             .send(())
@@ -255,6 +265,7 @@ async fn simple_imap_loop(
         let ctx = ctx1;
 
         loop {
+            rate_limiter.until_ready().await;
             fetch_idle(&ctx, &mut connection, folder).await;
         }
     };
