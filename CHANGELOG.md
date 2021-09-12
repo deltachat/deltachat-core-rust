@@ -1,4 +1,16 @@
-# Changelog 
+# Changelog
+
+## Unreleased
+
+### Changes
+- `Accounts` is not cloneable anymore #2654 #2658
+- always check certificates strictly when connecting over SOCKS5 in Automatic mode #2657
+- update chat/contact data only when there was no newer update #2642
+- improve Doxygen documentation style #2647
+
+### Fixes
+- ignore MDNs sent to self #2674
+- fix pkg-config file #2660
 
 ## 1.60.0
 
