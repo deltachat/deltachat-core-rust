@@ -1141,11 +1141,11 @@ impl MimeMessage {
         report: &mailparse::ParsedMail<'_>,
     ) -> Result<Option<FailureReport>> {
         // parse as mailheaders
-        if let Some(original_msg) = report
-            .subparts
-            .iter()
-            .find(|p| p.ctype.mimetype.contains("rfc822") || p.ctype.mimetype == "message/global")
-        {
+        if let Some(original_msg) = report.subparts.iter().find(|p| {
+            p.ctype.mimetype.contains("rfc822")
+                || p.ctype.mimetype == "message/global"
+                || p.ctype.mimetype == "message/global-headers"
+        }) {
             let report_body = original_msg.get_body_raw()?;
             let (report_fields, _) = mailparse::parse_headers(&report_body)?;
 

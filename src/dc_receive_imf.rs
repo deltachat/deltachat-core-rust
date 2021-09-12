@@ -2792,6 +2792,18 @@ mod tests {
         .await;
     }
 
+    #[async_std::test]
+    async fn test_parse_ndn_testrun_2() {
+        test_parse_ndn(
+            "alice@example.org",
+            "bob@example.org",
+            "Mr.5xqflwt0YFv.IXDFfHauvWx@testrun.org",
+            include_bytes!("../test-data/message/testrun_ndn_2.eml"),
+            Some("Undelivered Mail Returned to Sender – This is the mail system at host hq5.merlinux.eu.\n\nI'm sorry to have to inform you that your message could not\nbe delivered to one or more recipients. It's attached below.\n\nFor further assistance, please send mail to postmaster.\n\nIf you do so, please include this problem report. You can\ndelete your own text from the attached returned message.\n\n                   The mail system\n\n<bob@example.org>: Host or domain name not found. Name service error for\n    name=echedelyr.tk type=AAAA: Host not found"),
+        )
+        .await;
+    }
+
     // ndn = Non Delivery Notification
     async fn test_parse_ndn(
         self_addr: &str,
