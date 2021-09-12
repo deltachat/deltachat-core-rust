@@ -1615,7 +1615,7 @@ char*           dc_get_msg_html              (dc_context_t* context, uint32_t ms
   * eg. when an email contains several images
   * that is expanded to several messages.
   *
-  * To reflect these changes a @ref DC_EVENT_MSGS_CHANGED event will be emmitted.
+  * To reflect these changes a @ref DC_EVENT_MSGS_CHANGED event will be emitted.
   *
   * @memberof dc_context_t
   * @param context The context object.
