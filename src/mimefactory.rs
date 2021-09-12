@@ -388,10 +388,6 @@ impl<'a> MimeFactory<'a> {
 
         let subject = match self.loaded {
             Loaded::Message { ref chat } => {
-                if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-                    return Ok(stock_str::ac_setup_msg_subject(context).await);
-                }
-
                 if !self.msg.subject.is_empty() {
                     return Ok(self.msg.subject.clone());
                 }
