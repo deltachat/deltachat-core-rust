@@ -1713,14 +1713,17 @@ async fn create_or_lookup_mailinglist(
     }
 
     // if we do not have a name yet and `From` indicates, that this is a notification list,
-    // a usable name is often in the `From` header.
-    // this pattern was seen for parcel service notifications
-    // and is similar to mailchimp above, however, with weaker conditions.
+    // a usable name is often in the `From` header (seen for several parcel service notifications).
+    // same, if we do not have a name yet and `List-Id` has a known suffix (`.xt.local`)
+    //
+    // this pattern is similar to mailchimp above, however,
+    // with weaker conditions and does not overwrite existing names.
     if name.is_empty() {
         if let Some(from) = mime_parser.from.first() {
             if from.addr.contains("noreply")
                 || from.addr.contains("no-reply")
                 || from.addr.starts_with("notifications@")
+                || listid.ends_with(".xt.local")
             {
                 if let Some(display_name) = &from.display_name {
                     name = display_name.clone();
@@ -3319,6 +3322,40 @@ mod tests {
         assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "dpdde.mxmail.service.dpd.de");
         assert_eq!(chat.name, "DPD");
+    }
+
+    #[async_std::test]
+    async fn test_xt_local_mailing_list() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_xt_local_microsoft.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        let chat = Chat::load_from_db(&t, t.get_last_msg().await.chat_id).await?;
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.grpid, "96540.xt.local");
+        assert_eq!(chat.name, "Microsoft Store");
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_xt_local_spiegel.eml"),
+            "INBOX",
+            2,
+            false,
+        )
+        .await?;
+        let chat = Chat::load_from_db(&t, t.get_last_msg().await.chat_id).await?;
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.grpid, "121231234.xt.local");
+        assert_eq!(chat.name, "DER SPIEGEL Kundenservice");
+
+        Ok(())
     }
 
     #[async_std::test]
