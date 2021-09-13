@@ -462,7 +462,7 @@ impl Imap {
         self.prepare(context).await?;
 
         while self
-            .fetch_new_messages(context, &watch_folder, false)
+            .fetch_new_messages(context, watch_folder, false)
             .await?
         {
             // We fetch until no more new messages are there.
@@ -647,10 +647,10 @@ impl Imap {
         Ok(false)
     }
 
-    pub(crate) async fn fetch_new_messages<S: AsRef<str>>(
+    pub(crate) async fn fetch_new_messages(
         &mut self,
         context: &Context,
-        folder: S,
+        folder: &str,
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
@@ -658,15 +658,15 @@ impl Imap {
         let download_limit = context.download_limit().await?;
 
         let new_emails = self
-            .select_with_uidvalidity(context, folder.as_ref())
+            .select_with_uidvalidity(context, folder)
             .await?;
 
         if !new_emails && !fetch_existing_msgs {
-            info!(context, "No new emails in folder {}", folder.as_ref());
+            info!(context, "No new emails in folder {}", folder);
             return Ok(false);
         }
 
-        let old_uid_next = get_uid_next(context, folder.as_ref()).await?;
+        let old_uid_next = get_uid_next(context, folder).await?;
 
         let msgs = if fetch_existing_msgs {
             self.prefetch_existing_msgs().await?
@@ -674,7 +674,6 @@ impl Imap {
             self.prefetch(old_uid_next).await?
         };
         let read_cnt = msgs.len();
-        let folder: &str = folder.as_ref();
 
         let mut read_errors = 0;
         let mut uids_fetch_fully = Vec::with_capacity(msgs.len());
