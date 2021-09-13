@@ -287,7 +287,7 @@ pub(crate) async fn dc_receive_imf_inner(
     let delete_server_after = context.get_config_delete_server_after().await?;
 
     if !created_db_entries.is_empty() {
-        if needs_delete_job || delete_server_after == Some(0) {
+        if needs_delete_job || (delete_server_after == Some(0) && is_partial_download.is_none()) {
             for db_entry in &created_db_entries {
                 job::add(
                     context,
