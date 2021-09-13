@@ -371,6 +371,12 @@ impl Context {
             "show_emails",
             self.get_config_int(Config::ShowEmails).await?.to_string(),
         );
+        res.insert(
+            "download_limit",
+            self.get_config_int(Config::DownloadLimit)
+                .await?
+                .to_string(),
+        );
         res.insert("inbox_watch", inbox_watch.to_string());
         res.insert("sentbox_watch", sentbox_watch.to_string());
         res.insert("mvbox_watch", mvbox_watch.to_string());

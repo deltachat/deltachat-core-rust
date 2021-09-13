@@ -13,8 +13,10 @@ use crate::config::Config;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
+use crate::dc_tools::dc_timestamp_to_str;
 use crate::message::Message;
 use crate::param::Param;
+use humansize::{file_size_opts, FileSize};
 
 /// Stock strings
 ///
@@ -267,6 +269,12 @@ pub enum StockMessage {
                     You can check your current storage usage anytime at \"Settings / Connectivity\"."
     ))]
     QuotaExceedingMsgBody = 98,
+
+    #[strum(props(fallback = "%1$s message"))]
+    PartialDownloadMsgBody = 99,
+
+    #[strum(props(fallback = "Download maximum available until %1$s"))]
+    DownloadAvailability = 100,
 }
 
 impl StockMessage {
@@ -857,6 +865,23 @@ pub(crate) async fn quota_exceeding(context: &Context, highest_usage: u64) -> St
         .replace("%%", "%")
 }
 
+/// Stock string: `%1$s message` with placeholder replaced by human-readable size.
+pub(crate) async fn partial_download_msg_body(context: &Context, org_bytes: u32) -> String {
+    let size = org_bytes
+        .file_size(file_size_opts::BINARY)
+        .unwrap_or_default();
+    translated(context, StockMessage::PartialDownloadMsgBody)
+        .await
+        .replace1(size)
+}
+
+/// Stock string: `Download maximum available until %1$s`.
+pub(crate) async fn download_availability(context: &Context, timestamp: i64) -> String {
+    translated(context, StockMessage::DownloadAvailability)
+        .await
+        .replace1(dc_timestamp_to_str(timestamp))
+}
+
 impl Context {
     /// Set the stock string for the [StockMessage].
     ///
@@ -1047,6 +1072,14 @@ mod tests {
         assert!(str.contains("81% "));
         assert!(str.contains("100% "));
         assert!(!str.contains("%%"));
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_partial_download_msg_body() -> anyhow::Result<()> {
+        let t = TestContext::new().await;
+        let str = partial_download_msg_body(&t, 1024 * 1024).await;
+        assert_eq!(str, "1 MiB message");
         Ok(())
     }
 

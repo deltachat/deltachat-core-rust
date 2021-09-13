@@ -1653,6 +1653,18 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_download_full_msg(context: *mut dc_context_t, msg_id: u32) {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_download_full_msg()");
+        return;
+    }
+    let ctx = &*context;
+    block_on(MsgId::new(msg_id).download_full(ctx))
+        .log_err(ctx, "Failed to download message fully.")
+        .ok();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *const libc::c_char) -> libc::c_int {
     if addr.is_null() {
         eprintln!("ignoring careless call to dc_may_be_valid_addr()");
@@ -2789,6 +2801,16 @@ pub unsafe extern "C" fn dc_msg_get_state(msg: *mut dc_msg_t) -> libc::c_int {
     }
     let ffi_msg = &*msg;
     ffi_msg.message.get_state() as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_download_state(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_download_state()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.download_state() as libc::c_int
 }
 
 #[no_mangle]

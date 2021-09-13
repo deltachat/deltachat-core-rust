@@ -65,7 +65,7 @@ pub enum ImapActionResult {
 /// - Chat-Version to check if a message is a chat message
 /// - Autocrypt-Setup-Message to check if a message is an autocrypt setup message,
 ///   not necessarily sent by Delta Chat.
-const PREFETCH_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
+const PREFETCH_FLAGS: &str = "(UID RFC822.SIZE BODY.PEEK[HEADER.FIELDS (\
                               MESSAGE-ID \
                               FROM \
                               IN-REPLY-TO REFERENCES \
@@ -81,7 +81,8 @@ const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
                              X-MICROSOFT-ORIGINAL-MESSAGE-ID\
                              )])";
 const JUST_UID: &str = "(UID)";
-const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
+const BODY_FULL: &str = "(FLAGS BODY.PEEK[])";
+const BODY_PARTIAL: &str = "(FLAGS RFC822.SIZE BODY.PEEK[HEADER])";
 
 #[derive(Debug)]
 pub struct Imap {
@@ -654,6 +655,7 @@ impl Imap {
     ) -> Result<bool> {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
             .unwrap_or_default();
+        let download_limit = context.download_limit().await?;
 
         let new_emails = self
             .select_with_uidvalidity(context, folder.as_ref())
@@ -675,7 +677,8 @@ impl Imap {
         let folder: &str = folder.as_ref();
 
         let mut read_errors = 0;
-        let mut uids = Vec::with_capacity(msgs.len());
+        let mut uids_fetch_fully = Vec::with_capacity(msgs.len());
+        let mut uids_fetch_partially = Vec::with_capacity(msgs.len());
         let mut largest_uid_skipped = None;
 
         for (current_uid, msg) in msgs.into_iter() {
@@ -702,7 +705,16 @@ impl Imap {
             )
             .await
             {
-                uids.push(current_uid);
+                match download_limit {
+                    Some(download_limit) => {
+                        if msg.size.unwrap_or_default() > download_limit {
+                            uids_fetch_partially.push(current_uid);
+                        } else {
+                            uids_fetch_fully.push(current_uid)
+                        }
+                    }
+                    None => uids_fetch_fully.push(current_uid),
+                }
             } else if read_errors == 0 {
                 // If there were errors (`read_errors != 0`), stop updating largest_uid_skipped so that uid_next will
                 // not be updated and we will retry prefetching next time
@@ -710,12 +722,29 @@ impl Imap {
             }
         }
 
-        if !uids.is_empty() {
+        if !uids_fetch_fully.is_empty() || !uids_fetch_partially.is_empty() {
             self.connectivity.set_working(context).await;
         }
 
-        let (largest_uid_processed, error_cnt) = self
-            .fetch_many_msgs(context, folder, uids, fetch_existing_msgs)
+        let (largest_uid_fully_fetched, error_cnt) = self
+            .fetch_many_msgs(
+                context,
+                folder,
+                uids_fetch_fully,
+                false,
+                fetch_existing_msgs,
+            )
+            .await;
+        read_errors += error_cnt;
+
+        let (largest_uid_partially_fetched, error_cnt) = self
+            .fetch_many_msgs(
+                context,
+                folder,
+                uids_fetch_partially,
+                true,
+                fetch_existing_msgs,
+            )
             .await;
         read_errors += error_cnt;
 
@@ -726,7 +755,10 @@ impl Imap {
         // So: Update the uid_next to the largest uid that did NOT recoverably fail. Not perfect because if there was
         // another message afterwards that succeeded, we will not retry. The upside is that we will not retry an infinite amount of times.
         let largest_uid_without_errors = max(
-            largest_uid_processed.unwrap_or(0),
+            max(
+                largest_uid_fully_fetched.unwrap_or(0),
+                largest_uid_partially_fetched.unwrap_or(0),
+            ),
             largest_uid_skipped.unwrap_or(0),
         );
         let new_uid_next = largest_uid_without_errors + 1;
@@ -863,11 +895,12 @@ impl Imap {
     /// Fetches a list of messages by server UID.
     ///
     /// Returns the last uid fetch successfully and an error count.
-    async fn fetch_many_msgs(
+    pub(crate) async fn fetch_many_msgs(
         &mut self,
         context: &Context,
         folder: &str,
         server_uids: Vec<u32>,
+        fetch_partially: bool,
         fetching_existing_messages: bool,
     ) -> (Option<u32>, usize) {
         if server_uids.is_empty() {
@@ -888,7 +921,17 @@ impl Imap {
         let mut last_uid = None;
 
         for set in sets.iter() {
-            let mut msgs = match session.uid_fetch(&set, BODY_FLAGS).await {
+            let mut msgs = match session
+                .uid_fetch(
+                    &set,
+                    if fetch_partially {
+                        BODY_PARTIAL
+                    } else {
+                        BODY_FULL
+                    },
+                )
+                .await
+            {
                 Ok(msgs) => msgs,
                 Err(err) => {
                     // TODO: maybe differentiate between IO and input/parsing problems
@@ -923,7 +966,13 @@ impl Imap {
                 count += 1;
 
                 let is_deleted = msg.flags().any(|flag| flag == Flag::Deleted);
-                if is_deleted || msg.body().is_none() {
+                let (body, partial) = if fetch_partially {
+                    (msg.header(), msg.size) // `BODY.PEEK[HEADER]` goes to header() ...
+                } else {
+                    (msg.body(), None) // ... while `BODY.PEEK[]` goes to body() - and includes header()
+                };
+
+                if is_deleted || body.is_none() {
                     info!(
                         context,
                         "Not processing deleted or empty msg {}", server_uid
@@ -937,7 +986,7 @@ impl Imap {
                 let folder = folder.clone();
 
                 // safe, as we checked above that there is a body.
-                let body = msg.body().unwrap();
+                let body = body.unwrap();
                 let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
 
                 match dc_receive_imf_inner(
@@ -946,6 +995,7 @@ impl Imap {
                     &folder,
                     server_uid,
                     is_seen,
+                    partial,
                     fetching_existing_messages,
                 )
                 .await

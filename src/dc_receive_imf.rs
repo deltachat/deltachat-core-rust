@@ -21,6 +21,7 @@ use crate::context::Context;
 use crate::dc_tools::{
     dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time,
 };
+use crate::download::DownloadState;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -57,15 +58,27 @@ pub async fn dc_receive_imf(
     server_uid: u32,
     seen: bool,
 ) -> Result<()> {
-    dc_receive_imf_inner(context, imf_raw, server_folder, server_uid, seen, false).await
+    dc_receive_imf_inner(
+        context,
+        imf_raw,
+        server_folder,
+        server_uid,
+        seen,
+        None,
+        false,
+    )
+    .await
 }
 
+/// If `is_partial_download` is set, it contains the full message size in bytes.
+/// Do not confuse that with `replace_partial_download` that will be set when the full message is loaded later.
 pub(crate) async fn dc_receive_imf_inner(
     context: &Context,
     imf_raw: &[u8],
     server_folder: &str,
     server_uid: u32,
     seen: bool,
+    is_partial_download: Option<u32>,
     fetching_existing_messages: bool,
 ) -> Result<()> {
     info!(
@@ -78,13 +91,14 @@ pub(crate) async fn dc_receive_imf_inner(
         println!("{}", String::from_utf8_lossy(imf_raw));
     }
 
-    let mut mime_parser = match MimeMessage::from_bytes(context, imf_raw).await {
-        Err(err) => {
-            warn!(context, "dc_receive_imf: can't parse MIME: {}", err);
-            return Ok(());
-        }
-        Ok(mime_parser) => mime_parser,
-    };
+    let mut mime_parser =
+        match MimeMessage::from_bytes_with_partial(context, imf_raw, is_partial_download).await {
+            Err(err) => {
+                warn!(context, "dc_receive_imf: can't parse MIME: {}", err);
+                return Ok(());
+            }
+            Ok(mime_parser) => mime_parser,
+        };
 
     // we can not add even an empty record if we have no info whatsoever
     if !mime_parser.has_headers() {
@@ -111,19 +125,31 @@ pub(crate) async fn dc_receive_imf_inner(
         "received message {} has Message-Id: {}", server_uid, rfc724_mid
     );
 
-    // check, if the mail is already in our database - if so, just update the folder/uid
-    // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
-    // moved between folders. make sure, this check is done eg. before securejoin-processing) */
-    if let Some((old_server_folder, old_server_uid, _)) =
+    // check, if the mail is already in our database.
+    // make sure, this check is done eg. before securejoin-processing.
+    let replace_partial_download = if let Some((old_server_folder, old_server_uid, old_msg_id)) =
         message::rfc724_mid_exists(context, &rfc724_mid).await?
     {
-        if old_server_folder != server_folder || old_server_uid != server_uid {
-            message::update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
+        let msg = Message::load_from_db(context, old_msg_id).await?;
+        if msg.download_state() != DownloadState::Done && is_partial_download.is_none() {
+            // the mesage was partially downloaded before and is fully downloaded now.
+            info!(
+                context,
+                "Message already partly in DB, replacing by full message."
+            );
+            old_msg_id.delete_from_db(context).await?;
+            true
+        } else {
+            // the message was probably moved around.
+            info!(context, "Message already in DB, updating folder/uid.");
+            if old_server_folder != server_folder || old_server_uid != server_uid {
+                message::update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
+            }
+            return Ok(());
         }
-
-        warn!(context, "Message already in DB");
-        return Ok(());
-    }
+    } else {
+        false
+    };
 
     // the function returns the number of created messages in the database
     let mut hidden = false;
@@ -181,7 +207,8 @@ pub(crate) async fn dc_receive_imf_inner(
         &mut sent_timestamp,
         from_id,
         &mut hidden,
-        seen,
+        seen || replace_partial_download,
+        is_partial_download,
         &mut needs_delete_job,
         &mut created_db_entries,
         &mut create_event_to_send,
@@ -237,6 +264,7 @@ pub(crate) async fn dc_receive_imf_inner(
     //
     // Ignore MDNs though, as they never contain the signature even if user has set it.
     if mime_parser.mdn_reports.is_empty()
+        && is_partial_download.is_none()
         && from_id != 0
         && context
             .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)
@@ -259,7 +287,7 @@ pub(crate) async fn dc_receive_imf_inner(
     let delete_server_after = context.get_config_delete_server_after().await?;
 
     if !created_db_entries.is_empty() {
-        if needs_delete_job || delete_server_after == Some(0) {
+        if needs_delete_job || (delete_server_after == Some(0) && is_partial_download.is_none()) {
             for db_entry in &created_db_entries {
                 job::add(
                     context,
@@ -377,6 +405,7 @@ async fn add_parts(
     from_id: u32,
     hidden: &mut bool,
     seen: bool,
+    is_partial_download: Option<u32>,
     needs_delete_job: &mut bool,
     created_db_entries: &mut Vec<(ChatId, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
@@ -876,8 +905,8 @@ async fn add_parts(
         ephemeral_timer = EphemeralTimer::Disabled;
     }
 
-    // if a chat is protected, check additional properties
-    if !chat_id.is_special() {
+    // if a chat is protected and the message is fully downloaded, check additional properties
+    if !chat_id.is_special() && is_partial_download.is_none() {
         let chat = Chat::load_from_db(context, chat_id).await?;
         let new_status = match mime_parser.is_system_message {
             SystemMessage::ChatProtectionEnabled => Some(ProtectionStatus::Protected),
@@ -886,10 +915,6 @@ async fn add_parts(
         };
 
         if chat.is_protected() || new_status.is_some() {
-            // TODO: on partial downloads, do not try to check verified properties,
-            // eg. the Chat-Verified header is in the encrypted part and we would always get warnings.
-            // however, this seems not to be a big deal as we even show "failed verifications" messages in-chat -
-            // nothing else is done for "not yet downloaded content".
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "verification problem: {}", err);
@@ -1002,7 +1027,7 @@ INSERT INTO msgs
     txt, subject, txt_raw, param, 
     bytes, hidden, mime_headers, mime_in_reply_to,
     mime_references, mime_modified, error, ephemeral_timer,
-    ephemeral_timestamp
+    ephemeral_timestamp, download_state
   )
   VALUES (
     ?, ?, ?, ?,
@@ -1011,7 +1036,7 @@ INSERT INTO msgs
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
-    ?
+    ?, ?
   );
 "#,
         )?;
@@ -1090,7 +1115,12 @@ INSERT INTO msgs
             mime_modified,
             part.error.take().unwrap_or_default(),
             ephemeral_timer,
-            ephemeral_timestamp
+            ephemeral_timestamp,
+            if is_partial_download.is_some() {
+                DownloadState::Available
+            } else {
+                DownloadState::Done
+            },
         ])?;
         let row_id = conn.last_insert_rowid();
 

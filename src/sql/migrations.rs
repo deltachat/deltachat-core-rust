@@ -477,6 +477,16 @@ paramsv![]
         sql.execute_migration("UPDATE chats SET archived=1 WHERE blocked=2;", 78)
             .await?;
     }
+    if dbversion < 79 {
+        info!(context, "[migration] v79");
+        sql.execute_migration(
+            r#"
+        ALTER TABLE msgs ADD COLUMN download_state INTEGER DEFAULT 0;
+        "#,
+            79,
+        )
+        .await?;
+    }
 
     Ok((
         recalc_fingerprints,

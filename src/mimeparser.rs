@@ -136,6 +136,18 @@ const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";
 
 impl MimeMessage {
     pub async fn from_bytes(context: &Context, body: &[u8]) -> Result<Self> {
+        MimeMessage::from_bytes_with_partial(context, body, None).await
+    }
+
+    /// Parse a mime message.
+    ///
+    /// If `partial` is set, it contains the full message size in bytes
+    /// and `body` contains the header only.
+    pub async fn from_bytes_with_partial(
+        context: &Context,
+        body: &[u8],
+        partial: Option<u32>,
+    ) -> Result<Self> {
         let mail = mailparse::parse_mail(body)?;
 
         let message_time = mail
@@ -274,7 +286,18 @@ impl MimeMessage {
             is_mime_modified: false,
             decoded_data: Vec::new(),
         };
-        parser.parse_mime_recursive(context, &mail, false).await?;
+
+        match partial {
+            Some(org_bytes) => {
+                parser
+                    .create_stub_from_partial_download(context, org_bytes)
+                    .await?;
+            }
+            None => {
+                parser.parse_mime_recursive(context, &mail, false).await?;
+            }
+        };
+
         parser.maybe_remove_bad_parts();
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
@@ -1443,9 +1466,9 @@ pub struct Part {
     pub msg_raw: Option<String>,
     pub bytes: usize,
     pub param: Params,
-    org_filename: Option<String>,
+    pub(crate) org_filename: Option<String>,
     pub error: Option<String>,
-    dehtml_failed: bool,
+    pub(crate) dehtml_failed: bool,
 
     /// the part is a child or a descendant of multipart/related.
     /// typically, these are images that are referenced from text/html part
@@ -1453,7 +1476,7 @@ pub struct Part {
     ///
     /// note that multipart/related may contain further multipart nestings
     /// and all of them needs to be marked with `is_related`.
-    is_related: bool,
+    pub(crate) is_related: bool,
 }
 
 /// return mimetype and viewtype for a parsed mail

@@ -13,6 +13,7 @@ use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
+use deltachat::download::DownloadState;
 use deltachat::imex::*;
 use deltachat::location;
 use deltachat::log::LogExt;
@@ -188,10 +189,18 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         MessageState::OutFailed => " !!",
         _ => "",
     };
+
+    let downloadstate = match msg.download_state() {
+        DownloadState::Done => "",
+        DownloadState::Available => " [⬇ Download available]",
+        DownloadState::InProgress => " [⬇ Download in progress...]️",
+        DownloadState::Failure => " [⬇ Download failed]",
+    };
+
     let temp2 = dc_timestamp_to_str(msg.get_timestamp());
     let msgtext = msg.get_text();
     println!(
-        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}{} [{}]",
+        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}{}{} [{}]",
         prefix.as_ref(),
         msg.get_id(),
         if msg.get_showpadlock() { "🔒" } else { "" },
@@ -225,6 +234,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
             ""
         },
         statestr,
+        downloadstate,
         &temp2,
     );
 }
@@ -393,6 +403,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
                  msginfo <msg-id>\n\
+                 download <msg-id>\n\
                  html <msg-id>\n\
                  listfresh\n\
                  forward <msg-id> <chat-id>\n\
@@ -1027,6 +1038,12 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let id = MsgId::new(arg1.parse()?);
             let res = message::get_msg_info(&context, id).await?;
             println!("{}", res);
+        }
+        "download" => {
+            ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
+            let id = MsgId::new(arg1.parse()?);
+            println!("Scheduling download for {:?}", id);
+            id.download_full(&context).await?;
         }
         "html" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");

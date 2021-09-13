@@ -351,6 +351,14 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
+ * - `download_limit` = Messages up to this number of bytes are downloaded automatically.
+ *                    For larger messages, only the header is downloaded and a placeholder is shown.
+ *                    These messages can be downloaded fully using dc_download_full_msg() later.
+ *                    The limit is compared against raw message sizes, including headers.
+ *                    The actually used limit may be corrected
+ *                    to not mess up with non-delivery-reports or read-receipts.
+ *                    0=no limit (default).
+ *                    Changes affect future messages only.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
@@ -1590,6 +1598,30 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  *     The result must be released using dc_str_unref().
  */
 char*           dc_get_msg_html              (dc_context_t* context, uint32_t msg_id);
+
+
+/**
+  * Asks the core to start downloading a message fully.
+  * This function is typically called when the user hits the "Download" button
+  * that is shown by the UI in case dc_msg_get_download_state()
+  * returns @ref DC_DOWNLOAD_AVAILABLE or @ref DC_DOWNLOAD_FAILURE.
+  *
+  * On success, the @ref DC_MSG "view type of the message" may change.
+  * That may happen eg. in cases where the message was encrypted
+  * and the type could not be determined without fully downloading.
+  * Downloaded content can be accessed as usual after download,
+  * eg. using dc_msg_get_file().
+  * If may also happen that additional messages appear by downloading,
+  * eg. when an email contains several images
+  * that is expanded to several messages.
+  *
+  * To reflect these changes a @ref DC_EVENT_MSGS_CHANGED event will be emitted.
+  *
+  * @memberof dc_context_t
+  * @param context The context object.
+  * @param msg_id Message ID to download the content for.
+  */
+void dc_download_full_msg (dc_context_t* context, int msg_id);
 
 
 /**
@@ -3915,6 +3947,31 @@ int dc_msg_has_html (dc_msg_t* msg);
 
 
 /**
+  * Check if the message is completely downloaded
+  * or if some further action is needed.
+  *
+  * Messages may be not fully downloaded
+  * if they are larger than the limit set by the dc_set_config()-option `download_limit`.
+  *
+  * The function returns one of:
+  * - @ref DC_DOWNLOAD_DONE        - The message does not need any further download action
+  *                                  and should be rendered as usual.
+  * - @ref DC_DOWNLOAD_AVAILABLE   - There is additional content to download.
+  *                                  In addition to the usual message rendering,
+  *                                  the UI shall show a download button that calls dc_download_full_msg()
+  * - @ref DC_DOWNLOAD_IN_PROGRESS - Download was started with dc_download_full_msg() and is still in progress.
+  *                                  If the download fails or succeeds,
+  *                                  the event @ref DC_EVENT_MSGS_CHANGED is emitted.
+  * - @ref DC_DOWNLOAD_FAILURE     - Download error, the user may start over calling dc_download_full_msg() again.
+  *
+  * @memberof dc_msg_t
+  * @param msg The message object.
+  * @return One of the @ref DC_DOWNLOAD values
+  */
+int dc_msg_get_download_state (const dc_msg_t* msg);
+
+
+/**
  * Set the text of a message object.
  * This does not alter any information in the database; this may be done by dc_send_msg() later.
  *
@@ -5294,6 +5351,44 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
+  * @defgroup DC_DOWNLOAD DC_DOWNLOAD
+  *
+  * These constants describe the download state of a message.
+  * The download state can be retrieved using dc_msg_get_download_state()
+  * and usually changes after calling dc_download_full_msg().
+  *
+  * @addtogroup DC_DOWNLOAD
+  * @{
+  */
+
+/**
+ * Download not needed, see dc_msg_get_download_state() for details.
+ */
+#define DC_DOWNLOAD_DONE          0
+
+/**
+ * Download available, see dc_msg_get_download_state() for details.
+ */
+#define DC_DOWNLOAD_AVAILABLE    10
+
+/**
+ * Download failed, see dc_msg_get_download_state() for details.
+ */
+#define DC_DOWNLOAD_FAILURE      20
+
+/**
+ * Download in progress, see dc_msg_get_download_state() for details.
+ */
+#define DC_DOWNLOAD_IN_PROGRESS  1000
+
+
+
+/**
+ * @}
+ */
+
+
+/**
  * @defgroup DC_STR DC_STR
  *
  * These constants are used to define strings using dc_set_stock_translation().
@@ -5692,6 +5787,22 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// `%1$s` will be replaced by the percentage used
 #define DC_STR_QUOTA_EXCEEDING_MSG_BODY   98
+
+/// "%1$s message"
+///
+/// Used as the message body when a message
+/// was not yet downloaded completely
+/// (dc_msg_get_download_state() is eg. @ref DC_DOWNLOAD_AVAILABLE).
+///
+/// `%1$s` will be replaced by human-readable size (eg. "1.2 MiB").
+#define DC_STR_PARTIAL_DOWNLOAD_MSG_BODY  99
+
+/// "Download maximum available until %1$s"
+///
+/// Appended after some separator to @ref DC_STR_PARTIAL_DOWNLOAD_MSG_BODY.
+///
+/// `%1$s` will be replaced by human-readable date and time.
+#define DC_STR_DOWNLOAD_AVAILABILITY      100
 
 /**
  * @}
