@@ -3433,6 +3433,29 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_ttline_mailing_list() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_ttline.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.subject, "Unsere Sommerangebote an Bord ⚓");
+        let chat = Chat::load_from_db(&t, msg.chat_id).await?;
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.grpid, "39123123-1BBQXPY.t.ttline.com");
+        assert_eq!(chat.name, "TT-Line - Die Schwedenfähren");
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_mailing_list_with_mimepart_footer() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
