@@ -1755,6 +1755,7 @@ async fn create_or_lookup_mailinglist(
             if from.addr.contains("noreply")
                 || from.addr.contains("no-reply")
                 || from.addr.starts_with("notifications@")
+                || from.addr.starts_with("newsletter@")
                 || listid.ends_with(".xt.local")
             {
                 if let Some(display_name) = &from.display_name {
