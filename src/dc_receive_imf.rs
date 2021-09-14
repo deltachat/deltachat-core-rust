@@ -3403,6 +3403,29 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_xing_mailing_list() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_xing.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.subject, "Kennst Du Dr. Mabuse?");
+        let chat = Chat::load_from_db(&t, msg.chat_id).await?;
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.grpid, "51231231231231231231231232869f58.xing.com");
+        assert_eq!(chat.name, "xing.com");
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_mailing_list_with_mimepart_footer() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
