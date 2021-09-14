@@ -1001,6 +1001,12 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
         }
     }
 
+    if let Some(sync_ids) = rendered_msg.sync_ids_to_delete {
+        if let Err(err) = context.delete_sync_ids(sync_ids).await {
+            error!(context, "Failed to delete sync ids: {:?}", err);
+        }
+    }
+
     if attach_selfavatar {
         if let Err(err) = msg.chat_id.set_selfavatar_timestamp(context, time()).await {
             error!(context, "Failed to set selfavatar timestamp: {:?}", err);

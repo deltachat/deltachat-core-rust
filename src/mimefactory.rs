@@ -68,6 +68,7 @@ pub struct MimeFactory<'a> {
     references: String,
     req_mdn: bool,
     last_added_location_id: u32,
+    sync_ids_to_delete: Option<String>,
     attach_selfavatar: bool,
 }
 
@@ -79,6 +80,9 @@ pub struct RenderedEmail {
     pub is_encrypted: bool,
     pub is_gossiped: bool,
     pub last_added_location_id: u32,
+
+    // These IDs must be passed to `delete_sync_ids()` on successful sending.
+    pub sync_ids_to_delete: Option<String>,
 
     /// Message ID (Message in the sense of Email)
     pub rfc724_mid: String,
@@ -205,6 +209,7 @@ impl<'a> MimeFactory<'a> {
             references,
             req_mdn,
             last_added_location_id: 0,
+            sync_ids_to_delete: None,
             attach_selfavatar,
         };
         Ok(factory)
@@ -249,6 +254,7 @@ impl<'a> MimeFactory<'a> {
             references: String::default(),
             req_mdn: false,
             last_added_location_id: 0,
+            sync_ids_to_delete: None,
             attach_selfavatar: false,
         };
 
@@ -729,6 +735,7 @@ impl<'a> MimeFactory<'a> {
             is_encrypted,
             is_gossiped,
             last_added_location_id,
+            sync_ids_to_delete: self.sync_ids_to_delete,
             rfc724_mid,
             subject: subject_str,
         })
@@ -788,6 +795,7 @@ impl<'a> MimeFactory<'a> {
         let command = self.msg.param.get_cmd();
         let mut placeholdertext = None;
         let mut meta_part = None;
+        let is_self_talk = chat.is_self_talk();
 
         if chat.is_protected() {
             headers
@@ -873,7 +881,7 @@ impl<'a> MimeFactory<'a> {
                     "ephemeral-timer-changed".to_string(),
                 ));
             }
-            SystemMessage::LocationOnly => {
+            SystemMessage::LocationOnly | SystemMessage::MultiDeviceSyncOnly => {
                 // This should prevent automatic replies,
                 // such as non-delivery reports.
                 //
@@ -1100,6 +1108,13 @@ impl<'a> MimeFactory<'a> {
                 Err(err) => {
                     warn!(context, "mimefactory: could not send location: {}", err);
                 }
+            }
+        }
+
+        if is_self_talk && self.is_e2ee_guaranteed() {
+            if let Some((json, ids)) = context.build_sync_json().await? {
+                parts.push(context.build_sync_part(json).await);
+                self.sync_ids_to_delete = Some(ids);
             }
         }
 

@@ -125,8 +125,9 @@ pub enum SystemMessage {
     ChatProtectionEnabled = 11,
     ChatProtectionDisabled = 12,
 
-    /// Self-sent-message that contains a json used for multi-device-sync.
-    SyncMessage = 20,
+    /// Self-sent-message that contains only json used for multi-device-sync;
+    /// if possible, we attach that to other messages as for locations.
+    MultiDeviceSyncOnly = 20,
 }
 
 impl Default for SystemMessage {

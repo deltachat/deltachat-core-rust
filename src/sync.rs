@@ -1,10 +1,8 @@
 //! # Synchronize things between devices.
 
 use crate::chat::ChatId;
-use crate::config::Config;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
-use crate::dc_tools::dc_create_outgoing_rfc724_mid;
 use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -12,6 +10,8 @@ use crate::sync::SyncItem::{AddToken, DeleteToken};
 use crate::{chat, stock_str, token};
 use anyhow::Result;
 use itertools::Itertools;
+use lettre_email::mime::{self};
+use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -48,27 +48,21 @@ impl Context {
 
     /// Sends out a self-sent message with items to be synchronized, if any.
     pub async fn send_sync_msg(&self) -> Result<()> {
-        if let Some(json) = self.flush_sync_items().await? {
+        if let Some((_, _)) = self.build_sync_json().await? {
             // TODO: we should not create the self-chat only for sending sync-messages,
             // if we keep the general approach, we should set the chat to hidden.
+            // advantage of using self-sent chat is that we can piggyback sync messages easily on other messages.
             let chat_id = ChatId::create_for_contact(self, DC_CONTACT_ID_SELF).await?;
 
             let mut msg = Message {
                 chat_id,
                 viewtype: Viewtype::Text,
-                text: Some(json),
+                text: Some(stock_str::sync_msg_body(self).await),
                 hidden: true,
                 subject: stock_str::sync_msg_subject(self).await,
-                rfc724_mid: dc_create_outgoing_rfc724_mid(
-                    None,
-                    &self
-                        .get_config(Config::ConfiguredAddr)
-                        .await?
-                        .unwrap_or_default(),
-                ),
                 ..Default::default()
             };
-            msg.param.set_cmd(SystemMessage::SyncMessage);
+            msg.param.set_cmd(SystemMessage::MultiDeviceSyncOnly);
             msg.param.set_int(Param::GuaranteeE2ee, 1);
             msg.param.set_int(Param::SkipAutocrypt, 1);
             chat::send_msg(self, chat_id, &mut msg).await?;
@@ -77,7 +71,8 @@ impl Context {
     }
 
     /// Copies all sync items to a JSON string and clears the sync-table.
-    async fn flush_sync_items(&self) -> Result<Option<String>> {
+    /// Returns the JSON string and the IDs used.
+    pub(crate) async fn build_sync_json(&self) -> Result<Option<(String, String)>> {
         let (ids, serialized) = self
             .sql
             .query_map(
@@ -103,21 +98,35 @@ impl Context {
         if ids.is_empty() {
             Ok(None)
         } else {
-            // As new items may be added in between, delete only the rendered ones.
-            self.sql
-                .execute(
-                    format!(
-                        "DELETE FROM multi_device_sync WHERE id IN ({});",
-                        ids.iter().map(|x| x.to_string()).join(",")
-                    ),
-                    paramsv![],
-                )
-                .await?;
-            Ok(Some(format!("{{\"items\":[\n{}\n]}}", serialized)))
+            Ok(Some((
+                format!("{{\"items\":[\n{}\n]}}", serialized),
+                ids.iter().map(|x| x.to_string()).join(","),
+            )))
         }
     }
 
-    /// Takes a JSON string created by `flush_sync_items()`
+    pub(crate) async fn build_sync_part(&self, json: String) -> PartBuilder {
+        PartBuilder::new()
+            .content_type(&"application/json".parse::<mime::Mime>().unwrap())
+            .header((
+                "Content-Disposition",
+                "attachment; filename=\"multi-device-sync.json\"",
+            ))
+            .body(json)
+    }
+
+    /// Deletes IDs as returned by `build_sync_json()`.
+    pub(crate) async fn delete_sync_ids(&self, ids: String) -> Result<()> {
+        self.sql
+            .execute(
+                format!("DELETE FROM multi_device_sync WHERE id IN ({});", ids),
+                paramsv![],
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Takes a JSON string created by `build_sync_json()`
     /// and construct `SyncItems` from it.
     async fn parse_sync_items(&self, serialized: String) -> Result<SyncItems> {
         let sync_items: SyncItems = serde_json::from_str(&serialized)?;
@@ -172,12 +181,10 @@ mod tests {
     use anyhow::bail;
 
     #[async_std::test]
-    async fn test_flush_sync_items() -> Result<()> {
+    async fn test_build_sync_json() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        let x = t.flush_sync_items().await;
-        info!(t, "{:?}", x);
-        assert!(t.flush_sync_items().await?.is_none());
+        assert!(t.build_sync_json().await?.is_none());
 
         t.add_sync_item(SyncItem::AddToken(TokenData {
             namespace: Namespace::Auth,
@@ -192,7 +199,7 @@ mod tests {
         }))
         .await?;
 
-        let serialized = t.flush_sync_items().await?.unwrap();
+        let (serialized, ids) = t.build_sync_json().await?.unwrap();
         assert_eq!(
             serialized,
             r#"{"items":[
@@ -201,7 +208,9 @@ mod tests {
 ]}"#
         );
 
-        assert!(t.flush_sync_items().await?.is_none());
+        assert!(t.build_sync_json().await?.is_some());
+        t.delete_sync_ids(ids).await?;
+        assert!(t.build_sync_json().await?.is_none());
 
         let sync_items = t.parse_sync_items(serialized).await?;
         assert_eq!(sync_items.items.len(), 2);
