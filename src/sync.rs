@@ -48,7 +48,7 @@ impl Context {
 
     /// Sends out a self-sent message with items to be synchronized, if any.
     pub async fn send_sync_msg(&self) -> Result<()> {
-        if let Some((_, _)) = self.build_sync_json().await? {
+        if let Some((json, ids)) = self.build_sync_json().await? {
             // TODO: we should not create the self-chat only for sending sync-messages,
             // if we keep the general approach, we should set the chat to hidden.
             // advantage of using self-sent chat is that we can piggyback sync messages easily on other messages.
@@ -63,6 +63,8 @@ impl Context {
                 ..Default::default()
             };
             msg.param.set_cmd(SystemMessage::MultiDeviceSyncOnly);
+            msg.param.set(Param::Arg, json);
+            msg.param.set(Param::Arg2, ids);
             msg.param.set_int(Param::GuaranteeE2ee, 1);
             msg.param.set_int(Param::SkipAutocrypt, 1);
             chat::send_msg(self, chat_id, &mut msg).await?;

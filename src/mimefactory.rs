@@ -1112,7 +1112,15 @@ impl<'a> MimeFactory<'a> {
         }
 
         if is_self_talk && self.is_e2ee_guaranteed() {
-            if let Some((json, ids)) = context.build_sync_json().await? {
+            let sync = if command == SystemMessage::MultiDeviceSyncOnly {
+                let json = self.msg.param.get(Param::Arg).unwrap_or_default();
+                let ids = self.msg.param.get(Param::Arg2).unwrap_or_default();
+                Some((json.to_string(), ids.to_string()))
+            } else {
+                context.build_sync_json().await?
+            };
+
+            if let Some((json, ids)) = sync {
                 parts.push(context.build_sync_part(json).await);
                 self.sync_ids_to_delete = Some(ids);
             }
