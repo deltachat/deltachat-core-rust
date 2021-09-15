@@ -233,6 +233,17 @@ pub(crate) async fn dc_receive_imf_inner(
         .await;
     }
 
+    if let Some(ref sync_items) = mime_parser.sync_items {
+        let chat = Chat::load_from_db(context, chat_id).await?;
+        if chat.is_self_talk() {
+            if let Err(err) = context.execute_sync_items(sync_items).await {
+                warn!(context, "receive_imf cannot execute sync items: {}", err);
+            }
+        } else {
+            warn!(context, "ignoring sync items outside self-talk.");
+        }
+    }
+
     if let Some(avatar_action) = &mime_parser.user_avatar {
         if from_id != 0
             && context

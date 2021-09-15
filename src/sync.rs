@@ -146,7 +146,7 @@ impl Context {
     /// Therefore, errors should only be returned on database errors or so.
     /// If eg. just an item cannot be deleted,
     /// that should not hold off the other items to be executed.
-    async fn execute_sync_items(&self, items: &SyncItems) -> Result<()> {
+    pub(crate) async fn execute_sync_items(&self, items: &SyncItems) -> Result<()> {
         for item in &items.items {
             match item {
                 AddToken(token) => {
