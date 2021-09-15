@@ -3,7 +3,7 @@
 use crate::chat::ChatId;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
-use crate::message::Message;
+use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::sync::SyncItem::{AddToken, DeleteToken};
@@ -47,7 +47,7 @@ impl Context {
     }
 
     /// Sends out a self-sent message with items to be synchronized, if any.
-    pub async fn send_sync_msg(&self) -> Result<()> {
+    pub async fn send_sync_msg(&self) -> Result<Option<MsgId>> {
         if let Some((json, ids)) = self.build_sync_json().await? {
             // TODO: we should not create the self-chat only for sending sync-messages,
             // if we keep the general approach, we should set the chat to hidden.
@@ -67,9 +67,10 @@ impl Context {
             msg.param.set(Param::Arg2, ids);
             msg.param.set_int(Param::GuaranteeE2ee, 1);
             msg.param.set_int(Param::SkipAutocrypt, 1);
-            chat::send_msg(self, chat_id, &mut msg).await?;
+            Ok(Some(chat::send_msg(self, chat_id, &mut msg).await?))
+        } else {
+            Ok(None)
         }
-        Ok(())
     }
 
     /// Copies all sync items to a JSON string and clears the sync-table.

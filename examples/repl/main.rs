@@ -154,7 +154,7 @@ const IMEX_COMMANDS: [&str; 12] = [
     "stop",
 ];
 
-const DB_COMMANDS: [&str; 11] = [
+const DB_COMMANDS: [&str; 10] = [
     "info",
     "set",
     "get",
@@ -165,7 +165,6 @@ const DB_COMMANDS: [&str; 11] = [
     "connectivity",
     "maybenetwork",
     "housekeeping",
-    "multidevicesync",
 ];
 
 const CHAT_COMMANDS: [&str; 34] = [
@@ -189,6 +188,7 @@ const CHAT_COMMANDS: [&str; 34] = [
     "sendimage",
     "sendfile",
     "sendhtml",
+    "sendsyncmsg",
     "videochat",
     "draft",
     "listmedia",
