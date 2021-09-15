@@ -609,12 +609,20 @@ impl<'a> MimeFactory<'a> {
             main_part
         } else {
             // Multiple parts, render as multipart.
-            parts.into_iter().fold(
-                PartBuilder::new()
-                    .message_type(MimeMultipartType::Mixed)
-                    .child(main_part.build()),
-                |message, part| message.child(part.build()),
-            )
+            let part_holder = if self.msg.param.get_cmd() == SystemMessage::MultiDeviceSync {
+                PartBuilder::new().header((
+                    "Content-Type".to_string(),
+                    "multipart/report; report-type=multi-device-sync".to_string(),
+                ))
+            } else {
+                PartBuilder::new().message_type(MimeMultipartType::Mixed)
+            };
+
+            parts
+                .into_iter()
+                .fold(part_holder.child(main_part.build()), |message, part| {
+                    message.child(part.build())
+                })
         };
 
         let outer_message = if is_encrypted {
@@ -880,7 +888,7 @@ impl<'a> MimeFactory<'a> {
                     "ephemeral-timer-changed".to_string(),
                 ));
             }
-            SystemMessage::LocationOnly | SystemMessage::MultiDeviceSyncOnly => {
+            SystemMessage::LocationOnly | SystemMessage::MultiDeviceSync => {
                 // This should prevent automatic replies,
                 // such as non-delivery reports.
                 //
@@ -1112,7 +1120,7 @@ impl<'a> MimeFactory<'a> {
 
         // for now, we do not piggyback sync-files to other self-sent-messages
         // to not risk files becoming too larger and being skipped by download-on-demand.
-        if command == SystemMessage::MultiDeviceSyncOnly && self.is_e2ee_guaranteed() {
+        if command == SystemMessage::MultiDeviceSync && self.is_e2ee_guaranteed() {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
             let ids = self.msg.param.get(Param::Arg2).unwrap_or_default();
             parts.push(context.build_sync_part(json.to_string()).await);

@@ -129,7 +129,7 @@ pub enum SystemMessage {
 
     /// Self-sent-message that contains only json used for multi-device-sync;
     /// if possible, we attach that to other messages as for locations.
-    MultiDeviceSyncOnly = 20,
+    MultiDeviceSync = 20,
 }
 
 impl Default for SystemMessage {

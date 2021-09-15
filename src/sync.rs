@@ -62,7 +62,7 @@ impl Context {
                 subject: stock_str::sync_msg_subject(self).await,
                 ..Default::default()
             };
-            msg.param.set_cmd(SystemMessage::MultiDeviceSyncOnly);
+            msg.param.set_cmd(SystemMessage::MultiDeviceSync);
             msg.param.set(Param::Arg, json);
             msg.param.set(Param::Arg2, ids);
             msg.param.set_int(Param::GuaranteeE2ee, 1);
