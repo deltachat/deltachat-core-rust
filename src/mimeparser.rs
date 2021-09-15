@@ -1013,7 +1013,9 @@ impl MimeMessage {
                 return;
             }
         } else if filename == "multi-device-sync.json" {
-            let serialized = String::from_utf8_lossy(decoded_data).parse().unwrap_or_default();
+            let serialized = String::from_utf8_lossy(decoded_data)
+                .parse()
+                .unwrap_or_default();
             self.sync_items = context
                 .parse_sync_items(serialized)
                 .await

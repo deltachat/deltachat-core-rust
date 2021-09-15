@@ -795,7 +795,6 @@ impl<'a> MimeFactory<'a> {
         let command = self.msg.param.get_cmd();
         let mut placeholdertext = None;
         let mut meta_part = None;
-        let is_self_talk = chat.is_self_talk();
 
         if chat.is_protected() {
             headers
@@ -1111,19 +1110,13 @@ impl<'a> MimeFactory<'a> {
             }
         }
 
-        if is_self_talk && self.is_e2ee_guaranteed() {
-            let sync = if command == SystemMessage::MultiDeviceSyncOnly {
-                let json = self.msg.param.get(Param::Arg).unwrap_or_default();
-                let ids = self.msg.param.get(Param::Arg2).unwrap_or_default();
-                Some((json.to_string(), ids.to_string()))
-            } else {
-                context.build_sync_json().await?
-            };
-
-            if let Some((json, ids)) = sync {
-                parts.push(context.build_sync_part(json).await);
-                self.sync_ids_to_delete = Some(ids);
-            }
+        // for now, we do not piggyback sync-files to other self-sent-messages
+        // to not risk files becoming too larger and being skipped by download-on-demand.
+        if command == SystemMessage::MultiDeviceSyncOnly && self.is_e2ee_guaranteed() {
+            let json = self.msg.param.get(Param::Arg).unwrap_or_default();
+            let ids = self.msg.param.get(Param::Arg2).unwrap_or_default();
+            parts.push(context.build_sync_part(json.to_string()).await);
+            self.sync_ids_to_delete = Some(ids.to_string());
         }
 
         if self.attach_selfavatar {
