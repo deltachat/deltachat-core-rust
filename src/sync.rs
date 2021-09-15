@@ -1,18 +1,20 @@
-//! # Synchronize things between devices.
+//! # Synchronize items between devices.
 
 use crate::chat::ChatId;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
+use crate::dc_tools::{dc_smeared_time, time};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
-use crate::sync::SyncItem::{AddToken, DeleteToken};
+use crate::sync::SyncData::{AddToken, DeleteToken};
 use crate::{chat, stock_str, token};
 use anyhow::Result;
 use itertools::Itertools;
 use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
+use std::cmp::min;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TokenData {
@@ -22,9 +24,15 @@ pub(crate) struct TokenData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) enum SyncItem {
+pub(crate) enum SyncData {
     AddToken(TokenData),
     DeleteToken(TokenData),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct SyncItem {
+    timestamp: i64,
+    data: SyncData,
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,8 +41,15 @@ pub(crate) struct SyncItems {
 }
 
 impl Context {
-    /// Adds an item to the list of things that should be synchronized to other devices.
-    pub(crate) async fn add_sync_item(&self, item: SyncItem) -> Result<()> {
+    /// Adds an item to the list of items that should be synchronized to other devices.
+    pub(crate) async fn add_sync_item(&self, data: SyncData) -> Result<()> {
+        self.add_sync_item_with_timestamp(data, time()).await
+    }
+
+    /// Adds item and timestamp to the list of items that should be synchronized to other devices.
+    /// Needed to write tests without worrying about time().
+    async fn add_sync_item_with_timestamp(&self, data: SyncData, timestamp: i64) -> Result<()> {
+        let item = SyncItem { timestamp, data };
         let item = serde_json::to_string(&item)?;
         self.sql
             .execute(
@@ -148,8 +163,11 @@ impl Context {
     /// If eg. just an item cannot be deleted,
     /// that should not hold off the other items to be executed.
     pub(crate) async fn execute_sync_items(&self, items: &SyncItems) -> Result<()> {
+        info!(self, "executing {} sync item(s)", items.items.len());
+        let now = dc_smeared_time(self).await;
         for item in &items.items {
-            match item {
+            let _timestamp = min(item.timestamp, now);
+            match &item.data {
                 AddToken(token) => {
                     let chat_id = if let Some(grpid) = &token.grpid {
                         if let Some((chat_id, _, _)) =
@@ -189,25 +207,31 @@ mod tests {
 
         assert!(t.build_sync_json().await?.is_none());
 
-        t.add_sync_item(SyncItem::AddToken(TokenData {
-            namespace: Namespace::Auth,
-            token: "testtoken".to_string(),
-            grpid: Some("group123".to_string()),
-        }))
+        t.add_sync_item_with_timestamp(
+            SyncData::AddToken(TokenData {
+                namespace: Namespace::Auth,
+                token: "testtoken".to_string(),
+                grpid: Some("group123".to_string()),
+            }),
+            1631781316,
+        )
         .await?;
-        t.add_sync_item(SyncItem::DeleteToken(TokenData {
-            namespace: Namespace::InviteNumber,
-            token: "123!?\":.;{}".to_string(),
-            grpid: None,
-        }))
+        t.add_sync_item_with_timestamp(
+            SyncData::DeleteToken(TokenData {
+                namespace: Namespace::InviteNumber,
+                token: "123!?\":.;{}".to_string(),
+                grpid: None,
+            }),
+            1631781317,
+        )
         .await?;
 
         let (serialized, ids) = t.build_sync_json().await?.unwrap();
         assert_eq!(
             serialized,
             r#"{"items":[
-{"AddToken":{"namespace":"Auth","token":"testtoken","grpid":"group123"}},
-{"DeleteToken":{"namespace":"InviteNumber","token":"123!?\":.;{}","grpid":null}}
+{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"testtoken","grpid":"group123"}}},
+{"timestamp":1631781317,"data":{"DeleteToken":{"namespace":"InviteNumber","token":"123!?\":.;{}","grpid":null}}}
 ]}"#
         );
 
@@ -237,42 +261,42 @@ mod tests {
 
         assert!(t
             .parse_sync_items(
-                r#"{"items":[{"AddToken":{"namespace":"BadEnumValue","token":"yip","grpid":null}}]}"#
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"BadEnumValue","token":"yip","grpid":null}}}]}"#
                     .to_string(),
             )
             .await.is_err());
 
         assert!(t
             .parse_sync_items(
-                r#"{"items":[{"AddToken":{"namespace":"Auth","token":123}}]}"#.to_string(),
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":123}}}]}"#.to_string(),
             )
             .await
             .is_err()); // `123` is invalid for `String`
 
         assert!(t
             .parse_sync_items(
-                r#"{"items":[{"AddToken":{"namespace":"Auth","token":true}}]}"#.to_string(),
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":true}}}]}"#.to_string(),
             )
             .await
             .is_err()); // `true` is invalid for `String`
 
         assert!(t
             .parse_sync_items(
-                r#"{"items":[{"AddToken":{"namespace":"Auth","token":[]}}]}"#.to_string(),
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":[]}}}]}"#.to_string(),
             )
             .await
             .is_err()); // `[]` is invalid for `String`
 
         assert!(t
             .parse_sync_items(
-                r#"{"items":[{"AddToken":{"namespace":"Auth","token":{}}}]}"#.to_string(),
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":{}}}}]}"#.to_string(),
             )
             .await
             .is_err()); // `{}` is invalid for `String`
 
         assert!(t
             .parse_sync_items(
-                r#"{"items":[{"AddToken":{"namespace":"Auth","grpid":null}}]}"#.to_string(),
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","grpid":null}}}]}"#.to_string(),
             )
             .await
             .is_err()); // missing field
@@ -290,8 +314,8 @@ mod tests {
         let sync_items = t
             .parse_sync_items(
                 r#"{"items":[
-{"DeleteToken":{"namespace":"Auth","token":"yip","grpid":null}},
-{"AddToken":{"namespace":"Auth","token":"yip","additional":123,"grpid":null}}
+{"timestamp":1631781316,"data":{"DeleteToken":{"namespace":"Auth","token":"yip","grpid":null}}},
+{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"yip","additional":123,"grpid":null}}}
 ]}"#
                 .to_string(),
             )
@@ -301,13 +325,14 @@ mod tests {
         let sync_items = t
             .parse_sync_items(
                 r#"{"items":[
-{"AddToken":{"namespace":"Auth","token":"yip","grpid":null}}
+{"timestamp":1631781318,"data":{"AddToken":{"namespace":"Auth","token":"yip","grpid":null}}}
 ],"additional":"field"}"#
                     .to_string(),
             )
             .await?;
+
         assert_eq!(sync_items.items.len(), 1);
-        if let AddToken(token) = sync_items.items.get(0).unwrap() {
+        if let AddToken(token) = &sync_items.items.get(0).unwrap().data {
             assert_eq!(token.namespace, Namespace::Auth);
             assert_eq!(token.token, "yip");
             assert_eq!(token.grpid, None);
@@ -317,10 +342,10 @@ mod tests {
 
         // to allow backward compatibility, missing `Option<>` should not break parsing
         let sync_items = t
-            .parse_sync_items(
-                r#"{"items":[{"AddToken":{"namespace":"Auth","token":"yip"}}]}"#.to_string(),
-            )
-            .await?;
+                   .parse_sync_items(
+                       r#"{"items":[{"timestamp":1631781319,"data":{"AddToken":{"namespace":"Auth","token":"yip"}}}]}"#.to_string(),
+                   )
+                   .await?;
         assert_eq!(sync_items.items.len(), 1);
 
         Ok(())
@@ -335,12 +360,12 @@ mod tests {
         let sync_items = t
             .parse_sync_items(
                 r#"{"items":[
-{"AddToken":{"namespace":"InviteNumber","token":"yip-in"}},
-{"DeleteToken":{"namespace":"Auth","token":"delete unexistant, shall continue"}},
-{"AddToken":{"namespace":"Auth","token":"yip-auth"}},
-{"AddToken":{"namespace":"Auth","token":"foo","grpid":"non-existant"}},
-{"AddToken":{"namespace":"Auth","token":"directly deleted"}},
-{"DeleteToken":{"namespace":"Auth","token":"directly deleted"}}
+{"timestamp":1631781316,"data":{"AddToken":{"namespace":"InviteNumber","token":"yip-in"}}},
+{"timestamp":1631781316,"data":{"DeleteToken":{"namespace":"Auth","token":"delete unexistant, shall continue"}}},
+{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"yip-auth"}}},
+{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"foo","grpid":"non-existant"}}},
+{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"directly deleted"}}},
+{"timestamp":1631781316,"data":{"DeleteToken":{"namespace":"Auth","token":"directly deleted"}}}
 ]}"#
                 .to_string(),
             )

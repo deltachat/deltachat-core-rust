@@ -11,7 +11,7 @@ use deltachat_derive::{FromSql, ToSql};
 use crate::chat::{Chat, ChatId};
 use crate::context::Context;
 use crate::dc_tools::{dc_create_id, time};
-use crate::sync::{SyncItem, TokenData};
+use crate::sync::{SyncData, TokenData};
 use serde::{Deserialize, Serialize};
 
 /// Token namespace
@@ -62,7 +62,7 @@ pub async fn save(
 
             if multi_device_sync {
                 context
-                    .add_sync_item(SyncItem::AddToken(TokenData {
+                    .add_sync_item(SyncData::AddToken(TokenData {
                         namespace,
                         token: token.to_string(),
                         grpid: Some(Chat::load_from_db(context, foreign_id).await?.grpid),
@@ -81,7 +81,7 @@ pub async fn save(
 
             if multi_device_sync {
                 context
-                    .add_sync_item(SyncItem::AddToken(TokenData {
+                    .add_sync_item(SyncData::AddToken(TokenData {
                         namespace,
                         token: token.to_string(),
                         grpid: None,
@@ -174,7 +174,7 @@ pub async fn delete(
         .await?;
     if multi_device_sync {
         context
-            .add_sync_item(SyncItem::DeleteToken(TokenData {
+            .add_sync_item(SyncData::DeleteToken(TokenData {
                 namespace,
                 token: token.to_string(),
                 grpid: None,
