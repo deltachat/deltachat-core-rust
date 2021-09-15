@@ -14,21 +14,21 @@ use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TokenData {
     pub(crate) namespace: token::Namespace,
     pub(crate) token: String,
     pub(crate) grpid: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum SyncItem {
     AddToken(TokenData),
     DeleteToken(TokenData),
 }
 
-#[derive(Deserialize)]
-struct SyncItems {
+#[derive(Debug, Deserialize)]
+pub(crate) struct SyncItems {
     items: Vec<SyncItem>,
 }
 
@@ -130,7 +130,7 @@ impl Context {
 
     /// Takes a JSON string created by `build_sync_json()`
     /// and construct `SyncItems` from it.
-    async fn parse_sync_items(&self, serialized: String) -> Result<SyncItems> {
+    pub(crate) async fn parse_sync_items(&self, serialized: String) -> Result<SyncItems> {
         let sync_items: SyncItems = serde_json::from_str(&serialized)?;
         Ok(sync_items)
     }

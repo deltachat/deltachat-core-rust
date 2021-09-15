@@ -28,6 +28,7 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::simplify;
 use crate::stock_str;
+use crate::sync::SyncItems;
 
 /// A parsed MIME message.
 ///
@@ -61,6 +62,7 @@ pub struct MimeMessage {
     pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
+    pub(crate) sync_items: Option<SyncItems>,
     pub(crate) user_avatar: Option<AvatarAction>,
     pub(crate) group_avatar: Option<AvatarAction>,
     pub(crate) mdn_reports: Vec<Report>,
@@ -283,6 +285,7 @@ impl MimeMessage {
             is_system_message: SystemMessage::Unknown,
             location_kml: None,
             message_kml: None,
+            sync_items: None,
             user_avatar: None,
             group_avatar: None,
             failure_report: None,
@@ -817,6 +820,12 @@ impl MimeMessage {
                                 }
                             }
                         }
+                        Some("multi-device-sync") => {
+                            if let Some(second) = mail.subparts.get(1) {
+                                self.add_single_part_if_known(context, second, is_related)
+                                    .await?;
+                            }
+                        }
                         Some(_) => {
                             if let Some(first) = mail.subparts.get(0) {
                                 any_part_added = self
@@ -1003,7 +1012,18 @@ impl MimeMessage {
                 }
                 return;
             }
+        } else if filename == "multi-device-sync.json" {
+            let serialized = String::from_utf8_lossy(decoded_data).parse().unwrap_or_default();
+            self.sync_items = context
+                .parse_sync_items(serialized)
+                .await
+                .map_err(|err| {
+                    warn!(context, "failed to parse sync data: {}", err);
+                })
+                .ok();
+            return;
         }
+
         /* we have a regular file attachment,
         write decoded data to new blob object */
 
