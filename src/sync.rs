@@ -1,7 +1,7 @@
 //! # Synchronize items between devices.
 
 use crate::chat::ChatId;
-use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
+use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
 use crate::dc_tools::{dc_smeared_time, time};
 use crate::message::{Message, MsgId};
@@ -64,11 +64,12 @@ impl Context {
     /// Sends out a self-sent message with items to be synchronized, if any.
     pub async fn send_sync_msg(&self) -> Result<Option<MsgId>> {
         if let Some((json, ids)) = self.build_sync_json().await? {
-            // TODO: we should not create the self-chat only for sending sync-messages,
-            // if we keep the general approach, we should set the chat to hidden.
-            // advantage of using self-sent chat is that we can piggyback sync messages easily on other messages.
-            let chat_id = ChatId::create_for_contact(self, DC_CONTACT_ID_SELF).await?;
-
+            let chat_id = ChatId::create_for_contact_with_blocked(
+                self,
+                DC_CONTACT_ID_SELF,
+                Blocked::Manually,
+            )
+            .await?;
             let mut msg = Message {
                 chat_id,
                 viewtype: Viewtype::Text,
@@ -197,6 +198,8 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::Chat;
+    use crate::chatlist::Chatlist;
     use crate::test_utils::TestContext;
     use crate::token::Namespace;
     use anyhow::bail;
@@ -376,6 +379,44 @@ mod tests {
         assert!(token::exists(&t, Namespace::Auth, "yip-auth").await);
         assert!(!token::exists(&t, Namespace::Auth, "non-existant").await);
         assert!(!token::exists(&t, Namespace::Auth, "directly deleted").await);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_send_sync_msg() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        alice
+            .add_sync_item(SyncData::AddToken(TokenData {
+                namespace: Namespace::Auth,
+                token: "testtoken".to_string(),
+                grpid: None,
+            }))
+            .await?;
+        let msg_id = alice.send_sync_msg().await?.unwrap();
+        let msg = Message::load_from_db(&alice, msg_id).await?;
+        let chat = Chat::load_from_db(&alice, msg.chat_id).await?;
+        assert!(chat.is_self_talk());
+
+        // check that the used self-talk is not visible to the user but that creation will still work
+        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
+        let chat_id = ChatId::create_for_contact(&alice, DC_CONTACT_ID_SELF).await?;
+        let chat = Chat::load_from_db(&alice, chat_id).await?;
+        assert!(chat.is_self_talk());
+        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);
+
+        // let alice's other device receive and execute the sync message,
+        // also here, self-talk should stay hidden
+        let sent_msg = alice.pop_sent_msg().await;
+        let alice2 = TestContext::new_alice().await;
+        alice2.recv_msg(&sent_msg).await;
+        assert!(token::exists(&alice2, token::Namespace::Auth, "testtoken").await);
+        assert_eq!(Chatlist::try_load(&alice2, 0, None, None).await?.len(), 0);
+
+        // the same sync message sent to bob must not be executed
+        let bob = TestContext::new_bob().await;
+        bob.recv_msg(&sent_msg).await;
+        assert!(!token::exists(&bob, token::Namespace::Auth, "testtoken").await);
 
         Ok(())
     }

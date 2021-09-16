@@ -171,6 +171,17 @@ impl ChatId {
     /// This should be used when **a user action** creates a chat 1:1, it ensures the chat
     /// exists and is unblocked and scales the [`Contact`]'s origin.
     pub async fn create_for_contact(context: &Context, contact_id: u32) -> Result<Self> {
+        ChatId::create_for_contact_with_blocked(context, contact_id, Blocked::Not).await
+    }
+
+    /// Same as `create_for_contact()` with an additional `create_blocked` parameter
+    /// that is used in case the chat does not exist.
+    /// If the chat exists already, `create_blocked` is ignored.
+    pub(crate) async fn create_for_contact_with_blocked(
+        context: &Context,
+        contact_id: u32,
+        create_blocked: Blocked,
+    ) -> Result<Self> {
         let chat_id = match ChatIdBlocked::lookup_by_contact(context, contact_id).await? {
             Some(chat) => {
                 if chat.blocked != Blocked::Not {
@@ -182,7 +193,10 @@ impl ChatId {
                 if Contact::real_exists_by_id(context, contact_id).await?
                     || contact_id == DC_CONTACT_ID_SELF
                 {
-                    let chat_id = ChatId::get_for_contact(context, contact_id).await?;
+                    let chat_id =
+                        ChatIdBlocked::get_for_contact(context, contact_id, create_blocked)
+                            .await
+                            .map(|chat| chat.id)?;
                     Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat).await?;
                     chat_id
                 } else {
