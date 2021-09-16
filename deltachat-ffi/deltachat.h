@@ -923,7 +923,7 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
  * dc_send_videochat_invitation() is blocking and may take a while,
  * so the UIs will typically call the function from within a thread.
  * Moreover, UIs will typically enter the room directly without an additional click on the message,
- * for this purpose, the function returns the message-id directly.
+ * for this purpose, the function returns the message id directly.
  *
  * As for other messages sent, this function
  * sends the event #DC_EVENT_MSGS_CHANGED on success, the message has a delivery state, and so on.
@@ -1606,14 +1606,12 @@ char*           dc_get_msg_html              (dc_context_t* context, uint32_t ms
   * that is shown by the UI in case dc_msg_get_download_state()
   * returns @ref DC_DOWNLOAD_AVAILABLE or @ref DC_DOWNLOAD_FAILURE.
   *
-  * On success, the @ref DC_MSG "view type of the message" may change.
+  * On success, the @ref DC_MSG "view type of the message" may change
+  * or the message may be replaced completely by one or more messages with other message ids.
   * That may happen eg. in cases where the message was encrypted
   * and the type could not be determined without fully downloading.
   * Downloaded content can be accessed as usual after download,
   * eg. using dc_msg_get_file().
-  * If may also happen that additional messages appear by downloading,
-  * eg. when an email contains several images
-  * that is expanded to several messages.
   *
   * To reflect these changes a @ref DC_EVENT_MSGS_CHANGED event will be emitted.
   *
@@ -2771,13 +2769,13 @@ uint32_t         dc_array_get_contact_id     (const dc_array_t* array, size_t in
 
 
 /**
- * Return the message-id of the item at the given index.
+ * Return the message id of the item at the given index.
  *
  * @memberof dc_array_t
  * @param array The array object.
  * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
- * @return Message-id of the item at the given index.
- *     0 if there is no message-id bound to the given item,
+ * @return Message id of the item at the given index.
+ *     0 if there is no message id bound to the given item,
  */
 uint32_t         dc_array_get_msg_id         (const dc_array_t* array, size_t index);
 
@@ -2939,7 +2937,7 @@ dc_lot_t*        dc_chatlist_get_summary     (const dc_chatlist_t* chatlist, siz
  * Create a chatlist summary item when the chatlist object is already unref()'d.
  *
  * This function is similar to dc_chatlist_get_summary(), however,
- * takes the chat-id and message-id as returned by dc_chatlist_get_chat_id() and dc_chatlist_get_msg_id()
+ * takes the chat-id and message id as returned by dc_chatlist_get_chat_id() and dc_chatlist_get_msg_id()
  * as arguments. The chatlist object itself is not needed directly.
  *
  * This maybe useful if you convert the complete object into a different represenation
