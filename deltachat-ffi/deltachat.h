@@ -1672,7 +1672,7 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  *
  * - For normal chats, the IMAP state is updated, MDN is sent
  *   (if dc_set_config()-options `mdns_enabled` is set)
- *   and the internal state is changed to DC_STATE_IN_SEEN to reflect these actions.
+ *   and the internal state is changed to @ref DC_STATE_IN_SEEN to reflect these actions.
  *
  * - For contact requests, no IMAP or MDNs is done
  *   and the internal state is not changed therefore.
@@ -2921,7 +2921,7 @@ uint32_t         dc_chatlist_get_msg_id      (const dc_chatlist_t* chatlist, siz
  *
  * - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
  *
- * - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).  0 if not applicable.
+ * - dc_lot_t::state: The state of the message as one of the @ref DC_STATE constants.  0 if not applicable.
  *
  * @memberof dc_chatlist_t
  * @param chatlist The chatlist to query as returned e.g. from dc_get_chatlist().
@@ -2975,7 +2975,7 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t* chatlist);
  * color: color of this chat
  * last-message-from: who sent the last message
  * last-message-text: message (truncated)
- * last-message-state: DC_STATE* constant
+ * last-message-state: @ref DC_STATE constant
  * last-message-date:
  * avatar-path: path-to-blobfile
  * is_verified: yes/no
@@ -3254,18 +3254,6 @@ int64_t          dc_chat_get_remaining_mute_duration (const dc_chat_t* chat);
 #define         DC_MSG_ID_LAST_SPECIAL       9
 
 
-#define         DC_STATE_UNDEFINED           0
-#define         DC_STATE_IN_FRESH            10
-#define         DC_STATE_IN_NOTICED          13
-#define         DC_STATE_IN_SEEN             16
-#define         DC_STATE_OUT_PREPARING       18
-#define         DC_STATE_OUT_DRAFT           19
-#define         DC_STATE_OUT_PENDING         20
-#define         DC_STATE_OUT_FAILED          24
-#define         DC_STATE_OUT_DELIVERED       26 // to check if a mail was sent, use dc_msg_is_sent()
-#define         DC_STATE_OUT_MDN_RCVD        28
-
-
 /**
  * Create new message object. Message objects are needed e.g. for sending messages using
  * dc_send_msg().  Moreover, they are returned e.g. from dc_get_msg(),
@@ -3345,28 +3333,37 @@ int             dc_msg_get_viewtype           (const dc_msg_t* msg);
  * Get the state of a message.
  *
  * Incoming message states:
- * - DC_STATE_IN_FRESH (10) - Incoming _fresh_ message. Fresh messages are neither noticed nor seen and are typically shown in notifications. Use dc_get_fresh_msgs() to get all fresh messages.
- * - DC_STATE_IN_NOTICED (13) - Incoming _noticed_ message. E.g. chat opened but message not yet read - noticed messages are not counted as unread but were not marked as read nor resulted in MDNs. Use dc_marknoticed_chat() to mark messages as being noticed.
- * - DC_STATE_IN_SEEN (16) - Incoming message, really _seen_ by the user. Marked as read on IMAP and MDN may be sent. Use dc_markseen_msgs() to mark messages as being seen.
+ * - @ref DC_STATE_IN_FRESH - Incoming _fresh_ message.
+ *   Fresh messages are neither noticed nor seen and are typically shown in notifications.
+ *   Use dc_get_fresh_msgs() to get all fresh messages.
+ * - @ref DC_STATE_IN_NOTICED - Incoming _noticed_ message.
+ *   E.g. chat opened but message not yet read.
+ *   Noticed messages are not counted as unread but were not marked as read nor resulted in MDNs.
+ *   Use dc_marknoticed_chat() to mark messages as being noticed.
+ * - @ref DC_STATE_IN_SEEN - Incoming message, really _seen_ by the user.
+ *   Marked as read on IMAP and MDN may be sent. Use dc_markseen_msgs() to mark messages as being seen.
  *
  * Outgoing message states:
- * - DC_STATE_OUT_PREPARING (18) - For files which need time to be prepared before they can be sent,
- *   the message enters this state before DC_STATE_OUT_PENDING.
- * - DC_STATE_OUT_DRAFT (19) - Message saved as draft using dc_set_draft()
- * - DC_STATE_OUT_PENDING (20) - The user has pressed the "send" button but the
+ * - @ref DC_STATE_OUT_PREPARING - For files which need time to be prepared before they can be sent,
+ *   the message enters this state before @ref DC_STATE_OUT_PENDING.
+ * - @ref DC_STATE_OUT_DRAFT - Message saved as draft using dc_set_draft()
+ * - @ref DC_STATE_OUT_PENDING - The user has pressed the "send" button but the
  *   message is not yet sent and is pending in some way. Maybe we're offline (no checkmark).
- * - DC_STATE_OUT_FAILED (24) - _Unrecoverable_ error (_recoverable_ errors result in pending messages), you'll receive the event #DC_EVENT_MSG_FAILED.
- * - DC_STATE_OUT_DELIVERED (26) - Outgoing message successfully delivered to server (one checkmark). Note, that already delivered messages may get into the state DC_STATE_OUT_FAILED if we get such a hint from the server.
+ * - @ref DC_STATE_OUT_FAILED - _Unrecoverable_ error (_recoverable_ errors result in pending messages),
+ *   you'll receive the event #DC_EVENT_MSG_FAILED.
+ * - @ref DC_STATE_OUT_DELIVERED - Outgoing message successfully delivered to server (one checkmark).
+ *   Note, that already delivered messages may get into the state @ref DC_STATE_OUT_FAILED if we get such a hint from the server.
  *   If a sent message changes to this state, you'll receive the event #DC_EVENT_MSG_DELIVERED.
- * - DC_STATE_OUT_MDN_RCVD (28) - Outgoing message read by the recipient (two checkmarks; this requires goodwill on the receiver's side)
+ * - @ref DC_STATE_OUT_MDN_RCVD - Outgoing message read by the recipient
+ *   (two checkmarks; this requires goodwill on the receiver's side)
  *   If a sent message changes to this state, you'll receive the event #DC_EVENT_MSG_READ.
  *   Also messages already read by some recipients
- *   may get into the state DC_STATE_OUT_FAILED at a later point,
+ *   may get into the state @ref DC_STATE_OUT_FAILED at a later point,
  *   e.g. when in a group, delivery fails for some recipients.
  *
  * If you just want to check if a message is sent or not, please use dc_msg_is_sent() which regards all states accordingly.
  *
- * The state of just created message objects is DC_STATE_UNDEFINED (0).
+ * The state of just created message objects is @ref DC_STATE_UNDEFINED.
  * The state is always set by the core-library, users of the library cannot set the state directly, but it is changed implicitly e.g.
  * when calling  dc_marknoticed_chat() or dc_markseen_msgs().
  *
@@ -3630,7 +3627,7 @@ int64_t          dc_msg_get_ephemeral_timestamp (const dc_msg_t* msg);
  *   Typically used to show dc_lot_t::text1 with different colors. 0 if not applicable.
  * - dc_lot_t::text2: contains an excerpt of the message text.
  * - dc_lot_t::timestamp: the timestamp of the message.
- * - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
+ * - dc_lot_t::state: The state of the message as one of the @ref DC_STATE constants.
  *
  * Typically used to display a search result. See also dc_chatlist_get_summary() to display a list of chats.
  *
@@ -4652,6 +4649,73 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
+  * @defgroup DC_STATE DC_STATE
+  *
+  * These constants describe the state of a message.
+  * The state can be retrieved using dc_msg_get_state()
+  * and may change by various actions reported by various events
+  *
+  * @addtogroup DC_STATE
+  * @{
+  */
+
+/**
+ * Message just created. See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_UNDEFINED           0
+
+/**
+ * Incoming fresh message. See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_IN_FRESH            10
+
+/**
+ * Incoming noticed message. See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_IN_NOTICED          13
+
+/**
+ * Incoming seen message. See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_IN_SEEN             16
+
+/**
+ * Outgoing message being prepared. See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_OUT_PREPARING       18
+
+/**
+ * Outgoing message drafted. See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_OUT_DRAFT           19
+
+/**
+ * Outgoing message waiting to be sent. See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_OUT_PENDING         20
+
+/**
+ * Outgoing message failed sending. See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_OUT_FAILED          24
+
+/**
+ * Outgoing message sent. To check if a mail was actually sent, use dc_msg_is_sent().
+ * See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_OUT_DELIVERED       26
+
+/**
+ * Outgoing message sent and seen by recipients(s). See dc_msg_get_state() for details.
+ */
+#define         DC_STATE_OUT_MDN_RCVD        28
+
+/**
+ * @}
+ */
+
+
+/**
  * @defgroup DC_SOCKET DC_SOCKET
  *
  * These constants configure socket security.
@@ -5077,8 +5141,8 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * A single message is sent successfully. State changed from  DC_STATE_OUT_PENDING to
- * DC_STATE_OUT_DELIVERED, see dc_msg_get_state().
+ * A single message is sent successfully. State changed from @ref DC_STATE_OUT_PENDING to
+ * @ref DC_STATE_OUT_DELIVERED.
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
@@ -5088,8 +5152,8 @@ void dc_event_unref(dc_event_t* event);
 
 /**
  * A single message could not be sent.
- * State changed from DC_STATE_OUT_PENDING, DC_STATE_OUT_DELIVERED or DC_STATE_OUT_MDN_RCVD
- * to DC_STATE_OUT_FAILED, see dc_msg_get_state().
+ * State changed from @ref DC_STATE_OUT_PENDING, @ref DC_STATE_OUT_DELIVERED or @ref DC_STATE_OUT_MDN_RCVD
+ * to @ref DC_STATE_OUT_FAILED.
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
@@ -5098,8 +5162,8 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * A single message is read by the receiver. State changed from DC_STATE_OUT_DELIVERED to
- * DC_STATE_OUT_MDN_RCVD, see dc_msg_get_state().
+ * A single message is read by the receiver. State changed from @ref DC_STATE_OUT_DELIVERED to
+ * @ref DC_STATE_OUT_MDN_RCVD.
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
