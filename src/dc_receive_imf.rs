@@ -1768,6 +1768,7 @@ async fn create_or_lookup_mailinglist(
     // as a last resort, use the ListId as the name
     // but strip some known, long hash prefixes
     if name.is_empty() {
+        // 51231231231231231231231232869f58.xing.com -> xing.com
         static PREFIX_32_CHARS_HEX: Lazy<Regex> =
             Lazy::new(|| Regex::new(r"([0-9a-fA-F]{32})\.(.{6,})").unwrap());
         if let Some(cap) = PREFIX_32_CHARS_HEX.captures(&listid) {
