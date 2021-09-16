@@ -1755,6 +1755,7 @@ async fn create_or_lookup_mailinglist(
             if from.addr.contains("noreply")
                 || from.addr.contains("no-reply")
                 || from.addr.starts_with("notifications@")
+                || from.addr.starts_with("newsletter@")
                 || listid.ends_with(".xt.local")
             {
                 if let Some(display_name) = &from.display_name {
@@ -1765,8 +1766,16 @@ async fn create_or_lookup_mailinglist(
     }
 
     // as a last resort, use the ListId as the name
+    // but strip some known, long hash prefixes
     if name.is_empty() {
-        name = listid.clone();
+        // 51231231231231231231231232869f58.xing.com -> xing.com
+        static PREFIX_32_CHARS_HEX: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r"([0-9a-fA-F]{32})\.(.{6,})").unwrap());
+        if let Some(cap) = PREFIX_32_CHARS_HEX.captures(&listid) {
+            name = cap[2].to_string();
+        } else {
+            name = listid.clone();
+        }
     }
 
     if allow_creation {
@@ -3398,6 +3407,52 @@ mod tests {
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "121231234.xt.local");
         assert_eq!(chat.name, "DER SPIEGEL Kundenservice");
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_xing_mailing_list() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_xing.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.subject, "Kennst Du Dr. Mabuse?");
+        let chat = Chat::load_from_db(&t, msg.chat_id).await?;
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.grpid, "51231231231231231231231232869f58.xing.com");
+        assert_eq!(chat.name, "xing.com");
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_ttline_mailing_list() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        dc_receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_ttline.eml"),
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+        let msg = t.get_last_msg().await;
+        assert_eq!(msg.subject, "Unsere Sommerangebote an Bord ⚓");
+        let chat = Chat::load_from_db(&t, msg.chat_id).await?;
+        assert_eq!(chat.typ, Chattype::Mailinglist);
+        assert_eq!(chat.grpid, "39123123-1BBQXPY.t.ttline.com");
+        assert_eq!(chat.name, "TT-Line - Die Schwedenfähren");
 
         Ok(())
     }
