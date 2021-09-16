@@ -2999,12 +2999,6 @@ char*            dc_chat_get_info_json       (dc_context_t* context, size_t chat
 #define         DC_CHAT_ID_LAST_SPECIAL      9 // larger chat IDs are "real" chats, their messages are "real" messages.
 
 
-#define         DC_CHAT_TYPE_UNDEFINED       0
-#define         DC_CHAT_TYPE_SINGLE          100
-#define         DC_CHAT_TYPE_GROUP           120
-#define         DC_CHAT_TYPE_MAILINGLIST     140
-
-
 /**
  * Free a chat object.
  *
@@ -3031,18 +3025,16 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
 
 
 /**
- * Get chat type.
+ * Get chat type as one of the @ref DC_CHAT_TYPE constants:
  *
- * Currently, there are two chat types:
- *
- * - DC_CHAT_TYPE_SINGLE (100) - a normal chat is a chat with a single contact,
+ * - @ref DC_CHAT_TYPE_SINGLE - a normal chat is a chat with a single contact,
  *   chats_contacts contains one record for the user.  DC_CONTACT_ID_SELF
  *   (see dc_contact_t::id) is added _only_ for a self talk.
  *
- * - DC_CHAT_TYPE_GROUP  (120) - a group chat, chats_contacts contain all group
+ * - @ref DC_CHAT_TYPE_GROUP - a group chat, chats_contacts contain all group
  *   members, incl. DC_CONTACT_ID_SELF
  *
- * - DC_CHAT_TYPE_MAILINGLIST (140) - a mailing list, this is similar to groups,
+ * - @ref DC_CHAT_TYPE_MAILINGLIST - a mailing list, this is similar to groups,
  *   however, the member list cannot be retrieved completely
  *   and cannot be changed using this api.
  *   moreover, for now, mailist lists are read-only.
@@ -4709,6 +4701,43 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Outgoing message sent and seen by recipients(s). See dc_msg_get_state() for details.
  */
 #define         DC_STATE_OUT_MDN_RCVD        28
+
+/**
+ * @}
+ */
+
+
+/**
+ * @defgroup DC_CHAT_TYPE DC_CHAT_TYPE
+ *
+ * These constants describe the type of a chat.
+ * The chat type can be retrieved using dc_chat_get_type()
+ * and the type does not change during the chat's lifetime.
+ *
+ * @addtogroup DC_CHAT_TYPE
+ * @{
+ */
+
+/**
+ * Undefined chat type.
+ * Normally, this type is not returned.
+ */
+#define         DC_CHAT_TYPE_UNDEFINED       0
+
+/**
+ * A one-to-one chat with a single contact. See dc_chat_get_type() for details.
+ */
+#define         DC_CHAT_TYPE_SINGLE          100
+
+/**
+ * A group chat. See dc_chat_get_type() for details.
+ */
+#define         DC_CHAT_TYPE_GROUP           120
+
+/**
+ * A mailing list. See dc_chat_get_type() for details.
+ */
+#define         DC_CHAT_TYPE_MAILINGLIST     140
 
 /**
  * @}
