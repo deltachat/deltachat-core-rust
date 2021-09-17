@@ -1205,6 +1205,7 @@ impl Chat {
             msg.param.set_int(Param::AttachGroupImage, 1);
             self.param.remove(Param::Unpromoted);
             self.update_param(context).await?;
+            context.sync_qr_code_tokens(Some(self.id)).await?;
         }
 
         // reset encrypt error state eg. for forwarding
@@ -2397,6 +2398,7 @@ pub(crate) async fn add_contact_to_chat_ex(
     if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
         chat.param.remove(Param::Unpromoted);
         chat.update_param(context).await?;
+        context.sync_qr_code_tokens(Some(chat_id)).await?;
     }
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
