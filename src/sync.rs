@@ -1,13 +1,14 @@
 //! # Synchronize items between devices.
 
-use crate::chat::ChatId;
+use crate::chat::{Chat, ChatId};
 use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
 use crate::dc_tools::{dc_smeared_time, time};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
-use crate::sync::SyncData::{AddToken, DeleteToken};
+use crate::sync::SyncData::{AddQrToken, DeleteQrToken};
+use crate::token::Namespace;
 use crate::{chat, stock_str, token};
 use anyhow::Result;
 use itertools::Itertools;
@@ -17,16 +18,16 @@ use serde::{Deserialize, Serialize};
 use std::cmp::min;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct TokenData {
-    pub(crate) namespace: token::Namespace,
-    pub(crate) token: String,
+pub(crate) struct QrTokenData {
+    pub(crate) invitenumber: String,
+    pub(crate) auth: String,
     pub(crate) grpid: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum SyncData {
-    AddToken(TokenData),
-    DeleteToken(TokenData),
+    AddQrToken(QrTokenData),
+    DeleteQrToken(QrTokenData),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,6 +59,35 @@ impl Context {
             )
             .await?;
 
+        Ok(())
+    }
+
+    /// Adds most recent qr-code tokens for a given chat to the list of items to be synced.
+    pub(crate) async fn sync_qr_code_tokens(&self, chat_id: Option<ChatId>) -> Result<()> {
+        if let (Some(invitenumber), Some(auth)) = (
+            token::lookup(self, Namespace::InviteNumber, chat_id).await?,
+            token::lookup(self, Namespace::Auth, chat_id).await?,
+        ) {
+            let grpid = if let Some(chat_id) = chat_id {
+                let chat = Chat::load_from_db(self, chat_id).await?;
+                if !chat.is_promoted() {
+                    info!(
+                        self,
+                        "group '{}' not yet promoted, do not sync tokens yet.", chat.grpid
+                    );
+                    return Ok(());
+                }
+                Some(chat.grpid)
+            } else {
+                None
+            };
+            self.add_sync_item(SyncData::AddQrToken(QrTokenData {
+                invitenumber,
+                auth,
+                grpid,
+            }))
+            .await?;
+        }
         Ok(())
     }
 
@@ -169,25 +199,29 @@ impl Context {
         for item in &items.items {
             let _timestamp = min(item.timestamp, now);
             match &item.data {
-                AddToken(token) => {
+                AddQrToken(token) => {
                     let chat_id = if let Some(grpid) = &token.grpid {
                         if let Some((chat_id, _, _)) =
                             chat::get_chat_id_by_grpid(self, grpid).await?
                         {
                             Some(chat_id)
                         } else {
-                            warn!(self, "Cannot assign token to unpromoted group '{}'.", grpid);
-                            // TODO: really ignore? we could also save grpid instead,
-                            // or do not send before promoted.
+                            warn!(
+                                self,
+                                "Ignoring token for nonexistent/deleted group '{}'.", grpid
+                            );
                             continue;
                         }
                     } else {
                         None
                     };
-                    token::save(self, token.namespace, chat_id, &token.token, false).await?;
+                    token::save(self, Namespace::InviteNumber, chat_id, &token.invitenumber)
+                        .await?;
+                    token::save(self, Namespace::Auth, chat_id, &token.auth).await?;
                 }
-                DeleteToken(token) => {
-                    token::delete(self, token.namespace, &token.token, false).await?
+                DeleteQrToken(token) => {
+                    token::delete(self, Namespace::InviteNumber, &token.invitenumber).await?;
+                    token::delete(self, Namespace::Auth, &token.auth).await?;
                 }
             }
         }
@@ -211,18 +245,18 @@ mod tests {
         assert!(t.build_sync_json().await?.is_none());
 
         t.add_sync_item_with_timestamp(
-            SyncData::AddToken(TokenData {
-                namespace: Namespace::Auth,
-                token: "testtoken".to_string(),
+            SyncData::AddQrToken(QrTokenData {
+                invitenumber: "testinvite".to_string(),
+                auth: "testauth".to_string(),
                 grpid: Some("group123".to_string()),
             }),
             1631781316,
         )
         .await?;
         t.add_sync_item_with_timestamp(
-            SyncData::DeleteToken(TokenData {
-                namespace: Namespace::InviteNumber,
-                token: "123!?\":.;{}".to_string(),
+            SyncData::DeleteQrToken(QrTokenData {
+                invitenumber: "123!?\":.;{}".to_string(),
+                auth: "456".to_string(),
                 grpid: None,
             }),
             1631781317,
@@ -233,8 +267,8 @@ mod tests {
         assert_eq!(
             serialized,
             r#"{"items":[
-{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"testtoken","grpid":"group123"}}},
-{"timestamp":1631781317,"data":{"DeleteToken":{"namespace":"InviteNumber","token":"123!?\":.;{}","grpid":null}}}
+{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"testinvite","auth":"testauth","grpid":"group123"}}},
+{"timestamp":1631781317,"data":{"DeleteQrToken":{"invitenumber":"123!?\":.;{}","auth":"456","grpid":null}}}
 ]}"#
         );
 
@@ -262,44 +296,38 @@ mod tests {
             .await
             .is_err());
 
-        assert!(t
-            .parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"BadEnumValue","token":"yip","grpid":null}}}]}"#
+        assert!(t.parse_sync_items(
+                r#"{"items":[{"timestamp":1631781316,"data":{"BadItem":{"invitenumber":"in","auth":"a","grpid":null}}}]}"#
                     .to_string(),
             )
             .await.is_err());
 
-        assert!(t
-            .parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":123}}}]}"#.to_string(),
+        assert!(t.parse_sync_items(
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":123}}}]}"#.to_string(),
             )
             .await
             .is_err()); // `123` is invalid for `String`
 
-        assert!(t
-            .parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":true}}}]}"#.to_string(),
+        assert!(t.parse_sync_items(
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":true}}}]}"#.to_string(),
             )
             .await
             .is_err()); // `true` is invalid for `String`
 
-        assert!(t
-            .parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":[]}}}]}"#.to_string(),
+        assert!(t.parse_sync_items(
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":[]}}}]}"#.to_string(),
             )
             .await
             .is_err()); // `[]` is invalid for `String`
 
-        assert!(t
-            .parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":{}}}}]}"#.to_string(),
+        assert!(t.parse_sync_items(
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":{}}}}]}"#.to_string(),
             )
             .await
             .is_err()); // `{}` is invalid for `String`
 
-        assert!(t
-            .parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","grpid":null}}}]}"#.to_string(),
+        assert!(t.parse_sync_items(
+                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","grpid":null}}}]}"#.to_string(),
             )
             .await
             .is_err()); // missing field
@@ -317,8 +345,8 @@ mod tests {
         let sync_items = t
             .parse_sync_items(
                 r#"{"items":[
-{"timestamp":1631781316,"data":{"DeleteToken":{"namespace":"Auth","token":"yip","grpid":null}}},
-{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"yip","additional":123,"grpid":null}}}
+{"timestamp":1631781316,"data":{"DeleteQrToken":{"invitenumber":"in","auth":"yip","grpid":null}}},
+{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":"yip","additional":123,"grpid":null}}}
 ]}"#
                 .to_string(),
             )
@@ -328,27 +356,26 @@ mod tests {
         let sync_items = t
             .parse_sync_items(
                 r#"{"items":[
-{"timestamp":1631781318,"data":{"AddToken":{"namespace":"Auth","token":"yip","grpid":null}}}
+{"timestamp":1631781318,"data":{"AddQrToken":{"invitenumber":"in","auth":"yip","grpid":null}}}
 ],"additional":"field"}"#
                     .to_string(),
             )
             .await?;
 
         assert_eq!(sync_items.items.len(), 1);
-        if let AddToken(token) = &sync_items.items.get(0).unwrap().data {
-            assert_eq!(token.namespace, Namespace::Auth);
-            assert_eq!(token.token, "yip");
+        if let AddQrToken(token) = &sync_items.items.get(0).unwrap().data {
+            assert_eq!(token.invitenumber, "in");
+            assert_eq!(token.auth, "yip");
             assert_eq!(token.grpid, None);
         } else {
             bail!("bad item");
         }
 
         // to allow backward compatibility, missing `Option<>` should not break parsing
-        let sync_items = t
-                   .parse_sync_items(
-                       r#"{"items":[{"timestamp":1631781319,"data":{"AddToken":{"namespace":"Auth","token":"yip"}}}]}"#.to_string(),
-                   )
-                   .await?;
+        let sync_items = t.parse_sync_items(
+               r#"{"items":[{"timestamp":1631781319,"data":{"AddQrToken":{"invitenumber":"in","auth":"a"}}}]}"#.to_string(),
+           )
+           .await?;
         assert_eq!(sync_items.items.len(), 1);
 
         Ok(())
@@ -363,12 +390,12 @@ mod tests {
         let sync_items = t
             .parse_sync_items(
                 r#"{"items":[
-{"timestamp":1631781316,"data":{"AddToken":{"namespace":"InviteNumber","token":"yip-in"}}},
-{"timestamp":1631781316,"data":{"DeleteToken":{"namespace":"Auth","token":"delete unexistant, shall continue"}}},
-{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"yip-auth"}}},
-{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"foo","grpid":"non-existant"}}},
-{"timestamp":1631781316,"data":{"AddToken":{"namespace":"Auth","token":"directly deleted"}}},
-{"timestamp":1631781316,"data":{"DeleteToken":{"namespace":"Auth","token":"directly deleted"}}}
+{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"yip-in","auth":"a"}}},
+{"timestamp":1631781316,"data":{"DeleteQrToken":{"invitenumber":"in","auth":"delete unexistant, shall continue"}}},
+{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":"yip-auth"}}},
+{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":"foo","grpid":"non-existant"}}},
+{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":"directly deleted"}}},
+{"timestamp":1631781316,"data":{"DeleteQrToken":{"invitenumber":"in","auth":"directly deleted"}}}
 ]}"#
                 .to_string(),
             )
@@ -387,9 +414,9 @@ mod tests {
     async fn test_send_sync_msg() -> Result<()> {
         let alice = TestContext::new_alice().await;
         alice
-            .add_sync_item(SyncData::AddToken(TokenData {
-                namespace: Namespace::Auth,
-                token: "testtoken".to_string(),
+            .add_sync_item(SyncData::AddQrToken(QrTokenData {
+                invitenumber: "in".to_string(),
+                auth: "testtoken".to_string(),
                 grpid: None,
             }))
             .await?;

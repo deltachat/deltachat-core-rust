@@ -15,7 +15,9 @@ use crate::dc_tools::time;
 use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
+use crate::sync::{QrTokenData, SyncData};
 use crate::token;
+use crate::token::Namespace;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
