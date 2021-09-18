@@ -326,7 +326,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
 
         loop {
             let p = "> ";
-            let readline = rl.readline(&p);
+            let readline = rl.readline(p);
 
             match readline {
                 Ok(line) => {
@@ -409,7 +409,7 @@ async fn handle_cmd(
         }
         "getqr" | "getbadqr" => {
             ctx.start_io().await;
-            let group = arg1.parse::<u32>().ok().map(|id| ChatId::new(id));
+            let group = arg1.parse::<u32>().ok().map(ChatId::new);
             if let Some(mut qr) = dc_get_securejoin_qr(&ctx, group).await {
                 if !qr.is_empty() {
                     if arg0 == "getbadqr" && qr.len() > 40 {

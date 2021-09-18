@@ -298,7 +298,7 @@ async fn log_contactlist(context: &Context, contacts: &[u32]) {
                     "addr unset"
                 }
             );
-            let peerstate = Peerstate::from_addr(context, &addr)
+            let peerstate = Peerstate::from_addr(context, addr)
                 .await
                 .expect("peerstate error");
             if peerstate.is_some() && *contact_id != 1 {
@@ -460,7 +460,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 !arg1.is_empty() && !arg2.is_empty(),
                 "Arguments <msg-id> <setup-code> expected"
             );
-            continue_key_transfer(&context, MsgId::new(arg1.parse()?), &arg2).await?;
+            continue_key_transfer(&context, MsgId::new(arg1.parse()?), arg2).await?;
         }
         "has-backup" => {
             has_backup(&context, blobdir).await?;
@@ -507,13 +507,13 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "set" => {
             ensure!(!arg1.is_empty(), "Argument <key> missing.");
-            let key = config::Config::from_str(&arg1)?;
+            let key = config::Config::from_str(arg1)?;
             let value = if arg2.is_empty() { None } else { Some(arg2) };
             context.set_config(key, value).await?;
         }
         "get" => {
             ensure!(!arg1.is_empty(), "Argument <key> missing.");
-            let key = config::Config::from_str(&arg1)?;
+            let key = config::Config::from_str(arg1)?;
             let val = context.get_config(key).await;
             println!("{}={:?}", key, val);
         }
@@ -904,12 +904,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "listmsgs" => {
             ensure!(!arg1.is_empty(), "Argument <query> missing.");
 
-            let chat = if let Some(ref sel_chat) = sel_chat {
-                Some(sel_chat.get_id())
-            } else {
-                None
-            };
-
+            let chat = sel_chat.as_ref().map(|sel_chat| sel_chat.get_id());
             let time_start = std::time::SystemTime::now();
             let msglist = context.search_msgs(chat, arg1).await?;
             let time_needed = time_start.elapsed().unwrap_or_default();
