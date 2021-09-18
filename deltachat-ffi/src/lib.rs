@@ -1319,8 +1319,13 @@ pub unsafe extern "C" fn dc_is_contact_in_chat(
     }
     let ctx = &*context;
 
-    block_on(async move { chat::is_contact_in_chat(ctx, ChatId::new(chat_id), contact_id).await })
-        .into()
+    block_on(chat::is_contact_in_chat(
+        ctx,
+        ChatId::new(chat_id),
+        contact_id,
+    ))
+    .log_err(ctx, "is_contact_in_chat failed")
+    .unwrap_or_default() as libc::c_int
 }
 
 #[no_mangle]
@@ -1335,9 +1340,13 @@ pub unsafe extern "C" fn dc_add_contact_to_chat(
     }
     let ctx = &*context;
 
-    block_on(async move {
-        chat::add_contact_to_chat(ctx, ChatId::new(chat_id), contact_id).await as libc::c_int
-    })
+    block_on(chat::add_contact_to_chat(
+        ctx,
+        ChatId::new(chat_id),
+        contact_id,
+    ))
+    .log_err(ctx, "Failed to add contact")
+    .is_ok() as libc::c_int
 }
 
 #[no_mangle]
@@ -1352,12 +1361,13 @@ pub unsafe extern "C" fn dc_remove_contact_from_chat(
     }
     let ctx = &*context;
 
-    block_on(async move {
-        chat::remove_contact_from_chat(ctx, ChatId::new(chat_id), contact_id)
-            .await
-            .map(|_| 1)
-            .unwrap_or_log_default(ctx, "Failed to remove contact")
-    })
+    block_on(chat::remove_contact_from_chat(
+        ctx,
+        ChatId::new(chat_id),
+        contact_id,
+    ))
+    .log_err(ctx, "Failed to remove contact")
+    .is_ok() as libc::c_int
 }
 
 #[no_mangle]
@@ -2019,12 +2029,9 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
         Some(ChatId::new(chat_id))
     };
 
-    block_on(async move {
-        securejoin::dc_get_securejoin_qr(ctx, chat_id)
-            .await
-            .unwrap_or_else(|| "".to_string())
-            .strdup()
-    })
+    block_on(securejoin::dc_get_securejoin_qr(ctx, chat_id))
+        .unwrap_or_else(|_| "".to_string())
+        .strdup()
 }
 
 #[no_mangle]
@@ -2615,8 +2622,10 @@ pub unsafe extern "C" fn dc_chat_can_send(chat: *mut dc_chat_t) -> libc::c_int {
         return 0;
     }
     let ffi_chat = &*chat;
-    let cxt = &*ffi_chat.context;
-    block_on(ffi_chat.chat.can_send(cxt)) as libc::c_int
+    let ctx = &*ffi_chat.context;
+    block_on(ffi_chat.chat.can_send(ctx))
+        .log_err(ctx, "can_send failed")
+        .unwrap_or_default() as libc::c_int
 }
 
 #[no_mangle]
@@ -3502,7 +3511,9 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
     let ffi_contact = &*contact;
     let ctx = &*ffi_contact.context;
 
-    block_on(async move { ffi_contact.contact.is_verified(ctx).await as libc::c_int })
+    block_on(ffi_contact.contact.is_verified(ctx))
+        .log_err(ctx, "is_verified failed")
+        .unwrap_or_default() as libc::c_int
 }
 
 // dc_lot_t

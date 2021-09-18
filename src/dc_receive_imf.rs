@@ -298,7 +298,7 @@ pub(crate) async fn dc_receive_imf_inner(
                         0,
                     ),
                 )
-                .await;
+                .await?;
             }
         } else if insert_msg_id
             .needs_move(context, server_folder.as_ref())
@@ -311,7 +311,7 @@ pub(crate) async fn dc_receive_imf_inner(
                 context,
                 job::Job::new(Action::MoveMsg, insert_msg_id.to_u32(), Params::new(), 0),
             )
-            .await;
+            .await?;
         } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
             // This is a Delta Chat MDN. Mark as read.
             job::add(
@@ -323,7 +323,7 @@ pub(crate) async fn dc_receive_imf_inner(
                     0,
                 ),
             )
-            .await;
+            .await?;
         }
     }
 
@@ -550,7 +550,7 @@ async fn add_parts(
         // In lookup_chat_by_reply() and create_or_lookup_group(), it can happen that the message is put into a chat
         // but the From-address is not a member of this chat.
         if let Some(chat_id) = chat_id {
-            if !chat::is_contact_in_chat(context, chat_id, from_id as u32).await {
+            if !chat::is_contact_in_chat(context, chat_id, from_id as u32).await? {
                 let chat = Chat::load_from_db(context, chat_id).await?;
                 if chat.is_protected() {
                     let s = stock_str::unknown_sender_for_chat(context).await;
@@ -774,7 +774,7 @@ async fn add_parts(
                 }
             }
             if chat_id.is_none() && allow_creation {
-                let create_blocked = if !Contact::is_blocked_load(context, to_id).await {
+                let create_blocked = if !Contact::is_blocked_load(context, to_id).await? {
                     Blocked::Not
                 } else {
                     Blocked::Request
@@ -915,7 +915,7 @@ async fn add_parts(
                         stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
                         sort_timestamp,
                     )
-                    .await;
+                    .await?;
                 }
             }
         } else {
@@ -974,7 +974,7 @@ async fn add_parts(
                                 format!("Cannot set protection: {}", e),
                                 sort_timestamp,
                             )
-                            .await;
+                            .await?;
                             return Ok(chat_id); // do not return an error as this would result in retrying the message
                         }
                     }
@@ -1680,7 +1680,7 @@ async fn create_or_lookup_group(
             .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
             .await?
         {
-            if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
+            if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await? {
                 // Members could have been removed while we were
                 // absent. We can't use existing member list and need to
                 // start from scratch.
@@ -1693,20 +1693,20 @@ async fn create_or_lookup_group(
                     .await
                     .ok();
 
-                chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
+                chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await?;
             }
             if from_id > DC_CONTACT_ID_LAST_SPECIAL
-                && !Contact::addr_equals_contact(context, &self_addr, from_id).await
-                && !chat::is_contact_in_chat(context, chat_id, from_id).await
+                && !Contact::addr_equals_contact(context, &self_addr, from_id).await?
+                && !chat::is_contact_in_chat(context, chat_id, from_id).await?
             {
-                chat::add_to_chat_contacts_table(context, chat_id, from_id).await;
+                chat::add_to_chat_contacts_table(context, chat_id, from_id).await?;
             }
             for &to_id in to_ids.iter() {
                 info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
-                if !Contact::addr_equals_contact(context, &self_addr, to_id).await
-                    && !chat::is_contact_in_chat(context, chat_id, to_id).await
+                if !Contact::addr_equals_contact(context, &self_addr, to_id).await?
+                    && !chat::is_contact_in_chat(context, chat_id, to_id).await?
                 {
-                    chat::add_to_chat_contacts_table(context, chat_id, to_id).await;
+                    chat::add_to_chat_contacts_table(context, chat_id, to_id).await?;
                 }
             }
             send_EVENT_CHAT_MODIFIED = true;
@@ -1716,7 +1716,7 @@ async fn create_or_lookup_group(
             .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
             .await?
         {
-            chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await;
+            chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
             send_EVENT_CHAT_MODIFIED = true;
         }
     }
@@ -1832,7 +1832,7 @@ async fn create_or_lookup_mailinglist(
             ))
         })?;
 
-        chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
+        chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await?;
         Ok(Some((chat_id, Blocked::Request)))
     } else {
         info!(context, "creating list forbidden by caller");
@@ -1926,7 +1926,7 @@ async fn create_adhoc_group(
     )
     .await?;
     for &member_id in member_ids.iter() {
-        chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await;
+        chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await?;
     }
 
     context.emit_event(EventType::ChatModified(new_chat_id));
@@ -2047,7 +2047,7 @@ async fn check_verified_properties(
         let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
 
         if peerstate.is_none()
-            || contact.is_verified_ex(context, peerstate.as_ref()).await
+            || contact.is_verified_ex(context, peerstate.as_ref()).await?
                 != VerifiedStatus::BidirectVerified
         {
             bail!(
@@ -2511,24 +2511,22 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_read_receipt_and_unarchive() {
+    async fn test_read_receipt_and_unarchive() -> Result<()> {
         // create alice's account
         let t = TestContext::new_alice().await;
 
-        let bob_id = Contact::create(&t, "bob", "bob@example.com").await.unwrap();
-        let one2one_id = ChatId::create_for_contact(&t, bob_id).await.unwrap();
+        let bob_id = Contact::create(&t, "bob", "bob@example.com").await?;
+        let one2one_id = ChatId::create_for_contact(&t, bob_id).await?;
         one2one_id
             .set_visibility(&t, ChatVisibility::Archived)
             .await
             .unwrap();
-        let one2one = Chat::load_from_db(&t, one2one_id).await.unwrap();
+        let one2one = Chat::load_from_db(&t, one2one_id).await?;
         assert!(one2one.get_visibility() == ChatVisibility::Archived);
 
         // create a group with bob, archive group
-        let group_id = chat::create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
-            .await
-            .unwrap();
-        chat::add_contact_to_chat(&t, group_id, bob_id).await;
+        let group_id = chat::create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        chat::add_contact_to_chat(&t, group_id, bob_id).await?;
         assert_eq!(
             chat::get_chat_msgs(&t, group_id, 0, None)
                 .await
@@ -2538,16 +2536,14 @@ mod tests {
         );
         group_id
             .set_visibility(&t, ChatVisibility::Archived)
-            .await
-            .unwrap();
-        let group = Chat::load_from_db(&t, group_id).await.unwrap();
+            .await?;
+        let group = Chat::load_from_db(&t, group_id).await?;
         assert!(group.get_visibility() == ChatVisibility::Archived);
 
         // everything archived, chatlist should be empty
         assert_eq!(
             Chatlist::try_load(&t, DC_GCL_NO_SPECIALS, None, None)
-                .await
-                .unwrap()
+                .await?
                 .len(),
             0
         );
@@ -2575,13 +2571,12 @@ mod tests {
             1,
             false,
         )
-        .await
-        .unwrap();
+        .await?;
         let msg = get_chat_msg(&t, group_id, 0, 1).await;
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert_eq!(msg.text.unwrap(), "hello");
         assert_eq!(msg.state, MessageState::OutDelivered);
-        let group = Chat::load_from_db(&t, group_id).await.unwrap();
+        let group = Chat::load_from_db(&t, group_id).await?;
         assert!(group.get_visibility() == ChatVisibility::Normal);
 
         // bob sends a read receipt to the group
@@ -2622,27 +2617,21 @@ mod tests {
             1,
             false,
         )
-        .await.unwrap();
-        assert_eq!(
-            chat::get_chat_msgs(&t, group_id, 0, None)
-                .await
-                .unwrap()
-                .len(),
-            1
-        );
-        let msg = message::Message::load_from_db(&t, msg.id).await.unwrap();
+        .await?;
+        assert_eq!(chat::get_chat_msgs(&t, group_id, 0, None).await?.len(), 1);
+        let msg = message::Message::load_from_db(&t, msg.id).await?;
         assert_eq!(msg.state, MessageState::OutMdnRcvd);
 
         // check, the read-receipt has not unarchived the one2one
         assert_eq!(
             Chatlist::try_load(&t, DC_GCL_NO_SPECIALS, None, None)
-                .await
-                .unwrap()
+                .await?
                 .len(),
             1
         );
-        let one2one = Chat::load_from_db(&t, one2one_id).await.unwrap();
+        let one2one = Chat::load_from_db(&t, one2one_id).await?;
         assert!(one2one.get_visibility() == ChatVisibility::Archived);
+        Ok(())
     }
 
     #[async_std::test]
@@ -2937,7 +2926,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_parse_ndn_group_msg() {
+    async fn test_parse_ndn_group_msg() -> Result<()> {
         let t = TestContext::new().await;
         t.configure_addr("alice@gmail.com").await;
 
@@ -2959,32 +2948,32 @@ mod tests {
             1,
             false,
         )
-        .await
-        .unwrap();
+        .await?;
 
-        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap().unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await?;
+        let msg_id = chats.get_msg_id(0)?.unwrap();
 
         let raw = include_bytes!("../test-data/message/gmail_ndn_group.eml");
-        dc_receive_imf(&t, raw, "INBOX", 1, false).await.unwrap();
+        dc_receive_imf(&t, raw, "INBOX", 1, false).await?;
 
-        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
+        let msg = Message::load_from_db(&t, msg_id).await?;
 
         assert_eq!(msg.state, MessageState::OutFailed);
 
-        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await?;
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
         } else {
             panic!("Wrong item type");
         };
-        let last_msg = Message::load_from_db(&t, *msg_id).await.unwrap();
+        let last_msg = Message::load_from_db(&t, *msg_id).await?;
 
         assert_eq!(
             last_msg.text,
             Some(stock_str::failed_sending_to(&t, "assidhfaaspocwaeofi@gmail.com").await,)
         );
         assert_eq!(last_msg.from_id, DC_CONTACT_ID_INFO);
+        Ok(())
     }
 
     async fn load_imf_email(context: &Context, imf_raw: &[u8]) -> Message {
@@ -3032,57 +3021,43 @@ mod tests {
     hello back\n";
 
     #[async_std::test]
-    async fn test_github_mailing_list() {
+    async fn test_github_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.ctx
-            .set_config(Config::ShowEmails, Some("2"))
-            .await
-            .unwrap();
+        t.ctx.set_config(Config::ShowEmails, Some("2")).await?;
 
-        dc_receive_imf(&t.ctx, GH_MAILINGLIST, "INBOX", 1, false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t.ctx, GH_MAILINGLIST, "INBOX", 1, false).await?;
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
 
         let chat_id = chats.get_chat_id(0);
         chat_id.accept(&t).await.unwrap();
-        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
 
         assert!(chat.is_mailing_list());
-        assert_eq!(chat.can_send(&t.ctx).await, false);
+        assert_eq!(chat.can_send(&t.ctx).await?, false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
-        assert_eq!(
-            chat::get_chat_contacts(&t.ctx, chat_id)
-                .await
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await?.len(), 1);
 
-        dc_receive_imf(&t.ctx, GH_MAILINGLIST2, "INBOX", 1, false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t.ctx, GH_MAILINGLIST2, "INBOX", 1, false).await?;
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
-        let contacts = Contact::get_all(&t.ctx, 0, None as Option<String>)
-            .await
-            .unwrap();
+        let contacts = Contact::get_all(&t.ctx, 0, None as Option<String>).await?;
         assert_eq!(contacts.len(), 0); // mailing list recipients and senders do not count as "known contacts"
 
         let msg1 = get_chat_msg(&t, chat_id, 0, 2).await;
-        let contact1 = Contact::load_from_db(&t.ctx, msg1.from_id).await.unwrap();
+        let contact1 = Contact::load_from_db(&t.ctx, msg1.from_id).await?;
         assert_eq!(contact1.get_addr(), "notifications@github.com");
         assert_eq!(contact1.get_display_name(), "notifications@github.com"); // Make sure this is not "Max Mustermann" or somethinng
 
         let msg2 = get_chat_msg(&t, chat_id, 1, 2).await;
-        let contact2 = Contact::load_from_db(&t.ctx, msg2.from_id).await.unwrap();
+        let contact2 = Contact::load_from_db(&t.ctx, msg2.from_id).await?;
         assert_eq!(contact2.get_addr(), "notifications@github.com");
 
         assert_eq!(msg1.get_override_sender_name().unwrap(), "Max Mustermann");
         assert_eq!(msg2.get_override_sender_name().unwrap(), "Github");
+        Ok(())
     }
 
     static DC_MAILINGLIST: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\

@@ -444,7 +444,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         ctx,
         job::Job::new(Action::FetchExistingMsgs, 0, Params::new(), 0),
     )
-    .await;
+    .await?;
 
     progress!(ctx, 940);
     update_device_chats_handle.await?;

@@ -223,11 +223,11 @@ pub async fn send_locations_to_chat(
             .unwrap_or_default();
     } else if 0 == seconds && is_sending_locations_before {
         let stock_str = stock_str::msg_location_disabled(context).await;
-        chat::add_info_msg(context, chat_id, stock_str, now).await;
+        chat::add_info_msg(context, chat_id, stock_str, now).await?;
     }
     context.emit_event(EventType::ChatModified(chat_id));
     if 0 != seconds {
-        schedule_maybe_send_locations(context, false).await;
+        schedule_maybe_send_locations(context, false).await?;
         job::add(
             context,
             job::Job::new(
@@ -237,19 +237,20 @@ pub async fn send_locations_to_chat(
                 seconds + 1,
             ),
         )
-        .await;
+        .await?;
     }
     Ok(())
 }
 
-async fn schedule_maybe_send_locations(context: &Context, force_schedule: bool) {
-    if force_schedule || !job::action_exists(context, job::Action::MaybeSendLocations).await {
+async fn schedule_maybe_send_locations(context: &Context, force_schedule: bool) -> Result<()> {
+    if force_schedule || !job::action_exists(context, job::Action::MaybeSendLocations).await? {
         job::add(
             context,
             job::Job::new(job::Action::MaybeSendLocations, 0, Params::new(), 60),
         )
-        .await;
+        .await?;
     };
+    Ok(())
 }
 
 /// Returns whether `chat_id` or any chat is sending locations.
@@ -324,7 +325,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
         if continue_streaming {
             context.emit_event(EventType::LocationChanged(Some(DC_CONTACT_ID_SELF)));
         };
-        schedule_maybe_send_locations(context, false).await;
+        schedule_maybe_send_locations(context, false).await.ok();
     }
 
     continue_streaming
@@ -697,7 +698,7 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
     }
 
     if continue_streaming {
-        schedule_maybe_send_locations(context, true).await;
+        job_try!(schedule_maybe_send_locations(context, true).await);
     }
     job::Status::Finished(Ok(()))
 }
@@ -743,7 +744,7 @@ pub(crate) async fn job_maybe_send_locations_ended(
             );
 
             let stock_str = stock_str::msg_location_disabled(context).await;
-            chat::add_info_msg(context, chat_id, stock_str, now).await;
+            job_try!(chat::add_info_msg(context, chat_id, stock_str, now).await);
             context.emit_event(EventType::ChatModified(chat_id));
         }
     }

@@ -409,20 +409,19 @@ async fn handle_cmd(
         }
         "getqr" | "getbadqr" => {
             ctx.start_io().await;
-            let group = arg1.parse::<u32>().ok().map(ChatId::new);
-            if let Some(mut qr) = dc_get_securejoin_qr(&ctx, group).await {
-                if !qr.is_empty() {
-                    if arg0 == "getbadqr" && qr.len() > 40 {
-                        qr.replace_range(12..22, "0000000000")
-                    }
-                    println!("{}", qr);
-                    let output = Command::new("qrencode")
-                        .args(&["-t", "ansiutf8", qr.as_str(), "-o", "-"])
-                        .output()
-                        .expect("failed to execute process");
-                    io::stdout().write_all(&output.stdout).unwrap();
-                    io::stderr().write_all(&output.stderr).unwrap();
+            let group = arg1.parse::<u32>().ok().map(|id| ChatId::new(id));
+            let mut qr = dc_get_securejoin_qr(&ctx, group).await?;
+            if !qr.is_empty() {
+                if arg0 == "getbadqr" && qr.len() > 40 {
+                    qr.replace_range(12..22, "0000000000")
                 }
+                println!("{}", qr);
+                let output = Command::new("qrencode")
+                    .args(&["-t", "ansiutf8", qr.as_str(), "-o", "-"])
+                    .output()
+                    .expect("failed to execute process");
+                io::stdout().write_all(&output.stdout).unwrap();
+                io::stderr().write_all(&output.stderr).unwrap();
             }
         }
         "joinqr" => {

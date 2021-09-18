@@ -2,12 +2,12 @@
 //!
 //! Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
 
+use anyhow::{bail, format_err, Error, Result};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::{fmt, str};
 
 use crate::contact::addr_cmp;
-use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, SignedPublicKey};
 
@@ -37,13 +37,13 @@ impl fmt::Display for EncryptPreference {
 }
 
 impl str::FromStr for EncryptPreference {
-    type Err = ();
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "mutual" => Ok(EncryptPreference::Mutual),
             "nopreference" => Ok(EncryptPreference::NoPreference),
-            _ => Err(()),
+            _ => bail!("Cannot parse encryption preference {}", s),
         }
     }
 }
@@ -70,28 +70,27 @@ impl Aheader {
         }
     }
 
+    /// Tries to parse Autocrypt header.
+    ///
+    /// If there is none, returns None. If the header is present but cannot be parsed, returns an
+    /// error.
     pub fn from_headers(
-        context: &Context,
         wanted_from: &str,
         headers: &[mailparse::MailHeader<'_>],
-    ) -> Option<Self> {
+    ) -> Result<Option<Self>> {
         if let Some(value) = headers.get_header_value(HeaderDef::Autocrypt) {
-            match Self::from_str(&value) {
-                Ok(header) => {
-                    if addr_cmp(&header.addr, wanted_from) {
-                        return Some(header);
-                    }
-                }
-                Err(err) => {
-                    warn!(
-                        context,
-                        "found invalid autocrypt header {}: {:?}", value, err
-                    );
-                }
+            let header = Self::from_str(&value)?;
+            if !addr_cmp(&header.addr, wanted_from) {
+                bail!(
+                    "Autocrypt header address {:?} is not {:?}",
+                    header.addr,
+                    wanted_from
+                );
             }
+            Ok(Some(header))
+        } else {
+            Ok(None)
         }
-
-        None
     }
 }
 
@@ -120,9 +119,9 @@ impl fmt::Display for Aheader {
 }
 
 impl str::FromStr for Aheader {
-    type Err = ();
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         let mut attributes: BTreeMap<String, String> = s
             .split(';')
             .filter_map(|a| {
@@ -136,15 +135,20 @@ impl str::FromStr for Aheader {
 
         let addr = match attributes.remove("addr") {
             Some(addr) => addr,
-            None => {
-                return Err(());
-            }
+            None => bail!("Autocrypt header has no addr"),
         };
         let public_key: SignedPublicKey = attributes
             .remove("keydata")
-            .ok_or(())
-            .and_then(|raw| SignedPublicKey::from_base64(&raw).or(Err(())))
-            .and_then(|key| key.verify().and(Ok(key)).or(Err(())))?;
+            .ok_or_else(|| format_err!("keydata attribute is not found"))
+            .and_then(|raw| {
+                SignedPublicKey::from_base64(&raw)
+                    .map_err(|_| format_err!("Autocrypt key cannot be decoded"))
+            })
+            .and_then(|key| {
+                key.verify()
+                    .and(Ok(key))
+                    .map_err(|_| format_err!("Autocrypt key cannot be verified"))
+            })?;
 
         let prefer_encrypt = attributes
             .remove("prefer-encrypt")
@@ -154,7 +158,7 @@ impl str::FromStr for Aheader {
         // Autocrypt-Level0: unknown attributes starting with an underscore can be safely ignored
         // Autocrypt-Level0: unknown attribute, treat the header as invalid
         if attributes.keys().any(|k| !k.starts_with('_')) {
-            return Err(());
+            bail!("Unknown Autocrypt attribute found");
         }
 
         Ok(Aheader {
@@ -172,38 +176,40 @@ mod tests {
     const RAWKEY: &str = "xsBNBFzG3j0BCAC6iNhT8zydvCXi8LI/gFnkadMbfmSE/rTJskRRra/utGbLyDta/yTrJgWL7O3y/g4HdDW/dN2z26Y6W13IMzx9gLInn1KQZChtqWAcr/ReUucXcymwcfg1mdkBGk3TSLeLihN6CJx8Wsv8ig+kgAzte4f5rqEEAJVQ9WZHuti7UiYs6oRzqTo06CRe9owVXxzdMf0VDQtf7ZFm9dpzKKbhH7Lu8880iiotQ9/yRCkDGp9fNThsrLdZiK6OIAcIBAqi2rI89aS1dAmnRbktQieCx5izzyYkR1KvVL3gTTllHOzfKVEC2asmtWu2e4se/+O4WMIS1eGrn7GeWVb0Vwc5ABEBAAHNETxhQEBiLmV4YW1wbGUuZGU+wsCJBBABCAAzAhkBBQJcxt5FAhsDBAsJCAcGFQgJCgsCAxYCARYhBI4xxYKBgH3ANh5cufaKrc9mtiMLAAoJEPaKrc9mtiML938H/18F+3Wf9/JaAy/8hCO1v4S2PVBhxaKCokaNFtkfaMRne2l087LscCFPiFNyb4mv6Z3YeK8Xpxlp2sI0ecvdiqLUOGfnxS6tQrj+83EjtIrZ/hXOk1h121QFWH9Zg2VNHtODXjAgdLDC0NWUrclR0ZOqEDQHeo0ibTILdokVfXFN25wakPmGaYJP2y729cb1ve7RzvIvwn+Dddfxo3ao72rBfLi7l4NQ4S0KsY4cw+/6l5bRCKYCP77wZtvCwUvfVVosLdT43agtSiBI49+ayqvZ8OCvSJa61i+v81brTiEy9GBod4eAp45Ibsuemkw+gon4ZOvUXHTjwFB+h63MrozOwE0EXMbePQEIAL/vauf1zK8JgCu3V+G+SOX0iWw5xUlCPX+ERpBbWfwu3uAqn4wYXD3JDE/fVAF668xiV4eTPtlSUd5h0mn+G7uXMMOtkb+20SoEt50f8zw8TrL9t+ZsV11GKZWJpCar5AhXWsn6EEi8I2hLL5vn55ZZmHuGgN4jjmkRl3ToKCLhaXwTBjCJem7N5EH7F75wErEITa55v4Lb4Nfca7vnvtYrI1OA446xa8gHra0SINelTD09/JM/Fw4sWVPBaRZmJK/Tnu79N23No9XBUubmFPv1pNexZsQclicnTpt/BEWhiun7d6lfGB63K1aoHRTR1pcrWvBuALuuz0gqar2zlI0AEQEAAcLAdgQYAQgAIAUCXMbeRQIbDBYhBI4xxYKBgH3ANh5cufaKrc9mtiMLAAoJEPaKrc9mtiMLKSEIAIyLCRO2OyZ0IYRvRPpMn4p7E+7Pfcz/0mSkOy+1hshgJnqivXurm8zwGrwdMqeV4eslKR9H1RUdWGUQJNbtwmmjrt5DHpIhYHl5t3FpCBaGbV20Omo00Q38lBl9MtrmZkZw+ktEk6X+0xCKssMF+2MADkSOIufbR5HrDVB89VZOHCO9DeXvCUUAw2hyJiL/LHmLzJ40zYoTmb+F//f0k0j+tRdbkefyRoCmwG7YGiT+2hnCdgcezswnzah5J3ZKlrg7jOGo1LxtbvNUzxNBbC6S/aNgwm6qxo7xegRhmEl5uZ16zwyj4qz+xkjGy25Of5mWfUDoNw7OT7sjUbHOOMc=";
 
     #[test]
-    fn test_from_str() {
+    fn test_from_str() -> Result<()> {
         let h: Aheader = format!(
             "addr=me@mail.com; prefer-encrypt=mutual; keydata={}",
             RAWKEY
         )
-        .parse()
-        .expect("failed to parse");
+        .parse()?;
 
         assert_eq!(h.addr, "me@mail.com");
         assert_eq!(h.prefer_encrypt, EncryptPreference::Mutual);
+        Ok(())
     }
 
     // EncryptPreference::Reset is an internal value, parser should never return it
     #[test]
-    fn test_from_str_reset() {
+    fn test_from_str_reset() -> Result<()> {
         let raw = format!(
             "addr=reset@example.com; prefer-encrypt=reset; keydata={}",
             RAWKEY
         );
-        let h: Aheader = raw.parse().expect("failed to parse");
+        let h: Aheader = raw.parse()?;
 
         assert_eq!(h.addr, "reset@example.com");
         assert_eq!(h.prefer_encrypt, EncryptPreference::NoPreference);
+        Ok(())
     }
 
     #[test]
-    fn test_from_str_non_critical() {
+    fn test_from_str_non_critical() -> Result<()> {
         let raw = format!("addr=me@mail.com; _foo=one; _bar=two; keydata={}", RAWKEY);
-        let h: Aheader = raw.parse().expect("failed to parse");
+        let h: Aheader = raw.parse()?;
 
         assert_eq!(h.addr, "me@mail.com");
         assert_eq!(h.prefer_encrypt, EncryptPreference::NoPreference);
+        Ok(())
     }
 
     #[test]
@@ -216,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn test_good_headers() {
+    fn test_good_headers() -> Result<()> {
         let fixed_header = concat!(
             "addr=a@b.example.org; prefer-encrypt=mutual; ",
             "keydata=xsBNBFzG3j0BCAC6iNhT8zydvCXi8LI/gFnkadMbfmSE/rTJskRRra/utGbLyDta/yTrJg",
@@ -242,7 +248,7 @@ mod tests {
             " wm6qxo7xegRhmEl5uZ16zwyj4qz+xkjGy25Of5mWfUDoNw7OT7sjUbHOOMc="
         );
 
-        let ah = Aheader::from_str(fixed_header).expect("failed to parse");
+        let ah = Aheader::from_str(fixed_header)?;
         assert_eq!(ah.addr, "a@b.example.org");
         assert_eq!(ah.prefer_encrypt, EncryptPreference::Mutual);
         assert_eq!(format!("{}", ah), fixed_header);
@@ -250,18 +256,17 @@ mod tests {
         let rendered = ah.to_string();
         assert_eq!(rendered, fixed_header);
 
-        let ah = Aheader::from_str(&format!(" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = {}", RAWKEY)).expect("failed to parse");
+        let ah = Aheader::from_str(&format!(" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = {}", RAWKEY))?;
         assert_eq!(ah.addr, "a@b.example.org");
         assert_eq!(ah.prefer_encrypt, EncryptPreference::Mutual);
 
         Aheader::from_str(&format!(
             "addr=a@b.example.org; prefer-encrypt=ignoreUnknownValues; keydata={}",
             RAWKEY
-        ))
-        .expect("failed to parse");
+        ))?;
 
-        Aheader::from_str(&format!("addr=a@b.example.org; keydata={}", RAWKEY))
-            .expect("failed to parse");
+        Aheader::from_str(&format!("addr=a@b.example.org; keydata={}", RAWKEY))?;
+        Ok(())
     }
 
     #[test]

@@ -167,7 +167,8 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
                     format!("{} verified.", peerstate.addr),
                     time(),
                 )
-                .await;
+                .await
+                .ok();
             }
         } else if let Some(addr) = addr {
             lot.state = LotState::QrFprMismatch;

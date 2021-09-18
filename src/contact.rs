@@ -2,7 +2,7 @@
 
 use std::convert::{TryFrom, TryInto};
 
-use anyhow::{bail, ensure, format_err, Result};
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_std::path::PathBuf;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -174,6 +174,12 @@ pub enum VerifiedStatus {
     BidirectVerified = 2,
 }
 
+impl Default for VerifiedStatus {
+    fn default() -> Self {
+        Self::Unverified
+    }
+}
+
 impl Contact {
     pub async fn load_from_db(context: &Context, contact_id: u32) -> Result<Self> {
         let mut contact = context
@@ -229,11 +235,9 @@ impl Contact {
     }
 
     /// Check if a contact is blocked.
-    pub async fn is_blocked_load(context: &Context, id: u32) -> bool {
-        Self::load_from_db(context, id)
-            .await
-            .map(|contact| contact.blocked)
-            .unwrap_or_default()
+    pub async fn is_blocked_load(context: &Context, id: u32) -> Result<bool> {
+        let blocked = Self::load_from_db(context, id).await?.blocked;
+        Ok(blocked)
     }
 
     /// Block the given contact.
@@ -263,7 +267,7 @@ impl Contact {
 
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(context, &name, &addr, Origin::ManuallyCreated).await?;
-        let blocked = Contact::is_blocked_load(context, contact_id).await;
+        let blocked = Contact::is_blocked_load(context, contact_id).await?;
         match sth_modified {
             Modifier::None => {}
             Modifier::Modified | Modifier::Created => {
@@ -754,12 +758,9 @@ impl Contact {
 
     /// Get blocked contacts.
     pub async fn get_all_blocked(context: &Context) -> Result<Vec<u32>> {
-        if let Err(e) = Contact::update_blocked_mailinglist_contacts(context).await {
-            warn!(
-                context,
-                "Cannot update blocked mailinglist contacts: {:?}", e
-            );
-        }
+        Contact::update_blocked_mailinglist_contacts(context)
+            .await
+            .context("cannot update blocked mailinglist contacts")?;
 
         let list = context
             .sql
@@ -1018,7 +1019,7 @@ impl Contact {
     ///
     /// The UI may draw a checkbox or something like that beside verified contacts.
     ///
-    pub async fn is_verified(&self, context: &Context) -> VerifiedStatus {
+    pub async fn is_verified(&self, context: &Context) -> Result<VerifiedStatus> {
         self.is_verified_ex(context, None).await
     }
 
@@ -1029,54 +1030,46 @@ impl Contact {
         &self,
         context: &Context,
         peerstate: Option<&Peerstate>,
-    ) -> VerifiedStatus {
+    ) -> Result<VerifiedStatus> {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
         if self.id == DC_CONTACT_ID_SELF {
-            return VerifiedStatus::BidirectVerified;
+            return Ok(VerifiedStatus::BidirectVerified);
         }
 
         if let Some(peerstate) = peerstate {
             if peerstate.verified_key.is_some() {
-                return VerifiedStatus::BidirectVerified;
+                return Ok(VerifiedStatus::BidirectVerified);
             }
         }
 
-        let peerstate = match Peerstate::from_addr(context, &self.addr).await {
-            Ok(peerstate) => peerstate,
-            Err(err) => {
-                warn!(
-                    context,
-                    "Failed to load peerstate for address {}: {}", self.addr, err
-                );
-                return VerifiedStatus::Unverified;
-            }
-        };
-
-        if let Some(ps) = peerstate {
-            if ps.verified_key.is_some() {
-                return VerifiedStatus::BidirectVerified;
+        if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
+            if peerstate.verified_key.is_some() {
+                return Ok(VerifiedStatus::BidirectVerified);
             }
         }
 
-        VerifiedStatus::Unverified
+        Ok(VerifiedStatus::Unverified)
     }
 
-    pub async fn addr_equals_contact(context: &Context, addr: &str, contact_id: u32) -> bool {
+    pub async fn addr_equals_contact(
+        context: &Context,
+        addr: &str,
+        contact_id: u32,
+    ) -> Result<bool> {
         if addr.is_empty() {
-            return false;
+            return Ok(false);
         }
 
-        if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-            if !contact.addr.is_empty() {
-                let normalized_addr = addr_normalize(addr);
-                if contact.addr == normalized_addr {
-                    return true;
-                }
+        let contact = Contact::load_from_db(context, contact_id).await?;
+        if !contact.addr.is_empty() {
+            let normalized_addr = addr_normalize(addr);
+            if contact.addr == normalized_addr {
+                return Ok(true);
             }
         }
 
-        false
+        Ok(false)
     }
 
     pub async fn get_real_cnt(context: &Context) -> Result<usize> {
@@ -1094,19 +1087,19 @@ impl Contact {
         Ok(count)
     }
 
-    pub async fn real_exists_by_id(context: &Context, contact_id: u32) -> bool {
-        if !context.sql.is_open().await || contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
-            return false;
+    pub async fn real_exists_by_id(context: &Context, contact_id: u32) -> Result<bool> {
+        if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
+            return Ok(false);
         }
 
-        context
+        let exists = context
             .sql
             .exists(
                 "SELECT COUNT(*) FROM contacts WHERE id=?;",
                 paramsv![contact_id as i32],
             )
-            .await
-            .unwrap_or_default()
+            .await?;
+        Ok(exists)
     }
 
     pub async fn scaleup_origin_by_id(
