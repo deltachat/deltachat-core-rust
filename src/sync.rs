@@ -43,6 +43,13 @@ pub(crate) struct SyncItems {
 }
 
 impl Context {
+    /// Checks if sync messages shall be sent.
+    /// Receiving sync messages is currently always enabled;
+    /// the messages are force-encrypted anyway.
+    async fn is_sync_sending_enabled(&self) -> Result<bool> {
+        self.get_config_bool(Config::SendExperimentalSyncMsgs).await
+    }
+
     /// Adds an item to the list of items that should be synchronized to other devices.
     pub(crate) async fn add_sync_item(&self, data: SyncData) -> Result<()> {
         self.add_sync_item_with_timestamp(data, time()).await
@@ -51,7 +58,7 @@ impl Context {
     /// Adds item and timestamp to the list of items that should be synchronized to other devices.
     /// If device synchronization is disabled, the function does nothing.
     async fn add_sync_item_with_timestamp(&self, data: SyncData, timestamp: i64) -> Result<()> {
-        if !self.get_config_bool(Config::BccSelf).await? {
+        if !self.is_sync_sending_enabled().await? {
             return Ok(());
         }
 
@@ -71,7 +78,7 @@ impl Context {
     /// If device synchronization is disabled,
     /// no tokens exist or the chat is unpromoted, the function does nothing.
     pub(crate) async fn sync_qr_code_tokens(&self, chat_id: Option<ChatId>) -> Result<()> {
-        if !self.get_config_bool(Config::BccSelf).await? {
+        if !self.is_sync_sending_enabled().await? {
             return Ok(());
         }
 
@@ -250,9 +257,23 @@ mod tests {
     use anyhow::bail;
 
     #[async_std::test]
+    async fn test_is_sync_sending_enabled() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        assert!(!t.is_sync_sending_enabled().await?);
+        t.set_config_bool(Config::SendExperimentalSyncMsgs, true)
+            .await?;
+        assert!(t.is_sync_sending_enabled().await?);
+        t.set_config_bool(Config::SendExperimentalSyncMsgs, false)
+            .await?;
+        assert!(!t.is_sync_sending_enabled().await?);
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_build_sync_json() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.set_config_bool(Config::BccSelf, true).await?;
+        t.set_config_bool(Config::SendExperimentalSyncMsgs, true)
+            .await?;
 
         assert!(t.build_sync_json().await?.is_none());
 
@@ -295,9 +316,10 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_build_sync_json_bcc_off() -> Result<()> {
+    async fn test_build_sync_json_experimantal_sync_msgs_off() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.set_config_bool(Config::BccSelf, false).await?;
+        t.set_config_bool(Config::SendExperimentalSyncMsgs, false)
+            .await?;
         t.add_sync_item(SyncData::AddQrToken(QrTokenData {
             invitenumber: "testinvite".to_string(),
             auth: "testauth".to_string(),
@@ -439,7 +461,9 @@ mod tests {
     #[async_std::test]
     async fn test_send_sync_msg() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        alice.set_config_bool(Config::BccSelf, true).await?;
+        alice
+            .set_config_bool(Config::SendExperimentalSyncMsgs, true)
+            .await?;
         alice
             .add_sync_item(SyncData::AddQrToken(QrTokenData {
                 invitenumber: "in".to_string(),

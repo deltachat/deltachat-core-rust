@@ -175,6 +175,11 @@ pub enum Config {
     /// 0 = no limit.
     #[strum(props(default = "0"))]
     DownloadLimit,
+
+    /// Send sync messages, requires `BccSelf` to be set as well.
+    /// In a future versions, this switch may go away or replaced by a non-experimental one.
+    #[strum(props(default = "0"))]
+    SendExperimentalSyncMsgs,
 }
 
 impl Context {
