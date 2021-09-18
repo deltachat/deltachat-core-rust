@@ -552,7 +552,7 @@ impl Imap {
         context: &Context,
         folder: &str,
     ) -> Result<bool> {
-        let newly_selected = self.select_folder(context, Some(folder)).await?;
+        let newly_selected = self.select_or_create_folder(context, folder).await?;
 
         let mailbox = &mut self.config.selected_mailbox.as_ref();
         let mailbox =
@@ -657,9 +657,7 @@ impl Imap {
             .unwrap_or_default();
         let download_limit = context.download_limit().await?;
 
-        let new_emails = self
-            .select_with_uidvalidity(context, folder)
-            .await?;
+        let new_emails = self.select_with_uidvalidity(context, folder).await?;
 
         if !new_emails && !fetch_existing_msgs {
             info!(context, "No new emails in folder {}", folder);
