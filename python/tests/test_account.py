@@ -2712,6 +2712,22 @@ class TestOnlineAccount:
         # We can't decrypt the message in this chat, so the chat is empty:
         assert len(private_messages) == 0
 
+    def test_delete_deltachat_folder(self, acfactory):
+        """Test that DeltaChat folder is recreated if user deletes it manually."""
+        ac1 = acfactory.get_online_configuring_account(mvbox=True)
+        ac2 = acfactory.get_online_configuring_account()
+        acfactory.wait_configure(ac1)
+
+        ac1.direct_imap.conn.delete_folder("DeltaChat")
+        assert len(ac1.direct_imap.conn.list_folders(pattern="DeltaChat")) == 0
+        acfactory.wait_configure_and_start_io()
+
+        ac2.create_chat(ac1).send_text("hello")
+        msg = ac1._evtracker.wait_next_incoming_message()
+        assert msg.text == "hello"
+
+        assert len(ac1.direct_imap.conn.list_folders(pattern="DeltaChat")) == 1
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):

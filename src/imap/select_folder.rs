@@ -15,6 +15,9 @@ pub enum Error {
     #[error("IMAP Folder name invalid: {0}")]
     BadFolderName(String),
 
+    #[error("IMAP folder does not exist: {0}")]
+    NoFolder(String),
+
     #[error("IMAP close/expunge failed")]
     CloseExpungeFailed(#[from] async_imap::error::Error),
 
@@ -110,6 +113,9 @@ impl Imap {
                     Err(async_imap::error::Error::Validate(_)) => {
                         Err(Error::BadFolderName(folder.to_string()))
                     }
+                    Err(async_imap::error::Error::No(_)) => {
+                        Err(Error::NoFolder(folder.to_string()))
+                    }
                     Err(err) => {
                         self.config.selected_folder = None;
                         self.trigger_reconnect(context).await;
@@ -121,6 +127,28 @@ impl Imap {
             }
         } else {
             Ok(NewlySelected::No)
+        }
+    }
+
+    /// Selects a folder. Tries to create it once and select again if the folder does not exist.
+    pub(super) async fn select_or_create_folder(
+        &mut self,
+        context: &Context,
+        folder: &str,
+    ) -> Result<NewlySelected> {
+        match self.select_folder(context, Some(folder)).await {
+            Ok(newly_selected) => Ok(newly_selected),
+            Err(err) => match err {
+                Error::NoFolder(_) => {
+                    if let Some(ref mut session) = self.session {
+                        session.create(folder).await?;
+                    } else {
+                        return Err(Error::NoSession);
+                    }
+                    self.select_folder(context, Some(folder)).await
+                }
+                _ => Err(err),
+            },
         }
     }
 }
