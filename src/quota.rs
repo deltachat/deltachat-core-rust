@@ -104,7 +104,7 @@ impl Context {
             self,
             job::Job::new(Action::UpdateRecentQuota, 0, Params::new(), 0),
         )
-        .await;
+        .await?;
         Ok(())
     }
 

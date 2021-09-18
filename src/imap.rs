@@ -1614,13 +1614,13 @@ async fn precheck_imf(
                         context,
                         job::Job::new(Action::MoveMsg, msg_id.to_u32(), Params::new(), 0),
                     )
-                    .await;
+                    .await?;
                 } else {
                     job::add(
                         context,
                         job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
                     )
-                    .await;
+                    .await?;
                 }
             }
         } else if old_server_folder != server_folder {
@@ -1663,7 +1663,7 @@ async fn precheck_imf(
                         context,
                         job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
                     )
-                    .await;
+                    .await?;
                 }
             }
         }

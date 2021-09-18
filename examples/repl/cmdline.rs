@@ -2,7 +2,7 @@ extern crate dirs;
 
 use std::str::FromStr;
 
-use anyhow::{bail, ensure, Error};
+use anyhow::{bail, ensure, Result};
 use async_std::path::Path;
 use deltachat::chat::{
     self, Chat, ChatId, ChatItem, ChatVisibility, MuteDuration, ProtectionStatus,
@@ -98,7 +98,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     });
 }
 
-async fn poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<(), anyhow::Error> {
+async fn poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<()> {
     let data = dc_read_file(context, filename).await?;
 
     if let Err(err) = dc_receive_imf(context, &data, "import", 0, false).await {
@@ -239,7 +239,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     );
 }
 
-async fn log_msglist(context: &Context, msglist: &[MsgId]) -> Result<(), Error> {
+async fn log_msglist(context: &Context, msglist: &[MsgId]) -> Result<()> {
     let mut lines_out = 0;
     for &msg_id in msglist {
         if msg_id == MsgId::new(DC_MSG_ID_DAYMARKER) {
@@ -267,59 +267,59 @@ async fn log_msglist(context: &Context, msglist: &[MsgId]) -> Result<(), Error> 
     Ok(())
 }
 
-async fn log_contactlist(context: &Context, contacts: &[u32]) {
+async fn log_contactlist(context: &Context, contacts: &[u32]) -> Result<()> {
     for contact_id in contacts {
         let line;
         let mut line2 = "".to_string();
-        if let Ok(contact) = Contact::get_by_id(context, *contact_id).await {
-            let name = contact.get_display_name();
-            let addr = contact.get_addr();
-            let verified_state = contact.is_verified(context).await;
-            let verified_str = if VerifiedStatus::Unverified != verified_state {
-                if verified_state == VerifiedStatus::BidirectVerified {
-                    " √√"
-                } else {
-                    " √"
-                }
+        let contact = Contact::get_by_id(context, *contact_id).await?;
+        let name = contact.get_display_name();
+        let addr = contact.get_addr();
+        let verified_state = contact.is_verified(context).await?;
+        let verified_str = if VerifiedStatus::Unverified != verified_state {
+            if verified_state == VerifiedStatus::BidirectVerified {
+                " √√"
             } else {
-                ""
-            };
-            line = format!(
-                "{}{} <{}>",
-                if !name.is_empty() {
-                    &name
-                } else {
-                    "<name unset>"
-                },
-                verified_str,
-                if !addr.is_empty() {
-                    &addr
-                } else {
-                    "addr unset"
-                }
-            );
-            let peerstate = Peerstate::from_addr(context, addr)
-                .await
-                .expect("peerstate error");
-            if peerstate.is_some() && *contact_id != 1 {
-                line2 = format!(
-                    ", prefer-encrypt={}",
-                    peerstate.as_ref().unwrap().prefer_encrypt
-                );
+                " √"
             }
-
-            println!("Contact#{}: {}{}", *contact_id, line, line2);
+        } else {
+            ""
+        };
+        line = format!(
+            "{}{} <{}>",
+            if !name.is_empty() {
+                &name
+            } else {
+                "<name unset>"
+            },
+            verified_str,
+            if !addr.is_empty() {
+                &addr
+            } else {
+                "addr unset"
+            }
+        );
+        let peerstate = Peerstate::from_addr(context, &addr)
+            .await
+            .expect("peerstate error");
+        if peerstate.is_some() && *contact_id != 1 {
+            line2 = format!(
+                ", prefer-encrypt={}",
+                peerstate.as_ref().unwrap().prefer_encrypt
+            );
         }
+
+        println!("Contact#{}: {}{}", *contact_id, line, line2);
     }
+    Ok(())
 }
 
 fn chat_prefix(chat: &Chat) -> &'static str {
     chat.typ.into()
 }
 
-pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Result<(), Error> {
+pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Result<()> {
     let mut sel_chat = if !chat_id.is_unset() {
-        Chat::load_from_db(&context, *chat_id).await.ok()
+        Some(Chat::load_from_db(&context, *chat_id).await?)
     } else {
         None
     };
@@ -726,17 +726,9 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
             let contact_id_0: u32 = arg1.parse()?;
-            if chat::add_contact_to_chat(
-                &context,
-                sel_chat.as_ref().unwrap().get_id(),
-                contact_id_0,
-            )
-            .await
-            {
-                println!("Contact added to chat.");
-            } else {
-                bail!("Cannot add contact to chat.");
-            }
+            chat::add_contact_to_chat(&context, sel_chat.as_ref().unwrap().get_id(), contact_id_0)
+                .await?;
+            println!("Contact added to chat.");
         }
         "removemember" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
@@ -774,7 +766,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 chat::get_chat_contacts(&context, sel_chat.as_ref().unwrap().get_id()).await?;
             println!("Memberlist:");
 
-            log_contactlist(&context, &contacts).await;
+            log_contactlist(&context, &contacts).await?;
             println!(
                 "{} contacts\nLocation streaming: {}",
                 contacts.len(),
@@ -1090,7 +1082,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 Some(arg1),
             )
             .await?;
-            log_contactlist(&context, &contacts).await;
+            log_contactlist(&context, &contacts).await?;
             println!("{} contacts.", contacts.len());
         }
         "addcontact" => {
@@ -1155,7 +1147,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "listblocked" => {
             let contacts = Contact::get_all_blocked(&context).await?;
-            log_contactlist(&context, &contacts).await;
+            log_contactlist(&context, &contacts).await?;
             println!("{} blocked contacts.", contacts.len());
         }
         "checkqr" => {

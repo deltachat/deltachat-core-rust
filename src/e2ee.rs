@@ -161,15 +161,19 @@ pub async fn try_decrypt(
     let mut peerstate = Peerstate::from_addr(context, &from).await?;
 
     // Apply Autocrypt header
-    if let Some(ref header) = Aheader::from_headers(context, &from, &mail.headers) {
-        if let Some(ref mut peerstate) = peerstate {
-            peerstate.apply_header(header, message_time);
-            peerstate.save_to_db(&context.sql, false).await?;
-        } else {
-            let p = Peerstate::from_header(header, message_time);
-            p.save_to_db(&context.sql, true).await?;
-            peerstate = Some(p);
+    match Aheader::from_headers(&from, &mail.headers) {
+        Ok(Some(ref header)) => {
+            if let Some(ref mut peerstate) = peerstate {
+                peerstate.apply_header(header, message_time);
+                peerstate.save_to_db(&context.sql, false).await?;
+            } else {
+                let p = Peerstate::from_header(header, message_time);
+                p.save_to_db(&context.sql, true).await?;
+                peerstate = Some(p);
+            }
         }
+        Ok(None) => {}
+        Err(err) => warn!(context, "Failed to parse Autocrypt header: {}", err),
     }
 
     // Possibly perform decryption

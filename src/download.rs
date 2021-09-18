@@ -85,7 +85,7 @@ impl MsgId {
                     context,
                     Job::new(Action::DownloadMsg, self.to_u32(), Params::new(), 0),
                 )
-                .await;
+                .await?;
             }
         }
         Ok(())

@@ -842,15 +842,15 @@ async fn kill_ids(context: &Context, job_ids: &[u32]) -> Result<()> {
     Ok(())
 }
 
-pub async fn action_exists(context: &Context, action: Action) -> bool {
-    context
+pub async fn action_exists(context: &Context, action: Action) -> Result<bool> {
+    let exists = context
         .sql
         .exists(
             "SELECT COUNT(*) FROM jobs WHERE action=?;",
             paramsv![action],
         )
-        .await
-        .unwrap_or_default()
+        .await?;
+    Ok(exists)
 }
 
 async fn set_delivered(context: &Context, msg_id: MsgId) -> Result<()> {
@@ -1185,7 +1185,7 @@ async fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
     let mut param = Params::new();
     param.set(Param::MsgId, msg.id.to_u32().to_string());
 
-    add(context, Job::new(Action::SendMdn, msg.from_id, param, 0)).await;
+    add(context, Job::new(Action::SendMdn, msg.from_id, param, 0)).await?;
 
     Ok(())
 }
@@ -1196,7 +1196,7 @@ pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
         context,
         Job::new(Action::ResyncFolders, 0, Params::new(), 0),
     )
-    .await;
+    .await?;
     Ok(())
 }
 
@@ -1211,12 +1211,10 @@ pub fn create(action: Action, foreign_id: u32, param: Params, delay_seconds: i64
 }
 
 /// Adds a job to the database, scheduling it.
-pub async fn add(context: &Context, job: Job) {
+pub async fn add(context: &Context, job: Job) -> Result<()> {
     let action = job.action;
     let delay_seconds = job.delay_seconds();
-    job.save(context).await.unwrap_or_else(|err| {
-        error!(context, "failed to save job: {}", err);
-    });
+    job.save(context).await.context("failed to save job")?;
 
     if delay_seconds == 0 {
         match action {
@@ -1245,6 +1243,7 @@ pub async fn add(context: &Context, job: Job) {
             }
         }
     }
+    Ok(())
 }
 
 async fn load_housekeeping_job(context: &Context) -> Result<Option<Job>> {

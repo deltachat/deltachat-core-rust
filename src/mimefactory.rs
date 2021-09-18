@@ -1605,27 +1605,30 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_subject_in_group() {
+    async fn test_subject_in_group() -> Result<()> {
         async fn send_msg_get_subject(
             t: &TestContext,
             group_id: ChatId,
             quote: Option<&Message>,
-        ) -> String {
+        ) -> Result<String> {
             let mut new_msg = Message::new(Viewtype::Text);
             new_msg.set_text(Some("Hi".to_string()));
             if let Some(q) = quote {
-                new_msg.set_quote(t, q).await.unwrap();
+                new_msg.set_quote(t, q).await?;
             }
             let sent = t.send_msg(group_id, &mut new_msg).await;
             get_subject(t, sent).await
         }
-        async fn get_subject(t: &TestContext, sent: crate::test_utils::SentMessage) -> String {
+        async fn get_subject(
+            t: &TestContext,
+            sent: crate::test_utils::SentMessage,
+        ) -> Result<String> {
             let parsed_subject = t.parse_msg(&sent).await.get_subject().unwrap();
 
-            let sent_msg = Message::load_from_db(t, sent.sender_msg_id).await.unwrap();
+            let sent_msg = Message::load_from_db(t, sent.sender_msg_id).await?;
             assert_eq!(parsed_subject, sent_msg.subject);
 
-            parsed_subject
+            Ok(parsed_subject)
         }
 
         // 6. Test that in a group, replies also take the quoted message's subject, while non-replies use the group title as subject
@@ -1634,13 +1637,13 @@ mod tests {
             chat::create_group_chat(&t, chat::ProtectionStatus::Unprotected, "groupname") // TODO encodings, ä
                 .await
                 .unwrap();
-        let bob = Contact::create(&t, "", "bob@example.org").await.unwrap();
-        chat::add_contact_to_chat(&t, group_id, bob).await;
+        let bob = Contact::create(&t, "", "bob@example.org").await?;
+        chat::add_contact_to_chat(&t, group_id, bob).await?;
 
-        let subject = send_msg_get_subject(&t, group_id, None).await;
+        let subject = send_msg_get_subject(&t, group_id, None).await?;
         assert_eq!(subject, "groupname");
 
-        let subject = send_msg_get_subject(&t, group_id, None).await;
+        let subject = send_msg_get_subject(&t, group_id, None).await?;
         assert_eq!(subject, "Re: groupname");
 
         dc_receive_imf(
@@ -1662,28 +1665,26 @@ mod tests {
             5,
             false,
         )
-        .await
-        .unwrap();
+        .await?;
         let message_from_bob = t.get_last_msg().await;
 
-        let subject = send_msg_get_subject(&t, group_id, None).await;
+        let subject = send_msg_get_subject(&t, group_id, None).await?;
         assert_eq!(subject, "Re: groupname");
 
-        let subject = send_msg_get_subject(&t, group_id, Some(&message_from_bob)).await;
+        let subject = send_msg_get_subject(&t, group_id, Some(&message_from_bob)).await?;
         let outgoing_quoting_msg = t.get_last_msg().await;
         assert_eq!(subject, "Re: Different subject");
 
-        let subject = send_msg_get_subject(&t, group_id, None).await;
+        let subject = send_msg_get_subject(&t, group_id, None).await?;
         assert_eq!(subject, "Re: groupname");
 
-        let subject = send_msg_get_subject(&t, group_id, Some(&outgoing_quoting_msg)).await;
+        let subject = send_msg_get_subject(&t, group_id, Some(&outgoing_quoting_msg)).await?;
         assert_eq!(subject, "Re: Different subject");
 
-        chat::forward_msgs(&t, &[message_from_bob.id], group_id)
-            .await
-            .unwrap();
-        let subject = get_subject(&t, t.pop_sent_msg().await).await;
+        chat::forward_msgs(&t, &[message_from_bob.id], group_id).await?;
+        let subject = get_subject(&t, t.pop_sent_msg().await).await?;
         assert_eq!(subject, "Fwd: Different subject");
+        Ok(())
     }
 
     async fn first_subject_str(t: TestContext) -> String {

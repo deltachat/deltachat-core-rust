@@ -1295,7 +1295,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             context,
             job::Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), Params::new(), 0),
         )
-        .await;
+        .await?;
     }
 
     if !msg_ids.is_empty() {
@@ -1308,7 +1308,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             context,
             job::Job::new(Action::Housekeeping, 0, Params::new(), 10),
         )
-        .await;
+        .await?;
     }
     Ok(())
 }
@@ -1383,7 +1383,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                 context,
                 job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
             )
-            .await;
+            .await?;
             updated_chat_ids.insert(curr_chat_id, true);
         }
     }
@@ -1654,7 +1654,7 @@ async fn ndn_maybe_add_info_msg(
                     text,
                     dc_create_smeared_timestamp(context).await,
                 )
-                .await;
+                .await?;
                 context.emit_event(EventType::ChatModified(chat_id));
             }
         }
