@@ -1205,6 +1205,9 @@ impl Chat {
             msg.param.set_int(Param::AttachGroupImage, 1);
             self.param.remove(Param::Unpromoted);
             self.update_param(context).await?;
+            // send_sync_msg() is called (usually) a moment later
+            // when the group-creation message is actually sent though smtp -
+            // this makes sure, the other devices are aware if grpid that is used in the sync-message.
             context.sync_qr_code_tokens(Some(self.id)).await?;
         }
 
@@ -2399,6 +2402,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         chat.param.remove(Param::Unpromoted);
         chat.update_param(context).await?;
         context.sync_qr_code_tokens(Some(chat_id)).await?;
+        context.send_sync_msg().await?;
     }
     let self_addr = context
         .get_config(Config::ConfiguredAddr)

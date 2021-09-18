@@ -433,6 +433,13 @@ impl Job {
                 }
                 // now also delete the generated file
                 dc_delete_file(context, filename).await;
+
+                // finally, create another send-job if there are items to be synced.
+                // triggering sync-job after msg-send-job guarantess, the recipient has grpid etc.
+                // once the sync message arrives.
+                // if there are not items to sync, this function returns fast.
+                context.send_sync_msg().await?;
+
                 Ok(())
             }
         })
