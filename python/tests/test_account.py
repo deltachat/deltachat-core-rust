@@ -973,7 +973,7 @@ class TestOnlineAccount:
         ac1._evtracker.wait_msg_delivered(msg1)
 
         lp.sec("wait for ac2 to receive message")
-        msg2 = ac2._evtracker.wait_next_messages_changed()
+        msg2 = ac2._evtracker.wait_next_incoming_message()
         assert msg2.text == "message1"
         assert not msg2.is_forwarded()
         assert msg2.get_sender_contact().display_name == ac1.get_config("displayname")
@@ -1125,7 +1125,7 @@ class TestOnlineAccount:
         group1.add_contact(ac2)
         group1.send_text("hello")
 
-        msg2 = ac2._evtracker.wait_next_messages_changed()
+        msg2 = ac2._evtracker.wait_next_incoming_message()
         group2 = msg2.create_chat()
         assert group2.get_name() == group1.get_name()
 
@@ -1188,7 +1188,7 @@ class TestOnlineAccount:
         chat.send_text("message1")
 
         lp.sec("wait for ac2 to receive message")
-        msg2 = ac2._evtracker.wait_next_messages_changed()
+        msg2 = ac2._evtracker.wait_next_incoming_message()
         assert msg2.text == "message1"
 
         lp.sec("create new chat with contact and send back (encrypted) message")
@@ -1468,7 +1468,7 @@ class TestOnlineAccount:
         assert not msg1.is_encrypted()
 
         lp.sec("wait for ac2 to receive message")
-        msg2 = ac2._evtracker.wait_next_messages_changed()
+        msg2 = ac2._evtracker.wait_next_incoming_message()
         assert msg2.text == "message1"
         assert not msg2.is_encrypted()
 
@@ -1517,7 +1517,7 @@ class TestOnlineAccount:
         chat1.send_text("hi")
 
         lp.sec("ac2 receives contact request from ac1")
-        received_message = ac2._evtracker.wait_next_messages_changed()
+        received_message = ac2._evtracker.wait_next_incoming_message()
         assert received_message.text == "hi"
 
         basename = "attachment.txt"
@@ -1552,7 +1552,7 @@ class TestOnlineAccount:
         assert msg_out.get_mime_headers() is None
 
         lp.sec("wait for ac2 to receive message")
-        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
         in_id = ev.data2
         mime = ac2.get_message_by_id(in_id).get_mime_headers()
         assert mime.get_all("From")
@@ -1851,7 +1851,7 @@ class TestOnlineAccount:
         ac1.create_chat(ac2).send_text("with avatar!")
 
         lp.sec("ac2: wait for receiving message and avatar from ac1")
-        msg2 = ac2._evtracker.wait_next_messages_changed()
+        msg2 = ac2._evtracker.wait_next_incoming_message()
         assert msg2.chat.is_contact_request()
         received_path = msg2.get_sender_contact().get_profile_image()
         assert open(received_path, "rb").read() == open(p, "rb").read()
@@ -2681,7 +2681,7 @@ class TestOnlineAccount:
 
         lp.sec("receive a message")
         ac2.create_group_chat("group name", contacts=[ac1]).send_text("incoming, unencrypted group message")
-        ac1._evtracker.wait_next_messages_changed()
+        ac1._evtracker.wait_next_incoming_message()
 
         lp.sec("send out message with bcc to ourselves")
         ac1.direct_imap.idle_start()
