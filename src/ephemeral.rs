@@ -512,6 +512,7 @@ mod tests {
 
     use super::*;
     use crate::config::Config;
+    use crate::dc_receive_imf::dc_receive_imf;
     use crate::download::DownloadState;
     use crate::test_utils::TestContext;
     use crate::{
@@ -835,6 +836,97 @@ mod tests {
 
         MsgId::new(1010).delete_from_db(&t).await?;
         assert_eq!(load_imap_deletion_msgid(&t).await?, None);
+
+        Ok(())
+    }
+
+    // Regression test for a bug in the timer rollback protection.
+    #[async_std::test]
+    async fn test_ephemeral_timer_references() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Message with Message-ID <first@example.com> and no timer is received.
+        dc_receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: Alice <alice@example.com>\n\
+                    Chat-Version: 1.0\n\
+                    Subject: Subject\n\
+                    Message-ID: <first@example.com>\n\
+                    Date: Sun, 22 Mar 2020 00:10:00 +0000\n\
+                    \n\
+                    hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await?;
+
+        let msg = alice.get_last_msg().await;
+        let chat_id = msg.chat_id;
+        assert_eq!(chat_id.get_ephemeral_timer(&alice).await?, Timer::Disabled);
+
+        // Message with Message-ID <second@example.com> is received.
+        dc_receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: Alice <alice@example.com>\n\
+                    Chat-Version: 1.0\n\
+                    Subject: Subject\n\
+                    Message-ID: <second@example.com>\n\
+                    Date: Sun, 22 Mar 2020 00:11:00 +0000\n\
+                    Ephemeral-Timer: 60\n\
+                    \n\
+                    second message\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await?;
+        assert_eq!(
+            chat_id.get_ephemeral_timer(&alice).await?,
+            Timer::Enabled { duration: 60 }
+        );
+        let msg = alice.get_last_msg().await;
+
+        // Message is deleted from the database when its timer expires.
+        msg.id.delete_from_db(&alice).await?;
+
+        // Message with Message-ID <third@example.com>, referencing <first@example.com> and
+        // <second@example.com>, is received.  The message <second@example.come> is not in the
+        // database anymore, so the timer should be applied unconditionally without rollback
+        // protection.
+        //
+        // Previously Delta Chat fallen back to using <first@example.com> in this case and
+        // compared received timer value to the timer value of the <first@examle.com>. Because
+        // their timer values are the same ("disabled"), Delta Chat assumed that the timer was not
+        // changed explicitly and the change should be ignored.
+        //
+        // The message also contains a quote of the first message to test that only References:
+        // header and not In-Reply-To: is consulted by the rollback protection.
+        dc_receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: Alice <alice@example.com>\n\
+                    Chat-Version: 1.0\n\
+                    Subject: Subject\n\
+                    Message-ID: <third@example.com>\n\
+                    Date: Sun, 22 Mar 2020 00:12:00 +0000\n\
+                    References: <first@example.com> <second@example.com>\n\
+                    In-Reply-To: <first@example.com>\n\
+                    \n\
+                    > hello\n",
+            "INBOX",
+            3,
+            false,
+        )
+        .await?;
+
+        let msg = alice.get_last_msg().await;
+        assert_eq!(
+            msg.chat_id.get_ephemeral_timer(&alice).await?,
+            Timer::Disabled
+        );
 
         Ok(())
     }
