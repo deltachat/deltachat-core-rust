@@ -1,6 +1,6 @@
 //! # Key-value configuration management.
 
-use anyhow::{anyhow, Result};
+use anyhow::{ensure, Result};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
@@ -340,20 +340,16 @@ impl Context {
 
     /// Sets an ui-specific key-value pair.
     /// Keys must be prefixed by `ui.`
-    /// and should be followe by the name of the system and maybe subsystem,
+    /// and should be followed by the name of the system and maybe subsystem,
     /// eg. `ui.desktop.linux.foo`, `ui.desktop.macos.bar`, `ui.ios.foobar`.
     pub async fn set_ui_config(&self, key: &str, value: Option<&str>) -> Result<()> {
-        if !key.starts_with("ui.") {
-            return Err(anyhow!("ui-prefix missing on setting ui-config."));
-        }
+        ensure!(key.starts_with("ui."), "set_ui_config(): prefix missing.");
         self.sql.set_raw_config(key, value).await
     }
 
     /// Gets an ui-specific value set by set_ui_config().
     pub async fn get_ui_config(&self, key: &str) -> Result<Option<String>> {
-        if !key.starts_with("ui.") {
-            return Err(anyhow!("ui-prefix missing on getting ui-config."));
-        }
+        ensure!(key.starts_with("ui."), "get_ui_config(): prefix missing.");
         self.sql.get_raw_config(key).await
     }
 }
