@@ -306,7 +306,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "Error: %1$s"))]
     Error = 112,
 
-    #[strum(props(fallback = "Quota not supported by your provider."))]
+    #[strum(props(fallback = "Your provider does not support reading quota information."))]
     QuotaNotSupported = 113,
 
     #[strum(props(fallback = "Messages"))]
@@ -975,7 +975,7 @@ pub(crate) async fn error(context: &Context, error: impl AsRef<str>) -> String {
         .replace1(error)
 }
 
-/// Stock string: `Quota not supported by your provider.`.
+/// Stock string: `Your provider does not support reading quota information.`.
 pub(crate) async fn quota_not_supported(context: &Context) -> String {
     translated(context, StockMessage::QuotaNotSupported).await
 }

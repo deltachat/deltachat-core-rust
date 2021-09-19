@@ -5954,7 +5954,7 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced by a possibly more detailed, typically english, error description.
 #define DC_STR_ERROR                      112
 
-/// "Quota not supported by your provider."
+/// "Your provider does not support reading quota information."
 ///
 /// Used in the connectivity view.
 #define DC_STR_QUOTA_NOT_SUPPORTED        113
