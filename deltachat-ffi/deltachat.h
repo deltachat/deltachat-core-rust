@@ -5959,6 +5959,21 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced by human-readable date and time.
 #define DC_STR_DOWNLOAD_AVAILABILITY      100
 
+/// "Multi Device Synchronization"
+///
+/// Used in subjects of outgoing sync messages.
+#define DC_STR_SYNC_MSG_SUBJECT           101
+
+/// "This message is used to synchronize data between your devices."
+///
+///
+/// Used as message text of outgoing sync messages.
+/// The text is visible in non-dc-muas or in outdated Delta Chat versions,
+/// the default text therefore adds the following hint:
+/// "If you see this message in Delta Chat,
+/// please update your Delta Chat apps on all devices."
+#define DC_STR_SYNC_MSG_BODY              102
+
 /// "Incoming Messages"
 ///
 /// Used as a headline in the connectivity view.
