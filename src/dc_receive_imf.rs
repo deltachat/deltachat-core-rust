@@ -872,19 +872,17 @@ async fn add_parts(
             chat_id
         );
         if is_dc_message == MessengerMessage::Yes
-            && mime_parser
-                .parts
-                .get(0)
-                .and_then(|part| part.param.get(Param::Quote))
-                .is_none()
-            && parent.map(|p| p.ephemeral_timer) == Some(ephemeral_timer)
+            && get_previous_message(context, mime_parser)
+                .await?
+                .map(|p| p.ephemeral_timer)
+                == Some(ephemeral_timer)
         {
-            // The message is a Delta Chat message without a quote, so it must be a reply to the
-            // last message in the chat as seen by the sender. The timer is the same in both the
-            // received message and its parent, so we know that the sender has not seen any change
-            // of the timer between these messages. As our timer value is different, it means the
-            // sender has not received some timer update that we have seen or sent ourselves, so we
-            // ignore incoming timer to prevent a rollback.
+            // The message is a Delta Chat message, so we know that previous message according to
+            // References header is the last message in the chat as seen by the sender. The timer
+            // is the same in both the received message and the last message, so we know that the
+            // sender has not seen any change of the timer between these messages. As our timer
+            // value is different, it means the sender has not received some timer update that we
+            // have seen or sent ourselves, so we ignore incoming timer to prevent a rollback.
             warn!(
                 context,
                 "ignoring ephemeral timer change to {:?} for chat {} to avoid rollback",
@@ -2146,6 +2144,23 @@ fn set_better_msg(mime_parser: &mut MimeMessage, better_msg: impl AsRef<str>) {
             }
         }
     }
+}
+
+/// Returns the last message referenced from `References` header if it is in the database.
+///
+/// For Delta Chat messages it is the last message in the chat of the sender.
+async fn get_previous_message(
+    context: &Context,
+    mime_parser: &MimeMessage,
+) -> Result<Option<Message>> {
+    if let Some(field) = mime_parser.get_header(HeaderDef::References) {
+        if let Some(rfc724mid) = parse_message_ids(field).last() {
+            if let Some((_, _, msg_id)) = rfc724_mid_exists(context, rfc724mid).await? {
+                return Ok(Some(Message::load_from_db(context, msg_id).await?));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// Given a list of Message-IDs, returns the latest message found in the database.
