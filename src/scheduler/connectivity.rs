@@ -380,7 +380,7 @@ impl Context {
         };
         drop(lock);
 
-        ret += &format!("<h3>{}</h3><ul>", stock_str::inbox(self).await);
+        ret += &format!("<h3>{}</h3><ul>", stock_str::incoming_messages(self).await);
         for (folder, watch, state) in &folders_states {
             let w = self.get_config(*watch).await.ok_or_log(self);
 
@@ -417,7 +417,10 @@ impl Context {
         }
         ret += "</ul>";
 
-        ret += &format!("<h3>{}</h3><ul><li>", stock_str::outbox(self).await);
+        ret += &format!(
+            "<h3>{}</h3><ul><li>",
+            stock_str::outgoing_messages(self).await
+        );
         let detailed = smtp.get_detailed().await;
         ret += &*detailed.to_icon();
         ret += " ";

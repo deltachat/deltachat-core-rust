@@ -276,11 +276,11 @@ pub enum StockMessage {
     #[strum(props(fallback = "Download maximum available until %1$s"))]
     DownloadAvailability = 100,
 
-    #[strum(props(fallback = "Inbox"))]
-    Inbox = 103,
+    #[strum(props(fallback = "Incoming Messages"))]
+    IncomingMessages = 103,
 
-    #[strum(props(fallback = "Outbox"))]
-    Outbox = 104,
+    #[strum(props(fallback = "Outgoing Messages"))]
+    OutgoingMessages = 104,
 
     #[strum(props(fallback = "Storage on %1$s"))]
     StorageOnDomain = 105,
@@ -918,20 +918,20 @@ pub(crate) async fn download_availability(context: &Context, timestamp: i64) -> 
         .replace1(dc_timestamp_to_str(timestamp))
 }
 
-/// Stock string: `Inbox`.
-pub(crate) async fn inbox(context: &Context) -> String {
-    translated(context, StockMessage::Inbox).await
+/// Stock string: `Incoming Messages`.
+pub(crate) async fn incoming_messages(context: &Context) -> String {
+    translated(context, StockMessage::IncomingMessages).await
 }
 
-/// Stock string: `Outbox`.
-pub(crate) async fn outbox(context: &Context) -> String {
-    translated(context, StockMessage::Outbox).await
+/// Stock string: `Outgoing Messages`.
+pub(crate) async fn outgoing_messages(context: &Context) -> String {
+    translated(context, StockMessage::OutgoingMessages).await
 }
 
 /// Stock string: `Storage on %1$s`.
 /// `%1$s` will be replaced by the domain of the configured email-address.
 pub(crate) async fn storage_on_domain(context: &Context, domain: impl AsRef<str>) -> String {
-    translated(context, StockMessage::Inbox)
+    translated(context, StockMessage::StorageOnDomain)
         .await
         .replace1(domain)
 }
@@ -960,7 +960,6 @@ pub(crate) async fn updating(context: &Context) -> String {
 pub(crate) async fn sending(context: &Context) -> String {
     translated(context, StockMessage::Sending).await
 }
-
 
 /// Stock string: `Your last message was sent successfully.`.
 pub(crate) async fn last_msg_sent_successfully(context: &Context) -> String {

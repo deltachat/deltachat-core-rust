@@ -5900,15 +5900,15 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced by human-readable date and time.
 #define DC_STR_DOWNLOAD_AVAILABILITY      100
 
-/// "Inbox"
+/// "Incoming Messages"
 ///
 /// Used as a headline in the connectivity view.
-#define DC_STR_INBOX                      103
+#define DC_STR_INCOMING_MESSAGES          103
 
-/// "Outbox"
+/// "Outgoing Messages"
 ///
 /// Used as a headline in the connectivity view.
-#define DC_STR_OUTBOX                     104
+#define DC_STR_OUTGOING_MESSAGES          104
 
 /// "Storage on %1$s"
 ///
