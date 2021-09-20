@@ -1,6 +1,6 @@
 //! # Key-value configuration management.
 
-use anyhow::Result;
+use anyhow::{ensure, Result};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
@@ -337,6 +337,21 @@ impl Context {
             .await?;
         Ok(())
     }
+
+    /// Sets an ui-specific key-value pair.
+    /// Keys must be prefixed by `ui.`
+    /// and should be followed by the name of the system and maybe subsystem,
+    /// eg. `ui.desktop.linux.foo`, `ui.desktop.macos.bar`, `ui.ios.foobar`.
+    pub async fn set_ui_config(&self, key: &str, value: Option<&str>) -> Result<()> {
+        ensure!(key.starts_with("ui."), "set_ui_config(): prefix missing.");
+        self.sql.set_raw_config(key, value).await
+    }
+
+    /// Gets an ui-specific value set by set_ui_config().
+    pub async fn get_ui_config(&self, key: &str) -> Result<Option<String>> {
+        ensure!(key.starts_with("ui."), "get_ui_config(): prefix missing.");
+        self.sql.get_raw_config(key).await
+    }
 }
 
 /// Returns all available configuration keys concated together.
@@ -388,5 +403,26 @@ mod tests {
         assert_eq!(constants::MediaQuality::Worse as i32, 1);
         let media_quality = constants::MediaQuality::from_i32(media_quality).unwrap_or_default();
         assert_eq!(media_quality, constants::MediaQuality::Worse);
+    }
+
+    #[async_std::test]
+    async fn test_ui_config() -> Result<()> {
+        let t = TestContext::new().await;
+
+        assert_eq!(t.get_ui_config("ui.desktop.linux.systray").await?, None);
+
+        t.set_ui_config("ui.android.screen_security", Some("safe"))
+            .await?;
+        assert_eq!(
+            t.get_ui_config("ui.android.screen_security").await?,
+            Some("safe".to_string())
+        );
+
+        t.set_ui_config("ui.android.screen_security", None).await?;
+        assert_eq!(t.get_ui_config("ui.android.screen_security").await?, None);
+
+        assert!(t.set_ui_config("configured", Some("bar")).await.is_err());
+
+        Ok(())
     }
 }

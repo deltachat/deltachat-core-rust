@@ -134,20 +134,30 @@ pub unsafe extern "C" fn dc_set_config(
     }
     let ctx = &*context;
     let key = to_string_lossy(key);
-    match config::Config::from_str(&key) {
-        Ok(key) => block_on(async move {
-            let value = to_opt_string_lossy(value);
-            ctx.set_config(key, value.as_deref())
+    let value = to_opt_string_lossy(value);
+
+    block_on(async move {
+        if key.starts_with("ui.") {
+            ctx.set_ui_config(&key, value.as_deref())
                 .await
                 .with_context(|| format!("Can't set {} to {:?}", key, value))
                 .log_err(ctx, "dc_set_config() failed")
                 .is_ok() as libc::c_int
-        }),
-        Err(_) => {
-            warn!(ctx, "dc_set_config(): invalid key");
-            0
+        } else {
+            match config::Config::from_str(&key) {
+                Ok(key) => ctx
+                    .set_config(key, value.as_deref())
+                    .await
+                    .with_context(|| format!("Can't set {} to {:?}", key, value))
+                    .log_err(ctx, "dc_set_config() failed")
+                    .is_ok() as libc::c_int,
+                Err(_) => {
+                    warn!(ctx, "dc_set_config(): invalid key");
+                    0
+                }
+            }
         }
-    }
+    })
 }
 
 #[no_mangle]
@@ -160,20 +170,33 @@ pub unsafe extern "C" fn dc_get_config(
         return "".strdup();
     }
     let ctx = &*context;
-    match config::Config::from_str(&to_string_lossy(key)) {
-        Ok(key) => block_on(async move {
-            ctx.get_config(key)
+
+    let key = to_string_lossy(key);
+
+    block_on(async move {
+        if key.starts_with("ui.") {
+            ctx.get_ui_config(&key)
                 .await
-                .log_err(ctx, "Can't get config")
+                .log_err(ctx, "Can't get ui-config")
                 .unwrap_or_default()
                 .unwrap_or_default()
                 .strdup()
-        }),
-        Err(_) => {
-            warn!(ctx, "dc_get_config(): invalid key");
-            "".strdup()
+        } else {
+            match config::Config::from_str(&key) {
+                Ok(key) => ctx
+                    .get_config(key)
+                    .await
+                    .log_err(ctx, "Can't get config")
+                    .unwrap_or_default()
+                    .unwrap_or_default()
+                    .strdup(),
+                Err(_) => {
+                    warn!(ctx, "dc_get_config(): invalid key");
+                    "".strdup()
+                }
+            }
         }
-    }
+    })
 }
 
 #[no_mangle]
