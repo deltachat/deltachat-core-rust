@@ -327,7 +327,12 @@ pub(crate) async fn dc_receive_imf_inner(
         }
     }
 
-    if let Some(create_event_to_send) = create_event_to_send {
+    if replace_partial_download {
+        context.emit_event(EventType::MsgsChanged {
+            msg_id: MsgId::new(0),
+            chat_id,
+        });
+    } else if let Some(create_event_to_send) = create_event_to_send {
         for (chat_id, msg_id) in created_db_entries {
             let event = match create_event_to_send {
                 CreateEvent::MsgsChanged => EventType::MsgsChanged { msg_id, chat_id },

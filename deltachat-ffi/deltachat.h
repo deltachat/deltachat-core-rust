@@ -5136,8 +5136,8 @@ void dc_event_unref(dc_event_t* event);
  * - Chats created, deleted or archived
  * - A draft has been set
  *
- * @param data1 (int) chat_id for single added messages
- * @param data2 (int) msg_id for single added messages
+ * @param data1 (int) chat_id if only a single chat is affected by the changes, otherwise 0
+ * @param data2 (int) msg_id if only a single message is affected by the changes, otherwise 0
  */
 #define DC_EVENT_MSGS_CHANGED             2000
 
