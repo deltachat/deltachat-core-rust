@@ -2758,17 +2758,6 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     Ok(())
 }
 
-pub(crate) async fn get_chat_contact_cnt(context: &Context, chat_id: ChatId) -> Result<usize> {
-    let count = context
-        .sql
-        .count(
-            "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
-            paramsv![chat_id],
-        )
-        .await?;
-    Ok(count as usize)
-}
-
 pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
     if context.sql.is_open().await {
         // no database, no chats - this is no error (needed eg. for information)
