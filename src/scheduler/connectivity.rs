@@ -8,7 +8,7 @@ use crate::events::EventType;
 use crate::quota::{
     QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
 };
-use crate::{config::Config, dc_tools, scheduler::Scheduler};
+use crate::{config::Config, dc_tools, scheduler::Scheduler, stock_str};
 use crate::{context::Context, log::LogExt};
 use anyhow::{anyhow, Result};
 use humansize::{file_size_opts, FileSize};
@@ -73,33 +73,33 @@ impl DetailedConnectivity {
         }
     }
 
-    fn to_string_imap(&self, _context: &Context) -> String {
+    async fn to_string_imap(&self, context: &Context) -> String {
         match self {
-            DetailedConnectivity::Error(e) => format!("Error: {}", e),
+            DetailedConnectivity::Error(e) => stock_str::error(context, e).await,
             DetailedConnectivity::Uninitialized => "Not started".to_string(),
-            DetailedConnectivity::Connecting => "Connecting…".to_string(),
-            DetailedConnectivity::Working => "Getting new messages…".to_string(),
+            DetailedConnectivity::Connecting => stock_str::connecting(context).await,
+            DetailedConnectivity::Working => stock_str::updating(context).await,
             DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
-                "Connected".to_string()
+                stock_str::connected(context).await
             }
             DetailedConnectivity::NotConfigured => "Not configured".to_string(),
         }
     }
 
-    fn to_string_smtp(&self, _context: &Context) -> String {
+    async fn to_string_smtp(&self, context: &Context) -> String {
         match self {
-            DetailedConnectivity::Error(e) => format!("Error: {}", e),
+            DetailedConnectivity::Error(e) => stock_str::error(context, e).await,
             DetailedConnectivity::Uninitialized => {
-                "(You did not try to send a message recently)".to_string()
+                "You did not try to send a message recently.".to_string()
             }
-            DetailedConnectivity::Connecting => "Connecting…".to_string(),
-            DetailedConnectivity::Working => "Sending…".to_string(),
+            DetailedConnectivity::Connecting => stock_str::connecting(context).await,
+            DetailedConnectivity::Working => stock_str::sending(context).await,
 
             // We don't know any more than that the last message was sent successfully;
             // since sending the last message, connectivity could have changed, which we don't notice
             // until another message is sent
             DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
-                "Your last message was sent successfully".to_string()
+                stock_str::last_msg_sent_successfully(context).await
             }
             DetailedConnectivity::NotConfigured => "Not configured".to_string(),
         }
@@ -251,7 +251,7 @@ impl Context {
     /// One of:
     /// - DC_CONNECTIVITY_NOT_CONNECTED (1000-1999): Show e.g. the string "Not connected" or a red dot
     /// - DC_CONNECTIVITY_CONNECTING (2000-2999): Show e.g. the string "Connecting…" or a yellow dot
-    /// - DC_CONNECTIVITY_WORKING (3000-3999): Show e.g. the string "Getting new messages" or a spinning wheel
+    /// - DC_CONNECTIVITY_WORKING (3000-3999): Show e.g. the string "Updating…" or a spinning wheel
     /// - DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string "Connected" or a green dot
     ///
     /// We don't use exact values but ranges here so that we can split up
@@ -380,7 +380,7 @@ impl Context {
         };
         drop(lock);
 
-        ret += "<h3>Incoming messages</h3><ul>";
+        ret += &format!("<h3>{}</h3><ul>", stock_str::incoming_messages(self).await);
         for (folder, watch, state) in &folders_states {
             let w = self.get_config(*watch).await.ok_or_log(self);
 
@@ -395,7 +395,7 @@ impl Context {
                     ret += " <b>";
                     ret += &*escaper::encode_minimal(&foldername);
                     ret += ":</b> ";
-                    ret += &*escaper::encode_minimal(&*detailed.to_string_imap(self));
+                    ret += &*escaper::encode_minimal(&*detailed.to_string_imap(self).await);
                     ret += "</li>";
 
                     folder_added = true;
@@ -410,18 +410,21 @@ impl Context {
                     ret += "<li>";
                     ret += &*detailed.to_icon();
                     ret += " ";
-                    ret += &*escaper::encode_minimal(&detailed.to_string_imap(self));
+                    ret += &*escaper::encode_minimal(&detailed.to_string_imap(self).await);
                     ret += "</li>";
                 }
             }
         }
         ret += "</ul>";
 
-        ret += "<h3>Outgoing messages</h3><ul><li>";
+        ret += &format!(
+            "<h3>{}</h3><ul><li>",
+            stock_str::outgoing_messages(self).await
+        );
         let detailed = smtp.get_detailed().await;
         ret += &*detailed.to_icon();
         ret += " ";
-        ret += &*escaper::encode_minimal(&detailed.to_string_smtp(self));
+        ret += &*escaper::encode_minimal(&detailed.to_string_smtp(self).await);
         ret += "</li></ul>";
 
         let domain = dc_tools::EmailAddress::new(
@@ -431,7 +434,10 @@ impl Context {
                 .unwrap_or_default(),
         )?
         .domain;
-        ret += &format!("<h3>Storage on {}</h3><ul>", domain);
+        ret += &format!(
+            "<h3>{}</h3><ul>",
+            stock_str::storage_on_domain(self, domain).await
+        );
         let quota = self.quota.read().await;
         if let Some(quota) = &*quota {
             match &quota.recent {
@@ -462,7 +468,8 @@ impl Context {
                                 }
                                 Message => {
                                     format!(
-                                        "<b>Messages:</b> {} of {} used",
+                                        "<b>{}:</b> {} of {} used",
+                                        stock_str::messages(self).await,
                                         resource.usage.to_string(),
                                         resource.limit.to_string(),
                                     )
@@ -507,7 +514,7 @@ impl Context {
                 self.schedule_quota_update().await?;
             }
         } else {
-            ret += "<li>One moment...</li>";
+            ret += &format!("<li>{}</li>", stock_str::one_moment(self).await);
             self.schedule_quota_update().await?;
         }
         ret += "</ul>";

@@ -275,6 +275,42 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Download maximum available until %1$s"))]
     DownloadAvailability = 100,
+
+    #[strum(props(fallback = "Incoming Messages"))]
+    IncomingMessages = 103,
+
+    #[strum(props(fallback = "Outgoing Messages"))]
+    OutgoingMessages = 104,
+
+    #[strum(props(fallback = "Storage on %1$s"))]
+    StorageOnDomain = 105,
+
+    #[strum(props(fallback = "One moment…"))]
+    OneMoment = 106,
+
+    #[strum(props(fallback = "Connected"))]
+    Connected = 107,
+
+    #[strum(props(fallback = "Connecting…"))]
+    Connecting = 108,
+
+    #[strum(props(fallback = "Updating…"))]
+    Updating = 109,
+
+    #[strum(props(fallback = "Sending…"))]
+    Sending = 110,
+
+    #[strum(props(fallback = "Your last message was sent successfully."))]
+    LastMsgSentSuccessfully = 111,
+
+    #[strum(props(fallback = "Error: %1$s"))]
+    Error = 112,
+
+    #[strum(props(fallback = "Not supported by your provider."))]
+    NotSupportedByProvider = 113,
+
+    #[strum(props(fallback = "Messages"))]
+    Messages = 114,
 }
 
 impl StockMessage {
@@ -880,6 +916,73 @@ pub(crate) async fn download_availability(context: &Context, timestamp: i64) -> 
     translated(context, StockMessage::DownloadAvailability)
         .await
         .replace1(dc_timestamp_to_str(timestamp))
+}
+
+/// Stock string: `Incoming Messages`.
+pub(crate) async fn incoming_messages(context: &Context) -> String {
+    translated(context, StockMessage::IncomingMessages).await
+}
+
+/// Stock string: `Outgoing Messages`.
+pub(crate) async fn outgoing_messages(context: &Context) -> String {
+    translated(context, StockMessage::OutgoingMessages).await
+}
+
+/// Stock string: `Storage on %1$s`.
+/// `%1$s` will be replaced by the domain of the configured email-address.
+pub(crate) async fn storage_on_domain(context: &Context, domain: impl AsRef<str>) -> String {
+    translated(context, StockMessage::StorageOnDomain)
+        .await
+        .replace1(domain)
+}
+
+/// Stock string: `One moment…`.
+pub(crate) async fn one_moment(context: &Context) -> String {
+    translated(context, StockMessage::OneMoment).await
+}
+
+/// Stock string: `Connected`.
+pub(crate) async fn connected(context: &Context) -> String {
+    translated(context, StockMessage::Connected).await
+}
+
+/// Stock string: `Connecting…`.
+pub(crate) async fn connecting(context: &Context) -> String {
+    translated(context, StockMessage::Connecting).await
+}
+
+/// Stock string: `Updating…`.
+pub(crate) async fn updating(context: &Context) -> String {
+    translated(context, StockMessage::Updating).await
+}
+
+/// Stock string: `Sending…`.
+pub(crate) async fn sending(context: &Context) -> String {
+    translated(context, StockMessage::Sending).await
+}
+
+/// Stock string: `Your last message was sent successfully.`.
+pub(crate) async fn last_msg_sent_successfully(context: &Context) -> String {
+    translated(context, StockMessage::LastMsgSentSuccessfully).await
+}
+
+/// Stock string: `Error: %1$s…`.
+/// `%1$s` will be replaced by a possibly more detailed, typically english, error description.
+pub(crate) async fn error(context: &Context, error: impl AsRef<str>) -> String {
+    translated(context, StockMessage::Error)
+        .await
+        .replace1(error)
+}
+
+/// Stock string: `Not supported by your provider.`.
+pub(crate) async fn not_supported_by_provider(context: &Context) -> String {
+    translated(context, StockMessage::NotSupportedByProvider).await
+}
+
+/// Stock string: `Messages`.
+/// Used as a subtitle in quota context; can be plural always.
+pub(crate) async fn messages(context: &Context) -> String {
+    translated(context, StockMessage::Messages).await
 }
 
 impl Context {
