@@ -722,4 +722,28 @@ mod tests {
 
         Ok(())
     }
+
+    #[async_std::test]
+    async fn test_account_new_add_remove_with_active_event_emmitter() {
+        let dir = tempfile::tempdir().unwrap();
+        let p: PathBuf = dir.path().join("accounts").into();
+
+        let mut accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        assert_eq!(accounts.accounts.len(), 0);
+        assert_eq!(accounts.config.get_selected_account().await, 0);
+
+        accounts.add_account().await.unwrap();
+        accounts.add_account().await.unwrap();
+
+        // Create event emitter.
+        let mut event_emitter = accounts.get_event_emitter().await;
+
+        // make sure that account is still removed on windows
+        accounts.remove_account(1).await.unwrap();
+        assert_eq!(accounts.config.get_selected_account().await, 2);
+        assert_eq!(accounts.accounts.len(), 1);
+
+        // make sure event emitter is not dropped before the test
+        println!("{:?}", event_emitter.recv().await);
+    }
 }
