@@ -20,14 +20,17 @@ use crate::{job, stock_str, EventType};
 /// quota icon is "yellow".
 pub const QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 80;
 
-// warning is already issued at QUOTA_WARN_THRESHOLD_PERCENTAGE,
-// this threshold only makes the quota icon "red".
-pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 99;
+// warning again after this usage percentage is reached,
+// quota icon is "red".
+pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 95;
 
 /// if quota is below this value (again),
 /// QuotaExceeding is cleared.
 /// This value should be a bit below QUOTA_WARN_THRESHOLD_PERCENTAGE to
 /// avoid jittering and lots of warnings when quota is exactly at the warning threshold.
+///
+/// We do not repeat warnings on a daily base or so as some provider
+/// providers report bad values and we would then spam the user.
 pub const QUOTA_ALLCLEAR_PERCENTAGE: u64 = 75;
 
 // if recent quota is older,
@@ -135,7 +138,11 @@ impl Context {
             match get_highest_usage(quota) {
                 Ok((highest, _, _)) => {
                     if highest >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
-                        if self.get_config_int(Config::QuotaExceeding).await? == 0 {
+                        let warned_at = self.get_config_int(Config::QuotaExceeding).await?;
+                        if warned_at == 0
+                            || (highest >= QUOTA_ERROR_THRESHOLD_PERCENTAGE
+                                && warned_at < QUOTA_ERROR_THRESHOLD_PERCENTAGE as i32)
+                        {
                             self.set_config(Config::QuotaExceeding, Some(&highest.to_string()))
                                 .await?;
 
