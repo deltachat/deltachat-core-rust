@@ -1128,9 +1128,12 @@ impl Chat {
         let mut to_id = 0;
         let mut location_id = 0;
 
-        if !(self.typ == Chattype::Single || self.typ == Chattype::Group) {
+        if !(self.typ == Chattype::Single
+            || self.typ == Chattype::Group
+            || self.typ == Chattype::Broadcast)
+        {
             error!(context, "Cannot send to chat type #{}.", self.typ,);
-            bail!("Cannot set to chat type #{}", self.typ);
+            bail!("Cannot send to chat type #{}", self.typ);
         }
 
         if self.typ == Chattype::Group
@@ -2311,8 +2314,8 @@ pub(crate) async fn add_contact_to_chat_ex(
     /*this also makes sure, not contacts are added to special or normal chats*/
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     ensure!(
-        chat.typ == Chattype::Group,
-        "{} is not a group where one can add members",
+        chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast,
+        "{} is not a group/broadcast where one can add members",
         chat_id
     );
     ensure!(
@@ -2367,7 +2370,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         }
         add_to_chat_contacts_table(context, chat_id, contact_id).await?;
     }
-    if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
+    if chat.typ == Chattype::Group && chat.is_promoted() {
         msg.viewtype = Viewtype::Text;
 
         msg.text = Some(
@@ -2532,14 +2535,14 @@ pub async fn remove_contact_from_chat(
     /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
     /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
-        if chat.typ == Chattype::Group {
+        if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
             if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await? {
                 context.emit_event(EventType::ErrorSelfNotInGroup(
                     "Cannot remove contact from chat; self not in group.".into(),
                 ));
             } else {
                 if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-                    if chat.is_promoted() {
+                    if chat.typ == Chattype::Group && chat.is_promoted() {
                         msg.viewtype = Viewtype::Text;
                         if contact.id == DC_CONTACT_ID_SELF {
                             set_group_explicitly_left(context, &chat.grpid).await?;
