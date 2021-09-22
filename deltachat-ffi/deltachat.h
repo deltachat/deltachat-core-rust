@@ -5220,7 +5220,7 @@ void dc_event_unref(dc_event_t* event);
  * Chat ephemeral timer changed.
  *
  * @param data1 (int) chat_id
- * @param data2 0
+ * @param data2 (int) Timer value in seconds or 0 for disabled timer
  */
 #define DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED 2021
 
