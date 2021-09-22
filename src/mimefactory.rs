@@ -555,9 +555,22 @@ impl<'a> MimeFactory<'a> {
             render_rfc724_mid(&rfc724_mid),
         ));
 
-        headers
-            .unprotected
-            .push(Header::new_with_value("To".into(), to).unwrap());
+        let undisclosed_recipients = match &self.loaded {
+            Loaded::Message { chat } => chat.typ == Chattype::Broadcast,
+            Loaded::Mdn { .. } => false,
+        };
+
+        if undisclosed_recipients {
+            headers.unprotected.push(Header::new(
+                "To".into(),
+                "undisclosed-recipients: ;".to_string(),
+            ));
+        } else {
+            headers
+                .unprotected
+                .push(Header::new_with_value("To".into(), to).unwrap());
+        }
+
         headers
             .unprotected
             .push(Header::new_with_value("From".into(), vec![from]).unwrap());
