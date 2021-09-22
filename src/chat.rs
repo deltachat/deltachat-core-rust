@@ -271,7 +271,9 @@ impl ChatId {
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
-            Chattype::Undefined => bail!("Can't block chat of undefined chattype"),
+            Chattype::Undefined | Chattype::Broadcast => {
+                bail!("Can't block chat of type {:?}", chat.typ)
+            }
             Chattype::Single => {
                 for contact_id in get_chat_contacts(context, self).await? {
                     if contact_id != DC_CONTACT_ID_SELF {
@@ -311,7 +313,7 @@ impl ChatId {
 
         match chat.typ {
             Chattype::Undefined => bail!("Can't accept chat of undefined chattype"),
-            Chattype::Single | Chattype::Group => {
+            Chattype::Single | Chattype::Group | Chattype::Broadcast => {
                 // User has "created a chat" with all these contacts.
                 //
                 // Previously accepting a chat literally created a chat because unaccepted chats
@@ -355,7 +357,7 @@ impl ChatId {
 
         match protect {
             ProtectionStatus::Protected => match chat.typ {
-                Chattype::Single | Chattype::Group => {
+                Chattype::Single | Chattype::Group | Chattype::Broadcast => {
                     let contact_ids = get_chat_contacts(context, self).await?;
                     for contact_id in contact_ids.into_iter() {
                         let contact = Contact::get_by_id(context, contact_id).await?;
@@ -2218,6 +2220,37 @@ pub async fn create_group_chat(
         chat_id.inner_set_protection(context, protect).await?;
     }
 
+    Ok(chat_id)
+}
+
+/// Creates a group chat with a given `name`.
+pub async fn create_broadcast_list(context: &Context, chat_name: &str) -> Result<ChatId> {
+    let chat_name = improve_single_line_input(chat_name);
+    ensure!(!chat_name.is_empty(), "Invalid chat name");
+
+    let grpid = dc_create_id();
+    let row_id = context
+        .sql
+        .insert(
+            "INSERT INTO chats
+        (type, name, grpid, param, created_timestamp)
+        VALUES(?, ?, ?, \'U=1\', ?);",
+            paramsv![
+                Chattype::Broadcast,
+                chat_name,
+                grpid,
+                dc_create_smeared_timestamp(context).await,
+            ],
+        )
+        .await?;
+    let chat_id = ChatId::new(u32::try_from(row_id)?);
+
+    add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await?;
+
+    context.emit_event(EventType::MsgsChanged {
+        msg_id: MsgId::new(0),
+        chat_id: ChatId::new(0),
+    });
     Ok(chat_id)
 }
 

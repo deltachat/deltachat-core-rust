@@ -329,7 +329,7 @@ impl Chatlist {
                 (Some(lastmsg), None)
             } else {
                 match chat.typ {
-                    Chattype::Group | Chattype::Mailinglist => {
+                    Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
                         let lastcontact = Contact::load_from_db(context, lastmsg.from_id).await?;
                         (Some(lastmsg), Some(lastcontact))
                     }

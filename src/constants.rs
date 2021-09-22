@@ -153,6 +153,7 @@ pub enum Chattype {
     Single = 100,
     Group = 120,
     Mailinglist = 140,
+    Broadcast = 160,
 }
 
 impl Default for Chattype {
@@ -348,6 +349,7 @@ mod tests {
         assert_eq!(Chattype::Single, Chattype::from_i32(100).unwrap());
         assert_eq!(Chattype::Group, Chattype::from_i32(120).unwrap());
         assert_eq!(Chattype::Mailinglist, Chattype::from_i32(140).unwrap());
+        assert_eq!(Chattype::Broadcast, Chattype::from_i32(160).unwrap());
     }
 
     #[test]
