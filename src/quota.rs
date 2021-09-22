@@ -20,14 +20,17 @@ use crate::{job, stock_str, EventType};
 /// quota icon is "yellow".
 pub const QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 80;
 
-// warning is already issued at QUOTA_WARN_THRESHOLD_PERCENTAGE,
-// this threshold only makes the quota icon "red".
-pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 99;
+// warning again after this usage percentage is reached,
+// quota icon is "red".
+pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 95;
 
 /// if quota is below this value (again),
 /// QuotaExceeding is cleared.
 /// This value should be a bit below QUOTA_WARN_THRESHOLD_PERCENTAGE to
 /// avoid jittering and lots of warnings when quota is exactly at the warning threshold.
+///
+/// We do not repeat warnings on a daily base or so as some provider
+/// providers report bad values and we would then spam the user.
 pub const QUOTA_ALLCLEAR_PERCENTAGE: u64 = 75;
 
 // if recent quota is older,
@@ -96,6 +99,14 @@ fn get_highest_usage<'t>(
     highest.ok_or_else(|| anyhow!("no quota_resource found, this is unexpected"))
 }
 
+/// Checks if a quota warning is needed.
+pub fn needs_quota_warning(curr_percentage: u64, warned_at_percentage: u64) -> bool {
+    (curr_percentage >= QUOTA_WARN_THRESHOLD_PERCENTAGE
+        && warned_at_percentage < QUOTA_WARN_THRESHOLD_PERCENTAGE)
+        || (curr_percentage >= QUOTA_ERROR_THRESHOLD_PERCENTAGE
+            && warned_at_percentage < QUOTA_ERROR_THRESHOLD_PERCENTAGE)
+}
+
 impl Context {
     // Adds a job to update `quota.recent`
     pub(crate) async fn schedule_quota_update(&self) -> Result<()> {
@@ -134,16 +145,15 @@ impl Context {
         if let Ok(quota) = &quota {
             match get_highest_usage(quota) {
                 Ok((highest, _, _)) => {
-                    if highest >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
-                        if self.get_config_int(Config::QuotaExceeding).await? == 0 {
-                            self.set_config(Config::QuotaExceeding, Some(&highest.to_string()))
-                                .await?;
-
-                            let mut msg = Message::new(Viewtype::Text);
-                            msg.text = Some(stock_str::quota_exceeding(self, highest).await);
-                            add_device_msg_with_importance(self, None, Some(&mut msg), true)
-                                .await?;
-                        }
+                    if needs_quota_warning(
+                        highest,
+                        self.get_config_int(Config::QuotaExceeding).await? as u64,
+                    ) {
+                        self.set_config(Config::QuotaExceeding, Some(&highest.to_string()))
+                            .await?;
+                        let mut msg = Message::new(Viewtype::Text);
+                        msg.text = Some(stock_str::quota_exceeding(self, highest).await);
+                        add_device_msg_with_importance(self, None, Some(&mut msg), true).await?;
                     } else if highest <= QUOTA_ALLCLEAR_PERCENTAGE {
                         self.set_config(Config::QuotaExceeding, None).await?;
                     }
@@ -164,10 +174,29 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::quota::{
         QUOTA_ALLCLEAR_PERCENTAGE, QUOTA_ERROR_THRESHOLD_PERCENTAGE,
         QUOTA_WARN_THRESHOLD_PERCENTAGE,
     };
+
+    #[async_std::test]
+    async fn test_needs_quota_warning() -> Result<()> {
+        assert!(!needs_quota_warning(0, 0));
+        assert!(!needs_quota_warning(10, 0));
+        assert!(!needs_quota_warning(70, 0));
+        assert!(!needs_quota_warning(75, 0));
+        assert!(!needs_quota_warning(79, 0));
+        assert!(needs_quota_warning(80, 0));
+        assert!(needs_quota_warning(81, 0));
+        assert!(!needs_quota_warning(85, 80));
+        assert!(!needs_quota_warning(85, 81));
+        assert!(needs_quota_warning(95, 82));
+        assert!(!needs_quota_warning(97, 95));
+        assert!(!needs_quota_warning(97, 96));
+        assert!(!needs_quota_warning(1000, 96));
+        Ok(())
+    }
 
     #[allow(clippy::assertions_on_constants)]
     #[async_std::test]
