@@ -1566,7 +1566,7 @@ async fn create_or_lookup_group(
             return Ok(None);
         }
 
-        chat_id = create_multiuser_record(
+        chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Group,
             &grpid,
@@ -1817,7 +1817,7 @@ async fn create_or_lookup_mailinglist(
 
     if allow_creation {
         // list does not exist but should be created
-        let chat_id = create_multiuser_record(
+        let chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Mailinglist,
             &listid,
@@ -1917,7 +1917,7 @@ async fn create_adhoc_group(
         .get_subject()
         .unwrap_or_else(|| "Unnamed group".to_string());
 
-    let new_chat_id: ChatId = create_multiuser_record(
+    let new_chat_id: ChatId = ChatId::create_multiuser_record(
         context,
         Chattype::Group,
         &grpid,
@@ -1933,39 +1933,6 @@ async fn create_adhoc_group(
     context.emit_event(EventType::ChatModified(new_chat_id));
 
     Ok(Some(new_chat_id))
-}
-
-async fn create_multiuser_record(
-    context: &Context,
-    chattype: Chattype,
-    grpid: impl AsRef<str>,
-    grpname: impl AsRef<str>,
-    create_blocked: Blocked,
-    create_protected: ProtectionStatus,
-) -> Result<ChatId> {
-    let row_id =
-    context.sql.insert(
-        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);",
-        paramsv![
-            chattype,
-            grpname.as_ref(),
-            grpid.as_ref(),
-            create_blocked,
-            dc_create_smeared_timestamp(context).await,
-            create_protected,
-        ],
-    ).await?;
-
-    let chat_id = ChatId::new(u32::try_from(row_id)?);
-    info!(
-        context,
-        "Created group/mailinglist '{}' grpid={} as {}",
-        grpname.as_ref(),
-        grpid.as_ref(),
-        chat_id
-    );
-
-    Ok(chat_id)
 }
 
 /// Creates ad-hoc group ID.

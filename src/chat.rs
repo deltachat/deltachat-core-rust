@@ -201,6 +201,41 @@ impl ChatId {
         Ok(chat_id)
     }
 
+    /// Create a group or mailinglist raw database record with the given parameters.
+    /// The function does not add SELF nor checks if the record already exists.
+    pub(crate) async fn create_multiuser_record(
+        context: &Context,
+        chattype: Chattype,
+        grpid: impl AsRef<str>,
+        grpname: impl AsRef<str>,
+        create_blocked: Blocked,
+        create_protected: ProtectionStatus,
+    ) -> Result<Self> {
+        let row_id =
+            context.sql.insert(
+                "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);",
+                paramsv![
+                    chattype,
+                    grpname.as_ref(),
+                    grpid.as_ref(),
+                    create_blocked,
+                    dc_create_smeared_timestamp(context).await,
+                    create_protected,
+                ],
+            ).await?;
+
+        let chat_id = ChatId::new(u32::try_from(row_id)?);
+        info!(
+            context,
+            "Created group/mailinglist '{}' grpid={} as {}",
+            grpname.as_ref(),
+            grpid.as_ref(),
+            chat_id
+        );
+
+        Ok(chat_id)
+    }
+
     pub async fn set_selfavatar_timestamp(self, context: &Context, timestamp: i64) -> Result<()> {
         context
             .sql
