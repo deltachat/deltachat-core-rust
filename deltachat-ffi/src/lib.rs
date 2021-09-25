@@ -3856,9 +3856,19 @@ pub unsafe extern "C" fn dc_accounts_select_account(
     }
 
     let accounts = &*accounts;
-    block_on(async move { accounts.write().await.select_account(id).await })
-        .map(|_| 1)
-        .unwrap_or(0)
+    block_on(async move {
+        let mut accounts = accounts.write().await;
+        match accounts.select_account(id).await {
+            Ok(()) => 1,
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!(
+                    "Failed to select account: {:#}",
+                    err
+                )));
+                0
+            }
+        }
+    })
 }
 
 #[no_mangle]
@@ -3870,7 +3880,19 @@ pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -
 
     let accounts = &mut *accounts;
 
-    block_on(async move { accounts.write().await.add_account().await }).unwrap_or(0)
+    block_on(async move {
+        let mut accounts = accounts.write().await;
+        match accounts.add_account().await {
+            Ok(id) => id,
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!(
+                    "Failed to add account: {:#}",
+                    err
+                )));
+                0
+            }
+        }
+    })
 }
 
 #[no_mangle]
@@ -3885,9 +3907,19 @@ pub unsafe extern "C" fn dc_accounts_remove_account(
 
     let accounts = &mut *accounts;
 
-    block_on(async move { accounts.write().await.remove_account(id).await })
-        .map(|_| 1)
-        .unwrap_or_else(|_| 0)
+    block_on(async move {
+        let mut accounts = accounts.write().await;
+        match accounts.remove_account(id).await {
+            Ok(()) => 1,
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!(
+                    "Failed to remove account: {:#}",
+                    err
+                )));
+                0
+            }
+        }
+    })
 }
 
 #[no_mangle]
@@ -3904,14 +3936,21 @@ pub unsafe extern "C" fn dc_accounts_migrate_account(
     let dbfile = to_string_lossy(dbfile);
 
     block_on(async move {
-        accounts
-            .write()
-            .await
+        let mut accounts = accounts.write().await;
+        match accounts
             .migrate_account(async_std::path::PathBuf::from(dbfile))
             .await
+        {
+            Ok(id) => id,
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!(
+                    "Failed to migrate account: {:#}",
+                    err
+                )));
+                0
+            }
+        }
     })
-    .map(|_| 1)
-    .unwrap_or_else(|_| 0)
 }
 
 #[no_mangle]

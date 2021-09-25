@@ -4993,7 +4993,7 @@ char* dc_event_get_data2_str(dc_event_t* event);
  *
  * @memberof dc_event_t
  * @param event Event object as returned from dc_accounts_get_next_event().
- * @return account-id belonging to the event or 0 for errors.
+ * @return account-id belonging to the event, 0 for account manager errors.
  */
 uint32_t dc_event_get_account_id(dc_event_t* event);
 

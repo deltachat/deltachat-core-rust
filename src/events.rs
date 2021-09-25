@@ -62,10 +62,6 @@ impl Events {
 pub struct EventEmitter(Receiver<Event>);
 
 impl EventEmitter {
-    pub(crate) fn into_inner(self) -> Receiver<Event> {
-        self.0
-    }
-
     /// Blocking recv of an event. Return `None` if the `Sender` has been droped.
     pub fn recv_sync(&self) -> Option<Event> {
         async_std::task::block_on(self.recv())
