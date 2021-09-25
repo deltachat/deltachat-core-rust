@@ -881,6 +881,7 @@ async fn add_parts(
                 .await?
                 .map(|p| p.ephemeral_timer)
                 == Some(ephemeral_timer)
+            && mime_parser.is_system_message != SystemMessage::EphemeralTimerChanged
         {
             // The message is a Delta Chat message, so we know that previous message according to
             // References header is the last message in the chat as seen by the sender. The timer

@@ -649,8 +649,83 @@ mod tests {
         );
     }
 
+    /// Test enabling and disabling ephemeral timer remotely.
     #[async_std::test]
-    async fn test_ephemeral_timer() -> anyhow::Result<()> {
+    async fn test_ephemeral_enable_disable() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let chat_bob = bob.create_chat(&alice).await.id;
+
+        chat_alice
+            .set_ephemeral_timer(&alice.ctx, Timer::Enabled { duration: 60 })
+            .await?;
+        let sent = alice.pop_sent_msg().await;
+        bob.recv_msg(&sent).await;
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Enabled { duration: 60 }
+        );
+
+        chat_alice
+            .set_ephemeral_timer(&alice.ctx, Timer::Disabled)
+            .await?;
+        let sent = alice.pop_sent_msg().await;
+        bob.recv_msg(&sent).await;
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Disabled
+        );
+
+        Ok(())
+    }
+
+    /// Test that timer is enabled even if the message explicitly enabling the timer is lost.
+    #[async_std::test]
+    async fn test_ephemeral_enable_lost() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let chat_bob = bob.create_chat(&alice).await.id;
+
+        // Alice enables the timer.
+        chat_alice
+            .set_ephemeral_timer(&alice.ctx, Timer::Enabled { duration: 60 })
+            .await?;
+        assert_eq!(
+            chat_alice.get_ephemeral_timer(&alice.ctx).await?,
+            Timer::Enabled { duration: 60 }
+        );
+        // The message enabling the timer is lost.
+        let _sent = alice.pop_sent_msg().await;
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Disabled,
+        );
+
+        // Alice sends a text message.
+        let mut msg = Message::new(Viewtype::Text);
+        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
+        let sent = alice.pop_sent_msg().await;
+
+        // Bob receives text message and enables the timer, even though explicit timer update was
+        // lost previously.
+        bob.recv_msg(&sent).await;
+        assert_eq!(
+            chat_bob.get_ephemeral_timer(&bob.ctx).await?,
+            Timer::Enabled { duration: 60 }
+        );
+
+        Ok(())
+    }
+
+    /// Test that Alice replying to the chat without a timer at the same time as Bob enables the
+    /// timer does not result in disabling the timer on the Bob's side.
+    #[async_std::test]
+    async fn test_ephemeral_timer_rollback() -> anyhow::Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
@@ -706,6 +781,18 @@ mod tests {
         assert_eq!(
             chat_alice.get_ephemeral_timer(&alice.ctx).await?,
             Timer::Enabled { duration: 60 }
+        );
+
+        // Bob disables the chat timer.
+        // Note that the last message in the Bob's chat is from Alice and has no timer,
+        // but the chat timer is enabled.
+        chat_bob
+            .set_ephemeral_timer(&bob.ctx, Timer::Disabled)
+            .await?;
+        alice.recv_msg(&bob.pop_sent_msg().await).await;
+        assert_eq!(
+            chat_alice.get_ephemeral_timer(&alice.ctx).await?,
+            Timer::Disabled
         );
 
         Ok(())
