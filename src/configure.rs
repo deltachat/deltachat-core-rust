@@ -14,8 +14,7 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::dc_tools::EmailAddress;
 use crate::imap::Imap;
-use crate::login_param::Socks5Config;
-use crate::login_param::{LoginParam, ServerLoginParam};
+use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam, Socks5Config};
 use crate::message::Message;
 use crate::oauth2::dc_get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
@@ -250,6 +249,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                                         }
                                     }
                                 },
+                                strict_tls: Some(provider.strict_tls),
                             })
                             .collect();
 
@@ -290,6 +290,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             port: param.imap.port,
             socket: param.imap.security,
             username: param.imap.user.clone(),
+            strict_tls: match param.imap.certificate_checks {
+                CertificateChecks::Automatic => None,
+                CertificateChecks::Strict => Some(true),
+                CertificateChecks::AcceptInvalidCertificates2
+                | CertificateChecks::AcceptInvalidCertificates => Some(false),
+            },
         })
     }
     if !servers
@@ -302,6 +308,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             port: param.smtp.port,
             socket: param.smtp.security,
             username: param.smtp.user.clone(),
+            strict_tls: match param.smtp.certificate_checks {
+                CertificateChecks::Automatic => None,
+                CertificateChecks::Strict => Some(true),
+                CertificateChecks::AcceptInvalidCertificates2
+                | CertificateChecks::AcceptInvalidCertificates => Some(false),
+            },
         })
     }
     let servers = expand_param_vector(servers, &param.addr, &param_domain);
@@ -331,6 +343,11 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             smtp_param.server = smtp_server.hostname.clone();
             smtp_param.port = smtp_server.port;
             smtp_param.security = smtp_server.socket;
+            smtp_param.certificate_checks = match smtp_server.strict_tls {
+                Some(true) => CertificateChecks::Strict,
+                Some(false) => CertificateChecks::AcceptInvalidCertificates,
+                None => CertificateChecks::Automatic,
+            };
 
             match try_smtp_one_param(
                 &context_smtp,
@@ -374,6 +391,11 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         param.imap.server = imap_server.hostname.clone();
         param.imap.port = imap_server.port;
         param.imap.security = imap_server.socket;
+        param.imap.certificate_checks = match imap_server.strict_tls {
+            Some(true) => CertificateChecks::Strict,
+            Some(false) => CertificateChecks::AcceptInvalidCertificates,
+            None => CertificateChecks::Automatic,
+        };
 
         match try_imap_one_param(
             ctx,

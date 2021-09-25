@@ -180,6 +180,7 @@ fn protocols_to_serverparams(protocols: Vec<ProtocolTag>) -> Vec<ServerParams> {
                 hostname: protocol.server,
                 port: protocol.port,
                 username: String::new(),
+                strict_tls: None,
             })
         })
         .collect()

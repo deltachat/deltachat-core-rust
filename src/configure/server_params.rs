@@ -22,6 +22,9 @@ pub(crate) struct ServerParams {
 
     /// Username, empty if unknown.
     pub username: String,
+
+    /// Whether TLS certificates should be strictly checked or not, `None` for automatic.
+    pub strict_tls: Option<bool>,
 }
 
 impl ServerParams {
@@ -128,6 +131,23 @@ impl ServerParams {
             vec![self]
         }
     }
+
+    fn expand_strict_tls(self) -> Vec<ServerParams> {
+        if self.strict_tls.is_none() {
+            vec![
+                Self {
+                    strict_tls: Some(true), // Strict.
+                    ..self.clone()
+                },
+                Self {
+                    strict_tls: None, // Automatic.
+                    ..self
+                },
+            ]
+        } else {
+            vec![self]
+        }
+    }
 }
 
 /// Expands vector of `ServerParams`, replacing placeholders with
@@ -138,10 +158,32 @@ pub(crate) fn expand_param_vector(
     domain: &str,
 ) -> Vec<ServerParams> {
     v.into_iter()
-        // The order of expansion is important: ports are expanded the
-        // last, so they are changed the first. Username is only
-        // changed if default value (address with domain) didn't work
-        // for all available hosts and ports.
+        .map(|params| {
+            if params.socket == Socket::Plain {
+                ServerParams {
+                    // Avoid expanding plaintext configuration into configuration with and without
+                    // `strict_tls` if `strict_tls` is set to `None` as `strict_tls` is not used for
+                    // plaintext connections. Always setting it to "enabled", just in case.
+                    strict_tls: Some(true),
+                    ..params
+                }
+            } else {
+                params
+            }
+        })
+        // The order of expansion is important.
+        //
+        // Ports are expanded the last, so they are changed the first.  Username is only changed if
+        // default value (address with domain) didn't work for all available hosts and ports.
+        //
+        // Strict TLS must be expanded first, so we try all configurations with strict TLS first
+        // and only then try again without strict TLS. Otherwise we may lock to wrong hostname
+        // without strict TLS when another hostname with strict TLS is available.  For example, if
+        // both smtp.example.net and mail.example.net are running an SMTP server, but both use a
+        // certificate that is only valid for mail.example.net, we want to skip smtp.example.net
+        // and use mail.example.net with strict TLS instead of using smtp.example.net without
+        // strict TLS.
+        .flat_map(|params| params.expand_strict_tls().into_iter())
         .flat_map(|params| params.expand_usernames(addr).into_iter())
         .flat_map(|params| params.expand_hostnames(domain).into_iter())
         .flat_map(|params| params.expand_ports().into_iter())
@@ -161,6 +203,7 @@ mod tests {
                 port: 0,
                 socket: Socket::Ssl,
                 username: "foobar".to_string(),
+                strict_tls: Some(true),
             }],
             "foobar@example.net",
             "example.net",
@@ -174,6 +217,7 @@ mod tests {
                 port: 993,
                 socket: Socket::Ssl,
                 username: "foobar".to_string(),
+                strict_tls: Some(true)
             }],
         );
 
@@ -184,6 +228,7 @@ mod tests {
                 port: 123,
                 socket: Socket::Automatic,
                 username: "foobar".to_string(),
+                strict_tls: None,
             }],
             "foobar@example.net",
             "example.net",
@@ -197,16 +242,59 @@ mod tests {
                     hostname: "example.net".to_string(),
                     port: 123,
                     socket: Socket::Ssl,
-                    username: "foobar".to_string()
+                    username: "foobar".to_string(),
+                    strict_tls: Some(true),
                 },
                 ServerParams {
                     protocol: Protocol::Smtp,
                     hostname: "example.net".to_string(),
                     port: 123,
                     socket: Socket::Starttls,
-                    username: "foobar".to_string()
+                    username: "foobar".to_string(),
+                    strict_tls: Some(true)
+                },
+                ServerParams {
+                    protocol: Protocol::Smtp,
+                    hostname: "example.net".to_string(),
+                    port: 123,
+                    socket: Socket::Ssl,
+                    username: "foobar".to_string(),
+                    strict_tls: None,
+                },
+                ServerParams {
+                    protocol: Protocol::Smtp,
+                    hostname: "example.net".to_string(),
+                    port: 123,
+                    socket: Socket::Starttls,
+                    username: "foobar".to_string(),
+                    strict_tls: None
                 }
             ],
+        );
+
+        // Test that strict_tls is not expanded for plaintext connections.
+        let v = expand_param_vector(
+            vec![ServerParams {
+                protocol: Protocol::Smtp,
+                hostname: "example.net".to_string(),
+                port: 123,
+                socket: Socket::Plain,
+                username: "foobar".to_string(),
+                strict_tls: None,
+            }],
+            "foobar@example.net",
+            "example.net",
+        );
+        assert_eq!(
+            v,
+            vec![ServerParams {
+                protocol: Protocol::Smtp,
+                hostname: "example.net".to_string(),
+                port: 123,
+                socket: Socket::Plain,
+                username: "foobar".to_string(),
+                strict_tls: Some(true)
+            }],
         );
     }
 }
