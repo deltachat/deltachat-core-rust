@@ -1299,6 +1299,8 @@ void            dc_accept_chat               (dc_context_t* context, uint32_t ch
  *   explicitly as it may happen that oneself gets removed from a still existing
  *   group
  *
+ * - for broadcasts, all recipient are returned, DC_CONTACT_ID_SELF is not included
+ *
  * - for mailing lists, the behavior is not documented currently, we will decide on that later.
  *   for now, the UI should not show the list for mailing lists.
  *   (we do not know all members and there is not always a global mailing list address,
@@ -3069,7 +3071,7 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
  * - @ref DC_CHAT_TYPE_BROADCAST - a broadcast list,
  *   the recipients will get messages in a one-to-one chats and
  *   the sender will get answers in a one-to-one as well.
- *   chats_contacts contain all group members, incl. DC_CONTACT_ID_SELF
+ *   chats_contacts contain all recipients but DC_CONTACT_ID_SELF
  *
  * @memberof dc_chat_t
  * @param chat The chat object.

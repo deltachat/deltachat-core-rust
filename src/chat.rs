@@ -982,8 +982,17 @@ impl Chat {
             && !self.is_device_talk()
             && !self.is_mailing_list()
             && !self.is_contact_request()
-            && (self.typ == Chattype::Single
-                || is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await?))
+            && self.can_edit(context).await?)
+    }
+
+    /// Checks if the user has basically the permissions to edit a chat.
+    /// The function does not check if the chat type allows editing of concrete elements.
+    pub(crate) async fn can_edit(&self, context: &Context) -> Result<bool> {
+        match self.typ {
+            Chattype::Single | Chattype::Broadcast | Chattype::Mailinglist => Ok(true),
+            Chattype::Group => is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await,
+            Chattype::Undefined => Ok(false),
+        }
     }
 
     pub async fn update_param(&mut self, context: &Context) -> Result<()> {
@@ -2248,8 +2257,6 @@ pub async fn create_broadcast_list(context: &Context, chat_name: &str) -> Result
         .await?;
     let chat_id = ChatId::new(u32::try_from(row_id)?);
 
-    add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await?;
-
     context.emit_event(EventType::MsgsChanged {
         msg_id: MsgId::new(0),
         chat_id: ChatId::new(0),
@@ -2324,14 +2331,19 @@ pub(crate) async fn add_contact_to_chat_ex(
         contact_id
     );
     ensure!(!chat.is_mailing_list(), "Mailing lists can't be changed");
+    ensure!(
+        chat.typ != Chattype::Broadcast || contact_id != DC_CONTACT_ID_SELF,
+        "Cannot add SELF to broadcast."
+    );
 
-    if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await? {
+    if !chat.can_edit(context).await? {
         /* we should respect this - whatever we send to the group, it gets discarded anyway! */
         context.emit_event(EventType::ErrorSelfNotInGroup(
             "Cannot add contact to group; self not in group.".into(),
         ));
         bail!("can not add contact because our account is not part of it");
     }
+
     if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
         chat.param.remove(Param::Unpromoted);
         chat.update_param(context).await?;
@@ -2536,7 +2548,7 @@ pub async fn remove_contact_from_chat(
     /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
         if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
-            if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await? {
+            if !chat.can_edit(context).await? {
                 context.emit_event(EventType::ErrorSelfNotInGroup(
                     "Cannot remove contact from chat; self not in group.".into(),
                 ));
@@ -2629,15 +2641,17 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
     let chat = Chat::load_from_db(context, chat_id).await?;
     let mut msg = Message::default();
 
-    if chat.typ == Chattype::Group || chat.typ == Chattype::Mailinglist {
+    if chat.typ == Chattype::Group
+        || chat.typ == Chattype::Mailinglist
+        || chat.typ == Chattype::Broadcast
+    {
         if chat.name == new_name {
             success = true;
-        } else if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await? {
+        } else if !chat.can_edit(context).await? {
             context.emit_event(EventType::ErrorSelfNotInGroup(
                 "Cannot set chat name; self not in group".into(),
             ));
         } else {
-            /* we should respect this - whatever we send to the group, it gets discarded anyway! */
             if context
                 .sql
                 .execute(
@@ -2647,7 +2661,8 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
                 .await
                 .is_ok()
             {
-                if chat.is_promoted() && !chat.is_mailing_list() {
+                if chat.is_promoted() && !chat.is_mailing_list() && chat.typ != Chattype::Broadcast
+                {
                     msg.viewtype = Viewtype::Text;
                     msg.text = Some(
                         stock_str::msg_grp_name(
