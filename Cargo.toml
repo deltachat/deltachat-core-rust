@@ -77,7 +77,7 @@ humansize = "1"
 
 [dev-dependencies]
 ansi_term = "0.12.0"
-async-std = { version = "1.10.0", features = ["unstable", "attributes"] }
+async-std = { version = "1", features = ["unstable", "attributes"] }
 criterion = "0.3"
 futures-lite = "1.12"
 log = "0.4"
