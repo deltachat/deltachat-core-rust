@@ -1422,6 +1422,15 @@ uint32_t        dc_create_group_chat         (dc_context_t* context, int protect
  * Moreover, replies will not appear in the broadcast list
  * but in the one-to-one chat with the person answering.
  *
+ * UX-wise it is better to not ask the user for a name or an image on creation
+ * as that may raise the question who will get these data -
+ * and breaks existing UX elements.
+ * Also, many users will have at most one broadcast list
+ * so, a generic name and image is sufficient at the first place.
+ * The name can be changed later,
+ * the image is static which also makes broadcasts easier recognizable in chat lists.
+ * This is also what other messengers are doing here.
+ *
  * @memberof dc_context_t
  * @param context The context object.
  * @param name The name of the broadcast list to create,
