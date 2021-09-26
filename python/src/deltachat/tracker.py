@@ -101,4 +101,5 @@ class ConfigureTracker:
                 content = "\n".join(map(str, self._ffi_events))
                 raise ConfigureFailed(content)
         except Empty:
+            content = "\n".join(map(str, self._ffi_events))
             raise ConfigureFailed(content)
