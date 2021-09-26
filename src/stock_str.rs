@@ -311,6 +311,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Messages"))]
     Messages = 114,
+
+    #[strum(props(fallback = "Broadcast List"))]
+    BroadcastList = 115,
 }
 
 impl StockMessage {
@@ -983,6 +986,12 @@ pub(crate) async fn not_supported_by_provider(context: &Context) -> String {
 /// Used as a subtitle in quota context; can be plural always.
 pub(crate) async fn messages(context: &Context) -> String {
     translated(context, StockMessage::Messages).await
+}
+
+/// Stock string: `Broadcast List`.
+/// Used as the default name for broadcast lists; a number may be added.
+pub(crate) async fn broadcast_list(context: &Context) -> String {
+    translated(context, StockMessage::BroadcastList).await
 }
 
 impl Context {

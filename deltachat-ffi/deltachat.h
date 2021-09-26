@@ -1422,23 +1422,22 @@ uint32_t        dc_create_group_chat         (dc_context_t* context, int protect
  * Moreover, replies will not appear in the broadcast list
  * but in the one-to-one chat with the person answering.
  *
- * UX-wise it is better to not ask the user for a name or an image on creation
- * as that may raise the question who will get these data -
- * and breaks existing UX elements.
+ * The name and the image of the broadcast list is set automatically
+ * and is visible to the sender only.
+ * Not asking for these data allows more focused creation
+ * and we bypass the question who will get which data.
  * Also, many users will have at most one broadcast list
  * so, a generic name and image is sufficient at the first place.
- * The name can be changed later,
- * the image is static which also makes broadcasts easier recognizable in chat lists.
- * This is also what other messengers are doing here.
+ *
+ * Later on, however, the name can be changed using dc_set_chat_name().
+ * The image cannot be changed to have a unique, recognizable icon in the chat lists.
+ * All in all, this is also what other messengers are doing here.
  *
  * @memberof dc_context_t
  * @param context The context object.
- * @param name The name of the broadcast list to create,
- *     As recipients get broadcasts as normal one-to-one chats,
- *     they won't see this name.
  * @return The chat ID of the new broadcast list, 0 on errors.
  */
-uint32_t        dc_create_broadcast_list     (dc_context_t* context, const char* name);
+uint32_t        dc_create_broadcast_list     (dc_context_t* context);
 
 
 /**
@@ -6009,6 +6008,11 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used as a subtitle in quota context; can be plural always.
 #define DC_STR_MESSAGES                   114
+
+/// "Broadcast List"
+///
+/// Used as the default name for broadcast lists; a number may be added.
+#define DC_STR_BROADCAST_LIST             115
 
 /**
  * @}

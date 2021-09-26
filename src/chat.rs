@@ -2253,11 +2253,32 @@ pub async fn create_group_chat(
     Ok(chat_id)
 }
 
-/// Creates a group chat with a given `name`.
-pub async fn create_broadcast_list(context: &Context, chat_name: &str) -> Result<ChatId> {
-    let chat_name = improve_single_line_input(chat_name);
-    ensure!(!chat_name.is_empty(), "Invalid chat name");
+/// Finds an unused name for a new broadcast list.
+async fn find_unused_broadcast_list_name(context: &Context) -> Result<String> {
+    let base_name = stock_str::broadcast_list(context).await;
+    for attempt in 1..1000 {
+        let better_name = if attempt > 1 {
+            format!("{} {}", base_name, attempt)
+        } else {
+            base_name.clone()
+        };
+        if !context
+            .sql
+            .exists(
+                "SELECT COUNT(*) FROM chats WHERE type=? AND name=?;",
+                paramsv![Chattype::Broadcast, better_name],
+            )
+            .await?
+        {
+            return Ok(better_name);
+        }
+    }
+    Ok(base_name)
+}
 
+/// Creates a group chat with a given `name`.
+pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
+    let chat_name = find_unused_broadcast_list_name(context).await?;
     let grpid = dc_create_id();
     let row_id = context
         .sql
