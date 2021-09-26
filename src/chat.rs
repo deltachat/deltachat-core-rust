@@ -2691,40 +2691,36 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
                 "Cannot set chat name; self not in group".into(),
             ));
         } else {
-            if context
+            context
                 .sql
                 .execute(
                     "UPDATE chats SET name=? WHERE id=?;",
                     paramsv![new_name.to_string(), chat_id],
                 )
-                .await
-                .is_ok()
-            {
-                if chat.is_promoted() && !chat.is_mailing_list() && chat.typ != Chattype::Broadcast
-                {
-                    msg.viewtype = Viewtype::Text;
-                    msg.text = Some(
-                        stock_str::msg_grp_name(
-                            context,
-                            &chat.name,
-                            &new_name,
-                            DC_CONTACT_ID_SELF as u32,
-                        )
-                        .await,
-                    );
-                    msg.param.set_cmd(SystemMessage::GroupNameChanged);
-                    if !chat.name.is_empty() {
-                        msg.param.set(Param::Arg, &chat.name);
-                    }
-                    msg.id = send_msg(context, chat_id, &mut msg).await?;
-                    context.emit_event(EventType::MsgsChanged {
-                        chat_id,
-                        msg_id: msg.id,
-                    });
+                .await?;
+            if chat.is_promoted() && !chat.is_mailing_list() && chat.typ != Chattype::Broadcast {
+                msg.viewtype = Viewtype::Text;
+                msg.text = Some(
+                    stock_str::msg_grp_name(
+                        context,
+                        &chat.name,
+                        &new_name,
+                        DC_CONTACT_ID_SELF as u32,
+                    )
+                    .await,
+                );
+                msg.param.set_cmd(SystemMessage::GroupNameChanged);
+                if !chat.name.is_empty() {
+                    msg.param.set(Param::Arg, &chat.name);
                 }
-                context.emit_event(EventType::ChatModified(chat_id));
-                success = true;
+                msg.id = send_msg(context, chat_id, &mut msg).await?;
+                context.emit_event(EventType::MsgsChanged {
+                    chat_id,
+                    msg_id: msg.id,
+                });
             }
+            context.emit_event(EventType::ChatModified(chat_id));
+            success = true;
         }
     }
 
