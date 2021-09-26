@@ -1,5 +1,5 @@
 
-from queue import Queue
+from queue import Queue, Empty
 from threading import Event
 
 from .hookspec import account_hookimpl, Global
@@ -93,8 +93,12 @@ class ConfigureTracker:
     def wait_finish(self, timeout=None):
         """ wait until configure is completed.
 
-        Raise Exception if Configure failed
+        :param timeout: how many seconds until configuring is given up.
+        :raises: ConfigureFailed if Configured failed or timeout reached.
         """
-        if not self._configure_events.get(timeout=timeout):
-            content = "\n".join(map(str, self._ffi_events))
+        try:
+            if not self._configure_events.get(timeout=timeout):
+                content = "\n".join(map(str, self._ffi_events))
+                raise ConfigureFailed(content)
+        except Empty:
             raise ConfigureFailed(content)
