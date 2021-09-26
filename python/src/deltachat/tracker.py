@@ -90,11 +90,11 @@ class ConfigureTracker:
             if data1 is None or evdata == data1:
                 break
 
-    def wait_finish(self):
+    def wait_finish(self, timeout=None):
         """ wait until configure is completed.
 
         Raise Exception if Configure failed
         """
-        if not self._configure_events.get():
+        if not self._configure_events.get(timeout=timeout):
             content = "\n".join(map(str, self._ffi_events))
             raise ConfigureFailed(content)
