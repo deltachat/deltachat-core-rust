@@ -2273,7 +2273,7 @@ async fn find_unused_broadcast_list_name(context: &Context) -> Result<String> {
     Ok(base_name)
 }
 
-/// Creates a group chat with a given `name`.
+/// Creates a new broadcast list.
 pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
     let chat_name = find_unused_broadcast_list_name(context).await?;
     let grpid = dc_create_id();
@@ -2373,7 +2373,6 @@ pub(crate) async fn add_contact_to_chat_ex(
     );
 
     if !chat.can_edit(context).await? {
-        /* we should respect this - whatever we send to the group, it gets discarded anyway! */
         context.emit_event(EventType::ErrorSelfNotInGroup(
             "Cannot add contact to group; self not in group.".into(),
         ));
