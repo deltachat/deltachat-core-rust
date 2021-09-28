@@ -316,6 +316,10 @@ impl<'a> MimeFactory<'a> {
             Loaded::Message { chat } => {
                 if chat.is_protected() {
                     false
+                } else if chat.typ == Chattype::Broadcast {
+                    // encryption may disclose recipients;
+                    // this is probably a worse issue than not opportunistically (!) encrypting
+                    true
                 } else {
                     self.msg
                         .param
