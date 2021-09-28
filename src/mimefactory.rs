@@ -563,10 +563,9 @@ impl<'a> MimeFactory<'a> {
         };
 
         if undisclosed_recipients {
-            headers.unprotected.push(Header::new(
-                "To".into(),
-                "undisclosed-recipients: ;".to_string(),
-            ));
+            headers
+                .unprotected
+                .push(Header::new("To".into(), "hidden-recipients: ;".to_string()));
         } else {
             headers
                 .unprotected
