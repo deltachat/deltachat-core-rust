@@ -4284,4 +4284,49 @@ mod tests {
         );
         Ok(())
     }
+
+    #[async_std::test]
+    async fn test_broadcast() -> Result<()> {
+        // create two context, send two messages so both know the other
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let chat_alice = alice.create_chat(&bob).await;
+        send_text_msg(&alice, chat_alice.id, "hi!".to_string()).await?;
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+        let chat_bob = bob.create_chat(&alice).await;
+        send_text_msg(&bob, chat_bob.id, "ho!".to_string()).await?;
+        alice.recv_msg(&bob.pop_sent_msg().await).await;
+        let msg = alice.get_last_msg().await;
+        assert!(msg.get_showpadlock());
+
+        // test broadcast list
+        let broadcast_id = create_broadcast_list(&alice).await?;
+        add_contact_to_chat(
+            &alice,
+            broadcast_id,
+            get_chat_contacts(&alice, chat_bob.id).await?.pop().unwrap(),
+        )
+        .await?;
+        let chat = Chat::load_from_db(&alice, broadcast_id).await?;
+        assert_eq!(chat.typ, Chattype::Broadcast);
+        assert_eq!(chat.name, stock_str::broadcast_list(&alice).await);
+        assert!(!chat.is_self_talk());
+
+        send_text_msg(&alice, broadcast_id, "ola!".to_string()).await?;
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.chat_id, chat.id);
+
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+        let msg = bob.get_last_msg().await;
+        assert_eq!(msg.get_text(), Some("ola!".to_string()));
+        assert!(!msg.get_showpadlock()); // avoid leaking recipients in encryption data
+        let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
+        assert_eq!(chat.typ, Chattype::Single);
+        assert_eq!(chat.id, chat_bob.id);
+        assert!(!chat.is_self_talk());
+
+        Ok(())
+    }
 }
