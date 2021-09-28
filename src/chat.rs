@@ -1140,21 +1140,18 @@ impl Chat {
         let mut to_id = 0;
         let mut location_id = 0;
 
-        if !(self.typ == Chattype::Single
-            || self.typ == Chattype::Group
-            || self.typ == Chattype::Broadcast)
-        {
-            error!(context, "Cannot send to chat type #{}.", self.typ,);
-            bail!("Cannot send to chat type #{}", self.typ);
-        }
-
-        if self.typ == Chattype::Group
-            && !is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await?
-        {
-            context.emit_event(EventType::ErrorSelfNotInGroup(
-                "Cannot send message; self not in group.".into(),
-            ));
-            bail!("Cannot set message; self not in group.");
+        if !self.can_send(context).await? {
+            if self.typ == Chattype::Group
+                && !is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await?
+            {
+                context.emit_event(EventType::ErrorSelfNotInGroup(
+                    "Cannot send message; self not in group.".into(),
+                ));
+                bail!("Cannot set message; self not in group.");
+            } else {
+                error!(context, "Cannot send to chat type #{}.", self.typ,);
+                bail!("Cannot send to chat type #{}", self.typ);
+            }
         }
 
         let from = context
