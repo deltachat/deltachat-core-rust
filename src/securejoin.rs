@@ -314,16 +314,22 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
         } => {
             // for a group-join, also create the chat soon and let the verification run in background.
             // however, the group will become usable only when the protocol has finished.
-            // XXX TODO: create record only if not yet exist
-            let chat_id = ChatId::create_multiuser_record(
-                context,
-                Chattype::Group,
-                group_id,
-                group_name,
-                Blocked::Not,
-                ProtectionStatus::Unprotected, // protection is added later as needed
-            )
-            .await?;
+            let chat_id = if let Some((chat_id, _protected, _blocked)) =
+                chat::get_chat_id_by_grpid(context, &group_id).await?
+            {
+                chat_id.unblock(context).await?;
+                chat_id
+            } else {
+                ChatId::create_multiuser_record(
+                    context,
+                    Chattype::Group,
+                    group_id,
+                    group_name,
+                    Blocked::Not,
+                    ProtectionStatus::Unprotected, // protection is added later as needed
+                )
+                .await?
+            };
             Ok(chat_id)
         }
     }
