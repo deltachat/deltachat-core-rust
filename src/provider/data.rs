@@ -131,6 +131,35 @@ static P_AUTISTICI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
+// blindzeln.org.md: delta.blinzeln.de, delta.blindzeln.org
+static P_BLINDZELN_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "blindzeln.org",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/blindzeln-org",
+    server: vec![
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "webbox222.server-home.org",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "webbox222.server-home.org",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
 // bluewin.ch.md: bluewin.ch
 static P_BLUEWIN_CH: Lazy<Provider> = Lazy::new(|| Provider {
     id: "bluewin.ch",
@@ -1363,7 +1392,7 @@ static P_ZIGGO_NL: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
-// zoho.md: zohomail.eu, zoho.com
+// zoho.md: zohomail.eu, zohomail.com, zoho.com
 static P_ZOHO: Lazy<Provider> = Lazy::new(|| Provider {
     id: "zoho",
     status: Status::Preparation,
@@ -1399,6 +1428,8 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("aol.com", &*P_AOL),
         ("arcor.de", &*P_ARCOR_DE),
         ("autistici.org", &*P_AUTISTICI_ORG),
+        ("delta.blinzeln.de", &*P_BLINDZELN_ORG),
+        ("delta.blindzeln.org", &*P_BLINDZELN_ORG),
         ("bluewin.ch", &*P_BLUEWIN_CH),
         ("buzon.uy", &*P_BUZON_UY),
         ("chello.at", &*P_CHELLO_AT),
@@ -1580,6 +1611,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("yggmail", &*P_YGGMAIL),
         ("ziggo.nl", &*P_ZIGGO_NL),
         ("zohomail.eu", &*P_ZOHO),
+        ("zohomail.com", &*P_ZOHO),
         ("zoho.com", &*P_ZOHO),
     ]
     .iter()
@@ -1594,6 +1626,7 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("aol", &*P_AOL),
         ("arcor.de", &*P_ARCOR_DE),
         ("autistici.org", &*P_AUTISTICI_ORG),
+        ("blindzeln.org", &*P_BLINDZELN_ORG),
         ("bluewin.ch", &*P_BLUEWIN_CH),
         ("buzon.uy", &*P_BUZON_UY),
         ("chello.at", &*P_CHELLO_AT),
@@ -1653,4 +1686,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 8, 17));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2021, 9, 29));
