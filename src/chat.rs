@@ -4177,6 +4177,47 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_only_minimal_data_are_forwarded() -> Result<()> {
+        // send a message from Alice to a group with Bob
+        let alice = TestContext::new_alice().await;
+        alice
+            .set_config(Config::Displayname, Some("secretname"))
+            .await?;
+        let bob_id = Contact::create(&alice, "bob", "bob@example.net").await?;
+        let group_id =
+            create_group_chat(&alice, ProtectionStatus::Unprotected, "secretgrpname").await?;
+        add_contact_to_chat(&alice, group_id, bob_id).await?;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("bla foo".to_owned()));
+        let sent_msg = alice.send_msg(group_id, &mut msg).await;
+        assert!(sent_msg.payload().contains("secretgrpname"));
+        assert!(sent_msg.payload().contains("secretname"));
+        assert!(sent_msg.payload().contains("alice"));
+
+        // Bob forwards that message to Claire -
+        // Claire should not get information about Alice for the original Group
+        let bob = TestContext::new_bob().await;
+        bob.recv_msg(&sent_msg).await;
+        let orig_msg = bob.get_last_msg().await;
+        let claire_id = Contact::create(&bob, "claire", "claire@foo").await?;
+        let single_id = ChatId::create_for_contact(&bob, claire_id).await?;
+        let group_id = create_group_chat(&bob, ProtectionStatus::Unprotected, "group2").await?;
+        add_contact_to_chat(&bob, group_id, claire_id).await?;
+        for chat_id in &[single_id, group_id] {
+            forward_msgs(&bob, &[orig_msg.id], *chat_id).await?;
+            let sent_msg = bob.pop_sent_msg().await;
+            assert!(sent_msg
+                .payload()
+                .contains("---------- Forwarded message ----------"));
+            assert!(!sent_msg.payload().contains("secretgrpname"));
+            assert!(!sent_msg.payload().contains("secretname"));
+            assert!(!sent_msg.payload().contains("alice"));
+        }
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_can_send_group() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = Contact::create(&alice, "", "bob@f.br").await?;
