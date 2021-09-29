@@ -299,7 +299,7 @@ dependencies = [
 [[package]]
 name = "async-smtp"
 version = "0.4.0"
-source = "git+https://github.com/async-email/async-smtp?branch=master#2c21f5fb643e9a24c1097f13db4dfcd7818ada06"
+source = "git+https://github.com/async-email/async-smtp?branch=master#3e7a8f3de19fdeb19d14cf123a8696c49685d3fa"
 dependencies = [
  "async-native-tls",
  "async-std",
