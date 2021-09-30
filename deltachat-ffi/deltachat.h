@@ -2249,34 +2249,23 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
  * This function is typically called when dc_check_qr() returns
  * lot.state=DC_QR_ASK_VERIFYCONTACT or lot.state=DC_QR_ASK_VERIFYGROUP.
  *
- * Depending on the given QR code,
- * this function may takes some time and sends and receives several messages.
- * Therefore, you should call it always in a separate thread;
- * if you want to abort it, you should call dc_stop_ongoing_process().
+ * The function returns immediately and the handshake runs in background,
+ * sending and receiving several messages.
+ * During the handshake, info messages are added to the chat,
+ * showing process, success or errors.
  *
- * - If the given QR code starts the Setup-Contact protocol,
- *   the function typically returns immediately
- *   and the handshake runs in background.
- *   Subsequent calls of dc_join_securejoin() will abort unfinished tasks.
- *   The returned chat is the one-to-one opportunistic chat.
- *   When the protocol has finished, an info-message is added to that chat.
- * - If the given QR code starts the Verified-Group-Invite protocol,
- *   the function waits until the protocol has finished.
- *   This is because the protected group is not opportunistic
- *   and can be created only when the contacts have verified each other.
+ * Subsequent calls of dc_join_securejoin() will abort unfinished tasks.
  *
  * See https://countermitm.readthedocs.io/en/latest/new.html
- * for details about both protocols.
+ * for details about the protocol.
  *
  * @memberof dc_context_t
  * @param context The context object
  * @param qr The text of the scanned QR code. Typically, the same string as given
  *     to dc_check_qr().
  * @return Chat-id of the joined chat, the UI may redirect to the this chat.
- *     If the out-of-band verification failed or was aborted, 0 is returned.
+ *     On errors, 0 is returned, however, most errors will happen during handshake later on.
  *     A returned chat-id does not guarantee that the chat is protected or the belonging contact is verified.
- *     If needed, this be checked with dc_chat_is_protected() and dc_contact_is_verified(),
- *     however, in practise, the UI will just listen to #DC_EVENT_CONTACTS_CHANGED unconditionally.
  */
 uint32_t        dc_join_securejoin           (dc_context_t* context, const char* qr);
 

@@ -276,9 +276,7 @@ pub enum JoinError {
 /// This is the start of the process for the joiner.  See the module and ffi documentation
 /// for more details.
 ///
-/// When joining a group this will start an "ongoing" process and will block until the
-/// process is completed, the [`ChatId`] for the new group is not known any sooner.  When
-/// verifying a contact this returns immediately.
+/// The function returns immediately and the handshake will run in background.
 pub async fn dc_join_securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
     securejoin(context, qr).await.map_err(|err| {
         warn!(context, "Fatal joiner error: {:#}", err);
