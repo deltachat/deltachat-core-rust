@@ -982,12 +982,13 @@ impl Chat {
             && !self.is_device_talk()
             && !self.is_mailing_list()
             && !self.is_contact_request()
-            && self.can_edit(context).await?)
+            && self.is_self_in_chat(context).await?)
     }
 
-    /// Checks if the user has basically the permissions to edit a chat.
+    /// Checks if the user is part of a chat
+    /// and has basically the permissions to edit the chat therefore.
     /// The function does not check if the chat type allows editing of concrete elements.
-    pub(crate) async fn can_edit(&self, context: &Context) -> Result<bool> {
+    pub(crate) async fn is_self_in_chat(&self, context: &Context) -> Result<bool> {
         match self.typ {
             Chattype::Single | Chattype::Broadcast | Chattype::Mailinglist => Ok(true),
             Chattype::Group => is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF).await,
@@ -2372,7 +2373,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         "Cannot add SELF to broadcast."
     );
 
-    if !chat.can_edit(context).await? {
+    if !chat.is_self_in_chat(context).await? {
         context.emit_event(EventType::ErrorSelfNotInGroup(
             "Cannot add contact to group; self not in group.".into(),
         ));
@@ -2583,7 +2584,7 @@ pub async fn remove_contact_from_chat(
     /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
         if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
-            if !chat.can_edit(context).await? {
+            if !chat.is_self_in_chat(context).await? {
                 context.emit_event(EventType::ErrorSelfNotInGroup(
                     "Cannot remove contact from chat; self not in group.".into(),
                 ));
@@ -2682,7 +2683,7 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
     {
         if chat.name == new_name {
             success = true;
-        } else if !chat.can_edit(context).await? {
+        } else if !chat.is_self_in_chat(context).await? {
             context.emit_event(EventType::ErrorSelfNotInGroup(
                 "Cannot set chat name; self not in group".into(),
             ));
