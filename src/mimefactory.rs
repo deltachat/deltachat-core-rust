@@ -1683,7 +1683,7 @@ mod tests {
 
         chat::forward_msgs(&t, &[message_from_bob.id], group_id).await?;
         let subject = get_subject(&t, t.pop_sent_msg().await).await?;
-        assert_eq!(subject, "Fwd: Different subject");
+        assert_eq!(subject, "Re: groupname");
         Ok(())
     }
 
