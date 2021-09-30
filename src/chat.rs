@@ -4287,7 +4287,9 @@ mod tests {
         let single_id = ChatId::create_for_contact(&bob, claire_id).await?;
         let group_id = create_group_chat(&bob, ProtectionStatus::Unprotected, "group2").await?;
         add_contact_to_chat(&bob, group_id, claire_id).await?;
-        for chat_id in &[single_id, group_id] {
+        let broadcast_id = create_broadcast_list(&bob).await?;
+        add_contact_to_chat(&bob, broadcast_id, claire_id).await?;
+        for chat_id in &[single_id, group_id, broadcast_id] {
             forward_msgs(&bob, &[orig_msg.id], *chat_id).await?;
             let sent_msg = bob.pop_sent_msg().await;
             assert!(sent_msg
