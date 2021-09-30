@@ -72,7 +72,7 @@ impl Summary {
             }
         } else {
             match chat.typ {
-                Chattype::Group | Chattype::Mailinglist => {
+                Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
                     if msg.is_info() || contact.is_none() {
                         None
                     } else {

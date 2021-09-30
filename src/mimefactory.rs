@@ -316,6 +316,10 @@ impl<'a> MimeFactory<'a> {
             Loaded::Message { chat } => {
                 if chat.is_protected() {
                     false
+                } else if chat.typ == Chattype::Broadcast {
+                    // encryption may disclose recipients;
+                    // this is probably a worse issue than not opportunistically (!) encrypting
+                    true
                 } else {
                     self.msg
                         .param
@@ -393,8 +397,6 @@ impl<'a> MimeFactory<'a> {
                 }
 
                 if chat.typ == Chattype::Group && quoted_msg_subject.is_none_or_empty() {
-                    // If we have a `quoted_msg_subject`, we use the subject of the quoted message
-                    // instead of the group name
                     let re = if self.in_reply_to.is_empty() {
                         ""
                     } else {
@@ -403,22 +405,22 @@ impl<'a> MimeFactory<'a> {
                     return Ok(format!("{}{}", re, chat.name));
                 }
 
-                let parent_subject = if quoted_msg_subject.is_none_or_empty() {
-                    chat.param.get(Param::LastSubject)
-                } else {
-                    quoted_msg_subject.as_deref()
-                };
-
-                if let Some(last_subject) = parent_subject {
-                    format!("Re: {}", remove_subject_prefix(last_subject))
-                } else {
-                    let self_name = match context.get_config(Config::Displayname).await? {
-                        Some(name) => name,
-                        None => context.get_config(Config::Addr).await?.unwrap_or_default(),
+                if chat.typ != Chattype::Broadcast {
+                    let parent_subject = if quoted_msg_subject.is_none_or_empty() {
+                        chat.param.get(Param::LastSubject)
+                    } else {
+                        quoted_msg_subject.as_deref()
                     };
-
-                    stock_str::subject_for_new_contact(context, self_name).await
+                    if let Some(last_subject) = parent_subject {
+                        return Ok(format!("Re: {}", remove_subject_prefix(last_subject)));
+                    }
                 }
+
+                let self_name = match context.get_config(Config::Displayname).await? {
+                    Some(name) => name,
+                    None => context.get_config(Config::Addr).await?.unwrap_or_default(),
+                };
+                stock_str::subject_for_new_contact(context, self_name).await
             }
             Loaded::Mdn { .. } => stock_str::read_rcpt(context).await,
         };
@@ -555,9 +557,21 @@ impl<'a> MimeFactory<'a> {
             render_rfc724_mid(&rfc724_mid),
         ));
 
-        headers
-            .unprotected
-            .push(Header::new_with_value("To".into(), to).unwrap());
+        let undisclosed_recipients = match &self.loaded {
+            Loaded::Message { chat } => chat.typ == Chattype::Broadcast,
+            Loaded::Mdn { .. } => false,
+        };
+
+        if undisclosed_recipients {
+            headers
+                .unprotected
+                .push(Header::new("To".into(), "hidden-recipients: ;".to_string()));
+        } else {
+            headers
+                .unprotected
+                .push(Header::new_with_value("To".into(), to).unwrap());
+        }
+
         headers
             .unprotected
             .push(Header::new_with_value("From".into(), vec![from]).unwrap());

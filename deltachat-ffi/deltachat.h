@@ -1299,6 +1299,8 @@ void            dc_accept_chat               (dc_context_t* context, uint32_t ch
  *   explicitly as it may happen that oneself gets removed from a still existing
  *   group
  *
+ * - for broadcasts, all recipients are returned, DC_CONTACT_ID_SELF is not included
+ *
  * - for mailing lists, the behavior is not documented currently, we will decide on that later.
  *   for now, the UI should not show the list for mailing lists.
  *   (we do not know all members and there is not always a global mailing list address,
@@ -1406,6 +1408,36 @@ dc_chat_t*      dc_get_chat                  (dc_context_t* context, uint32_t ch
  * @return The chat ID of the new group chat, 0 on errors.
  */
 uint32_t        dc_create_group_chat         (dc_context_t* context, int protect, const char* name);
+
+
+/**
+ * Create a new broadcast list.
+ *
+ * Broadcast lists are similar to groups on the sending device,
+ * however, recipients get the messages in normal one-to-one chats
+ * and will not be aware of other members.
+ *
+ * Replies to broadcasts go only to the sender
+ * and not to all broadcast recipients.
+ * Moreover, replies will not appear in the broadcast list
+ * but in the one-to-one chat with the person answering.
+ *
+ * The name and the image of the broadcast list is set automatically
+ * and is visible to the sender only.
+ * Not asking for these data allows more focused creation
+ * and we bypass the question who will get which data.
+ * Also, many users will have at most one broadcast list
+ * so, a generic name and image is sufficient at the first place.
+ *
+ * Later on, however, the name can be changed using dc_set_chat_name().
+ * The image cannot be changed to have a unique, recognizable icon in the chat lists.
+ * All in all, this is also what other messengers are doing here.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @return The chat ID of the new broadcast list, 0 on errors.
+ */
+uint32_t        dc_create_broadcast_list     (dc_context_t* context);
 
 
 /**
@@ -3043,6 +3075,11 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
  *   however, the member list cannot be retrieved completely
  *   and cannot be changed using this api.
  *   moreover, for now, mailist lists are read-only.
+ *
+ * - @ref DC_CHAT_TYPE_BROADCAST - a broadcast list,
+ *   the recipients will get messages in a one-to-one chats and
+ *   the sender will get answers in a one-to-one as well.
+ *   chats_contacts contain all recipients but DC_CONTACT_ID_SELF
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
@@ -4745,6 +4782,11 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define         DC_CHAT_TYPE_MAILINGLIST     140
 
 /**
+ * A broadcast list. See dc_chat_get_type() for details.
+ */
+#define         DC_CHAT_TYPE_BROADCAST       160
+
+/**
  * @}
  */
 
@@ -5966,6 +6008,11 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used as a subtitle in quota context; can be plural always.
 #define DC_STR_MESSAGES                   114
+
+/// "Broadcast List"
+///
+/// Used as the default name for broadcast lists; a number may be added.
+#define DC_STR_BROADCAST_LIST             115
 
 /**
  * @}

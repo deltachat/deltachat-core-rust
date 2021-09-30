@@ -1331,6 +1331,19 @@ pub unsafe extern "C" fn dc_create_group_chat(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_create_broadcast_list(context: *mut dc_context_t) -> u32 {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_create_broadcast_list()");
+        return 0;
+    }
+    let ctx = &*context;
+    block_on(chat::create_broadcast_list(ctx))
+        .log_err(ctx, "Failed to create broadcast list")
+        .map(|id| id.to_u32())
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_is_contact_in_chat(
     context: *mut dc_context_t,
     chat_id: u32,

@@ -604,7 +604,7 @@ impl Message {
 
         let contact = if self.from_id != DC_CONTACT_ID_SELF {
             match chat.typ {
-                Chattype::Group | Chattype::Mailinglist => {
+                Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
                     Some(Contact::get_by_id(context, self.from_id).await?)
                 }
                 Chattype::Single | Chattype::Undefined => None,
@@ -1599,7 +1599,7 @@ async fn ndn_maybe_add_info_msg(
     chat_type: Chattype,
 ) -> Result<()> {
     match chat_type {
-        Chattype::Group => {
+        Chattype::Group | Chattype::Broadcast => {
             if let Some(failed_recipient) = &failed.failed_recipient {
                 let contact_id =
                     Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)

@@ -370,6 +370,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  chat [<chat-id>|0]\n\
                  createchat <contact-id>\n\
                  creategroup <name>\n\
+                 createbroadcast\n\
                  createprotected <name>\n\
                  addmember <contact-id>\n\
                  removemember <contact-id>\n\
@@ -713,6 +714,11 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 chat::create_group_chat(&context, ProtectionStatus::Unprotected, arg1).await?;
 
             println!("Group#{} created successfully.", chat_id);
+        }
+        "createbroadcast" => {
+            let chat_id = chat::create_broadcast_list(&context).await?;
+
+            println!("Broadcast#{} created successfully.", chat_id);
         }
         "createprotected" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
