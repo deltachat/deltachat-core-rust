@@ -6020,6 +6020,11 @@ void dc_event_unref(dc_event_t* event);
 /// Used as the default name for broadcast lists; a number may be added.
 #define DC_STR_BROADCAST_LIST             115
 
+/// "%1$s of %2$s used"
+///
+/// Used for describing resource usage, resulting string will be eg. "1.2 GiB of 3 GiB used".
+#define DC_STR_PART_OF_TOTAL_USED         116
+
 /**
  * @}
  */
