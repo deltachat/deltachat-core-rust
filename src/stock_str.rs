@@ -314,6 +314,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Broadcast List"))]
     BroadcastList = 115,
+
+    #[strum(props(fallback = "%1$s of %2$s used"))]
+    PartOfTotallUsed = 116,
 }
 
 impl StockMessage {
@@ -986,6 +989,18 @@ pub(crate) async fn not_supported_by_provider(context: &Context) -> String {
 /// Used as a subtitle in quota context; can be plural always.
 pub(crate) async fn messages(context: &Context) -> String {
     translated(context, StockMessage::Messages).await
+}
+
+/// Stock string: `%1$s of %2$s used`.
+pub(crate) async fn part_of_total_used(
+    context: &Context,
+    part: impl AsRef<str>,
+    total: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::PartOfTotallUsed)
+        .await
+        .replace1(part)
+        .replace2(total)
 }
 
 /// Stock string: `Broadcast List`.

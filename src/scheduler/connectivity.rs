@@ -460,18 +460,26 @@ impl Context {
                             ret += &match &resource.name {
                                 Atom(resource_name) => {
                                     format!(
-                                        "<b>{}:</b> {} of {} used",
+                                        "<b>{}:</b> {}",
                                         &*escaper::encode_minimal(resource_name),
-                                        resource.usage.to_string(),
-                                        resource.limit.to_string(),
+                                        stock_str::part_of_total_used(
+                                            self,
+                                            resource.usage.to_string(),
+                                            resource.limit.to_string()
+                                        )
+                                        .await,
                                     )
                                 }
                                 Message => {
                                     format!(
-                                        "<b>{}:</b> {} of {} used",
+                                        "<b>{}:</b> {}",
                                         stock_str::messages(self).await,
-                                        resource.usage.to_string(),
-                                        resource.limit.to_string(),
+                                        stock_str::part_of_total_used(
+                                            self,
+                                            resource.usage.to_string(),
+                                            resource.limit.to_string()
+                                        )
+                                        .await,
                                     )
                                 }
                                 Storage => {
@@ -487,7 +495,7 @@ impl Context {
                                     let limit = (resource.limit * 1024)
                                         .file_size(file_size_opts::BINARY)
                                         .unwrap_or_default();
-                                    format!("{} of {} used", usage, limit)
+                                    stock_str::part_of_total_used(self, usage, limit).await
                                 }
                             };
 
