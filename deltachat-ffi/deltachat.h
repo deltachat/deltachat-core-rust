@@ -3067,19 +3067,25 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
  * - @ref DC_CHAT_TYPE_SINGLE - a normal chat is a chat with a single contact,
  *   chats_contacts contains one record for the user.  DC_CONTACT_ID_SELF
  *   (see dc_contact_t::id) is added _only_ for a self talk.
+ *   These chats are created by dc_create_chat_by_contact_id().
  *
  * - @ref DC_CHAT_TYPE_GROUP - a group chat, chats_contacts contain all group
- *   members, incl. DC_CONTACT_ID_SELF
+ *   members, incl. DC_CONTACT_ID_SELF.
+ *   Groups are created by dc_create_group_chat().
  *
  * - @ref DC_CHAT_TYPE_MAILINGLIST - a mailing list, this is similar to groups,
  *   however, the member list cannot be retrieved completely
  *   and cannot be changed using this api.
- *   moreover, for now, mailist lists are read-only.
+ *   Mailing lists are created as needed by incoming messages
+ *   and usually require some special server;
+ *   they cannot be created by a function call as the other chat types.
+ *   Moreover, for now, mailing lists are read-only.
  *
  * - @ref DC_CHAT_TYPE_BROADCAST - a broadcast list,
  *   the recipients will get messages in a one-to-one chats and
  *   the sender will get answers in a one-to-one as well.
- *   chats_contacts contain all recipients but DC_CONTACT_ID_SELF
+ *   chats_contacts contain all recipients but DC_CONTACT_ID_SELF.
+ *   Broadcasts are created by dc_create_broadcast_list().
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
