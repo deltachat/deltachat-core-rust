@@ -105,7 +105,8 @@ impl Bob {
     ) -> Result<StartedProtocolVariant, JoinError> {
         let mut guard = self.inner.lock().await;
         if guard.is_some() {
-            return Err(JoinError::AlreadyRunning);
+            warn!(context, "The new securejoin will replace the ongoing one.");
+            *guard = None;
         }
         let variant = match invite {
             QrInvite::Group { ref grpid, .. } => {
