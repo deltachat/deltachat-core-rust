@@ -951,6 +951,7 @@ mod tests {
 
     use crate::chat;
     use crate::chat::ProtectionStatus;
+    use crate::constants::Chattype;
     use crate::events::Event;
     use crate::peerstate::Peerstate;
     use crate::test_utils::TestContext;
@@ -1288,6 +1289,36 @@ mod tests {
             msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vc-contact-confirm-received"
         );
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_setup_contact_concurrent_calls() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // do a scan that is not working as claire is never responding
+        let qr_stale = "OPENPGP4FPR:1234567890123456789012345678901234567890#a=claire%40foo.de&n=&i=12345678901&s=23456789012";
+        let claire_id = dc_join_securejoin(&bob, &qr_stale).await?;
+        let chat = Chat::load_from_db(&bob, claire_id).await?;
+        assert!(!claire_id.is_special());
+        assert_eq!(chat.typ, Chattype::Single);
+        assert!(bob.pop_sent_msg().await.payload().contains("claire@foo.de"));
+
+        // subsequent scans shall abort existing ones or run concurrently -
+        // but they must not fail as otherwise the whole qr scanning becomes unusable until restart.
+        let qr = dc_get_securejoin_qr(&alice, None).await?;
+        let alice_id = dc_join_securejoin(&bob, &qr).await?;
+        let chat = Chat::load_from_db(&bob, alice_id).await?;
+        assert!(!alice_id.is_special());
+        assert_eq!(chat.typ, Chattype::Single);
+        assert_ne!(claire_id, alice_id);
+        assert!(bob
+            .pop_sent_msg()
+            .await
+            .payload()
+            .contains("alice@example.com"));
+
         Ok(())
     }
 
