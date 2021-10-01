@@ -110,12 +110,13 @@ pub fn needs_quota_warning(curr_percentage: u64, warned_at_percentage: u64) -> b
 impl Context {
     // Adds a job to update `quota.recent`
     pub(crate) async fn schedule_quota_update(&self) -> Result<()> {
-        job::kill_action(self, Action::UpdateRecentQuota).await?;
-        job::add(
-            self,
-            job::Job::new(Action::UpdateRecentQuota, 0, Params::new(), 0),
-        )
-        .await?;
+        if !job::action_exists(self, Action::UpdateRecentQuota).await? {
+            job::add(
+                self,
+                job::Job::new(Action::UpdateRecentQuota, 0, Params::new(), 0),
+            )
+            .await?;
+        }
         Ok(())
     }
 
