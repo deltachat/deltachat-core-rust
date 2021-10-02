@@ -81,7 +81,7 @@ async-std = { version = "1", features = ["unstable", "attributes"] }
 criterion = "0.3"
 futures-lite = "1.12"
 log = "0.4"
-pretty_assertions = "0.7"
+pretty_assertions = "1.0"
 pretty_env_logger = "0.4"
 proptest = "1"
 tempfile = "3"
