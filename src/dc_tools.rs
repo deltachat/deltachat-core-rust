@@ -84,9 +84,9 @@ pub(crate) fn dc_gm2local_offset() -> i64 {
 //   but at max `MAX_SECONDS_TO_LEND_FROM_FUTURE`
 const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 5;
 
-// returns the currently smeared timestamp,
-// may be used to check if call to dc_create_smeared_timestamp() is needed or not.
-// the returned timestamp MUST NOT be used to be sent out or saved in the database!
+/// Returns the current smeared timestamp,
+///
+/// The returned timestamp MUST NOT be sent out.
 pub(crate) async fn dc_smeared_time(context: &Context) -> i64 {
     let mut now = time();
     let ts = *context.last_smeared_timestamp.read().await;
@@ -97,7 +97,7 @@ pub(crate) async fn dc_smeared_time(context: &Context) -> i64 {
     now
 }
 
-// returns a timestamp that is guaranteed to be unique.
+/// Returns a timestamp that is guaranteed to be unique.
 pub(crate) async fn dc_create_smeared_timestamp(context: &Context) -> i64 {
     let now = time();
     let mut ret = now;
