@@ -250,9 +250,6 @@ pub enum JoinError {
     #[error("Unknown QR-code: {0}")]
     QrCode(#[from] QrError),
 
-    #[error("A setup-contact/secure-join protocol is already running")]
-    AlreadyRunning,
-
     #[error("An \"ongoing\" process is already running")]
     OngoingRunning,
 
