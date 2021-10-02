@@ -1,5 +1,6 @@
 //! Internet Message Format reception pipeline.
 
+use std::cmp::min;
 use std::convert::TryFrom;
 
 use anyhow::{bail, ensure, Result};
@@ -18,9 +19,7 @@ use crate::constants::{
 };
 use crate::contact::{addr_cmp, normalize_name, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
-use crate::dc_tools::{
-    dc_create_smeared_timestamp, dc_extract_grpid_from_rfc724_mid, dc_smeared_time,
-};
+use crate::dc_tools::{dc_extract_grpid_from_rfc724_mid, dc_smeared_time};
 use crate::download::DownloadState;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -106,15 +105,6 @@ pub(crate) async fn dc_receive_imf_inner(
         return Ok(());
     }
 
-    let mut sent_timestamp = if let Some(value) = mime_parser
-        .get_header(HeaderDef::Date)
-        .and_then(|value| mailparse::dateparse(value).ok())
-    {
-        value
-    } else {
-        dc_create_smeared_timestamp(context).await
-    };
-
     let rfc724_mid = mime_parser.get_rfc724_mid().unwrap_or_else(||
         // missing Message-IDs may come if the mail was set from this account with another
         // client that relies in the SMTP server to generate one.
@@ -193,6 +183,12 @@ pub(crate) async fn dc_receive_imf_inner(
         .await?,
     );
 
+    let rcvd_timestamp = dc_smeared_time(context).await;
+    let sent_timestamp = mime_parser
+        .get_header(HeaderDef::Date)
+        .and_then(|value| mailparse::dateparse(value).ok())
+        .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp));
+
     // Add parts
     let chat_id = add_parts(
         context,
@@ -204,7 +200,8 @@ pub(crate) async fn dc_receive_imf_inner(
         server_uid,
         &to_ids,
         rfc724_mid,
-        &mut sent_timestamp,
+        sent_timestamp,
+        rcvd_timestamp,
         from_id,
         &mut hidden,
         seen || replace_partial_download,
@@ -406,7 +403,8 @@ async fn add_parts(
     server_uid: u32,
     to_ids: &ContactIds,
     rfc724_mid: String,
-    sent_timestamp: &mut i64,
+    sent_timestamp: i64,
+    rcvd_timestamp: i64,
     from_id: u32,
     hidden: &mut bool,
     seen: bool,
@@ -454,9 +452,6 @@ async fn add_parts(
             ShowEmails::All => {}
         }
     }
-
-    let rcvd_timestamp = dc_smeared_time(context).await;
-    *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // check if the message introduces a new chat:
     // - outgoing messages introduce a chat with the first to: address if they are sent by a messenger
@@ -531,7 +526,7 @@ async fn add_parts(
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
                 &mut mime_parser,
-                *sent_timestamp,
+                sent_timestamp,
                 if test_normal_chat.is_none() {
                     allow_creation
                 } else {
@@ -761,7 +756,7 @@ async fn add_parts(
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
                     &mut mime_parser,
-                    *sent_timestamp,
+                    sent_timestamp,
                     allow_creation,
                     Blocked::Not,
                     from_id,
@@ -857,7 +852,7 @@ async fn add_parts(
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need chat_id to be set
     let in_fresh = state == MessageState::InFresh;
-    let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, chat_id, in_fresh).await?;
+    let sort_timestamp = calc_sort_timestamp(context, sent_timestamp, chat_id, in_fresh).await?;
 
     // Apply ephemeral timer changes to the chat.
     //
@@ -896,7 +891,7 @@ async fn add_parts(
                 chat_id
             );
         } else if chat_id
-            .update_timestamp(context, Param::EphemeralSettingsTimestamp, *sent_timestamp)
+            .update_timestamp(context, Param::EphemeralSettingsTimestamp, sent_timestamp)
             .await?
         {
             if let Err(err) = chat_id
@@ -967,7 +962,7 @@ async fn add_parts(
                         .update_timestamp(
                             context,
                             Param::ProtectionSettingsTimestamp,
-                            *sent_timestamp,
+                            sent_timestamp,
                         )
                         .await?
                     {
@@ -1047,7 +1042,6 @@ async fn add_parts(
         Vec::new()
     };
 
-    let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
 
     let mut is_hidden = is_hidden;
@@ -1304,11 +1298,7 @@ async fn calc_sort_timestamp(
         }
     }
 
-    if sort_timestamp >= dc_smeared_time(context).await {
-        sort_timestamp = dc_create_smeared_timestamp(context).await;
-    }
-
-    Ok(sort_timestamp)
+    Ok(min(sort_timestamp, dc_smeared_time(context).await))
 }
 
 async fn lookup_chat_by_reply(
