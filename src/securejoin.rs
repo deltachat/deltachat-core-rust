@@ -1297,7 +1297,7 @@ mod tests {
 
         // do a scan that is not working as claire is never responding
         let qr_stale = "OPENPGP4FPR:1234567890123456789012345678901234567890#a=claire%40foo.de&n=&i=12345678901&s=23456789012";
-        let claire_id = dc_join_securejoin(&bob, &qr_stale).await?;
+        let claire_id = dc_join_securejoin(&bob, qr_stale).await?;
         let chat = Chat::load_from_db(&bob, claire_id).await?;
         assert!(!claire_id.is_special());
         assert_eq!(chat.typ, Chattype::Single);
