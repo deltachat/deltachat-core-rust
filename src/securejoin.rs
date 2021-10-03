@@ -105,7 +105,8 @@ impl Bob {
     ) -> Result<StartedProtocolVariant, JoinError> {
         let mut guard = self.inner.lock().await;
         if guard.is_some() {
-            return Err(JoinError::AlreadyRunning);
+            warn!(context, "The new securejoin will replace the ongoing one.");
+            *guard = None;
         }
         let variant = match invite {
             QrInvite::Group { ref grpid, .. } => {
@@ -248,19 +249,22 @@ async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
 pub enum JoinError {
     #[error("Unknown QR-code: {0}")]
     QrCode(#[from] QrError),
-    #[error("A setup-contact/secure-join protocol is already running")]
-    AlreadyRunning,
+
     #[error("An \"ongoing\" process is already running")]
     OngoingRunning,
+
     #[error("Failed to send handshake message: {0}")]
     SendMessage(#[from] SendMsgError),
+
     // Note that this can currently only occur if there is a bug in the QR/Lot code as this
     // is supposed to create a contact for us.
     #[error("Unknown contact (this is a bug): {0}")]
     UnknownContact(#[source] anyhow::Error),
+
     // Note that this can only occur if we failed to create the chat correctly.
     #[error("Ongoing sender dropped (this is a bug)")]
     OngoingSenderDropped,
+
     #[error("Other")]
     Other(#[from] anyhow::Error),
 }
@@ -945,6 +949,7 @@ mod tests {
 
     use crate::chat;
     use crate::chat::ProtectionStatus;
+    use crate::constants::Chattype;
     use crate::events::Event;
     use crate::peerstate::Peerstate;
     use crate::test_utils::TestContext;
@@ -1282,6 +1287,36 @@ mod tests {
             msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vc-contact-confirm-received"
         );
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_setup_contact_concurrent_calls() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // do a scan that is not working as claire is never responding
+        let qr_stale = "OPENPGP4FPR:1234567890123456789012345678901234567890#a=claire%40foo.de&n=&i=12345678901&s=23456789012";
+        let claire_id = dc_join_securejoin(&bob, qr_stale).await?;
+        let chat = Chat::load_from_db(&bob, claire_id).await?;
+        assert!(!claire_id.is_special());
+        assert_eq!(chat.typ, Chattype::Single);
+        assert!(bob.pop_sent_msg().await.payload().contains("claire@foo.de"));
+
+        // subsequent scans shall abort existing ones or run concurrently -
+        // but they must not fail as otherwise the whole qr scanning becomes unusable until restart.
+        let qr = dc_get_securejoin_qr(&alice, None).await?;
+        let alice_id = dc_join_securejoin(&bob, &qr).await?;
+        let chat = Chat::load_from_db(&bob, alice_id).await?;
+        assert!(!alice_id.is_special());
+        assert_eq!(chat.typ, Chattype::Single);
+        assert_ne!(claire_id, alice_id);
+        assert!(bob
+            .pop_sent_msg()
+            .await
+            .payload()
+            .contains("alice@example.com"));
+
         Ok(())
     }
 
