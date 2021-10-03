@@ -1,16 +1,15 @@
 //! Supporting code for the QR-code invite.
 //!
-//! QR-codes are decoded into a more general-purpose [`Lot`] struct normally, this struct is
-//! so general it is not even specific to QR-codes.  This makes working with it rather hard,
-//! so here we have a wrapper type that specifically deals with Secure-Join QR-codes so
-//! that the Secure-Join code can have many more guarantees when dealing with this.
+//! QR-codes are decoded into a more general-purpose [`Qr`] struct normally.  This makes working
+//! with it rather hard, so here we have a wrapper type that specifically deals with Secure-Join
+//! QR-codes so that the Secure-Join code can have more guarantees when dealing with this.
 
 use std::convert::TryFrom;
 
-use anyhow::Result;
+use anyhow::{bail, Error, Result};
 
 use crate::key::Fingerprint;
-use crate::lot::{Lot, LotState};
+use crate::qr::Qr;
 
 /// Represents the data from a QR-code scan.
 ///
@@ -66,53 +65,38 @@ impl QrInvite {
     }
 }
 
-impl TryFrom<Lot> for QrInvite {
-    type Error = QrError;
+impl TryFrom<Qr> for QrInvite {
+    type Error = Error;
 
-    fn try_from(lot: Lot) -> Result<Self, Self::Error> {
-        if lot.state != LotState::QrAskVerifyContact && lot.state != LotState::QrAskVerifyGroup {
-            return Err(QrError::UnsupportedProtocol);
-        }
-        if lot.id == 0 {
-            return Err(QrError::MissingContactId);
-        }
-        let fingerprint = lot.fingerprint.ok_or(QrError::MissingFingerprint)?;
-        let invitenumber = lot.invitenumber.ok_or(QrError::MissingInviteNumber)?;
-        let authcode = lot.auth.ok_or(QrError::MissingAuthCode)?;
-        match lot.state {
-            LotState::QrAskVerifyContact => Ok(QrInvite::Contact {
-                contact_id: lot.id,
+    fn try_from(qr: Qr) -> Result<Self> {
+        match qr {
+            Qr::AskVerifyContact {
+                contact_id,
+                fingerprint,
+                invitenumber,
+                authcode,
+            } => Ok(QrInvite::Contact {
+                contact_id,
                 fingerprint,
                 invitenumber,
                 authcode,
             }),
-            LotState::QrAskVerifyGroup => Ok(QrInvite::Group {
-                contact_id: lot.id,
+            Qr::AskVerifyGroup {
+                grpname,
+                grpid,
+                contact_id,
                 fingerprint,
-                name: lot.text1.ok_or(QrError::MissingGroupName)?,
-                grpid: lot.text2.ok_or(QrError::MissingGroupId)?,
+                invitenumber,
+                authcode,
+            } => Ok(QrInvite::Group {
+                contact_id,
+                fingerprint,
+                name: grpname,
+                grpid,
                 invitenumber,
                 authcode,
             }),
-            _ => Err(QrError::UnsupportedProtocol),
+            _ => bail!("Unsupported QR type {:?}", qr),
         }
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum QrError {
-    #[error("Unsupported protocol in QR-code")]
-    UnsupportedProtocol,
-    #[error("Missing fingerprint")]
-    MissingFingerprint,
-    #[error("Missing invitenumber")]
-    MissingInviteNumber,
-    #[error("Missing auth code")]
-    MissingAuthCode,
-    #[error("Missing group name")]
-    MissingGroupName,
-    #[error("Missing group id")]
-    MissingGroupId,
-    #[error("Missing contact id")]
-    MissingContactId,
 }

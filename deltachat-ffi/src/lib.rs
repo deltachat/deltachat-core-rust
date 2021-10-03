@@ -39,6 +39,7 @@ use deltachat::*;
 use deltachat::{accounts::Accounts, log::LogExt};
 
 mod dc_array;
+mod lot;
 
 mod string;
 use self::string::*;
@@ -2043,10 +2044,11 @@ pub unsafe extern "C" fn dc_check_qr(
     }
     let ctx = &*context;
 
-    block_on(async move {
-        let lot = qr::check_qr(ctx, &to_string_lossy(qr)).await;
-        Box::into_raw(Box::new(lot))
-    })
+    let lot = match block_on(qr::check_qr(ctx, &to_string_lossy(qr))) {
+        Ok(qr) => qr.into(),
+        Err(err) => err.into(),
+    };
+    Box::into_raw(Box::new(lot))
 }
 
 #[no_mangle]
@@ -3608,7 +3610,7 @@ pub unsafe extern "C" fn dc_lot_get_state(lot: *mut dc_lot_t) -> libc::c_int {
     }
 
     let lot = &*lot;
-    lot.get_state().to_i64().expect("impossible") as libc::c_int
+    lot.get_state() as libc::c_int
 }
 
 #[no_mangle]

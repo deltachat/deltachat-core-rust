@@ -1158,14 +1158,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "checkqr" => {
             ensure!(!arg1.is_empty(), "Argument <qr-content> missing.");
-            let res = check_qr(&context, arg1).await;
-            println!(
-                "state={}, id={}, text1={:?}, text2={:?}",
-                res.get_state(),
-                res.get_id(),
-                res.get_text1(),
-                res.get_text2()
-            );
+            let qr = check_qr(&context, arg1).await?;
+            println!("qr={:?}", qr);
         }
         "setqr" => {
             ensure!(!arg1.is_empty(), "Argument <qr-content> missing.");
