@@ -86,6 +86,8 @@ def main():
     print("")
     print("   git tag -a {}".format(newversion))
     print("   git push origin {}".format(newversion))
+    print("   git tag -a py-{}".format(newversion))
+    print("   git push origin py-{}".format(newversion))
     print("")
 
 

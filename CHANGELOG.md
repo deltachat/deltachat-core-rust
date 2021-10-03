@@ -1,16 +1,42 @@
 # Changelog
 
-## Unreleased
+## 1.61.0
+
+### API Changes
+- download-on-demand added: `dc_msg_get_download_status()`, `dc_download_full_msg()`
+  and `download_limit` config option #2631 #2696
+- `dc_create_broadcast_list()` and chat type `DC_CHAT_TYPE_BROADCAST` added #2707 #2722
+- allow ui-specific configs: `dc_set_ui_config()` and `dc_get_ui_config()` #2672
+- new strings from `DC_STR_PARTIAL_DOWNLOAD_MSG_BODY`
+  to `DC_STR_PART_OF_TOTAL_USED` #2631 #2694 #2707 #2723
+- emit warnings and errors from account manager with account-id 0 #2712
 
 ### Changes
-- `Accounts` is not cloneable anymore #2654 #2658
+- notify about incoming contact requests #2690
+- messages are marked as read on first read receipt #2699
+- quota warning reappears after import, rewarning at 95% #2702
+- lock strict TLS if certificate checks are automatic #2711
 - always check certificates strictly when connecting over SOCKS5 in Automatic mode #2657
+- `Accounts` is not cloneable anymore #2654 #2658
 - update chat/contact data only when there was no newer update #2642
-- improve Doxygen documentation style #2647
+- better detection of mailing list names #2665 #2685
+- log all decisions when applying ephemeral timer to chats #2679
+- connectivity view now translatable #2694 #2723
+- improve Doxygen documentation #2647 #2668 #2684 #2688 #2705
+- refactorings #2656 #2659 #2677 #2673 #2678 #2675 #2663 #2692 #2706
+- update provider database #2618
 
 ### Fixes
+- ephemeral timer rollback protection #2693 #2709
+- recreate configured folders if they are deleted #2691
 - ignore MDNs sent to self #2674
+- recognize NDNs that put headers into "message/global-headers" part #2598
+- avoid `dc_get_contacts()` returning duplicate contact ids #2591
+- do not leak group names on forwarding messages #2719
+- in case of smtp-errors, iterate over all addresses to fix ipv6/v4 problems #2720
 - fix pkg-config file #2660
+- fix "QR process failed" error #2725
+
 
 ## 1.60.0
 
@@ -24,6 +50,7 @@
 
 ### Fixes
 - keep event emitter from closing when there are no accounts #2636
+
 
 ## 1.59.0
 
@@ -49,7 +76,6 @@
 ## 1.58.0
 
 ### Fixes
-
 - move WAL file together with database
   and avoid using data if the database was not closed correctly before #2583
 
