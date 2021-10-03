@@ -2130,7 +2130,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_FPR_MISMATCH           220 // id=contact
 #define         DC_QR_FPR_WITHOUT_ADDR       230 // test1=formatted fingerprint
 #define         DC_QR_ACCOUNT                250 // text1=domain
-#define         DC_QR_WEBRTC_INSTANCE        260 // text1=domain
+#define         DC_QR_WEBRTC_INSTANCE        260 // text1=domain, text2=instance pattern
 #define         DC_QR_ADDR                   320 // id=contact
 #define         DC_QR_TEXT                   330 // text1=text
 #define         DC_QR_URL                    332 // text1=URL

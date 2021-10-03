@@ -31,7 +31,7 @@ mod bobstate;
 mod qrinvite;
 
 use bobstate::{BobHandshakeStage, BobState, BobStateHandle};
-use qrinvite::{QrError, QrInvite};
+use qrinvite::QrInvite;
 
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
@@ -247,9 +247,6 @@ async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum JoinError {
-    #[error("Unknown QR-code: {0}")]
-    QrCode(#[from] QrError),
-
     #[error("An \"ongoing\" process is already running")]
     OngoingRunning,
 
@@ -293,7 +290,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
     ========================================================*/
 
     info!(context, "Requesting secure-join ...",);
-    let qr_scan = check_qr(context, qr).await;
+    let qr_scan = check_qr(context, qr).await?;
 
     let invite = QrInvite::try_from(qr_scan)?;
 
@@ -1146,7 +1143,7 @@ mod tests {
     async fn test_setup_contact_bad_qr() {
         let bob = TestContext::new_bob().await;
         let ret = dc_join_securejoin(&bob.ctx, "not a qr code").await;
-        assert!(matches!(ret, Err(JoinError::QrCode(_))));
+        assert!(ret.is_err());
     }
 
     #[async_std::test]

@@ -68,7 +68,6 @@ pub mod key;
 mod keyring;
 pub mod location;
 mod login_param;
-pub mod lot;
 pub mod message;
 mod mimefactory;
 pub mod mimeparser;

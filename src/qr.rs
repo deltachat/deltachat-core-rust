@@ -1,6 +1,6 @@
 //! # QR code module.
 
-use anyhow::{bail, ensure, format_err, Error};
+use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
@@ -13,8 +13,6 @@ use crate::contact::{addr_normalize, may_be_valid_addr, Contact, Origin};
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::key::Fingerprint;
-use crate::log::LogExt;
-use crate::lot::{Lot, LotState};
 use crate::message::Message;
 use crate::peerstate::Peerstate;
 use crate::token;
@@ -29,15 +27,75 @@ const SMTP_SCHEME: &str = "SMTP:";
 const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
 
-// Make it easy to convert errors into the final `Lot`.
-impl From<Error> for Lot {
-    fn from(error: Error) -> Self {
-        let mut l = Self::new();
-        l.state = LotState::QrError;
-        l.text1 = Some(error.to_string());
-
-        l
-    }
+#[derive(Debug, Clone, PartialEq)]
+pub enum Qr {
+    AskVerifyContact {
+        contact_id: u32,
+        fingerprint: Fingerprint,
+        invitenumber: String,
+        authcode: String,
+    },
+    AskVerifyGroup {
+        grpname: String,
+        grpid: String,
+        contact_id: u32,
+        fingerprint: Fingerprint,
+        invitenumber: String,
+        authcode: String,
+    },
+    FprOk {
+        contact_id: u32,
+    },
+    FprMismatch {
+        contact_id: Option<u32>,
+    },
+    FprWithoutAddr {
+        fingerprint: String,
+    },
+    Account {
+        domain: String,
+    },
+    WebrtcInstance {
+        domain: String,
+        instance_pattern: String,
+    },
+    Addr {
+        contact_id: u32,
+    },
+    Url {
+        url: String,
+    },
+    Text {
+        text: String,
+    },
+    WithdrawVerifyContact {
+        contact_id: u32,
+        fingerprint: Fingerprint,
+        invitenumber: String,
+        authcode: String,
+    },
+    WithdrawVerifyGroup {
+        grpname: String,
+        grpid: String,
+        contact_id: u32,
+        fingerprint: Fingerprint,
+        invitenumber: String,
+        authcode: String,
+    },
+    ReviveVerifyContact {
+        contact_id: u32,
+        fingerprint: Fingerprint,
+        invitenumber: String,
+        authcode: String,
+    },
+    ReviveVerifyGroup {
+        grpname: String,
+        grpid: String,
+        contact_id: u32,
+        fingerprint: Fingerprint,
+        invitenumber: String,
+        authcode: String,
+    },
 }
 
 fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
@@ -47,35 +105,42 @@ fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
 /// Check a scanned QR code.
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
-pub async fn check_qr(context: &Context, qr: &str) -> Lot {
+pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
     info!(context, "Scanned QR code: {}", qr);
 
-    if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
-        decode_openpgp(context, qr).await
+    let qrcode = if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
+        decode_openpgp(context, qr)
+            .await
+            .context("failed to decode OPENPGP4FPR QR code")?
     } else if starts_with_ignore_case(qr, DCACCOUNT_SCHEME) {
-        decode_account(context, qr)
+        decode_account(qr)?
     } else if starts_with_ignore_case(qr, DCWEBRTC_SCHEME) {
-        decode_webrtc_instance(context, qr)
+        decode_webrtc_instance(context, qr)?
     } else if qr.starts_with(MAILTO_SCHEME) {
-        decode_mailto(context, qr).await
+        decode_mailto(context, qr).await?
     } else if qr.starts_with(SMTP_SCHEME) {
-        decode_smtp(context, qr).await
+        decode_smtp(context, qr).await?
     } else if qr.starts_with(MATMSG_SCHEME) {
-        decode_matmsg(context, qr).await
+        decode_matmsg(context, qr).await?
     } else if qr.starts_with(VCARD_SCHEME) {
-        decode_vcard(context, qr).await
+        decode_vcard(context, qr).await?
     } else if qr.starts_with(HTTP_SCHEME) || qr.starts_with(HTTPS_SCHEME) {
-        Lot::from_url(qr)
+        Qr::Url {
+            url: qr.to_string(),
+        }
     } else {
-        Lot::from_text(qr)
-    }
+        Qr::Text {
+            text: qr.to_string(),
+        }
+    };
+    Ok(qrcode)
 }
 
 /// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR&g=GROUPNAME&x=GROUPID&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR`
 #[allow(clippy::indexing_slicing)]
-async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
+async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
     let payload = &qr[OPENPGP4FPR_SCHEME.len()..];
 
     let (fingerprint, fragment) = match payload.find('#').map(|offset| {
@@ -86,10 +151,9 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         Some(pair) => pair,
         None => (payload, ""),
     };
-    let fingerprint: Fingerprint = match fingerprint.parse() {
-        Ok(fp) => fp,
-        Err(err) => return err.context("Failed to parse fingerprint in QR code").into(),
-    };
+    let fingerprint: Fingerprint = fingerprint
+        .parse()
+        .context("Failed to parse fingerprint in the QR code")?;
 
     let param: BTreeMap<&str, &str> = fragment
         .split('&')
@@ -103,10 +167,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         .collect();
 
     let addr = if let Some(addr) = param.get("a") {
-        match normalize_address(addr) {
-            Ok(addr) => Some(addr),
-            Err(err) => return err.into(),
-        }
+        Some(normalize_address(addr)?)
     } else {
         None
     };
@@ -115,14 +176,14 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
         match percent_decode_str(&encoded_name).decode_utf8() {
             Ok(name) => name.to_string(),
-            Err(err) => return format_err!("Invalid name: {}", err).into(),
+            Err(err) => bail!("Invalid name: {}", err),
         }
     } else {
         "".to_string()
     };
 
     let invitenumber = param.get("i").map(|s| s.to_string());
-    let auth = param.get("s").map(|s| s.to_string());
+    let authcode = param.get("s").map(|s| s.to_string());
     let grpid = param.get("x").map(|s| s.to_string());
 
     let grpname = if grpid.is_some() {
@@ -130,7 +191,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
             let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
             match percent_decode_str(&encoded_name).decode_utf8() {
                 Ok(name) => Some(name.to_string()),
-                Err(err) => return format_err!("Invalid group name: {}", err).into(),
+                Err(err) => bail!("Invalid group name: {}", err),
             }
         } else {
             None
@@ -139,137 +200,146 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         None
     };
 
-    let mut lot = Lot::new();
-
     // retrieve known state for this fingerprint
-    let peerstate = match Peerstate::from_fingerprint(context, &context.sql, &fingerprint).await {
-        Ok(peerstate) => peerstate,
-        Err(err) => return format_err!("Can't load peerstate: {}", err).into(),
-    };
+    let peerstate = Peerstate::from_fingerprint(context, &context.sql, &fingerprint)
+        .await
+        .context("Can't load peerstate")?;
 
-    if invitenumber.is_none() || auth.is_none() {
-        if let Some(peerstate) = peerstate {
-            lot.state = LotState::QrFprOk;
-
-            lot.id =
-                Contact::add_or_lookup(context, &name, &peerstate.addr, Origin::UnhandledQrScan)
-                    .await
-                    .map(|(id, _)| id)
-                    .unwrap_or_default();
-
-            if let Ok(chat) = ChatIdBlocked::get_for_contact(context, lot.id, Blocked::Request)
-                .await
-                .log_err(context, "Failed to create (new) chat for contact")
-            {
-                chat::add_info_msg(
-                    context,
-                    chat.id,
-                    format!("{} verified.", peerstate.addr),
-                    time(),
-                )
-                .await
-                .ok();
-            }
-        } else if let Some(addr) = addr {
-            lot.state = LotState::QrFprMismatch;
-            lot.id = match Contact::lookup_id_by_addr(context, &addr, Origin::Unknown).await {
-                Ok(contact_id) => contact_id.unwrap_or_default(),
-                Err(err) => {
-                    return format_err!("Error looking up contact {:?}: {}", addr, err).into()
-                }
-            };
-        } else {
-            lot.state = LotState::QrFprWithoutAddr;
-            lot.text1 = Some(fingerprint.to_string());
-        }
-    } else if let Some(addr) = addr {
-        if grpid.is_some() && grpname.is_some() {
-            lot.state = LotState::QrAskVerifyGroup;
-            lot.text1 = grpname;
-            lot.text2 = grpid
-        } else {
-            lot.state = LotState::QrAskVerifyContact;
-        }
-        lot.id = Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan)
+    if let (Some(addr), Some(invitenumber), Some(authcode)) = (&addr, invitenumber, authcode) {
+        let contact_id = Contact::add_or_lookup(context, &name, addr, Origin::UnhandledQrScan)
             .await
             .map(|(id, _)| id)
-            .unwrap_or_default();
+            .with_context(|| format!("failed to add or lookup contact for address {:?}", addr))?;
 
-        lot.fingerprint = Some(fingerprint);
-        lot.invitenumber = invitenumber;
-        lot.auth = auth;
-
-        // scanning own qr-code offers withdraw/revive instead of secure-join
-        if context.is_self_addr(&addr).await.unwrap_or_default() {
-            if let Some(ref invitenumber) = lot.invitenumber {
-                lot.state =
-                    if token::exists(context, token::Namespace::InviteNumber, &*invitenumber).await
-                    {
-                        if lot.state == LotState::QrAskVerifyContact {
-                            LotState::QrWithdrawVerifyContact
-                        } else {
-                            LotState::QrWithdrawVerifyGroup
-                        }
-                    } else if lot.state == LotState::QrAskVerifyContact {
-                        LotState::QrReviveVerifyContact
-                    } else {
-                        LotState::QrReviveVerifyGroup
-                    }
+        if let (Some(grpid), Some(grpname)) = (grpid, grpname) {
+            if context
+                .is_self_addr(addr)
+                .await
+                .with_context(|| format!("can't check if address {:?} is our address", addr))?
+            {
+                if token::exists(context, token::Namespace::InviteNumber, &*invitenumber).await {
+                    Ok(Qr::WithdrawVerifyGroup {
+                        grpname,
+                        grpid,
+                        contact_id,
+                        fingerprint,
+                        invitenumber,
+                        authcode,
+                    })
+                } else {
+                    Ok(Qr::ReviveVerifyGroup {
+                        grpname,
+                        grpid,
+                        contact_id,
+                        fingerprint,
+                        invitenumber,
+                        authcode,
+                    })
+                }
+            } else {
+                Ok(Qr::AskVerifyGroup {
+                    grpname,
+                    grpid,
+                    contact_id,
+                    fingerprint,
+                    invitenumber,
+                    authcode,
+                })
             }
+        } else if context.is_self_addr(addr).await? {
+            if token::exists(context, token::Namespace::InviteNumber, &*invitenumber).await {
+                Ok(Qr::WithdrawVerifyContact {
+                    contact_id,
+                    fingerprint,
+                    invitenumber,
+                    authcode,
+                })
+            } else {
+                Ok(Qr::ReviveVerifyContact {
+                    contact_id,
+                    fingerprint,
+                    invitenumber,
+                    authcode,
+                })
+            }
+        } else {
+            Ok(Qr::AskVerifyContact {
+                contact_id,
+                fingerprint,
+                invitenumber,
+                authcode,
+            })
+        }
+    } else if let Some(addr) = addr {
+        if let Some(peerstate) = peerstate {
+            let contact_id =
+                Contact::add_or_lookup(context, &name, &peerstate.addr, Origin::UnhandledQrScan)
+                    .await
+                    .map(|(id, _)| id)?;
+            let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
+                .await
+                .context("Failed to create (new) chat for contact")?;
+            chat::add_info_msg(
+                context,
+                chat.id,
+                format!("{} verified.", peerstate.addr),
+                time(),
+            )
+            .await?;
+            Ok(Qr::FprOk { contact_id })
+        } else {
+            let contact_id = Contact::lookup_id_by_addr(context, &addr, Origin::Unknown)
+                .await
+                .with_context(|| format!("Error looking up contact {:?}", addr))?;
+            Ok(Qr::FprMismatch { contact_id })
         }
     } else {
-        return format_err!("Missing address").into();
+        Ok(Qr::FprWithoutAddr {
+            fingerprint: fingerprint.to_string(),
+        })
     }
-
-    lot
 }
 
 /// scheme: `DCACCOUNT:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3`
-#[allow(clippy::indexing_slicing)]
-fn decode_account(_context: &Context, qr: &str) -> Lot {
-    let payload = &qr[DCACCOUNT_SCHEME.len()..];
-
-    let mut lot = Lot::new();
-
-    if let Ok(url) = url::Url::parse(payload) {
-        if url.scheme() == "http" || url.scheme() == "https" {
-            lot.state = LotState::QrAccount;
-            lot.text1 = url.host_str().map(|x| x.to_string());
-        } else {
-            lot.state = LotState::QrError;
-            lot.text1 = Some(format!("Bad scheme for account url: {}", payload));
-        }
+fn decode_account(qr: &str) -> Result<Qr> {
+    let payload = qr
+        .get(DCACCOUNT_SCHEME.len()..)
+        .ok_or_else(|| format_err!("Invalid DCACCOUNT payload"))?;
+    let url =
+        url::Url::parse(payload).with_context(|| format!("Invalid account URL: {:?}", payload))?;
+    if url.scheme() == "http" || url.scheme() == "https" {
+        Ok(Qr::Account {
+            domain: url
+                .host_str()
+                .ok_or_else(|| format_err!("Can't extract WebRTC instance domain"))?
+                .to_string(),
+        })
     } else {
-        lot.state = LotState::QrError;
-        lot.text1 = Some(format!("Invalid account url: {}", payload));
+        bail!("Bad scheme for account URL: {:?}.", payload);
     }
-
-    lot
 }
 
 /// scheme: `DCWEBRTC:https://meet.jit.si/$ROOM`
-#[allow(clippy::indexing_slicing)]
-fn decode_webrtc_instance(_context: &Context, qr: &str) -> Lot {
-    let payload = &qr[DCWEBRTC_SCHEME.len()..];
-
-    let mut lot = Lot::new();
+fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
+    let payload = qr
+        .get(DCWEBRTC_SCHEME.len()..)
+        .ok_or_else(|| format_err!("Invalid DCWEBRTC payload"))?;
 
     let (_type, url) = Message::parse_webrtc_instance(payload);
-    if let Ok(url) = url::Url::parse(&url) {
-        if url.scheme() == "http" || url.scheme() == "https" {
-            lot.state = LotState::QrWebrtcInstance;
-            lot.text1 = url.host_str().map(|x| x.to_string());
-            lot.text2 = Some(payload.to_string())
-        } else {
-            lot.state = LotState::QrError;
-            lot.text1 = Some(format!("Bad scheme for webrtc instance: {}", payload));
-        }
-    } else {
-        lot.state = LotState::QrError;
-        lot.text1 = Some(format!("Invalid webrtc instance: {}", payload));
-    }
+    let url =
+        url::Url::parse(&url).with_context(|| format!("Invalid WebRTC instance: {:?}", payload))?;
 
-    lot
+    if url.scheme() == "http" || url.scheme() == "https" {
+        Ok(Qr::WebrtcInstance {
+            domain: url
+                .host_str()
+                .ok_or_else(|| format_err!("Can't extract WebRTC instance domain"))?
+                .to_string(),
+            instance_pattern: payload.to_string(),
+        })
+    } else {
+        bail!("Bad URL scheme for WebRTC instance: {:?}", payload);
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -282,15 +352,16 @@ struct CreateAccountResponse {
 /// download additional information from the contained url and set the parameters.
 /// on success, a configure::configure() should be able to log in to the account
 #[allow(clippy::indexing_slicing)]
-async fn set_account_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
+async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
 
-    let response: Result<CreateAccountResponse, surf::Error> =
-        surf::post(url_str).recv_json().await;
-    if response.is_err() {
-        bail!("Cannot create account, request to {} failed", url_str);
-    }
-    let parsed = response.unwrap();
+    let parsed: CreateAccountResponse = surf::post(url_str).recv_json().await.map_err(|err| {
+        format_err!(
+            "Cannot create account, request to {:?} failed: {}",
+            url_str,
+            err
+        )
+    })?;
 
     context
         .set_config(Config::Addr, Some(&parsed.email))
@@ -302,65 +373,70 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
     Ok(())
 }
 
-pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
-    let lot = check_qr(context, qr).await;
-    match lot.state {
-        LotState::QrAccount => set_account_from_qr(context, qr).await,
-        LotState::QrWebrtcInstance => {
-            let val = decode_webrtc_instance(context, qr).text2;
+pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
+    match check_qr(context, qr).await? {
+        Qr::Account { .. } => set_account_from_qr(context, qr).await?,
+        Qr::WebrtcInstance {
+            domain: _,
+            instance_pattern,
+        } => {
             context
-                .set_config(Config::WebrtcInstance, val.as_deref())
+                .set_config(Config::WebrtcInstance, Some(&instance_pattern))
                 .await?;
-            Ok(())
         }
-        LotState::QrWithdrawVerifyContact | LotState::QrWithdrawVerifyGroup => {
-            token::delete(
-                context,
-                token::Namespace::InviteNumber,
-                lot.invitenumber.unwrap_or_default().as_str(),
-            )
-            .await?;
-            token::delete(
-                context,
-                token::Namespace::Auth,
-                lot.auth.unwrap_or_default().as_str(),
-            )
-            .await?;
-            Ok(())
+        Qr::WithdrawVerifyContact {
+            invitenumber,
+            authcode,
+            ..
+        } => {
+            token::delete(context, token::Namespace::InviteNumber, &invitenumber).await?;
+            token::delete(context, token::Namespace::Auth, &authcode).await?;
         }
-        LotState::QrReviveVerifyContact | LotState::QrReviveVerifyGroup => {
-            let chat_id = if lot.state == LotState::QrReviveVerifyContact {
-                None
-            } else {
-                get_chat_id_by_grpid(context, &lot.text2.unwrap_or_default())
-                    .await?
-                    .map(|(chat_id, _protected, _blocked)| chat_id)
-            };
+        Qr::WithdrawVerifyGroup {
+            invitenumber,
+            authcode,
+            ..
+        } => {
+            token::delete(context, token::Namespace::InviteNumber, &invitenumber).await?;
+            token::delete(context, token::Namespace::Auth, &authcode).await?;
+        }
+        Qr::ReviveVerifyContact {
+            invitenumber,
+            authcode,
+            ..
+        } => {
+            token::save(context, token::Namespace::InviteNumber, None, &invitenumber).await?;
+            token::save(context, token::Namespace::Auth, None, &authcode).await?;
+        }
+        Qr::ReviveVerifyGroup {
+            invitenumber,
+            authcode,
+            grpid,
+            ..
+        } => {
+            let chat_id = get_chat_id_by_grpid(context, grpid)
+                .await?
+                .map(|(chat_id, _protected, _blocked)| chat_id);
             token::save(
                 context,
                 token::Namespace::InviteNumber,
                 chat_id,
-                &lot.invitenumber.unwrap_or_default(),
+                &invitenumber,
             )
             .await?;
-            token::save(
-                context,
-                token::Namespace::Auth,
-                chat_id,
-                &lot.auth.unwrap_or_default(),
-            )
-            .await?;
-            Ok(())
+            token::save(context, token::Namespace::Auth, chat_id, &authcode).await?;
         }
-        _ => bail!("qr code does not contain config: {}", qr),
+        _ => bail!("qr code {:?} does not contain config", qr),
     }
+
+    Ok(())
 }
 
 /// Extract address for the mailto scheme.
 ///
 /// Scheme: `mailto:addr...?subject=...&body=..`
 #[allow(clippy::indexing_slicing)]
-async fn decode_mailto(context: &Context, qr: &str) -> Lot {
+async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
     let payload = &qr[MAILTO_SCHEME.len()..];
 
     let addr = if let Some(query_index) = payload.find('?') {
@@ -369,34 +445,27 @@ async fn decode_mailto(context: &Context, qr: &str) -> Lot {
         payload
     };
 
-    let addr = match normalize_address(addr) {
-        Ok(addr) => addr,
-        Err(err) => return err.into(),
-    };
-
+    let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Lot::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr).await
 }
 
 /// Extract address for the smtp scheme.
 ///
 /// Scheme: `SMTP:addr...:subject...:body...`
 #[allow(clippy::indexing_slicing)]
-async fn decode_smtp(context: &Context, qr: &str) -> Lot {
+async fn decode_smtp(context: &Context, qr: &str) -> Result<Qr> {
     let payload = &qr[SMTP_SCHEME.len()..];
 
     let addr = if let Some(query_index) = payload.find(':') {
         &payload[..query_index]
     } else {
-        return format_err!("Invalid SMTP found").into();
+        bail!("Invalid SMTP found");
     };
 
-    let addr = match normalize_address(addr) {
-        Ok(addr) => addr,
-        Err(err) => return err.into(),
-    };
+    let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Lot::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr).await
 }
 
 /// Extract address for the matmsg scheme.
@@ -405,7 +474,7 @@ async fn decode_smtp(context: &Context, qr: &str) -> Lot {
 ///
 /// There may or may not be linebreaks after the fields.
 #[allow(clippy::indexing_slicing)]
-async fn decode_matmsg(context: &Context, qr: &str) -> Lot {
+async fn decode_matmsg(context: &Context, qr: &str) -> Result<Qr> {
     // Does not work when the text `TO:` is used in subject/body _and_ TO: is not the first field.
     // we ignore this case.
     let addr = if let Some(to_index) = qr.find("TO:") {
@@ -416,16 +485,12 @@ async fn decode_matmsg(context: &Context, qr: &str) -> Lot {
             addr
         }
     } else {
-        return format_err!("Invalid MATMSG found").into();
+        bail!("Invalid MATMSG found");
     };
 
-    let addr = match normalize_address(addr) {
-        Ok(addr) => addr,
-        Err(err) => return err.into(),
-    };
-
+    let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Lot::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr).await
 }
 
 static VCARD_NAME_RE: Lazy<regex::Regex> =
@@ -437,7 +502,7 @@ static VCARD_EMAIL_RE: Lazy<regex::Regex> =
 ///
 /// Scheme: `VCARD:BEGIN\nN:last name;first name;...;\nEMAIL;<type>:addr...;`
 #[allow(clippy::indexing_slicing)]
-async fn decode_vcard(context: &Context, qr: &str) -> Lot {
+async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
     let name = VCARD_NAME_RE
         .captures(qr)
         .and_then(|caps| {
@@ -449,43 +514,19 @@ async fn decode_vcard(context: &Context, qr: &str) -> Lot {
         .unwrap_or_default();
 
     let addr = if let Some(caps) = VCARD_EMAIL_RE.captures(qr) {
-        match normalize_address(caps[2].trim()) {
-            Ok(addr) => addr,
-            Err(err) => return err.into(),
-        }
+        normalize_address(caps[2].trim())?
     } else {
-        return format_err!("Bad e-mail address").into();
+        bail!("Bad e-mail address");
     };
 
-    Lot::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr).await
 }
 
-impl Lot {
-    pub fn from_text(text: impl AsRef<str>) -> Self {
-        let mut l = Lot::new();
-        l.state = LotState::QrText;
-        l.text1 = Some(text.as_ref().to_string());
-
-        l
-    }
-
-    pub fn from_url(url: impl AsRef<str>) -> Self {
-        let mut l = Lot::new();
-        l.state = LotState::QrUrl;
-        l.text1 = Some(url.as_ref().to_string());
-
-        l
-    }
-
-    pub async fn from_address(context: &Context, name: String, addr: String) -> Self {
-        let mut l = Lot::new();
-        l.state = LotState::QrAddr;
-        l.id = match Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan).await {
-            Ok((id, _)) => id,
-            Err(err) => return err.into(),
-        };
-
-        l
+impl Qr {
+    pub async fn from_address(context: &Context, name: String, addr: String) -> Result<Self> {
+        let (contact_id, _) =
+            Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan).await?;
+        Ok(Qr::Addr { contact_id })
     }
 }
 
@@ -513,199 +554,235 @@ mod tests {
     use anyhow::Result;
 
     #[async_std::test]
-    async fn test_decode_http() {
+    async fn test_decode_http() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(&ctx.ctx, "http://www.hello.com").await;
+        let qr = check_qr(&ctx.ctx, "http://www.hello.com").await?;
+        assert_eq!(
+            qr,
+            Qr::Url {
+                url: "http://www.hello.com".to_string()
+            }
+        );
 
-        assert_eq!(res.get_state(), LotState::QrUrl);
-        assert_eq!(res.get_id(), 0);
-        assert_eq!(res.get_text1().unwrap(), "http://www.hello.com");
-        assert!(res.get_text2().is_none());
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_https() {
+    async fn test_decode_https() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(&ctx.ctx, "https://www.hello.com").await;
+        let qr = check_qr(&ctx.ctx, "https://www.hello.com").await?;
+        assert_eq!(
+            qr,
+            Qr::Url {
+                url: "https://www.hello.com".to_string()
+            }
+        );
 
-        assert_eq!(res.get_state(), LotState::QrUrl);
-        assert_eq!(res.get_id(), 0);
-        assert_eq!(res.get_text1().unwrap(), "https://www.hello.com");
-        assert!(res.get_text2().is_none());
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_text() {
+    async fn test_decode_text() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(&ctx.ctx, "I am so cool").await;
+        let qr = check_qr(&ctx.ctx, "I am so cool").await?;
+        assert_eq!(
+            qr,
+            Qr::Text {
+                text: "I am so cool".to_string()
+            }
+        );
 
-        assert_eq!(res.get_state(), LotState::QrText);
-        assert_eq!(res.get_id(), 0);
-        assert_eq!(res.get_text1().unwrap(), "I am so cool");
-        assert!(res.get_text2().is_none());
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_vcard() {
+    async fn test_decode_vcard() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD"
-        ).await;
+        ).await?;
 
-        println!("{:?}", res);
-        assert_eq!(res.get_state(), LotState::QrAddr);
-        assert_ne!(res.get_id(), 0);
+        if let Qr::Addr { contact_id } = qr {
+            let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
+            assert_eq!(contact.get_addr(), "stress@test.local");
+            assert_eq!(contact.get_name(), "First Last");
+            assert_eq!(contact.get_authname(), "");
+            assert_eq!(contact.get_display_name(), "First Last");
+        } else {
+            bail!("Wrong QR code type");
+        }
 
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
-        assert_eq!(contact.get_addr(), "stress@test.local");
-        assert_eq!(contact.get_name(), "First Last");
-        assert_eq!(contact.get_authname(), "");
-        assert_eq!(contact.get_display_name(), "First Last");
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_matmsg() {
+    async fn test_decode_matmsg() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "MATMSG:TO:\n\nstress@test.local ; \n\nSUB:\n\nSubject here\n\nBODY:\n\nhelloworld\n;;",
         )
-        .await;
+        .await?;
 
-        println!("{:?}", res);
-        assert_eq!(res.get_state(), LotState::QrAddr);
-        assert_ne!(res.get_id(), 0);
+        if let Qr::Addr { contact_id } = qr {
+            let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
+            assert_eq!(contact.get_addr(), "stress@test.local");
+        } else {
+            bail!("Wrong QR code type");
+        }
 
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
-        assert_eq!(contact.get_addr(), "stress@test.local");
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_mailto() {
+    async fn test_decode_mailto() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "mailto:stress@test.local?subject=hello&body=world",
         )
-        .await;
-        println!("{:?}", res);
-        assert_eq!(res.get_state(), LotState::QrAddr);
-        assert_ne!(res.get_id(), 0);
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
-        assert_eq!(contact.get_addr(), "stress@test.local");
+        .await?;
+        if let Qr::Addr { contact_id } = qr {
+            let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
+            assert_eq!(contact.get_addr(), "stress@test.local");
+        } else {
+            bail!("Wrong QR code type");
+        }
 
-        let res = check_qr(&ctx.ctx, "mailto:no-questionmark@example.org").await;
-        assert_eq!(res.get_state(), LotState::QrAddr);
-        assert_ne!(res.get_id(), 0);
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
-        assert_eq!(contact.get_addr(), "no-questionmark@example.org");
+        let res = check_qr(&ctx.ctx, "mailto:no-questionmark@example.org").await?;
+        if let Qr::Addr { contact_id } = res {
+            let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
+            assert_eq!(contact.get_addr(), "no-questionmark@example.org");
+        } else {
+            bail!("Wrong QR code type");
+        }
 
         let res = check_qr(&ctx.ctx, "mailto:no-addr").await;
-        assert_eq!(res.get_state(), LotState::QrError);
-        assert!(res.get_text1().is_some());
+        assert!(res.is_err());
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_smtp() {
+    async fn test_decode_smtp() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld").await;
+        if let Qr::Addr { contact_id } =
+            check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld").await?
+        {
+            let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
+            assert_eq!(contact.get_addr(), "stress@test.local");
+        } else {
+            bail!("Wrong QR code type");
+        }
 
-        println!("{:?}", res);
-        assert_eq!(res.get_state(), LotState::QrAddr);
-        assert_ne!(res.get_id(), 0);
-
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
-        assert_eq!(contact.get_addr(), "stress@test.local");
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_openpgp_group() {
+    async fn test_decode_openpgp_group() -> Result<()> {
         let ctx = TestContext::new().await;
-
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
-        ).await;
-
-        println!("{:?}", res);
-        assert_eq!(res.get_state(), LotState::QrAskVerifyGroup);
-        assert_ne!(res.get_id(), 0);
-        assert_eq!(res.get_text1().unwrap(), "test ? test !");
+        ).await?;
+        if let Qr::AskVerifyGroup {
+            contact_id,
+            grpname,
+            ..
+        } = qr
+        {
+            assert_ne!(contact_id, 0);
+            assert_eq!(grpname, "test ? test !");
+        } else {
+            bail!("Wrong QR code type");
+        }
 
         // Test it again with lowercased "openpgp4fpr:" uri scheme
         let ctx = TestContext::new().await;
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "openpgp4fpr:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
-        ).await;
+        ).await?;
+        if let Qr::AskVerifyGroup {
+            contact_id,
+            grpname,
+            ..
+        } = qr
+        {
+            assert_ne!(contact_id, 0);
+            assert_eq!(grpname, "test ? test !");
 
-        println!("{:?}", res);
-        assert_eq!(res.get_state(), LotState::QrAskVerifyGroup);
-        assert_ne!(res.get_id(), 0);
-        assert_eq!(res.get_text1().unwrap(), "test ? test !");
+            let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
+            assert_eq!(contact.get_addr(), "cli@deltachat.de");
+        } else {
+            bail!("Wrong QR code type");
+        }
 
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
-        assert_eq!(contact.get_addr(), "cli@deltachat.de");
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_openpgp_secure_join() {
+    async fn test_decode_openpgp_secure_join() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=J%C3%B6rn%20P.+P.&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
-        ).await;
+        ).await?;
 
-        println!("{:?}", res);
-        assert_eq!(res.get_state(), LotState::QrAskVerifyContact);
-        assert_ne!(res.get_id(), 0);
+        if let Qr::AskVerifyContact { contact_id, .. } = qr {
+            assert_ne!(contact_id, 0);
+        } else {
+            bail!("Wrong QR code type");
+        }
 
         // Test it again with lowercased "openpgp4fpr:" uri scheme
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "openpgp4fpr:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=J%C3%B6rn%20P.+P.&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
-        ).await;
+        ).await?;
 
-        println!("{:?}", res);
-        assert_eq!(res.get_state(), LotState::QrAskVerifyContact);
-        assert_ne!(res.get_id(), 0);
-
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
-        assert_eq!(contact.get_addr(), "cli@deltachat.de");
-        assert_eq!(contact.get_name(), "Jörn P. P.");
+        if let Qr::AskVerifyContact { contact_id, .. } = qr {
+            let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
+            assert_eq!(contact.get_addr(), "cli@deltachat.de");
+            assert_eq!(contact.get_name(), "Jörn P. P.");
+        } else {
+            bail!("Wrong QR code type");
+        }
 
         // Regression test
         let ctx = TestContext::new().await;
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "openpgp4fpr:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
-        ).await;
+        ).await?;
 
-        println!("{:?}", res);
-        assert_eq!(res.get_state(), LotState::QrAskVerifyContact);
-        assert_ne!(res.get_id(), 0);
+        if let Qr::AskVerifyContact { contact_id, .. } = qr {
+            let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
+            assert_eq!(contact.get_addr(), "cli@deltachat.de");
+            assert_eq!(contact.get_name(), "");
+        } else {
+            bail!("Wrong QR code type");
+        }
 
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
-        assert_eq!(contact.get_addr(), "cli@deltachat.de");
-        assert_eq!(contact.get_name(), "");
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_openpgp_fingerprint() {
+    async fn test_decode_openpgp_fingerprint() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let contact_id = Contact::create(&ctx, "Alice", "alice@example.com")
+        let alice_contact_id = Contact::create(&ctx, "Alice", "alice@example.com")
             .await
-            .expect("failed to create contact");
+            .context("failed to create contact")?;
         let pub_key = alice_keypair().public;
         let peerstate = Peerstate {
             addr: "alice@example.com".to_string(),
@@ -727,161 +804,199 @@ mod tests {
             "failed to save peerstate"
         );
 
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:1234567890123456789012345678901234567890#a=alice@example.com",
         )
-        .await;
-        assert_eq!(res.get_state(), LotState::QrFprMismatch);
-        assert_eq!(res.get_id(), contact_id);
+        .await?;
+        if let Qr::FprMismatch { contact_id, .. } = qr {
+            assert_eq!(contact_id, Some(alice_contact_id));
+        } else {
+            bail!("Wrong QR code type");
+        }
 
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             &format!("OPENPGP4FPR:{}#a=alice@example.com", pub_key.fingerprint()),
         )
-        .await;
-        assert_eq!(res.get_state(), LotState::QrFprOk);
-        assert_eq!(res.get_id(), contact_id);
+        .await?;
+        if let Qr::FprOk { contact_id, .. } = qr {
+            assert_eq!(contact_id, alice_contact_id);
+        } else {
+            bail!("Wrong QR code type");
+        }
 
-        let res = check_qr(
-            &ctx.ctx,
-            "OPENPGP4FPR:1234567890123456789012345678901234567890#a=bob@example.org",
-        )
-        .await;
-        assert_eq!(res.get_state(), LotState::QrFprMismatch);
-        assert_eq!(res.get_id(), 0);
+        assert_eq!(
+            check_qr(
+                &ctx.ctx,
+                "OPENPGP4FPR:1234567890123456789012345678901234567890#a=bob@example.org",
+            )
+            .await?,
+            Qr::FprMismatch { contact_id: None }
+        );
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_openpgp_without_addr() {
+    async fn test_decode_openpgp_without_addr() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:1234567890123456789012345678901234567890",
         )
-        .await;
-        assert_eq!(res.get_state(), LotState::QrFprWithoutAddr);
+        .await?;
         assert_eq!(
-            res.get_text1().unwrap(),
-            "1234 5678 9012 3456 7890\n1234 5678 9012 3456 7890"
+            qr,
+            Qr::FprWithoutAddr {
+                fingerprint: "1234 5678 9012 3456 7890\n1234 5678 9012 3456 7890".to_string()
+            }
         );
-        assert_eq!(res.get_id(), 0);
 
         // Test it again with lowercased "openpgp4fpr:" uri scheme
 
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "openpgp4fpr:1234567890123456789012345678901234567890",
         )
-        .await;
-        assert_eq!(res.get_state(), LotState::QrFprWithoutAddr);
+        .await?;
         assert_eq!(
-            res.get_text1().unwrap(),
-            "1234 5678 9012 3456 7890\n1234 5678 9012 3456 7890"
+            qr,
+            Qr::FprWithoutAddr {
+                fingerprint: "1234 5678 9012 3456 7890\n1234 5678 9012 3456 7890".to_string()
+            }
         );
-        assert_eq!(res.get_id(), 0);
 
         let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890").await;
-        assert_eq!(res.get_state(), LotState::QrError);
-        assert_eq!(res.get_id(), 0);
+        assert!(res.is_err());
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_withdraw_verfifycontact() -> Result<()> {
+    async fn test_withdraw_verifycontact() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        let qr = dc_get_securejoin_qr(&alice, None).await.unwrap();
+        let qr = dc_get_securejoin_qr(&alice, None).await?;
 
-        // scanning own verfify-contact code offers withdrawing
-        let check = check_qr(&alice, &qr).await;
-        assert_eq!(check.state, LotState::QrWithdrawVerifyContact);
-        assert!(check.text1.is_none());
+        // scanning own verify-contact code offers withdrawing
+        assert!(matches!(
+            check_qr(&alice, &qr).await?,
+            Qr::WithdrawVerifyContact { .. }
+        ));
         set_config_from_qr(&alice, &qr).await?;
 
-        // scanning withdrawn verfify-contact code offers reviving
-        let check = check_qr(&alice, &qr).await;
-        assert_eq!(check.state, LotState::QrReviveVerifyContact);
-        assert!(check.text1.is_none());
+        // scanning withdrawn verify-contact code offers reviving
+        assert!(matches!(
+            check_qr(&alice, &qr).await?,
+            Qr::ReviveVerifyContact { .. }
+        ));
         set_config_from_qr(&alice, &qr).await?;
-        let check = check_qr(&alice, &qr).await;
-        assert_eq!(check.state, LotState::QrWithdrawVerifyContact);
+        assert!(matches!(
+            check_qr(&alice, &qr).await?,
+            Qr::WithdrawVerifyContact { .. }
+        ));
 
         // someone else always scans as ask-verify-contact
         let bob = TestContext::new_bob().await;
-        let check = check_qr(&bob, &qr).await;
-        assert_eq!(check.state, LotState::QrAskVerifyContact);
-        assert!(check.text1.is_none());
+        assert!(matches!(
+            check_qr(&bob, &qr).await?,
+            Qr::AskVerifyContact { .. }
+        ));
         assert!(set_config_from_qr(&bob, &qr).await.is_err());
 
         Ok(())
     }
 
     #[async_std::test]
-    async fn test_withdraw_verfifygroup() -> Result<()> {
+    async fn test_withdraw_verifygroup() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
-        let qr = dc_get_securejoin_qr(&alice, Some(chat_id)).await.unwrap();
+        let qr = dc_get_securejoin_qr(&alice, Some(chat_id)).await?;
 
-        // scanning own verfify-group code offers withdrawing
-        let check = check_qr(&alice, &qr).await;
-        assert_eq!(check.state, LotState::QrWithdrawVerifyGroup);
-        assert_eq!(check.text1, Some("foo".to_string()));
+        // scanning own verify-group code offers withdrawing
+        if let Qr::WithdrawVerifyGroup { grpname, .. } = check_qr(&alice, &qr).await? {
+            assert_eq!(grpname, "foo");
+        } else {
+            bail!("Wrong QR type, expected WithdrawVerifyGroup");
+        }
         set_config_from_qr(&alice, &qr).await?;
 
-        // scanning withdrawn verfify-group code offers reviving
-        let check = check_qr(&alice, &qr).await;
-        assert_eq!(check.state, LotState::QrReviveVerifyGroup);
-        assert_eq!(check.text1, Some("foo".to_string()));
+        // scanning withdrawn verify-group code offers reviving
+        if let Qr::ReviveVerifyGroup { grpname, .. } = check_qr(&alice, &qr).await? {
+            assert_eq!(grpname, "foo");
+        } else {
+            bail!("Wrong QR type, expected ReviveVerifyGroup");
+        }
 
         // someone else always scans as ask-verify-group
         let bob = TestContext::new_bob().await;
-        let check = check_qr(&bob, &qr).await;
-        assert_eq!(check.state, LotState::QrAskVerifyGroup);
-        assert_eq!(check.text1, Some("foo".to_string()));
+        if let Qr::AskVerifyGroup { grpname, .. } = check_qr(&bob, &qr).await? {
+            assert_eq!(grpname, "foo");
+        } else {
+            bail!("Wrong QR type, expected AskVerifyGroup");
+        }
         assert!(set_config_from_qr(&bob, &qr).await.is_err());
 
         Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_account() {
+    async fn test_decode_account() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "DCACCOUNT:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
         )
-        .await;
-        assert_eq!(res.get_state(), LotState::QrAccount);
-        assert_eq!(res.get_text1().unwrap(), "example.org");
+        .await?;
+        assert_eq!(
+            qr,
+            Qr::Account {
+                domain: "example.org".to_string()
+            }
+        );
 
         // Test it again with lowercased "dcaccount:" uri scheme
-        let res = check_qr(
+        let qr = check_qr(
             &ctx.ctx,
             "dcaccount:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
         )
-        .await;
-        assert_eq!(res.get_state(), LotState::QrAccount);
-        assert_eq!(res.get_text1().unwrap(), "example.org");
+        .await?;
+        assert_eq!(
+            qr,
+            Qr::Account {
+                domain: "example.org".to_string()
+            }
+        );
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_decode_webrtc_instance() {
+    async fn test_decode_webrtc_instance() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let res = check_qr(&ctx.ctx, "DCWEBRTC:basicwebrtc:https://basicurl.com/$ROOM").await;
-        assert_eq!(res.get_state(), LotState::QrWebrtcInstance);
-        assert_eq!(res.get_text1().unwrap(), "basicurl.com");
+        let qr = check_qr(&ctx.ctx, "DCWEBRTC:basicwebrtc:https://basicurl.com/$ROOM").await?;
         assert_eq!(
-            res.get_text2().unwrap(),
-            "basicwebrtc:https://basicurl.com/$ROOM"
+            qr,
+            Qr::WebrtcInstance {
+                domain: "basicurl.com".to_string(),
+                instance_pattern: "basicwebrtc:https://basicurl.com/$ROOM".to_string()
+            }
         );
 
         // Test it again with mixcased "dcWebRTC:" uri scheme
-        let res = check_qr(&ctx.ctx, "dcWebRTC:https://example.org/").await;
-        assert_eq!(res.get_state(), LotState::QrWebrtcInstance);
-        assert_eq!(res.get_text1().unwrap(), "example.org");
-        assert_eq!(res.get_text2().unwrap(), "https://example.org/");
+        let qr = check_qr(&ctx.ctx, "dcWebRTC:https://example.org/").await?;
+        assert_eq!(
+            qr,
+            Qr::WebrtcInstance {
+                domain: "example.org".to_string(),
+                instance_pattern: "https://example.org/".to_string()
+            }
+        );
+
+        Ok(())
     }
 
     #[async_std::test]
@@ -892,8 +1007,7 @@ mod tests {
             "DCACCOUNT:ftp://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
         )
         .await;
-        assert_eq!(res.get_state(), LotState::QrError);
-        assert!(res.get_text1().is_some());
+        assert!(res.is_err());
 
         // Test it again with lowercased "dcaccount:" uri scheme
         let res = check_qr(
@@ -901,47 +1015,27 @@ mod tests {
             "dcaccount:ftp://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
         )
         .await;
-        assert_eq!(res.get_state(), LotState::QrError);
-        assert!(res.get_text1().is_some());
+        assert!(res.is_err());
     }
 
     #[async_std::test]
-    async fn test_set_config_from_qr() {
+    async fn test_set_config_from_qr() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        assert!(ctx
-            .ctx
-            .get_config(Config::WebrtcInstance)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(ctx.ctx.get_config(Config::WebrtcInstance).await?.is_none());
 
         let res = set_config_from_qr(&ctx.ctx, "badqr:https://example.org/").await;
-        assert!(!res.is_ok());
-        assert!(ctx
-            .ctx
-            .get_config(Config::WebrtcInstance)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(res.is_err());
+        assert!(ctx.ctx.get_config(Config::WebrtcInstance).await?.is_none());
 
         let res = set_config_from_qr(&ctx.ctx, "https://no.qr").await;
-        assert!(!res.is_ok());
-        assert!(ctx
-            .ctx
-            .get_config(Config::WebrtcInstance)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(res.is_err());
+        assert!(ctx.ctx.get_config(Config::WebrtcInstance).await?.is_none());
 
         let res = set_config_from_qr(&ctx.ctx, "dcwebrtc:https://example.org/").await;
         assert!(res.is_ok());
         assert_eq!(
-            ctx.ctx
-                .get_config(Config::WebrtcInstance)
-                .await
-                .unwrap()
-                .unwrap(),
+            ctx.ctx.get_config(Config::WebrtcInstance).await?.unwrap(),
             "https://example.org/"
         );
 
@@ -949,12 +1043,10 @@ mod tests {
             set_config_from_qr(&ctx.ctx, "DCWEBRTC:basicwebrtc:https://foo.bar/?$ROOM&test").await;
         assert!(res.is_ok());
         assert_eq!(
-            ctx.ctx
-                .get_config(Config::WebrtcInstance)
-                .await
-                .unwrap()
-                .unwrap(),
+            ctx.ctx.get_config(Config::WebrtcInstance).await?.unwrap(),
             "basicwebrtc:https://foo.bar/?$ROOM&test"
         );
+
+        Ok(())
     }
 }

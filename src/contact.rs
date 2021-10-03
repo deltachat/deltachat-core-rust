@@ -2,7 +2,7 @@
 
 use std::convert::{TryFrom, TryInto};
 
-use anyhow::{bail, ensure, format_err, Context as _, Result};
+use anyhow::{bail, ensure, Context as _, Result};
 use async_std::path::PathBuf;
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -1339,12 +1339,11 @@ fn cat_fingerprint(
 impl Context {
     /// determine whether the specified addr maps to the/a self addr
     pub async fn is_self_addr(&self, addr: &str) -> Result<bool> {
-        let self_addr = self
-            .get_config(Config::ConfiguredAddr)
-            .await?
-            .ok_or_else(|| format_err!("Not configured"))?;
-
-        Ok(addr_cmp(self_addr, addr))
+        if let Some(self_addr) = self.get_config(Config::ConfiguredAddr).await? {
+            Ok(addr_cmp(self_addr, addr))
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -1491,7 +1490,7 @@ mod tests {
     #[async_std::test]
     async fn test_is_self_addr() -> Result<()> {
         let t = TestContext::new().await;
-        assert!(t.is_self_addr("me@me.org").await.is_err());
+        assert_eq!(t.is_self_addr("me@me.org").await?, false);
 
         let addr = t.configure_alice().await;
         assert_eq!(t.is_self_addr("me@me.org").await?, false);
