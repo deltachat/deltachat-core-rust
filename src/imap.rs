@@ -89,7 +89,6 @@ pub struct Imap {
     idle_interrupt: Receiver<InterruptInfo>,
     config: ImapConfig,
     session: Option<Session>,
-    interrupt: Option<stop_token::StopSource>,
     should_reconnect: bool,
     login_failed_once: bool,
 
@@ -200,7 +199,6 @@ impl Imap {
             idle_interrupt,
             config,
             session: None,
-            interrupt: None,
             should_reconnect: false,
             login_failed_once: false,
             connectivity: Default::default(),
