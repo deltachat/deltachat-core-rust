@@ -1084,7 +1084,7 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
                     "{} thread increases job {} tries to {}", &connection, job, tries
                 );
                 job.tries = tries;
-                let time_offset = get_backoff_time_offset(tries);
+                let time_offset = get_backoff_time_offset(tries, job.action);
                 job.desired_timestamp = time() + time_offset;
                 info!(
                     context,
@@ -1170,15 +1170,24 @@ async fn perform_job_action(
     try_res
 }
 
-fn get_backoff_time_offset(tries: u32) -> i64 {
-    let n = 2_i32.pow(tries - 1) * 60;
-    let mut rng = thread_rng();
-    let r: i32 = rng.gen();
-    let mut seconds = r % (n + 1);
-    if seconds < 1 {
-        seconds = 1;
+fn get_backoff_time_offset(tries: u32, action: Action) -> i64 {
+    match action {
+        // Just try every 10s to update the quota
+        // If all retries are exhausted, a new job will be created when the quota information is needed
+        Action::UpdateRecentQuota => 10,
+
+        _ => {
+            // Exponential backoff
+            let n = 2_i32.pow(tries - 1) * 60;
+            let mut rng = thread_rng();
+            let r: i32 = rng.gen();
+            let mut seconds = r % (n + 1);
+            if seconds < 1 {
+                seconds = 1;
+            }
+            seconds as i64
+        }
     }
-    seconds as i64
 }
 
 async fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
