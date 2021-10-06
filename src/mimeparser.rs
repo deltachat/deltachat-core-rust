@@ -287,7 +287,6 @@ impl MimeMessage {
             footer: None,
             is_mime_modified: false,
             decoded_data: Vec::new(),
-
             hop_info: parse_receive_headers(&mail.get_headers()),
         };
 

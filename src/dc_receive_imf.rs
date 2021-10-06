@@ -1076,7 +1076,7 @@ INSERT INTO msgs
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
-    ?, ?
+    ?, ?, ?
   );
 "#,
         )?;
@@ -1156,19 +1156,12 @@ INSERT INTO msgs
             part.error.take().unwrap_or_default(),
             ephemeral_timer,
             ephemeral_timestamp,
-<<<<<<< HEAD
-<<<<<<< HEAD
             if is_partial_download.is_some() {
                 DownloadState::Available
             } else {
                 DownloadState::Done
             },
-=======
             mime_parser.hop_info
->>>>>>> 4fa0edcf (add hop info)
-=======
-            mime_parser.hop_info
->>>>>>> 3f8878fe7a756257dc6170712bc034d5b411ec3d
         ])?;
         let row_id = conn.last_insert_rowid();
 
