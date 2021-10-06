@@ -477,11 +477,7 @@ paramsv![]
         sql.execute_migration("UPDATE chats SET archived=1 WHERE blocked=2;", 78)
             .await?;
     }
-    if dbversion < 79 {
-        info!(context, "[migration] v79");
-        sql.execute_migration("ALTER TABLE msgs ADD COLUMN hop_info TEXT DEFAULT '';", 79)
-            .await?;
-    }
+    
     if dbversion < 79 {
         info!(context, "[migration] v79");
         sql.execute_migration(
@@ -492,7 +488,11 @@ paramsv![]
         )
         .await?;
     }
-
+    if dbversion < 80 {
+        info!(context, "[migration] v80");
+        sql.execute_migration("ALTER TABLE msgs ADD COLUMN hop_info TEXT DEFAULT '';", 80)
+            .await?;
+    }
     Ok((
         recalc_fingerprints,
         update_icons,
