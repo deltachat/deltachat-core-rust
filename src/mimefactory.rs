@@ -2,7 +2,7 @@
 
 use std::convert::TryInto;
 
-use anyhow::{bail, ensure, format_err, Result};
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 
@@ -154,6 +154,12 @@ impl<'a> MimeFactory<'a> {
 
         if chat.is_self_talk() {
             recipients.push((from_displayname.to_string(), from_addr.to_string()));
+        } else if chat.is_mailing_list() {
+            let list_post = chat
+                .param
+                .get(Param::ListPost)
+                .context("Can't write to mailinglist without ListPost param")?;
+            recipients.push(("".to_string(), list_post.to_string()));
         } else {
             context
                 .sql

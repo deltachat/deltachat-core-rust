@@ -159,6 +159,11 @@ pub enum Param {
 
     /// For Chats: timestamp of protection settings update.
     ProtectionSettingsTimestamp = b'L',
+
+    /// For Chats: If this is a mailing list chat, contains the email address
+    /// the user can write to in order to post something to the mailing list.
+    /// If it's empty, the mailing list is read-only.
+    ListPost = b'p',
 }
 
 /// An object for handling key=value parameter lists.

@@ -47,6 +47,7 @@ pub struct MimeMessage {
     /// Addresses are normalized and lowercased:
     pub recipients: Vec<SingleInfo>,
     pub from: Vec<SingleInfo>,
+    pub list_post: Option<String>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decrypting_failed: bool,
 
@@ -170,6 +171,7 @@ impl MimeMessage {
         let mut headers = Default::default();
         let mut recipients = Default::default();
         let mut from = Default::default();
+        let mut list_post = Default::default();
         let mut chat_disposition_notification_to = None;
 
         // Parse IMF headers.
@@ -178,6 +180,7 @@ impl MimeMessage {
             &mut headers,
             &mut recipients,
             &mut from,
+            &mut list_post,
             &mut chat_disposition_notification_to,
             &mail.headers,
         );
@@ -251,6 +254,7 @@ impl MimeMessage {
                             &mut headers,
                             &mut recipients,
                             &mut throwaway_from,
+                            &mut list_post,
                             &mut chat_disposition_notification_to,
                             &decrypted_mail.headers,
                         );
@@ -278,6 +282,7 @@ impl MimeMessage {
             parts: Vec::new(),
             header: headers,
             recipients,
+            list_post,
             from,
             chat_disposition_notification_to,
             decrypting_failed: false,
@@ -1116,6 +1121,7 @@ impl MimeMessage {
         headers: &mut HashMap<String, String>,
         recipients: &mut Vec<SingleInfo>,
         from: &mut Vec<SingleInfo>,
+        list_post: &mut Option<String>,
         chat_disposition_notification_to: &mut Option<SingleInfo>,
         fields: &[mailparse::MailHeader<'_>],
     ) {
@@ -1145,6 +1151,10 @@ impl MimeMessage {
         let from_new = get_from(fields);
         if !from_new.is_empty() {
             *from = from_new;
+        }
+        let list_post_new = get_list_post(fields);
+        if list_post_new.is_some() {
+            *list_post = list_post_new;
         }
     }
 
@@ -1632,6 +1642,14 @@ pub(crate) fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
 /// Returned addresses are normalized and lowercased.
 pub(crate) fn get_from(headers: &[MailHeader]) -> Vec<SingleInfo> {
     get_all_addresses_from_header(headers, |header_key| header_key == "from")
+}
+
+/// Returned addresses are normalized and lowercased.
+pub(crate) fn get_list_post(headers: &[MailHeader]) -> Option<String> {
+    get_all_addresses_from_header(headers, |header_key| header_key == "list-post")
+        .into_iter()
+        .next()
+        .map(|s| s.addr)
 }
 
 fn get_all_addresses_from_header<F>(headers: &[MailHeader], pred: F) -> Vec<SingleInfo>

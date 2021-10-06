@@ -1467,6 +1467,7 @@ async fn create_or_lookup_group(
             grpname,
             create_blocked,
             create_protected,
+            None,
         )
         .await
         .with_context(|| format!("Failed to create group '{}' for grpid={}", grpname, grpid))?;
@@ -1754,6 +1755,19 @@ async fn create_or_lookup_mailinglist(
     };
 
     if let Some((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await? {
+        if let Some(list_post) = &mime_parser.list_post {
+            let mut chat = Chat::load_from_db(context, chat_id).await?;
+
+            if let Some(old_list_post) = chat.param.get(Param::ListPost) {
+                if list_post != old_list_post {
+                    // Apparently the mailing list is using a different List-Post header in each message.
+                    // Make the mailing list read-only because we would't know which message the user wants to reply to.
+                    chat.param.remove(Param::ListPost);
+                    chat.update_param(context).await?;
+                }
+            }
+        }
+
         return Ok(Some((chat_id, blocked)));
     }
 
@@ -1813,6 +1827,12 @@ async fn create_or_lookup_mailinglist(
 
     if allow_creation {
         // list does not exist but should be created
+        let param = mime_parser.list_post.as_ref().map(|list_post| {
+            let mut p = Params::new();
+            p.set(Param::ListPost, list_post);
+            p.to_string()
+        });
+
         let chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Mailinglist,
@@ -1820,6 +1840,7 @@ async fn create_or_lookup_mailinglist(
             &name,
             Blocked::Request,
             ProtectionStatus::Unprotected,
+            param,
         )
         .await
         .map_err(|err| {
@@ -1920,6 +1941,7 @@ async fn create_adhoc_group(
         &grpname,
         create_blocked,
         ProtectionStatus::Unprotected,
+        None,
     )
     .await?;
     for &member_id in member_ids.iter() {
@@ -3046,6 +3068,7 @@ mod tests {
     Subject: Re: [delta-dev] What's up?\n\
     Message-ID: <38942@posteo.org>\n\
     List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
+    List-Post: <mailto:delta@codespeak.net>\n\
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
@@ -3057,13 +3080,14 @@ mod tests {
     Subject: Re: [delta-dev] DC is nice!\n\
     Message-ID: <38943@posteo.org>\n\
     List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
+    List-Post: <mailto:delta@codespeak.net>\n\
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
     body 4\n";
 
     #[async_std::test]
-    async fn test_classic_mailing_list() {
+    async fn test_classic_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
@@ -3077,10 +3101,34 @@ mod tests {
         chat_id.accept(&t).await.unwrap();
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert_eq!(chat.name, "delta-dev");
+        assert!(chat.can_send(&t).await.unwrap());
 
         let msg = get_chat_msg(&t, chat_id, 0, 1).await;
         let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
         assert_eq!(contact1.get_addr(), "bob@posteo.org");
+
+        let sent = t.send_text(chat.id, "Hello mailinglist!").await;
+        let mime = sent.payload();
+
+        println!("Sent mime message is:\n\n{}\n\n", mime);
+        assert!(
+            mime.contains("Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no\r\n")
+        );
+        assert!(mime.contains("Subject: =?utf-8?q?Re=3A_=5Bdelta-dev=5D_What=27s_up=3F?=\r\n"));
+        assert!(mime.contains("MIME-Version: 1.0\r\n"));
+        assert!(mime.contains("In-Reply-To: <38942@posteo.org>\r\n"));
+        assert!(mime.contains("Chat-Version: 1.0\r\n"));
+        assert!(mime.contains("To: <delta@codespeak.net>\r\n"));
+        assert!(mime.contains("From: <alice@example.com>\r\n"));
+        assert!(mime.contains(
+            "\r\n\
+\r\n\
+Hello mailinglist!\r\n\
+\r\n\
+-- \r\n\
+Sent with my Delta Chat Messenger: https://delta.chat\r\n"
+        ));
+        Ok(())
     }
 
     #[async_std::test]
