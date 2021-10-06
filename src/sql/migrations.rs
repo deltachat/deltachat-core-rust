@@ -477,7 +477,7 @@ paramsv![]
         sql.execute_migration("UPDATE chats SET archived=1 WHERE blocked=2;", 78)
             .await?;
     }
-    
+
     if dbversion < 79 {
         info!(context, "[migration] v79");
         sql.execute_migration(
