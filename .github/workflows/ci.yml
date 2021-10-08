@@ -76,14 +76,13 @@ jobs:
             rust: 1.54.0
             python: false # Python bindings compilation on Windows is not supported.
 
-          # Minimum Supported Rust Version = 1.48.0
-          # This is the Debian "bullseye" release version of Rust.
+          # Minimum Supported Rust Version = 1.51.0
           #
           # Minimum Supported Python Version = 3.7
           # This is the minimum version for which manylinux Python wheels are
           # built.
           - os: ubuntu-latest
-            rust: 1.48.0
+            rust: 1.51.0
             python: 3.7
     runs-on: ${{ matrix.os }}
     steps:
