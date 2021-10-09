@@ -30,7 +30,7 @@ use crate::mimeparser::{parse_message_id, FailureReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
 use crate::stock_str;
-use crate::summary::{get_summarytext_by_raw, Summary};
+use crate::summary::Summary;
 
 /// Message ID, including reserved IDs.
 ///
@@ -592,7 +592,7 @@ impl Message {
     }
 
     /// Returns message summary for display in the search results.
-    pub async fn get_summary(&mut self, context: &Context, chat: Option<&Chat>) -> Result<Summary> {
+    pub async fn get_summary(&self, context: &Context, chat: Option<&Chat>) -> Result<Summary> {
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
@@ -614,18 +614,6 @@ impl Message {
         };
 
         Ok(Summary::new(context, self, chat, contact.as_ref()).await)
-    }
-
-    pub async fn get_summarytext(&self, context: &Context, approx_characters: usize) -> String {
-        get_summarytext_by_raw(
-            self.viewtype,
-            self.text.as_ref(),
-            self.is_forwarded(),
-            &self.param,
-            approx_characters,
-            context,
-        )
-        .await
     }
 
     // It's a little unfortunate that the UI has to first call dc_msg_get_override_sender_name() and then if it was NULL, call
@@ -871,7 +859,11 @@ impl Message {
             Param::Quote,
             if text.is_empty() {
                 // Use summary, similar to "Image" to avoid sending empty quote.
-                quote.get_summarytext(context, 500).await
+                quote
+                    .get_summary(context, None)
+                    .await?
+                    .truncated_text(500)
+                    .to_string()
             } else {
                 text
             },

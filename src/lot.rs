@@ -162,6 +162,7 @@ impl From<MessageState> for LotState {
 
 impl From<Summary> for Lot {
     fn from(summary: Summary) -> Self {
+        let text2 = Some(summary.truncated_text(160).to_string());
         let (text1, text1_meaning) = match summary.prefix {
             None => (None, Meaning::None),
             Some(SummaryPrefix::Draft(text)) => (Some(text), Meaning::Text1Draft),
@@ -171,7 +172,7 @@ impl From<Summary> for Lot {
         Self {
             text1_meaning,
             text1,
-            text2: Some(summary.text),
+            text2,
             timestamp: summary.timestamp,
             state: summary.state.into(),
             ..Default::default()
