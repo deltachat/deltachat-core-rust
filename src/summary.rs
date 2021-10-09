@@ -10,6 +10,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::stock_str;
 use itertools::Itertools;
+use std::borrow::Cow;
 use std::fmt;
 
 // In practice, the user additionally cuts the string themselves
@@ -106,10 +107,21 @@ impl Summary {
             state: msg.state,
         }
     }
+
+    /// Returns the [`Summary::text`] attribute truncated to an approximate length.
+    pub fn truncated_text(&self, approx_chars: usize) -> Cow<str> {
+        if approx_chars >= SUMMARY_CHARACTERS {
+            // This is a micro-optimisation, without it dc_truncate() would have to count
+            // the chars in the text.
+            Cow::Borrowed(&self.text)
+        } else {
+            dc_truncate(&self.text, approx_chars)
+        }
+    }
 }
 
 /// Returns a summary text.
-pub async fn get_summarytext_by_raw(
+async fn get_summarytext_by_raw(
     viewtype: Viewtype,
     text: Option<impl AsRef<str>>,
     was_forwarded: bool,

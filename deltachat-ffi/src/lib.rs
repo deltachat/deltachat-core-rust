@@ -14,8 +14,9 @@ extern crate human_panic;
 extern crate num_traits;
 extern crate serde_json;
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::convert::TryInto;
+use std::convert::TryFrom;
 use std::fmt::Write;
 use std::ops::Deref;
 use std::ptr;
@@ -3065,11 +3066,11 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
     let ffi_msg = &mut *msg;
     let ctx = &*ffi_msg.context;
 
-    block_on({
-        ffi_msg
-            .message
-            .get_summarytext(ctx, approx_characters.try_into().unwrap_or_default())
-    })
+    let summary = block_on(ffi_msg.message.get_summary(ctx, None)).unwrap_or_default();
+    match usize::try_from(approx_characters) {
+        Ok(chars) => summary.truncated_text(chars),
+        Err(_) => Cow::Owned(summary.text),
+    }
     .strdup()
 }
 

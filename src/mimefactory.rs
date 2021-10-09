@@ -12,10 +12,9 @@ use crate::config::Config;
 use crate::constants::{Chattype, Viewtype, DC_FROM_HANDSHAKE};
 use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
-use crate::dc_tools::IsNoneOrEmpty;
 use crate::dc_tools::{
     dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp, dc_get_filebytes,
-    remove_subject_prefix, time,
+    remove_subject_prefix, time, IsNoneOrEmpty,
 };
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
@@ -1157,7 +1156,12 @@ impl<'a> MimeFactory<'a> {
         {
             stock_str::encrypted_msg(context).await
         } else {
-            self.msg.get_summarytext(context, 32).await
+            self.msg
+                .get_summary(context, None)
+                .await
+                .unwrap_or_default()
+                .truncated_text(32)
+                .into_owned()
         };
         let p2 = stock_str::read_rcpt_mail_body(context, p1).await;
         let message_text = format!("{}\r\n", format_flowed(&p2));
