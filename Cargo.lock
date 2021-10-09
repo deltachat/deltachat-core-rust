@@ -226,7 +226,7 @@ dependencies = [
  "nom 6.1.2",
  "ouroboros",
  "pin-utils",
- "stop-token",
+ "stop-token 0.2.0",
  "thiserror",
 ]
 
@@ -1131,7 +1131,7 @@ dependencies = [
  "sha-1",
  "sha2",
  "smallvec",
- "stop-token",
+ "stop-token 0.4.0",
  "strum",
  "strum_macros",
  "surf",
@@ -3587,6 +3587,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d5e0f9b25bdd9bf18e33d1f4dd0194c77034b66b4a4842b0bf7f5cf53ca733a"
 dependencies = [
  "async-std",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "stop-token"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c80d4c487de9d9c5acca69b90aee5ed6c4d208faa6364105b72ece3c881cf9f3"
+dependencies = [
+ "async-channel",
+ "futures-core",
  "pin-project-lite",
 ]
 
