@@ -1157,7 +1157,11 @@ impl<'a> MimeFactory<'a> {
         {
             stock_str::encrypted_msg(context).await
         } else {
-            self.msg.get_summarytext(context, 32).await
+            self.msg
+                .get_summary(context, None)
+                .await?
+                .truncated_text(32)
+                .to_string()
         };
         let p2 = stock_str::read_rcpt_mail_body(context, p1).await;
         let message_text = format!("{}\r\n", format_flowed(&p2));

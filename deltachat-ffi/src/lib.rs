@@ -15,7 +15,7 @@ extern crate num_traits;
 extern crate serde_json;
 
 use std::collections::BTreeMap;
-use std::convert::TryInto;
+use std::convert::TryFrom;
 use std::fmt::Write;
 use std::ops::Deref;
 use std::ptr;
@@ -3047,7 +3047,7 @@ pub unsafe extern "C" fn dc_msg_get_summary(
     let ffi_msg = &mut *msg;
     let ctx = &*ffi_msg.context;
 
-    let summary = block_on(async move { ffi_msg.message.get_summary(ctx, maybe_chat).await })
+    let summary = block_on(ffi_msg.message.get_summary(ctx, maybe_chat))
         .log_err(ctx, "dc_msg_get_summary failed")
         .unwrap_or_default();
     Box::into_raw(Box::new(summary.into()))
@@ -3065,12 +3065,13 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
     let ffi_msg = &mut *msg;
     let ctx = &*ffi_msg.context;
 
-    block_on({
-        ffi_msg
-            .message
-            .get_summarytext(ctx, approx_characters.try_into().unwrap_or_default())
-    })
-    .strdup()
+    let summary = block_on(ffi_msg.message.get_summary(ctx, None))
+        .log_err(ctx, "dc_msg_get_summarytext failed")
+        .unwrap_or_default();
+    match usize::try_from(approx_characters) {
+        Ok(chars) => summary.truncated_text(chars).strdup(),
+        Err(_) => summary.text.strdup(),
+    }
 }
 
 #[no_mangle]
