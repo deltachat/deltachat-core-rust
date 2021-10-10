@@ -437,6 +437,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::Warning(_)
         | EventType::Error(_)
         | EventType::ConnectivityChanged
+        | EventType::SelfavatarChanged
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
@@ -487,6 +488,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ImexFileWritten(_)
         | EventType::MsgsNoticed(_)
         | EventType::ConnectivityChanged
+        | EventType::SelfavatarChanged
         | EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
@@ -536,6 +538,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SecurejoinInviterProgress { .. }
         | EventType::SecurejoinJoinerProgress { .. }
         | EventType::ConnectivityChanged
+        | EventType::SelfavatarChanged
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {
