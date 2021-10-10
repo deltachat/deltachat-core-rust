@@ -397,7 +397,7 @@ impl ChatId {
         context.emit_event(EventType::ChatModified(self));
 
         // make sure, the receivers will get all keys
-        reset_gossiped_timestamp(context, self).await?;
+        self.reset_gossiped_timestamp(context).await?;
 
         Ok(())
     }
@@ -857,6 +857,48 @@ impl ChatId {
     pub fn to_u32(self) -> u32 {
         self.0
     }
+
+    pub(crate) async fn reset_gossiped_timestamp(self, context: &Context) -> Result<()> {
+        self.set_gossiped_timestamp(context, 0).await
+    }
+
+    /// Get timestamp of the last gossip sent in the chat.
+    /// Zero return value means that gossip was never sent.
+    pub async fn get_gossiped_timestamp(self, context: &Context) -> Result<i64> {
+        let timestamp: Option<i64> = context
+            .sql
+            .query_get_value(
+                "SELECT gossiped_timestamp FROM chats WHERE id=?;",
+                paramsv![self],
+            )
+            .await?;
+        Ok(timestamp.unwrap_or_default())
+    }
+
+    pub(crate) async fn set_gossiped_timestamp(
+        self,
+        context: &Context,
+        timestamp: i64,
+    ) -> Result<()> {
+        ensure!(
+            !self.is_special(),
+            "can not set gossiped timestamp for special chats"
+        );
+        info!(
+            context,
+            "set gossiped_timestamp for chat {} to {}.", self, timestamp,
+        );
+
+        context
+            .sql
+            .execute(
+                "UPDATE chats SET gossiped_timestamp=? WHERE id=?;",
+                paramsv![timestamp, self],
+            )
+            .await?;
+
+        Ok(())
+    }
 }
 
 impl std::fmt::Display for ChatId {
@@ -1057,10 +1099,6 @@ impl Chat {
         Ok(None)
     }
 
-    pub async fn get_gossiped_timestamp(&self, context: &Context) -> Result<i64> {
-        get_gossiped_timestamp(context, self.id).await
-    }
-
     pub async fn get_color(&self, context: &Context) -> Result<u32> {
         let mut color = 0;
 
@@ -1093,7 +1131,7 @@ impl Chat {
             name: self.name.clone(),
             archived: self.visibility == ChatVisibility::Archived,
             param: self.param.to_string(),
-            gossiped_timestamp: self.get_gossiped_timestamp(context).await?,
+            gossiped_timestamp: self.id.get_gossiped_timestamp(context).await?,
             is_sending_locations: self.is_sending_locations,
             color: self.get_color(context).await?,
             profile_image: self
@@ -2371,7 +2409,7 @@ pub(crate) async fn add_contact_to_chat_ex(
     let contact = Contact::get_by_id(context, contact_id).await?;
     let mut msg = Message::default();
 
-    reset_gossiped_timestamp(context, chat_id).await?;
+    chat_id.reset_gossiped_timestamp(context).await?;
 
     /*this also makes sure, not contacts are added to special or normal chats*/
     let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -2451,45 +2489,6 @@ pub(crate) async fn add_contact_to_chat_ex(
     }
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(true)
-}
-
-pub(crate) async fn reset_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<()> {
-    set_gossiped_timestamp(context, chat_id, 0).await
-}
-
-/// Get timestamp of the last gossip sent in the chat.
-/// Zero return value means that gossip was never sent.
-pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<i64> {
-    let timestamp: Option<i64> = context
-        .sql
-        .query_get_value(
-            "SELECT gossiped_timestamp FROM chats WHERE id=?;",
-            paramsv![chat_id],
-        )
-        .await?;
-    Ok(timestamp.unwrap_or_default())
-}
-
-pub(crate) async fn set_gossiped_timestamp(
-    context: &Context,
-    chat_id: ChatId,
-    timestamp: i64,
-) -> Result<()> {
-    ensure!(!chat_id.is_special(), "can not add member to special chats");
-    info!(
-        context,
-        "set gossiped_timestamp for chat #{} to {}.", chat_id, timestamp,
-    );
-
-    context
-        .sql
-        .execute(
-            "UPDATE chats SET gossiped_timestamp=? WHERE id=?;",
-            paramsv![timestamp, chat_id],
-        )
-        .await?;
-
-    Ok(())
 }
 
 pub(crate) async fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<bool> {

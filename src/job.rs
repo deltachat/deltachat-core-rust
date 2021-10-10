@@ -991,7 +991,7 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
     }
 
     if rendered_msg.is_gossiped {
-        chat::set_gossiped_timestamp(context, msg.chat_id, time()).await?;
+        msg.chat_id.set_gossiped_timestamp(context, time()).await?;
     }
 
     if 0 != rendered_msg.last_added_location_id {

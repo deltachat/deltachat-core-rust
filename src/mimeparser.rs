@@ -57,7 +57,9 @@ pub struct MimeMessage {
     /// this set is empty.
     pub signatures: HashSet<Fingerprint>,
 
-    pub gossipped_addr: HashSet<String>,
+    /// The set of mail recipient addresses for which gossip headers were applied, regardless of
+    /// whether they modified any peerstates.
+    pub gossiped_addr: HashSet<String>,
     pub is_forwarded: bool,
     pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
@@ -198,7 +200,7 @@ impl MimeMessage {
 
         // Memory location for a possible decrypted message.
         let mut mail_raw = Vec::new();
-        let mut gossipped_addr = Default::default();
+        let mut gossiped_addr = Default::default();
 
         let (mail, signatures, warn_empty_signature) =
             match e2ee::try_decrypt(context, &mail, message_time).await {
@@ -221,7 +223,7 @@ impl MimeMessage {
                         if !signatures.is_empty() {
                             let gossip_headers =
                                 decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
-                            gossipped_addr = update_gossip_peerstates(
+                            gossiped_addr = update_gossip_peerstates(
                                 context,
                                 message_time,
                                 &mail,
@@ -279,7 +281,7 @@ impl MimeMessage {
 
             // only non-empty if it was a valid autocrypt message
             signatures,
-            gossipped_addr,
+            gossiped_addr,
             is_forwarded: false,
             mdn_reports: Vec::new(),
             is_system_message: SystemMessage::Unknown,
@@ -1380,6 +1382,9 @@ impl MimeMessage {
     }
 }
 
+/// Parses `Autocrypt-Gossip` headers from the email and applies them to peerstates.
+///
+/// Returns the set of mail recipient addresses for which valid gossip headers were found.
 async fn update_gossip_peerstates(
     context: &Context,
     message_time: i64,
@@ -1387,42 +1392,46 @@ async fn update_gossip_peerstates(
     gossip_headers: Vec<String>,
 ) -> Result<HashSet<String>> {
     // XXX split the parsing from the modification part
-    let mut gossipped_addr: HashSet<String> = Default::default();
+    let mut gossiped_addr: HashSet<String> = Default::default();
 
     for value in &gossip_headers {
-        let gossip_header = value.parse::<Aheader>();
-
-        if let Ok(ref header) = gossip_header {
-            if get_recipients(&mail.headers)
-                .iter()
-                .any(|info| info.addr == header.addr.to_lowercase())
-            {
-                let mut peerstate = Peerstate::from_addr(context, &header.addr).await?;
-                if let Some(ref mut peerstate) = peerstate {
-                    peerstate.apply_gossip(header, message_time);
-                    peerstate.save_to_db(&context.sql, false).await?;
-                } else {
-                    let p = Peerstate::from_gossip(header, message_time);
-                    p.save_to_db(&context.sql, true).await?;
-                    peerstate = Some(p);
-                }
-                if let Some(peerstate) = peerstate {
-                    peerstate
-                        .handle_fingerprint_change(context, message_time)
-                        .await?;
-                }
-
-                gossipped_addr.insert(header.addr.clone());
-            } else {
-                warn!(
-                    context,
-                    "Ignoring gossipped \"{}\" as the address is not in To/Cc list.", &header.addr,
-                );
+        let header = match value.parse::<Aheader>() {
+            Ok(header) => header,
+            Err(err) => {
+                warn!(context, "Failed parsing Autocrypt-Gossip header: {}", err);
+                continue;
             }
+        };
+
+        if !get_recipients(&mail.headers)
+            .iter()
+            .any(|info| info.addr == header.addr.to_lowercase())
+        {
+            warn!(
+                context,
+                "Ignoring gossiped \"{}\" as the address is not in To/Cc list.", &header.addr,
+            );
+            continue;
         }
+
+        let peerstate;
+        if let Some(mut p) = Peerstate::from_addr(context, &header.addr).await? {
+            p.apply_gossip(&header, message_time);
+            p.save_to_db(&context.sql, false).await?;
+            peerstate = p;
+        } else {
+            let p = Peerstate::from_gossip(&header, message_time);
+            p.save_to_db(&context.sql, true).await?;
+            peerstate = p;
+        };
+        peerstate
+            .handle_fingerprint_change(context, message_time)
+            .await?;
+
+        gossiped_addr.insert(header.addr.clone());
     }
 
-    Ok(gossipped_addr)
+    Ok(gossiped_addr)
 }
 
 #[derive(Debug)]
