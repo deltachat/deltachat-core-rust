@@ -591,15 +591,6 @@ impl EvTracker {
         }
     }
 
-    pub fn ensure_event_not_queued<F: Fn(EventType) -> bool>(&self, event_matcher: F) {
-        loop {
-            match self.try_recv() {
-                Ok(e) => assert!(!event_matcher(e)),
-                Err(_) => return,
-            }
-        }
-    }
-
     pub async fn get_matching<F: Fn(EventType) -> bool>(&self, event_matcher: F) -> EventType {
         const TIMEOUT: Duration = Duration::from_secs(20);
 
