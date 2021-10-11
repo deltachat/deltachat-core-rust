@@ -621,7 +621,10 @@ mod tests {
 
     use super::*;
 
-    use crate::{message::Message, test_utils::TestContext};
+    use crate::{
+        message::Message,
+        test_utils::{self, TestContext},
+    };
     use image::Pixel;
 
     #[async_std::test]
@@ -870,11 +873,10 @@ mod tests {
     async fn test_selfavatar_in_blobdir() {
         let t = TestContext::new().await;
         let avatar_src = t.get_blobdir().join("avatar.png");
-        let avatar_bytes = include_bytes!("../test-data/image/avatar900x900.png");
         File::create(&avatar_src)
             .await
             .unwrap()
-            .write_all(avatar_bytes)
+            .write_all(test_utils::AVATAR_900x900_BYTES)
             .await
             .unwrap();
 

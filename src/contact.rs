@@ -1372,11 +1372,14 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
 
 #[cfg(test)]
 mod tests {
+    use async_std::fs::File;
+    use async_std::io::WriteExt;
+
     use super::*;
 
     use crate::chat::send_text_msg;
     use crate::message::Message;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{self, TestContext};
 
     #[test]
     fn test_may_be_valid_addr() {
@@ -1969,6 +1972,87 @@ CCCB 5AA9 F6E1 141C 9431
             alice2.get_config(Config::Selfstatus).await?,
             Some("New status".to_string())
         );
+
+        Ok(())
+    }
+
+    /// Tests that DC_EVENT_SELFAVATAR_CHANGED is emitted on avatar changes.
+    #[async_std::test]
+    async fn test_selfavatar_changed_event() -> Result<()> {
+        // Alice has two devices.
+        let alice1 = TestContext::new_alice().await;
+        let alice2 = TestContext::new_alice().await;
+
+        // Bob has one device.
+        let bob = TestContext::new_bob().await;
+
+        assert_eq!(alice1.get_config(Config::Selfavatar).await?, None);
+
+        let avatar_src = alice1.get_blobdir().join("avatar.png");
+        File::create(&avatar_src)
+            .await?
+            .write_all(test_utils::AVATAR_900x900_BYTES)
+            .await?;
+
+        alice1
+            .set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
+            .await?;
+
+        alice1
+            .evtracker
+            .get_matching(|e| e == EventType::SelfavatarChanged)
+            .await;
+
+        // let chat = alice1
+        //     .create_chat_with_contact("Bob", "bob@example.net")
+        //     .await;
+
+        // // Alice sends a message to Bob from the first device.
+        // send_text_msg(&alice1, chat.id, "Hello".to_string()).await?;
+        // let sent_msg = alice1.pop_sent_msg().await;
+
+        // // Message is not encrypted.
+        // let message = Message::load_from_db(&alice1, sent_msg.sender_msg_id).await?;
+        // assert!(!message.get_showpadlock());
+
+        // // Alice's second devices receives a copy of outgoing message.
+        // alice2.recv_msg(&sent_msg).await;
+
+        // // Bob receives message.
+        // bob.recv_msg(&sent_msg).await;
+
+        // // Message was not encrypted, so status is not copied.
+        // assert_eq!(alice2.get_config(Config::Selfavatar).await?, None);
+        // alice2
+        //     .evtracker
+        //     .ensure_event_not_queued(|e| e == EventType::SelfavatarChanged);
+
+        // Bob replies.
+        let chat = bob
+            .create_chat_with_contact("Alice", "alice@example.com")
+            .await;
+
+        send_text_msg(&bob, chat.id, "Reply".to_string()).await?;
+        let sent_msg = bob.pop_sent_msg().await;
+        alice1.recv_msg(&sent_msg).await;
+        alice2.recv_msg(&sent_msg).await;
+
+        // Alice sends second message.
+        send_text_msg(&alice1, chat.id, "Hello".to_string()).await?;
+        let sent_msg = alice1.pop_sent_msg().await;
+
+        // Second message is encrypted.
+        let message = Message::load_from_db(&alice1, sent_msg.sender_msg_id).await?;
+        assert!(message.get_showpadlock());
+
+        // Alice's second devices receives a copy of second outgoing message.
+        alice2.recv_msg(&sent_msg).await;
+
+        assert!(alice2.get_config(Config::Selfavatar).await?.is_some());
+        alice2
+            .evtracker
+            .get_matching(|e| e == EventType::SelfavatarChanged)
+            .await;
 
         Ok(())
     }

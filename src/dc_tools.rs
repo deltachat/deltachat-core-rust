@@ -835,8 +835,8 @@ mod tests {
         assert_eq!("@d.tt".parse::<EmailAddress>().is_ok(), false);
     }
 
-    use crate::chat;
     use crate::chatlist::Chatlist;
+    use crate::{chat, test_utils};
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
     use proptest::prelude::*;
 
@@ -986,8 +986,7 @@ mod tests {
 
     #[test]
     fn test_get_filemeta() {
-        let data = include_bytes!("../test-data/image/avatar900x900.png");
-        let (w, h) = dc_get_filemeta(data).unwrap();
+        let (w, h) = dc_get_filemeta(test_utils::AVATAR_900x900_BYTES).unwrap();
         assert_eq!(w, 900);
         assert_eq!(h, 900);
 
