@@ -2003,31 +2003,7 @@ CCCB 5AA9 F6E1 141C 9431
             .get_matching(|e| e == EventType::SelfavatarChanged)
             .await;
 
-        // let chat = alice1
-        //     .create_chat_with_contact("Bob", "bob@example.net")
-        //     .await;
-
-        // // Alice sends a message to Bob from the first device.
-        // send_text_msg(&alice1, chat.id, "Hello".to_string()).await?;
-        // let sent_msg = alice1.pop_sent_msg().await;
-
-        // // Message is not encrypted.
-        // let message = Message::load_from_db(&alice1, sent_msg.sender_msg_id).await?;
-        // assert!(!message.get_showpadlock());
-
-        // // Alice's second devices receives a copy of outgoing message.
-        // alice2.recv_msg(&sent_msg).await;
-
-        // // Bob receives message.
-        // bob.recv_msg(&sent_msg).await;
-
-        // // Message was not encrypted, so status is not copied.
-        // assert_eq!(alice2.get_config(Config::Selfavatar).await?, None);
-        // alice2
-        //     .evtracker
-        //     .ensure_event_not_queued(|e| e == EventType::SelfavatarChanged);
-
-        // Bob replies.
+        // Bob sends a message so that Alice can encrypt to him.
         let chat = bob
             .create_chat_with_contact("Alice", "alice@example.com")
             .await;
@@ -2037,17 +2013,18 @@ CCCB 5AA9 F6E1 141C 9431
         alice1.recv_msg(&sent_msg).await;
         alice2.recv_msg(&sent_msg).await;
 
-        // Alice sends second message.
+        // Alice sends a message.
         send_text_msg(&alice1, chat.id, "Hello".to_string()).await?;
         let sent_msg = alice1.pop_sent_msg().await;
 
-        // Second message is encrypted.
+        // The message is encrypted.
         let message = Message::load_from_db(&alice1, sent_msg.sender_msg_id).await?;
         assert!(message.get_showpadlock());
 
-        // Alice's second devices receives a copy of second outgoing message.
+        // Alice's second device receives a copy of the outgoing message.
         alice2.recv_msg(&sent_msg).await;
 
+        // Alice's second device applies the selfavatar.
         assert!(alice2.get_config(Config::Selfavatar).await?.is_some());
         alice2
             .evtracker
