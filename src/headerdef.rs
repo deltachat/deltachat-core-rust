@@ -1,9 +1,8 @@
 //! # List of email headers.
 
-use crate::strum::AsStaticRef;
 use mailparse::{MailHeader, MailHeaderMap};
 
-#[derive(Debug, Display, Clone, PartialEq, Eq, EnumVariantNames, AsStaticStr)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, EnumVariantNames, IntoStaticStr)]
 #[strum(serialize_all = "kebab_case")]
 pub enum HeaderDef {
     MessageId,
@@ -67,9 +66,9 @@ pub enum HeaderDef {
 }
 
 impl HeaderDef {
-    /// Returns the corresponding Event id.
+    /// Returns the corresponding header string.
     pub fn get_headername(&self) -> &'static str {
-        self.as_static()
+        self.into()
     }
 }
 
