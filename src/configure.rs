@@ -280,8 +280,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 500);
 
     let mut servers = param_autoconfig.unwrap_or_default();
-
-    // in case of missing servers, add the ones given as function parameters
     if !servers
         .iter()
         .any(|server| server.protocol == Protocol::Imap)
