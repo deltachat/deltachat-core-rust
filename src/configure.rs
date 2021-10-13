@@ -311,19 +311,15 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     // respect certificate setting from function parameters
     for mut server in &mut servers {
-        server.strict_tls = match server.protocol {
-            Protocol::Imap => match param.imap.certificate_checks {
-                CertificateChecks::AcceptInvalidCertificates
-                | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
-                CertificateChecks::Strict => Some(true),
-                CertificateChecks::Automatic => server.strict_tls,
-            },
-            Protocol::Smtp => match param.smtp.certificate_checks {
-                CertificateChecks::AcceptInvalidCertificates
-                | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
-                CertificateChecks::Strict => Some(true),
-                CertificateChecks::Automatic => server.strict_tls,
-            },
+        let certificate_checks = match server.protocol {
+            Protocol::Imap => param.imap.certificate_checks,
+            Protocol::Smtp => param.smtp.certificate_checks,
+        };
+        server.strict_tls = match certificate_checks {
+            CertificateChecks::AcceptInvalidCertificates
+            | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
+            CertificateChecks::Strict => Some(true),
+            CertificateChecks::Automatic => server.strict_tls,
         };
     }
 
