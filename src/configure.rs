@@ -290,12 +290,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             port: param.imap.port,
             socket: param.imap.security,
             username: param.imap.user.clone(),
-            strict_tls: match param.imap.certificate_checks {
-                CertificateChecks::Automatic => None,
-                CertificateChecks::Strict => Some(true),
-                CertificateChecks::AcceptInvalidCertificates2
-                | CertificateChecks::AcceptInvalidCertificates => Some(false),
-            },
+            strict_tls: None,
         })
     }
     if !servers
@@ -308,14 +303,24 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             port: param.smtp.port,
             socket: param.smtp.security,
             username: param.smtp.user.clone(),
-            strict_tls: match param.smtp.certificate_checks {
-                CertificateChecks::Automatic => None,
-                CertificateChecks::Strict => Some(true),
-                CertificateChecks::AcceptInvalidCertificates2
-                | CertificateChecks::AcceptInvalidCertificates => Some(false),
-            },
+            strict_tls: None,
         })
     }
+
+    // respect certificate setting from function parameters
+    for mut server in &mut servers {
+        let certificate_checks = match server.protocol {
+            Protocol::Imap => param.imap.certificate_checks,
+            Protocol::Smtp => param.smtp.certificate_checks,
+        };
+        server.strict_tls = match certificate_checks {
+            CertificateChecks::AcceptInvalidCertificates
+            | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
+            CertificateChecks::Strict => Some(true),
+            CertificateChecks::Automatic => server.strict_tls,
+        };
+    }
+
     let servers = expand_param_vector(servers, &param.addr, &param_domain);
 
     progress!(ctx, 550);
