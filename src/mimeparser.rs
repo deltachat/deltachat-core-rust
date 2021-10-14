@@ -15,7 +15,7 @@ use crate::blob::BlobObject;
 use crate::constants::{Viewtype, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS};
 use crate::contact::addr_normalize;
 use crate::context::Context;
-use crate::dc_tools::{dc_get_filemeta, dc_truncate};
+use crate::dc_tools::{dc_get_filemeta, dc_truncate, parse_receive_headers};
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::events::EventType;
@@ -82,6 +82,8 @@ pub struct MimeMessage {
     /// This is non-empty only if the message was actually encrypted.  It is used
     /// for e.g. late-parsing HTML.
     pub decoded_data: Vec<u8>,
+
+    pub(crate) hop_info: String,
 }
 
 #[derive(Debug, PartialEq)]
@@ -294,6 +296,7 @@ impl MimeMessage {
             footer: None,
             is_mime_modified: false,
             decoded_data: Vec::new(),
+            hop_info: parse_receive_headers(&mail.get_headers()),
         };
 
         match partial {

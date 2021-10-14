@@ -1116,7 +1116,7 @@ INSERT INTO msgs
     txt, subject, txt_raw, param, 
     bytes, mime_headers, mime_in_reply_to,
     mime_references, mime_modified, error, ephemeral_timer,
-    ephemeral_timestamp, download_state
+    ephemeral_timestamp, download_state, hop_info
   )
   VALUES (
     ?, ?, ?, ?,
@@ -1125,7 +1125,7 @@ INSERT INTO msgs
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
-    ?
+    ?, ?
   );
 "#,
         )?;
@@ -1199,6 +1199,7 @@ INSERT INTO msgs
             } else {
                 DownloadState::Done
             },
+            mime_parser.hop_info
         ])?;
         let row_id = conn.last_insert_rowid();
 

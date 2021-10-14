@@ -5,6 +5,7 @@ use core::cmp::{max, min};
 use std::borrow::Cow;
 use std::fmt;
 use std::io::Cursor;
+use std::str::from_utf8;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
@@ -14,6 +15,10 @@ use async_std::{fs, io};
 
 use anyhow::{bail, Error};
 use chrono::{Local, TimeZone};
+use itertools::Itertools;
+use mailparse::dateparse;
+use mailparse::headers::Headers;
+use mailparse::MailHeaderMap;
 use rand::{thread_rng, Rng};
 
 use crate::chat::{add_device_msg, add_device_msg_with_importance};
@@ -670,13 +675,114 @@ pub fn remove_subject_prefix(last_subject: &str) -> String {
         .to_string()
 }
 
+// Types and methods to create hop-info for message-info
+
+fn extract_address_from_receive_header<'a>(header: &'a str, start: &str) -> Option<&'a str> {
+    let header_len = header.len();
+    header.find(start).and_then(|mut begin| {
+        begin += start.len();
+        let end = header
+            .get(begin..)?
+            .find(|c| c == ' ' || c == '\n')
+            .unwrap_or(header_len);
+        header.get(begin..begin + end)
+    })
+}
+
+pub(crate) fn parse_receive_header(header: &str) -> String {
+    let mut hop_info = String::from("Hop:\n");
+
+    if let Ok(date) = dateparse(header) {
+        let date_obj = Local.timestamp(date, 0);
+        hop_info.push_str(&format!("Date: {}\n", date_obj.to_rfc2822()));
+    };
+
+    if let Some(from) = extract_address_from_receive_header(header, "from ") {
+        hop_info.push_str(&format!("From: {}\n", from.trim()));
+    }
+
+    if let Some(by) = extract_address_from_receive_header(header, "by ") {
+        hop_info.push_str(&format!("By: {}\n", by.trim()));
+    }
+    hop_info
+}
+
+/// parses "receive"-headers
+pub(crate) fn parse_receive_headers(headers: &Headers) -> String {
+    let headers = headers
+        .get_all_headers("Received")
+        .iter()
+        .rev()
+        .filter_map(|header_map_item| from_utf8(header_map_item.get_value_raw()).ok())
+        .enumerate()
+        .map(|(i, header_value)| (i + 1).to_string() + ". " + &parse_receive_header(header_value))
+        .collect::<Vec<_>>();
+
+    headers.iter().map(|a| a.to_string()).join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
 
-    use crate::test_utils::TestContext;
+    use crate::{
+        config::Config, dc_receive_imf::dc_receive_imf, message::get_msg_info,
+        test_utils::TestContext,
+    };
+
+    #[test]
+    fn test_parse_receive_headers() {
+        let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
+        let mail = mailparse::parse_mail(&raw[..]).unwrap();
+        let hop_info = parse_receive_headers(&mail.get_headers());
+        let expected = concat!(
+            "1. Hop:\n",
+            "Date: Sat, 14 Sep 2019 19:00:22 +0200\n",
+            "From: localhost\n",
+            "By: hq5.merlinux.eu\n",
+            "\n",
+            "2. Hop:\n",
+            "Date: Sat, 14 Sep 2019 19:00:25 +0200\n",
+            "From: hq5.merlinux.eu\n",
+            "By: hq5.merlinux.eu\n",
+        );
+        assert_eq!(&hop_info, expected)
+    }
+
+    #[async_std::test]
+    async fn test_parse_receive_headers_integration() -> anyhow::Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+        let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
+        dc_receive_imf(&t, raw, "INBOX", 1, false).await.unwrap();
+        let g = t.get_last_msg().await;
+
+        let expected = r"State: Fresh
+
+hi
+
+Message-ID: 2dfdbde7@example.org
+Last seen as: INBOX/1
+1. Hop:
+Date: Sat, 14 Sep 2019 19:00:22 +0200
+From: localhost
+By: hq5.merlinux.eu
+
+2. Hop:
+Date: Sat, 14 Sep 2019 19:00:25 +0200
+From: hq5.merlinux.eu
+By: hq5.merlinux.eu
+";
+        let result = get_msg_info(&t, g.id).await.unwrap();
+        // little hack to ignore the first row of a parsed email because it contains a
+        // send time that depends and the test runtime which makes it impossible to
+        // compare with a static string
+        let capped_result = &result[result.find("State").unwrap()..];
+        assert_eq!(expected, capped_result);
+        Ok(())
+    }
 
     #[test]
     fn test_rust_ftoa() {
