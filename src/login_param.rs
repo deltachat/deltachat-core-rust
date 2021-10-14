@@ -11,6 +11,7 @@ use anyhow::Result;
 use async_std::io;
 use async_std::net::TcpStream;
 
+use async_native_tls::Certificate;
 pub use async_smtp::ServerAddress;
 use fast_socks5::client::Socks5Stream;
 
@@ -369,7 +370,12 @@ fn get_readable_flags(flags: i32) -> String {
 }
 
 pub fn dc_build_tls(strict_tls: bool) -> async_native_tls::TlsConnector {
-    let tls_builder = async_native_tls::TlsConnector::new();
+    let root_ca = Certificate::from_pem(include_bytes!(
+        "../assets/root-certificates/letsencrypt/isrgrootx1.pem"
+    ))
+    .unwrap();
+
+    let tls_builder = async_native_tls::TlsConnector::new().add_root_certificate(root_ca);
 
     if strict_tls {
         tls_builder
@@ -428,6 +434,15 @@ mod tests {
         let loaded = LoginParam::from_database(&t, "foobar_").await?;
 
         assert_eq!(param, loaded);
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_build_tls() -> Result<()> {
+        // we are using some additional root certificates.
+        // make sure, they do not break construction of TlsConnector
+        let _ = dc_build_tls(true);
+        let _ = dc_build_tls(false);
         Ok(())
     }
 }
