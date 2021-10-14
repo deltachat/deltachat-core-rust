@@ -3005,6 +3005,7 @@ mod tests {
     Subject: Let's put some [brackets here that] have nothing to do with the topic\n\
     Message-ID: <3333@example.org>\n\
     List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
+    List-Post: <mailto:reply+ELERNSHSETUSHOYSESHETIHSEUSAFERUHSEDTISNEU@reply.github.com>
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
@@ -3017,6 +3018,7 @@ mod tests {
     Subject: [deltachat/deltachat-core-rust] PR run failed\n\
     Message-ID: <3334@example.org>\n\
     List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
+    List-Post: <mailto:reply+EGELITBABIHXSITUZIEPAKYONASITEPUANERGRUSHE@reply.github.com>
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
@@ -3042,6 +3044,9 @@ mod tests {
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await?.len(), 1);
 
         dc_receive_imf(&t.ctx, GH_MAILINGLIST2, "INBOX", false).await?;
+
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
+        assert!(!chat.can_send(&t.ctx).await?);
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
@@ -3128,6 +3133,12 @@ Hello mailinglist!\r\n\
 -- \r\n\
 Sent with my Delta Chat Messenger: https://delta.chat\r\n"
         ));
+
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 2, false).await?;
+
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
+        assert!(chat.can_send(&t.ctx).await?);
+
         Ok(())
     }
 
@@ -3263,6 +3274,8 @@ Sent with my Delta Chat Messenger: https://delta.chat\r\n"
 
         let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 2);
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert!(chat.can_send(&t.ctx).await.unwrap());
     }
 
     #[async_std::test]
