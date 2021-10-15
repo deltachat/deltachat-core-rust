@@ -370,6 +370,8 @@ fn get_readable_flags(flags: i32) -> String {
     res
 }
 
+// this certificate is missing on older android devices (eg. lg with android6 from 2017)
+// certificate downloaded from https://letsencrypt.org/certificates/
 static LETSENCRYPT_ROOT: Lazy<Certificate> = Lazy::new(|| {
     Certificate::from_pem(include_bytes!(
         "../assets/root-certificates/letsencrypt/isrgrootx1.pem"
