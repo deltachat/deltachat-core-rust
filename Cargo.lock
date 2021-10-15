@@ -1131,7 +1131,7 @@ dependencies = [
  "sha-1",
  "sha2",
  "smallvec",
- "stop-token 0.4.0",
+ "stop-token 0.5.1",
  "strum",
  "strum_macros",
  "surf",
@@ -3566,11 +3566,12 @@ dependencies = [
 
 [[package]]
 name = "stop-token"
-version = "0.4.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c80d4c487de9d9c5acca69b90aee5ed6c4d208faa6364105b72ece3c881cf9f3"
+checksum = "561eec821556b41afc80e8943d59ff72e5dc9876c364f26331293f2eb6c8e461"
 dependencies = [
  "async-channel",
+ "cfg-if 1.0.0",
  "futures-core",
  "pin-project-lite",
 ]

@@ -65,7 +65,7 @@ serde = { version = "1.0", features = ["derive"] }
 sha-1 = "0.9"
 sha2 = "0.9"
 smallvec = "1"
-stop-token = "0.4"
+stop-token = "0.5"
 strum = "0.22"
 strum_macros = "0.22"
 surf = { version = "2.3", default-features = false, features = ["h1-client"] }
