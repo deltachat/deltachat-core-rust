@@ -109,6 +109,21 @@ impl Context {
         Ok(())
     }
 
+    // Add deleted qr-code token to the list of items to be synced
+    // so that the token also gets deleted on the other devices.
+    pub(crate) async fn sync_qr_code_token_deletion(
+        &self,
+        invitenumber: String,
+        auth: String,
+    ) -> Result<()> {
+        self.add_sync_item(SyncData::DeleteQrToken(QrTokenData {
+            invitenumber,
+            auth,
+            grpid: None,
+        }))
+        .await
+    }
+
     /// Sends out a self-sent message with items to be synchronized, if any.
     pub async fn send_sync_msg(&self) -> Result<Option<MsgId>> {
         if let Some((json, ids)) = self.build_sync_json().await? {

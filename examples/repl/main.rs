@@ -167,7 +167,7 @@ const DB_COMMANDS: [&str; 10] = [
     "housekeeping",
 ];
 
-const CHAT_COMMANDS: [&str; 34] = [
+const CHAT_COMMANDS: [&str; 35] = [
     "listchats",
     "listarchived",
     "chat",
