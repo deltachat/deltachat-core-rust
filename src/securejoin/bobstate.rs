@@ -8,7 +8,7 @@
 //! protocol.  Afterwards it must be stored in a mutex and the [`BobStateHandle`] should be
 //! used to work with the state.
 
-use anyhow::{Error, Result};
+use anyhow::{bail, Error, Result};
 use async_std::sync::MutexGuard;
 
 use crate::chat::{self, ChatId};
@@ -67,9 +67,18 @@ impl<'a> BobStateHandle<'a> {
         })
     }
 
-    /// Returns the [`ChatId`] of the 1:1 chat with the inviter (Alice).
-    pub fn chat_id(&self) -> ChatId {
-        self.bobstate.chat_id
+    /// Returns the [`ChatId`] of the group chat to join or the 1:1 chat with Alice.
+    pub async fn chat_id(&self, context: &Context) -> Result<ChatId> {
+        match self.bobstate.invite {
+            QrInvite::Group { ref grpid, .. } => {
+                if let Some((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, &grpid).await? {
+                    Ok(chat_id)
+                } else {
+                    bail!("chat not found")
+                }
+            }
+            QrInvite::Contact { .. } => Ok(self.bobstate.chat_id),
+        }
     }
 
     /// Returns a reference to the [`QrInvite`] of the joiner process.
