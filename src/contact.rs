@@ -2014,7 +2014,9 @@ CCCB 5AA9 F6E1 141C 9431
         alice2.recv_msg(&sent_msg).await;
 
         // Alice sends a message.
-        send_text_msg(&alice1, chat.id, "Hello".to_string()).await?;
+        let alice1_chat_id = alice1.get_last_msg().await.chat_id;
+        alice1_chat_id.accept(&alice1).await?;
+        send_text_msg(&alice1, alice1_chat_id, "Hello".to_string()).await?;
         let sent_msg = alice1.pop_sent_msg().await;
 
         // The message is encrypted.
