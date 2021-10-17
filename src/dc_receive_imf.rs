@@ -955,35 +955,40 @@ async fn add_parts(
                 warn!(context, "verification problem: {}", err);
                 let s = format!("{}. See 'Info' for more details", err);
                 mime_parser.repl_msg_by_error(s);
-            } else {
-                // change chat protection only when verification check passes
-                if let Some(new_status) = new_status {
-                    if chat_id
+            } else if let Some(new_status) = new_status {
+                if !chat.is_protected()
+                    && new_status == ProtectionStatus::Protected
+                    && chat_id
                         .update_timestamp(
                             context,
                             Param::ProtectionSettingsTimestamp,
                             sent_timestamp,
                         )
                         .await?
+                {
+                    // Upgrade chat to a protected chat.
+                    // As this gives some guarantees to the user,
+                    // we do not allow downgrades over the wire.
+                    if let Err(e) = chat_id
+                        .inner_set_protection(context, ProtectionStatus::Protected)
+                        .await
                     {
-                        if let Err(e) = chat_id.inner_set_protection(context, new_status).await {
-                            chat::add_info_msg(
-                                context,
-                                chat_id,
-                                format!("Cannot set protection: {}", e),
-                                sort_timestamp,
-                            )
-                            .await?;
-                            return Ok(chat_id); // do not return an error as this would result in retrying the message
-                        }
+                        chat::add_info_msg(
+                            context,
+                            chat_id,
+                            format!("Cannot set protection: {}", e),
+                            sort_timestamp,
+                        )
+                        .await?;
+                        return Ok(chat_id); // do not return an error as this would result in retrying the message
                     }
-                    set_better_msg(
-                        mime_parser,
-                        context
-                            .stock_protection_msg(new_status, from_id as u32)
-                            .await,
-                    );
                 }
+                set_better_msg(
+                    mime_parser,
+                    context
+                        .stock_protection_msg(new_status, from_id as u32)
+                        .await,
+                );
             }
         }
     }
