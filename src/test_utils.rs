@@ -111,12 +111,15 @@ impl TestContext {
         let (evtracker_sender, evtracker_receiver) = channel::unbounded();
 
         async_std::task::spawn(async move {
-            // Make sure that the test fails if there is a panic on this thread here:
-            let current_id = task::current().id();
+            // Make sure that the test fails if there is a panic on this thread here
+            // (but not if there is a panic on another thread)
+            let looptask_id = task::current().id();
             let orig_hook = panic::take_hook();
             panic::set_hook(Box::new(move |panic_info| {
-                if task::current().id() == current_id {
-                    poison_sender.try_send(panic_info.to_string()).ok();
+                if let Some(panicked_task) = task::try_current() {
+                    if panicked_task.id() == looptask_id {
+                        poison_sender.try_send(panic_info.to_string()).ok();
+                    }
                 }
                 orig_hook(panic_info);
             }));
