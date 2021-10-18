@@ -5368,6 +5368,14 @@ void dc_event_unref(dc_event_t* event);
  */
 #define DC_EVENT_CONNECTIVITY_CHANGED             2100
 
+
+/**
+ * The user's avatar changed.
+ * You can get the new avatar file with `dc_get_config(context, "selfavatar")`.
+ */
+#define DC_EVENT_SELFAVATAR_CHANGED               2110
+
+
 /**
  * @}
  */

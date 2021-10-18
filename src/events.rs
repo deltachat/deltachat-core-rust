@@ -323,4 +323,7 @@ pub enum EventType {
     /// dc_get_connectivity_html() for details.
     #[strum(props(id = "2100"))]
     ConnectivityChanged,
+
+    #[strum(props(id = "2110"))]
+    SelfavatarChanged,
 }

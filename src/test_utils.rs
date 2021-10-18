@@ -34,6 +34,9 @@ use crate::message::{update_msg_state, Message, MessageState, MsgId};
 use crate::mimeparser::MimeMessage;
 use crate::param::{Param, Params};
 
+#[allow(non_upper_case_globals)]
+pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
+
 type EventSink =
     dyn Fn(Event) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync + 'static;
 
@@ -584,6 +587,21 @@ impl EvTracker {
                 if i.contains(s) {
                     return event;
                 }
+            }
+        }
+    }
+
+    pub async fn get_matching<F: Fn(EventType) -> bool>(&self, event_matcher: F) -> EventType {
+        const TIMEOUT: Duration = Duration::from_secs(20);
+
+        loop {
+            let event = async_std::future::timeout(TIMEOUT, self.recv())
+                .await
+                .unwrap()
+                .unwrap();
+
+            if event_matcher(event.clone()) {
+                return event;
             }
         }
     }
