@@ -125,6 +125,18 @@ pub enum Param {
     /// For Groups and Contacts
     ProfileImage = b'i',
 
+    /// For Chats and Contacts
+    ///
+    /// For Chats: If this is a mailing list chat, contains the List-Post address.
+    /// If it's empty, the mailing list is read-only.
+    ///
+    /// For Contacts: If this is the List-Post address of a mailing list, contains
+    /// the List-Id of the mailing list (which is also used as the group id of the chat).
+    ///
+    /// The List-Post address is the email address where the user can write to in order to
+    /// post something to the mailing list.
+    ListPost = b'p',
+
     /// For Chats
     Selftalk = b'K',
 
@@ -159,11 +171,6 @@ pub enum Param {
 
     /// For Chats: timestamp of protection settings update.
     ProtectionSettingsTimestamp = b'L',
-
-    /// For Chats: If this is a mailing list chat, contains the email address
-    /// the user can write to in order to post something to the mailing list.
-    /// If it's empty, the mailing list is read-only.
-    ListPost = b'p',
 }
 
 /// An object for handling key=value parameter lists.

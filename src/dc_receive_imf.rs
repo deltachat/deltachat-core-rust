@@ -786,12 +786,20 @@ async fn add_parts(
                 }
             }
             if chat_id.is_none() && allow_creation {
-                let create_blocked = if !Contact::is_blocked_load(context, to_id).await? {
+                let to_contact = Contact::load_from_db(context, to_id).await?;
+                let create_blocked = if !to_contact.blocked {
                     Blocked::Not
                 } else {
                     Blocked::Request
                 };
-                if let Ok(chat) =
+                if let Some(list_id) = to_contact.param.get(Param::ListPost) {
+                    if let Some((id, _, blocked)) =
+                        chat::get_chat_id_by_grpid(context, list_id).await?
+                    {
+                        chat_id = Some(id);
+                        chat_id_blocked = blocked;
+                    }
+                } else if let Ok(chat) =
                     ChatIdBlocked::get_for_contact(context, to_id, create_blocked).await
                 {
                     chat_id = Some(chat.id);
@@ -1753,6 +1761,14 @@ async fn create_or_lookup_mailinglist(
                 .to_string(),
         ),
     };
+
+    if let Some(list_post) = &mime_parser.list_post {
+        let (contact_id, _) =
+            Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
+        let mut contact = Contact::load_from_db(context, contact_id).await?;
+        contact.param.set(Param::ListPost, &listid);
+        contact.update_param(context).await?;
+    }
 
     if let Some((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await? {
         if let Some(list_post) = &mime_parser.list_post {
@@ -3069,7 +3085,7 @@ mod tests {
 
     static DC_MAILINGLIST: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
     From: Bob <bob@posteo.org>\n\
-    To: delta-dev@codespeak.net\n\
+    To: delta@codespeak.net\n\
     Subject: Re: [delta-dev] What's up?\n\
     Message-ID: <38942@posteo.org>\n\
     List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
@@ -3081,7 +3097,7 @@ mod tests {
 
     static DC_MAILINGLIST2: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
     From: Charlie <charlie@posteo.org>\n\
-    To: delta-dev@codespeak.net\n\
+    To: delta@codespeak.net\n\
     Subject: Re: [delta-dev] DC is nice!\n\
     Message-ID: <38943@posteo.org>\n\
     List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
@@ -3138,6 +3154,60 @@ Sent with my Delta Chat Messenger: https://delta.chat\r\n"
 
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
         assert!(chat.can_send(&t.ctx).await?);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_other_device_writes_to_mailinglist() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+        dc_receive_imf(&t, DC_MAILINGLIST, "INBOX", 1, false)
+            .await
+            .unwrap();
+        let first_msg = t.get_last_msg().await;
+        let first_chat = Chat::load_from_db(&t, first_msg.chat_id).await?;
+        assert_eq!(
+            first_chat.param.get(Param::ListPost).unwrap(),
+            "delta@codespeak.net"
+        );
+
+        let list_post_contact_id =
+            Contact::lookup_id_by_addr(&t, "delta@codespeak.net", Origin::Unknown)
+                .await?
+                .unwrap();
+        let list_post_contact = Contact::load_from_db(&t, list_post_contact_id).await?;
+        assert_eq!(
+            list_post_contact.param.get(Param::ListPost).unwrap(),
+            "delta.codespeak.net"
+        );
+        assert_eq!(
+            chat::get_chat_id_by_grpid(&t, "delta.codespeak.net")
+                .await?
+                .unwrap(),
+            (first_chat.id, false, Blocked::Request)
+        );
+
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+            From: Alice <alice@example.com>\n\
+            To: delta@codespeak.net\n\
+            Subject: [delta-dev] Subject\n\
+            Message-ID: <0476@example.com>\n\
+            Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+            \n\
+            body 4\n",
+            "INBOX",
+            2,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let second_msg = t.get_last_msg().await;
+
+        assert_eq!(first_msg.chat_id, second_msg.chat_id);
 
         Ok(())
     }
