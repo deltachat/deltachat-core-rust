@@ -491,12 +491,15 @@ mod tests {
         let chat = Chat::load_from_db(&alice, msg.chat_id).await?;
         assert!(chat.is_self_talk());
 
-        // check that the used self-talk is not visible to the user but that creation will still work
+        // check that the used self-talk is not visible to the user
+        // but that creation will still work (in this case, the chat is empty)
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
         let chat_id = ChatId::create_for_contact(&alice, DC_CONTACT_ID_SELF).await?;
         let chat = Chat::load_from_db(&alice, chat_id).await?;
         assert!(chat.is_self_talk());
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);
+        let msgs = chat::get_chat_msgs(&alice, chat_id, 0, None).await?;
+        assert_eq!(msgs.len(), 0);
 
         // let alice's other device receive and execute the sync message,
         // also here, self-talk should stay hidden
