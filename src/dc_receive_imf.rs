@@ -505,7 +505,7 @@ async fn add_parts(
             // try to assign to a chat based on In-Reply-To/References:
 
             if let Some((new_chat_id, new_chat_id_blocked)) =
-                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?
+                lookup_chat_by_reply(context, mime_parser, &parent, from_id, to_ids).await?
             {
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
@@ -744,7 +744,7 @@ async fn add_parts(
             // try to assign to a chat based on In-Reply-To/References:
 
             if let Some((new_chat_id, new_chat_id_blocked)) =
-                lookup_chat_by_reply(context, &mime_parser, &parent, from_id, to_ids).await?
+                lookup_chat_by_reply(context, mime_parser, &parent, from_id, to_ids).await?
             {
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
@@ -1303,7 +1303,7 @@ async fn calc_sort_timestamp(
 
 async fn lookup_chat_by_reply(
     context: &Context,
-    mime_parser: &&mut MimeMessage,
+    mime_parser: &mut MimeMessage,
     parent: &Option<Message>,
     from_id: u32,
     to_ids: &ContactIds,
