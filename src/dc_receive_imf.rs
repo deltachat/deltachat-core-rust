@@ -395,7 +395,7 @@ pub async fn from_field_to_contact_id(
 #[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
 async fn add_parts(
     context: &Context,
-    mut mime_parser: &mut MimeMessage,
+    mime_parser: &mut MimeMessage,
     imf_raw: &[u8],
     incoming: bool,
     incoming_origin: Origin,
@@ -525,7 +525,7 @@ async fn add_parts(
 
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
-                &mut mime_parser,
+                mime_parser,
                 sent_timestamp,
                 if test_normal_chat.is_none() {
                     allow_creation
@@ -755,7 +755,7 @@ async fn add_parts(
             if chat_id.is_none() {
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
-                    &mut mime_parser,
+                    mime_parser,
                     sent_timestamp,
                     allow_creation,
                     Blocked::Not,
