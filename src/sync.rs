@@ -153,7 +153,7 @@ impl Context {
     }
 
     /// Copies all sync items to a JSON string and clears the sync-table.
-    /// Returns the JSON string and the IDs used.
+    /// Returns the JSON string and a comma-separated string of the IDs used.
     pub(crate) async fn build_sync_json(&self) -> Result<Option<(String, String)>> {
         let (ids, serialized) = self
             .sql

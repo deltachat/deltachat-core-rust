@@ -68,7 +68,13 @@ pub struct MimeFactory<'a> {
     references: String,
     req_mdn: bool,
     last_added_location_id: u32,
+
+    /// If the created mime-structure contains sync-items,
+    /// the IDs of these items are listed here.
+    /// The IDs are returned via `RenderedEmail`
+    /// and must be deleted if the message is actually queued for sending.
     sync_ids_to_delete: Option<String>,
+
     attach_selfavatar: bool,
 }
 
@@ -81,7 +87,10 @@ pub struct RenderedEmail {
     pub is_gossiped: bool,
     pub last_added_location_id: u32,
 
-    // These IDs must be passed to `delete_sync_ids()` on successful sending.
+    /// A comma-separated string of sync-IDs that are used by the rendered email
+    /// and must be deleted once the message is actually queued for sending
+    /// (deletion must be done by `delete_sync_ids()`).
+    /// If the rendered email is not queued for sending, the IDs must not be deleted.
     pub sync_ids_to_delete: Option<String>,
 
     /// Message ID (Message in the sense of Email)
@@ -1118,7 +1127,7 @@ impl<'a> MimeFactory<'a> {
             }
         }
 
-        // for now, we do not piggyback sync-files to other self-sent-messages
+        // we do not piggyback sync-files to other self-sent-messages
         // to not risk files becoming too larger and being skipped by download-on-demand.
         if command == SystemMessage::MultiDeviceSync && self.is_e2ee_guaranteed() {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();

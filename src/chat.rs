@@ -1207,7 +1207,7 @@ impl Chat {
             self.update_param(context).await?;
             // send_sync_msg() is called (usually) a moment later
             // when the group-creation message is actually sent though smtp -
-            // this makes sure, the other devices are aware if grpid that is used in the sync-message.
+            // this makes sure, the other devices are aware of grpid that is used in the sync-message.
             context.sync_qr_code_tokens(Some(self.id)).await?;
         }
 
