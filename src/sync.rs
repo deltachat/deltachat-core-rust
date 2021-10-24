@@ -4,7 +4,7 @@ use crate::chat::{Chat, ChatId};
 use crate::config::Config;
 use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
-use crate::dc_tools::{dc_smeared_time, time};
+use crate::dc_tools::time;
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -16,7 +16,6 @@ use itertools::Itertools;
 use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
-use std::cmp::min;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct QrTokenData {
@@ -228,9 +227,7 @@ impl Context {
     /// that should not hold off the other items to be executed.
     pub(crate) async fn execute_sync_items(&self, items: &SyncItems) -> Result<()> {
         info!(self, "executing {} sync item(s)", items.items.len());
-        let now = dc_smeared_time(self).await;
         for item in &items.items {
-            let _timestamp = min(item.timestamp, now);
             match &item.data {
                 AddQrToken(token) => {
                     let chat_id = if let Some(grpid) = &token.grpid {
