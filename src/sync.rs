@@ -144,7 +144,6 @@ impl Context {
             msg.param.set(Param::Arg, json);
             msg.param.set(Param::Arg2, ids);
             msg.param.set_int(Param::GuaranteeE2ee, 1);
-            msg.param.set_int(Param::SkipAutocrypt, 1);
             Ok(Some(chat::send_msg(self, chat_id, &mut msg).await?))
         } else {
             Ok(None)
