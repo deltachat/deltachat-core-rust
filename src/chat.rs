@@ -1205,8 +1205,8 @@ impl Chat {
             msg.param.set_int(Param::AttachGroupImage, 1);
             self.param.remove(Param::Unpromoted);
             self.update_param(context).await?;
-            // send_sync_msg() is called (usually) a moment later
-            // when the group-creation message is actually sent though smtp -
+            // send_sync_msg() is called (usually) a moment later at Job::send_msg_to_smtp()
+            // when the group-creation message is actually sent though SMTP -
             // this makes sure, the other devices are aware of grpid that is used in the sync-message.
             context.sync_qr_code_tokens(Some(self.id)).await?;
         }
