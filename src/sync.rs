@@ -47,7 +47,7 @@ impl Context {
     /// Receiving sync messages is currently always enabled;
     /// the messages are force-encrypted anyway.
     async fn is_sync_sending_enabled(&self) -> Result<bool> {
-        self.get_config_bool(Config::SendExperimentalSyncMsgs).await
+        self.get_config_bool(Config::SendSyncMsgs).await
     }
 
     /// Adds an item to the list of items that should be synchronized to other devices.
@@ -275,11 +275,9 @@ mod tests {
     async fn test_is_sync_sending_enabled() -> Result<()> {
         let t = TestContext::new_alice().await;
         assert!(!t.is_sync_sending_enabled().await?);
-        t.set_config_bool(Config::SendExperimentalSyncMsgs, true)
-            .await?;
+        t.set_config_bool(Config::SendSyncMsgs, true).await?;
         assert!(t.is_sync_sending_enabled().await?);
-        t.set_config_bool(Config::SendExperimentalSyncMsgs, false)
-            .await?;
+        t.set_config_bool(Config::SendSyncMsgs, false).await?;
         assert!(!t.is_sync_sending_enabled().await?);
         Ok(())
     }
@@ -287,8 +285,7 @@ mod tests {
     #[async_std::test]
     async fn test_build_sync_json() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.set_config_bool(Config::SendExperimentalSyncMsgs, true)
-            .await?;
+        t.set_config_bool(Config::SendSyncMsgs, true).await?;
 
         assert!(t.build_sync_json().await?.is_none());
 
@@ -331,10 +328,9 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_build_sync_json_experimantal_sync_msgs_off() -> Result<()> {
+    async fn test_build_sync_json_sync_msgs_off() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.set_config_bool(Config::SendExperimentalSyncMsgs, false)
-            .await?;
+        t.set_config_bool(Config::SendSyncMsgs, false).await?;
         t.add_sync_item(SyncData::AddQrToken(QrTokenData {
             invitenumber: "testinvite".to_string(),
             auth: "testauth".to_string(),
@@ -476,9 +472,7 @@ mod tests {
     #[async_std::test]
     async fn test_send_sync_msg() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        alice
-            .set_config_bool(Config::SendExperimentalSyncMsgs, true)
-            .await?;
+        alice.set_config_bool(Config::SendSyncMsgs, true).await?;
         alice
             .add_sync_item(SyncData::AddQrToken(QrTokenData {
                 invitenumber: "in".to_string(),
