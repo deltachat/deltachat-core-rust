@@ -3257,14 +3257,7 @@ mod tests {
         let t2 = TestContext::new_alice().await;
         t2.recv_msg(&sent_msg).await;
         let chat = &t2.get_self_chat().await;
-        let msgs = get_chat_msgs(&t2, chat.id, 0, None).await?;
-        assert_eq!(msgs.len(), 1);
-        let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
-            msg_id
-        } else {
-            panic!("Wrong item type");
-        };
-        let msg = Message::load_from_db(&t2, *msg_id).await?;
+        let msg = t2.get_last_msg_in(chat.id).await;
         assert_eq!(msg.text, Some("foo self".to_string()));
         assert_eq!(msg.from_id, DC_CONTACT_ID_SELF);
         assert_eq!(msg.to_id, DC_CONTACT_ID_SELF);
