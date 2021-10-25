@@ -201,7 +201,7 @@ impl BobState {
         )
         .await
         .map_err(JoinError::UnknownContact)?;
-        if fingerprint_equals_sender(context, invite.fingerprint(), chat_id).await? {
+        if fingerprint_equals_sender(context, invite.fingerprint(), invite.contact_id()).await? {
             // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
             info!(context, "Taking securejoin protocol shortcut");
             let state = Self {
@@ -310,7 +310,9 @@ impl BobState {
             self.next = SecureJoinStep::Terminated;
             return Ok(Some(BobHandshakeStage::Terminated(reason)));
         }
-        if !fingerprint_equals_sender(context, self.invite.fingerprint(), self.chat_id).await? {
+        if !fingerprint_equals_sender(context, self.invite.fingerprint(), self.invite.contact_id())
+            .await?
+        {
             self.next = SecureJoinStep::Terminated;
             return Ok(Some(BobHandshakeStage::Terminated("Fingerprint mismatch")));
         }

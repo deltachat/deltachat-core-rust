@@ -381,32 +381,31 @@ async fn send_alice_handshake_msg(
 async fn fingerprint_equals_sender(
     context: &Context,
     fingerprint: &Fingerprint,
-    contact_chat_id: ChatId,
+    contact_id: u32,
 ) -> Result<bool, Error> {
-    if let [contact_id] = chat::get_chat_contacts(context, contact_chat_id).await?[..] {
-        if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-            let peerstate = match Peerstate::from_addr(context, contact.get_addr()).await {
-                Ok(peerstate) => peerstate,
-                Err(err) => {
-                    warn!(
-                        context,
-                        "Failed to sender peerstate for {}: {}",
-                        contact.get_addr(),
-                        err
-                    );
-                    return Ok(false);
-                }
-            };
+    if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
+        let peerstate = match Peerstate::from_addr(context, contact.get_addr()).await {
+            Ok(peerstate) => peerstate,
+            Err(err) => {
+                warn!(
+                    context,
+                    "Failed to sender peerstate for {}: {}",
+                    contact.get_addr(),
+                    err
+                );
+                return Ok(false);
+            }
+        };
 
-            if let Some(peerstate) = peerstate {
-                if peerstate.public_key_fingerprint.is_some()
-                    && fingerprint == peerstate.public_key_fingerprint.as_ref().unwrap()
-                {
-                    return Ok(true);
-                }
+        if let Some(peerstate) = peerstate {
+            if peerstate.public_key_fingerprint.is_some()
+                && fingerprint == peerstate.public_key_fingerprint.as_ref().unwrap()
+            {
+                return Ok(true);
             }
         }
     }
+
     Ok(false)
 }
 
@@ -466,19 +465,6 @@ pub(crate) async fn handle_securejoin_handshake(
         context,
         ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
     );
-
-    let contact_chat_id = {
-        // TODO: in case of Securejoin on Alice's device, the chat may better be unblocked
-        let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Manually)
-            .await
-            .with_context(|| {
-                format!(
-                    "Failed to look up or create chat for contact {}",
-                    contact_id
-                )
-            })?;
-        chat.id
-    };
 
     let join_vg = step.starts_with("vg-");
 
@@ -554,6 +540,11 @@ pub(crate) async fn handle_securejoin_handshake(
             ====  Step 6 in "Out-of-band verified groups" protocol  ====
             ==========================================================*/
 
+            let contact_chat_id =
+                ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Manually)
+                    .await?
+                    .id;
+
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
             let fingerprint: Fingerprint =
                 match mime_message.get_header(HeaderDef::SecureJoinFingerprint) {
@@ -579,7 +570,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            if !fingerprint_equals_sender(context, &fingerprint, contact_chat_id).await? {
+            if !fingerprint_equals_sender(context, &fingerprint, contact_id).await? {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
