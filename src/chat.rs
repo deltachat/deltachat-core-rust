@@ -3256,7 +3256,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_self_talk() -> Result<()> {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let chat = &t.get_self_chat().await;
         assert_eq!(DC_CONTACT_ID_SELF, 1);
         assert!(!chat.id.is_special());
@@ -3266,6 +3266,23 @@ mod tests {
         assert!(chat.can_send(&t).await?);
         assert_eq!(chat.name, stock_str::saved_messages(&t).await);
         assert!(chat.get_profile_image(&t).await?.is_some());
+
+        let msg_id = send_text_msg(&t, chat.id, "foo self".to_string()).await?;
+        let msg = Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(msg.from_id, DC_CONTACT_ID_SELF);
+        assert_eq!(msg.to_id, DC_CONTACT_ID_SELF);
+        assert!(msg.get_showpadlock());
+
+        let sent_msg = t.pop_sent_msg().await;
+        let t2 = TestContext::new_alice().await;
+        t2.recv_msg(&sent_msg).await;
+        let chat = &t2.get_self_chat().await;
+        let msg = t2.get_last_msg_in(chat.id).await;
+        assert_eq!(msg.text, Some("foo self".to_string()));
+        assert_eq!(msg.from_id, DC_CONTACT_ID_SELF);
+        assert_eq!(msg.to_id, DC_CONTACT_ID_SELF);
+        assert!(msg.get_showpadlock());
+
         Ok(())
     }
 
