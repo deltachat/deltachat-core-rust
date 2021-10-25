@@ -240,10 +240,10 @@ pub(crate) async fn dc_receive_imf_inner(
                     warn!(context, "receive_imf cannot execute sync items: {}", err);
                 }
             } else {
-                warn!(context, "sync items not encrypted.");
+                warn!(context, "sync items are not encrypted.");
             }
         } else {
-            warn!(context, "sync items not sent to self.");
+            warn!(context, "sync items not sent by self.");
         }
     }
 
