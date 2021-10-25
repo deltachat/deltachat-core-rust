@@ -358,13 +358,13 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
 #[error("Failed sending handshake message")]
 pub struct SendMsgError(#[from] anyhow::Error);
 
-async fn send_handshake_msg(
+/// Send handshake message from Alice's device;
+/// Bob's handshake messages are sent in `BobState::send_handshake_message()`.
+async fn send_alice_handshake_msg(
     context: &Context,
-    contact_chat_id: ChatId,
+    contact_id: u32,
     step: &str,
-    param2: &str,
     fingerprint: Option<Fingerprint>,
-    grpid: &str,
 ) -> Result<(), SendMsgError> {
     let mut msg = Message {
         viewtype: Viewtype::Text,
@@ -373,27 +373,19 @@ async fn send_handshake_msg(
         ..Default::default()
     };
     msg.param.set_cmd(SystemMessage::SecurejoinMessage);
-    if step.is_empty() {
-        msg.param.remove(Param::Arg);
-    } else {
-        msg.param.set(Param::Arg, step);
-    }
-    if !param2.is_empty() {
-        msg.param.set(Param::Arg2, param2);
-    }
+    msg.param.set(Param::Arg, step);
     if let Some(fp) = fingerprint {
         msg.param.set(Param::Arg3, fp.hex());
     }
-    if !grpid.is_empty() {
-        msg.param.set(Param::Arg4, grpid);
-    }
-    if step == "vg-request" || step == "vc-request" {
-        msg.param.set_int(Param::ForcePlaintext, 1);
-    } else {
-        msg.param.set_int(Param::GuaranteeE2ee, 1);
-    }
-
-    chat::send_msg(context, contact_chat_id, &mut msg).await?;
+    msg.param.set_int(Param::GuaranteeE2ee, 1);
+    chat::send_msg(
+        context,
+        ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Manually)
+            .await?
+            .id,
+        &mut msg,
+    )
+    .await?;
     Ok(())
 }
 
@@ -538,13 +530,11 @@ pub(crate) async fn handle_securejoin_handshake(
             inviter_progress!(context, contact_id, 300);
 
             // Alice -> Bob
-            send_handshake_msg(
+            send_alice_handshake_msg(
                 context,
-                contact_chat_id,
+                contact_id,
                 &format!("{}-auth-required", &step[..2]),
-                "",
                 None,
-                "",
             )
             .await?;
             Ok(HandshakeMessage::Done)
@@ -666,13 +656,11 @@ pub(crate) async fn handle_securejoin_handshake(
                 }
             } else {
                 // Alice -> Bob
-                send_handshake_msg(
+                send_alice_handshake_msg(
                     context,
-                    contact_chat_id,
+                    contact_id,
                     "vc-contact-confirm",
-                    "",
                     Some(fingerprint),
-                    "",
                 )
                 .await?;
 
