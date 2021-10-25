@@ -468,7 +468,8 @@ pub(crate) async fn handle_securejoin_handshake(
     );
 
     let contact_chat_id = {
-        let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Not)
+        // TODO: in case of Securejoin on Alice's device, the chat may better be unblocked
+        let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Manually)
             .await
             .with_context(|| {
                 format!(
@@ -476,9 +477,6 @@ pub(crate) async fn handle_securejoin_handshake(
                     contact_id
                 )
             })?;
-        if chat.blocked != Blocked::Not {
-            chat.id.unblock(context).await?;
-        }
         chat.id
     };
 
@@ -782,7 +780,8 @@ pub(crate) async fn observe_securejoin_on_other_device(
     info!(context, "observing secure-join message \'{}\'", step);
 
     let contact_chat_id = {
-        let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Not)
+        // TODO: in case of Securejoin on Alice's device, the chat may better be unblocked
+        let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Manually)
             .await
             .with_context(|| {
                 format!(
@@ -790,9 +789,6 @@ pub(crate) async fn observe_securejoin_on_other_device(
                     contact_id
                 )
             })?;
-        if chat.blocked != Blocked::Not {
-            chat.id.unblock(context).await?;
-        }
         chat.id
     };
 

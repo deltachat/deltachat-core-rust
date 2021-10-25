@@ -175,8 +175,8 @@ impl ChatId {
     }
 
     /// Same as `create_for_contact()` with an additional `create_blocked` parameter
-    /// that is used in case the chat does not exist.
-    /// If the chat exists already, `create_blocked` is ignored.
+    /// that is used in case the chat does not exist or to unblock existing chats.
+    /// `create_blocked` won't block already unblocked chats again.
     pub(crate) async fn create_for_contact_with_blocked(
         context: &Context,
         contact_id: u32,
@@ -184,7 +184,7 @@ impl ChatId {
     ) -> Result<Self> {
         let chat_id = match ChatIdBlocked::lookup_by_contact(context, contact_id).await? {
             Some(chat) => {
-                if chat.blocked != Blocked::Not {
+                if create_blocked == Blocked::Not && chat.blocked != Blocked::Not {
                     chat.id.unblock(context).await?;
                 }
                 chat.id

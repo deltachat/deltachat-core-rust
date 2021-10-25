@@ -633,7 +633,9 @@ async fn add_parts(
 
         if chat_id.is_none() {
             // try to create a normal chat
-            let create_blocked = if from_id == to_id {
+            let create_blocked = if *hidden {
+                Blocked::Manually
+            } else if from_id == DC_CONTACT_ID_SELF {
                 Blocked::Not
             } else {
                 Blocked::Request

@@ -12,7 +12,7 @@ use anyhow::{bail, Error, Result};
 use async_std::sync::MutexGuard;
 
 use crate::chat::{self, ChatId};
-use crate::constants::Viewtype;
+use crate::constants::{Blocked, Viewtype};
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
@@ -194,9 +194,13 @@ impl BobState {
         context: &Context,
         invite: QrInvite,
     ) -> Result<(Self, BobHandshakeStage), JoinError> {
-        let chat_id = ChatId::create_for_contact(context, invite.contact_id())
-            .await
-            .map_err(JoinError::UnknownContact)?;
+        let chat_id = ChatId::create_for_contact_with_blocked(
+            context,
+            invite.contact_id(),
+            Blocked::Manually,
+        )
+        .await
+        .map_err(JoinError::UnknownContact)?;
         if fingerprint_equals_sender(context, invite.fingerprint(), chat_id).await? {
             // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
             info!(context, "Taking securejoin protocol shortcut");
