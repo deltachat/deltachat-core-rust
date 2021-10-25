@@ -429,7 +429,6 @@ async fn add_parts(
     fetching_existing_messages: bool,
     prevent_rename: bool,
 ) -> Result<ChatId> {
-    let mut state: MessageState;
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
     let mut incoming_origin = incoming_origin;
@@ -448,6 +447,7 @@ async fn add_parts(
     };
     // incoming non-chat messages may be discarded
 
+    let location_kml_is = mime_parser.location_kml.is_some();
     let is_mdn = !mime_parser.mdn_reports.is_empty();
     let mut allow_creation = !is_mdn;
     let show_emails =
@@ -473,13 +473,13 @@ async fn add_parts(
     // (of course, the user can add other chats manually later)
     let to_id: u32;
 
+    let state: MessageState;
     if incoming {
-        state = if seen || fetching_existing_messages {
-            MessageState::InSeen
-        } else {
-            MessageState::InFresh
-        };
         to_id = DC_CONTACT_ID_SELF;
+
+        // Whether the message is a part of securejoin handshake that should be marked as seen
+        // automatically.
+        let securejoin_seen;
 
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
@@ -490,20 +490,23 @@ async fn add_parts(
                 Ok(securejoin::HandshakeMessage::Done) => {
                     *hidden = true;
                     *needs_delete_job = true;
-                    state = MessageState::InSeen;
+                    securejoin_seen = true;
                 }
                 Ok(securejoin::HandshakeMessage::Ignore) => {
                     *hidden = true;
-                    state = MessageState::InSeen;
+                    securejoin_seen = true;
                 }
                 Ok(securejoin::HandshakeMessage::Propagate) => {
                     // process messages as "member added" normally
+                    securejoin_seen = false;
                 }
                 Err(err) => {
                     warn!(context, "Error in Secure-Join message handling: {}", err);
                     return Ok(DC_CHAT_ID_TRASH);
                 }
             }
+        } else {
+            securejoin_seen = false;
         }
 
         let test_normal_chat = ChatIdBlocked::lookup_by_contact(context, from_id)
@@ -676,21 +679,12 @@ async fn add_parts(
             }
         }
 
-        // if the chat_id is blocked,
-        // for unknown senders and non-delta-messages set the state to NOTICED
-        // to not result in a chatlist-contact-request (this would require the state FRESH)
-        if Blocked::Not != chat_id_blocked
-            && state == MessageState::InFresh
-            && !incoming_origin.is_known()
-            && is_dc_message == MessengerMessage::No
-            && show_emails != ShowEmails::All
-        {
-            state = MessageState::InNoticed;
-        } else if fetching_existing_messages && Blocked::Request == chat_id_blocked {
-            // The fetched existing message should be shown in the chatlist-contact-request because
-            // a new user won't find the contact request in the menu
-            state = MessageState::InFresh;
-        }
+        state =
+            if seen || fetching_existing_messages || is_mdn || location_kml_is || securejoin_seen {
+                MessageState::InSeen
+            } else {
+                MessageState::InFresh
+            };
 
         let is_spam = (chat_id_blocked == Blocked::Request)
             && !incoming_origin.is_known()
@@ -871,8 +865,6 @@ async fn add_parts(
     } else {
         EphemeralTimer::Disabled
     };
-
-    let location_kml_is = mime_parser.location_kml.is_some();
 
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need chat_id to be set
@@ -1067,9 +1059,7 @@ async fn add_parts(
         Vec::new()
     };
 
-    let is_hidden = *hidden;
-
-    let mut is_hidden = is_hidden;
+    let mut is_hidden = *hidden;
     let mut ids = Vec::with_capacity(parts.len());
 
     let conn = context.sql.get_conn().await?;
@@ -1100,14 +1090,10 @@ INSERT INTO msgs
 "#,
         )?;
 
-        let is_location_kml =
-            location_kml_is && icnt == 1 && (part.msg == "-location-" || part.msg.is_empty());
-
-        if is_mdn || is_location_kml {
+        if is_mdn
+            || (location_kml_is && icnt == 1 && (part.msg == "-location-" || part.msg.is_empty()))
+        {
             is_hidden = true;
-            if incoming {
-                state = MessageState::InSeen; // Set the state to InSeen so that precheck_imf() adds a markseen job after we moved the message
-            }
         }
 
         let part_is_empty = part.msg.is_empty() && part.param.get(Param::Quote).is_none();
