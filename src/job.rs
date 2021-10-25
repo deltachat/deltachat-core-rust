@@ -433,6 +433,13 @@ impl Job {
                 }
                 // now also delete the generated file
                 dc_delete_file(context, filename).await;
+
+                // finally, create another send-job if there are items to be synced.
+                // triggering sync-job after msg-send-job guarantees, the recipient has grpid etc.
+                // once the sync message arrives.
+                // if there are no items to sync, this function returns fast.
+                context.send_sync_msg().await?;
+
                 Ok(())
             }
         })
@@ -998,6 +1005,12 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
             {
                 error!(context, "Failed to set msg_location_id: {:?}", err);
             }
+        }
+    }
+
+    if let Some(sync_ids) = rendered_msg.sync_ids_to_delete {
+        if let Err(err) = context.delete_sync_ids(sync_ids).await {
+            error!(context, "Failed to delete sync ids: {:?}", err);
         }
     }
 

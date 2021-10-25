@@ -171,6 +171,17 @@ impl ChatId {
     /// This should be used when **a user action** creates a chat 1:1, it ensures the chat
     /// exists and is unblocked and scales the [`Contact`]'s origin.
     pub async fn create_for_contact(context: &Context, contact_id: u32) -> Result<Self> {
+        ChatId::create_for_contact_with_blocked(context, contact_id, Blocked::Not).await
+    }
+
+    /// Same as `create_for_contact()` with an additional `create_blocked` parameter
+    /// that is used in case the chat does not exist.
+    /// If the chat exists already, `create_blocked` is ignored.
+    pub(crate) async fn create_for_contact_with_blocked(
+        context: &Context,
+        contact_id: u32,
+        create_blocked: Blocked,
+    ) -> Result<Self> {
         let chat_id = match ChatIdBlocked::lookup_by_contact(context, contact_id).await? {
             Some(chat) => {
                 if chat.blocked != Blocked::Not {
@@ -182,7 +193,10 @@ impl ChatId {
                 if Contact::real_exists_by_id(context, contact_id).await?
                     || contact_id == DC_CONTACT_ID_SELF
                 {
-                    let chat_id = ChatId::get_for_contact(context, contact_id).await?;
+                    let chat_id =
+                        ChatIdBlocked::get_for_contact(context, contact_id, create_blocked)
+                            .await
+                            .map(|chat| chat.id)?;
                     Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat).await?;
                     chat_id
                 } else {
@@ -1191,6 +1205,10 @@ impl Chat {
             msg.param.set_int(Param::AttachGroupImage, 1);
             self.param.remove(Param::Unpromoted);
             self.update_param(context).await?;
+            // send_sync_msg() is called (usually) a moment later at Job::send_msg_to_smtp()
+            // when the group-creation message is actually sent though SMTP -
+            // this makes sure, the other devices are aware of grpid that is used in the sync-message.
+            context.sync_qr_code_tokens(Some(self.id)).await?;
         }
 
         // reset encrypt error state eg. for forwarding
@@ -2383,6 +2401,8 @@ pub(crate) async fn add_contact_to_chat_ex(
     if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
         chat.param.remove(Param::Unpromoted);
         chat.update_param(context).await?;
+        context.sync_qr_code_tokens(Some(chat_id)).await?;
+        context.send_sync_msg().await?;
     }
     let self_addr = context
         .get_config(Config::ConfiguredAddr)

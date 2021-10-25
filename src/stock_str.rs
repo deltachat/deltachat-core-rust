@@ -276,6 +276,15 @@ pub enum StockMessage {
     #[strum(props(fallback = "Download maximum available until %1$s"))]
     DownloadAvailability = 100,
 
+    #[strum(props(fallback = "Multi Device Synchronization"))]
+    SyncMsgSubject = 101,
+
+    #[strum(props(
+        fallback = "This message is used to synchronize data between your devices.\n\n\
+                    👉 If you see this message in Delta Chat, please update your Delta Chat apps on all devices."
+    ))]
+    SyncMsgBody = 102,
+
     #[strum(props(fallback = "Incoming Messages"))]
     IncomingMessages = 103,
 
@@ -622,6 +631,16 @@ pub(crate) async fn ac_setup_msg_subject(context: &Context) -> String {
 /// Stock string: `This is the Autocrypt Setup Message used to transfer...`.
 pub(crate) async fn ac_setup_msg_body(context: &Context) -> String {
     translated(context, StockMessage::AcSetupMsgBody).await
+}
+
+/// Stock string: `Multi Device Synchronization`.
+pub(crate) async fn sync_msg_subject(context: &Context) -> String {
+    translated(context, StockMessage::SyncMsgSubject).await
+}
+
+/// Stock string: `This message is used to synchronize data betweeen your devices.`.
+pub(crate) async fn sync_msg_body(context: &Context) -> String {
+    translated(context, StockMessage::SyncMsgBody).await
 }
 
 /// Stock string: `Cannot login as \"%1$s\". Please check...`.

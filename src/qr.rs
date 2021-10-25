@@ -391,6 +391,10 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
         } => {
             token::delete(context, token::Namespace::InviteNumber, &invitenumber).await?;
             token::delete(context, token::Namespace::Auth, &authcode).await?;
+            context
+                .sync_qr_code_token_deletion(invitenumber, authcode)
+                .await?;
+            context.send_sync_msg().await?;
         }
         Qr::WithdrawVerifyGroup {
             invitenumber,
@@ -399,6 +403,10 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
         } => {
             token::delete(context, token::Namespace::InviteNumber, &invitenumber).await?;
             token::delete(context, token::Namespace::Auth, &authcode).await?;
+            context
+                .sync_qr_code_token_deletion(invitenumber, authcode)
+                .await?;
+            context.send_sync_msg().await?;
         }
         Qr::ReviveVerifyContact {
             invitenumber,
@@ -407,6 +415,8 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
         } => {
             token::save(context, token::Namespace::InviteNumber, None, &invitenumber).await?;
             token::save(context, token::Namespace::Auth, None, &authcode).await?;
+            context.sync_qr_code_tokens(None).await?;
+            context.send_sync_msg().await?;
         }
         Qr::ReviveVerifyGroup {
             invitenumber,
@@ -425,6 +435,8 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             )
             .await?;
             token::save(context, token::Namespace::Auth, chat_id, &authcode).await?;
+            context.sync_qr_code_tokens(chat_id).await?;
+            context.send_sync_msg().await?;
         }
         _ => bail!("qr code {:?} does not contain config", qr),
     }

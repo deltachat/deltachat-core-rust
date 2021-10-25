@@ -386,6 +386,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  sendsticker <file> [<text>]\n\
                  sendfile <file> [<text>]\n\
                  sendhtml <file for html-part> [<text for plain-part>]\n\
+                 sendsyncmsg\n\
                  videochat\n\
                  draft [<text>]\n\
                  devicemsg <text>\n\
@@ -895,6 +896,10 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             }));
             chat::send_msg(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg).await?;
         }
+        "sendsyncmsg" => match context.send_sync_msg().await? {
+            Some(msg_id) => println!("sync message sent as {}.", msg_id),
+            None => println!("sync message not needed."),
+        },
         "videochat" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
             chat::send_videochat_invitation(&context, sel_chat.as_ref().unwrap().get_id()).await?;

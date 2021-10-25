@@ -303,6 +303,7 @@ impl Context {
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await?;
         let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await?;
         let bcc_self = self.get_config_int(Config::BccSelf).await?;
+        let send_sync_msgs = self.get_config_int(Config::SendSyncMsgs).await?;
 
         let prv_key_cnt = self
             .sql
@@ -392,6 +393,7 @@ impl Context {
             self.get_config_int(Config::KeyGenType).await?.to_string(),
         );
         res.insert("bcc_self", bcc_self.to_string());
+        res.insert("send_sync_msgs", send_sync_msgs.to_string());
         res.insert("private_key_count", prv_key_cnt.to_string());
         res.insert("public_key_count", pub_key_cnt.to_string());
         res.insert("fingerprint", fingerprint_str);

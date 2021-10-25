@@ -68,6 +68,13 @@ pub struct MimeFactory<'a> {
     references: String,
     req_mdn: bool,
     last_added_location_id: u32,
+
+    /// If the created mime-structure contains sync-items,
+    /// the IDs of these items are listed here.
+    /// The IDs are returned via `RenderedEmail`
+    /// and must be deleted if the message is actually queued for sending.
+    sync_ids_to_delete: Option<String>,
+
     attach_selfavatar: bool,
 }
 
@@ -79,6 +86,12 @@ pub struct RenderedEmail {
     pub is_encrypted: bool,
     pub is_gossiped: bool,
     pub last_added_location_id: u32,
+
+    /// A comma-separated string of sync-IDs that are used by the rendered email
+    /// and must be deleted once the message is actually queued for sending
+    /// (deletion must be done by `delete_sync_ids()`).
+    /// If the rendered email is not queued for sending, the IDs must not be deleted.
+    pub sync_ids_to_delete: Option<String>,
 
     /// Message ID (Message in the sense of Email)
     pub rfc724_mid: String,
@@ -205,6 +218,7 @@ impl<'a> MimeFactory<'a> {
             references,
             req_mdn,
             last_added_location_id: 0,
+            sync_ids_to_delete: None,
             attach_selfavatar,
         };
         Ok(factory)
@@ -249,6 +263,7 @@ impl<'a> MimeFactory<'a> {
             references: String::default(),
             req_mdn: false,
             last_added_location_id: 0,
+            sync_ids_to_delete: None,
             attach_selfavatar: false,
         };
 
@@ -603,12 +618,20 @@ impl<'a> MimeFactory<'a> {
             main_part
         } else {
             // Multiple parts, render as multipart.
-            parts.into_iter().fold(
-                PartBuilder::new()
-                    .message_type(MimeMultipartType::Mixed)
-                    .child(main_part.build()),
-                |message, part| message.child(part.build()),
-            )
+            let part_holder = if self.msg.param.get_cmd() == SystemMessage::MultiDeviceSync {
+                PartBuilder::new().header((
+                    "Content-Type".to_string(),
+                    "multipart/report; report-type=multi-device-sync".to_string(),
+                ))
+            } else {
+                PartBuilder::new().message_type(MimeMultipartType::Mixed)
+            };
+
+            parts
+                .into_iter()
+                .fold(part_holder.child(main_part.build()), |message, part| {
+                    message.child(part.build())
+                })
         };
 
         let outer_message = if is_encrypted {
@@ -729,6 +752,7 @@ impl<'a> MimeFactory<'a> {
             is_encrypted,
             is_gossiped,
             last_added_location_id,
+            sync_ids_to_delete: self.sync_ids_to_delete,
             rfc724_mid,
             subject: subject_str,
         })
@@ -873,7 +897,7 @@ impl<'a> MimeFactory<'a> {
                     "ephemeral-timer-changed".to_string(),
                 ));
             }
-            SystemMessage::LocationOnly => {
+            SystemMessage::LocationOnly | SystemMessage::MultiDeviceSync => {
                 // This should prevent automatic replies,
                 // such as non-delivery reports.
                 //
@@ -1101,6 +1125,15 @@ impl<'a> MimeFactory<'a> {
                     warn!(context, "mimefactory: could not send location: {}", err);
                 }
             }
+        }
+
+        // we do not piggyback sync-files to other self-sent-messages
+        // to not risk files becoming too larger and being skipped by download-on-demand.
+        if command == SystemMessage::MultiDeviceSync && self.is_e2ee_guaranteed() {
+            let json = self.msg.param.get(Param::Arg).unwrap_or_default();
+            let ids = self.msg.param.get(Param::Arg2).unwrap_or_default();
+            parts.push(context.build_sync_part(json.to_string()).await);
+            self.sync_ids_to_delete = Some(ids.to_string());
         }
 
         if self.attach_selfavatar {

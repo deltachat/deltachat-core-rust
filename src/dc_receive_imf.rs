@@ -233,6 +233,20 @@ pub(crate) async fn dc_receive_imf_inner(
         .await;
     }
 
+    if let Some(ref sync_items) = mime_parser.sync_items {
+        if from_id == DC_CONTACT_ID_SELF {
+            if mime_parser.was_encrypted() {
+                if let Err(err) = context.execute_sync_items(sync_items).await {
+                    warn!(context, "receive_imf cannot execute sync items: {}", err);
+                }
+            } else {
+                warn!(context, "sync items are not encrypted.");
+            }
+        } else {
+            warn!(context, "sync items not sent by self.");
+        }
+    }
+
     if let Some(avatar_action) = &mime_parser.user_avatar {
         if from_id != 0
             && context
@@ -692,6 +706,10 @@ async fn add_parts(
         state = MessageState::OutDelivered;
         to_id = to_ids.get_index(0).cloned().unwrap_or_default();
 
+        let self_sent = from_id == DC_CONTACT_ID_SELF
+            && to_ids.len() == 1
+            && to_ids.contains(&DC_CONTACT_ID_SELF);
+
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
             is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
@@ -710,6 +728,10 @@ async fn add_parts(
                     return Ok(DC_CHAT_ID_TRASH);
                 }
             }
+        } else if mime_parser.sync_items.is_some() && self_sent {
+            is_dc_message = MessengerMessage::Yes;
+            allow_creation = true;
+            *hidden = true;
         }
 
         // If the message is outgoing AND there is no Received header AND it's not in the sentbox,
@@ -775,7 +797,11 @@ async fn add_parts(
             }
             if chat_id.is_none() && allow_creation {
                 let create_blocked = if !Contact::is_blocked_load(context, to_id).await? {
-                    Blocked::Not
+                    if self_sent && *hidden {
+                        Blocked::Manually
+                    } else {
+                        Blocked::Not
+                    }
                 } else {
                     Blocked::Request
                 };
@@ -794,9 +820,6 @@ async fn add_parts(
                 }
             }
         }
-        let self_sent = from_id == DC_CONTACT_ID_SELF
-            && to_ids.len() == 1
-            && to_ids.contains(&DC_CONTACT_ID_SELF);
 
         if chat_id.is_none() && self_sent {
             // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,

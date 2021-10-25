@@ -30,6 +30,7 @@ use crate::token;
 mod bobstate;
 mod qrinvite;
 
+use crate::token::Namespace;
 use bobstate::{BobHandshakeStage, BobState, BobStateHandle};
 use qrinvite::QrInvite;
 
@@ -171,8 +172,11 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> R
 
     // invitenumber will be used to allow starting the handshake,
     // auth will be used to verify the fingerprint
-    let invitenumber = token::lookup_or_new(context, token::Namespace::InviteNumber, group).await;
-    let auth = token::lookup_or_new(context, token::Namespace::Auth, group).await;
+    let sync_token = token::lookup(context, Namespace::InviteNumber, group)
+        .await?
+        .is_none();
+    let invitenumber = token::lookup_or_new(context, Namespace::InviteNumber, group).await;
+    let auth = token::lookup_or_new(context, Namespace::Auth, group).await;
     let self_addr = match context.get_config(Config::ConfiguredAddr).await {
         Ok(Some(addr)) => addr,
         Ok(None) => {
@@ -208,7 +212,9 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> R
         let chat = Chat::load_from_db(context, group).await?;
         let group_name = chat.get_name();
         let group_name_urlencoded = utf8_percent_encode(group_name, NON_ALPHANUMERIC).to_string();
-
+        if sync_token {
+            context.sync_qr_code_tokens(Some(chat.id)).await?;
+        }
         format!(
             "OPENPGP4FPR:{}#a={}&g={}&x={}&i={}&s={}",
             fingerprint.hex(),
@@ -220,6 +226,9 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> R
         )
     } else {
         // parameters used: a=n=i=s=
+        if sync_token {
+            context.sync_qr_code_tokens(None).await?;
+        }
         format!(
             "OPENPGP4FPR:{}#a={}&n={}&i={}&s={}",
             fingerprint.hex(),
