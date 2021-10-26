@@ -389,26 +389,25 @@ async fn fingerprint_equals_sender(
     fingerprint: &Fingerprint,
     contact_id: u32,
 ) -> Result<bool, Error> {
-    if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-        let peerstate = match Peerstate::from_addr(context, contact.get_addr()).await {
-            Ok(peerstate) => peerstate,
-            Err(err) => {
-                warn!(
-                    context,
-                    "Failed to sender peerstate for {}: {}",
-                    contact.get_addr(),
-                    err
-                );
-                return Ok(false);
-            }
-        };
+    let contact = Contact::load_from_db(context, contact_id).await?;
+    let peerstate = match Peerstate::from_addr(context, contact.get_addr()).await {
+        Ok(peerstate) => peerstate,
+        Err(err) => {
+            warn!(
+                context,
+                "Failed to sender peerstate for {}: {}",
+                contact.get_addr(),
+                err
+            );
+            return Ok(false);
+        }
+    };
 
-        if let Some(peerstate) = peerstate {
-            if peerstate.public_key_fingerprint.is_some()
-                && fingerprint == peerstate.public_key_fingerprint.as_ref().unwrap()
-            {
-                return Ok(true);
-            }
+    if let Some(peerstate) = peerstate {
+        if peerstate.public_key_fingerprint.is_some()
+            && fingerprint == peerstate.public_key_fingerprint.as_ref().unwrap()
+        {
+            return Ok(true);
         }
     }
 
