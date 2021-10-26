@@ -2252,12 +2252,12 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
  * The function returns immediately and the handshake runs in background,
  * sending and receiving several messages.
  * During the handshake, info messages are added to the chat,
- * showing process, success or errors.
+ * showing progress, success or errors.
  *
  * Subsequent calls of dc_join_securejoin() will abort unfinished tasks.
  *
  * See https://countermitm.readthedocs.io/en/latest/new.html
- * for details about the protocol.
+ * for details about both protocols.
  *
  * @memberof dc_context_t
  * @param context The context object

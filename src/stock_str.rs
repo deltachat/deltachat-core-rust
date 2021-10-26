@@ -598,7 +598,7 @@ pub(crate) async fn e2e_preferred(context: &Context) -> String {
     translated(context, StockMessage::E2ePreferred).await
 }
 
-/// Stock string: `%1$s invited you to this groups. Waiting for %2$s to come online...`.
+/// Stock string: `%1$s invited you to join this group. Waiting for the device of %2$s to reply…`.
 pub(crate) async fn secure_join_started(context: &Context, inviter_contact_id: u32) -> String {
     if let Ok(contact) = Contact::get_by_id(context, inviter_contact_id).await {
         translated(context, StockMessage::SecureJoinStarted)
@@ -613,7 +613,7 @@ pub(crate) async fn secure_join_started(context: &Context, inviter_contact_id: u
     }
 }
 
-/// Stock string: `%1$s replies...`.
+/// Stock string: `%1$s replied, waiting for being added to the group…`.
 pub(crate) async fn secure_join_replies(context: &Context, contact_id: u32) -> String {
     if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
         translated(context, StockMessage::SecureJoinReplies)
