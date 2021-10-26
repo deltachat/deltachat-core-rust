@@ -8,11 +8,11 @@
 //! protocol.  Afterwards it must be stored in a mutex and the [`BobStateHandle`] should be
 //! used to work with the state.
 
-use anyhow::{Error, Result};
+use anyhow::{bail, Error, Result};
 use async_std::sync::MutexGuard;
 
 use crate::chat::{self, ChatId};
-use crate::constants::Viewtype;
+use crate::constants::{Blocked, Viewtype};
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
@@ -67,9 +67,18 @@ impl<'a> BobStateHandle<'a> {
         })
     }
 
-    /// Returns the [`ChatId`] of the 1:1 chat with the inviter (Alice).
-    pub fn chat_id(&self) -> ChatId {
-        self.bobstate.chat_id
+    /// Returns the [`ChatId`] of the group chat to join or the 1:1 chat with Alice.
+    pub async fn chat_id(&self, context: &Context) -> Result<ChatId> {
+        match self.bobstate.invite {
+            QrInvite::Group { ref grpid, .. } => {
+                if let Some((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, &grpid).await? {
+                    Ok(chat_id)
+                } else {
+                    bail!("chat not found")
+                }
+            }
+            QrInvite::Contact { .. } => Ok(self.bobstate.chat_id),
+        }
     }
 
     /// Returns a reference to the [`QrInvite`] of the joiner process.
@@ -185,10 +194,11 @@ impl BobState {
         context: &Context,
         invite: QrInvite,
     ) -> Result<(Self, BobHandshakeStage), JoinError> {
-        let chat_id = ChatId::create_for_contact(context, invite.contact_id())
-            .await
-            .map_err(JoinError::UnknownContact)?;
-        if fingerprint_equals_sender(context, invite.fingerprint(), chat_id).await? {
+        let chat_id =
+            ChatId::create_for_contact_with_blocked(context, invite.contact_id(), Blocked::Yes)
+                .await
+                .map_err(JoinError::UnknownContact)?;
+        if fingerprint_equals_sender(context, invite.fingerprint(), invite.contact_id()).await? {
             // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
             info!(context, "Taking securejoin protocol shortcut");
             let state = Self {
@@ -297,7 +307,9 @@ impl BobState {
             self.next = SecureJoinStep::Terminated;
             return Ok(Some(BobHandshakeStage::Terminated(reason)));
         }
-        if !fingerprint_equals_sender(context, self.invite.fingerprint(), self.chat_id).await? {
+        if !fingerprint_equals_sender(context, self.invite.fingerprint(), self.invite.contact_id())
+            .await?
+        {
             self.next = SecureJoinStep::Terminated;
             return Ok(Some(BobHandshakeStage::Terminated("Fingerprint mismatch")));
         }

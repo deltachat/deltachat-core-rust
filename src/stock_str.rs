@@ -326,6 +326,13 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "%1$s of %2$s used"))]
     PartOfTotallUsed = 116,
+
+    #[strum(props(fallback = "%1$s invited you to join this group.\n\n\
+                             Waiting for the device of %2$s to reply…"))]
+    SecureJoinStarted = 117,
+
+    #[strum(props(fallback = "%1$s replied, waiting for being added to the group…"))]
+    SecureJoinReplies = 118,
 }
 
 impl StockMessage {
@@ -589,6 +596,32 @@ pub(crate) async fn msg_grp_img_deleted(context: &Context, by_contact: u32) -> S
 /// Stock string: `End-to-end encryption preferred.`.
 pub(crate) async fn e2e_preferred(context: &Context) -> String {
     translated(context, StockMessage::E2ePreferred).await
+}
+
+/// Stock string: `%1$s invited you to join this group. Waiting for the device of %2$s to reply…`.
+pub(crate) async fn secure_join_started(context: &Context, inviter_contact_id: u32) -> String {
+    if let Ok(contact) = Contact::get_by_id(context, inviter_contact_id).await {
+        translated(context, StockMessage::SecureJoinStarted)
+            .await
+            .replace1(contact.get_name_n_addr())
+            .replace2(contact.get_display_name())
+    } else {
+        format!(
+            "secure_join_started: unknown contact {}",
+            inviter_contact_id
+        )
+    }
+}
+
+/// Stock string: `%1$s replied, waiting for being added to the group…`.
+pub(crate) async fn secure_join_replies(context: &Context, contact_id: u32) -> String {
+    if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
+        translated(context, StockMessage::SecureJoinReplies)
+            .await
+            .replace1(contact.get_display_name())
+    } else {
+        format!("secure_join_replies: unknown contact {}", contact_id)
+    }
 }
 
 /// Stock string: `%1$s verified.`.

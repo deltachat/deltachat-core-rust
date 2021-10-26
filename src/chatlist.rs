@@ -363,7 +363,7 @@ pub async fn dc_get_archived_cnt(context: &Context) -> Result<usize> {
         .sql
         .count(
             "SELECT COUNT(*) FROM chats WHERE blocked!=? AND archived=?;",
-            paramsv![Blocked::Manually, ChatVisibility::Archived],
+            paramsv![Blocked::Yes, ChatVisibility::Archived],
         )
         .await?;
     Ok(count)

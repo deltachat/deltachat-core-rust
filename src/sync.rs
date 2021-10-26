@@ -126,12 +126,9 @@ impl Context {
     /// Sends out a self-sent message with items to be synchronized, if any.
     pub async fn send_sync_msg(&self) -> Result<Option<MsgId>> {
         if let Some((json, ids)) = self.build_sync_json().await? {
-            let chat_id = ChatId::create_for_contact_with_blocked(
-                self,
-                DC_CONTACT_ID_SELF,
-                Blocked::Manually,
-            )
-            .await?;
+            let chat_id =
+                ChatId::create_for_contact_with_blocked(self, DC_CONTACT_ID_SELF, Blocked::Yes)
+                    .await?;
             let mut msg = Message {
                 chat_id,
                 viewtype: Viewtype::Text,

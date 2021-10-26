@@ -425,6 +425,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  getqr [<chat-id>]\n\
                  getbadqr\n\
                  checkqr <qr-content>\n\
+                 joinqr <qr-content>\n\
                  setqr <qr-content>\n\
                  providerinfo <addr>\n\
                  event <event-id to test>\n\

@@ -633,7 +633,9 @@ async fn add_parts(
 
         if chat_id.is_none() {
             // try to create a normal chat
-            let create_blocked = if from_id == to_id {
+            let create_blocked = if *hidden {
+                Blocked::Yes
+            } else if from_id == DC_CONTACT_ID_SELF {
                 Blocked::Not
             } else {
                 Blocked::Request
@@ -798,7 +800,7 @@ async fn add_parts(
             if chat_id.is_none() && allow_creation {
                 let create_blocked = if !Contact::is_blocked_load(context, to_id).await? {
                     if self_sent && *hidden {
-                        Blocked::Manually
+                        Blocked::Yes
                     } else {
                         Blocked::Not
                     }
@@ -1543,6 +1545,17 @@ async fn create_or_lookup_group(
     }
     set_better_msg(mime_parser, &better_msg);
 
+    let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
+        if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
+            warn!(context, "verification problem: {}", err);
+            let s = format!("{}. See 'Info' for more details", err);
+            mime_parser.repl_msg_by_error(&s);
+        }
+        ProtectionStatus::Protected
+    } else {
+        ProtectionStatus::Unprotected
+    };
+
     // check if the group does not exist but should be created
     let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid)
         .await
@@ -1563,18 +1576,6 @@ async fn create_or_lookup_group(
                 || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
     {
         // group does not exist but should be created
-        let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
-            if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
-            {
-                warn!(context, "verification problem: {}", err);
-                let s = format!("{}. See 'Info' for more details", err);
-                mime_parser.repl_msg_by_error(&s);
-            }
-            ProtectionStatus::Protected
-        } else {
-            ProtectionStatus::Unprotected
-        };
-
         if !allow_creation {
             info!(context, "creating group forbidden by caller");
             return Ok(None);
@@ -1615,6 +1616,16 @@ async fn create_or_lookup_group(
         //    .add_protection_msg(context, ProtectionStatus::Protected, false, 0)
         //    .await?;
         //}
+    } else if let Some(chat_id) = chat_id {
+        if create_protected == ProtectionStatus::Protected {
+            let chat = Chat::load_from_db(context, chat_id).await?;
+            if !chat.is_protected() {
+                chat_id
+                    .inner_set_protection(context, ProtectionStatus::Protected)
+                    .await?;
+                recreate_member_list = true;
+            }
+        }
     }
 
     // again, check chat_id

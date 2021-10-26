@@ -24,7 +24,7 @@ pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION")
 #[repr(i8)]
 pub enum Blocked {
     Not = 0,
-    Manually = 1,
+    Yes = 1,
     Request = 2,
 }
 
@@ -385,7 +385,7 @@ mod tests {
         // values may be written to disk and must not change
         assert_eq!(Blocked::Not, Blocked::default());
         assert_eq!(Blocked::Not, Blocked::from_i32(0).unwrap());
-        assert_eq!(Blocked::Manually, Blocked::from_i32(1).unwrap());
+        assert_eq!(Blocked::Yes, Blocked::from_i32(1).unwrap());
         assert_eq!(Blocked::Request, Blocked::from_i32(2).unwrap());
     }
 
