@@ -6037,6 +6037,26 @@ void dc_event_unref(dc_event_t* event);
 /// Used for describing resource usage, resulting string will be eg. "1.2 GiB of 3 GiB used".
 #define DC_STR_PART_OF_TOTAL_USED         116
 
+/// "%1$s invited you to join this group. Waiting for the device of %2$s to reply…"
+///
+/// Added as an info-message directly after scanning a QR code for joining a group.
+/// May be followed by the info-messages
+/// #DC_STR_SECURE_JOIN_REPLIES, #DC_STR_CONTACT_VERIFIED and #DC_STR_MSGADDMEMBER.
+///
+/// `%1$s` will be replaced by name and address of the inviter,
+/// `%2$s` will be replaced by the name of the inviter.
+#define DC_STR_SECURE_JOIN_STARTED        117
+
+/// "%1$s replied, waiting for being added to the group…"
+///
+/// Info-message on scanning a QR code for joining a group.
+/// Added after #DC_STR_SECURE_JOIN_STARTED.
+/// If the handshake allows to skip a step and go for #DC_STR_CONTACT_VERIFIED directly,
+/// this info-message is skipped.
+///
+/// `%1$s` will be replaced by the name of the inviter.
+#define DC_STR_SECURE_JOIN_REPLIES        118
+
 /**
  * @}
  */
