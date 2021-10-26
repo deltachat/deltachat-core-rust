@@ -4410,4 +4410,40 @@ mod tests {
 
         Ok(())
     }
+
+    #[async_std::test]
+    async fn test_create_for_contact_with_blocked() -> Result<()> {
+        let t = TestContext::new().await;
+        let (contact_id, _) =
+            Contact::add_or_lookup(&t, "", "foo@bar.org", Origin::ManuallyCreated).await?;
+
+        // create a blocked chat
+        let chat_id_orig =
+            ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Manually).await?;
+        assert!(!chat_id_orig.is_special());
+        let chat = Chat::load_from_db(&t, chat_id_orig).await?;
+        assert_eq!(chat.blocked, Blocked::Manually);
+
+        // repeating the call, the same chat must still be blocked
+        let chat_id =
+            ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Manually).await?;
+        assert_eq!(chat_id, chat_id_orig);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.blocked, Blocked::Manually);
+
+        // already created chats are unblocked if requested
+        let chat_id = ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Not).await?;
+        assert_eq!(chat_id, chat_id_orig);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.blocked, Blocked::Not);
+
+        // however, already created chats are not re-blocked
+        let chat_id =
+            ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Manually).await?;
+        assert_eq!(chat_id, chat_id_orig);
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.blocked, Blocked::Not);
+
+        Ok(())
+    }
 }
