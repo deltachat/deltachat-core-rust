@@ -925,6 +925,7 @@ mod tests {
 
     use crate::chat;
     use crate::chat::ProtectionStatus;
+    use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::events::Event;
     use crate::peerstate::Peerstate;
@@ -1447,6 +1448,12 @@ mod tests {
         let bob_chat = Chat::load_from_db(&bob.ctx, bob_chatid).await?;
         assert!(bob_chat.is_protected());
         assert!(!bob.ctx.has_ongoing().await);
+
+        // On this "happy path", Alice and Bob get only a group-chat where all information are added to.
+        // The one-to-one chats are used internally for the hidden handshake messages,
+        // however, should not be visible in the UIs.
+        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
         Ok(())
     }
 }
