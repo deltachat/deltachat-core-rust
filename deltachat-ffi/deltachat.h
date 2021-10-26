@@ -2254,7 +2254,7 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
  * During the handshake, info messages are added to the chat,
  * showing progress, success or errors.
  *
- * Subsequent calls of dc_join_securejoin() will abort unfinished tasks.
+ * Subsequent calls of dc_join_securejoin() will abort previous, unfinished handshakes.
  *
  * See https://countermitm.readthedocs.io/en/latest/new.html
  * for details about both protocols.
