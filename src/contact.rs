@@ -711,7 +711,7 @@ impl Contact {
             .sql
             .query_map(
                 "SELECT name, grpid FROM chats WHERE type=? AND blocked=?;",
-                paramsv![Chattype::Mailinglist, Blocked::Manually],
+                paramsv![Chattype::Mailinglist, Blocked::Yes],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
                 |rows| {
                     rows.collect::<std::result::Result<Vec<_>, _>>()

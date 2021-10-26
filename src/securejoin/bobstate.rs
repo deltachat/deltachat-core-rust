@@ -194,13 +194,10 @@ impl BobState {
         context: &Context,
         invite: QrInvite,
     ) -> Result<(Self, BobHandshakeStage), JoinError> {
-        let chat_id = ChatId::create_for_contact_with_blocked(
-            context,
-            invite.contact_id(),
-            Blocked::Manually,
-        )
-        .await
-        .map_err(JoinError::UnknownContact)?;
+        let chat_id =
+            ChatId::create_for_contact_with_blocked(context, invite.contact_id(), Blocked::Yes)
+                .await
+                .map_err(JoinError::UnknownContact)?;
         if fingerprint_equals_sender(context, invite.fingerprint(), invite.contact_id()).await? {
             // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
             info!(context, "Taking securejoin protocol shortcut");

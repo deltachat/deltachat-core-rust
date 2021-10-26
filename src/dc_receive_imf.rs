@@ -634,7 +634,7 @@ async fn add_parts(
         if chat_id.is_none() {
             // try to create a normal chat
             let create_blocked = if *hidden {
-                Blocked::Manually
+                Blocked::Yes
             } else if from_id == DC_CONTACT_ID_SELF {
                 Blocked::Not
             } else {
@@ -800,7 +800,7 @@ async fn add_parts(
             if chat_id.is_none() && allow_creation {
                 let create_blocked = if !Contact::is_blocked_load(context, to_id).await? {
                     if self_sent && *hidden {
-                        Blocked::Manually
+                        Blocked::Yes
                     } else {
                         Blocked::Not
                     }

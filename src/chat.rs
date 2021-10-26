@@ -304,7 +304,7 @@ impl ChatId {
                 self.delete(context).await?;
             }
             Chattype::Mailinglist => {
-                if self.set_blocked(context, Blocked::Manually).await? {
+                if self.set_blocked(context, Blocked::Yes).await? {
                     context.emit_event(EventType::ChatModified(self));
                 }
             }
@@ -3891,7 +3891,7 @@ mod tests {
 
         // create contact, then blocked chat
         let contact_id = Contact::create(&ctx, "", "claire@foo.de").await.unwrap();
-        let chat_id = ChatIdBlocked::get_for_contact(&ctx, contact_id, Blocked::Manually)
+        let chat_id = ChatIdBlocked::get_for_contact(&ctx, contact_id, Blocked::Yes)
             .await
             .unwrap()
             .id;
@@ -3900,7 +3900,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(chat_id, chat2.id);
-        assert_eq!(chat2.blocked, Blocked::Manually);
+        assert_eq!(chat2.blocked, Blocked::Yes);
 
         // test nonexistent contact
         let found = ChatId::lookup_by_contact(&ctx, 1234).await.unwrap();
@@ -4419,17 +4419,16 @@ mod tests {
 
         // create a blocked chat
         let chat_id_orig =
-            ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Manually).await?;
+            ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Yes).await?;
         assert!(!chat_id_orig.is_special());
         let chat = Chat::load_from_db(&t, chat_id_orig).await?;
-        assert_eq!(chat.blocked, Blocked::Manually);
+        assert_eq!(chat.blocked, Blocked::Yes);
 
         // repeating the call, the same chat must still be blocked
-        let chat_id =
-            ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Manually).await?;
+        let chat_id = ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Yes).await?;
         assert_eq!(chat_id, chat_id_orig);
         let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert_eq!(chat.blocked, Blocked::Manually);
+        assert_eq!(chat.blocked, Blocked::Yes);
 
         // already created chats are unblocked if requested
         let chat_id = ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Not).await?;
@@ -4438,8 +4437,7 @@ mod tests {
         assert_eq!(chat.blocked, Blocked::Not);
 
         // however, already created chats are not re-blocked
-        let chat_id =
-            ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Manually).await?;
+        let chat_id = ChatId::create_for_contact_with_blocked(&t, contact_id, Blocked::Yes).await?;
         assert_eq!(chat_id, chat_id_orig);
         let chat = Chat::load_from_db(&t, chat_id).await?;
         assert_eq!(chat.blocked, Blocked::Not);

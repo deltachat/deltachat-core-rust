@@ -369,7 +369,7 @@ async fn send_alice_handshake_msg(
     msg.param.set_int(Param::GuaranteeE2ee, 1);
     chat::send_msg(
         context,
-        ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Manually)
+        ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Yes)
             .await?
             .id,
         &mut msg,
