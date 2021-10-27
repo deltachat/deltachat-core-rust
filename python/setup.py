@@ -8,13 +8,6 @@ def main():
         long_description = f.read()
     setuptools.setup(
         name='deltachat',
-        setup_requires=['setuptools_scm', 'cffi>=1.0.0'],
-        use_scm_version = {
-            "root": "..",
-            "relative_to": __file__,
-            'tag_regex': r'^(?P<prefix>py-)?(?P<version>[^\+]+)(?P<suffix>.*)?$',
-            'git_describe_command': "git describe --dirty --tags --long --match py-*.*",
-        },
         description='Python bindings for the Delta Chat Core library using CFFI against the Rust-implemented libdeltachat',
         long_description=long_description,
         author='holger krekel, Floris Bruynooghe, Bjoern Petersen and contributors',
