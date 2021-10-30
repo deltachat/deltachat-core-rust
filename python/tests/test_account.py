@@ -10,7 +10,7 @@ from deltachat.tracker import ImexTracker
 from deltachat.hookspec import account_hookimpl
 from deltachat.capi import ffi, lib
 from deltachat.cutil import iter_array
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 @pytest.mark.parametrize("msgtext,res", [
@@ -447,7 +447,7 @@ class TestOfflineChat:
         contact1.create_chat().send_text("hello")
 
     def test_chat_message_distinctions(self, ac1, chat1):
-        past1s = datetime.utcnow() - timedelta(seconds=1)
+        past1s = datetime.now(timezone.utc) - timedelta(seconds=1)
         msg = chat1.send_text("msg1")
         ts = msg.time_sent
         assert msg.time_received is None
@@ -2163,7 +2163,7 @@ class TestOnlineAccount:
                 break  # DC is done with reading messages
 
     def test_send_receive_locations(self, acfactory, lp):
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")

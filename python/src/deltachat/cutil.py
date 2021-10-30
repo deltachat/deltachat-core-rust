@@ -1,6 +1,6 @@
 from .capi import lib
 from .capi import ffi
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def as_dc_charpointer(obj):
@@ -44,4 +44,4 @@ class DCLot:
         ts = lib.dc_lot_get_timestamp(self._dc_lot)
         if ts == 0:
             return None
-        return datetime.utcfromtimestamp(ts)
+        return datetime.fromtimestamp(ts, timezone.utc)

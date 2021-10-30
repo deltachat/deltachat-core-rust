@@ -3,7 +3,7 @@
 import mimetypes
 import calendar
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
 from .capi import lib, ffi
@@ -512,8 +512,9 @@ class Chat(object):
                 latitude=lib.dc_array_get_latitude(dc_array, i),
                 longitude=lib.dc_array_get_longitude(dc_array, i),
                 accuracy=lib.dc_array_get_accuracy(dc_array, i),
-                timestamp=datetime.utcfromtimestamp(
-                    lib.dc_array_get_timestamp(dc_array, i)
+                timestamp=datetime.fromtimestamp(
+                    lib.dc_array_get_timestamp(dc_array, i),
+                    timezone.utc
                 ),
                 marker=from_dc_charpointer(lib.dc_array_get_marker(dc_array, i)),
             )
