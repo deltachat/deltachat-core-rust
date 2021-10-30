@@ -142,8 +142,6 @@ pub(crate) async fn dc_receive_imf_inner(
     };
 
     // the function returns the number of created messages in the database
-    let mut hidden = false;
-
     let mut needs_delete_job = false;
 
     let mut created_db_entries = Vec::new();
@@ -203,7 +201,6 @@ pub(crate) async fn dc_receive_imf_inner(
         sent_timestamp,
         rcvd_timestamp,
         from_id,
-        &mut hidden,
         seen || replace_partial_download,
         is_partial_download,
         &mut needs_delete_job,
@@ -222,15 +219,7 @@ pub(crate) async fn dc_receive_imf_inner(
     };
 
     if mime_parser.location_kml.is_some() || mime_parser.message_kml.is_some() {
-        save_locations(
-            context,
-            &mime_parser,
-            chat_id,
-            from_id,
-            insert_msg_id,
-            hidden,
-        )
-        .await;
+        save_locations(context, &mime_parser, chat_id, from_id, insert_msg_id).await;
     }
 
     if let Some(ref sync_items) = mime_parser.sync_items {
@@ -420,7 +409,6 @@ async fn add_parts(
     sent_timestamp: i64,
     rcvd_timestamp: i64,
     from_id: u32,
-    hidden: &mut bool,
     seen: bool,
     is_partial_download: Option<u32>,
     needs_delete_job: &mut bool,
@@ -484,16 +472,15 @@ async fn add_parts(
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
             is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
-            chat_id = None;
             allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, from_id).await {
                 Ok(securejoin::HandshakeMessage::Done) => {
-                    *hidden = true;
+                    chat_id = Some(DC_CHAT_ID_TRASH);
                     *needs_delete_job = true;
                     securejoin_seen = true;
                 }
                 Ok(securejoin::HandshakeMessage::Ignore) => {
-                    *hidden = true;
+                    chat_id = Some(DC_CHAT_ID_TRASH);
                     securejoin_seen = true;
                 }
                 Ok(securejoin::HandshakeMessage::Propagate) => {
@@ -636,9 +623,7 @@ async fn add_parts(
 
         if chat_id.is_none() {
             // try to create a normal chat
-            let create_blocked = if *hidden {
-                Blocked::Yes
-            } else if from_id == DC_CONTACT_ID_SELF {
+            let create_blocked = if from_id == DC_CONTACT_ID_SELF {
                 Blocked::Not
             } else {
                 Blocked::Request
@@ -709,15 +694,15 @@ async fn add_parts(
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
             is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
-            chat_id = None;
             allow_creation = true;
             match observe_securejoin_on_other_device(context, mime_parser, to_id).await {
                 Ok(securejoin::HandshakeMessage::Done)
                 | Ok(securejoin::HandshakeMessage::Ignore) => {
-                    *hidden = true;
+                    chat_id = Some(DC_CHAT_ID_TRASH);
                 }
                 Ok(securejoin::HandshakeMessage::Propagate) => {
                     // process messages as "member added" normally
+                    chat_id = None;
                 }
                 Err(err) => {
                     warn!(context, "Error in Secure-Join watching: {}", err);
@@ -726,8 +711,7 @@ async fn add_parts(
             }
         } else if mime_parser.sync_items.is_some() && self_sent {
             is_dc_message = MessengerMessage::Yes;
-            allow_creation = true;
-            *hidden = true;
+            chat_id = Some(DC_CHAT_ID_TRASH);
         }
 
         // If the message is outgoing AND there is no Received header AND it's not in the sentbox,
@@ -793,11 +777,7 @@ async fn add_parts(
             }
             if chat_id.is_none() && allow_creation {
                 let create_blocked = if !Contact::is_blocked_load(context, to_id).await? {
-                    if self_sent && *hidden {
-                        Blocked::Yes
-                    } else {
-                        Blocked::Not
-                    }
+                    Blocked::Not
                 } else {
                     Blocked::Request
                 };
@@ -844,6 +824,10 @@ async fn add_parts(
         info!(context, "Existing non-decipherable message. (TRASH)");
     }
 
+    if is_mdn {
+        chat_id = Some(DC_CHAT_ID_TRASH);
+    }
+
     let chat_id = chat_id.unwrap_or_else(|| {
         info!(context, "No chat id for message (TRASH)");
         DC_CHAT_ID_TRASH
@@ -877,10 +861,7 @@ async fn add_parts(
     // messages such as read receipts can be useful to detect
     // ephemeral timer support, but timer changes without visible
     // received messages may be confusing to the user.
-    if !*hidden
-        && !location_kml_is
-        && !is_mdn
-        && chat_id.get_ephemeral_timer(context).await? != ephemeral_timer
+    if !location_kml_is && !is_mdn && chat_id.get_ephemeral_timer(context).await? != ephemeral_timer
     {
         info!(
             context,
@@ -1059,7 +1040,6 @@ async fn add_parts(
         Vec::new()
     };
 
-    let mut is_hidden = *hidden;
     let mut ids = Vec::with_capacity(parts.len());
 
     let conn = context.sql.get_conn().await?;
@@ -1074,7 +1054,7 @@ INSERT INTO msgs
     from_id, to_id, timestamp, timestamp_sent, 
     timestamp_rcvd, type, state, msgrmsg, 
     txt, subject, txt_raw, param, 
-    bytes, hidden, mime_headers, mime_in_reply_to,
+    bytes, mime_headers, mime_in_reply_to,
     mime_references, mime_modified, error, ephemeral_timer,
     ephemeral_timestamp, download_state
   )
@@ -1085,16 +1065,10 @@ INSERT INTO msgs
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
-    ?, ?
+    ?
   );
 "#,
         )?;
-
-        if is_mdn
-            || (location_kml_is && icnt == 1 && (part.msg == "-location-" || part.msg.is_empty()))
-        {
-            is_hidden = true;
-        }
 
         let part_is_empty = part.msg.is_empty() && part.param.get(Param::Quote).is_none();
         let mime_modified = save_mime_modified && !part_is_empty;
@@ -1149,7 +1123,6 @@ INSERT INTO msgs
                 part.param.to_string()
             },
             part.bytes as isize,
-            is_hidden,
             if (save_mime_headers || mime_modified) && !trash {
                 mime_headers.clone()
             } else {
@@ -1174,11 +1147,8 @@ INSERT INTO msgs
     }
     drop(conn);
 
-    if !is_hidden {
-        chat_id.unarchive(context).await?;
-    }
+    chat_id.unarchive(context).await?;
 
-    *hidden = is_hidden;
     created_db_entries.extend(ids.iter().map(|id| (chat_id, *id)));
     mime_parser.parts = parts;
 
@@ -1188,12 +1158,12 @@ INSERT INTO msgs
     );
 
     // new outgoing message from another device marks the chat as noticed.
-    if !incoming && !*hidden && !chat_id.is_special() {
+    if !incoming && !chat_id.is_special() {
         chat::marknoticed_chat_if_older_than(context, chat_id, sort_timestamp).await?;
     }
 
     // check event to send
-    *create_event_to_send = if chat_id.is_trash() || *hidden {
+    *create_event_to_send = if chat_id.is_trash() {
         None
     } else if incoming && state == MessageState::InFresh {
         Some(CreateEvent::IncomingMsg)
@@ -1229,7 +1199,6 @@ async fn save_locations(
     chat_id: ChatId,
     from_id: u32,
     insert_msg_id: MsgId,
-    hidden: bool,
 ) {
     if chat_id.is_special() {
         return;
@@ -1243,7 +1212,6 @@ async fn save_locations(
             .await
             .unwrap_or_default();
         if 0 != newest_location_id
-            && !hidden
             && location::set_msg_location_id(context, insert_msg_id, newest_location_id)
                 .await
                 .is_ok()
@@ -1262,7 +1230,7 @@ async fn save_locations(
                         location::save(context, chat_id, from_id, locations, false)
                             .await
                             .unwrap_or_default();
-                    if newest_location_id != 0 && !hidden && !location_id_written {
+                    if newest_location_id != 0 && !location_id_written {
                         if let Err(err) = location::set_msg_location_id(
                             context,
                             insert_msg_id,
