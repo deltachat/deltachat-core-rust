@@ -552,17 +552,20 @@ pub async fn set_msg_location_id(context: &Context, msg_id: MsgId, location_id: 
     Ok(())
 }
 
-pub async fn save(
+/// Saves given locations to the database.
+///
+/// Returns the database row ID of the location with the highest timestamp.
+pub(crate) async fn save(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
     locations: &[Location],
     independent: bool,
-) -> Result<u32> {
+) -> Result<Option<u32>> {
     ensure!(!chat_id.is_special(), "Invalid chat id");
 
     let mut newest_timestamp = 0;
-    let mut newest_location_id = 0;
+    let mut newest_location_id = None;
 
     let stmt_insert = "INSERT INTO locations\
              (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
@@ -600,12 +603,12 @@ pub async fn save(
                 drop(stmt_test);
                 drop(stmt_insert);
                 newest_timestamp = timestamp;
-                newest_location_id = conn.last_insert_rowid();
+                newest_location_id = Some(u32::try_from(conn.last_insert_rowid())?);
             }
         }
     }
 
-    Ok(u32::try_from(newest_location_id)?)
+    Ok(newest_location_id)
 }
 
 pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> job::Status {

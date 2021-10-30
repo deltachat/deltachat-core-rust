@@ -218,9 +218,7 @@ pub(crate) async fn dc_receive_imf_inner(
         MsgId::new_unset()
     };
 
-    if mime_parser.location_kml.is_some() || mime_parser.message_kml.is_some() {
-        save_locations(context, &mime_parser, chat_id, from_id, insert_msg_id).await;
-    }
+    save_locations(context, &mime_parser, chat_id, from_id, insert_msg_id).await?;
 
     if let Some(ref sync_items) = mime_parser.sync_items {
         if from_id == DC_CONTACT_ID_SELF {
@@ -1192,62 +1190,57 @@ INSERT INTO msgs
     Ok(chat_id)
 }
 
+/// Saves attached locations to the database.
+///
+/// Emits an event if at least one new location was added.
 async fn save_locations(
     context: &Context,
     mime_parser: &MimeMessage,
     chat_id: ChatId,
     from_id: u32,
-    insert_msg_id: MsgId,
-) {
+    msg_id: MsgId,
+) -> Result<()> {
     if chat_id.is_special() {
-        return;
+        // Do not save locations for trashed messages.
+        return Ok(());
     }
-    let mut location_id_written = false;
+
     let mut send_event = false;
 
-    if mime_parser.message_kml.is_some() {
-        let locations = &mime_parser.message_kml.as_ref().unwrap().locations;
-        let newest_location_id = location::save(context, chat_id, from_id, locations, true)
-            .await
-            .unwrap_or_default();
-        if 0 != newest_location_id
-            && location::set_msg_location_id(context, insert_msg_id, newest_location_id)
-                .await
-                .is_ok()
+    if let Some(message_kml) = &mime_parser.message_kml {
+        if let Some(newest_location_id) =
+            location::save(context, chat_id, from_id, &message_kml.locations, true).await?
         {
-            location_id_written = true;
+            location::set_msg_location_id(context, msg_id, newest_location_id).await?;
             send_event = true;
         }
     }
 
-    if mime_parser.location_kml.is_some() {
-        if let Some(ref addr) = mime_parser.location_kml.as_ref().unwrap().addr {
-            if let Ok(contact) = Contact::get_by_id(context, from_id).await {
-                if contact.get_addr().to_lowercase() == addr.to_lowercase() {
-                    let locations = &mime_parser.location_kml.as_ref().unwrap().locations;
-                    let newest_location_id =
-                        location::save(context, chat_id, from_id, locations, false)
-                            .await
-                            .unwrap_or_default();
-                    if newest_location_id != 0 && !location_id_written {
-                        if let Err(err) = location::set_msg_location_id(
-                            context,
-                            insert_msg_id,
-                            newest_location_id,
-                        )
-                        .await
-                        {
-                            error!(context, "Failed to set msg_location_id: {:?}", err);
-                        }
-                    }
+    if let Some(location_kml) = &mime_parser.location_kml {
+        if let Some(addr) = &location_kml.addr {
+            let contact = Contact::get_by_id(context, from_id).await?;
+            if contact.get_addr().to_lowercase() == addr.to_lowercase() {
+                if let Some(newest_location_id) =
+                    location::save(context, chat_id, from_id, &location_kml.locations, false)
+                        .await?
+                {
+                    location::set_msg_location_id(context, msg_id, newest_location_id).await?;
                     send_event = true;
                 }
+            } else {
+                warn!(
+                    context,
+                    "Address in location.kml {:?} is not the same as the sender address {:?}.",
+                    addr,
+                    contact.get_addr()
+                );
             }
         }
     }
     if send_event {
         context.emit_event(EventType::LocationChanged(Some(from_id)));
     }
+    Ok(())
 }
 
 async fn calc_sort_timestamp(
