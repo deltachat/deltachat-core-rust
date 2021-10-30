@@ -423,7 +423,7 @@ async fn add_parts(
 
     let parent = get_parent_message(context, mime_parser).await?;
 
-    let mut is_dc_message = if mime_parser.has_chat_version() {
+    let is_dc_message = if mime_parser.has_chat_version() {
         MessengerMessage::Yes
     } else if let Some(parent) = &parent {
         match parent.is_dc_message {
@@ -437,9 +437,10 @@ async fn add_parts(
 
     let location_kml_is = mime_parser.location_kml.is_some();
     let is_mdn = !mime_parser.mdn_reports.is_empty();
-    let mut allow_creation = !is_mdn;
     let show_emails =
         ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?).unwrap_or_default();
+
+    let allow_creation;
     if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage
         && is_dc_message == MessengerMessage::No
     {
@@ -451,8 +452,10 @@ async fn add_parts(
                 allow_creation = false;
             }
             ShowEmails::AcceptedContacts => allow_creation = false,
-            ShowEmails::All => {}
+            ShowEmails::All => allow_creation = !is_mdn,
         }
+    } else {
+        allow_creation = !is_mdn;
     }
 
     // check if the message introduces a new chat:
@@ -471,8 +474,6 @@ async fn add_parts(
 
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
-            is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
-            allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, from_id).await {
                 Ok(securejoin::HandshakeMessage::Done) => {
                     chat_id = Some(DC_CHAT_ID_TRASH);
@@ -693,8 +694,6 @@ async fn add_parts(
 
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
-            is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
-            allow_creation = true;
             match observe_securejoin_on_other_device(context, mime_parser, to_id).await {
                 Ok(securejoin::HandshakeMessage::Done)
                 | Ok(securejoin::HandshakeMessage::Ignore) => {
@@ -710,7 +709,6 @@ async fn add_parts(
                 }
             }
         } else if mime_parser.sync_items.is_some() && self_sent {
-            is_dc_message = MessengerMessage::Yes;
             chat_id = Some(DC_CHAT_ID_TRASH);
         }
 
@@ -739,7 +737,6 @@ async fn add_parts(
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
             info!(context, "Email is probably just a draft (TRASH)");
             chat_id = Some(DC_CHAT_ID_TRASH);
-            allow_creation = false;
         }
 
         if chat_id.is_none() {
