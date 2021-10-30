@@ -854,11 +854,12 @@ async fn add_parts(
 
     // Apply ephemeral timer changes to the chat.
     //
-    // Only non-hidden timers are applied. Timers from hidden
-    // messages such as read receipts can be useful to detect
-    // ephemeral timer support, but timer changes without visible
-    // received messages may be confusing to the user.
-    if !location_kml_is && !is_mdn && chat_id.get_ephemeral_timer(context).await? != ephemeral_timer
+    // Only apply the timer when there are visible parts (e.g., the message does not consist only
+    // of `location.kml` attachment).  Timer changes without visible received messages may be
+    // confusing to the user.
+    if !chat_id.is_special()
+        && !mime_parser.parts.is_empty()
+        && chat_id.get_ephemeral_timer(context).await? != ephemeral_timer
     {
         info!(
             context,
