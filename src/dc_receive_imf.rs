@@ -497,9 +497,11 @@ async fn add_parts(
             securejoin_seen = false;
         }
 
-        let test_normal_chat = ChatIdBlocked::lookup_by_contact(context, from_id)
-            .await
-            .unwrap_or_default();
+        let test_normal_chat = if from_id == 0 {
+            Default::default()
+        } else {
+            ChatIdBlocked::lookup_by_contact(context, from_id).await?
+        };
 
         if chat_id.is_none() && mime_parser.failure_report.is_some() {
             chat_id = Some(DC_CHAT_ID_TRASH);
