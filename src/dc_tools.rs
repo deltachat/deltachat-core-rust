@@ -844,22 +844,18 @@ mod tests {
         #[test]
         fn test_dc_truncate(
             buf: String,
-            approx_chars in 0..10000usize
+            approx_chars in 0..100usize
         ) {
             let res = dc_truncate(&buf, approx_chars);
             let el_len = 5;
             let l = res.chars().count();
-            if approx_chars > 0 {
-                assert!(
-                    l <= approx_chars + el_len,
-                    "buf: '{}' - res: '{}' - len {}, approx {}",
-                    &buf, &res, res.len(), approx_chars
-                );
-            } else {
-                assert_eq!(&res, &buf);
-            }
+            assert!(
+                l <= approx_chars + el_len,
+                "buf: '{}' - res: '{}' - len {}, approx {}",
+                &buf, &res, res.len(), approx_chars
+            );
 
-            if approx_chars > 0 && buf.chars().count() > approx_chars + el_len {
+            if buf.chars().count() > approx_chars + el_len {
                 let l = res.len();
                 assert_eq!(&res[l-5..l], "[...]", "missing ellipsis in {}", &res);
             }
