@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.62.0
+
+### API Changes
+- `dc_join_securejoin()` now always returns immediately;
+  the returned chat may not allow sending (`dc_chat_can_send()` returns false)
+  which may change as usual on `DC_EVENT_CHAT_MODIFIED` #2508 #2767
+- introduce multi-device-sync-messages;
+  as older cores display them as files in self-chat,
+  they are currently only sent if config option `send_sync_msgs` is set #2669
+- add `DC_EVENT_SELFAVATAR_CHANGED` #2742
+
+### Changes
+- use system DNS instead of google for MX queries #2780
+- improve error logging #2758
+- improve tests #2764 #2781
+- improve ci #2770
+- refactorings #2677 #2728 #2740 #2729 #2766 #2778
+
+### Fixes
+- add Let's Encrypt certificate to core as it may be missing older devices #2752
+- prioritize certificate setting from user over the one from provider-db #2749
+- fix "QR process failed" error #2725
+- do not update quota in endless loop #2726
+
+
 ## 1.61.0
 
 ### API Changes
