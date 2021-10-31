@@ -1,8 +1,10 @@
 //! OAuth 2 module.
 
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 use anyhow::Result;
+use async_std::sync::Arc;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
@@ -159,7 +161,9 @@ pub async fn dc_get_oauth2_access_token(
             return Ok(None);
         }
 
-        let client = surf::Client::new();
+        let client: surf::Client = surf::Config::new()
+            .set_tls_config(Some(Arc::new(crate::login_param::dc_build_tls(true))))
+            .try_into()?;
         let parsed: Result<Response, _> = client.recv_json(req).await;
         if parsed.is_err() {
             warn!(

@@ -697,8 +697,8 @@ pub enum Error {
         error: quick_xml::Error,
     },
 
-    #[error("Failed to get URL: {0}")]
-    ReadUrl(#[from] self::read_url::Error),
+    #[error("Other error: {0}")]
+    Other(#[from] anyhow::Error),
 
     #[error("Number of redirection is exceeded")]
     Redirection,
