@@ -212,6 +212,26 @@ pub(crate) async fn dc_receive_imf_inner(
     .await
     .map_err(|err| err.context("add_parts error"))?;
 
+    // Update gossiped timestamp for the chat if someone else or our other device sent
+    // Autocrypt-Gossip for all recipients in the chat to avoid sending Autocrypt-Gossip ourselves
+    // and waste traffic.
+    if !chat_id.is_special()
+        && mime_parser
+            .recipients
+            .iter()
+            .all(|recipient| mime_parser.gossiped_addr.contains(&recipient.addr))
+    {
+        info!(
+            context,
+            "Received message contains Autocrypt-Gossip for all members, updating timestamp."
+        );
+        if chat_id.get_gossiped_timestamp(context).await? < sent_timestamp {
+            chat_id
+                .set_gossiped_timestamp(context, sent_timestamp)
+                .await?;
+        }
+    }
+
     let insert_msg_id = if let Some((_chat_id, msg_id)) = created_db_entries.last() {
         *msg_id
     } else {
@@ -2044,7 +2064,7 @@ async fn check_verified_properties(
         let peerstate = Peerstate::from_addr(context, &to_addr).await?;
 
         // mark gossiped keys (if any) as verified
-        if mimeparser.gossipped_addr.contains(&to_addr) {
+        if mimeparser.gossiped_addr.contains(&to_addr) {
             if let Some(mut peerstate) = peerstate {
                 // if we're here, we know the gossip key is verified:
                 // - use the gossip-key as verified-key if there is no verified-key

@@ -10,7 +10,7 @@ from deltachat.tracker import ImexTracker
 from deltachat.hookspec import account_hookimpl
 from deltachat.capi import ffi, lib
 from deltachat.cutil import iter_array
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 @pytest.mark.parametrize("msgtext,res", [
@@ -447,7 +447,7 @@ class TestOfflineChat:
         contact1.create_chat().send_text("hello")
 
     def test_chat_message_distinctions(self, ac1, chat1):
-        past1s = datetime.utcnow() - timedelta(seconds=1)
+        past1s = datetime.now(timezone.utc) - timedelta(seconds=1)
         msg = chat1.send_text("msg1")
         ts = msg.time_sent
         assert msg.time_received is None
@@ -1220,6 +1220,40 @@ class TestOnlineAccount:
         msg = chat.send_text("test not encrypt")
         assert not msg.is_encrypted()
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+
+    def test_gossip_optimization(self, acfactory, lp):
+        """Test that gossip timestamp is updated when someone else sends gossip,
+        so we don't have to send gossip ourselves.
+        """
+        ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
+
+        acfactory.introduce_each_other([ac1, ac2])
+        acfactory.introduce_each_other([ac2, ac3])
+
+        lp.sec("ac1 creates a group chat with ac2")
+        group_chat = ac1.create_group_chat("hello")
+        group_chat.add_contact(ac2)
+        msg = group_chat.send_text("hi")
+
+        # No Autocrypt gossip was sent yet.
+        gossiped_timestamp = msg.chat.get_summary()["gossiped_timestamp"]
+        assert gossiped_timestamp == 0
+
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.is_encrypted()
+        assert msg.text == "hi"
+
+        lp.sec("ac2 adds ac3 to the group")
+        msg.chat.add_contact(ac3)
+
+        lp.sec("ac1 receives message from ac2 and updates gossip timestamp")
+        msg = ac1._evtracker.wait_next_incoming_message()
+        assert msg.is_encrypted()
+
+        # ac1 has updated the gossip timestamp even though no gossip was sent by ac1.
+        # ac1 does not need to send gossip because ac2 already did it.
+        gossiped_timestamp = msg.chat.get_summary()["gossiped_timestamp"]
+        assert gossiped_timestamp == int(msg.time_sent.timestamp())
 
     def test_gossip_encryption_preference(self, acfactory, lp):
         """Test that encryption preference of group members is gossiped to new members.
@@ -2163,7 +2197,7 @@ class TestOnlineAccount:
                 break  # DC is done with reading messages
 
     def test_send_receive_locations(self, acfactory, lp):
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")

@@ -6,7 +6,7 @@ from . import props
 from .cutil import from_dc_charpointer, as_dc_charpointer
 from .capi import lib, ffi
 from . import const
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class Message(object):
@@ -170,7 +170,7 @@ class Message(object):
         :returns: naive datetime.datetime() object.
         """
         ts = lib.dc_msg_get_timestamp(self._dc_msg)
-        return datetime.utcfromtimestamp(ts)
+        return datetime.fromtimestamp(ts, timezone.utc)
 
     @props.with_doc
     def time_received(self):
@@ -180,7 +180,7 @@ class Message(object):
         """
         ts = lib.dc_msg_get_received_timestamp(self._dc_msg)
         if ts:
-            return datetime.utcfromtimestamp(ts)
+            return datetime.fromtimestamp(ts, timezone.utc)
 
     @props.with_doc
     def ephemeral_timer(self):
@@ -200,7 +200,7 @@ class Message(object):
         """
         ts = lib.dc_msg_get_ephemeral_timestamp(self._dc_msg)
         if ts:
-            return datetime.utcfromtimestamp(ts)
+            return datetime.fromtimestamp(ts, timezone.utc)
 
     @property
     def quoted_text(self):
