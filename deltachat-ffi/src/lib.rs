@@ -2213,7 +2213,7 @@ pub unsafe extern "C" fn dc_get_last_error(context: *mut dc_context_t) -> *mut l
         return "".strdup();
     }
     let ctx = &*context;
-    block_on(async move { ctx.get_last_error().await.strdup() })
+    block_on(ctx.get_last_error()).strdup()
 }
 
 // dc_array_t
