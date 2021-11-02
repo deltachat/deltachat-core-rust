@@ -76,6 +76,11 @@ pub struct InnerContext {
     pub(crate) id: u32,
 
     creation_time: SystemTime,
+
+    /// The text of the last error logged and emitted as an event.
+    /// If the ui wants to display an error after a failure,
+    /// `last_error` should be used to avoid races with the event thread.
+    pub(crate) last_error: RwLock<String>,
 }
 
 #[derive(Debug)]
@@ -147,6 +152,7 @@ impl Context {
             quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
+            last_error: RwLock::new("".to_string()),
         };
 
         let ctx = Context {

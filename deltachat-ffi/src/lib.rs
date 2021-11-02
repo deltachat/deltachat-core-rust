@@ -2206,6 +2206,16 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
     });
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_last_error(context: *mut dc_context_t) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_last_error()");
+        return "".strdup();
+    }
+    let ctx = &*context;
+    block_on(ctx.get_last_error()).strdup()
+}
+
 // dc_array_t
 
 pub type dc_array_t = dc_array::dc_array_t;

@@ -1,6 +1,7 @@
 //! # Logging.
 
 use crate::context::Context;
+use async_std::task::block_on;
 
 #[macro_export]
 macro_rules! info {
@@ -39,8 +40,26 @@ macro_rules! error {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
+        $ctx.set_last_error(&formatted);
         $ctx.emit_event($crate::EventType::Error(formatted));
     }};
+}
+
+impl Context {
+    /// Set last error string.
+    /// Implemented as blocking as used from macros in different, not always async blocks.
+    pub fn set_last_error(&self, error: &str) {
+        block_on(async move {
+            let mut last_error = self.last_error.write().await;
+            *last_error = error.to_string();
+        });
+    }
+
+    /// Get last error string.
+    pub async fn get_last_error(&self) -> String {
+        let last_error = &*self.last_error.read().await;
+        last_error.clone()
+    }
 }
 
 pub trait LogExt<T, E>
@@ -132,5 +151,33 @@ impl<T, E: std::fmt::Display> LogExt<T, E> for Result<T, E> {
             context.emit_event(crate::EventType::Warning(full));
         };
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::TestContext;
+    use anyhow::Result;
+
+    #[async_std::test]
+    async fn test_get_last_error() -> Result<()> {
+        let t = TestContext::new().await;
+
+        assert_eq!(t.get_last_error().await, "");
+
+        error!(t, "foo-error");
+        assert_eq!(t.get_last_error().await, "foo-error");
+
+        warn!(t, "foo-warning");
+        assert_eq!(t.get_last_error().await, "foo-error");
+
+        info!(t, "foo-info");
+        assert_eq!(t.get_last_error().await, "foo-error");
+
+        error!(t, "bar-error");
+        error!(t, "baz-error");
+        assert_eq!(t.get_last_error().await, "baz-error");
+
+        Ok(())
     }
 }

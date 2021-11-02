@@ -2415,6 +2415,22 @@ void        dc_delete_all_locations         (dc_context_t* context);
 
 
 /**
+ * Get last error string.
+ *
+ * This is the same error string as logged via #DC_EVENT_ERROR,
+ * however, using this function avoids race conditions
+ * if the failing function is called in another thread than dc_get_next_event().
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @return Last error or an empty string if there is no last error.
+ *     NULL is never returned.
+ *     The returned value must be released using dc_str_unref() after usage.
+ */
+char* dc_get_last_error (dc_context_t* context);
+
+
+/**
  * Release a string returned by another deltachat-core function.
  * - Strings returned by any deltachat-core-function
  *   MUST NOT be released by the standard free() function;
