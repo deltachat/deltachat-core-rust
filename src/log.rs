@@ -48,10 +48,10 @@ macro_rules! error {
 impl Context {
     /// Set last error string.
     /// Implemented as blocking as used from macros in different, not always async blocks.
-    pub fn set_last_error(&self, error: &String) {
+    pub fn set_last_error(&self, error: &str) {
         block_on(async move {
             let mut last_error = self.last_error.write().await;
-            *last_error = error.clone();
+            *last_error = error.to_string();
         });
     }
 
