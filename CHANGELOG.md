@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- prioritize In-Reply-To: and References: headers over group IDs when assigning
+  messages to chats to fix incorrect assignment of Delta Chat replies to
+  classic email threads #2795
+
+
 ## 1.63.0
 
 ### API changes
