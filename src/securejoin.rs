@@ -499,6 +499,12 @@ pub(crate) async fn handle_securejoin_handshake(
 
             inviter_progress!(context, contact_id, 300);
 
+            // for setup-contact, make Alice's one-to-one chat with Bob visible
+            // (secure-join-information are shown in the group chat)
+            if !join_vg {
+                ChatId::create_for_contact(context, contact_id).await?;
+            }
+
             // Alice -> Bob
             send_alice_handshake_msg(
                 context,
@@ -933,7 +939,7 @@ mod tests {
     use std::time::Duration;
 
     #[async_std::test]
-    async fn test_setup_contact() -> Result<()> {
+    async fn test_setup_contact_x() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
