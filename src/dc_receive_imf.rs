@@ -3,7 +3,7 @@
 use std::cmp::min;
 use std::convert::TryFrom;
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{bail, ensure, Context as _, Result};
 use itertools::join;
 use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
@@ -186,6 +186,11 @@ pub(crate) async fn dc_receive_imf_inner(
         .get_header(HeaderDef::Date)
         .and_then(|value| mailparse::dateparse(value).ok())
         .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp));
+
+    if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
+        let better_msg = stock_str::msg_location_enabled_by(context, from_id as u32).await;
+        set_better_msg(&mut mime_parser, &better_msg);
+    }
 
     // Add parts
     let chat_id = add_parts(
@@ -551,7 +556,6 @@ async fn add_parts(
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
                 mime_parser,
-                sent_timestamp,
                 if test_normal_chat.is_none() {
                     allow_creation
                 } else {
@@ -589,6 +593,16 @@ async fn add_parts(
                     }
                 }
             }
+
+            apply_group_changes(
+                context,
+                mime_parser,
+                sent_timestamp,
+                chat_id,
+                from_id,
+                to_ids,
+            )
+            .await?;
         }
 
         if chat_id.is_none() {
@@ -776,7 +790,6 @@ async fn add_parts(
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
                     mime_parser,
-                    sent_timestamp,
                     allow_creation,
                     Blocked::Not,
                     from_id,
@@ -1309,15 +1322,6 @@ async fn lookup_chat_by_reply(
     if let Some(parent) = parent {
         let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
-        if let Some(msg_grpid) = try_getting_grpid(mime_parser) {
-            if msg_grpid == parent_chat.grpid {
-                // This message will be assigned to this chat, anyway.
-                // But if we assigned it now, create_or_lookup_group() will not be called
-                // and group commands will not be executed.
-                return Ok(None);
-            }
-        }
-
         if parent.error.is_some() {
             // If the parent msg is undecipherable, then it may have been assigned to the wrong chat
             // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
@@ -1378,42 +1382,22 @@ async fn is_probably_private_reply(
     Ok(true)
 }
 
-/// This function tries to extract the group-id from the message and returns the
-/// corresponding chat_id. If the chat does not exist, it is created.
-/// If the message contains groups commands (name, profile image, changed members),
-/// they are executed as well.
-///
-/// If no group-id could be extracted, message is assigned to the same chat as the
-/// parent message.
-///
-/// If there is no parent message in the database, and there are more than two members,
-/// a new ad-hoc group is created.
+/// This function tries to extract the group-id from the message and returns the corresponding
+/// chat_id. If the chat does not exist, it is created.  If there is no group-id and there are more
+/// than two members, a new ad hoc group is created.
 ///
 /// On success the function returns the found/created (chat_id, chat_blocked) tuple.
-#[allow(non_snake_case, clippy::cognitive_complexity)]
 async fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
-    sent_timestamp: i64,
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &ContactIds,
 ) -> Result<Option<(ChatId, Blocked)>> {
-    let mut chat_id_blocked = Blocked::Not;
-    let mut recreate_member_list = false;
-    let mut send_EVENT_CHAT_MODIFIED = false;
-    let mut X_MrAddToGrp = None;
-    let mut better_msg: String = From::from("");
-
-    if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
-        better_msg = stock_str::msg_location_enabled_by(context, from_id as u32).await;
-        set_better_msg(mime_parser, &better_msg);
-    }
-
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
-    } else {
+    } else if allow_creation {
         let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
         if !member_ids.contains(&(from_id as u32)) {
             member_ids.push(from_id as u32);
@@ -1421,24 +1405,26 @@ async fn create_or_lookup_group(
         if !member_ids.contains(&(DC_CONTACT_ID_SELF as u32)) {
             member_ids.push(DC_CONTACT_ID_SELF as u32);
         }
-        if !allow_creation {
-            info!(context, "creating ad-hoc group prevented from caller");
-            return Ok(None);
-        }
 
-        return create_adhoc_group(context, mime_parser, create_blocked, &member_ids)
+        let res = create_adhoc_group(context, mime_parser, create_blocked, &member_ids)
             .await
-            .map(|chat_id| chat_id.map(|chat_id| (chat_id, create_blocked)))
-            .map_err(|err| {
-                info!(context, "could not create adhoc-group: {:?}", err);
-                err
-            });
+            .context("could not create ad hoc group")?
+            .map(|chat_id| (chat_id, create_blocked));
+        return Ok(res);
+    } else {
+        info!(context, "creating ad-hoc group prevented from caller");
+        return Ok(None);
     };
 
-    // check, if we have a chat with this group ID
-    let mut chat_id = chat::get_chat_id_by_grpid(context, &grpid)
-        .await?
-        .map(|(chat_id, _protected, _blocked)| chat_id);
+    let mut chat_id;
+    let mut chat_id_blocked;
+    if let Some((id, _protected, blocked)) = chat::get_chat_id_by_grpid(context, &grpid).await? {
+        chat_id = Some(id);
+        chat_id_blocked = blocked;
+    } else {
+        chat_id = None;
+        chat_id_blocked = Default::default();
+    }
 
     // For chat messages, we don't have to guess (is_*probably*_private_reply()) but we know for sure that
     // they belong to the group because of the Chat-Group-Id or Message-Id header
@@ -1449,69 +1435,6 @@ async fn create_or_lookup_group(
             return Ok(None);
         }
     }
-
-    // now we have a grpid that is non-empty
-    // but we might not know about this group
-
-    let grpname = mime_parser.get_header(HeaderDef::ChatGroupName).cloned();
-    let mut removed_id = None;
-
-    if let Some(removed_addr) = mime_parser
-        .get_header(HeaderDef::ChatGroupMemberRemoved)
-        .cloned()
-    {
-        removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
-        match removed_id {
-            Some(contact_id) => {
-                mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
-                better_msg = if contact_id == from_id {
-                    stock_str::msg_group_left(context, from_id).await
-                } else {
-                    stock_str::msg_del_member(context, &removed_addr, from_id).await
-                };
-            }
-            None => warn!(context, "removed {:?} has no contact_id", removed_addr),
-        }
-    } else {
-        let field = mime_parser
-            .get_header(HeaderDef::ChatGroupMemberAdded)
-            .cloned();
-        if let Some(added_member) = field {
-            mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
-            better_msg = stock_str::msg_add_member(context, &added_member, from_id).await;
-            X_MrAddToGrp = Some(added_member);
-        } else if let Some(old_name) = mime_parser.get_header(HeaderDef::ChatGroupNameChanged) {
-            better_msg = stock_str::msg_grp_name(
-                context,
-                old_name,
-                if let Some(ref name) = grpname {
-                    name
-                } else {
-                    ""
-                },
-                from_id as u32,
-            )
-            .await;
-            mime_parser.is_system_message = SystemMessage::GroupNameChanged;
-        } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
-            if value == "group-avatar-changed" {
-                if let Some(avatar_action) = &mime_parser.group_avatar {
-                    // this is just an explicit message containing the group-avatar,
-                    // apart from that, the group-avatar is send along with various other messages
-                    mime_parser.is_system_message = SystemMessage::GroupImageChanged;
-                    better_msg = match avatar_action {
-                        AvatarAction::Delete => {
-                            stock_str::msg_grp_img_deleted(context, from_id).await
-                        }
-                        AvatarAction::Change(_) => {
-                            stock_str::msg_grp_img_changed(context, from_id).await
-                        }
-                    };
-                }
-            }
-        }
-    }
-    set_better_msg(mime_parser, &better_msg);
 
     let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
@@ -1524,55 +1447,56 @@ async fn create_or_lookup_group(
         ProtectionStatus::Unprotected
     };
 
-    // check if the group does not exist but should be created
-    let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid)
-        .await
-        .unwrap_or_default();
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
         .await?
-        .unwrap_or_default();
-
+        .context("no address configured")?;
     if chat_id.is_none()
             && !mime_parser.is_mailinglist_message()
             && !grpid.is_empty()
-            && grpname.is_some()
+            && mime_parser.get_header(HeaderDef::ChatGroupName).is_some()
             // otherwise, a pending "quit" message may pop up
-            && removed_id.is_none()
+            && mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved).is_none()
             // re-create explicitly left groups only if ourself is re-added
-            && (!group_explicitly_left
-                || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
+            && (!chat::is_group_explicitly_left(context, &grpid).await?
+                || mime_parser.get_header(HeaderDef::ChatGroupMemberAdded).map_or(false, |member_addr| addr_cmp(&self_addr, member_addr)))
     {
-        // group does not exist but should be created
+        // Group does not exist but should be created.
         if !allow_creation {
             info!(context, "creating group forbidden by caller");
             return Ok(None);
         }
 
-        chat_id = ChatId::create_multiuser_record(
+        let grpname = mime_parser.get_header(HeaderDef::ChatGroupName).unwrap();
+        let new_chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Group,
             &grpid,
-            grpname.as_ref().unwrap(),
+            grpname,
             create_blocked,
             create_protected,
         )
         .await
-        .map(Some)
-        .unwrap_or_else(|err| {
-            warn!(
-                context,
-                "Failed to create group '{}' for grpid={}: {:?}",
-                grpname.as_ref().unwrap(),
-                grpid,
-                err,
-            );
+        .with_context(|| format!("Failed to create group '{}' for grpid={}", grpname, grpid))?;
 
-            None
-        });
-
+        chat_id = Some(new_chat_id);
         chat_id_blocked = create_blocked;
-        recreate_member_list = true;
+
+        // Create initial member list.
+        chat::add_to_chat_contacts_table(context, new_chat_id, DC_CONTACT_ID_SELF).await?;
+        if from_id > DC_CONTACT_ID_LAST_SPECIAL
+            && !chat::is_contact_in_chat(context, new_chat_id, from_id).await?
+        {
+            chat::add_to_chat_contacts_table(context, new_chat_id, from_id).await?;
+        }
+        for &to_id in to_ids.iter() {
+            info!(context, "adding to={:?} to chat id={}", to_id, new_chat_id);
+            if !Contact::addr_equals_contact(context, &self_addr, to_id).await?
+                && !chat::is_contact_in_chat(context, new_chat_id, to_id).await?
+            {
+                chat::add_to_chat_contacts_table(context, new_chat_id, to_id).await?;
+            }
+        }
 
         // once, we have protected-chats explained in UI, we can uncomment the following lines.
         // ("verified groups" did not add a message anyway)
@@ -1580,25 +1504,16 @@ async fn create_or_lookup_group(
         //if create_protected == ProtectionStatus::Protected {
         // set from_id=0 as it is not clear that the sender of this random group message
         // actually really has enabled chat-protection at some point.
-        //chat_id
+        //new_chat_id
         //    .add_protection_msg(context, ProtectionStatus::Protected, false, 0)
         //    .await?;
         //}
-    } else if let Some(chat_id) = chat_id {
-        if create_protected == ProtectionStatus::Protected {
-            let chat = Chat::load_from_db(context, chat_id).await?;
-            if !chat.is_protected() {
-                chat_id
-                    .inner_set_protection(context, ProtectionStatus::Protected)
-                    .await?;
-                recreate_member_list = true;
-            }
-        }
+
+        context.emit_event(EventType::ChatModified(new_chat_id));
     }
 
-    // again, check chat_id
-    let chat_id = if let Some(chat_id) = chat_id {
-        chat_id
+    if let Some(chat_id) = chat_id {
+        Ok(Some((chat_id, chat_id_blocked)))
     } else if mime_parser.decrypting_failed {
         // It is possible that the message was sent to a valid,
         // yet unknown group, which was rejected because
@@ -1606,65 +1521,141 @@ async fn create_or_lookup_group(
         // not found. We can't create a properly named group in
         // this case, so assign error message to 1:1 chat with the
         // sender instead.
-        return Ok(None);
+        Ok(None)
     } else {
         // The message was decrypted successfully, but contains a late "quit" or otherwise
         // unwanted message.
         info!(context, "message belongs to unwanted group (TRASH)");
-        return Ok(Some((DC_CHAT_ID_TRASH, chat_id_blocked)));
-    };
+        Ok(Some((DC_CHAT_ID_TRASH, Blocked::Not)))
+    }
+}
 
-    // We have a valid chat_id > DC_CHAT_ID_LAST_SPECIAL.
+/// Apply group member list, name, avatar and protection status changes from the MIME message.
+async fn apply_group_changes(
+    context: &Context,
+    mime_parser: &mut MimeMessage,
+    sent_timestamp: i64,
+    chat_id: ChatId,
+    from_id: u32,
+    to_ids: &ContactIds,
+) -> Result<()> {
+    let mut chat = Chat::load_from_db(context, chat_id).await?;
+    if chat.typ != Chattype::Group {
+        return Ok(());
+    }
 
-    // execute group commands
-    if X_MrAddToGrp.is_some() {
-        recreate_member_list = true;
-    } else if mime_parser
-        .get_header(HeaderDef::ChatGroupNameChanged)
-        .is_some()
+    let self_addr = context
+        .get_config(Config::ConfiguredAddr)
+        .await?
+        .context("no address configured")?;
+
+    let mut recreate_member_list = false;
+    let mut send_event_chat_modified = false;
+
+    let removed_id;
+    if let Some(removed_addr) = mime_parser
+        .get_header(HeaderDef::ChatGroupMemberRemoved)
+        .cloned()
     {
-        if let Some(ref grpname) = grpname {
-            if grpname.len() < 200
-                && chat_id
+        removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
+        match removed_id {
+            Some(contact_id) => {
+                mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
+                let better_msg = if contact_id == from_id {
+                    stock_str::msg_group_left(context, from_id).await
+                } else {
+                    stock_str::msg_del_member(context, &removed_addr, from_id).await
+                };
+                set_better_msg(mime_parser, &better_msg);
+            }
+            None => warn!(context, "removed {:?} has no contact_id", removed_addr),
+        }
+    } else {
+        removed_id = None;
+        if let Some(added_member) = mime_parser
+            .get_header(HeaderDef::ChatGroupMemberAdded)
+            .cloned()
+        {
+            mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
+            let better_msg = stock_str::msg_add_member(context, &added_member, from_id).await;
+            set_better_msg(mime_parser, &better_msg);
+            recreate_member_list = true;
+        } else if let Some(old_name) = mime_parser.get_header(HeaderDef::ChatGroupNameChanged) {
+            if let Some(grpname) = mime_parser
+                .get_header(HeaderDef::ChatGroupName)
+                .filter(|grpname| grpname.len() < 200)
+            {
+                if chat_id
                     .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
                     .await?
-            {
-                info!(context, "updating grpname for chat {}", chat_id);
-                if context
-                    .sql
-                    .execute(
-                        "UPDATE chats SET name=? WHERE id=?;",
-                        paramsv![grpname.to_string(), chat_id],
-                    )
-                    .await
-                    .is_ok()
                 {
-                    context.emit_event(EventType::ChatModified(chat_id));
+                    info!(context, "updating grpname for chat {}", chat_id);
+                    context
+                        .sql
+                        .execute(
+                            "UPDATE chats SET name=? WHERE id=?;",
+                            paramsv![grpname.to_string(), chat_id],
+                        )
+                        .await?;
+                    send_event_chat_modified = true;
+                }
+
+                let better_msg =
+                    stock_str::msg_grp_name(context, old_name, grpname, from_id as u32).await;
+                set_better_msg(mime_parser, &better_msg);
+                mime_parser.is_system_message = SystemMessage::GroupNameChanged;
+            }
+        } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
+            if value == "group-avatar-changed" {
+                if let Some(avatar_action) = &mime_parser.group_avatar {
+                    // this is just an explicit message containing the group-avatar,
+                    // apart from that, the group-avatar is send along with various other messages
+                    mime_parser.is_system_message = SystemMessage::GroupImageChanged;
+                    let better_msg = match avatar_action {
+                        AvatarAction::Delete => {
+                            stock_str::msg_grp_img_deleted(context, from_id).await
+                        }
+                        AvatarAction::Change(_) => {
+                            stock_str::msg_grp_img_changed(context, from_id).await
+                        }
+                    };
+                    set_better_msg(mime_parser, &better_msg);
                 }
             }
         }
-    } else if mime_parser.is_system_message == SystemMessage::ChatProtectionEnabled {
-        recreate_member_list = true;
+    }
+
+    if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
+        if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
+            warn!(context, "verification problem: {}", err);
+            let s = format!("{}. See 'Info' for more details", err);
+            mime_parser.repl_msg_by_error(&s);
+        }
+
+        if !chat.is_protected() {
+            chat_id
+                .inner_set_protection(context, ProtectionStatus::Protected)
+                .await?;
+            recreate_member_list = true;
+        }
     }
 
     if let Some(avatar_action) = &mime_parser.group_avatar {
         info!(context, "group-avatar change for {}", chat_id);
-        if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
-            if chat
-                .param
-                .update_timestamp(Param::AvatarTimestamp, sent_timestamp)?
-            {
-                match avatar_action {
-                    AvatarAction::Change(profile_image) => {
-                        chat.param.set(Param::ProfileImage, profile_image);
-                    }
-                    AvatarAction::Delete => {
-                        chat.param.remove(Param::ProfileImage);
-                    }
-                };
-                chat.update_param(context).await?;
-                send_EVENT_CHAT_MODIFIED = true;
-            }
+        if chat
+            .param
+            .update_timestamp(Param::AvatarTimestamp, sent_timestamp)?
+        {
+            match avatar_action {
+                AvatarAction::Change(profile_image) => {
+                    chat.param.set(Param::ProfileImage, profile_image);
+                }
+                AvatarAction::Delete => {
+                    chat.param.remove(Param::ProfileImage);
+                }
+            };
+            chat.update_param(context).await?;
+            send_event_chat_modified = true;
         }
     }
 
@@ -1684,8 +1675,7 @@ async fn create_or_lookup_group(
                         "DELETE FROM chats_contacts WHERE chat_id=?;",
                         paramsv![chat_id],
                     )
-                    .await
-                    .ok();
+                    .await?;
 
                 chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await?;
             }
@@ -1703,7 +1693,7 @@ async fn create_or_lookup_group(
                     chat::add_to_chat_contacts_table(context, chat_id, to_id).await?;
                 }
             }
-            send_EVENT_CHAT_MODIFIED = true;
+            send_event_chat_modified = true;
         }
     } else if let Some(contact_id) = removed_id {
         if chat_id
@@ -1711,14 +1701,14 @@ async fn create_or_lookup_group(
             .await?
         {
             chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
-            send_EVENT_CHAT_MODIFIED = true;
+            send_event_chat_modified = true;
         }
     }
 
-    if send_EVENT_CHAT_MODIFIED {
+    if send_event_chat_modified {
         context.emit_event(EventType::ChatModified(chat_id));
     }
-    Ok(Some((chat_id, chat_id_blocked)))
+    Ok(())
 }
 
 /// Create or lookup a mailing list chat.
@@ -4595,6 +4585,71 @@ Reply to all"#,
             assert_eq!(reply_chat.typ, Chattype::Group);
             assert_eq!(reply.chat_id, group_msg.chat_id);
         }
+    }
+
+    /// Tests that replies to similar ad hoc groups are correctly assigned to chats.
+    ///
+    /// The difficutly here is that ad hoc groups don't have unique group IDs, because both
+    /// messages have the same recipient lists and only differ in the subject and message contents.
+    /// The messages can be properly assigned to chats only using the In-Reply-To or References
+    /// headers.
+    #[async_std::test]
+    async fn test_chat_assignment_adhoc() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_alice().await;
+        alice.set_config(Config::ShowEmails, Some("2")).await?;
+        bob.set_config(Config::ShowEmails, Some("2")).await?;
+
+        let first_thread_mime = br#"Subject: First thread
+Message-ID: first@example.org
+To: Alice <alice@example.com>, Bob <bob@example.net>
+From: Claire <claire@example.org>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+First thread."#;
+        let second_thread_mime = br#"Subject: Second thread
+Message-ID: second@example.org
+To: Alice <alice@example.com>, Bob <bob@example.net>
+From: Claire <claire@example.org>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+Second thread."#;
+
+        // Alice receives two classic emails from Claire.
+        dc_receive_imf(&alice, first_thread_mime, "Inbox", 1, false).await?;
+        let alice_first_msg = alice.get_last_msg().await;
+        dc_receive_imf(&alice, second_thread_mime, "Inbox", 2, false).await?;
+        let alice_second_msg = alice.get_last_msg().await;
+
+        // Bob receives the same two emails.
+        dc_receive_imf(&bob, first_thread_mime, "Inbox", 1, false).await?;
+        let bob_first_msg = bob.get_last_msg().await;
+        dc_receive_imf(&bob, second_thread_mime, "Inbox", 2, false).await?;
+        let bob_second_msg = bob.get_last_msg().await;
+
+        // Messages go to separate chats both for Alice and Bob.
+        assert!(alice_first_msg.chat_id != alice_second_msg.chat_id);
+        assert!(bob_first_msg.chat_id != bob_second_msg.chat_id);
+
+        // Alice replies to both chats. Bob receives two messages and assigns them to corresponding
+        // chats.
+        alice_first_msg.chat_id.accept(&alice).await?;
+        let alice_first_reply = alice
+            .send_text(alice_first_msg.chat_id, "First reply")
+            .await;
+        bob.recv_msg(&alice_first_reply).await;
+        let bob_first_reply = bob.get_last_msg().await;
+        assert_eq!(bob_first_reply.chat_id, bob_first_msg.chat_id);
+
+        alice_second_msg.chat_id.accept(&alice).await?;
+        let alice_second_reply = alice
+            .send_text(alice_second_msg.chat_id, "Second reply")
+            .await;
+        bob.recv_msg(&alice_second_reply).await;
+        let bob_second_reply = bob.get_last_msg().await;
+        assert_eq!(bob_second_reply.chat_id, bob_second_msg.chat_id);
+
+        Ok(())
     }
 
     /// Test that read receipts don't create chats.
