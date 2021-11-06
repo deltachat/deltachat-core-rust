@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.63.0
+
+### API changes
+- `dc_get_last_error()` added #2788
+
+### Changes
+- Optimize Autocrypt gossip #2743
+
+### Fixes
+- fix permanently hiding of one-to-one chats after secure-join #2791
+
+
 ## 1.62.0
 
 ### API Changes
