@@ -499,6 +499,12 @@ pub(crate) async fn handle_securejoin_handshake(
 
             inviter_progress!(context, contact_id, 300);
 
+            // for setup-contact, make Alice's one-to-one chat with Bob visible
+            // (secure-join-information are shown in the group chat)
+            if !join_vg {
+                ChatId::create_for_contact(context, contact_id).await?;
+            }
+
             // Alice -> Bob
             send_alice_handshake_msg(
                 context,
@@ -936,6 +942,8 @@ mod tests {
     async fn test_setup_contact() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
+        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
 
         // Setup JoinerProgress sinks.
         let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::bounded(100);
@@ -954,6 +962,7 @@ mod tests {
 
         // Step 2: Bob scans QR-code, sends vc-request
         dc_join_securejoin(&bob.ctx, &qr).await?;
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
 
         let sent = bob.pop_sent_msg().await;
         assert!(!bob.ctx.has_ongoing().await);
@@ -965,6 +974,7 @@ mod tests {
 
         // Step 3: Alice receives vc-request, sends vc-auth-required
         alice.recv_msg(&sent).await;
+        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);
 
         let sent = alice.pop_sent_msg().await;
         let msg = bob.parse_msg(&sent).await;
@@ -1040,6 +1050,11 @@ mod tests {
             contact_bob.is_verified(&alice.ctx).await?,
             VerifiedStatus::BidirectVerified
         );
+
+        // exactly one one-to-one chat should be visible for both now
+        // (check this before calling alice.create_chat() explicitly below)
+        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
 
         // Check Alice got the verified message in her 1:1 chat.
         {
@@ -1302,6 +1317,8 @@ mod tests {
     async fn test_secure_join() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
+        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
 
         // Setup JoinerProgress sinks.
         let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::bounded(100);
@@ -1323,12 +1340,9 @@ mod tests {
             .await
             .unwrap();
 
-        // Step 2: Bob scans QR-code, sends vg-request; blocks on ongoing process
-        let joiner = {
-            let qr = qr.clone();
-            let ctx = bob.ctx.clone();
-            async_std::task::spawn(async move { dc_join_securejoin(&ctx, &qr).await.unwrap() })
-        };
+        // Step 2: Bob scans QR-code, sends vg-request
+        let bob_chatid = dc_join_securejoin(&bob.ctx, &qr).await?;
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
 
         let sent = bob.pop_sent_msg().await;
         assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
@@ -1444,9 +1458,9 @@ mod tests {
             "vg-member-added-received"
         );
 
-        let bob_chatid = joiner.await;
         let bob_chat = Chat::load_from_db(&bob.ctx, bob_chatid).await?;
         assert!(bob_chat.is_protected());
+        assert!(bob_chat.typ == Chattype::Group);
         assert!(!bob.ctx.has_ongoing().await);
 
         // On this "happy path", Alice and Bob get only a group-chat where all information are added to.
@@ -1454,6 +1468,14 @@ mod tests {
         // however, should not be visible in the UIs.
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
+
+        // If Bob then sends a direct message to alice, however, the one-to-one with Alice should appear.
+        let bobs_chat_with_alice = bob.create_chat(&alice).await;
+        let sent = bob.send_text(bobs_chat_with_alice.id, "Hello").await;
+        alice.recv_msg(&sent).await;
+        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 2);
+        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 2);
+
         Ok(())
     }
 }

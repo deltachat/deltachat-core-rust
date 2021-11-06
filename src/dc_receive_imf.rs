@@ -664,11 +664,12 @@ async fn add_parts(
             }
 
             if let Some(chat_id) = chat_id {
-                if Blocked::Not != chat_id_blocked {
-                    if Blocked::Not == create_blocked {
-                        chat_id.unblock(context).await?;
-                        chat_id_blocked = Blocked::Not;
-                    } else if parent.is_some() {
+                if chat_id_blocked != Blocked::Not {
+                    if chat_id_blocked != create_blocked {
+                        chat_id.set_blocked(context, create_blocked).await?;
+                        chat_id_blocked = create_blocked;
+                    }
+                    if create_blocked == Blocked::Request && parent.is_some() {
                         // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                         // the contact requests will pop up and this should be just fine.
                         Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo)
@@ -806,9 +807,9 @@ async fn add_parts(
                 }
 
                 if let Some(chat_id) = chat_id {
-                    if Blocked::Not != chat_id_blocked && Blocked::Not == create_blocked {
-                        chat_id.unblock(context).await?;
-                        chat_id_blocked = Blocked::Not;
+                    if chat_id_blocked != Blocked::Not && chat_id_blocked != create_blocked {
+                        chat_id.set_blocked(context, create_blocked).await?;
+                        chat_id_blocked = create_blocked;
                     }
                 }
             }

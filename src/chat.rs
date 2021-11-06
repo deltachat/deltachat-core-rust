@@ -266,7 +266,7 @@ impl ChatId {
     /// Updates chat blocked status.
     ///
     /// Returns true if the value was modified.
-    async fn set_blocked(self, context: &Context, new_blocked: Blocked) -> Result<bool> {
+    pub(crate) async fn set_blocked(self, context: &Context, new_blocked: Blocked) -> Result<bool> {
         if self.is_special() {
             bail!("ignoring setting of Block-status for {}", self);
         }
