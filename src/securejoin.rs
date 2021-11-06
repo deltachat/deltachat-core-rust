@@ -930,7 +930,7 @@ mod tests {
     use async_std::prelude::*;
 
     use crate::chat;
-    use crate::chat::{send_text_msg, ProtectionStatus};
+    use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::events::Event;
@@ -939,7 +939,7 @@ mod tests {
     use std::time::Duration;
 
     #[async_std::test]
-    async fn test_setup_contact_x() -> Result<()> {
+    async fn test_setup_contact() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
@@ -1471,8 +1471,7 @@ mod tests {
 
         // If Bob then sends a direct message to alice, however, the one-to-one with Alice should appear.
         let bobs_chat_with_alice = bob.create_chat(&alice).await;
-        send_text_msg(&bob, bobs_chat_with_alice.id, "Hello".to_string()).await?;
-        let sent = bob.pop_sent_msg().await;
+        let sent = bob.send_text(bobs_chat_with_alice.id, "Hello").await;
         alice.recv_msg(&sent).await;
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 2);
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 2);
