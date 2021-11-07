@@ -533,9 +533,18 @@ pub(crate) async fn handle_securejoin_handshake(
                         Ok(HandshakeMessage::Done)
                     }
                     Some(_stage) => {
-                        let msg = stock_str::secure_join_replies(context, contact_id).await;
-                        chat::add_info_msg(context, bobstate.chat_id(context).await?, msg, time())
+                        if join_vg {
+                            // the message reads "Alice replied, waiting for being added to the group…";
+                            // show it only on secure-join and not on setup-contact therefore.
+                            let msg = stock_str::secure_join_replies(context, contact_id).await;
+                            chat::add_info_msg(
+                                context,
+                                bobstate.chat_id(context).await?,
+                                msg,
+                                time(),
+                            )
                             .await?;
+                        }
                         joiner_progress!(context, bobstate.invite().contact_id(), 400);
                         Ok(HandshakeMessage::Done)
                     }
