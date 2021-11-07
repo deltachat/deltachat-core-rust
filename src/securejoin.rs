@@ -87,6 +87,12 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> R
     let qr = if let Some(group) = group {
         // parameters used: a=g=x=i=s=
         let chat = Chat::load_from_db(context, group).await?;
+        if chat.grpid.is_empty() {
+            bail!(
+                "can't generate securejoin QR code for ad-hoc group {}",
+                group
+            );
+        }
         let group_name = chat.get_name();
         let group_name_urlencoded = utf8_percent_encode(group_name, NON_ALPHANUMERIC).to_string();
         if sync_token {
@@ -710,6 +716,7 @@ mod tests {
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
+    use crate::dc_receive_imf::dc_receive_imf;
     use crate::peerstate::Peerstate;
     use crate::test_utils::{TestContext, TestContextManager};
 
@@ -1306,6 +1313,27 @@ mod tests {
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 2);
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 2);
 
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_adhoc_group_no_qr() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        alice.set_config(Config::ShowEmails, Some("2")).await?;
+
+        let mime = br#"Subject: First thread
+Message-ID: first@example.org
+To: Alice <alice@example.org>, Bob <bob@example.net>
+From: Claire <claire@example.org>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+First thread."#;
+
+        dc_receive_imf(&alice, mime, false).await?;
+        let msg = alice.get_last_msg().await;
+        let chat_id = msg.chat_id;
+
+        assert!(dc_get_securejoin_qr(&alice, Some(chat_id)).await.is_err());
         Ok(())
     }
 }
