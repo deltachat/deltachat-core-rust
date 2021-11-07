@@ -534,6 +534,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     }
                     Some(_stage) => {
                         if join_vg {
+                            // the message reads "Alice replied, waiting for being added to the group…";
+                            // show it only on secure-join and not on setup-contact therefore.
                             let msg = stock_str::secure_join_replies(context, contact_id).await;
                             chat::add_info_msg(
                                 context,
