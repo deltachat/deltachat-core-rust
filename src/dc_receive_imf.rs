@@ -9,7 +9,6 @@ use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use sha2::{Digest, Sha256};
 
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
@@ -1925,9 +1924,6 @@ async fn create_adhoc_group(
         return Ok(None);
     }
 
-    // Create a new ad-hoc group.
-    let grpid = create_adhoc_grp_id(context, member_ids).await?;
-
     // use subject as initial chat name
     let grpname = mime_parser
         .get_subject()
@@ -1936,7 +1932,7 @@ async fn create_adhoc_group(
     let new_chat_id: ChatId = ChatId::create_multiuser_record(
         context,
         Chattype::Group,
-        &grpid,
+        "", // Ad hoc groups have no ID.
         &grpname,
         create_blocked,
         ProtectionStatus::Unprotected,
@@ -1950,56 +1946,6 @@ async fn create_adhoc_group(
     context.emit_event(EventType::ChatModified(new_chat_id));
 
     Ok(Some(new_chat_id))
-}
-
-/// Creates ad-hoc group ID.
-///
-/// Algorithm:
-/// - sort normalized, lowercased, e-mail addresses alphabetically
-/// - put all e-mail addresses into a single string, separate the address by a single comma
-/// - sha-256 this string (without possibly terminating null-characters)
-/// - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
-///
-/// This ensures that different Delta Chat clients generate the same group ID unless some of them
-/// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
-/// so having the same ID prevents group split.
-async fn create_adhoc_grp_id(context: &Context, member_ids: &[ContactId]) -> Result<String> {
-    let member_cs = context.get_primary_self_addr().await?.to_lowercase();
-    let query = format!(
-        "SELECT addr FROM contacts WHERE id IN({}) AND id!=?",
-        sql::repeat_vars(member_ids.len())
-    );
-    let mut params = Vec::new();
-    params.extend_from_slice(member_ids);
-    params.push(ContactId::SELF);
-
-    let members = context
-        .sql
-        .query_map(
-            query,
-            rusqlite::params_from_iter(params),
-            |row| row.get::<_, String>(0),
-            |rows| {
-                let mut addrs = rows.collect::<std::result::Result<Vec<_>, _>>()?;
-                addrs.sort();
-                let mut acc = member_cs.clone();
-                for addr in &addrs {
-                    acc += ",";
-                    acc += &addr.to_lowercase();
-                }
-                Ok(acc)
-            },
-        )
-        .await?;
-
-    Ok(hex_hash(&members))
-}
-
-#[allow(clippy::indexing_slicing)]
-fn hex_hash(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let result = Sha256::digest(bytes);
-    hex::encode(&result[..8])
 }
 
 async fn check_verified_properties(
@@ -2271,14 +2217,6 @@ mod tests {
     use crate::imap::prefetch_should_download;
     use crate::message::Message;
     use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
-
-    #[test]
-    fn test_hex_hash() {
-        let data = "hello world";
-
-        let res = hex_hash(data);
-        assert_eq!(res, "b94d27b9934d3e08");
-    }
 
     #[async_std::test]
     async fn test_grpid_simple() {
@@ -4588,6 +4526,30 @@ Second thread."#;
         bob.recv_msg(&alice_second_reply).await;
         let bob_second_reply = bob.get_last_msg().await;
         assert_eq!(bob_second_reply.chat_id, bob_second_msg.chat_id);
+
+        // Alice adds Fiona to both ad hoc groups.
+        let fiona = TestContext::new_fiona().await;
+        let (alice_fiona_contact_id, _) = Contact::add_or_lookup(
+            &alice,
+            "Fiona",
+            "fiona@example.net",
+            Origin::IncomingUnknownTo,
+        )
+        .await?;
+
+        chat::add_contact_to_chat(&alice, alice_first_msg.chat_id, alice_fiona_contact_id).await?;
+        let alice_first_invite = alice.pop_sent_msg().await;
+        fiona.recv_msg(&alice_first_invite).await;
+        let fiona_first_invite = fiona.get_last_msg().await;
+
+        chat::add_contact_to_chat(&alice, alice_second_msg.chat_id, alice_fiona_contact_id).await?;
+        let alice_second_invite = alice.pop_sent_msg().await;
+        fiona.recv_msg(&alice_second_invite).await;
+        let fiona_second_invite = fiona.get_last_msg().await;
+
+        // Fiona was added to two separate chats and should see two separate chats, even though they
+        // don't have different group IDs to distinguish them.
+        assert!(fiona_first_invite.chat_id != fiona_second_invite.chat_id);
 
         Ok(())
     }

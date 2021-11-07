@@ -88,6 +88,13 @@ impl TestContextBuilder {
         self.with_key_pair(bob_keypair())
     }
 
+    /// Configures as fiona@example.net with fixed secret key.
+    ///
+    /// This is a shortcut for `.with_key_pair(bob_keypair()).
+    pub fn configure_fiona(self) -> Self {
+        self.with_key_pair(fiona_keypair())
+    }
+
     /// Configures the new [`TestContext`] with the provided [`KeyPair`].
     ///
     /// This will extract the email address from the key and configure the context with the
@@ -181,6 +188,13 @@ impl TestContext {
     /// This is a shortcut which configures bob@example.net with a fixed key.
     pub async fn new_bob() -> Self {
         Self::builder().configure_bob().build().await
+    }
+
+    /// Creates a new configured [`TestContext`].
+    ///
+    /// This is a shortcut which configures fiona@example.net with a fixed key.
+    pub async fn new_fiona() -> Self {
+        Self::builder().configure_fiona().build().await
     }
 
     /// Internal constructor.
@@ -682,6 +696,24 @@ pub fn bob_keypair() -> KeyPair {
         .unwrap()
         .0;
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/bob-secret.asc"))
+        .unwrap()
+        .0;
+    key::KeyPair {
+        addr,
+        public,
+        secret,
+    }
+}
+
+/// Load a pre-generated keypair for fiona@example.net from disk.
+///
+/// Like [alice_keypair] but a different key and identity.
+pub fn fiona_keypair() -> key::KeyPair {
+    let addr = EmailAddress::new("fiona@example.net").unwrap();
+    let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/fiona-public.asc"))
+        .unwrap()
+        .0;
+    let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/fiona-secret.asc"))
         .unwrap()
         .0;
     key::KeyPair {

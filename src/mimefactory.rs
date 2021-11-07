@@ -850,9 +850,12 @@ impl<'a> MimeFactory<'a> {
         }
 
         if chat.typ == Chattype::Group {
-            headers
-                .protected
-                .push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
+            // Send group ID unless it is an ad hoc group that has no ID.
+            if !chat.grpid.is_empty() {
+                headers
+                    .protected
+                    .push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
+            }
 
             let encoded = encode_words(&chat.name);
             headers
