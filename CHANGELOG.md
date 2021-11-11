@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.64.0
 
 ### Fixes
+- add 'waiting for being added to the group' only for group-joins,
+  not for setup-contact #2797
 - prioritize In-Reply-To: and References: headers over group IDs when assigning
   messages to chats to fix incorrect assignment of Delta Chat replies to
   classic email threads #2795
