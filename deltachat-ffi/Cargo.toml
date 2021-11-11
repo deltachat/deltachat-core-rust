@@ -1,6 +1,6 @@
 [package]
 name = "deltachat_ffi"
-version = "1.63.0"
+version = "1.64.0"
 description = "Deltachat FFI"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2018"
