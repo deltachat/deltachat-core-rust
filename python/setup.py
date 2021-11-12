@@ -12,6 +12,7 @@ def main():
         long_description=long_description,
         author='holger krekel, Floris Bruynooghe, Bjoern Petersen and contributors',
         install_requires=['cffi>=1.0.0', 'pluggy', 'imapclient', 'requests'],
+        setup_requires=['setuptools_scm'], # required for compatibility with `python3 setup.py sdist`
         packages=setuptools.find_packages('src'),
         package_dir={'': 'src'},
         cffi_modules=['src/deltachat/_build.py:ffibuilder'],
