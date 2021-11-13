@@ -361,6 +361,7 @@ impl Imap {
 
                 let lock = context.wrong_pw_warning_mutex.lock().await;
                 if self.login_failed_once
+                    && err.to_string().to_lowercase().contains("authentication")
                     && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                 {
                     if let Err(e) = context.set_config(Config::NotifyAboutWrongPw, None).await {
