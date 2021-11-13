@@ -399,10 +399,20 @@ mod tests {
         assert_eq!(chats.get_chat_id(1), chat_id2);
         assert_eq!(chats.get_chat_id(2), chat_id1);
 
-        // drafts are sorted to the top
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("hello".to_string()));
-        chat_id2.set_draft(&t, Some(&mut msg)).await.unwrap();
+        // New drafts are sorted to the top
+        // We have to set a draft on the other two messages, too, as
+        // chat timestamps are only exact to the second and sorting by timestamp
+        // would not work.
+        // Message timestamps are "smeared" and unique, so we don't have this problem
+        // if we have any message (can be a draft) in all chats.
+        // Instead of setting drafts for chat_id1 and chat_id3, we could also sleep
+        // 2s here.
+        for chat_id in &[chat_id1, chat_id3, chat_id2] {
+            let mut msg = Message::new(Viewtype::Text);
+            msg.set_text(Some("hello".to_string()));
+            chat_id.set_draft(&t, Some(&mut msg)).await.unwrap();
+        }
+
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.get_chat_id(0), chat_id2);
 
