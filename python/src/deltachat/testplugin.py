@@ -9,6 +9,7 @@ import fnmatch
 import time
 import weakref
 import tempfile
+from typing import List, Dict, Callable
 
 import pytest
 import requests
@@ -126,7 +127,7 @@ def pytest_report_header(config, startdir):
 
 
 class SessionLiveConfigFromFile:
-    def __init__(self, fn):
+    def __init__(self, fn) -> None:
         self.fn = fn
         self.configlist = []
         for line in open(fn):
@@ -137,19 +138,21 @@ class SessionLiveConfigFromFile:
                     d[name] = value
                 self.configlist.append(d)
 
-    def get(self, index):
+    def get(self, index: int):
         return self.configlist[index]
 
-    def exists(self):
+    def exists(self) -> bool:
         return bool(self.configlist)
 
 
 class SessionLiveConfigFromURL:
-    def __init__(self, url):
+    configlist: List[Dict[str, str]]
+
+    def __init__(self, url: str) -> None:
         self.configlist = []
         self.url = url
 
-    def get(self, index):
+    def get(self, index: int):
         try:
             return self.configlist[index]
         except IndexError:
@@ -162,7 +165,7 @@ class SessionLiveConfigFromURL:
             self.configlist.append(config)
             return config
 
-    def exists(self):
+    def exists(self) -> bool:
         return bool(self.configlist)
 
 
@@ -179,7 +182,7 @@ def session_liveconfig(request):
 @pytest.fixture
 def data(request):
     class Data:
-        def __init__(self):
+        def __init__(self) -> None:
             # trying to find test data heuristically
             # because we are run from a dev-setup with pytest direct,
             # through tox, and then maybe also from deltachat-binding
@@ -210,7 +213,10 @@ def data(request):
 def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
 
     class AccountMaker:
-        def __init__(self):
+        _finalizers: List[Callable[[], None]]
+        _accounts: List[Account]
+
+        def __init__(self) -> None:
             self.live_count = 0
             self.offline_count = 0
             self._finalizers = []
@@ -423,7 +429,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                         pass
                     imap.dump_imap_structures(tmpdir, logfile=logfile)
 
-        def get_accepted_chat(self, ac1, ac2):
+        def get_accepted_chat(self, ac1: Account, ac2: Account):
             ac2.create_chat(ac1)
             return ac1.create_chat(ac2)
 
@@ -451,7 +457,9 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
 
 
 class BotProcess:
-    def __init__(self, popen, bot_cfg):
+    stdout_queue: queue.Queue
+
+    def __init__(self, popen, bot_cfg) -> None:
         self.popen = popen
         self.addr = bot_cfg["addr"]
 
@@ -459,10 +467,10 @@ class BotProcess:
         # the (unicode) lines available for readers through a queue.
         self.stdout_queue = queue.Queue()
         self.stdout_thread = t = threading.Thread(target=self._run_stdout_thread, name="bot-stdout-thread")
-        t.setDaemon(1)
+        t.setDaemon(True)
         t.start()
 
-    def _run_stdout_thread(self):
+    def _run_stdout_thread(self) -> None:
         try:
             while 1:
                 line = self.popen.stdout.readline()
@@ -474,10 +482,10 @@ class BotProcess:
         finally:
             self.stdout_queue.put(None)
 
-    def kill(self):
+    def kill(self) -> None:
         self.popen.kill()
 
-    def wait(self, timeout=30):
+    def wait(self, timeout=30) -> None:
         self.popen.wait(timeout=timeout)
 
     def fnmatch_lines(self, pattern_lines):
@@ -509,14 +517,14 @@ def tmp_db_path(tmpdir):
 @pytest.fixture
 def lp():
     class Printer:
-        def sec(self, msg):
+        def sec(self, msg: str) -> None:
             print()
             print("=" * 10, msg, "=" * 10)
 
-        def step(self, msg):
+        def step(self, msg: str) -> None:
             print("-" * 5, "step " + msg, "-" * 5)
 
-        def indent(self, msg):
+        def indent(self, msg: str) -> None:
             print("  " + msg)
 
     return Printer()

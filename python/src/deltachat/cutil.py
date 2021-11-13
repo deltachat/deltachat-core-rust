@@ -1,6 +1,9 @@
 from .capi import lib
 from .capi import ffi
 from datetime import datetime, timezone
+from typing import Optional, TypeVar, Generator, Callable
+
+T = TypeVar('T')
 
 
 def as_dc_charpointer(obj):
@@ -11,21 +14,22 @@ def as_dc_charpointer(obj):
     return obj
 
 
-def iter_array(dc_array_t, constructor):
+def iter_array(dc_array_t, constructor: Callable[[int], T]) -> Generator[T, None, None]:
     for i in range(0, lib.dc_array_get_cnt(dc_array_t)):
         yield constructor(lib.dc_array_get_id(dc_array_t, i))
 
 
-def from_dc_charpointer(obj):
+def from_dc_charpointer(obj) -> Optional[str]:
     if obj != ffi.NULL:
         return ffi.string(ffi.gc(obj, lib.dc_str_unref)).decode("utf8")
+    return None
 
 
 class DCLot:
-    def __init__(self, dc_lot):
+    def __init__(self, dc_lot) -> None:
         self._dc_lot = dc_lot
 
-    def id(self):
+    def id(self) -> int:
         return lib.dc_lot_get_id(self._dc_lot)
 
     def state(self):

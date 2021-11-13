@@ -11,7 +11,7 @@ from imapclient import IMAPClient
 from imapclient.exceptions import IMAPClientError
 import imaplib
 import deltachat
-from deltachat import const
+from deltachat import const, Account
 
 
 SEEN = b'\\Seen'
@@ -62,7 +62,7 @@ def dc_account_after_shutdown(account):
 
 
 class DirectImap:
-    def __init__(self, account):
+    def __init__(self, account: Account) -> None:
         self.account = account
         self.logid = account.get_config("displayname") or id(account)
         self._idling = False
