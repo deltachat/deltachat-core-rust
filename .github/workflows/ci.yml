@@ -150,4 +150,4 @@ jobs:
         DCC_RS_TARGET: debug
         DCC_RS_DEV: ${{ github.workspace }}
       working-directory: python
-      run: tox -e lint,doc,py3
+      run: tox -e lint,mypy,doc,py3

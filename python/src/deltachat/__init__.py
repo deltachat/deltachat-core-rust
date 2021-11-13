@@ -19,9 +19,9 @@ except DistributionNotFound:
 
 def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
     if not _DC_EVENTNAME_MAP:
-        for name, val in vars(const).items():
+        for name in dir(const):
             if name.startswith("DC_EVENT_"):
-                _DC_EVENTNAME_MAP[val] = name
+                _DC_EVENTNAME_MAP[getattr(const, name)] = name
     return _DC_EVENTNAME_MAP[integer]
 
 

@@ -1,7 +1,13 @@
+from typing import Any, List
+
 from .capi import lib
 
 
-for name in dir(lib):
+def __getattr__(name: str) -> Any:
     if name.startswith("DC_"):
-        globals()[name] = getattr(lib, name)
-del name
+        return getattr(lib, name)
+    return globals()[name]
+
+
+def __dir__() -> List[str]:
+    return sorted(name for name in dir(lib) if name.startswith("DC_"))

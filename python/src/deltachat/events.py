@@ -13,7 +13,7 @@ from .cutil import from_dc_charpointer
 
 
 class FFIEvent:
-    def __init__(self, name, data1, data2):
+    def __init__(self, name: str, data1, data2):
         self.name = name
         self.data1 = data1
         self.data2 = data2
@@ -29,13 +29,13 @@ class FFIEventLogger:
     # to prevent garbled logging
     _loglock = threading.RLock()
 
-    def __init__(self, account):
+    def __init__(self, account) -> None:
         self.account = account
         self.logid = self.account.get_config("displayname")
         self.init_time = time.time()
 
     @account_hookimpl
-    def ac_process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event: FFIEvent) -> None:
         self.account.log(str(ffi_event))
 
     @account_hookimpl
@@ -69,7 +69,7 @@ class FFIEventTracker:
         self._event_queue = Queue()
 
     @account_hookimpl
-    def ac_process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event: FFIEvent):
         self._event_queue.put(ffi_event)
 
     def set_timeout(self, timeout):
@@ -96,7 +96,7 @@ class FFIEventTracker:
             if rex.match(ev.name):
                 return ev
 
-    def get_info_contains(self, regex):
+    def get_info_contains(self, regex: str) -> FFIEvent:
         rex = re.compile(regex)
         while 1:
             ev = self.get_matching("DC_EVENT_INFO")
@@ -176,6 +176,7 @@ class FFIEventTracker:
         ev = self.get_matching("DC_EVENT_MSGS_CHANGED")
         if ev.data2 > 0:
             return self.account.get_message_by_id(ev.data2)
+        return None
 
     def wait_msg_delivered(self, msg):
         ev = self.get_matching("DC_EVENT_MSG_DELIVERED")
@@ -189,7 +190,7 @@ class EventThread(threading.Thread):
 
     With each Account init this callback thread is started.
     """
-    def __init__(self, account):
+    def __init__(self, account) -> None:
         self.account = account
         super(EventThread, self).__init__(name="events")
         self.setDaemon(True)
@@ -202,17 +203,17 @@ class EventThread(threading.Thread):
         yield
         self.account.log(message + " FINISHED")
 
-    def mark_shutdown(self):
+    def mark_shutdown(self) -> None:
         self._marked_for_shutdown = True
 
-    def wait(self, timeout=None):
+    def wait(self, timeout=None) -> None:
         if self == threading.current_thread():
             # we are in the callback thread and thus cannot
             # wait for the thread-loop to finish.
             return
         self.join(timeout=timeout)
 
-    def run(self):
+    def run(self) -> None:
         """ get and run events until shutdown. """
         with self.log_execution("EVENT THREAD"):
             self._inner_run()
@@ -250,7 +251,7 @@ class EventThread(threading.Thread):
                 if self.account._dc_context is not None:
                     raise
 
-    def _map_ffi_event(self, ffi_event):
+    def _map_ffi_event(self, ffi_event: FFIEvent):
         name = ffi_event.name
         account = self.account
         if name == "DC_EVENT_CONFIGURE_PROGRESS":

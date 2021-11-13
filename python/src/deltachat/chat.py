@@ -9,6 +9,7 @@ from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
 from .capi import lib, ffi
 from . import const
 from .message import Message
+from typing import Optional
 
 
 class Chat(object):
@@ -17,20 +18,20 @@ class Chat(object):
     You obtain instances of it through :class:`deltachat.account.Account`.
     """
 
-    def __init__(self, account, id):
+    def __init__(self, account, id) -> None:
         from .account import Account
         assert isinstance(account, Account), repr(account)
         self.account = account
         self.id = id
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self.id == getattr(other, "id", None) and \
                self.account._dc_context == other.account._dc_context
 
-    def __ne__(self, other):
+    def __ne__(self, other) -> bool:
         return not (self == other)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<Chat id={} name={}>".format(self.id, self.get_name())
 
     @property
@@ -40,7 +41,7 @@ class Chat(object):
             lib.dc_chat_unref
         )
 
-    def delete(self):
+    def delete(self) -> None:
         """Delete this chat and all its messages.
 
         Note:
@@ -50,24 +51,24 @@ class Chat(object):
         """
         lib.dc_delete_chat(self.account._dc_context, self.id)
 
-    def block(self):
+    def block(self) -> None:
         """Block this chat."""
         lib.dc_block_chat(self.account._dc_context, self.id)
 
-    def accept(self):
+    def accept(self) -> None:
         """Accept this contact request chat."""
         lib.dc_accept_chat(self.account._dc_context, self.id)
 
     # ------  chat status/metadata API ------------------------------
 
-    def is_group(self):
+    def is_group(self) -> bool:
         """ return true if this chat is a group chat.
 
         :returns: True if chat is a group-chat, false if it's a contact 1:1 chat.
         """
         return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_GROUP
 
-    def is_muted(self):
+    def is_muted(self) -> bool:
         """ return true if this chat is muted.
 
         :returns: True if chat is muted, False otherwise.
@@ -90,7 +91,7 @@ class Chat(object):
         """
         return not lib.dc_chat_is_unpromoted(self._dc_chat)
 
-    def can_send(self):
+    def can_send(self) -> bool:
         """Check if messages can be sent to a give chat.
         This is not true eg. for the contact requests or for the device-talk
 
@@ -98,30 +99,30 @@ class Chat(object):
         """
         return lib.dc_chat_can_send(self._dc_chat)
 
-    def is_protected(self):
+    def is_protected(self) -> bool:
         """ return True if this chat is a protected chat.
 
         :returns: True if chat is protected, False otherwise.
         """
         return lib.dc_chat_is_protected(self._dc_chat)
 
-    def get_name(self):
+    def get_name(self) -> Optional[str]:
         """ return name of this chat.
 
         :returns: unicode name
         """
         return from_dc_charpointer(lib.dc_chat_get_name(self._dc_chat))
 
-    def set_name(self, name):
+    def set_name(self, name: str) -> bool:
         """ set name of this chat.
 
         :param name: as a unicode string.
-        :returns: None
+        :returns: True on success, False otherwise
         """
         name = as_dc_charpointer(name)
-        return lib.dc_set_chat_name(self.account._dc_context, self.id, name)
+        return bool(lib.dc_set_chat_name(self.account._dc_context, self.id, name))
 
-    def mute(self, duration=None):
+    def mute(self, duration: Optional[int] = None) -> None:
         """ mutes the chat
 
         :param duration: Number of seconds to mute the chat for. None to mute until unmuted again.
@@ -135,7 +136,7 @@ class Chat(object):
         if not bool(ret):
             raise ValueError("Call to dc_set_chat_mute_duration failed")
 
-    def unmute(self):
+    def unmute(self) -> None:
         """ unmutes the chat
 
         :returns: None
@@ -144,7 +145,7 @@ class Chat(object):
         if not bool(ret):
             raise ValueError("Failed to unmute chat")
 
-    def get_mute_duration(self):
+    def get_mute_duration(self) -> int:
         """ Returns the number of seconds until the mute of this chat is lifted.
 
         :param duration:
@@ -152,37 +153,37 @@ class Chat(object):
         """
         return lib.dc_chat_get_remaining_mute_duration(self._dc_chat)
 
-    def get_ephemeral_timer(self):
+    def get_ephemeral_timer(self) -> int:
         """ get ephemeral timer.
 
         :returns: ephemeral timer value in seconds
         """
         return lib.dc_get_chat_ephemeral_timer(self.account._dc_context, self.id)
 
-    def set_ephemeral_timer(self, timer):
+    def set_ephemeral_timer(self, timer: int) -> bool:
         """ set ephemeral timer.
 
         :param: timer value in seconds
 
-        :returns: None
+        :returns: True on success, False otherwise
         """
-        return lib.dc_set_chat_ephemeral_timer(self.account._dc_context, self.id, timer)
+        return bool(lib.dc_set_chat_ephemeral_timer(self.account._dc_context, self.id, timer))
 
-    def get_type(self):
+    def get_type(self) -> int:
         """ (deprecated) return type of this chat.
 
         :returns: one of const.DC_CHAT_TYPE_*
         """
         return lib.dc_chat_get_type(self._dc_chat)
 
-    def get_encryption_info(self):
+    def get_encryption_info(self) -> Optional[str]:
         """Return encryption info for this chat.
 
         :returns: a string with encryption preferences of all chat members"""
         res = lib.dc_get_chat_encrinfo(self.account._dc_context, self.id)
         return from_dc_charpointer(res)
 
-    def get_join_qr(self):
+    def get_join_qr(self) -> Optional[str]:
         """ get/create Join-Group QR Code as ascii-string.
 
         this string needs to be transferred to another DC account
@@ -194,7 +195,7 @@ class Chat(object):
 
     # ------  chat messaging API ------------------------------
 
-    def send_msg(self, msg):
+    def send_msg(self, msg: Message) -> Message:
         """send a message by using a ready Message object.
 
         :param msg: a :class:`deltachat.message.Message` instance

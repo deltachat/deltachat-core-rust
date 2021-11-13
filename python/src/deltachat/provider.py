@@ -14,7 +14,7 @@ class Provider(object):
     :param domain: The email to get the provider info for.
     """
 
-    def __init__(self, account, addr):
+    def __init__(self, account, addr) -> None:
         provider = ffi.gc(
             lib.dc_provider_new_from_email(account._dc_context, as_dc_charpointer(addr)),
             lib.dc_provider_unref,
