@@ -2267,7 +2267,6 @@ pub async fn create_group_chat(
     let chat_name = improve_single_line_input(chat_name);
     ensure!(!chat_name.is_empty(), "Invalid chat name");
 
-    let draft_txt = stock_str::new_group_draft(context, &chat_name).await;
     let grpid = dc_create_id();
 
     let row_id = context
@@ -2288,9 +2287,6 @@ pub async fn create_group_chat(
     let chat_id = ChatId::new(u32::try_from(row_id)?);
     if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await? {
         add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await?;
-        let mut draft_msg = Message::new(Viewtype::Text);
-        draft_msg.set_text(Some(draft_txt));
-        chat_id.set_draft_raw(context, &mut draft_msg).await?;
     }
 
     context.emit_event(EventType::MsgsChanged {
