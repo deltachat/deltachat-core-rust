@@ -50,10 +50,10 @@
 ## 1.61.0
 
 ### API Changes
-- download-on-demand added: `dc_msg_get_download_status()`, `dc_download_full_msg()`
+- download-on-demand added: `dc_msg_get_download_state()`, `dc_download_full_msg()`
   and `download_limit` config option #2631 #2696
 - `dc_create_broadcast_list()` and chat type `DC_CHAT_TYPE_BROADCAST` added #2707 #2722
-- allow ui-specific configs: `dc_set_ui_config()` and `dc_get_ui_config()` #2672
+- allow ui-specific configs using `ui.`-prefix in key (`dc_set_config(context, "ui.*", value)`) #2672
 - new strings from `DC_STR_PARTIAL_DOWNLOAD_MSG_BODY`
   to `DC_STR_PART_OF_TOTAL_USED` #2631 #2694 #2707 #2723
 - emit warnings and errors from account manager with account-id 0 #2712
