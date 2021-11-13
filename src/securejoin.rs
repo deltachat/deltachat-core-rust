@@ -873,7 +873,7 @@ async fn could_not_establish_secure_connection(
     )
     .await;
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
-    error!(
+    warn!(
         context,
         "StockMessage::ContactNotVerified posted to 1:1 chat ({})", details
     );
