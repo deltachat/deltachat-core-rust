@@ -346,6 +346,10 @@ impl Context {
             <body>"#
             .to_string();
 
+        // =============================================================================================
+        //                              Get the states from the RwLock
+        // =============================================================================================
+
         let lock = self.scheduler.read().await;
         let (folders_states, smtp) = match &*lock {
             Scheduler::Running {
@@ -379,6 +383,13 @@ impl Context {
             }
         };
         drop(lock);
+
+        // =============================================================================================
+        // Add e.g.
+        //                              Incoming messages
+        //                               - "Inbox": Connected
+        //                               - "Sent": Connected
+        // =============================================================================================
 
         ret += &format!("<h3>{}</h3><ul>", stock_str::incoming_messages(self).await);
         for (folder, watch, state) in &folders_states {
@@ -417,6 +428,12 @@ impl Context {
         }
         ret += "</ul>";
 
+        // =============================================================================================
+        // Add e.g.
+        //                              Outgoing messages
+        //                                Your last message was sent successfully
+        // =============================================================================================
+
         ret += &format!(
             "<h3>{}</h3><ul><li>",
             stock_str::outgoing_messages(self).await
@@ -426,6 +443,13 @@ impl Context {
         ret += " ";
         ret += &*escaper::encode_minimal(&detailed.to_string_smtp(self).await);
         ret += "</li></ul>";
+
+        // =============================================================================================
+        // Add e.g.
+        //                              Storage on testrun.org
+        //                                1.34 GiB of 2 GiB used
+        //                                [======67%=====       ]
+        // =============================================================================================
 
         let domain = dc_tools::EmailAddress::new(
             &self
@@ -526,6 +550,8 @@ impl Context {
             self.schedule_quota_update().await?;
         }
         ret += "</ul>";
+
+        // =============================================================================================
 
         ret += "</body></html>\n";
         Ok(ret)
