@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Removed DC_STR_NEWGROUPDRAFT, we don't set draft after creating group anymore #2805
+
 ## 1.65.0
 
 ### Changes

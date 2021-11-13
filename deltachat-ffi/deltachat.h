@@ -5613,12 +5613,6 @@ void dc_event_unref(dc_event_t* event);
 /// if nothing else is set by the dc_set_config()-option `selfstatus`.
 #define DC_STR_STATUSLINE                 13
 
-/// "Hi, i've created the group %1$s for us."
-///
-/// Used as a draft text after group creation.
-/// - %1$s will be replaced by the group name
-#define DC_STR_NEWGROUPDRAFT              14
-
 /// "Group name changed from %1$s to %2$s."
 ///
 /// Used in status messages for group name changes.
