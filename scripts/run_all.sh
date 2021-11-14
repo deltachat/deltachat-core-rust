@@ -19,11 +19,9 @@ export DCC_RS_TARGET=release
 
 # Configure access to a base python and to several python interpreters
 # needed by tox below.
-export PATH=$PATH:/opt/python/cp36-cp36m/bin
+export PATH=$PATH:/opt/python/cp37-cp37m/bin
 export PYTHONDONTWRITEBYTECODE=1
 pushd /bin
-rm -f python3.6
-ln -s /opt/python/cp36-cp36m/bin/python3.6
 rm -f python3.7
 ln -s /opt/python/cp37-cp37m/bin/python3.7
 rm -f python3.8
