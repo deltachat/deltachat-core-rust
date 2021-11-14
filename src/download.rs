@@ -227,6 +227,7 @@ mod tests {
     use crate::chat::send_msg;
     use crate::constants::Viewtype;
     use crate::dc_receive_imf::dc_receive_imf_inner;
+    use crate::ephemeral::Timer;
     use crate::test_utils::TestContext;
     use num_traits::FromPrimitive;
 
@@ -340,6 +341,42 @@ mod tests {
         assert_eq!(msg.download_state(), DownloadState::Done);
         assert_eq!(msg.get_subject(), "foo");
         assert_eq!(msg.get_text(), Some("100k text...".to_string()));
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_partial_download_and_ephemeral() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = t
+            .create_chat_with_contact("bob", "bob@example.org")
+            .await
+            .id;
+        chat_id
+            .set_ephemeral_timer(&t, Timer::Enabled { duration: 60 })
+            .await?;
+
+        // download message from bob partially, this must not change the ephemeral timer
+        dc_receive_imf_inner(
+            &t,
+            b"From: Bob <bob@example.org>\n\
+                    To: Alice <alice@example.com>\n\
+                    Chat-Version: 1.0\n\
+                    Subject: subject\n\
+                    Message-ID: <first@example.org>\n\
+                    Date: Sun, 14 Nov 2021 00:10:00 +0000\
+                    Content-Type: text/plain",
+            "INBOX",
+            1,
+            false,
+            Some(100000),
+            false,
+        )
+        .await?;
+        assert_eq!(
+            chat_id.get_ephemeral_timer(&t).await?,
+            Timer::Enabled { duration: 60 }
+        );
 
         Ok(())
     }
