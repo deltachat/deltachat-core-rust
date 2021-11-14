@@ -265,23 +265,23 @@ class TestOfflineChat:
         assert d["draft"] == "" if chat.get_draft() is None else chat.get_draft()
 
     def test_group_chat_creation_with_translation(self, ac1):
-        ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %1$s")
+        ac1.set_stock_translation(const.DC_STR_MSGGRPNAME, "abc %1$s xyz %2$s")
         ac1._evtracker.consume_events()
         with pytest.raises(ValueError):
-            ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %2$s")
+            ac1.set_stock_translation(const.DC_STR_FILE, "xyz %1$s")
+        ac1._evtracker.get_matching("DC_EVENT_WARNING")
+        with pytest.raises(ValueError):
+            ac1.set_stock_translation(const.DC_STR_CONTACT_NOT_VERIFIED, "xyz %2$s")
         ac1._evtracker.get_matching("DC_EVENT_WARNING")
         with pytest.raises(ValueError):
             ac1.set_stock_translation(500, "xyz %1$s")
         ac1._evtracker.get_matching("DC_EVENT_WARNING")
-        contact1 = ac1.create_contact("some1@example.org", name="some1")
-        contact2 = ac1.create_contact("some2@example.org", name="some2")
-        chat = ac1.create_group_chat(name="title1", contacts=[contact1, contact2])
-        assert chat.get_name() == "title1"
-        assert contact1 in chat.get_contacts()
-        assert contact2 in chat.get_contacts()
-        assert not chat.is_promoted()
-        msg = chat.get_draft()
-        assert msg.text == "xyz title1"
+        chat = ac1.create_group_chat(name="homework", contacts=[])
+        assert chat.get_name() == "homework"
+        chat.send_text("Now we have a group for homework")
+        assert chat.is_promoted()
+        chat.set_name("Homework")
+        assert chat.get_messages()[-1].text == "abc homework xyz Homework by me."
 
     @pytest.mark.parametrize("verified", [True, False])
     def test_group_chat_qr(self, acfactory, ac1, verified):
