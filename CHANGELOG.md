@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.65.0
+
+### Changes
+- python: add mypy support and some type hints #2809
+
+### Fixes
+- do not disable ephemeral timer when downloading a message partially #2811
+- apply existing ephemeral timer also to partially downloaded messages;
+  after full download, the ephemeral timer starts over #2811
+- replace user-visible error on verification failure with warning;
+  the error is logged to the corresponding chat anyway #2808
+
+
 ## 1.64.0
 
 ### Fixes
