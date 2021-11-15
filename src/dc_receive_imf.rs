@@ -864,9 +864,10 @@ async fn add_parts(
         DC_CHAT_ID_TRASH
     });
 
-    // Extract ephemeral timer from the message.
-    let mut ephemeral_timer = if let Some(value) = mime_parser.get_header(HeaderDef::EphemeralTimer)
-    {
+    // Extract ephemeral timer from the message or use the existing timer if the message is not fully downloaded.
+    let mut ephemeral_timer = if is_partial_download.is_some() {
+        chat_id.get_ephemeral_timer(context).await?
+    } else if let Some(value) = mime_parser.get_header(HeaderDef::EphemeralTimer) {
         match value.parse::<EphemeralTimer>() {
             Ok(timer) => timer,
             Err(err) => {
