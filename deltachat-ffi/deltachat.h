@@ -2243,6 +2243,10 @@ dc_lot_t*       dc_check_qr                  (dc_context_t* context, const char*
 char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t chat_id);
 
 
+// TODO documentation
+// TODO add chat id parameter
+char*           dc_get_securejoin_qr_svg         (dc_context_t* context);
+
 /**
  * Continue a Setup-Contact or Verified-Group-Invite protocol
  * started on another device with dc_get_securejoin_qr().

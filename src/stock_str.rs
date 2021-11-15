@@ -330,6 +330,12 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "%1$s replied, waiting for being added to the group…"))]
     SecureJoinReplies = 118,
+
+    #[strum(props(fallback = "Scan this to setup contact with %1$s (%2$s)."))]
+    VerifyContactQRDescription = 119,
+
+    #[strum(props(fallback = "Scan this to join %1$s"))]
+    SecureJoinGroupQRDescription = 120,
 }
 
 impl StockMessage {
@@ -611,6 +617,25 @@ pub(crate) async fn secure_join_replies(context: &Context, contact_id: u32) -> S
             .replace1(contact.get_display_name())
     } else {
         format!("secure_join_replies: unknown contact {}", contact_id)
+    }
+}
+
+/// Stock string: `Scan this to setup contact with %1$s (%2$s).`.
+pub(crate) async fn verify_contact_qr_description(context: &Context, contact: &Contact) -> String {
+    translated(context, StockMessage::VerifyContactQRDescription)
+        .await
+        .replace1(contact.get_display_name())
+        .replace1(contact.get_addr())
+}
+
+/// Stock string: `Scan this to join %1$s`.
+pub(crate) async fn secure_join_group_qr_description(context: &Context, chat_id: u32) -> String {
+    if let Ok(chat) = chat::Chat::load_from_db(context, ChatId::new(chat_id)).await {
+        translated(context, StockMessage::SecureJoinGroupQRDescription)
+            .await
+            .replace1(chat.get_name())
+    } else {
+        format!("secure_join_group_qr_description: unknown chat {}", chat_id)
     }
 }
 
