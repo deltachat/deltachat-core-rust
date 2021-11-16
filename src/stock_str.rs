@@ -56,9 +56,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Sent with my Delta Chat Messenger: https://delta.chat"))]
     StatusLine = 13,
 
-    #[strum(props(fallback = "Hello, I\'ve just created the group \"%1$s\" for us."))]
-    NewGroupDraft = 14,
-
     #[strum(props(fallback = "Group name changed from \"%1$s\" to \"%2$s\"."))]
     MsgGrpName = 15,
 
@@ -455,13 +452,6 @@ pub(crate) async fn file(context: &Context) -> String {
 /// Stock string: `Sent with my Delta Chat Messenger: https://delta.chat`.
 pub(crate) async fn status_line(context: &Context) -> String {
     translated(context, StockMessage::StatusLine).await
-}
-
-/// Stock string: `Hello, I've just created the group "%1$s" for us.`.
-pub(crate) async fn new_group_draft(context: &Context, group_name: impl AsRef<str>) -> String {
-    translated(context, StockMessage::NewGroupDraft)
-        .await
-        .replace1(group_name)
 }
 
 /// Stock string: `Group name changed from "%1$s" to "%2$s".`.
