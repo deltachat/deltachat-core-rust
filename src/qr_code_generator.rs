@@ -258,13 +258,26 @@ fn inner_generate_secure_join_qr_code(
         });
 
         if let Some(img) = avatar {
+            w.elem("defs", |_| {}).build(|w| {
+                w.elem("clipPath", |d| {
+                    d.attr("id", "avatar-cut");
+                })
+                .build(|w| {
+                    w.single("circle", |d| {
+                        d.attr("cx", logo_position_x + HALF_LOGO_SIZE)
+                            .attr("cy", logo_position_y + HALF_LOGO_SIZE)
+                            .attr("r", HALF_LOGO_SIZE);
+                    });
+                });
+            });
+
             w.single("image", |d| {
                 d.attr("x", logo_position_x)
                     .attr("y", logo_position_y)
                     .attr("width", HALF_LOGO_SIZE * 2.0)
                     .attr("height", HALF_LOGO_SIZE * 2.0)
                     .attr("preserveAspectRatio", "none")
-                    .attr("clip-path", format!("circle({}px)", HALF_LOGO_SIZE))
+                    .attr("clip-path", "url(#avatar-cut)")
                     .attr(
                         "href" /*might need xlink:href instead if it doesn't work on older devices?*/, 
                         format!("data:image/jpeg;base64,{}", base64::encode(img)),
