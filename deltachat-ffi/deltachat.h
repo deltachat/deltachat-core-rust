@@ -2244,8 +2244,7 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
 
 
 // TODO documentation
-// TODO add chat id parameter
-char*           dc_get_securejoin_qr_svg         (dc_context_t* context);
+char*           dc_get_securejoin_qr_svg         (dc_context_t* context, uint32_t chat_id);
 
 /**
  * Continue a Setup-Contact or Verified-Group-Invite protocol
