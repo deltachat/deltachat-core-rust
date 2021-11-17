@@ -1,18 +1,17 @@
+use anyhow::Result;
+use qrcodegen::{QrCode, QrCodeEcc};
 use tagger::PathCommand;
 
-use qrcodegen::QrCode;
-use qrcodegen::QrCodeEcc;
-
-use crate::blob::BlobObject;
-use crate::chat::Chat;
-use crate::chat::ChatId;
-use crate::color::color_int_to_hex_string;
-use crate::constants::DC_CONTACT_ID_SELF;
-use crate::contact::Contact;
-use crate::context::Context;
-use crate::securejoin;
-use crate::stock_str;
-use anyhow::Result;
+use crate::{
+    blob::BlobObject,
+    chat::{Chat, ChatId},
+    color::color_int_to_hex_string,
+    config::Config,
+    constants::DC_CONTACT_ID_SELF,
+    contact::Contact,
+    context::Context,
+    securejoin, stock_str,
+};
 
 pub async fn get_securejoin_qr_svg(context: &Context, chat_id: Option<ChatId>) -> Result<String> {
     if let Some(chat_id) = chat_id {
@@ -38,6 +37,7 @@ async fn generate_join_group_qr_code(context: &Context, chat_id: ChatId) -> Resu
         &securejoin::dc_get_securejoin_qr(context, Some(chat_id)).await?,
         &color_int_to_hex_string(chat.get_color(context).await?),
         avatar,
+        chat.get_name().chars().next().unwrap_or('#'),
     )
 }
 
@@ -52,38 +52,43 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
         None => None,
     };
 
+    let displayname = match context.get_config(Config::Displayname).await? {
+        Some(name) => name,
+        None => contact.get_addr().to_owned(),
+    };
+
     inner_generate_secure_join_qr_code(
-        &stock_str::verify_contact_qr_description(
-            context,
-            contact.get_display_name(), /* TODO fix that it doesn't say "Me" anymore */
-            contact.get_addr(),
-        )
-        .await,
+        &stock_str::verify_contact_qr_description(context, &displayname, contact.get_addr()).await,
         &securejoin::dc_get_securejoin_qr(context, None).await?,
         &color_int_to_hex_string(contact.get_color()),
         avatar,
+        displayname.chars().next().unwrap_or('#'),
     )
 }
 
 fn inner_generate_secure_join_qr_code(
-    qrcode_description: &str,
+    raw_qrcode_description: &str,
     qrcode_content: &str,
     color: &str,
     avatar: Option<Vec<u8>>,
+    avatar_letter: char,
 ) -> Result<String> {
     // config
     let width = 560.0;
+    let qrcode_description = &simple_escape_xml(raw_qrcode_description);
     let height = 630.0;
-    let corner_boldness = 20.0;
+    let corner_boldness = 18.0;
     let corner_padding = 20.0;
-    let corner_height = (height - (corner_padding * 2.0)) / 7.0;
-    let corner_width = (width - (corner_padding * 2.0)) / 5.0;
-    let qr_code_size = 360.0;
+    let corner_length = (width - (corner_padding * 2.0)) / 5.0;
+    let qr_code_size = 400.0;
     let qr_translate_up = 40.0;
     let text_y_pos = ((height - qr_code_size) / 2.0) + qr_code_size;
-    let text_font_size = 22.0;
-    let max_text_width = 34;
-    let avatar_border_size = 8.0;
+    let (text_font_size, max_text_width) = if qrcode_description.len() <= 75 {
+        (27.0, 32)
+    } else {
+        (19.0, 38)
+    };
+    let avatar_border_size = 9.0;
 
     let qr = QrCode::encode_text(qrcode_content, QrCodeEcc::Medium)?;
     let mut svg = String::with_capacity(28000);
@@ -104,7 +109,7 @@ fn inner_generate_secure_join_qr_code(
         });
         // Corners
         {
-            let border_style = format!("fill:{}", color);
+            let border_style = format!("fill:{}", &color);
             // upper, left corner
             w.single("path", |d| {
                 d.attr("x", 0)
@@ -112,10 +117,10 @@ fn inner_generate_secure_join_qr_code(
                     .attr("style", &border_style)
                     .path(|p| {
                         p.put(PathCommand::M(corner_padding, corner_padding));
-                        p.put(PathCommand::V(corner_width + corner_padding));
+                        p.put(PathCommand::V(corner_length + corner_padding));
                         p.put(PathCommand::H(corner_boldness + corner_padding));
                         p.put(PathCommand::V(corner_boldness + corner_padding));
-                        p.put(PathCommand::H(corner_height + corner_padding));
+                        p.put(PathCommand::H(corner_length + corner_padding));
                         p.put(PathCommand::V(corner_padding));
                         p.put(PathCommand::Z(corner_padding));
                     });
@@ -127,10 +132,10 @@ fn inner_generate_secure_join_qr_code(
                     .attr("style", &border_style)
                     .path(|p| {
                         p.put(PathCommand::M(width - corner_padding, corner_padding));
-                        p.put(PathCommand::V(corner_width + corner_padding));
+                        p.put(PathCommand::V(corner_length + corner_padding));
                         p.put(PathCommand::H(width - (corner_boldness + corner_padding)));
                         p.put(PathCommand::V(corner_boldness + corner_padding));
-                        p.put(PathCommand::H(width - (corner_height + corner_padding)));
+                        p.put(PathCommand::H(width - (corner_length + corner_padding)));
                         p.put(PathCommand::V(corner_padding));
                         p.put(PathCommand::Z(0));
                     });
@@ -145,10 +150,10 @@ fn inner_generate_secure_join_qr_code(
                             width - corner_padding,
                             height - corner_padding,
                         ));
-                        p.put(PathCommand::V(height - (corner_width + corner_padding)));
+                        p.put(PathCommand::V(height - (corner_length + corner_padding)));
                         p.put(PathCommand::H(width - (corner_boldness + corner_padding)));
                         p.put(PathCommand::V(height - (corner_boldness + corner_padding)));
-                        p.put(PathCommand::H(width - (corner_height + corner_padding)));
+                        p.put(PathCommand::H(width - (corner_length + corner_padding)));
                         p.put(PathCommand::V(height - corner_padding));
                         p.put(PathCommand::Z(0));
                     });
@@ -160,10 +165,10 @@ fn inner_generate_secure_join_qr_code(
                     .attr("style", &border_style)
                     .path(|p| {
                         p.put(PathCommand::M(corner_padding, height - corner_padding));
-                        p.put(PathCommand::V(height - (corner_width + corner_padding)));
+                        p.put(PathCommand::V(height - (corner_length + corner_padding)));
                         p.put(PathCommand::H(corner_boldness + corner_padding));
                         p.put(PathCommand::V(height - (corner_boldness + corner_padding)));
-                        p.put(PathCommand::H(corner_height + corner_padding));
+                        p.put(PathCommand::H(corner_length + corner_padding));
                         p.put(PathCommand::V(height - corner_padding));
                         p.put(PathCommand::Z(0));
                     });
@@ -216,16 +221,15 @@ fn inner_generate_secure_join_qr_code(
             .enumerate()
         {
             w.elem("text", |d| {
-                d.attr("y", (count as f32 * text_font_size) + text_y_pos)
+                d.attr("y", (count as f32 * (text_font_size * 1.2)) + text_y_pos)
                     .attr("x", width / 2.0)
                     .attr("text-anchor", "middle")
+                    .attr("font-weight", "bold")
                     .attr(
                         "style",
                         format!(
-                            "font-family:monospace;\
+                            "font-family:Arial;\
                         font-style:normal;\
-                        font-variant:normal;\
-                        font-weight:normal;\
                         font-stretch:normal;\
                         font-size:{}px;\
                         fill:#000000;\
@@ -239,26 +243,21 @@ fn inner_generate_secure_join_qr_code(
             });
         }
         // Logo / contact image in middle of qrcode
-
-        const LOGO_SCALE: f32 = 0.68;
-        const LOGO_SIZE: f32 = 118.0 * LOGO_SCALE;
+        const LOGO_SIZE: f32 = 94.4;
         const HALF_LOGO_SIZE: f32 = LOGO_SIZE / 2.0;
         let logo_position_in_qr = (qr_code_size / 2.0) - HALF_LOGO_SIZE;
         let logo_position_x = ((width - qr_code_size) / 2.0) + logo_position_in_qr;
         let logo_position_y =
             ((height - qr_code_size) / 2.0) - qr_translate_up + logo_position_in_qr;
 
+        w.single("circle", |d| {
+            d.attr("cx", logo_position_x + HALF_LOGO_SIZE)
+                .attr("cy", logo_position_y + HALF_LOGO_SIZE)
+                .attr("r", HALF_LOGO_SIZE + avatar_border_size)
+                .attr("style", "fill:white");
+        });
+
         if let Some(img) = avatar {
-            //convert image to base64
-            let png_data = base64::encode(img);
-
-            w.single("circle", |d| {
-                d.attr("cx", logo_position_x + HALF_LOGO_SIZE)
-                    .attr("cy", logo_position_y + HALF_LOGO_SIZE)
-                    .attr("r", HALF_LOGO_SIZE + avatar_border_size)
-                    .attr("style", "fill:white");
-            });
-
             w.single("image", |d| {
                 d.attr("x", logo_position_x)
                     .attr("y", logo_position_y)
@@ -266,27 +265,60 @@ fn inner_generate_secure_join_qr_code(
                     .attr("height", HALF_LOGO_SIZE * 2.0)
                     .attr("preserveAspectRatio", "none")
                     .attr("clip-path", format!("circle({}px)", HALF_LOGO_SIZE))
-                    // might need xlink:href instead if it doesn't work on older devices??
-                    .attr("href", format!("data:image/jpeg;base64,{}", png_data));
+                    .attr(
+                        "href" /*might need xlink:href instead if it doesn't work on older devices?*/, 
+                        format!("data:image/jpeg;base64,{}", base64::encode(img)),
+                    );
             });
         } else {
-            w.elem("g", |d| {
-                d.attr(
-                    "transform",
-                    format!(
-                        "translate({},{}),scale({})",
-                        logo_position_x, logo_position_y, LOGO_SCALE
-                    ),
-                );
+            w.single("circle", |d| {
+                d.attr("cx", logo_position_x + HALF_LOGO_SIZE)
+                    .attr("cy", logo_position_y + HALF_LOGO_SIZE)
+                    .attr("r", HALF_LOGO_SIZE)
+                    .attr("style", format!("fill:{}", &color));
+            });
+
+            let avatar_font_size = LOGO_SIZE * 0.65;
+            w.elem("text", |d| {
+                d.attr("y", logo_position_y + HALF_LOGO_SIZE)
+                    .attr("x", logo_position_x + HALF_LOGO_SIZE)
+                    .attr("text-anchor", "middle")
+                    .attr("dominant-baseline", "central")
+                    .attr("font-weight", "400")
+                    .attr(
+                        "style",
+                        format!(
+                            "font-family:sans-serif;font-size:{}px;fill:#ffffff;",
+                            avatar_font_size
+                        ),
+                    );
             })
             .build(|w| {
-                w.put_raw(format!(
-                    include_str!("../assets/qrcode_logo_avatar.svg"),
-                    color
-                ));
+                w.put_raw(avatar_letter.to_uppercase());
             });
         }
     });
 
     Ok(svg)
+}
+
+fn simple_escape_xml(xml: &str) -> String {
+    // this escaping method copies the data 5 times?
+    xml.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('\'', "&apos;")
+        .replace('"', "&quot;")
+}
+
+#[cfg(test)]
+mod text_simple_escape_xml {
+    use super::simple_escape_xml;
+    #[test]
+    fn test() {
+        assert_eq!(
+            &simple_escape_xml("<circle r=\"6px\"></circle>&'test'"),
+            "&lt;circle r=&quot6px&quot&gt;&lt;/circle&gt;&amp;&apostest&apos"
+        )
+    }
 }
