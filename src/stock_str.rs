@@ -331,7 +331,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "%1$s replied, waiting for being added to the group…"))]
     SecureJoinReplies = 118,
 
-    #[strum(props(fallback = "Scan this to setup contact with %1$s (%2$s)"))]
+    #[strum(props(fallback = "Scan this to setup contact with %1$s"))]
     VerifyContactQRDescription = 119,
 
     #[strum(props(fallback = "Scan this to join %1$s"))]
@@ -620,12 +620,20 @@ pub(crate) async fn secure_join_replies(context: &Context, contact_id: u32) -> S
     }
 }
 
-/// Stock string: `Scan this to setup contact with %1$s (%2$s)`.
-pub(crate) async fn verify_contact_qr_description(context: &Context, display_name: &str, addr:&str) -> String {
+/// Stock string: `Scan this to setup contact with %1$s`.
+pub(crate) async fn verify_contact_qr_description(
+    context: &Context,
+    display_name: &str,
+    addr: &str,
+) -> String {
+    let name = if display_name == addr {
+        addr.to_owned()
+    } else {
+        format!("{} ({})", display_name, addr)
+    };
     translated(context, StockMessage::VerifyContactQRDescription)
         .await
-        .replace1(display_name)
-        .replace2(addr)
+        .replace1(name)
 }
 
 /// Stock string: `Scan this to join %1$s`.
