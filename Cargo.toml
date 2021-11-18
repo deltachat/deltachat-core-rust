@@ -79,7 +79,7 @@ humansize = "1"
 [dev-dependencies]
 ansi_term = "0.12.0"
 async-std = { version = "1", features = ["unstable", "attributes"] }
-criterion = "0.3"
+criterion = { version = "0.3.4", features = ["async_std"] }
 futures-lite = "1.12"
 log = "0.4"
 pretty_assertions = "1.0"
@@ -114,6 +114,10 @@ harness = false
 
 [[bench]]
 name = "search_msgs"
+harness = false
+
+[[bench]]
+name = "receive_emails"
 harness = false
 
 [features]
