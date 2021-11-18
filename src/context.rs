@@ -27,6 +27,9 @@ use crate::scheduler::Scheduler;
 use crate::securejoin::Bob;
 use crate::sql::Sql;
 
+use async_std::prelude::*;
+use humansize::{file_size_opts, FileSize};
+
 #[derive(Clone, Debug)]
 pub struct Context {
     pub(crate) inner: Arc<InnerContext>,
@@ -296,7 +299,9 @@ impl Context {
         let contacts = Contact::get_real_cnt(self).await? as usize;
         let is_configured = self.get_config_int(Config::Configured).await?;
         let socks5_enabled = self.get_config_int(Config::Socks5Enabled).await?;
-        let dbversion = self
+        let database = self.get_dbfile();
+        let database_bytes = std::fs::metadata(database)?.len();
+        let database_version = self
             .sql
             .get_raw_config_int("dbversion")
             .await?
@@ -347,16 +352,42 @@ impl Context {
 
         let mut res = get_info();
 
+        // get information about blob directory
+        let blobdir = self.get_blobdir();
+        let mut blobdir_files = 0;
+        let mut blobdir_bytes = 0;
+        let scan_start = std::time::SystemTime::now();
+        let mut dir_handle = async_std::fs::read_dir(blobdir).await?;
+        while let Some(entry) = dir_handle.next().await {
+            blobdir_files += 1;
+            blobdir_bytes += std::fs::metadata(entry?.path())?.len();
+        }
+        let scan_sec = scan_start.elapsed().unwrap_or_default().as_secs() as f64;
+
         // insert values
         res.insert("bot", self.get_config_int(Config::Bot).await?.to_string());
         res.insert("number_of_chats", chats.to_string());
         res.insert("number_of_chat_messages", unblocked_msgs.to_string());
         res.insert("messages_in_contact_requests", request_msgs.to_string());
         res.insert("number_of_contacts", contacts.to_string());
-        res.insert("database_dir", self.get_dbfile().display().to_string());
-        res.insert("database_version", dbversion.to_string());
+        res.insert("database", database.display().to_string());
+        res.insert("database_version", database_version.to_string());
+        res.insert(
+            "database_size",
+            database_bytes
+                .file_size(file_size_opts::BINARY)
+                .unwrap_or_default(),
+        );
         res.insert("journal_mode", journal_mode);
-        res.insert("blobdir", self.get_blobdir().display().to_string());
+        res.insert("blobdir", blobdir.display().to_string());
+        res.insert("blobdir_files", blobdir_files.to_string());
+        res.insert(
+            "blobdir_size",
+            blobdir_bytes
+                .file_size(file_size_opts::BINARY)
+                .unwrap_or_default(),
+        );
+        res.insert("blobdir_scan_sec", format!("{:.3}s", scan_sec));
         res.insert("display_name", displayname.unwrap_or_else(|| unset.into()));
         res.insert(
             "selfavatar",
