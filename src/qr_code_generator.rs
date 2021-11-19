@@ -228,7 +228,7 @@ fn inner_generate_secure_join_qr_code(
                     .attr(
                         "style",
                         format!(
-                            "font-family:Arial;\
+                            "font-family:Arial, sans-serif;\
                         font-style:normal;\
                         font-stretch:normal;\
                         font-size:{}px;\
@@ -292,11 +292,11 @@ fn inner_generate_secure_join_qr_code(
             });
 
             let avatar_font_size = LOGO_SIZE * 0.65;
+            let font_offset = LOGO_SIZE * 0.35 / 2.0 * 1.3;
             w.elem("text", |d| {
-                d.attr("y", logo_position_y + HALF_LOGO_SIZE)
+                d.attr("y", logo_position_y + HALF_LOGO_SIZE + font_offset)
                     .attr("x", logo_position_x + HALF_LOGO_SIZE)
                     .attr("text-anchor", "middle")
-                    .attr("dominant-baseline", "central")
                     .attr("font-weight", "400")
                     .attr(
                         "style",
