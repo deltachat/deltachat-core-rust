@@ -109,7 +109,7 @@ fn inner_generate_secure_join_qr_code(
         });
         // Corners
         {
-            let border_style = format!("fill:{}", &color);
+            let border_style = "fill:#2090ea";
             // upper, left corner
             w.single("path", |d| {
                 d.attr("x", 0)
