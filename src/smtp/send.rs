@@ -6,7 +6,6 @@ use async_smtp::{EmailAddress, Envelope, SendableEmail, Transport};
 use crate::constants::DEFAULT_MAX_SMTP_RCPT_TO;
 use crate::context::Context;
 use crate::events::EventType;
-use itertools::Itertools;
 use std::time::Duration;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -43,10 +42,14 @@ impl Smtp {
         }
 
         for recipients_chunk in recipients.chunks(chunk_size).into_iter() {
-            let recipients = recipients_chunk.to_vec();
-            let recipients_display = recipients.iter().map(|x| x.to_string()).join(",");
+            let recipients_display = recipients_chunk
+                .iter()
+                .map(|x| x.as_ref())
+                .collect::<Vec<&str>>()
+                .join(",");
 
-            let envelope = Envelope::new(self.from.clone(), recipients).map_err(Error::Envelope)?;
+            let envelope = Envelope::new(self.from.clone(), recipients_chunk.to_vec())
+                .map_err(Error::Envelope)?;
             let mail = SendableEmail::new(
                 envelope,
                 format!("{}", job_id), // only used for internal logging

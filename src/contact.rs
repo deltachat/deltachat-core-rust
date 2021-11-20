@@ -5,7 +5,6 @@ use std::convert::{TryFrom, TryInto};
 use anyhow::{bail, ensure, Context as _, Result};
 use async_std::path::PathBuf;
 use deltachat_derive::{FromSql, ToSql};
-use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -1356,15 +1355,13 @@ pub fn addr_cmp(addr1: impl AsRef<str>, addr2: impl AsRef<str>) -> bool {
 
 fn split_address_book(book: &str) -> Vec<(&str, &str)> {
     book.lines()
+        .collect::<Vec<&str>>()
         .chunks(2)
         .into_iter()
-        .filter_map(|mut chunk| {
-            let name = chunk.next().unwrap();
-            let addr = match chunk.next() {
-                Some(a) => a,
-                None => return None,
-            };
-            Some((name, addr))
+        .filter_map(|chunk| {
+            let name = chunk.get(0)?;
+            let addr = chunk.get(1)?;
+            Some((*name, *addr))
         })
         .collect()
 }

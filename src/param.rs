@@ -4,7 +4,6 @@ use std::str;
 
 use anyhow::{bail, Error};
 use async_std::path::PathBuf;
-use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
@@ -182,7 +181,7 @@ impl fmt::Display for Params {
                 f,
                 "{}={}",
                 *key as u8 as char,
-                value.split('\n').join("\n\n")
+                value.split('\n').collect::<Vec<&str>>().join("\n\n")
             )?;
         }
         Ok(())

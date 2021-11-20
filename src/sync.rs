@@ -12,7 +12,6 @@ use crate::sync::SyncData::{AddQrToken, DeleteQrToken};
 use crate::token::Namespace;
 use crate::{chat, stock_str, token};
 use anyhow::Result;
-use itertools::Itertools;
 use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
@@ -177,7 +176,10 @@ impl Context {
         } else {
             Ok(Some((
                 format!("{{\"items\":[\n{}\n]}}", serialized),
-                ids.iter().map(|x| x.to_string()).join(","),
+                ids.iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>()
+                    .join(","),
             )))
         }
     }

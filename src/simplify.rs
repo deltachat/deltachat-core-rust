@@ -1,7 +1,5 @@
 //! # Simplify incoming plaintext.
 
-use itertools::Itertools;
-
 // protect lines starting with `--` against being treated as a footer.
 // for that, we insert a ZERO WIDTH SPACE (ZWSP, 0x200B);
 // this should be invisible on most systems and there is no need to unescape it again
@@ -158,6 +156,7 @@ fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>)
                 s.strip_prefix('>')
                     .map_or(*s, |u| u.strip_prefix(' ').unwrap_or(u))
             })
+            .collect::<Vec<&str>>()
             .join("\n");
         if l_last > 1 && is_empty_line(lines[l_last - 1]) {
             l_last -= 1
@@ -204,6 +203,7 @@ fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>) {
                         s.strip_prefix('>')
                             .map_or(*s, |u| u.strip_prefix(' ').unwrap_or(u))
                     })
+                    .collect::<Vec<&str>>()
                     .join("\n"),
             ),
         )
