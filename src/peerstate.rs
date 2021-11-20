@@ -524,7 +524,6 @@ pub(crate) async fn deduplicate_peerstates(sql: &Sql) -> Result<()> {
 mod tests {
     use super::*;
     use crate::test_utils::alice_keypair;
-    use pretty_assertions::assert_eq;
 
     #[async_std::test]
     async fn test_peerstate_save_to_db() {
