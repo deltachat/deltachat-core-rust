@@ -4,7 +4,6 @@ use std::cmp::min;
 use std::convert::TryFrom;
 
 use anyhow::{bail, ensure, Context as _, Result};
-use itertools::join;
 use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
@@ -1931,7 +1930,11 @@ async fn create_adhoc_group(
 /// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
 /// so having the same ID prevents group split.
 async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> Result<String> {
-    let member_ids_str = join(member_ids.iter().map(|x| x.to_string()), ",");
+    let member_ids_str = member_ids
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join(",");
     let member_cs = context
         .get_config(Config::ConfiguredAddr)
         .await?
@@ -2023,7 +2026,11 @@ async fn check_verified_properties(
     if to_ids.is_empty() {
         return Ok(());
     }
-    let to_ids_str = join(to_ids.iter().map(|x| x.to_string()), ",");
+    let to_ids_str = to_ids
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join(",");
 
     let rows = context
         .sql

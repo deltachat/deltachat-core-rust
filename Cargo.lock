@@ -1101,7 +1101,6 @@ dependencies = [
  "humansize",
  "image",
  "indexmap",
- "itertools",
  "kamadak-exif",
  "lettre_email",
  "libc",

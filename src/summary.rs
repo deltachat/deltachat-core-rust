@@ -9,7 +9,6 @@ use crate::message::{Message, MessageState};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::stock_str;
-use itertools::Itertools;
 use std::borrow::Cow;
 use std::fmt;
 
@@ -174,7 +173,7 @@ impl Message {
             summary_content
         };
 
-        summary.split_whitespace().join(" ")
+        summary.split_whitespace().collect::<Vec<&str>>().join(" ")
     }
 }
 

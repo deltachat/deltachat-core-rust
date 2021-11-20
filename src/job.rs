@@ -8,7 +8,6 @@ use std::future::Future;
 use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
 use async_smtp::smtp::response::{Category, Code, Detail};
 use deltachat_derive::{FromSql, ToSql};
-use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
 use crate::blob::BlobObject;
@@ -840,7 +839,7 @@ pub async fn kill_action(context: &Context, action: Action) -> Result<()> {
 async fn kill_ids(context: &Context, job_ids: &[u32]) -> Result<()> {
     let q = format!(
         "DELETE FROM jobs WHERE id IN({})",
-        job_ids.iter().map(|_| "?").join(",")
+        job_ids.iter().map(|_| "?").collect::<Vec<&str>>().join(",")
     );
     context
         .sql

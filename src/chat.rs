@@ -7,7 +7,6 @@ use std::time::{Duration, SystemTime};
 use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::aheader::EncryptPreference;
@@ -2817,7 +2816,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             .query_map(
                 format!(
                     "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                    msg_ids.iter().map(|_| "?").join(",")
+                    msg_ids.iter().map(|_| "?").collect::<Vec<&str>>().join(",")
                 ),
                 rusqlite::params_from_iter(msg_ids),
                 |row| row.get::<_, MsgId>(0),
