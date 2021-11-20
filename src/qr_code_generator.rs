@@ -242,7 +242,7 @@ fn inner_generate_secure_join_qr_code(
                 w.put_raw(line);
             });
         }
-        // Logo / contact image in middle of qrcode
+        // contact avatar in middle of qrcode
         const LOGO_SIZE: f32 = 94.4;
         const HALF_LOGO_SIZE: f32 = LOGO_SIZE / 2.0;
         let logo_position_in_qr = (qr_code_size / 2.0) - HALF_LOGO_SIZE;
@@ -310,6 +310,23 @@ fn inner_generate_secure_join_qr_code(
                 w.put_raw(avatar_letter.to_uppercase());
             });
         }
+
+        // Footer logo
+        const FOOTER_HEIGHT: f32 = 35.0;
+        const FOOTER_WIDTH: f32 = 186.0;
+        w.elem("g", |d| {
+            d.attr(
+                "transform",
+                format!(
+                    "translate({},{})",
+                    (width - FOOTER_WIDTH) / 2.0,
+                    height - corner_padding - FOOTER_HEIGHT + (corner_boldness / 2.0)
+                ),
+            );
+        })
+        .build(|w| {
+            w.put_raw(include_str!("../assets/qrcode_logo_footer.svg"));
+        });
     });
 
     Ok(svg)
