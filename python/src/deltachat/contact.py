@@ -1,11 +1,12 @@
 """ Contact object. """
 
-from . import props
-from .cutil import from_dc_charpointer, from_optional_dc_charpointer
-from .capi import lib, ffi
-from .chat import Chat
-from . import const
+from datetime import date, datetime, timezone
 from typing import Optional
+
+from . import const, props
+from .capi import ffi, lib
+from .chat import Chat
+from .cutil import from_dc_charpointer, from_optional_dc_charpointer
 
 
 class Contact(object):
@@ -47,6 +48,13 @@ class Contact(object):
 
     # deprecated alias
     display_name = name
+
+    @props.with_doc
+    def last_seen(self) -> date:
+        """Last seen timestamp."""
+        return datetime.fromtimestamp(
+            lib.dc_contact_get_last_seen(self._dc_contact), timezone.utc
+        )
 
     def is_blocked(self):
         """ Return True if the contact is blocked. """

@@ -216,6 +216,10 @@ pub(crate) async fn dc_receive_imf_inner(
     .await
     .map_err(|err| err.context("add_parts error"))?;
 
+    if from_id > DC_CONTACT_ID_LAST_SPECIAL {
+        contact::update_last_seen(context, from_id, sent_timestamp).await?;
+    }
+
     // Update gossiped timestamp for the chat if someone else or our other device sent
     // Autocrypt-Gossip for all recipients in the chat to avoid sending Autocrypt-Gossip ourselves
     // and waste traffic.
