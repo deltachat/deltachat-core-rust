@@ -24,19 +24,19 @@ class Provider(object):
         self._provider = provider
 
     @property
-    def overview_page(self):
+    def overview_page(self) -> str:
         """URL to the overview page of the provider on providers.delta.chat."""
         return from_dc_charpointer(
             lib.dc_provider_get_overview_page(self._provider))
 
     @property
-    def get_before_login_hints(self):
+    def get_before_login_hints(self) -> str:
         """Should be shown to the user on login."""
         return from_dc_charpointer(
-            lib.dc_provider_get_before_login_hints(self._provider))
+            lib.dc_provider_get_before_login_hint(self._provider))
 
     @property
-    def status(self):
+    def status(self) -> int:
         """The status of the provider information.
 
         This is one of the

@@ -8,7 +8,7 @@ import os
 from array import array
 from . import const
 from .capi import ffi, lib
-from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
+from .cutil import as_dc_charpointer, from_dc_charpointer, from_optional_dc_charpointer, iter_array, DCLot
 from .chat import Chat
 from .message import Message
 from .contact import Contact
@@ -79,7 +79,7 @@ class Account(object):
             raise KeyError("{!r} not a valid config key, existing keys: {!r}".format(
                            name, self._configkeys))
 
-    def get_info(self):
+    def get_info(self) -> Dict[str, str]:
         """ return dictionary of built config parameters. """
         lines = from_dc_charpointer(lib.dc_get_info(self._dc_context))
         d = {}
@@ -135,7 +135,7 @@ class Account(object):
             valuebytes = ffi.NULL
         lib.dc_set_config(self._dc_context, namebytes, valuebytes)
 
-    def get_config(self, name: str):
+    def get_config(self, name: str) -> str:
         """ return unicode string value.
 
         :param name: configuration key to lookup (eg "addr" or "mail_pw")
@@ -200,11 +200,9 @@ class Account(object):
         """ return the latest backup file in a given directory.
         """
         res = lib.dc_imex_has_backup(self._dc_context, as_dc_charpointer(backupdir))
-        if res == ffi.NULL:
-            return None
-        return from_dc_charpointer(res)
+        return from_optional_dc_charpointer(res)
 
-    def get_blobdir(self) -> Optional[str]:
+    def get_blobdir(self) -> str:
         """ return the directory for files.
 
         All sent files are copied to this directory if necessary.
@@ -477,7 +475,7 @@ class Account(object):
     def imex(self, path, imex_cmd):
         lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
 
-    def initiate_key_transfer(self):
+    def initiate_key_transfer(self) -> str:
         """return setup code after a Autocrypt setup message
         has been successfully sent to our own e-mail address ("self-sent message").
         If sending out was unsuccessful, a RuntimeError is raised.
@@ -488,7 +486,7 @@ class Account(object):
             raise RuntimeError("could not send out autocrypt setup message")
         return from_dc_charpointer(res)
 
-    def get_setup_contact_qr(self) -> Optional[str]:
+    def get_setup_contact_qr(self) -> str:
         """ get/create Setup-Contact QR Code as ascii-string.
 
         this string needs to be transferred to another DC account
@@ -584,7 +582,7 @@ class Account(object):
     def get_connectivity(self):
         return lib.dc_get_connectivity(self._dc_context)
 
-    def get_connectivity_html(self):
+    def get_connectivity_html(self) -> str:
         return from_dc_charpointer(lib.dc_get_connectivity_html(self._dc_context))
 
     def all_work_done(self):

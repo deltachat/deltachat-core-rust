@@ -19,7 +19,13 @@ def iter_array(dc_array_t, constructor: Callable[[int], T]) -> Generator[T, None
         yield constructor(lib.dc_array_get_id(dc_array_t, i))
 
 
-def from_dc_charpointer(obj) -> Optional[str]:
+def from_dc_charpointer(obj) -> str:
+    if obj != ffi.NULL:
+        return ffi.string(ffi.gc(obj, lib.dc_str_unref)).decode("utf8")
+    raise ValueError
+
+
+def from_optional_dc_charpointer(obj) -> Optional[str]:
     if obj != ffi.NULL:
         return ffi.string(ffi.gc(obj, lib.dc_str_unref)).decode("utf8")
     return None

@@ -3,10 +3,11 @@
 import os
 import re
 from . import props
-from .cutil import from_dc_charpointer, as_dc_charpointer
+from .cutil import from_dc_charpointer, from_optional_dc_charpointer, as_dc_charpointer
 from .capi import lib, ffi
 from . import const
 from datetime import datetime, timezone
+from typing import Optional
 
 
 class Message(object):
@@ -75,7 +76,7 @@ class Message(object):
         return lib.dc_msg_get_id(self._dc_msg)
 
     @props.with_doc
-    def text(self):
+    def text(self) -> str:
         """unicode text of this messages (might be empty if not a text message). """
         return from_dc_charpointer(lib.dc_msg_get_text(self._dc_msg))
 
@@ -84,9 +85,9 @@ class Message(object):
         lib.dc_msg_set_text(self._dc_msg, as_dc_charpointer(text))
 
     @props.with_doc
-    def html(self):
+    def html(self) -> str:
         """html text of this messages (might be empty if not an html message). """
-        return from_dc_charpointer(
+        return from_optional_dc_charpointer(
             lib.dc_get_msg_html(self.account._dc_context, self.id)) or ""
 
     def has_html(self):
@@ -113,12 +114,13 @@ class Message(object):
         lib.dc_msg_set_file(self._dc_msg, as_dc_charpointer(path), mtype)
 
     @props.with_doc
-    def basename(self):
+    def basename(self) -> str:
         """basename of the attachment if it exists, otherwise empty string. """
+        # FIXME, it does not return basename
         return from_dc_charpointer(lib.dc_msg_get_filename(self._dc_msg))
 
     @props.with_doc
-    def filemime(self):
+    def filemime(self) -> str:
         """mime type of the file (if it exists)"""
         return from_dc_charpointer(lib.dc_msg_get_filemime(self._dc_msg))
 
@@ -130,7 +132,7 @@ class Message(object):
         """ return True if this message is a setup message. """
         return lib.dc_msg_is_setupmessage(self._dc_msg)
 
-    def get_setupcodebegin(self):
+    def get_setupcodebegin(self) -> str:
         """ return the first characters of a setup code in a setup message. """
         return from_dc_charpointer(lib.dc_msg_get_setupcodebegin(self._dc_msg))
 
@@ -146,7 +148,7 @@ class Message(object):
         """ return True if this message was forwarded. """
         return bool(lib.dc_msg_is_forwarded(self._dc_msg))
 
-    def get_message_info(self):
+    def get_message_info(self) -> str:
         """ Return informational text for a single message.
 
         The text is multiline and may contain eg. the raw text of the message.
@@ -203,11 +205,11 @@ class Message(object):
             return datetime.fromtimestamp(ts, timezone.utc)
 
     @property
-    def quoted_text(self):
+    def quoted_text(self) -> Optional[str]:
         """Text inside the quote
 
         :returns: Quoted text"""
-        return from_dc_charpointer(lib.dc_msg_get_quoted_text(self._dc_msg))
+        return from_optional_dc_charpointer(lib.dc_msg_get_quoted_text(self._dc_msg))
 
     @property
     def quote(self):
@@ -240,9 +242,9 @@ class Message(object):
             return email.message_from_string(s)
 
     @property
-    def error(self):
+    def error(self) -> Optional[str]:
         """Error message"""
-        return from_dc_charpointer(lib.dc_msg_get_error(self._dc_msg))
+        return from_optional_dc_charpointer(lib.dc_msg_get_error(self._dc_msg))
 
     @property
     def chat(self):
@@ -255,12 +257,12 @@ class Message(object):
         return Chat(self.account, chat_id)
 
     @props.with_doc
-    def override_sender_name(self):
+    def override_sender_name(self) -> Optional[str]:
         """the name that should be shown over the message instead of the contact display name.
 
         Usually used to impersonate someone else.
         """
-        return from_dc_charpointer(
+        return from_optional_dc_charpointer(
             lib.dc_msg_get_override_sender_name(self._dc_msg))
 
     def set_override_sender_name(self, name):
