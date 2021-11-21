@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Result};
 use async_imap::types::{Quota, QuotaResource};
-use indexmap::IndexMap;
+use std::collections::BTreeMap;
 
 use crate::chat::add_device_msg_with_importance;
 use crate::config::Config;
@@ -43,7 +43,7 @@ pub struct QuotaInfo {
     /// set to `Err()` if the provider does not support quota or on other errors,
     /// set to `Ok()` for valid quota information.
     /// Updated by `Action::UpdateRecentQuota`
-    pub(crate) recent: Result<IndexMap<String, Vec<QuotaResource>>>,
+    pub(crate) recent: Result<BTreeMap<String, Vec<QuotaResource>>>,
 
     /// Timestamp when structure was modified.
     pub(crate) modified: i64,
@@ -52,8 +52,8 @@ pub struct QuotaInfo {
 async fn get_unique_quota_roots_and_usage(
     folders: Vec<String>,
     imap: &mut Imap,
-) -> Result<IndexMap<String, Vec<QuotaResource>>> {
-    let mut unique_quota_roots: IndexMap<String, Vec<QuotaResource>> = IndexMap::new();
+) -> Result<BTreeMap<String, Vec<QuotaResource>>> {
+    let mut unique_quota_roots: BTreeMap<String, Vec<QuotaResource>> = BTreeMap::new();
     for folder in folders {
         let (quota_roots, quotas) = &imap.get_quota_roots(&folder).await?;
         // if there are new quota roots found in this imap folder, add them to the list
@@ -69,7 +69,7 @@ async fn get_unique_quota_roots_and_usage(
                 // messages could be recieved and so the usage could have been changed
                 *unique_quota_roots
                     .entry(quota_root_name.clone())
-                    .or_insert(vec![]) = quota.resources;
+                    .or_insert_with(Vec::new) = quota.resources;
             }
         }
     }
@@ -77,7 +77,7 @@ async fn get_unique_quota_roots_and_usage(
 }
 
 fn get_highest_usage<'t>(
-    unique_quota_roots: &'t IndexMap<String, Vec<QuotaResource>>,
+    unique_quota_roots: &'t BTreeMap<String, Vec<QuotaResource>>,
 ) -> Result<(u64, &'t String, &QuotaResource)> {
     let mut highest: Option<(u64, &'t String, &QuotaResource)> = None;
     for (name, resources) in unique_quota_roots {

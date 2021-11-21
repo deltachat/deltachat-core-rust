@@ -1,6 +1,7 @@
 //! Internet Message Format reception pipeline.
 
 use std::cmp::min;
+use std::collections::BTreeSet;
 use std::convert::TryFrom;
 
 use anyhow::{bail, ensure, Context as _, Result};
@@ -34,9 +35,6 @@ use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::stock_str;
 use crate::{contact, location};
-
-// IndexSet is like HashSet but maintains order of insertion.
-type ContactIds = indexmap::IndexSet<u32>;
 
 #[derive(Debug, PartialEq, Eq)]
 enum CreateEvent {
@@ -162,23 +160,19 @@ pub(crate) async fn dc_receive_imf_inner(
 
     let incoming = from_id != DC_CONTACT_ID_SELF;
 
-    let mut to_ids = ContactIds::new();
-
-    to_ids.extend(
-        &dc_add_or_lookup_contacts_by_address_list(
-            context,
-            &mime_parser.recipients,
-            if !incoming {
-                Origin::OutgoingTo
-            } else if incoming_origin.is_known() {
-                Origin::IncomingTo
-            } else {
-                Origin::IncomingUnknownTo
-            },
-            prevent_rename,
-        )
-        .await?,
-    );
+    let to_ids = dc_add_or_lookup_contacts_by_address_list(
+        context,
+        &mime_parser.recipients,
+        if !incoming {
+            Origin::OutgoingTo
+        } else if incoming_origin.is_known() {
+            Origin::IncomingTo
+        } else {
+            Origin::IncomingUnknownTo
+        },
+        prevent_rename,
+    )
+    .await?;
 
     let rcvd_timestamp = dc_smeared_time(context).await;
     let sent_timestamp = mime_parser
@@ -402,7 +396,7 @@ pub async fn from_field_to_contact_id(
                 "mail has more than one From address, only using first: {:?}", from_address_list
             );
         }
-        let from_id = from_ids.get_index(0).cloned().unwrap_or_default();
+        let from_id = from_ids.get(0).cloned().unwrap_or_default();
 
         let mut from_id_blocked = false;
         let mut incoming_origin = Origin::Unknown;
@@ -430,7 +424,7 @@ async fn add_parts(
     incoming_origin: Origin,
     server_folder: &str,
     server_uid: u32,
-    to_ids: &ContactIds,
+    to_ids: &[u32],
     rfc724_mid: String,
     sent_timestamp: i64,
     rcvd_timestamp: i64,
@@ -724,7 +718,7 @@ async fn add_parts(
         // the mail is on the IMAP server, probably it is also delivered.
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
-        to_id = to_ids.get_index(0).cloned().unwrap_or_default();
+        to_id = to_ids.get(0).cloned().unwrap_or_default();
 
         let self_sent = from_id == DC_CONTACT_ID_SELF
             && to_ids.len() == 1
@@ -1316,7 +1310,7 @@ async fn lookup_chat_by_reply(
     mime_parser: &mut MimeMessage,
     parent: &Option<Message>,
     from_id: u32,
-    to_ids: &ContactIds,
+    to_ids: &[u32],
 ) -> Result<Option<(ChatId, Blocked)>> {
     // Try to assign message to the same chat as the parent message.
 
@@ -1356,7 +1350,7 @@ async fn lookup_chat_by_reply(
 /// If it returns false, it shall be assigned to the parent chat.
 async fn is_probably_private_reply(
     context: &Context,
-    to_ids: &indexmap::IndexSet<u32>,
+    to_ids: &[u32],
     mime_parser: &MimeMessage,
     parent_chat_id: ChatId,
     from_id: u32,
@@ -1368,7 +1362,7 @@ async fn is_probably_private_reply(
     // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
     // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
 
-    let private_message = to_ids == &[DC_CONTACT_ID_SELF].iter().copied().collect::<ContactIds>();
+    let private_message = to_ids == [DC_CONTACT_ID_SELF].iter().copied().collect::<Vec<u32>>();
     if !private_message {
         return Ok(false);
     }
@@ -1397,7 +1391,7 @@ async fn create_or_lookup_group(
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
-    to_ids: &ContactIds,
+    to_ids: &[u32],
 ) -> Result<Option<(ChatId, Blocked)>> {
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
@@ -1541,7 +1535,7 @@ async fn apply_group_changes(
     sent_timestamp: i64,
     chat_id: ChatId,
     from_id: u32,
-    to_ids: &ContactIds,
+    to_ids: &[u32],
 ) -> Result<()> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     if chat.typ != Chattype::Group {
@@ -1981,7 +1975,7 @@ async fn check_verified_properties(
     context: &Context,
     mimeparser: &MimeMessage,
     from_id: u32,
-    to_ids: &ContactIds,
+    to_ids: &[u32],
 ) -> Result<()> {
     let contact = Contact::load_from_db(context, from_id).await?;
 
@@ -2024,8 +2018,11 @@ async fn check_verified_properties(
     }
 
     // we do not need to check if we are verified with ourself
-    let mut to_ids = to_ids.clone();
-    to_ids.remove(&DC_CONTACT_ID_SELF);
+    let to_ids = to_ids
+        .iter()
+        .copied()
+        .filter(|id| *id != DC_CONTACT_ID_SELF)
+        .collect::<Vec<u32>>();
 
     if to_ids.is_empty() {
         return Ok(());
@@ -2188,6 +2185,10 @@ pub(crate) async fn get_prefetch_parent_message(
     Ok(None)
 }
 
+/// Looks up contact IDs from the database given the list of recipients.
+///
+/// Returns vector of IDs guaranteed to be unique.
+///
 /// * param `prevent_rename`: if true, the display_name of this contact will not be changed. Useful for
 /// mailing lists: In some mailing lists, many users write from the same address but with different
 /// display names. We don't want the display name to change everytime the user gets a new email from
@@ -2197,8 +2198,8 @@ async fn dc_add_or_lookup_contacts_by_address_list(
     address_list: &[SingleInfo],
     origin: Origin,
     prevent_rename: bool,
-) -> Result<ContactIds> {
-    let mut contact_ids = ContactIds::new();
+) -> Result<Vec<u32>> {
+    let mut contact_ids = BTreeSet::new();
     for info in address_list.iter() {
         let display_name = if prevent_rename {
             Some("")
@@ -2210,7 +2211,7 @@ async fn dc_add_or_lookup_contacts_by_address_list(
         );
     }
 
-    Ok(contact_ids)
+    Ok(contact_ids.into_iter().collect::<Vec<u32>>())
 }
 
 /// Add contacts to database on receiving messages.
