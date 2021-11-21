@@ -4383,6 +4383,16 @@ uint32_t        dc_contact_get_color         (const dc_contact_t* contact);
 char*           dc_contact_get_status        (const dc_contact_t* contact);
 
 /**
+ * Get the contact's last seen timestamp.
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return Last seen timestamp.
+ *     0 on error or if the contact was never seen.
+ */
+int64_t         dc_contact_get_last_seen     (const dc_contact_t* contact);
+
+/**
  * Check if a contact is blocked.
  *
  * To block or unblock a contact, use dc_block_contact().
