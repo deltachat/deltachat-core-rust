@@ -1084,7 +1084,6 @@ dependencies = [
  "hex",
  "humansize",
  "image",
- "indexmap",
  "kamadak-exif",
  "lettre_email",
  "libc",
@@ -1933,16 +1932,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad9b46a79efb6078e578ae04e51463d7c3e8767864687f7e63095b3cbefafbb"
 dependencies = [
  "nom 6.1.2",
-]
-
-[[package]]
-name = "indexmap"
-version = "1.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
-dependencies = [
- "autocfg 1.0.1",
- "hashbrown",
 ]
 
 [[package]]
