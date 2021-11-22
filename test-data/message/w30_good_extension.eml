@@ -1,0 +1,22 @@
+Subject: W30 object attached
+Message-ID: 12345@example.org
+Date: Fri, 03 Dec 2021 10:00:27 +0000
+To: alice@example.org
+From: bob@example.org
+Chat-Version: 1.0
+Content-Type: multipart/mixed; boundary="==BREAK=="
+
+
+--==BREAK==
+Content-Type: text/plain; charset=utf-8
+
+w30 with good extension;
+the mimetype is ignored then.
+
+--==BREAK==
+Content-Type: text/html
+Content-Disposition: attachment; filename=index.w30
+
+<html>hey!<html>
+
+--==BREAK==--
