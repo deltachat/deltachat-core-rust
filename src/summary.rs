@@ -137,7 +137,11 @@ impl Message {
                 append_text = false;
                 stock_str::videochat_invitation(context).await
             }
-            _ => {
+            Viewtype::W30 => {
+                append_text = true;
+                "W30".to_string()
+            }
+            Viewtype::Text | Viewtype::Unknown => {
                 if self.param.get_cmd() != SystemMessage::LocationOnly {
                     "".to_string()
                 } else {

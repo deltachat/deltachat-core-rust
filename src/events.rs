@@ -9,6 +9,7 @@ use strum::EnumProperty;
 use crate::chat::ChatId;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
+use crate::w30::StatusUpdateId;
 
 #[derive(Debug)]
 pub struct Events {
@@ -326,4 +327,10 @@ pub enum EventType {
 
     #[strum(props(id = "2110"))]
     SelfavatarChanged,
+
+    #[strum(props(id = "2120"))]
+    W30StatusUpdate {
+        msg_id: MsgId,
+        status_update_id: StatusUpdateId,
+    },
 }
