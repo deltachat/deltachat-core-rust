@@ -37,6 +37,7 @@ use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
 use deltachat::stock_str::StockMessage;
+use deltachat::w30::StatusUpdateId;
 use deltachat::*;
 use deltachat::{accounts::Accounts, log::LogExt};
 
@@ -500,6 +501,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         EventType::ImexFileWritten(_) => 0,
         EventType::SecurejoinInviterProgress { contact_id, .. }
         | EventType::SecurejoinJoinerProgress { contact_id, .. } => *contact_id as libc::c_int,
+        EventType::W30StatusUpdate { msg_id, .. } => msg_id.to_u32() as libc::c_int,
     }
 }
 
@@ -541,6 +543,9 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         EventType::SecurejoinInviterProgress { progress, .. }
         | EventType::SecurejoinJoinerProgress { progress, .. } => *progress as libc::c_int,
         EventType::ChatEphemeralTimerModified { timer, .. } => timer.to_u32() as libc::c_int,
+        EventType::W30StatusUpdate {
+            status_update_id, ..
+        } => status_update_id.to_u32() as libc::c_int,
     }
 }
 
@@ -582,6 +587,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SecurejoinJoinerProgress { .. }
         | EventType::ConnectivityChanged
         | EventType::SelfavatarChanged
+        | EventType::W30StatusUpdate { .. }
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {
@@ -869,6 +875,52 @@ pub unsafe extern "C" fn dc_send_videochat_invitation(
             .map(|msg_id| msg_id.to_u32())
             .unwrap_or_log_default(ctx, "Failed to send video chat invitation")
     })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_send_w30_status_update(
+    context: *mut dc_context_t,
+    msg_id: u32,
+    descr: *const libc::c_char,
+    json: *const libc::c_char,
+) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_send_w30_status_update()");
+        return 0;
+    }
+    let ctx = &*context;
+
+    block_on(ctx.send_w30_status_update(
+        MsgId::new(msg_id),
+        &to_string_lossy(descr),
+        &to_string_lossy(json),
+    ))
+    .log_err(ctx, "Failed to send w30 update")
+    .is_ok() as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_w30_status_updates(
+    context: *mut dc_context_t,
+    msg_id: u32,
+    status_update_id: u32,
+) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_w30_status_updates()");
+        return "".strdup();
+    }
+    let ctx = &*context;
+
+    block_on(ctx.get_w30_status_updates(
+        MsgId::new(msg_id),
+        if status_update_id == 0 {
+            None
+        } else {
+            Some(StatusUpdateId::new(status_update_id))
+        },
+    ))
+    .unwrap_or_else(|_| "".to_string())
+    .strdup()
 }
 
 #[no_mangle]
