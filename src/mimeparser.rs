@@ -65,6 +65,7 @@ pub struct MimeMessage {
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
     pub(crate) sync_items: Option<SyncItems>,
+    pub(crate) w30_status_update: Option<String>,
     pub(crate) user_avatar: Option<AvatarAction>,
     pub(crate) group_avatar: Option<AvatarAction>,
     pub(crate) mdn_reports: Vec<Report>,
@@ -134,6 +135,10 @@ pub enum SystemMessage {
     /// Self-sent-message that contains only json used for multi-device-sync;
     /// if possible, we attach that to other messages as for locations.
     MultiDeviceSync = 20,
+
+    // Sync message that contains a json payload
+    // sent to the other w30 instances
+    W30StatusUpdate = 30,
 }
 
 impl Default for SystemMessage {
@@ -291,6 +296,7 @@ impl MimeMessage {
             location_kml: None,
             message_kml: None,
             sync_items: None,
+            w30_status_update: None,
             user_avatar: None,
             group_avatar: None,
             failure_report: None,
@@ -533,7 +539,7 @@ impl MimeMessage {
             };
 
             if let Some(ref subject) = self.get_subject() {
-                if !self.has_chat_version() {
+                if !self.has_chat_version() && self.w30_status_update.is_none() {
                     part.msg = subject.to_string();
                 }
             }
@@ -832,6 +838,12 @@ impl MimeMessage {
                                     .await?;
                             }
                         }
+                        Some("status-update") => {
+                            if let Some(second) = mail.subparts.get(1) {
+                                self.add_single_part_if_known(context, second, is_related)
+                                    .await?;
+                            }
+                        }
                         Some(_) => {
                             if let Some(first) = mail.subparts.get(0) {
                                 any_part_added = self
@@ -1001,8 +1013,13 @@ impl MimeMessage {
         if decoded_data.is_empty() {
             return;
         }
-        // treat location/message kml file attachments specially
-        if filename.ends_with(".kml") {
+        let msg_type = if context
+            .is_w30_file(filename, decoded_data)
+            .await
+            .unwrap_or(false)
+        {
+            Viewtype::W30
+        } else if filename.ends_with(".kml") {
             // XXX what if somebody sends eg an "location-highlights.kml"
             // attachment unrelated to location streaming?
             if filename.starts_with("location") || filename.starts_with("message") {
@@ -1018,6 +1035,7 @@ impl MimeMessage {
                 }
                 return;
             }
+            msg_type
         } else if filename == "multi-device-sync.json" {
             let serialized = String::from_utf8_lossy(decoded_data)
                 .parse()
@@ -1030,7 +1048,15 @@ impl MimeMessage {
                 })
                 .ok();
             return;
-        }
+        } else if filename == "status-update.json" {
+            let serialized = String::from_utf8_lossy(decoded_data)
+                .parse()
+                .unwrap_or_default();
+            self.w30_status_update = Some(serialized);
+            return;
+        } else {
+            msg_type
+        };
 
         /* we have a regular file attachment,
         write decoded data to new blob object */

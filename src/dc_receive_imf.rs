@@ -256,6 +256,15 @@ pub(crate) async fn dc_receive_imf_inner(
         }
     }
 
+    if let Some(ref status_update) = mime_parser.w30_status_update {
+        if let Err(err) = context
+            .receive_status_update(insert_msg_id, status_update)
+            .await
+        {
+            warn!(context, "receive_imf cannot update status: {}", err);
+        }
+    }
+
     if let Some(avatar_action) = &mime_parser.user_avatar {
         if from_id != 0
             && context
@@ -844,6 +853,15 @@ async fn add_parts(
         chat_id = Some(DC_CHAT_ID_TRASH);
         // We are only gathering old messages on first start. We do not want to add loads of non-decryptable messages to the chats.
         info!(context, "Existing non-decipherable message. (TRASH)");
+    }
+
+    if mime_parser.w30_status_update.is_some() && mime_parser.parts.len() == 1 {
+        if let Some(part) = mime_parser.parts.first() {
+            if part.typ == Viewtype::Text && part.msg.is_empty() {
+                chat_id = Some(DC_CHAT_ID_TRASH);
+                info!(context, "Message is a status update only (TRASH)");
+            }
+        }
     }
 
     if is_mdn {
