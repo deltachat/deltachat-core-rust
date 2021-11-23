@@ -4,6 +4,7 @@
 
 ### API changes
 - `dc_contact_get_last_seen()` added #2823
+- python: `Contact.last_seen` added #2823
 - removed `DC_STR_NEWGROUPDRAFT`, we don't set draft after creating group anymore #2805
 
 ### Changes
