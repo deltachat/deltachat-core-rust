@@ -1,8 +1,16 @@
 # Changelog
 
-## Unreleased
+## 1.66.0
 
-- Removed DC_STR_NEWGROUPDRAFT, we don't set draft after creating group anymore #2805
+### API changes
+- `dc_contact_get_last_seen()` added #2823
+- python: `Contact.last_seen` added #2823
+- removed `DC_STR_NEWGROUPDRAFT`, we don't set draft after creating group anymore #2805
+
+### Changes
+- python: add cutil.from_optional_dc_charpointer() #2824
+- refactorings #2807 #2822 #2825
+
 
 ## 1.65.0
 
