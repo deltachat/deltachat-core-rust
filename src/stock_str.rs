@@ -620,7 +620,7 @@ pub(crate) async fn secure_join_replies(context: &Context, contact_id: u32) -> S
     }
 }
 
-/// Stock string: `Scan this to setup contact with %1$s`.
+/// Stock string: `Scan to chat with %1$s`.
 pub(crate) async fn verify_contact_qr_description(
     context: &Context,
     display_name: &str,
@@ -636,7 +636,7 @@ pub(crate) async fn verify_contact_qr_description(
         .replace1(name)
 }
 
-/// Stock string: `Scan this to join %1$s`.
+/// Stock string: `Scan to join %1$s`.
 pub(crate) async fn secure_join_group_qr_description(context: &Context, chat: &Chat) -> String {
     translated(context, StockMessage::SecureJoinGroupQRDescription)
         .await

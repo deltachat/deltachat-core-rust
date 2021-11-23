@@ -1,6 +1,5 @@
 use anyhow::Result;
 use qrcodegen::{QrCode, QrCodeEcc};
-use tagger::PathCommand;
 
 use crate::{
     blob::BlobObject,
@@ -73,13 +72,11 @@ fn inner_generate_secure_join_qr_code(
     avatar: Option<Vec<u8>>,
     avatar_letter: char,
 ) -> Result<String> {
+    let qrcode_description = &escaper::encode_minimal(raw_qrcode_description);
     // config
-    let width = 560.0;
-    let qrcode_description = &simple_escape_xml(raw_qrcode_description);
+    let width = 515.0;
     let height = 630.0;
-    let corner_boldness = 18.0;
-    let corner_padding = 20.0;
-    let corner_length = (width - (corner_padding * 2.0)) / 5.0;
+    let logo_offset = 28.0;
     let qr_code_size = 400.0;
     let qr_translate_up = 40.0;
     let text_y_pos = ((height - qr_code_size) / 2.0) + qr_code_size;
@@ -89,6 +86,8 @@ fn inner_generate_secure_join_qr_code(
         (19.0, 38)
     };
     let avatar_border_size = 9.0;
+    let card_border_size = 3.5;
+    let card_roundness = 40.0;
 
     let qr = QrCode::encode_text(qrcode_content, QrCodeEcc::Medium)?;
     let mut svg = String::with_capacity(28000);
@@ -99,81 +98,17 @@ fn inner_generate_secure_join_qr_code(
             .attr("viewBox", format_args!("0 0 {} {}", width, height));
     })
     .build(|w| {
-        // White Background
+        // White Background apears like a card
         w.single("rect", |d| {
-            d.attr("x", 0)
-                .attr("y", 0)
-                .attr("width", width)
-                .attr("height", height)
-                .attr("style", "fill:white");
+            d.attr("x", card_border_size)
+                .attr("y", card_border_size)
+                .attr("rx", card_roundness)
+                .attr("stroke", "#c6c6c6")
+                .attr("stroke-width", card_border_size)
+                .attr("width", width - (card_border_size * 2.0))
+                .attr("height", height - (card_border_size * 2.0))
+                .attr("style", "fill:#f2f2f2");
         });
-        // Corners
-        {
-            let border_style = "fill:#2090ea";
-            // upper, left corner
-            w.single("path", |d| {
-                d.attr("x", 0)
-                    .attr("y", 0)
-                    .attr("style", &border_style)
-                    .path(|p| {
-                        p.put(PathCommand::M(corner_padding, corner_padding));
-                        p.put(PathCommand::V(corner_length + corner_padding));
-                        p.put(PathCommand::H(corner_boldness + corner_padding));
-                        p.put(PathCommand::V(corner_boldness + corner_padding));
-                        p.put(PathCommand::H(corner_length + corner_padding));
-                        p.put(PathCommand::V(corner_padding));
-                        p.put(PathCommand::Z(corner_padding));
-                    });
-            });
-            // upper, right corner
-            w.single("path", |d| {
-                d.attr("x", 0)
-                    .attr("y", 0)
-                    .attr("style", &border_style)
-                    .path(|p| {
-                        p.put(PathCommand::M(width - corner_padding, corner_padding));
-                        p.put(PathCommand::V(corner_length + corner_padding));
-                        p.put(PathCommand::H(width - (corner_boldness + corner_padding)));
-                        p.put(PathCommand::V(corner_boldness + corner_padding));
-                        p.put(PathCommand::H(width - (corner_length + corner_padding)));
-                        p.put(PathCommand::V(corner_padding));
-                        p.put(PathCommand::Z(0));
-                    });
-            });
-            // lower, right corner
-            w.single("path", |d| {
-                d.attr("x", 0)
-                    .attr("y", 0)
-                    .attr("style", &border_style)
-                    .path(|p| {
-                        p.put(PathCommand::M(
-                            width - corner_padding,
-                            height - corner_padding,
-                        ));
-                        p.put(PathCommand::V(height - (corner_length + corner_padding)));
-                        p.put(PathCommand::H(width - (corner_boldness + corner_padding)));
-                        p.put(PathCommand::V(height - (corner_boldness + corner_padding)));
-                        p.put(PathCommand::H(width - (corner_length + corner_padding)));
-                        p.put(PathCommand::V(height - corner_padding));
-                        p.put(PathCommand::Z(0));
-                    });
-            });
-            // lower, left corner
-            w.single("path", |d| {
-                d.attr("x", 0)
-                    .attr("y", 0)
-                    .attr("style", &border_style)
-                    .path(|p| {
-                        p.put(PathCommand::M(corner_padding, height - corner_padding));
-                        p.put(PathCommand::V(height - (corner_length + corner_padding)));
-                        p.put(PathCommand::H(corner_boldness + corner_padding));
-                        p.put(PathCommand::V(height - (corner_boldness + corner_padding)));
-                        p.put(PathCommand::H(corner_length + corner_padding));
-                        p.put(PathCommand::V(height - corner_padding));
-                        p.put(PathCommand::Z(0));
-                    });
-            });
-        }
         // Qrcode Background
         w.single("rect", |d| {
             d.attr("x", (width - qr_code_size) / 2.0)
@@ -228,7 +163,7 @@ fn inner_generate_secure_join_qr_code(
                     .attr(
                         "style",
                         format!(
-                            "font-family:Arial, sans-serif;\
+                            "font-family:sans-serif;\
                         font-style:normal;\
                         font-stretch:normal;\
                         font-size:{}px;\
@@ -320,7 +255,7 @@ fn inner_generate_secure_join_qr_code(
                 format!(
                     "translate({},{})",
                     (width - FOOTER_WIDTH) / 2.0,
-                    height - corner_padding - FOOTER_HEIGHT + (corner_boldness / 2.0)
+                    height - logo_offset - FOOTER_HEIGHT
                 ),
             );
         })
@@ -330,25 +265,4 @@ fn inner_generate_secure_join_qr_code(
     });
 
     Ok(svg)
-}
-
-fn simple_escape_xml(xml: &str) -> String {
-    // this escaping method copies the data 5 times?
-    xml.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('\'', "&apos;")
-        .replace('"', "&quot;")
-}
-
-#[cfg(test)]
-mod text_simple_escape_xml {
-    use super::simple_escape_xml;
-    #[test]
-    fn test() {
-        assert_eq!(
-            &simple_escape_xml("<circle r=\"6px\"></circle>&'test'"),
-            "&lt;circle r=&quot6px&quot&gt;&lt;/circle&gt;&amp;&apostest&apos"
-        )
-    }
 }
