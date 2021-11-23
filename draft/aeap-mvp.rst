@@ -6,7 +6,7 @@ Changes to the UIs
 
 - The secondary self addresses (see below) are shown in the UI, but not editable.
 
-That's all!
+- When the user changed the email address in the configure screen, show a dialog to the user, either directly explaining things or with a link to the FAQ (see "Other" below)
 
 Changes in the core
 -------------------
