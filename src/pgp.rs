@@ -479,7 +479,7 @@ mod tests {
         let mut keyring = Keyring::new();
         keyring.add(KEYS.alice_public.clone());
         keyring.add(KEYS.bob_public.clone());
-        futures_lite::future::block_on(pk_encrypt(
+        async_std::task::block_on(pk_encrypt(
             CLEARTEXT,
             keyring,
             Some(KEYS.alice_secret.clone()),
@@ -492,7 +492,7 @@ mod tests {
         let mut keyring = Keyring::new();
         keyring.add(KEYS.alice_public.clone());
         keyring.add(KEYS.bob_public.clone());
-        futures_lite::future::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
+        async_std::task::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
     });
 
     #[test]

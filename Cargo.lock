@@ -1090,7 +1090,6 @@ dependencies = [
  "escaper",
  "fast-socks5",
  "futures",
- "futures-lite",
  "hex",
  "humansize",
  "image",

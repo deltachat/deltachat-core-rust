@@ -80,7 +80,6 @@ zip = { version = "0.6.2", default-features = false, features = ["deflate"] }
 ansi_term = "0.12.0"
 async-std = { version = "1", features = ["unstable", "attributes"] }
 criterion = { version = "0.3.4", features = ["async_std"] }
-futures-lite = "1.12"
 log = "0.4"
 pretty_env_logger = "0.4"
 proptest = { version = "1", default-features = false, features = ["std"] }
