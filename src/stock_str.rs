@@ -331,10 +331,10 @@ pub enum StockMessage {
     #[strum(props(fallback = "%1$s replied, waiting for being added to the group…"))]
     SecureJoinReplies = 118,
 
-    #[strum(props(fallback = "Scan this to setup contact with %1$s"))]
+    #[strum(props(fallback = "Scan to chat with %1$s"))]
     VerifyContactQRDescription = 119,
 
-    #[strum(props(fallback = "Scan this to join %1$s"))]
+    #[strum(props(fallback = "Scan to join %1$s"))]
     SecureJoinGroupQRDescription = 120,
 }
 
