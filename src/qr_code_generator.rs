@@ -57,7 +57,7 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
     };
 
     inner_generate_secure_join_qr_code(
-        &stock_str::verify_contact_qr_description(context, &displayname, contact.get_addr()).await,
+        &stock_str::setup_contact_qr_description(context, &displayname, contact.get_addr()).await,
         &securejoin::dc_get_securejoin_qr(context, None).await?,
         &color_int_to_hex_string(contact.get_color()),
         avatar,

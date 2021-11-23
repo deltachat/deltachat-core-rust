@@ -6098,7 +6098,7 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced with your "displayname (email@address)`
 /// or just `email@address` if no displayname is set.
 
-#define DC_STR_VERIFY_CONTACT_QR_DESC     119
+#define DC_STR_SETUP_CONTACT_QR_DESC     119
 
 /// "Scan to join %1$s"
 ///

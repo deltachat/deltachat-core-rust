@@ -332,7 +332,7 @@ pub enum StockMessage {
     SecureJoinReplies = 118,
 
     #[strum(props(fallback = "Scan to chat with %1$s"))]
-    VerifyContactQRDescription = 119,
+    SetupContactQRDescription = 119,
 
     #[strum(props(fallback = "Scan to join %1$s"))]
     SecureJoinGroupQRDescription = 120,
@@ -621,7 +621,7 @@ pub(crate) async fn secure_join_replies(context: &Context, contact_id: u32) -> S
 }
 
 /// Stock string: `Scan to chat with %1$s`.
-pub(crate) async fn verify_contact_qr_description(
+pub(crate) async fn setup_contact_qr_description(
     context: &Context,
     display_name: &str,
     addr: &str,
@@ -631,7 +631,7 @@ pub(crate) async fn verify_contact_qr_description(
     } else {
         format!("{} ({})", display_name, addr)
     };
-    translated(context, StockMessage::VerifyContactQRDescription)
+    translated(context, StockMessage::SetupContactQRDescription)
         .await
         .replace1(name)
 }
