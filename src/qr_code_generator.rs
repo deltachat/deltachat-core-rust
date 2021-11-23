@@ -109,14 +109,6 @@ fn inner_generate_secure_join_qr_code(
                 .attr("height", height - (card_border_size * 2.0))
                 .attr("style", "fill:#f2f2f2");
         });
-        // Qrcode Background
-        w.single("rect", |d| {
-            d.attr("x", (width - qr_code_size) / 2.0)
-                .attr("y", ((height - qr_code_size) / 2.0) - qr_translate_up)
-                .attr("width", qr_code_size)
-                .attr("height", qr_code_size)
-                .attr("style", "fill:white");
-        });
         // Qrcode
         w.elem("g", |d| {
             d.attr(
@@ -189,7 +181,7 @@ fn inner_generate_secure_join_qr_code(
             d.attr("cx", logo_position_x + HALF_LOGO_SIZE)
                 .attr("cy", logo_position_y + HALF_LOGO_SIZE)
                 .attr("r", HALF_LOGO_SIZE + avatar_border_size)
-                .attr("style", "fill:white");
+                .attr("style", "fill:#f2f2f2");
         });
 
         if let Some(img) = avatar {
