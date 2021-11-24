@@ -24,7 +24,6 @@ use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
-use crate::html::new_html_mimepart;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;

@@ -7,6 +7,7 @@ use base64::Engine as _;
 use chrono::TimeZone;
 use format_flowed::{format_flowed, format_flowed_quote};
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
+use mail_builder::{mime::MimePart, MessageBuilder};
 use tokio::fs;
 
 use crate::blob::BlobObject;
@@ -17,7 +18,6 @@ use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
-use crate::html::new_html_mimepart;
 use crate::location;
 use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
@@ -113,7 +113,7 @@ struct MessageHeaders {
     ///
     /// If the message is not encrypted, these headers are placed into IMF header section, so make
     /// sure that the message will be encrypted if you place any sensitive information here.
-    pub protected: Vec<Header>,
+    pub protected: Vec<(String, String)>,
 
     /// Headers that must go into IMF header section.
     ///
@@ -121,13 +121,13 @@ struct MessageHeaders {
     /// anywhere else according to the standard. Placing headers here also allows them to be fetched
     /// individually over IMAP without downloading the message body. This is why Chat-Version is
     /// placed here.
-    pub unprotected: Vec<Header>,
+    pub unprotected: Vec<(String, String)>,
 
     /// Headers that MUST NOT go into IMF header section.
     ///
     /// These are large headers which may hit the header section size limit on the server, such as
     /// Chat-User-Avatar with a base64-encoded image inside.
-    pub hidden: Vec<Header>,
+    pub hidden: Vec<(String, String)>,
 }
 
 impl<'a> MimeFactory<'a> {
@@ -534,9 +534,7 @@ impl<'a> MimeFactory<'a> {
         } else {
             encode_words(&subject_str)
         };
-        headers
-            .protected
-            .push(Header::new("Subject".into(), encoded_subject));
+        headers.protected.push(("Subject".into(), encoded_subject));
 
         let date = chrono::Utc
             .from_local_datetime(
@@ -545,7 +543,7 @@ impl<'a> MimeFactory<'a> {
             )
             .unwrap()
             .to_rfc2822();
-        headers.unprotected.push(Header::new("Date".into(), date));
+        headers.unprotected.push(("Date".into(), date));
 
         let rfc724_mid = match self.loaded {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
@@ -560,7 +558,7 @@ impl<'a> MimeFactory<'a> {
         // Amazon's servers do not add such a header, so we just add it ourselves.
         if let Some(server) = context.get_config(Config::ConfiguredSendServer).await? {
             if server.ends_with(".amazonaws.com") {
-                headers.unprotected.push(Header::new(
+                headers.unprotected.push((
                     "X-Microsoft-Original-Message-ID".into(),
                     rfc724_mid_headervalue.clone(),
                 ))
@@ -569,43 +567,41 @@ impl<'a> MimeFactory<'a> {
 
         headers
             .unprotected
-            .push(Header::new("Message-ID".into(), rfc724_mid_headervalue));
+            .push(("Message-ID".into(), rfc724_mid_headervalue));
 
         // Reply headers as in <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.2>.
         if !self.in_reply_to.is_empty() {
             headers
                 .unprotected
-                .push(Header::new("In-Reply-To".into(), self.in_reply_to.clone()));
+                .push(("In-Reply-To".into(), self.in_reply_to.clone()));
         }
         if !self.references.is_empty() {
             headers
                 .unprotected
-                .push(Header::new("References".into(), self.references.clone()));
+                .push(("References".into(), self.references.clone()));
         }
 
         // Automatic Response headers <https://www.rfc-editor.org/rfc/rfc3834>
         if let Loaded::Mdn { .. } = self.loaded {
-            headers.unprotected.push(Header::new(
-                "Auto-Submitted".to_string(),
-                "auto-replied".to_string(),
-            ));
+            headers
+                .unprotected
+                .push(("Auto-Submitted".to_string(), "auto-replied".to_string()));
         } else if context.get_config_bool(Config::Bot).await? {
-            headers.unprotected.push(Header::new(
-                "Auto-Submitted".to_string(),
-                "auto-generated".to_string(),
-            ));
+            headers
+                .unprotected
+                .push(("Auto-Submitted".to_string(), "auto-generated".to_string()));
         }
 
         // Non-standard headers.
         headers
             .unprotected
-            .push(Header::new("Chat-Version".to_string(), "1.0".to_string()));
+            .push(("Chat-Version".to_string(), "1.0".to_string()));
 
         if self.req_mdn {
             // we use "Chat-Disposition-Notification-To"
             // because replies to "Disposition-Notification-To" are weird in many cases
             // eg. are just freetext and/or do not follow any standard.
-            headers.protected.push(Header::new(
+            headers.protected.push((
                 "Chat-Disposition-Notification-To".into(),
                 self.from_addr.clone(),
             ));
@@ -621,24 +617,21 @@ impl<'a> MimeFactory<'a> {
         if !skip_autocrypt {
             // unless determined otherwise we add the Autocrypt header
             let aheader = encrypt_helper.get_aheader().to_string();
-            headers
-                .unprotected
-                .push(Header::new("Autocrypt".into(), aheader));
+            headers.unprotected.push(("Autocrypt".into(), aheader));
         }
 
         let ephemeral_timer = self.msg.chat_id.get_ephemeral_timer(context).await?;
         if let EphemeralTimer::Enabled { duration } = ephemeral_timer {
-            headers.protected.push(Header::new(
-                "Ephemeral-Timer".to_string(),
-                duration.to_string(),
-            ));
+            headers
+                .protected
+                .push(("Ephemeral-Timer".to_string(), duration.to_string()));
         }
 
         // MIME header <https://datatracker.ietf.org/doc/html/rfc2045>.
         // Content-Type
         headers
             .unprotected
-            .push(Header::new("MIME-Version".into(), "1.0".into()));
+            .push(("MIME-Version".into(), "1.0".into()));
 
         let mut is_gossiped = false;
 
@@ -661,24 +654,14 @@ impl<'a> MimeFactory<'a> {
         } else {
             // Multiple parts, render as multipart.
             let part_holder = if self.msg.param.get_cmd() == SystemMessage::MultiDeviceSync {
-                PartBuilder::new().header((
-                    "Content-Type".to_string(),
-                    "multipart/report; report-type=multi-device-sync".to_string(),
-                ))
+                MimePart::new_multipart("multipart/report; report-type=multi-device-sync", parts)
             } else if self.msg.param.get_cmd() == SystemMessage::WebxdcStatusUpdate {
-                PartBuilder::new().header((
-                    "Content-Type".to_string(),
-                    "multipart/report; report-type=status-update".to_string(),
-                ))
+                MimePart::new_multipart("multipart/report; report-type=status-update", parts)
             } else {
-                PartBuilder::new().message_type(MimeMultipartType::Mixed)
+                MimePart::new_multipart("multipart/mixed", parts)
             };
 
-            parts
-                .into_iter()
-                .fold(part_holder.child(main_part.build()), |message, part| {
-                    message.child(part.build())
-                })
+            main_part = main_part.body(part_holder)
         };
 
         let outer_message = if is_encrypted {
@@ -702,7 +685,7 @@ impl<'a> MimeFactory<'a> {
             {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
                     if let Some(header) = peerstate.render_gossip_header(min_verified) {
-                        message = message.header(Header::new("Autocrypt-Gossip".into(), header));
+                        message = message.header(("Autocrypt-Gossip".into(), header));
                         is_gossiped = true;
                     }
                 }
@@ -717,15 +700,9 @@ impl<'a> MimeFactory<'a> {
             if !existing_ct.ends_with(';') {
                 existing_ct += ";";
             }
-            let message = message.replace_header(Header::new(
+            let message = message.replace_header((
                 "Content-Type".to_string(),
                 format!("{existing_ct} protected-headers=\"v1\";"),
-            ));
-
-            // Set the appropriate Content-Type for the outer message
-            let outer_message = PartBuilder::new().header((
-                "Content-Type".to_string(),
-                "multipart/encrypted; protocol=\"application/pgp-encrypted\"".to_string(),
             ));
 
             if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
@@ -740,29 +717,28 @@ impl<'a> MimeFactory<'a> {
                 .encrypt(context, min_verified, message, peerstates)
                 .await?;
 
-            outer_message
-                .child(
+            // Set the appropriate Content-Type for the outer message
+            let outer_message = MimePart::new_multipart(
+                "multipart/encrypted; protocol=\"application/pgp-encrypted\"",
+                vec![
                     // Autocrypt part 1
-                    PartBuilder::new()
-                        .content_type(&"application/pgp-encrypted".parse::<mime::Mime>().unwrap())
-                        .header(("Content-Description", "PGP/MIME version identification"))
-                        .body("Version: 1\r\n")
-                        .build(),
-                )
-                .child(
+                    MimePart::new_binary("application/pgp-encrypted", "Version: 1\r\n")
+                        .header(("Content-Description", "PGP/MIME version identification")),
                     // Autocrypt part 2
-                    PartBuilder::new()
-                        .content_type(
-                            &"application/octet-stream; name=\"encrypted.asc\""
-                                .parse::<mime::Mime>()
-                                .unwrap(),
-                        )
-                        .header(("Content-Description", "OpenPGP encrypted message"))
-                        .header(("Content-Disposition", "inline; filename=\"encrypted.asc\";"))
-                        .body(encrypted)
-                        .build(),
-                )
-                .header(("Subject".to_string(), "...".to_string()))
+                    MimePart::new_binary(
+                        "application/octet-stream; name=\"encrypted.asc\"",
+                        encrypted,
+                    )
+                    .header(
+                        "Content-Description",
+                        mail_builder::headers::text::Text::new("OpenPGP encrypted message"),
+                    )
+                    .header("Content-Disposition", "inline; filename=\"encrypted.asc\";"),
+                ]
+                .header("Subject", mail_builder::headers::text::Text::new("...")),
+            );
+
+            outer_message.child().child()
         } else {
             let message = if headers.hidden.is_empty() {
                 message
@@ -773,9 +749,7 @@ impl<'a> MimeFactory<'a> {
                     .into_iter()
                     .fold(message, |message, header| message.header(header));
 
-                PartBuilder::new()
-                    .message_type(MimeMultipartType::Mixed)
-                    .child(message.build())
+                MimePart::new_multipart("multipart/mixed", vec![message])
             };
 
             // Store protected headers in the outer message.
@@ -843,40 +817,30 @@ impl<'a> MimeFactory<'a> {
     }
 
     /// Returns MIME part with a `message.kml` attachment.
-    fn get_message_kml_part(&self) -> Option<PartBuilder> {
+    fn get_message_kml_part(&self) -> Option<MimePart> {
         let latitude = self.msg.param.get_float(Param::SetLatitude)?;
         let longitude = self.msg.param.get_float(Param::SetLongitude)?;
 
         let kml_file = location::get_message_kml(self.msg.timestamp_sort, latitude, longitude);
-        let part = PartBuilder::new()
-            .content_type(
-                &"application/vnd.google-earth.kml+xml"
-                    .parse::<mime::Mime>()
-                    .unwrap(),
-            )
-            .header((
-                "Content-Disposition",
-                "attachment; filename=\"message.kml\"",
-            ))
-            .body(kml_file);
+        let part = MimePart::new_binary("application/vnd.google-earth.kml+xml", kml_file).header(
+            "Content-Disposition",
+            mail_builder::headers::text::Text::new("attachment; filename=\"message.kml\""),
+        );
         Some(part)
     }
 
     /// Returns MIME part with a `location.kml` attachment.
-    async fn get_location_kml_part(&mut self, context: &Context) -> Result<PartBuilder> {
+    async fn get_location_kml_part(&mut self, context: &Context) -> Result<MimePart> {
         let (kml_content, last_added_location_id) =
             location::get_kml(context, self.msg.chat_id).await?;
-        let part = PartBuilder::new()
-            .content_type(
-                &"application/vnd.google-earth.kml+xml"
-                    .parse::<mime::Mime>()
-                    .unwrap(),
-            )
-            .header((
-                "Content-Disposition",
-                "attachment; filename=\"location.kml\"",
-            ))
-            .body(kml_content);
+        let part = MimePart::new_binary(
+            "application/vnd.google-earth.kml+xml",
+            kml_content.as_bytes(),
+        )
+        .header(
+            "Content-Disposition",
+            "attachment; filename=\"location.kml\"",
+        );
         if !self.msg.param.exists(Param::SetLatitude) {
             // otherwise, the independent location is already filed
             self.last_added_location_id = last_added_location_id;
@@ -890,7 +854,7 @@ impl<'a> MimeFactory<'a> {
         context: &Context,
         headers: &mut MessageHeaders,
         grpimage: &Option<String>,
-    ) -> Result<(PartBuilder, Vec<PartBuilder>)> {
+    ) -> Result<(MimePart, Vec<MimePart>)> {
         let chat = match &self.loaded {
             Loaded::Message { chat } => chat,
             Loaded::Mdn { .. } => bail!("Attempt to render MDN as a message"),
@@ -902,7 +866,7 @@ impl<'a> MimeFactory<'a> {
         if chat.is_protected() {
             headers
                 .protected
-                .push(Header::new("Chat-Verified".to_string(), "1".to_string()));
+                .push(("Chat-Verified".to_string(), "1".to_string()));
         }
 
         if chat.typ == Chattype::Group {
@@ -910,31 +874,27 @@ impl<'a> MimeFactory<'a> {
             if !chat.grpid.is_empty() {
                 headers
                     .protected
-                    .push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
+                    .push(("Chat-Group-ID".into(), chat.grpid.clone()));
             }
 
             let encoded = encode_words(&chat.name);
-            headers
-                .protected
-                .push(Header::new("Chat-Group-Name".into(), encoded));
+            headers.protected.push(("Chat-Group-Name".into(), encoded));
 
             match command {
                 SystemMessage::MemberRemovedFromGroup => {
                     let email_to_remove = self.msg.param.get(Param::Arg).unwrap_or_default();
                     if !email_to_remove.is_empty() {
-                        headers.protected.push(Header::new(
-                            "Chat-Group-Member-Removed".into(),
-                            email_to_remove.into(),
-                        ));
+                        headers
+                            .protected
+                            .push(("Chat-Group-Member-Removed".into(), email_to_remove.into()));
                     }
                 }
                 SystemMessage::MemberAddedToGroup => {
                     let email_to_add = self.msg.param.get(Param::Arg).unwrap_or_default();
                     if !email_to_add.is_empty() {
-                        headers.protected.push(Header::new(
-                            "Chat-Group-Member-Added".into(),
-                            email_to_add.into(),
-                        ));
+                        headers
+                            .protected
+                            .push(("Chat-Group-Member-Added".into(), email_to_add.into()));
                     }
                     if 0 != self.msg.param.get_int(Param::Arg2).unwrap_or_default()
                         & DC_FROM_HANDSHAKE
@@ -944,10 +904,9 @@ impl<'a> MimeFactory<'a> {
                             "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
                             "vg-member-added",
                         );
-                        headers.protected.push(Header::new(
-                            "Secure-Join".to_string(),
-                            "vg-member-added".to_string(),
-                        ));
+                        headers
+                            .protected
+                            .push(("Secure-Join".to_string(), "vg-member-added".to_string()));
                         // FIXME: Old clients require Secure-Join-Fingerprint header. Remove this
                         // eventually.
                         let fingerprint = Peerstate::from_addr(context, email_to_add)
@@ -955,29 +914,27 @@ impl<'a> MimeFactory<'a> {
                             .context("No peerstate found in db")?
                             .public_key_fingerprint
                             .context("No public key fingerprint in db for the member to add")?;
-                        headers.protected.push(Header::new(
-                            "Secure-Join-Fingerprint".into(),
-                            fingerprint.hex(),
-                        ));
+                        headers
+                            .protected
+                            .push(("Secure-Join-Fingerprint".into(), fingerprint.hex()));
                     }
                 }
                 SystemMessage::GroupNameChanged => {
                     let old_name = self.msg.param.get(Param::Arg).unwrap_or_default();
-                    headers.protected.push(Header::new(
+                    headers.protected.push((
                         "Chat-Group-Name-Changed".into(),
                         maybe_encode_words(old_name),
                     ));
                 }
                 SystemMessage::GroupImageChanged => {
-                    headers.protected.push(Header::new(
+                    headers.protected.push((
                         "Chat-Content".to_string(),
                         "group-avatar-changed".to_string(),
                     ));
                     if grpimage.is_none() {
-                        headers.protected.push(Header::new(
-                            "Chat-Group-Avatar".to_string(),
-                            "0".to_string(),
-                        ));
+                        headers
+                            .protected
+                            .push(("Chat-Group-Avatar".to_string(), "0".to_string()));
                     }
                 }
                 _ => {}
@@ -986,13 +943,12 @@ impl<'a> MimeFactory<'a> {
 
         match command {
             SystemMessage::LocationStreamingEnabled => {
-                headers.protected.push(Header::new(
-                    "Chat-Content".into(),
-                    "location-streaming-enabled".into(),
-                ));
+                headers
+                    .protected
+                    .push(("Chat-Content".into(), "location-streaming-enabled".into()));
             }
             SystemMessage::EphemeralTimerChanged => {
-                headers.protected.push(Header::new(
+                headers.protected.push((
                     "Chat-Content".to_string(),
                     "ephemeral-timer-changed".to_string(),
                 ));
@@ -1008,15 +964,14 @@ impl<'a> MimeFactory<'a> {
                 // Adding this header without encryption leaks some
                 // information about the message contents, but it can
                 // already be easily guessed from message timing and size.
-                headers.unprotected.push(Header::new(
-                    "Auto-Submitted".to_string(),
-                    "auto-generated".to_string(),
-                ));
+                headers
+                    .unprotected
+                    .push(("Auto-Submitted".to_string(), "auto-generated".to_string()));
             }
             SystemMessage::AutocryptSetupMessage => {
                 headers
                     .unprotected
-                    .push(Header::new("Autocrypt-Setup-Message".into(), "v1".into()));
+                    .push(("Autocrypt-Setup-Message".into(), "v1".into()));
 
                 placeholdertext = Some(stock_str::ac_setup_msg_body(context).await);
             }
@@ -1028,13 +983,11 @@ impl<'a> MimeFactory<'a> {
                         context,
                         "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>", step,
                     );
-                    headers
-                        .protected
-                        .push(Header::new("Secure-Join".into(), step.into()));
+                    headers.protected.push(("Secure-Join".into(), step.into()));
 
                     let param2 = msg.param.get(Param::Arg2).unwrap_or_default();
                     if !param2.is_empty() {
-                        headers.protected.push(Header::new(
+                        headers.protected.push((
                             if step == "vg-request-with-auth" || step == "vc-request-with-auth" {
                                 "Secure-Join-Auth".into()
                             } else {
@@ -1046,26 +999,24 @@ impl<'a> MimeFactory<'a> {
 
                     let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default();
                     if !fingerprint.is_empty() {
-                        headers.protected.push(Header::new(
-                            "Secure-Join-Fingerprint".into(),
-                            fingerprint.into(),
-                        ));
+                        headers
+                            .protected
+                            .push(("Secure-Join-Fingerprint".into(), fingerprint.into()));
                     }
                     if let Some(id) = msg.param.get(Param::Arg4) {
                         headers
                             .protected
-                            .push(Header::new("Secure-Join-Group".into(), id.into()));
+                            .push(("Secure-Join-Group".into(), id.into()));
                     };
                 }
             }
             SystemMessage::ChatProtectionEnabled => {
-                headers.protected.push(Header::new(
-                    "Chat-Content".to_string(),
-                    "protection-enabled".to_string(),
-                ));
+                headers
+                    .protected
+                    .push(("Chat-Content".to_string(), "protection-enabled".to_string()));
             }
             SystemMessage::ChatProtectionDisabled => {
-                headers.protected.push(Header::new(
+                headers.protected.push((
                     "Chat-Content".to_string(),
                     "protection-disabled".to_string(),
                 ));
@@ -1085,20 +1036,19 @@ impl<'a> MimeFactory<'a> {
             meta_part = Some(mail);
             headers
                 .protected
-                .push(Header::new("Chat-Group-Avatar".into(), filename_as_sent));
+                .push(("Chat-Group-Avatar".into(), filename_as_sent));
         }
 
         if self.msg.viewtype == Viewtype::Sticker {
             headers
                 .protected
-                .push(Header::new("Chat-Content".into(), "sticker".into()));
+                .push(("Chat-Content".into(), "sticker".into()));
         } else if self.msg.viewtype == Viewtype::VideochatInvitation {
-            headers.protected.push(Header::new(
-                "Chat-Content".into(),
-                "videochat-invitation".into(),
-            ));
-            headers.protected.push(Header::new(
-                "Chat-Webrtc-Room".into(),
+            headers
+                .protected
+                .push(("Chat-Content".into(), "videochat-invitation".into()));
+            headers.protected.push((
+                "Chat-Webrtc-Room".to_string(),
                 self.msg
                     .param
                     .get(Param::WebrtcRoom)
@@ -1114,14 +1064,12 @@ impl<'a> MimeFactory<'a> {
             if self.msg.viewtype == Viewtype::Voice {
                 headers
                     .protected
-                    .push(Header::new("Chat-Voice-Message".into(), "1".into()));
+                    .push(("Chat-Voice-Message".to_string(), "1".to_string()));
             }
             let duration_ms = self.msg.param.get_int(Param::Duration).unwrap_or_default();
             if duration_ms > 0 {
                 let dur = duration_ms.to_string();
-                headers
-                    .protected
-                    .push(Header::new("Chat-Duration".into(), dur));
+                headers.protected.push(("Chat-Duration".to_string(), dur));
             }
         }
 
@@ -1178,15 +1126,15 @@ impl<'a> MimeFactory<'a> {
         );
 
         // Message is sent as text/plain, with charset = utf-8
-        let mut main_part = PartBuilder::new()
-            .header((
-                "Content-Type".to_string(),
-                "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
-            ))
-            .body(message_text);
+        let mut main_part = MessageBuilder::new()
+            .header(
+                "Content-Type",
+                "text/plain; charset=utf-8; format=flowed; delsp=no",
+            )
+            .text_body(message_text);
 
         if self.msg.param.get_int(Param::Reaction).unwrap_or_default() != 0 {
-            main_part = main_part.header(("Content-Disposition", "reaction"));
+            main_part = main_part.header("Content-Disposition", "reaction");
         }
 
         let mut parts = Vec::new();
@@ -1202,10 +1150,10 @@ impl<'a> MimeFactory<'a> {
                 self.msg.param.get(Param::SendHtml).map(|s| s.to_string())
             };
             if let Some(html) = html {
-                main_part = PartBuilder::new()
-                    .message_type(MimeMultipartType::Alternative)
-                    .child(main_part.build())
-                    .child(new_html_mimepart(html).build());
+                main_part = MimePart::new_multipart(
+                    "multipart/alternative",
+                    vec![main_part, MimePart::new_html(html)],
+                );
             }
         }
 
@@ -1261,15 +1209,14 @@ impl<'a> MimeFactory<'a> {
         if self.attach_selfavatar {
             match context.get_config(Config::Selfavatar).await? {
                 Some(path) => match build_selfavatar_file(context, &path).await {
-                    Ok(avatar) => headers.hidden.push(Header::new(
-                        "Chat-User-Avatar".into(),
-                        format!("base64:{avatar}"),
-                    )),
+                    Ok(avatar) => headers
+                        .hidden
+                        .push(("Chat-User-Avatar".to_string(), format!("base64:{avatar}"))),
                     Err(err) => warn!(context, "mimefactory: cannot attach selfavatar: {}", err),
                 },
                 None => headers
                     .protected
-                    .push(Header::new("Chat-User-Avatar".into(), "0".into())),
+                    .push(("Chat-User-Avatar".to_string(), "0".to_string())),
             }
         }
 
@@ -1277,7 +1224,7 @@ impl<'a> MimeFactory<'a> {
     }
 
     /// Render an MDN
-    async fn render_mdn(&mut self, context: &Context) -> Result<PartBuilder> {
+    async fn render_mdn(&mut self, context: &Context) -> Result<MimePart> {
         // RFC 6522, this also requires the `report-type` parameter which is equal
         // to the MIME subtype of the second body part of the multipart/report
         //
@@ -1297,10 +1244,10 @@ impl<'a> MimeFactory<'a> {
             } => additional_msg_ids,
         };
 
-        let mut message = PartBuilder::new().header((
-            "Content-Type".to_string(),
-            "multipart/report; report-type=disposition-notification".to_string(),
-        ));
+        let mut message = MimePart::new_multipart(
+            "multipart/report; report-type=disposition-notification",
+            vec![], // TODO
+        );
 
         // first body part: always human-readable, always REQUIRED by RFC 6522
         let p1 = if 0
@@ -1378,11 +1325,11 @@ fn wrapped_base64_encode(buf: &[u8]) -> String {
         .join("\r\n")
 }
 
-async fn build_body_file(
+async fn build_body_file<'a>(
     context: &Context,
     msg: &Message,
     base_name: &str,
-) -> Result<(PartBuilder, String)> {
+) -> Result<(MimePart<'a>, String)> {
     let blob = msg
         .param
         .get_blob(Param::File, context, true)
@@ -1436,13 +1383,13 @@ async fn build_body_file(
     };
 
     /* check mimetype */
-    let mimetype: mime::Mime = match msg.param.get(Param::MimeType) {
-        Some(mtype) => mtype.parse()?,
+    let mimetype = match msg.param.get(Param::MimeType) {
+        Some(mtype) => mtype,
         None => {
             if let Some(res) = message::guess_msgtype_from_suffix(blob.as_rel_path()) {
                 res.1.parse()?
             } else {
-                mime::APPLICATION_OCTET_STREAM
+                "application/octet-stream"
             }
         }
     };

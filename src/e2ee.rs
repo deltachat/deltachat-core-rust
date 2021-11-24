@@ -1,6 +1,7 @@
 //! End-to-end encryption support.
 
 use anyhow::{format_err, Context as _, Result};
+use mail_builder::mime::MimePart;
 use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
@@ -96,12 +97,12 @@ impl EncryptHelper {
         Ok(e2ee_guaranteed || 2 * prefer_encrypt_count > recipients_count)
     }
 
-    /// Tries to encrypt the passed in `mail`.
+    /// Tries to encrypt the passed in `mail_to_encrypt`.
     pub async fn encrypt(
         self,
         context: &Context,
         min_verified: PeerstateVerifiedStatus,
-        mail_to_encrypt: lettre_email::PartBuilder,
+        mail_to_encrypt: MimePart<'_>,
         peerstates: Vec<(Option<Peerstate>, &str)>,
     ) -> Result<String> {
         let mut keyring: Keyring<SignedPublicKey> = Keyring::new();
