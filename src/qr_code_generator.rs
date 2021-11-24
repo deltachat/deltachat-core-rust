@@ -217,11 +217,13 @@ fn inner_generate_secure_join_qr_code(
             });
 
             let avatar_font_size = LOGO_SIZE * 0.65;
-            let font_offset = LOGO_SIZE * 0.35 / 2.0 * 1.3;
+            let font_offset = avatar_font_size * 0.1;
             w.elem("text", |d| {
                 d.attr("y", logo_position_y + HALF_LOGO_SIZE + font_offset)
                     .attr("x", logo_position_x + HALF_LOGO_SIZE)
                     .attr("text-anchor", "middle")
+                    .attr("dominant-baseline", "central")
+                    .attr("alignment-baseline", "middle")
                     .attr(
                         "style",
                         format!(
