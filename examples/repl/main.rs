@@ -33,6 +33,8 @@ use rustyline::{
 
 mod cmdline;
 use self::cmdline::*;
+use deltachat::qr_code_generator::get_securejoin_qr_svg;
+use std::fs;
 
 /// Event Handler
 fn receive_event(event: EventType) {
@@ -224,8 +226,9 @@ const CONTACT_COMMANDS: [&str; 9] = [
     "unblock",
     "listblocked",
 ];
-const MISC_COMMANDS: [&str; 11] = [
+const MISC_COMMANDS: [&str; 12] = [
     "getqr",
+    "getqrsvg",
     "getbadqr",
     "checkqr",
     "joinqr",
@@ -425,6 +428,20 @@ async fn handle_cmd(
                     .expect("failed to execute process");
                 io::stdout().write_all(&output.stdout).unwrap();
                 io::stderr().write_all(&output.stderr).unwrap();
+            }
+        }
+        "getqrsvg" => {
+            ctx.start_io().await;
+            let group = arg1.parse::<u32>().ok().map(|id| ChatId::new(id));
+            let file = dirs::home_dir().unwrap_or_default().join("qr.svg");
+            match get_securejoin_qr_svg(&ctx, group).await {
+                Ok(svg) => {
+                    fs::write(&file, svg)?;
+                    println!("QR code svg written to: {:#?}", file);
+                }
+                Err(err) => {
+                    bail!("Failed to get QR code svg: {}", err);
+                }
             }
         }
         "joinqr" => {
