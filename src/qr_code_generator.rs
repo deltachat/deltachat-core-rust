@@ -86,7 +86,7 @@ fn inner_generate_secure_join_qr_code(
         (19.0, 38)
     };
     let avatar_border_size = 9.0;
-    let card_border_size = 3.5;
+    let card_border_size = 2.0;
     let card_roundness = 40.0;
 
     let qr = QrCode::encode_text(qrcode_content, QrCodeEcc::Medium)?;
