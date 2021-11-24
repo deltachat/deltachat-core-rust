@@ -334,7 +334,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "Scan to chat with %1$s"))]
     SetupContactQRDescription = 119,
 
-    #[strum(props(fallback = "Scan to join %1$s"))]
+    #[strum(props(fallback = "Scan to join group %1$s"))]
     SecureJoinGroupQRDescription = 120,
 }
 
