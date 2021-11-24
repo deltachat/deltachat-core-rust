@@ -151,13 +151,11 @@ fn inner_generate_secure_join_qr_code(
                 d.attr("y", (count as f32 * (text_font_size * 1.2)) + text_y_pos)
                     .attr("x", width / 2.0)
                     .attr("text-anchor", "middle")
-                    .attr("font-weight", "bold")
                     .attr(
                         "style",
                         format!(
                             "font-family:sans-serif;\
-                        font-style:normal;\
-                        font-stretch:normal;\
+                        font-weight:bold;\
                         font-size:{}px;\
                         fill:#000000;\
                         stroke:none",
@@ -224,11 +222,13 @@ fn inner_generate_secure_join_qr_code(
                 d.attr("y", logo_position_y + HALF_LOGO_SIZE + font_offset)
                     .attr("x", logo_position_x + HALF_LOGO_SIZE)
                     .attr("text-anchor", "middle")
-                    .attr("font-weight", "400")
                     .attr(
                         "style",
                         format!(
-                            "font-family:sans-serif;font-size:{}px;fill:#ffffff;",
+                            "font-family:sans-serif;\
+                            font-weight:400;\
+                            font-size:{}px;\
+                            fill:#ffffff;",
                             avatar_font_size
                         ),
                     );
