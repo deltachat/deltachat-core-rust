@@ -240,7 +240,7 @@ fn inner_generate_secure_join_qr_code(
 
         // Footer logo
         const FOOTER_HEIGHT: f32 = 35.0;
-        const FOOTER_WIDTH: f32 = 186.0;
+        const FOOTER_WIDTH: f32 = 198.0;
         w.elem("g", |d| {
             d.attr(
                 "transform",
