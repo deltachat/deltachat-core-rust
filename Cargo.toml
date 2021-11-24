@@ -73,6 +73,9 @@ url = "2"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 fast-socks5 = "0.4"
 humansize = "1"
+qrcodegen = "1.7.0"
+tagger = "3.2.1"
+textwrap = "0.14.2"
 
 [dev-dependencies]
 ansi_term = "0.12.0"

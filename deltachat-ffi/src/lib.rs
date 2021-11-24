@@ -25,6 +25,7 @@ use std::time::{Duration, SystemTime};
 use anyhow::Context as _;
 use async_std::sync::RwLock;
 use async_std::task::{block_on, spawn};
+use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration, ProtectionStatus};
@@ -2071,6 +2072,27 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
     };
 
     block_on(securejoin::dc_get_securejoin_qr(ctx, chat_id))
+        .unwrap_or_else(|_| "".to_string())
+        .strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_securejoin_qr_svg(
+    context: *mut dc_context_t,
+    chat_id: u32,
+) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to generate_verification_qr()");
+        return "".strdup();
+    }
+    let ctx = &*context;
+    let chat_id = if chat_id == 0 {
+        None
+    } else {
+        Some(ChatId::new(chat_id))
+    };
+
+    block_on(get_securejoin_qr_svg(ctx, chat_id))
         .unwrap_or_else(|_| "".to_string())
         .strdup()
 }

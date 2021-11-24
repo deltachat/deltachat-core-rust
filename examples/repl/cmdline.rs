@@ -423,6 +423,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  listblocked\n\
                  ======================================Misc.==\n\
                  getqr [<chat-id>]\n\
+                 getqrsvg [<chat-id>]\n\
                  getbadqr\n\
                  checkqr <qr-content>\n\
                  joinqr <qr-content>\n\

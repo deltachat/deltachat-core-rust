@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### API changes
+- `dc_get_securejoin_qr_svg(chat_id)` added #2815
+- added stock-strings `DC_STR_SETUP_CONTACT_QR_DESC` and `DC_STR_SECURE_JOIN_GROUP_QR_DESC`
+
 ## 1.66.0
 
 ### API changes

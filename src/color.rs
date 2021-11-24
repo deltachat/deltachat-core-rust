@@ -35,6 +35,10 @@ pub(crate) fn str_to_color(s: &str) -> u32 {
     rgb_to_u32(hsluv_to_rgb((str_to_angle(s), 100.0, 50.0)))
 }
 
+pub fn color_int_to_hex_string(color: u32) -> String {
+    format!("{:#08x}", color).replace("0x", "#")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
