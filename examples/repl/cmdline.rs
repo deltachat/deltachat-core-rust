@@ -755,7 +755,12 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "groupname" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            chat::set_chat_name(&context, sel_chat.as_ref().unwrap().get_id(), arg1).await?;
+            chat::set_chat_name(
+                &context,
+                sel_chat.as_ref().unwrap().get_id(),
+                &format!("{} {}", arg1, arg2).trim(),
+            )
+            .await?;
 
             println!("Chat name set");
         }
