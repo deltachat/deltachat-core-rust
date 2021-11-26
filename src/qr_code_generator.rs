@@ -147,15 +147,15 @@ fn inner_generate_secure_join_qr_code(
             BIG_TEXT_CHARS_PER_LINE
         };
         let lines = textwrap::fill(&qrcode_description, chars_per_line);
-        let text_font_size = if lines.split('\n').count() <= 2 {
-            27.0
+        let (text_font_size, text_y_shift) = if lines.split('\n').count() <= 2 {
+            (27.0, 0.0)
         } else {
-            19.0
+            (19.0, -10.0)
         };
         for (count, line) in lines.split('\n').enumerate()
         {
             w.elem("text", |d| {
-                d.attr("y", (count as f32 * (text_font_size * 1.2)) + text_y_pos)
+                d.attr("y", (count as f32 * (text_font_size * 1.2)) + text_y_pos + text_y_shift)
                     .attr("x", width / 2.0)
                     .attr("text-anchor", "middle")
                     .attr(
@@ -256,7 +256,7 @@ fn inner_generate_secure_join_qr_code(
                 format!(
                     "translate({},{})",
                     (width - FOOTER_WIDTH) / 2.0,
-                    height - logo_offset - FOOTER_HEIGHT
+                    height - logo_offset - FOOTER_HEIGHT - text_y_shift
                 ),
             );
         })
