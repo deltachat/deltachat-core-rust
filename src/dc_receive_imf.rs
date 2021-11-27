@@ -4748,4 +4748,66 @@ Second thread."#;
             }
         }
     }
+
+    #[async_std::test]
+    async fn test_get_parent_message() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        let mime = br#"Subject: First
+Message-ID: first@example.net
+To: Alice <alice@example.com>
+From: Bob <bob@example.net>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+First."#;
+        dc_receive_imf(&t, mime, "INBOX", 1, false).await?;
+        let first = t.get_last_msg().await;
+        let mime = br#"Subject: Second
+Message-ID: second@example.net
+To: Alice <alice@example.com>
+From: Bob <bob@example.net>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+First."#;
+        dc_receive_imf(&t, mime, "INBOX", 2, false).await?;
+        let second = t.get_last_msg().await;
+        let mime = br#"Subject: Third
+Message-ID: third@example.net
+To: Alice <alice@example.com>
+From: Bob <bob@example.net>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+First."#;
+        dc_receive_imf(&t, mime, "INBOX", 3, false).await?;
+        let third = t.get_last_msg().await;
+
+        let mime = br#"Subject: Message with references.
+Message-ID: second@example.net
+To: Alice <alice@example.com>
+From: Bob <bob@example.net>
+In-Reply-To: <third@example.net>
+References: <second@example.net> <nonexistent@example.net> <first@example.net>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+Message with references."#;
+        let mime_parser = MimeMessage::from_bytes(&t, &mime[..]).await?;
+
+        let parent = get_parent_message(&t, &mime_parser).await?.unwrap();
+        assert_eq!(parent.id, first.id);
+
+        message::delete_msgs(&t, &[first.id]).await?;
+        let parent = get_parent_message(&t, &mime_parser).await?.unwrap();
+        assert_eq!(parent.id, second.id);
+
+        message::delete_msgs(&t, &[second.id]).await?;
+        let parent = get_parent_message(&t, &mime_parser).await?.unwrap();
+        assert_eq!(parent.id, third.id);
+
+        message::delete_msgs(&t, &[third.id]).await?;
+        let parent = get_parent_message(&t, &mime_parser).await?;
+        assert!(parent.is_none());
+
+        Ok(())
+    }
 }
