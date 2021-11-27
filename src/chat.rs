@@ -4292,6 +4292,45 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_forward_quote() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        // Alice sends a message to Bob.
+        let sent_msg = alice.send_text(alice_chat.id, "Hi Bob").await;
+        bob.recv_msg(&sent_msg).await;
+        let received_msg = bob.get_last_msg().await;
+
+        // Bob quotes received message and sends a reply to Alice.
+        let mut reply = Message::new(Viewtype::Text);
+        reply.set_text(Some("Reply".to_owned()));
+        reply.set_quote(&bob, &received_msg).await?;
+        let sent_reply = bob.send_msg(bob_chat.id, &mut reply).await;
+        alice.recv_msg(&sent_reply).await;
+        let received_reply = alice.get_last_msg().await;
+
+        // Alice forwards a reply.
+        forward_msgs(&alice, &[received_reply.id], alice_chat.get_id()).await?;
+        let forwarded_msg = alice.pop_sent_msg().await;
+        bob.recv_msg(&forwarded_msg).await;
+
+        let alice_forwarded_msg = alice.get_last_msg().await;
+        assert!(alice_forwarded_msg.quoted_message(&alice).await?.is_none());
+        assert_eq!(
+            alice_forwarded_msg.quoted_text(),
+            Some("Hi Bob".to_string())
+        );
+
+        let bob_forwarded_msg = bob.get_last_msg().await;
+        assert!(bob_forwarded_msg.quoted_message(&bob).await?.is_none());
+        assert_eq!(bob_forwarded_msg.quoted_text(), Some("Hi Bob".to_string()));
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_only_minimal_data_are_forwarded() -> Result<()> {
         // send a message from Alice to a group with Bob
         let alice = TestContext::new_alice().await;
