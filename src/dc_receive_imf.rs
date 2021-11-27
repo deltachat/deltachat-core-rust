@@ -2113,6 +2113,8 @@ fn set_better_msg(mime_parser: &mut MimeMessage, better_msg: impl AsRef<str>) {
 /// Returns the last message referenced from `References` header if it is in the database.
 ///
 /// For Delta Chat messages it is the last message in the chat of the sender.
+///
+/// Note that the returned message may be trashed.
 async fn get_previous_message(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -2128,6 +2130,8 @@ async fn get_previous_message(
 }
 
 /// Given a list of Message-IDs, returns the latest message found in the database.
+///
+/// Only messages that are not in the trash chat are considered.
 async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Option<Message>> {
     if mid_list.is_empty() {
         return Ok(None);
@@ -2135,7 +2139,10 @@ async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Opt
 
     for id in parse_message_ids(mid_list).iter().rev() {
         if let Some((_, _, msg_id)) = rfc724_mid_exists(context, id).await? {
-            return Ok(Some(Message::load_from_db(context, msg_id).await?));
+            let msg = Message::load_from_db(context, msg_id).await?;
+            if msg.chat_id != DC_CHAT_ID_TRASH {
+                return Ok(Some(msg));
+            }
         }
     }
 
