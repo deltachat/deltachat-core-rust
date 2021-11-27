@@ -4332,6 +4332,59 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_forward_group() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        // Alice creates a group with Bob.
+        let alice_group_chat_id =
+            create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+        let bob_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
+        let claire_id = Contact::create(&alice, "Claire", "claire@example.net").await?;
+        add_contact_to_chat(&alice, alice_group_chat_id, bob_id).await?;
+        add_contact_to_chat(&alice, alice_group_chat_id, claire_id).await?;
+        let sent_group_msg = alice
+            .send_text(alice_group_chat_id, "Hi Bob and Claire")
+            .await;
+        bob.recv_msg(&sent_group_msg).await;
+        let bob_group_chat_id = bob.get_last_msg().await.chat_id;
+
+        // Alice deletes a message on her device.
+        // This is needed to make assignment of further messages received in this group
+        // based on `References:` header harder.
+        // Previously this exposed a bug, so this is a regression test.
+        message::delete_msgs(&alice, &[sent_group_msg.sender_msg_id]).await?;
+
+        // Alice sends a message to Bob.
+        let sent_msg = alice.send_text(alice_chat.id, "Hi Bob").await;
+        bob.recv_msg(&sent_msg).await;
+        let received_msg = bob.get_last_msg().await;
+        assert_eq!(received_msg.get_text(), Some("Hi Bob".to_string()));
+        assert_eq!(received_msg.chat_id, bob_chat.id);
+
+        // Alice sends another message to Bob, this has first message as a parent.
+        let sent_msg = alice.send_text(alice_chat.id, "Hello Bob").await;
+        bob.recv_msg(&sent_msg).await;
+        let received_msg = bob.get_last_msg().await;
+        assert_eq!(received_msg.get_text(), Some("Hello Bob".to_string()));
+        assert_eq!(received_msg.chat_id, bob_chat.id);
+
+        // Bob forwards message to a group chat with Alice.
+        forward_msgs(&bob, &[received_msg.id], bob_group_chat_id).await?;
+        let forwarded_msg = bob.pop_sent_msg().await;
+        alice.recv_msg(&forwarded_msg).await;
+
+        let received_forwarded_msg = alice.get_last_msg_in(alice_group_chat_id).await;
+        assert!(received_forwarded_msg.is_forwarded());
+        assert_eq!(received_forwarded_msg.chat_id, alice_group_chat_id);
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_only_minimal_data_are_forwarded() -> Result<()> {
         // send a message from Alice to a group with Bob
         let alice = TestContext::new_alice().await;
