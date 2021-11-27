@@ -80,11 +80,6 @@ fn inner_generate_secure_join_qr_code(
     let qr_code_size = 400.0;
     let qr_translate_up = 40.0;
     let text_y_pos = ((height - qr_code_size) / 2.0) + qr_code_size;
-    let (text_font_size, max_text_width) = if qrcode_description.len() <= 75 {
-        (27.0, 32)
-    } else {
-        (19.0, 38)
-    };
     let avatar_border_size = 9.0;
     let card_border_size = 2.0;
     let card_roundness = 40.0;
@@ -142,13 +137,25 @@ fn inner_generate_secure_join_qr_code(
                     .attr("transform", format!("scale({})", scale));
             });
         });
+
         // Text
-        for (count, line) in textwrap::fill(qrcode_description, max_text_width)
-            .split('\n')
-            .enumerate()
+        const BIG_TEXT_CHARS_PER_LINE: usize = 32;
+        const SMALL_TEXT_CHARS_PER_LINE: usize = 38;
+        let chars_per_line = if qrcode_description.len() > SMALL_TEXT_CHARS_PER_LINE*2 {
+            SMALL_TEXT_CHARS_PER_LINE
+        } else {
+            BIG_TEXT_CHARS_PER_LINE
+        };
+        let lines = textwrap::fill(qrcode_description, chars_per_line);
+        let (text_font_size, text_y_shift) = if lines.split('\n').count() <= 2 {
+            (27.0, 0.0)
+        } else {
+            (19.0, -10.0)
+        };
+        for (count, line) in lines.split('\n').enumerate()
         {
             w.elem("text", |d| {
-                d.attr("y", (count as f32 * (text_font_size * 1.2)) + text_y_pos)
+                d.attr("y", (count as f32 * (text_font_size * 1.2)) + text_y_pos + text_y_shift)
                     .attr("x", width / 2.0)
                     .attr("text-anchor", "middle")
                     .attr(
@@ -249,7 +256,7 @@ fn inner_generate_secure_join_qr_code(
                 format!(
                     "translate({},{})",
                     (width - FOOTER_WIDTH) / 2.0,
-                    height - logo_offset - FOOTER_HEIGHT
+                    height - logo_offset - FOOTER_HEIGHT - text_y_shift
                 ),
             );
         })
