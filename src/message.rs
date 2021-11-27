@@ -877,7 +877,7 @@ impl Message {
     }
 
     pub async fn quoted_message(&self, context: &Context) -> Result<Option<Message>> {
-        if self.param.get(Param::Quote).is_some() {
+        if self.param.get(Param::Quote).is_some() && !self.is_forwarded() {
             if let Some(in_reply_to) = &self.in_reply_to {
                 if let Some((_, _, msg_id)) = rfc724_mid_exists(context, in_reply_to).await? {
                     let msg = Message::load_from_db(context, msg_id).await?;

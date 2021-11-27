@@ -2113,6 +2113,8 @@ fn set_better_msg(mime_parser: &mut MimeMessage, better_msg: impl AsRef<str>) {
 /// Returns the last message referenced from `References` header if it is in the database.
 ///
 /// For Delta Chat messages it is the last message in the chat of the sender.
+///
+/// Note that the returned message may be trashed.
 async fn get_previous_message(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -2128,6 +2130,8 @@ async fn get_previous_message(
 }
 
 /// Given a list of Message-IDs, returns the latest message found in the database.
+///
+/// Only messages that are not in the trash chat are considered.
 async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Option<Message>> {
     if mid_list.is_empty() {
         return Ok(None);
@@ -2135,7 +2139,10 @@ async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Opt
 
     for id in parse_message_ids(mid_list).iter().rev() {
         if let Some((_, _, msg_id)) = rfc724_mid_exists(context, id).await? {
-            return Ok(Some(Message::load_from_db(context, msg_id).await?));
+            let msg = Message::load_from_db(context, msg_id).await?;
+            if msg.chat_id != DC_CHAT_ID_TRASH {
+                return Ok(Some(msg));
+            }
         }
     }
 
@@ -4740,5 +4747,67 @@ Second thread."#;
                 return Ok(());
             }
         }
+    }
+
+    #[async_std::test]
+    async fn test_get_parent_message() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        let mime = br#"Subject: First
+Message-ID: first@example.net
+To: Alice <alice@example.com>
+From: Bob <bob@example.net>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+First."#;
+        dc_receive_imf(&t, mime, "INBOX", 1, false).await?;
+        let first = t.get_last_msg().await;
+        let mime = br#"Subject: Second
+Message-ID: second@example.net
+To: Alice <alice@example.com>
+From: Bob <bob@example.net>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+First."#;
+        dc_receive_imf(&t, mime, "INBOX", 2, false).await?;
+        let second = t.get_last_msg().await;
+        let mime = br#"Subject: Third
+Message-ID: third@example.net
+To: Alice <alice@example.com>
+From: Bob <bob@example.net>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+First."#;
+        dc_receive_imf(&t, mime, "INBOX", 3, false).await?;
+        let third = t.get_last_msg().await;
+
+        let mime = br#"Subject: Message with references.
+Message-ID: second@example.net
+To: Alice <alice@example.com>
+From: Bob <bob@example.net>
+In-Reply-To: <third@example.net>
+References: <second@example.net> <nonexistent@example.net> <first@example.net>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+Message with references."#;
+        let mime_parser = MimeMessage::from_bytes(&t, &mime[..]).await?;
+
+        let parent = get_parent_message(&t, &mime_parser).await?.unwrap();
+        assert_eq!(parent.id, first.id);
+
+        message::delete_msgs(&t, &[first.id]).await?;
+        let parent = get_parent_message(&t, &mime_parser).await?.unwrap();
+        assert_eq!(parent.id, second.id);
+
+        message::delete_msgs(&t, &[second.id]).await?;
+        let parent = get_parent_message(&t, &mime_parser).await?.unwrap();
+        assert_eq!(parent.id, third.id);
+
+        message::delete_msgs(&t, &[third.id]).await?;
+        let parent = get_parent_message(&t, &mime_parser).await?;
+        assert!(parent.is_none());
+
+        Ok(())
     }
 }
