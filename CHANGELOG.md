@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.68.0
+
+### Fixes
+- fix chat assignment when forwarding #2843
+- fix layout issues with the generated QR code svg #2842
+
+
 ## 1.67.0
 
 ### API changes
