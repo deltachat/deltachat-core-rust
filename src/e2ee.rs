@@ -19,6 +19,7 @@ use crate::pgp;
 #[derive(Debug)]
 pub struct EncryptHelper {
     pub prefer_encrypt: EncryptPreference,
+    force_preference: bool,
     pub addr: String,
     pub public_key: SignedPublicKey,
 }
@@ -28,6 +29,7 @@ impl EncryptHelper {
         let prefer_encrypt =
             EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled).await?)
                 .unwrap_or_default();
+        let force_preference = context.get_config_bool(Config::E2eeForce).await?;
         let addr = match context.get_config(Config::ConfiguredAddr).await? {
             None => {
                 bail!("addr not configured!");
@@ -39,6 +41,7 @@ impl EncryptHelper {
 
         Ok(EncryptHelper {
             prefer_encrypt,
+            force_preference,
             addr,
             public_key,
         })
@@ -100,11 +103,17 @@ impl EncryptHelper {
             }
         }
 
-        // Count number of recipients, including self.
-        // This does not depend on whether we send a copy to self or not.
-        let recipients_count = peerstates.len() + 1;
+        let want_encrypt = if self.force_preference {
+            // Ignore preferences of others.
+            self.prefer_encrypt == EncryptPreference::Mutual
+        } else {
+            // Count number of recipients, including self.
+            // This does not depend on whether we send a copy to self or not.
+            let recipients_count = peerstates.len() + 1;
+            2 * prefer_encrypt_count > recipients_count
+        };
 
-        Ok(e2ee_guaranteed || 2 * prefer_encrypt_count > recipients_count)
+        Ok(e2ee_guaranteed || want_encrypt)
     }
 
     /// Tries to encrypt the passed in `mail`.
@@ -381,6 +390,7 @@ mod tests {
 
     use crate::chat;
     use crate::constants::Viewtype;
+    use crate::dc_receive_imf::dc_receive_imf;
     use crate::message::Message;
     use crate::param::Param;
     use crate::peerstate::ToSave;
@@ -599,6 +609,70 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let mail = mailparse::parse_mail(repaired_mime)?;
         assert!(get_autocrypt_mime(&mail).is_some());
         assert!(get_mixed_up_mime(&mail).is_none());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_e2ee_force() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        alice.set_config(Config::ShowEmails, Some("2")).await?;
+        bob.set_config(Config::ShowEmails, Some("2")).await?;
+
+        // Alice does not prefer encryption.
+        alice.set_config(Config::E2eeEnabled, Some("0")).await?;
+        bob.set_config(Config::E2eeEnabled, Some("1")).await?;
+
+        // Alice sends her key to Bob.
+        let sent_msg = alice.send_text(alice_chat.id, "Hi Bob").await;
+        bob.recv_msg(&sent_msg).await;
+        let received_msg = bob.get_last_msg().await;
+        assert!(!received_msg.get_showpadlock());
+
+        // Bob should not encrypt, because Alice does not prefer encryption.
+        let sent_msg = bob
+            .send_text(bob_chat.id, "This should not be encrypted")
+            .await;
+        alice.recv_msg(&sent_msg).await;
+        let received_msg = alice.get_last_msg().await;
+        assert!(!received_msg.get_showpadlock());
+
+        // Bob ignores Alice's preference for no encryption.
+        bob.set_config(Config::E2eeForce, Some("1")).await?;
+        let sent_msg = bob.send_text(bob_chat.id, "This should be encrypted").await;
+        alice.recv_msg(&sent_msg).await;
+        let received_msg = alice.get_last_msg().await;
+        assert!(received_msg.get_showpadlock());
+
+        // Alice switches to MUA without Autocrypt support.
+        dc_receive_imf(
+            &bob,
+            br#"Subject: Hello from MUA
+Message-ID: foobar@example.com
+To: Bob <bob@example.net>
+From: Alice <alice@example.com>
+Content-Type: text/plain; charset=utf-8
+Date: Sun, 14 Mar 2500 00:00:00 +0000
+
+Hello from MUA."#,
+            "INBOX",
+            100,
+            false,
+        )
+        .await?;
+
+        // Bob can't encrypt now because Alice has no key.
+        let sent_msg = bob
+            .send_text(bob_chat.id, "This should not be encrypted again")
+            .await;
+        alice.recv_msg(&sent_msg).await;
+        let received_msg = alice.get_last_msg().await;
+        assert!(!received_msg.get_showpadlock());
 
         Ok(())
     }

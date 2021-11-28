@@ -64,6 +64,13 @@ pub enum Config {
     #[strum(props(default = "1"))]
     E2eeEnabled,
 
+    /// Ignore Autocrypt recommendation for message encryption if possible.
+    ///
+    /// The only expection is when recommendation is "disable", i.e. encryption is not possible
+    /// because some recipient has no OpenPGP key.
+    #[strum(props(default = "0"))]
+    E2eeForce,
+
     #[strum(props(default = "1"))]
     MdnsEnabled,
 

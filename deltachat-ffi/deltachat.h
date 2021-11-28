@@ -287,6 +287,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    To save traffic, however, the avatar is attached only as needed
  *                    and also recoded to a reasonable size.
  * - `e2ee_enabled` = 0=no end-to-end-encryption, 1=prefer end-to-end-encryption (default)
+ * - `e2ee_force`   = 1=ignore encryption preferences of others,
+ *                    0=use majority vote when deciding whether to encrypt (default).
  * - `mdns_enabled` = 0=do not send or request read receipts,
  *                    1=send and request read receipts (default)
  * - `bcc_self`     = 0=do not send a copy of outgoing messages to self (default),
