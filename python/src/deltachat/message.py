@@ -225,6 +225,10 @@ class Message(object):
         """Quote setter"""
         lib.dc_msg_set_quote(self._dc_msg, quoted_message._dc_msg)
 
+    def force_plaintext(self) -> None:
+        """Force the message to be sent in plain text."""
+        lib.dc_msg_force_plaintext(self._dc_msg)
+
     def get_mime_headers(self):
         """ return mime-header object for an incoming message.
 

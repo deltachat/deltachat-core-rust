@@ -893,6 +893,11 @@ impl Message {
         Ok(None)
     }
 
+    /// Force the message to be sent in plain text.
+    pub fn force_plaintext(&mut self) {
+        self.param.set_int(Param::ForcePlaintext, 1);
+    }
+
     pub async fn update_param(&self, context: &Context) {
         context
             .sql
