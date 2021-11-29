@@ -3753,7 +3753,11 @@ pub unsafe extern "C" fn dc_provider_new_from_email(
 
     match socks5_enabled {
         Ok(socks5_enabled) => {
-            match block_on(provider::get_provider_info(addr.as_str(), socks5_enabled)) {
+            match block_on(provider::get_provider_info(
+                ctx,
+                addr.as_str(),
+                socks5_enabled,
+            )) {
                 Some(provider) => provider,
                 None => ptr::null_mut(),
             }

@@ -221,7 +221,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             "checking internal provider-info for offline autoconfig"
         );
 
-        if let Some(provider) = provider::get_provider_info(&param_domain, socks5_enabled).await {
+        if let Some(provider) =
+            provider::get_provider_info(ctx, &param_domain, socks5_enabled).await
+        {
             param.provider = Some(provider);
             match provider.status {
                 provider::Status::Ok | provider::Status::Preparation => {
