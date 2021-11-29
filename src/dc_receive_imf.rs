@@ -825,6 +825,18 @@ async fn add_parts(
             }
         }
 
+        if let Some(chat_id) = chat_id {
+            apply_group_changes(
+                context,
+                mime_parser,
+                sent_timestamp,
+                chat_id,
+                from_id,
+                to_ids,
+            )
+            .await?;
+        }
+
         if chat_id.is_none() && self_sent {
             // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
             // maybe an Autocrypt Setup Message

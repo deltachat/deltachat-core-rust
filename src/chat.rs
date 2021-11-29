@@ -3226,6 +3226,85 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_modify_chat_multi_device() -> Result<()> {
+        let a1 = TestContext::new_alice().await;
+        let a2 = TestContext::new_alice().await;
+        a1.set_config_bool(Config::BccSelf, true).await?;
+
+        // create group and sync it to the second device
+        let a1_chat_id = create_group_chat(&a1, ProtectionStatus::Unprotected, "foo").await?;
+        send_text_msg(&a1, a1_chat_id, "ho!".to_string()).await?;
+        let a1_msg = a1.get_last_msg().await;
+        let a1_chat = Chat::load_from_db(&a1, a1_chat_id).await?;
+
+        a2.recv_msg(&a1.pop_sent_msg().await).await;
+        let a2_msg = a2.get_last_msg().await;
+        let a2_chat_id = a2_msg.chat_id;
+        let a2_chat = Chat::load_from_db(&a2, a2_chat_id).await?;
+
+        assert!(!a1_msg.is_system_message());
+        assert!(!a2_msg.is_system_message());
+        assert_eq!(a1_chat.grpid, a2_chat.grpid);
+        assert_eq!(a1_chat.name, "foo");
+        assert_eq!(a2_chat.name, "foo");
+        assert_eq!(a1_chat.get_profile_image(&a1).await?, None);
+        assert_eq!(a2_chat.get_profile_image(&a2).await?, None);
+        assert_eq!(get_chat_contacts(&a1, a1_chat_id).await?.len(), 1);
+        assert_eq!(get_chat_contacts(&a2, a2_chat_id).await?.len(), 1);
+
+        // add a member to the group
+        let bob = Contact::create(&a1, "", "bob@example.org").await?;
+        add_contact_to_chat(&a1, a1_chat_id, bob).await?;
+        let a1_msg = a1.get_last_msg().await;
+
+        a2.recv_msg(&a1.pop_sent_msg().await).await;
+        let a2_msg = a2.get_last_msg().await;
+
+        assert!(a1_msg.is_system_message());
+        assert!(a2_msg.is_system_message());
+        assert_eq!(a1_msg.get_info_type(), SystemMessage::MemberAddedToGroup);
+        assert_eq!(a2_msg.get_info_type(), SystemMessage::MemberAddedToGroup);
+        assert_eq!(get_chat_contacts(&a1, a1_chat_id).await?.len(), 2);
+        assert_eq!(get_chat_contacts(&a2, a2_chat_id).await?.len(), 2);
+
+        // rename the group
+        set_chat_name(&a1, a1_chat_id, "bar").await?;
+        let a1_msg = a1.get_last_msg().await;
+
+        a2.recv_msg(&a1.pop_sent_msg().await).await;
+        let a2_msg = a2.get_last_msg().await;
+
+        assert!(a1_msg.is_system_message());
+        assert!(a2_msg.is_system_message());
+        assert_eq!(a1_msg.get_info_type(), SystemMessage::GroupNameChanged);
+        assert_eq!(a2_msg.get_info_type(), SystemMessage::GroupNameChanged);
+        assert_eq!(Chat::load_from_db(&a1, a1_chat_id).await?.name, "bar");
+        assert_eq!(Chat::load_from_db(&a2, a2_chat_id).await?.name, "bar");
+
+        // remove member from group
+        remove_contact_from_chat(&a1, a1_chat_id, bob).await?;
+        let a1_msg = a1.get_last_msg().await;
+
+        a2.recv_msg(&a1.pop_sent_msg().await).await;
+        let a2_msg = a2.get_last_msg().await;
+
+        assert!(a1_msg.is_system_message());
+        assert!(a2_msg.is_system_message());
+        assert_eq!(
+            a1_msg.get_info_type(),
+            SystemMessage::MemberRemovedFromGroup
+        );
+        assert_eq!(
+            a2_msg.get_info_type(),
+            SystemMessage::MemberRemovedFromGroup
+        );
+        assert_eq!(get_chat_contacts(&a1, a1_chat_id).await?.len(), 1);
+        assert_eq!(get_chat_contacts(&a2, a2_chat_id).await?.len(), 1);
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_add_remove_contact_for_single() {
         let ctx = TestContext::new_alice().await;
         let bob = Contact::create(&ctx, "", "bob@f.br").await.unwrap();
