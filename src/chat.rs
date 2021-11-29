@@ -211,6 +211,7 @@ impl ChatId {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
+        context.emit_event(EventType::ChatListChanged);
         Ok(chat_id)
     }
 
@@ -301,10 +302,12 @@ impl ChatId {
             Chattype::Group => {
                 info!(context, "Can't block groups yet, deleting the chat");
                 self.delete(context).await?;
+                context.emit_event(EventType::ChatListChanged);
             }
             Chattype::Mailinglist => {
                 if self.set_blocked(context, Blocked::Yes).await? {
                     context.emit_event(EventType::ChatModified(self));
+                    context.emit_event(EventType::ChatListChanged);
                 }
             }
         }
@@ -345,6 +348,7 @@ impl ChatId {
 
         if self.set_blocked(context, Blocked::Not).await? {
             context.emit_event(EventType::ChatModified(self));
+            context.emit_event(EventType::ChatListChanged);
         }
 
         Ok(())
@@ -489,6 +493,7 @@ impl ChatId {
             msg_id: MsgId::new(0),
             chat_id: ChatId::new(0),
         });
+        context.emit_event(EventType::ChatListChanged);
 
         Ok(())
     }
@@ -546,6 +551,7 @@ impl ChatId {
             msg_id: MsgId::new(0),
             chat_id: ChatId::new(0),
         });
+        context.emit_event(EventType::ChatListChanged);
 
         job::kill_action(context, Action::Housekeeping).await?;
         let j = job::Job::new(Action::Housekeeping, 0, Params::new(), 10);
@@ -1992,7 +1998,8 @@ pub async fn get_chat_msgs(
                 context.emit_event(EventType::MsgsChanged {
                     msg_id: MsgId::new(0),
                     chat_id: ChatId::new(0),
-                })
+                });
+                context.emit_event(EventType::ChatListChanged);
             }
         }
     }
@@ -2292,6 +2299,7 @@ pub async fn create_group_chat(
         msg_id: MsgId::new(0),
         chat_id: ChatId::new(0),
     });
+    context.emit_event(EventType::ChatListChanged);
 
     if protect == ProtectionStatus::Protected {
         // this part is to stay compatible to verified groups,
@@ -2349,6 +2357,7 @@ pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
         msg_id: MsgId::new(0),
         chat_id: ChatId::new(0),
     });
+    context.emit_event(EventType::ChatListChanged);
     Ok(chat_id)
 }
 

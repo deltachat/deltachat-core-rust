@@ -96,6 +96,7 @@ async fn reset_tables(context: &Context, bits: i32) {
         chat_id: ChatId::new(0),
         msg_id: MsgId::new(0),
     });
+    context.emit_event(EventType::ChatListChanged);
 }
 
 async fn poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<()> {
@@ -167,6 +168,7 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
+        context.emit_event(EventType::ChatListChanged);
     }
     true
 }

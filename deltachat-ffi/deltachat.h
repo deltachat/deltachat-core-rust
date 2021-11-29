@@ -5301,6 +5301,14 @@ void dc_event_unref(dc_event_t* event);
  */
 #define DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED 2021
 
+/**
+ * Chatlist changed and ui should reload it (reordering, entry added or removed)
+ *
+ * This event is fired when the ordering or contents of the chatlist change,
+ * for changes in individual chat list items listen to `IncomingMsg`, `MsgsNoticed`, `MsgDelivered`, `MsgFailed`, `MsgRead` and `ChatModified`
+ */
+#define DC_EVENT_CHAT_LIST_CHANGED        2025
+
 
 /**
  * Contact(s) created, renamed, verified, blocked or deleted.

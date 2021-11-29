@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### API Changes
+- add `DC_EVENT_CHAT_LIST_CHANGED` event
+
+### Changes
+- add chatlist changed event
+
 ## 1.68.0
 
 ### Fixes

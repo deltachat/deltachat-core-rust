@@ -248,6 +248,13 @@ pub enum EventType {
         timer: EphemeralTimer,
     },
 
+    // Chatlist changed and ui should reload it (reordering, entry added or removed)
+    //
+    // This event is fired when the ordering or contents of the chatlist change,
+    // for changes in individual chat list items listen to `IncomingMsg`, `MsgsNoticed`, `MsgDelivered`, `MsgFailed`, `MsgRead` and `ChatModified`
+    #[strum(props(id = "2025"))]
+    ChatListChanged,
+
     /// Contact(s) created, renamed, blocked or deleted.
     ///
     /// @param data1 (int) If set, this is the contact_id of an added contact that should be selected.

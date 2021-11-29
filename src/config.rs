@@ -314,6 +314,7 @@ impl Context {
                     msg_id: MsgId::new(0),
                     chat_id: ChatId::new(0),
                 });
+                self.emit_event(EventType::ChatListChanged);
                 ret
             }
             Config::Displayname => {

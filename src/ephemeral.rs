@@ -422,6 +422,7 @@ pub async fn schedule_ephemeral_task(context: &Context) {
                     chat_id: ChatId::new(0),
                     msg_id: MsgId::new(0),
                 });
+                context1.emit_event(EventType::ChatListChanged);
             });
             *context.ephemeral_task.write().await = Some(ephemeral_task);
         } else {
@@ -430,6 +431,7 @@ pub async fn schedule_ephemeral_task(context: &Context) {
                 chat_id: ChatId::new(0),
                 msg_id: MsgId::new(0),
             });
+            context.emit_event(EventType::ChatListChanged);
         }
     }
 }

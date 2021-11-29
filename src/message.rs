@@ -1295,6 +1295,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
+        context.emit_event(EventType::ChatListChanged);
         job::kill_action(context, Action::Housekeeping).await?;
         job::add(
             context,

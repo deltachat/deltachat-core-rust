@@ -440,6 +440,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::Error(_)
         | EventType::ConnectivityChanged
         | EventType::SelfavatarChanged
+        | EventType::ChatListChanged
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
@@ -491,7 +492,8 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::MsgsNoticed(_)
         | EventType::ConnectivityChanged
         | EventType::SelfavatarChanged
-        | EventType::ChatModified(_) => 0,
+        | EventType::ChatModified(_)
+        | EventType::ChatListChanged => 0,
         EventType::MsgsChanged { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
         | EventType::MsgDelivered { msg_id, .. }
@@ -534,6 +536,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::MsgFailed { .. }
         | EventType::MsgRead { .. }
         | EventType::ChatModified(_)
+        | EventType::ChatListChanged
         | EventType::ContactsChanged(_)
         | EventType::LocationChanged(_)
         | EventType::ImexProgress(_)

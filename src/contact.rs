@@ -252,12 +252,16 @@ impl Contact {
 
     /// Block the given contact.
     pub async fn block(context: &Context, id: u32) -> Result<()> {
-        set_block_contact(context, id, true).await
+        set_block_contact(context, id, true).await?;
+        context.emit_event(EventType::ChatListChanged);
+        Ok(())
     }
 
     /// Unblock the given contact.
     pub async fn unblock(context: &Context, id: u32) -> Result<()> {
-        set_block_contact(context, id, false).await
+        set_block_contact(context, id, false).await?;
+        context.emit_event(EventType::ChatListChanged);
+        Ok(())
     }
 
     /// Add a single contact as a result of an _explicit_ user action.

@@ -114,6 +114,12 @@ fn receive_event(event: EventType) {
                 yellow.paint(format!("Received CHAT_MODIFIED({})", chat))
             );
         }
+        EventType::ChatListChanged(chat) => {
+            info!(
+                "{}",
+                yellow.paint("Received CHAT_LIST_CHANGED")
+            );
+        }
         _ => {
             info!("Received {:?}", event);
         }

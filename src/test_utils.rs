@@ -695,6 +695,10 @@ fn receive_event(event: &Event) {
             "{}",
             green.paint(format!("Received CHAT_MODIFIED({})", chat))
         ),
+        EventType::ChatListChanged => format!(
+            "{}",
+            green.paint("Received CHAT_LIST_CHANGED()")
+        ),
         _ => format!("Received {:?}", event),
     };
     let context_names = CONTEXT_NAMES.read().unwrap();
