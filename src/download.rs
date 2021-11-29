@@ -173,7 +173,7 @@ impl Imap {
         info!(context, "Downloading message {}/{} fully...", folder, uid);
 
         let (_, error_cnt) = self
-            .fetch_many_msgs(context, folder, vec![uid], false, false)
+            .fetch_many_msgs(context, folder, vec![uid], false, false, &mut Vec::new())
             .await;
         if error_cnt > 0 {
             return ImapActionResult::Failed;

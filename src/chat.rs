@@ -1,5 +1,6 @@
 //! # Chat module.
 
+use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
@@ -21,6 +22,7 @@ use crate::constants::{
 };
 use crate::contact::{addr_cmp, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
+use crate::dc_receive_imf::ReceivedMsg;
 use crate::dc_tools::{
     dc_create_id, dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp,
     dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, improve_single_line_input,
@@ -2141,6 +2143,52 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
         .await?;
 
     context.emit_event(EventType::MsgsNoticed(chat_id));
+
+    Ok(())
+}
+
+pub(crate) async fn mark_old_messages_as_noticed(
+    context: &Context,
+    mut msgs: Vec<ReceivedMsg>,
+) -> Result<()> {
+    // TODO use SELECT first to speed things up?
+    let mut msgs_by_chat: HashMap<ChatId, ReceivedMsg> = HashMap::new();
+
+    &msgs;
+    msgs.retain(|m| m.state.is_outgoing());
+    for msg in msgs {
+        let chat_id = msg.chat_id;
+        if let Some(existing_msg) = msgs_by_chat.get(&chat_id) {
+            if msg.sort_timestamp > existing_msg.sort_timestamp {
+                msgs_by_chat.insert(chat_id, msg);
+            }
+        } else {
+            msgs_by_chat.insert(chat_id, msg);
+        }
+    }
+
+    for (_, msg) in msgs_by_chat {
+        let changed_rows = context
+            .sql
+            .execute(
+                "UPDATE msgs
+            SET state=?
+          WHERE state=?
+            AND hidden=0
+            AND chat_id=?
+            AND timestamp<?;",
+                paramsv![
+                    MessageState::InNoticed,
+                    MessageState::InFresh,
+                    msg.chat_id,
+                    msg.sort_timestamp
+                ],
+            )
+            .await?;
+        if changed_rows > 0 {
+            context.emit_event(EventType::MsgsNoticed(msg.chat_id));
+        }
+    }
 
     Ok(())
 }

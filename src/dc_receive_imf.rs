@@ -42,6 +42,17 @@ enum CreateEvent {
     IncomingMsg,
 }
 
+/// Return type of dc_receive_imf() and dc_receive_imf_inner().
+/// Contains exactly the information about the received message
+/// that's useful for its callers to know.
+#[derive(Debug)]
+pub struct ReceivedMsg {
+    pub chat_id: ChatId,
+    pub state: MessageState,
+    pub sort_timestamp: i64,
+    // Feel free to add more fiedlds here
+}
+
 /// Receive a message and add it to the database.
 ///
 /// Returns an error on recoverable errors, e.g. database errors. In this case,
@@ -53,7 +64,7 @@ pub async fn dc_receive_imf(
     server_folder: &str,
     server_uid: u32,
     seen: bool,
-) -> Result<()> {
+) -> Result<Option<ReceivedMsg>> {
     dc_receive_imf_inner(
         context,
         imf_raw,
@@ -76,7 +87,7 @@ pub(crate) async fn dc_receive_imf_inner(
     seen: bool,
     is_partial_download: Option<u32>,
     fetching_existing_messages: bool,
-) -> Result<()> {
+) -> Result<Option<ReceivedMsg>> {
     info!(
         context,
         "Receiving message {}/{}, seen={}...", server_folder, server_uid, seen
@@ -91,7 +102,7 @@ pub(crate) async fn dc_receive_imf_inner(
         match MimeMessage::from_bytes_with_partial(context, imf_raw, is_partial_download).await {
             Err(err) => {
                 warn!(context, "dc_receive_imf: can't parse MIME: {}", err);
-                return Ok(());
+                return Ok(None);
             }
             Ok(mime_parser) => mime_parser,
         };
@@ -99,7 +110,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // we can not add even an empty record if we have no info whatsoever
     if !mime_parser.has_headers() {
         warn!(context, "dc_receive_imf: no headers found");
-        return Ok(());
+        return Ok(None);
     }
 
     let rfc724_mid = mime_parser.get_rfc724_mid().unwrap_or_else(||
@@ -132,7 +143,7 @@ pub(crate) async fn dc_receive_imf_inner(
             if old_server_folder != server_folder || old_server_uid != server_uid {
                 message::update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
             }
-            return Ok(());
+            return Ok(None);
         }
     } else {
         false
@@ -186,7 +197,7 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     // Add parts
-    let chat_id = add_parts(
+    let received_msg = add_parts(
         context,
         &mut mime_parser,
         imf_raw,
@@ -214,9 +225,15 @@ pub(crate) async fn dc_receive_imf_inner(
         contact::update_last_seen(context, from_id, sent_timestamp).await?;
     }
 
+    let received_msg = match received_msg {
+        Some(m) => m,
+        None => return Ok(None),
+    };
+
     // Update gossiped timestamp for the chat if someone else or our other device sent
     // Autocrypt-Gossip for all recipients in the chat to avoid sending Autocrypt-Gossip ourselves
     // and waste traffic.
+    let chat_id = received_msg.chat_id;
     if !chat_id.is_special()
         && mime_parser
             .recipients
@@ -366,7 +383,7 @@ pub(crate) async fn dc_receive_imf_inner(
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
         .await;
 
-    Ok(())
+    Ok(Some(received_msg))
 }
 
 /// Converts "From" field to contact id.
@@ -436,7 +453,7 @@ async fn add_parts(
     create_event_to_send: &mut Option<CreateEvent>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
-) -> Result<ChatId> {
+) -> Result<Option<ReceivedMsg>> {
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
     let mut incoming_origin = incoming_origin;
@@ -510,7 +527,7 @@ async fn add_parts(
                 }
                 Err(err) => {
                     warn!(context, "Error in Secure-Join message handling: {}", err);
-                    return Ok(DC_CHAT_ID_TRASH);
+                    return Ok(None);
                 }
             }
         } else {
@@ -737,7 +754,7 @@ async fn add_parts(
                 }
                 Err(err) => {
                     warn!(context, "Error in Secure-Join watching: {}", err);
-                    return Ok(DC_CHAT_ID_TRASH);
+                    return Ok(None);
                 }
             }
         } else if mime_parser.sync_items.is_some() && self_sent {
@@ -1014,7 +1031,7 @@ async fn add_parts(
                                 sort_timestamp,
                             )
                             .await?;
-                            return Ok(chat_id); // do not return an error as this would result in retrying the message
+                            return Ok(None); // do not return an error as this would result in retrying the message
                         }
                     }
                     set_better_msg(
@@ -1232,7 +1249,11 @@ INSERT INTO msgs
         }
     }
 
-    Ok(chat_id)
+    Ok(Some(ReceivedMsg {
+        chat_id,
+        state,
+        sort_timestamp,
+    }))
 }
 
 /// Saves attached locations to the database.

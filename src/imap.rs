@@ -19,7 +19,7 @@ use crate::constants::{
 };
 use crate::context::Context;
 use crate::dc_receive_imf::{
-    dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message,
+    dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
 };
 use crate::dc_tools::dc_extract_grpid_from_rfc724_mid;
 use crate::events::EventType;
@@ -676,6 +676,7 @@ impl Imap {
         let mut uids_fetch_fully = Vec::with_capacity(msgs.len());
         let mut uids_fetch_partially = Vec::with_capacity(msgs.len());
         let mut largest_uid_skipped = None;
+        let mut received_msgs = Vec::new();
 
         for (current_uid, msg) in msgs.into_iter() {
             let (headers, msg_id) = match get_fetch_headers(&msg) {
@@ -729,6 +730,7 @@ impl Imap {
                 uids_fetch_fully,
                 false,
                 fetch_existing_msgs,
+                &mut received_msgs,
             )
             .await;
         read_errors += error_cnt;
@@ -740,6 +742,7 @@ impl Imap {
                 uids_fetch_partially,
                 true,
                 fetch_existing_msgs,
+                &mut received_msgs,
             )
             .await;
         read_errors += error_cnt;
@@ -771,6 +774,8 @@ impl Imap {
                 "{} mails read from \"{}\" with {} errors.", read_cnt, folder, read_errors
             );
         }
+
+        chat::mark_old_messages_as_noticed(context, received_msgs).await?;
 
         Ok(read_cnt > 0)
     }
@@ -898,6 +903,7 @@ impl Imap {
         server_uids: Vec<u32>,
         fetch_partially: bool,
         fetching_existing_messages: bool,
+        received_msgs: &mut Vec<ReceivedMsg>,
     ) -> (Option<u32>, usize) {
         if server_uids.is_empty() {
             return (None, 0);
@@ -996,7 +1002,12 @@ impl Imap {
                 )
                 .await
                 {
-                    Ok(_) => last_uid = Some(server_uid),
+                    Ok(received_msg) => {
+                        if let Some(m) = received_msg {
+                            received_msgs.push(m);
+                        }
+                        last_uid = Some(server_uid)
+                    }
                     Err(err) => {
                         warn!(context, "dc_receive_imf error: {}", err);
                         read_errors += 1;
