@@ -4,7 +4,9 @@ mod data;
 
 use crate::config::Config;
 use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS, PROVIDER_UPDATED};
-use async_std_resolver::resolver_from_system_conf;
+use async_std_resolver::{
+    config, resolver, resolver_from_system_conf, AsyncStdResolver, ResolveError,
+};
 use chrono::{NaiveDateTime, NaiveTime};
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
@@ -81,6 +83,22 @@ pub struct Provider {
     pub oauth2_authorizer: Option<Oauth2Authorizer>,
 }
 
+/// Get resolver to query MX records.
+///
+/// We first try resolver_from_system_conf() which reads the system's resolver from `/etc/resolv.conf`.
+/// This does not work at least on some Androids, therefore we use use ResolverConfig::default()
+/// which default eg. to google's 8.8.8.8 or 8.8.4.4 as a fallback.
+async fn get_resolver() -> Result<AsyncStdResolver, ResolveError> {
+    if let Ok(resolver) = resolver_from_system_conf().await {
+        return Ok(resolver);
+    }
+    resolver(
+        config::ResolverConfig::default(),
+        config::ResolverOpts::default(),
+    )
+    .await
+}
+
 /// Returns provider for the given domain.
 ///
 /// This function looks up domain in offline database first. If not
@@ -118,7 +136,7 @@ pub fn get_provider_by_domain(domain: &str) -> Option<&'static Provider> {
 ///
 /// For security reasons, only Gmail can be configured this way.
 pub async fn get_provider_by_mx(domain: &str) -> Option<&'static Provider> {
-    if let Ok(resolver) = resolver_from_system_conf().await {
+    if let Ok(resolver) = get_resolver().await {
         let mut fqdn: String = domain.to_string();
         if !fqdn.ends_with('.') {
             fqdn.push('.');
@@ -169,6 +187,7 @@ mod tests {
 
     use super::*;
     use crate::dc_tools::time;
+    use anyhow::Result;
     use chrono::NaiveDate;
 
     #[test]
@@ -241,5 +260,11 @@ mod tests {
             / 1_000;
         assert!(get_provider_update_timestamp() <= time());
         assert!(get_provider_update_timestamp() > timestamp_past);
+    }
+
+    #[async_std::test]
+    async fn test_get_resolver() -> Result<()> {
+        assert!(get_resolver().await.is_ok());
+        Ok(())
     }
 }
