@@ -378,12 +378,16 @@ mod tests {
 
     #[async_std::test]
     async fn test_oauth_from_mx() {
-        // TODO: this does not test MX lookup, google.com is in our provider-db
-        // does anyone know a "good" Google Workspace (former G Suite) domain we can use for testing?
+        // youtube staff seems to use "google workspace with oauth2", figures this out by MX lookup
         let t = TestContext::new().await;
         assert_eq!(
-            Oauth2::from_address(&t, "hello@google.com", false).await,
+            Oauth2::from_address(&t, "hello@youtube.com", false).await,
             Some(OAUTH2_GMAIL)
+        );
+        // without MX lookup, we would not know as youtube.com is not in our provider-db
+        assert_eq!(
+            Oauth2::from_address(&t, "hello@youtube.com", true).await,
+            None
         );
     }
 
