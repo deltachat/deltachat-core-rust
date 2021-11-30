@@ -1185,7 +1185,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let socks5_enabled = context
                 .get_config_bool(config::Config::Socks5Enabled)
                 .await?;
-            match provider::get_provider_info(arg1, socks5_enabled).await {
+            match provider::get_provider_info(&context, arg1, socks5_enabled).await {
                 Some(info) => {
                     println!("Information for provider belonging to {}:", arg1);
                     println!("status: {}", info.status as u32);
