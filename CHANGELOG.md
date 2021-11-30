@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.69.0
+
+### Fixes
+- fix group-related system messages in multi-device setups #2848
+- fix "Google Workspace" (former "G Suite") issues related to bad resolvers #2852
+
+
 ## 1.68.0
 
 ### Fixes
