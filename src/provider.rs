@@ -5,9 +5,8 @@ mod data;
 use crate::config::Config;
 use crate::context::Context;
 use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS, PROVIDER_UPDATED};
-use async_std_resolver::{
-    config, resolver, resolver_from_system_conf, AsyncStdResolver, ResolveError,
-};
+use anyhow::Result;
+use async_std_resolver::{config, resolver, resolver_from_system_conf, AsyncStdResolver};
 use chrono::{NaiveDateTime, NaiveTime};
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
@@ -89,15 +88,16 @@ pub struct Provider {
 /// We first try resolver_from_system_conf() which reads the system's resolver from `/etc/resolv.conf`.
 /// This does not work at least on some Androids, therefore we use use ResolverConfig::default()
 /// which default eg. to google's 8.8.8.8 or 8.8.4.4 as a fallback.
-async fn get_resolver() -> Result<AsyncStdResolver, ResolveError> {
+async fn get_resolver() -> Result<AsyncStdResolver> {
     if let Ok(resolver) = resolver_from_system_conf().await {
         return Ok(resolver);
     }
-    resolver(
+    let resolver = resolver(
         config::ResolverConfig::default(),
         config::ResolverOpts::default(),
     )
-    .await
+    .await?;
+    Ok(resolver)
 }
 
 /// Returns provider for the given domain.
@@ -195,7 +195,6 @@ mod tests {
     use super::*;
     use crate::dc_tools::time;
     use crate::test_utils::TestContext;
-    use anyhow::Result;
     use chrono::NaiveDate;
 
     #[test]
