@@ -6,9 +6,7 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS, PROVIDER_UPDATED};
 use anyhow::Result;
-use async_std_resolver::{
-    config, resolver, resolver_from_system_conf, AsyncStdResolver,
-};
+use async_std_resolver::{config, resolver, resolver_from_system_conf, AsyncStdResolver};
 use chrono::{NaiveDateTime, NaiveTime};
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
@@ -94,12 +92,12 @@ async fn get_resolver() -> Result<AsyncStdResolver> {
     if let Ok(resolver) = resolver_from_system_conf().await {
         return Ok(resolver);
     }
-    resolver(
+    let resolver = resolver(
         config::ResolverConfig::default(),
         config::ResolverOpts::default(),
     )
-    .await
-    .map_err(|err| err.into())
+    .await?;
+    Ok(resolver)
 }
 
 /// Returns provider for the given domain.
