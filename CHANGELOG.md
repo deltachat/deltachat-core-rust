@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.70.0
+
+### Fixes
+- fix: do not abort Param parsing on unknown keys #2856
+- fix: execute `Chat-Group-Member-Removed:` even when arriving disordered #2857
+
+
 ## 1.69.0
 
 ### Fixes
