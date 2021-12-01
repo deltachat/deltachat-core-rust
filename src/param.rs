@@ -191,6 +191,11 @@ impl fmt::Display for Params {
 impl str::FromStr for Params {
     type Err = Error;
 
+    /// Parse a raw string to Param.
+    ///
+    /// Silently ignore unknown keys:
+    /// they may come from a downgrade (when a shortly new version adds a key)
+    /// or from an upgrade (when a key is dropped but was used in the past)
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let mut inner = BTreeMap::new();
         let mut lines = s.lines().peekable();
@@ -210,8 +215,6 @@ impl str::FromStr for Params {
 
                 if let Some(key) = key.as_bytes().first().and_then(|key| Param::from_u8(*key)) {
                     inner.insert(key, value);
-                } else {
-                    bail!("Unknown key: {}", key);
                 }
             } else {
                 bail!("Not a key-value pair: {:?}", line);
@@ -414,10 +417,12 @@ impl<'a> ParamsFile<'a> {
 mod tests {
     use super::*;
 
+    use anyhow::Result;
     use async_std::fs;
     use async_std::path::Path;
 
     use crate::test_utils::TestContext;
+    use std::str::FromStr;
 
     #[test]
     fn test_dc_param() {
@@ -519,5 +524,15 @@ mod tests {
         assert!(p.get_file(Param::File, &t).unwrap().is_none());
         assert!(p.get_path(Param::File, &t).unwrap().is_none());
         assert!(p.get_blob(Param::File, &t, false).await.unwrap().is_none());
+    }
+
+    #[async_std::test]
+    async fn test_params_unknown_key() -> Result<()> {
+        // 'Z' is used as a key that is known to be unused; these keys should be ignored silently by definition.
+        let p = Params::from_str("w=12\nZ=13\nh=14")?;
+        assert_eq!(p.len(), 2);
+        assert_eq!(p.get(Param::Width), Some("12"));
+        assert_eq!(p.get(Param::Height), Some("14"));
+        Ok(())
     }
 }
