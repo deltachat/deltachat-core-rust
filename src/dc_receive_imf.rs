@@ -1706,13 +1706,14 @@ async fn apply_group_changes(
             send_event_chat_modified = true;
         }
     } else if let Some(contact_id) = removed_id {
-        if chat_id
-            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-            .await?
-        {
-            chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
-            send_event_chat_modified = true;
-        }
+        // in contrast to `Chat-Group-Member-Added` we do not reconstruct the whole state from To: on removing -
+        // otherwise out-of-order removals won't work as members are re-added quickly.
+        //
+        // therefore, we need to ignore `MemberListTimestamp`
+        // and execute `Chat-Group-Member-Removed` statements even when they arrive out of order.
+        // we do not set `MemberListTimestamp` as we do not reconstuct the memberlist.
+        chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
+        send_event_chat_modified = true;
     }
 
     if send_event_chat_modified {
