@@ -3305,6 +3305,68 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_modify_chat_disordered() -> Result<()> {
+        // Alice creates a group with Bob, Claire and Daisy and then removes Claire and Daisy
+        // (sleep() is needed as otherwise smeared time from Alice looks to Bob like messages from the future which are all set to "now" then)
+        let alice = TestContext::new_alice().await;
+
+        let bob_id = Contact::create(&alice, "", "bob@example.net").await?;
+        let claire_id = Contact::create(&alice, "", "claire@foo.de").await?;
+        let daisy_id = Contact::create(&alice, "", "daisy@bar.de").await?;
+
+        let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
+        send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
+
+        add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+        let add1 = alice.pop_sent_msg().await;
+
+        add_contact_to_chat(&alice, alice_chat_id, claire_id).await?;
+        let add2 = alice.pop_sent_msg().await;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+
+        add_contact_to_chat(&alice, alice_chat_id, daisy_id).await?;
+        let add3 = alice.pop_sent_msg().await;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+
+        assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 4);
+
+        remove_contact_from_chat(&alice, alice_chat_id, claire_id).await?;
+        let remove1 = alice.pop_sent_msg().await;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+
+        remove_contact_from_chat(&alice, alice_chat_id, daisy_id).await?;
+        let remove2 = alice.pop_sent_msg().await;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+
+        assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
+
+        // Bob receives the add and deletion messages out of order
+        let bob = TestContext::new_bob().await;
+        bob.recv_msg(&add1).await;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+
+        bob.recv_msg(&add3).await;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+
+        bob.recv_msg(&add2).await;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+
+        let bob_chat_id = bob.get_last_msg().await.chat_id;
+        assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 4);
+
+        bob.recv_msg(&remove2).await;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+
+        bob.recv_msg(&remove1).await;
+        async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
+
+        assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_add_remove_contact_for_single() {
         let ctx = TestContext::new_alice().await;
         let bob = Contact::create(&ctx, "", "bob@f.br").await.unwrap();
