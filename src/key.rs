@@ -589,27 +589,6 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(nrows().await, 1);
     }
 
-    // Convenient way to create a new key if you need one, run with
-    // `cargo test key::tests::gen_key`.
-    // #[test]
-    // fn gen_key() {
-    //     let name = "fiona";
-    //     let keypair = crate::pgp::create_keypair(
-    //         EmailAddress::new(&format!("{}@example.net", name)).unwrap(),
-    //     )
-    //     .unwrap();
-    //     std::fs::write(
-    //         format!("test-data/key/{}-public.asc", name),
-    //         keypair.public.to_base64(),
-    //     )
-    //     .unwrap();
-    //     std::fs::write(
-    //         format!("test-data/key/{}-secret.asc", name),
-    //         keypair.secret.to_base64(),
-    //     )
-    //     .unwrap();
-    // }
-
     #[test]
     fn test_fingerprint_from_str() {
         let res = Fingerprint::new(vec![

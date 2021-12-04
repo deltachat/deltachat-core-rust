@@ -551,12 +551,13 @@ impl SentMessage {
 /// The keypair was created using the crate::key::tests::gen_key test.
 pub fn alice_keypair() -> key::KeyPair {
     let addr = EmailAddress::new("alice@example.com").unwrap();
-    let public =
-        key::SignedPublicKey::from_base64(include_str!("../test-data/key/alice-public.asc"))
-            .unwrap();
-    let secret =
-        key::SignedSecretKey::from_base64(include_str!("../test-data/key/alice-secret.asc"))
-            .unwrap();
+
+    let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/alice-public.asc"))
+        .unwrap()
+        .0;
+    let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/alice-secret.asc"))
+        .unwrap()
+        .0;
     key::KeyPair {
         addr,
         public,
@@ -569,10 +570,12 @@ pub fn alice_keypair() -> key::KeyPair {
 /// Like [alice_keypair] but a different key and identity.
 pub fn bob_keypair() -> key::KeyPair {
     let addr = EmailAddress::new("bob@example.net").unwrap();
-    let public =
-        key::SignedPublicKey::from_base64(include_str!("../test-data/key/bob-public.asc")).unwrap();
-    let secret =
-        key::SignedSecretKey::from_base64(include_str!("../test-data/key/bob-secret.asc")).unwrap();
+    let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/bob-public.asc"))
+        .unwrap()
+        .0;
+    let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/bob-secret.asc"))
+        .unwrap()
+        .0;
     key::KeyPair {
         addr,
         public,
