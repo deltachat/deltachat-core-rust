@@ -1417,6 +1417,10 @@ mod tests {
     use async_std::prelude::*;
 
     use crate::chat::ChatId;
+    use crate::chat::{
+        add_contact_to_chat, create_group_chat, remove_contact_from_chat, send_text_msg,
+        ProtectionStatus,
+    };
     use crate::chatlist::Chatlist;
     use crate::contact::Origin;
     use crate::dc_receive_imf::dc_receive_imf;
@@ -1424,6 +1428,7 @@ mod tests {
     use crate::test_utils::{get_chat_msg, TestContext};
 
     use async_std::fs::File;
+    use mailparse::{addrparse_header, MailHeaderMap};
 
     #[test]
     fn test_render_email_address() {
@@ -2025,6 +2030,37 @@ mod tests {
         assert_eq!(body.match_indices("text/plain").count(), 0);
         assert_eq!(body.match_indices("Chat-User-Avatar:").count(), 0);
         assert_eq!(body.match_indices("Subject:").count(), 0);
+
+        Ok(())
+    }
+
+    /// Test that removed member address does not go into the `To:` field.
+    #[async_std::test]
+    async fn test_remove_member_bcc() -> Result<()> {
+        // Alice creates a group with Bob and Claire and then removes Bob.
+        let alice = TestContext::new_alice().await;
+
+        let bob_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
+        let claire_id = Contact::create(&alice, "Claire", "claire@foo.de").await?;
+
+        let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
+        add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;
+        add_contact_to_chat(&alice, alice_chat_id, claire_id).await?;
+        send_text_msg(&alice, alice_chat_id, "Creating a group".to_string()).await?;
+
+        remove_contact_from_chat(&alice, alice_chat_id, claire_id).await?;
+        let remove = alice.pop_sent_msg().await;
+        let remove_payload = remove.payload();
+        let parsed = mailparse::parse_mail(remove_payload.as_bytes())?;
+        let to = parsed
+            .headers
+            .get_first_header("To")
+            .ok_or_else(|| format_err!("No To: header parsed"))?;
+        let to = addrparse_header(to)?;
+        let mailbox = to
+            .extract_single_info()
+            .ok_or_else(|| format_err!("To: field does not contain exactly one address"))?;
+        assert_eq!(mailbox.addr, "bob@example.net");
 
         Ok(())
     }
