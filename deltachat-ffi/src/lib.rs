@@ -632,8 +632,8 @@ pub unsafe extern "C" fn dc_preconfigure_keypair(
     let ctx = &*context;
     block_on(async move {
         let addr = dc_tools::EmailAddress::new(&to_string_lossy(addr))?;
-        let public = key::SignedPublicKey::from_base64(&to_string_lossy(public_data))?;
-        let secret = key::SignedSecretKey::from_base64(&to_string_lossy(secret_data))?;
+        let public = key::SignedPublicKey::from_asc(&to_string_lossy(public_data))?.0;
+        let secret = key::SignedSecretKey::from_asc(&to_string_lossy(secret_data))?.0;
         let keypair = key::KeyPair {
             addr,
             public,

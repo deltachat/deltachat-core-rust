@@ -683,8 +683,8 @@ void            dc_maybe_network             (dc_context_t* context);
  * @param context The context as created by dc_context_new().
  * @param addr The email address of the user.  This must match the
  *    configured_addr setting of the context as well as the UID of the key.
- * @param public_data The public key as base64.
- * @param secret_data The secret key as base64.
+ * @param public_data ASCII armored public key.
+ * @param secret_data ASCII armored secret key.
  * @return 1 on success, 0 on failure.
  */
 int             dc_preconfigure_keypair        (dc_context_t* context, const char *addr, const char *public_data, const char *secret_data);
