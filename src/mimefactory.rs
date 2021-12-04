@@ -458,32 +458,45 @@ impl<'a> MimeFactory<'a> {
             self.from_addr.clone(),
         );
 
-        let mut to = Vec::new();
-        let email_to_remove = if self.msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
-            self.msg.param.get(Param::Arg)
-        } else {
-            None
+        let undisclosed_recipients = match &self.loaded {
+            Loaded::Message { chat } => chat.typ == Chattype::Broadcast,
+            Loaded::Mdn { .. } => false,
         };
 
-        for (name, addr) in self.recipients.iter() {
-            if let Some(email_to_remove) = email_to_remove {
-                if email_to_remove == addr {
-                    continue;
+        let mut to = Vec::new();
+        if undisclosed_recipients {
+            to.push(Address::new_group(
+                "hidden-recipients".to_string(),
+                Vec::new(),
+            ));
+        } else {
+            let email_to_remove =
+                if self.msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
+                    self.msg.param.get(Param::Arg)
+                } else {
+                    None
+                };
+
+            for (name, addr) in self.recipients.iter() {
+                if let Some(email_to_remove) = email_to_remove {
+                    if email_to_remove == addr {
+                        continue;
+                    }
+                }
+
+                if name.is_empty() {
+                    to.push(Address::new_mailbox(addr.clone()));
+                } else {
+                    to.push(Address::new_mailbox_with_name(
+                        name.to_string(),
+                        addr.clone(),
+                    ));
                 }
             }
 
-            if name.is_empty() {
-                to.push(Address::new_mailbox(addr.clone()));
-            } else {
-                to.push(Address::new_mailbox_with_name(
-                    name.to_string(),
-                    addr.clone(),
-                ));
+            if to.is_empty() {
+                to.push(from.clone());
             }
-        }
-
-        if to.is_empty() {
-            to.push(from.clone());
         }
 
         headers
@@ -584,20 +597,9 @@ impl<'a> MimeFactory<'a> {
             render_rfc724_mid(&rfc724_mid),
         ));
 
-        let undisclosed_recipients = match &self.loaded {
-            Loaded::Message { chat } => chat.typ == Chattype::Broadcast,
-            Loaded::Mdn { .. } => false,
-        };
-
-        if undisclosed_recipients {
-            headers
-                .unprotected
-                .push(Header::new("To".into(), "hidden-recipients: ;".to_string()));
-        } else {
-            headers
-                .unprotected
-                .push(Header::new_with_value("To".into(), to).unwrap());
-        }
+        headers
+            .unprotected
+            .push(Header::new_with_value("To".into(), to).unwrap());
 
         headers
             .unprotected
