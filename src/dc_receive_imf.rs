@@ -50,7 +50,7 @@ pub struct ReceivedMsg {
     pub chat_id: ChatId,
     pub state: MessageState,
     pub sort_timestamp: i64,
-    // Feel free to add more fiedlds here
+    // Feel free to add more fields here
 }
 
 /// Receive a message and add it to the database.

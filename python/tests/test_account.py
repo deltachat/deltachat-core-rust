@@ -1429,15 +1429,16 @@ class TestOnlineAccount:
         ac1_clone.create_chat(ac2)
 
         lp.sec("Send a first message from ac2 to ac1 and check that it's 'fresh'")
-        ac2.create_chat(ac1).send_text("Hi")
+        first_msg_id = ac2.create_chat(ac1).send_text("Hi")
         ac1._evtracker.wait_next_incoming_message()
         assert ac1.create_chat(ac2).count_fresh_messages() == 1
         assert len(list(ac1.get_fresh_messages())) == 1
 
         lp.sec("Send a message from ac1_clone to ac2 and check that ac1 marks the first message as 'noticed'")
         ac1_clone.create_chat(ac2).send_text("Hi back")
-        ac1._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
+        ev = ac1._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
 
+        assert ev.data1 == first_msg_id.id
         assert ac1.create_chat(ac2).count_fresh_messages() == 0
         assert len(list(ac1.get_fresh_messages())) == 0
 

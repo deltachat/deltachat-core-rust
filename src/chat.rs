@@ -2151,10 +2151,8 @@ pub(crate) async fn mark_old_messages_as_noticed(
     context: &Context,
     mut msgs: Vec<ReceivedMsg>,
 ) -> Result<()> {
-    // TODO use SELECT first to speed things up?
     let mut msgs_by_chat: HashMap<ChatId, ReceivedMsg> = HashMap::new();
 
-    &msgs;
     msgs.retain(|m| m.state.is_outgoing());
     for msg in msgs {
         let chat_id = msg.chat_id;
@@ -2167,27 +2165,43 @@ pub(crate) async fn mark_old_messages_as_noticed(
         }
     }
 
-    for (_, msg) in msgs_by_chat {
-        let changed_rows = context
-            .sql
-            .execute(
-                "UPDATE msgs
+    let changed_chats = context
+        .sql
+        .transaction(|transaction| {
+            let mut changed_chats = Vec::new();
+            for (_, msg) in msgs_by_chat {
+                let changed_rows = transaction.execute(
+                    "UPDATE msgs
             SET state=?
           WHERE state=?
             AND hidden=0
             AND chat_id=?
-            AND timestamp<?;",
-                paramsv![
-                    MessageState::InNoticed,
-                    MessageState::InFresh,
-                    msg.chat_id,
-                    msg.sort_timestamp
-                ],
-            )
-            .await?;
-        if changed_rows > 0 {
-            context.emit_event(EventType::MsgsNoticed(msg.chat_id));
-        }
+            AND timestamp<=?;",
+                    paramsv![
+                        MessageState::InNoticed,
+                        MessageState::InFresh,
+                        msg.chat_id,
+                        msg.sort_timestamp
+                    ],
+                )?;
+                if changed_rows > 0 {
+                    changed_chats.push(msg.chat_id);
+                }
+            }
+            Ok(changed_chats)
+        })
+        .await?;
+
+    if !changed_chats.is_empty() {
+        info!(
+            context,
+            "Marking chats as noticed because there are newer outgoing messages: {:?}",
+            changed_chats
+        );
+    }
+
+    for c in changed_chats {
+        context.emit_event(EventType::MsgsNoticed(c));
     }
 
     Ok(())

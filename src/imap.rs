@@ -25,6 +25,7 @@ use crate::dc_tools::dc_extract_grpid_from_rfc724_mid;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
+use crate::log::LogExt;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::login_param::{ServerAddress, Socks5Config};
 use crate::message::{self, update_server_uid, MessageState};
@@ -775,7 +776,12 @@ impl Imap {
             );
         }
 
-        chat::mark_old_messages_as_noticed(context, received_msgs).await?;
+        let ctx = context.clone();
+        async_std::task::spawn(async move {
+            chat::mark_old_messages_as_noticed(&ctx, received_msgs)
+                .await
+                .log_err(&ctx, "Failed to mark old messages as noticed");
+        });
 
         Ok(read_cnt > 0)
     }
