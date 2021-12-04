@@ -29,21 +29,21 @@ pub struct Accounts {
 
 impl Accounts {
     /// Loads or creates an accounts folder at the given `dir`.
-    pub async fn new(os_name: String, dir: PathBuf) -> Result<Self> {
+    pub async fn new(dir: PathBuf) -> Result<Self> {
         if !dir.exists().await {
-            Accounts::create(os_name, &dir).await?;
+            Accounts::create(&dir).await?;
         }
 
         Accounts::open(dir).await
     }
 
     /// Creates a new default structure.
-    pub async fn create(os_name: String, dir: &PathBuf) -> Result<()> {
+    pub async fn create(dir: &PathBuf) -> Result<()> {
         fs::create_dir_all(dir)
             .await
             .context("failed to create folder")?;
 
-        Config::new(os_name.clone(), dir).await?;
+        Config::new(dir).await?;
 
         Ok(())
     }
@@ -106,10 +106,9 @@ impl Accounts {
 
     /// Add a new account.
     pub async fn add_account(&mut self) -> Result<u32> {
-        let os_name = self.config.os_name().await;
         let account_config = self.config.new_account(&self.dir).await?;
 
-        let ctx = Context::new(os_name, account_config.dbfile().into(), account_config.id).await?;
+        let ctx = Context::new(account_config.dbfile().into(), account_config.id).await?;
         self.emitter.add_account(&ctx).await?;
         self.accounts.insert(account_config.id, ctx);
 
@@ -183,13 +182,7 @@ impl Accounts {
 
         match res {
             Ok(_) => {
-                let ctx = Context::with_blobdir(
-                    self.config.os_name().await,
-                    new_dbfile,
-                    new_blobdir,
-                    account_config.id,
-                )
-                .await?;
+                let ctx = Context::with_blobdir(new_dbfile, new_blobdir, account_config.id).await?;
                 self.emitter.add_account(&ctx).await?;
                 self.accounts.insert(account_config.id, ctx);
                 Ok(account_config.id)
@@ -349,7 +342,6 @@ pub struct Config {
 /// This is serialized into TOML.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 struct InnerConfig {
-    pub os_name: String,
     /// The currently selected account.
     pub selected_account: u32,
     pub next_id: u32,
@@ -357,9 +349,8 @@ struct InnerConfig {
 }
 
 impl Config {
-    pub async fn new(os_name: String, dir: &PathBuf) -> Result<Self> {
+    pub async fn new(dir: &PathBuf) -> Result<Self> {
         let inner = InnerConfig {
-            os_name,
             accounts: Vec::new(),
             selected_account: 0,
             next_id: 1,
@@ -372,10 +363,6 @@ impl Config {
         cfg.sync().await?;
 
         Ok(cfg)
-    }
-
-    pub async fn os_name(&self) -> String {
-        self.inner.os_name.clone()
     }
 
     /// Sync the inmemory representation to disk.
@@ -396,12 +383,7 @@ impl Config {
     pub async fn load_accounts(&self) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
         for account_config in &self.inner.accounts {
-            let ctx = Context::new(
-                self.inner.os_name.clone(),
-                account_config.dbfile().into(),
-                account_config.id,
-            )
-            .await?;
+            let ctx = Context::new(account_config.dbfile().into(), account_config.id).await?;
             accounts.insert(account_config.id, ctx);
         }
 
@@ -498,7 +480,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts1").into();
 
-        let mut accounts1 = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        let mut accounts1 = Accounts::new(p.clone()).await.unwrap();
         accounts1.add_account().await.unwrap();
 
         let accounts2 = Accounts::open(p).await.unwrap();
@@ -516,7 +498,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts").into();
 
-        let mut accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        let mut accounts = Accounts::new(p.clone()).await.unwrap();
         assert_eq!(accounts.accounts.len(), 0);
         assert_eq!(accounts.config.get_selected_account().await, 0);
 
@@ -543,7 +525,7 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let p: PathBuf = dir.path().join("accounts").into();
 
-        let mut accounts = Accounts::new("my_os".into(), p.clone()).await?;
+        let mut accounts = Accounts::new(p.clone()).await?;
         assert!(accounts.get_selected_account().await.is_none());
         assert_eq!(accounts.config.get_selected_account().await, 0);
 
@@ -564,14 +546,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts").into();
 
-        let mut accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        let mut accounts = Accounts::new(p.clone()).await.unwrap();
         assert_eq!(accounts.accounts.len(), 0);
         assert_eq!(accounts.config.get_selected_account().await, 0);
 
         let extern_dbfile: PathBuf = dir.path().join("other").into();
-        let ctx = Context::new("my_os".into(), extern_dbfile.clone(), 0)
-            .await
-            .unwrap();
+        let ctx = Context::new(extern_dbfile.clone(), 0).await.unwrap();
         ctx.set_config(crate::config::Config::Addr, Some("me@mail.com"))
             .await
             .unwrap();
@@ -601,7 +581,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts").into();
 
-        let mut accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        let mut accounts = Accounts::new(p.clone()).await.unwrap();
 
         for expected_id in 1..10 {
             let id = accounts.add_account().await.unwrap();
@@ -621,7 +601,7 @@ mod tests {
         let dummy_accounts = 10;
 
         let (id0, id1, id2) = {
-            let mut accounts = Accounts::new("my_os".into(), p.clone()).await?;
+            let mut accounts = Accounts::new(p.clone()).await?;
             accounts.add_account().await?;
             let ids = accounts.get_all().await;
             assert_eq!(ids.len(), 1);
@@ -656,7 +636,7 @@ mod tests {
         assert!(id2 > id1 + dummy_accounts);
 
         let (id0_reopened, id1_reopened, id2_reopened) = {
-            let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+            let accounts = Accounts::new(p.clone()).await?;
             let ctx = accounts.get_selected_account().await.unwrap();
             assert_eq!(
                 ctx.get_config(crate::config::Config::Addr).await?,
@@ -701,7 +681,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts").into();
 
-        let accounts = Accounts::new("my_os".into(), p.clone()).await?;
+        let accounts = Accounts::new(p.clone()).await?;
 
         // Make sure there are no accounts.
         assert_eq!(accounts.accounts.len(), 0);

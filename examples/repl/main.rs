@@ -297,7 +297,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         println!("Error: Bad arguments, expected [db-name].");
         bail!("No db-name specified");
     }
-    let context = Context::new("CLI".into(), Path::new(&args[1]).to_path_buf(), 0).await?;
+    let context = Context::new(Path::new(&args[1]).to_path_buf(), 0).await?;
 
     let events = context.get_event_emitter();
     async_std::task::spawn(async move {

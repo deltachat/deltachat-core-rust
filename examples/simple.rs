@@ -36,7 +36,7 @@ async fn main() {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     log::info!("creating database {:?}", dbfile);
-    let ctx = Context::new("FakeOs".into(), dbfile.into(), 0)
+    let ctx = Context::new(dbfile.into(), 0)
         .await
         .expect("Failed to create context");
     let info = ctx.get_info().await;
