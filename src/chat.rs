@@ -2151,9 +2151,12 @@ pub(crate) async fn mark_old_messages_as_noticed(
     context: &Context,
     mut msgs: Vec<ReceivedMsg>,
 ) -> Result<()> {
-    let mut msgs_by_chat: HashMap<ChatId, ReceivedMsg> = HashMap::new();
-
     msgs.retain(|m| m.state.is_outgoing());
+    if msgs.is_empty() {
+        return Ok(());
+    }
+
+    let mut msgs_by_chat: HashMap<ChatId, ReceivedMsg> = HashMap::new();
     for msg in msgs {
         let chat_id = msg.chat_id;
         if let Some(existing_msg) = msgs_by_chat.get(&chat_id) {
