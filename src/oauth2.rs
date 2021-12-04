@@ -41,6 +41,7 @@ struct Oauth2 {
 
 /// OAuth 2 Access Token Response
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Response {
     // Should always be there according to: <https://www.oauth.com/oauth2-servers/access-tokens/access-token-response/>
     // but previous code handled its abscense.
