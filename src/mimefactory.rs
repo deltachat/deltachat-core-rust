@@ -459,7 +459,19 @@ impl<'a> MimeFactory<'a> {
         );
 
         let mut to = Vec::new();
+        let email_to_remove = if self.msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
+            self.msg.param.get(Param::Arg)
+        } else {
+            None
+        };
+
         for (name, addr) in self.recipients.iter() {
+            if let Some(email_to_remove) = email_to_remove {
+                if email_to_remove == addr {
+                    continue;
+                }
+            }
+
             if name.is_empty() {
                 to.push(Address::new_mailbox(addr.clone()));
             } else {
