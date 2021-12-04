@@ -776,12 +776,7 @@ impl Imap {
             );
         }
 
-        let ctx = context.clone();
-        async_std::task::spawn(async move {
-            chat::mark_old_messages_as_noticed(&ctx, received_msgs)
-                .await
-                .log_err(&ctx, "Failed to mark old messages as noticed");
-        });
+        chat::mark_old_messages_as_noticed(&ctx, received_msgs).await?;
 
         Ok(read_cnt > 0)
     }
