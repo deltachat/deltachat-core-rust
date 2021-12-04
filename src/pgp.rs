@@ -248,7 +248,7 @@ pub async fn pk_encrypt(
         let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
             .keys()
             .iter()
-            .filter_map(|key| select_pk_for_encryption(key))
+            .filter_map(select_pk_for_encryption)
             .collect();
         let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
 

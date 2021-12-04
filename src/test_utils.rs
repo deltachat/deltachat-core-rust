@@ -99,7 +99,7 @@ impl TestContext {
             let mut context_names = CONTEXT_NAMES.write().unwrap();
             context_names.insert(id, name);
         }
-        let ctx = Context::new("FakeOS".into(), dbfile.into(), id)
+        let ctx = Context::new(dbfile.into(), id)
             .await
             .expect("failed to create context");
 
