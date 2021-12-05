@@ -231,15 +231,12 @@ pub(crate) async fn dc_receive_imf_inner(
         contact::update_last_seen(context, from_id, sent_timestamp).await?;
     }
 
-    let received_msg = match received_msg {
-        Some(m) => m,
-        None => return Ok(None),
-    };
-
     // Update gossiped timestamp for the chat if someone else or our other device sent
     // Autocrypt-Gossip for all recipients in the chat to avoid sending Autocrypt-Gossip ourselves
     // and waste traffic.
-    let chat_id = received_msg.chat_id;
+    let chat_id = received_msg
+        .as_ref()
+        .map_or(DC_CHAT_ID_TRASH, |received_msg| received_msg.chat_id);
     if !chat_id.is_special()
         && mime_parser
             .recipients
@@ -389,7 +386,7 @@ pub(crate) async fn dc_receive_imf_inner(
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
         .await;
 
-    Ok(Some(received_msg))
+    Ok(received_msg)
 }
 
 /// Converts "From" field to contact id.
