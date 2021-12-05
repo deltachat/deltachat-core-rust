@@ -8,7 +8,7 @@ use anyhow::{bail, ensure, format_err, Result};
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
-    SignedPublicSubKey, SignedSecretKey, SubkeyParamsBuilder,
+    SignedPublicSubKey, SignedSecretKey, StandaloneSignature, SubkeyParamsBuilder,
 };
 use pgp::crypto::{HashAlgorithm, SymmetricKeyAlgorithm};
 use pgp::types::{
@@ -328,6 +328,33 @@ pub async fn pk_decrypt(
     } else {
         bail!("No valid messages found");
     }
+}
+
+/// Validates detached signature.
+pub async fn pk_validate(
+    content: &[u8],
+    signature: &[u8],
+    public_keys_for_validation: &Keyring<SignedPublicKey>,
+) -> Result<HashSet<Fingerprint>> {
+    let mut ret: HashSet<Fingerprint> = Default::default();
+
+    let standalone_signature = StandaloneSignature::from_armor_single(Cursor::new(signature))?.0;
+    let pkeys = public_keys_for_validation.keys();
+
+    // Remove trailing CRLF before the delimiter.
+    // According to RFC 3156 it is considered to be part of the MIME delimiter for the purpose of
+    // OpenPGP signature calculation.
+    let content = content
+        .get(..content.len().saturating_sub(2))
+        .ok_or_else(|| format_err!("index is out of range"))?;
+
+    for pkey in pkeys {
+        if standalone_signature.verify(pkey, content).is_ok() {
+            let fp = DcKey::fingerprint(pkey);
+            ret.insert(fp);
+        }
+    }
+    Ok(ret)
 }
 
 /// Symmetric encryption.

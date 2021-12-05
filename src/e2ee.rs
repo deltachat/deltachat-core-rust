@@ -295,6 +295,31 @@ async fn decrypt_if_autocrypt_message(
     .await
 }
 
+/// Validates signatures of Multipart/Signed message part, as defined in RFC 1847.
+///
+/// Returns `None` if the part is not a Multipart/Signed part, otherwise retruns the set of key
+/// fingerprints for which there is a valid signature.
+async fn validate_detached_signature(
+    mail: &ParsedMail<'_>,
+    public_keyring_for_validate: &Keyring<SignedPublicKey>,
+) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
+    if mail.ctype.mimetype != "multipart/signed" {
+        return Ok(None);
+    }
+
+    if let [first_part, second_part] = &mail.subparts[..] {
+        // First part is the content, second part is the signature.
+        let content = first_part.raw_bytes;
+        let signature = second_part.get_body_raw()?;
+        let ret_valid_signatures =
+            pgp::pk_validate(content, &signature, public_keyring_for_validate).await?;
+
+        Ok(Some((content.to_vec(), ret_valid_signatures)))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Returns Ok(None) if nothing encrypted was found.
 async fn decrypt_part(
     mail: &ParsedMail<'_>,
@@ -307,10 +332,19 @@ async fn decrypt_part(
         let (plain, ret_valid_signatures) =
             pgp::pk_decrypt(data, private_keyring, &public_keyring_for_validate).await?;
 
-        // If the message was wrongly or not signed, still return the plain text.
-        // The caller has to check the signatures then.
+        // Check for detached signatures.
+        // If decrypted part is a multipart/signed, then there is a detached signature.
+        let decrypted_part = mailparse::parse_mail(&plain)?;
+        if let Some((content, valid_detached_signatures)) =
+            validate_detached_signature(&decrypted_part, &public_keyring_for_validate).await?
+        {
+            return Ok(Some((content, valid_detached_signatures)));
+        } else {
+            // If the message was wrongly or not signed, still return the plain text.
+            // The caller has to check the signatures then.
 
-        return Ok(Some((plain, ret_valid_signatures)));
+            return Ok(Some((plain, ret_valid_signatures)));
+        }
     }
 
     Ok(None)
