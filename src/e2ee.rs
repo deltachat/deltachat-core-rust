@@ -464,7 +464,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         assert!(!msg.was_encrypted());
 
         // Parsing a message is enough to update peerstate
-        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.com")
+        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.org")
             .await?
             .expect("no peerstate found in the database");
         assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Mutual);
@@ -495,7 +495,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
 
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
-        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.com")
+        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.org")
             .await?
             .expect("no peerstate found in the database");
         assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Mutual);
@@ -509,7 +509,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
 
         let msg = bob.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
-        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.com")
+        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.org")
             .await?
             .expect("no peerstate found in the database");
         assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Mutual);
@@ -524,7 +524,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
 
         let msg = bob.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
-        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.com")
+        let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.org")
             .await?
             .expect("no peerstate found in the database");
         assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Reset);

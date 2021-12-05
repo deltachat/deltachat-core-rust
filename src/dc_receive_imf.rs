@@ -2336,7 +2336,7 @@ mod tests {
     #[async_std::test]
     async fn test_dc_create_incoming_rfc724_mid() {
         let context = TestContext::new().await;
-        let raw = b"From: Alice <alice@example.com>\n\
+        let raw = b"From: Alice <alice@example.org>\n\
                     To: Bob <bob@example.org>\n\
                     Subject: Some subject\n\
                     hello\n";
@@ -2346,14 +2346,14 @@ mod tests {
 
         assert_eq!(
             dc_create_incoming_rfc724_mid(&mimeparser),
-            "08d11318608d5191@stub"
+            "ca971a2eefd651f6@stub"
         );
     }
 
     static MSGRMSG: &[u8] =
         b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: Bob <bob@example.com>\n\
-                    To: alice@example.com\n\
+                    To: alice@example.org\n\
                     Chat-Version: 1.0\n\
                     Subject: Chat: hello\n\
                     Message-ID: <Mr.1111@example.com>\n\
@@ -2364,7 +2364,7 @@ mod tests {
     static ONETOONE_NOREPLY_MAIL: &[u8] =
         b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: Bob <bob@example.com>\n\
-                    To: alice@example.com\n\
+                    To: alice@example.org\n\
                     Subject: Chat: hello\n\
                     Message-ID: <2222@example.com>\n\
                     Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
@@ -2374,7 +2374,7 @@ mod tests {
     static GRP_MAIL: &[u8] =
         b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: bob@example.com\n\
-                    To: alice@example.com, claire@example.com\n\
+                    To: alice@example.org, claire@example.com\n\
                     Subject: group with Alice, Bob and Claire\n\
                     Message-ID: <3333@example.com>\n\
                     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
@@ -2554,14 +2554,14 @@ mod tests {
             &t,
             format!(
                 "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                 From: alice@example.com\n\
+                 From: alice@example.org\n\
                  To: bob@example.com\n\
                  Subject: foo\n\
                  Message-ID: <Gr.{}.12345678901@example.com>\n\
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: {}\n\
                  Chat-Group-Name: foo\n\
-                 Chat-Disposition-Notification-To: alice@example.com\n\
+                 Chat-Disposition-Notification-To: alice@example.org\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
@@ -2586,7 +2586,7 @@ mod tests {
             format!(
                 "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                  From: bob@example.com\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Subject: message opened\n\
                  Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
                  Chat-Version: 1.0\n\
@@ -2679,7 +2679,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Subject: foo\n\
                  Message-ID: <asdklfjjaweofi@example.com>\n\
                  Chat-Version: 1.0\n\
@@ -2720,7 +2720,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: Foobar <foobar@example.com>\n\
-                 To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= alice@example.com\n\
+                 To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= alice@example.org\n\
                  Cc: =?utf-8?q?=3Ch2=3E?= <carl@host.tld>\n\
                  Subject: foo\n\
                  Message-ID: <asdklfjjaweofi@example.com>\n\
@@ -2765,7 +2765,7 @@ mod tests {
             &t,
             b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                  From: Foobar <foobar@example.com>\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Cc: Carl <carl@host.tld>\n\
                  Subject: foo\n\
                  Message-ID: <asdklfjjaweofi@example.com>\n\
@@ -2941,7 +2941,7 @@ mod tests {
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: abcde\n\
                  Chat-Group-Name: foo\n\
-                 Chat-Disposition-Notification-To: alice@example.com\n\
+                 Chat-Disposition-Notification-To: alice@example.org\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
@@ -3559,7 +3559,7 @@ mod tests {
 To: {}
 References: <deltachat/deltachat-core-rust/pull/1625@github.com>
  <deltachat/deltachat-core-rust/pull/1625/c644661857@github.com>
-From: alice@example.com
+From: alice@example.org
 Message-ID: <d2717387-0ba7-7b60-9b09-fd89a76ea8a0@gmx.de>
 Date: Tue, 16 Jun 2020 12:04:20 +0200
 MIME-Version: 1.0
@@ -4077,7 +4077,7 @@ YEAAAAAA!.
         dc_receive_imf(
             &t,
             b"From: Nu Bar <nu@bar.org>\n\
-            To: alice@example.com, bob@example.org\n\
+            To: alice@example.org, bob@example.org\n\
             Subject: Hi\n\
             Message-ID: <4444@example.org>\n\
             \n\
@@ -4104,7 +4104,7 @@ YEAAAAAA!.
         dc_receive_imf(
             &t,
             b"From: Nu Bar <nu@bar.org>\n\
-            To: alice@example.com, bob@example.org\n\
+            To: alice@example.org, bob@example.org\n\
             Subject: Re: Hi\n\
             Message-ID: <5555@example.org>\n\
             In-Reply-To: <4444@example.org\n\
@@ -4212,13 +4212,13 @@ YEAAAAAA!.
 
         dc_receive_imf(
             &t,
-            b"Bcc: alice@example.com
+            b"Bcc: alice@example.org
 Received: from [127.0.0.1]
 Subject: s
 Chat-Version: 1.0
 Message-ID: <abcd@gmail.com>
 To: <me@other.maildomain.com>
-From: <alice@example.com>
+From: <alice@example.org>
 
 Message content",
             "Inbox",
@@ -4249,7 +4249,7 @@ Message content",
 Subject: Subj
 Message-ID: <abcd@example.com>
 To: <bob@example.org>
-From: <alice@example.com>
+From: <alice@example.org>
 
 Message content",
             "Sent",
@@ -4281,7 +4281,7 @@ Message content",
         let first_message = b"Received: from [127.0.0.1]
 Subject: First message
 Message-ID: <first@example.org>
-To: Alice <alice@example.com>
+To: Alice <alice@example.org>
 From: Bob1 <bob@example.org>
 Chat-Version: 1.0
 
@@ -4293,7 +4293,7 @@ First signature";
         let second_message = b"Received: from [127.0.0.1]
 Subject: Second message
 Message-ID: <second@example.org>
-To: Alice <alice@example.com>
+To: Alice <alice@example.org>
 From: Bob2 <bob@example.org>
 Chat-Version: 1.0
 
@@ -4337,7 +4337,7 @@ Subject: =?utf-8?q?single_reply-to?=
 {}
 Date: Fri, 28 May 2021 10:15:05 +0000
 To: Bob <bob@example.com>, <claire@example.com>
-From: Alice <alice@example.com>
+From: Alice <alice@example.org>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Content-Transfer-Encoding: quoted-printable
 
@@ -4377,7 +4377,7 @@ Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>"
                 &t,
                 format!(
                     r#"Subject: Re: single reply-to
-To: "Alice" <alice@example.com>
+To: "Alice" <alice@example.org>
 References: <{0}>
  <{0}>
 From: Bob <bob@example.com>
@@ -4427,7 +4427,7 @@ Subject: =?utf-8?q?single_reply-to?=
 {}
 Date: Fri, 28 May 2021 10:15:05 +0000
 To: Bob <bob@example.com>{}
-From: Alice <alice@example.com>
+From: Alice <alice@example.org>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Content-Transfer-Encoding: quoted-printable
 
@@ -4476,7 +4476,7 @@ In-Reply-To: <{0}>
 Date: Sat, 03 Jul 2021 20:00:26 +0000
 Chat-Version: 1.0
 Message-ID: <Mr.CJFwF5hwn8W.Pd-GGH5m32k@gmx.de>
-To: <alice@example.com>
+To: <alice@example.org>
 From: <bob@example.com>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Content-Transfer-Encoding: quoted-printable
@@ -4524,7 +4524,7 @@ Sent with my Delta Chat Messenger: https://delta.chat
 Subject: =?utf-8?q?single_reply-to?=
 {}
 To: Bob <bob@example.com>, <claire@example.com>
-From: Alice <alice@example.com>
+From: Alice <alice@example.org>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Content-Transfer-Encoding: quoted-printable
 
@@ -4567,7 +4567,7 @@ Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>"
                     r#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
 Subject: Out subj
 To: "Bob" <bob@example.com>, "Claire" <claire@example.com>
-From: Alice <alice@example.com>
+From: Alice <alice@example.org>
 Message-ID: <outgoing@testrun.org>
 MIME-Version: 1.0
 In-Reply-To: <{0}>
@@ -4599,7 +4599,7 @@ Outgoing reply to all"#,
                 br#"Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
 Subject: In subj
 To: "Bob" <bob@example.com>, "Claire" <claire@example.com>
-From: alice <alice@example.com>
+From: alice <alice@example.org>
 Message-ID: <xyz@testrun.org>
 MIME-Version: 1.0
 In-Reply-To: <outgoing@testrun.org>
@@ -4635,14 +4635,14 @@ Reply to all"#,
 
         let first_thread_mime = br#"Subject: First thread
 Message-ID: first@example.org
-To: Alice <alice@example.com>, Bob <bob@example.net>
+To: Alice <alice@example.org>, Bob <bob@example.net>
 From: Claire <claire@example.org>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
 First thread."#;
         let second_thread_mime = br#"Subject: Second thread
 Message-ID: second@example.org
-To: Alice <alice@example.com>, Bob <bob@example.net>
+To: Alice <alice@example.org>, Bob <bob@example.net>
 From: Claire <claire@example.org>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
@@ -4735,7 +4735,7 @@ Second thread."#;
 
         let msg = t.get_last_msg().await;
         assert!(msg.has_html());
-        assert_eq!(msg.id.get_html(&t).await?.unwrap().replace("\r\n", "\n"), "<html><head></head><body><div style=\"font-family: Verdana;font-size: 12.0px;\"><div>&nbsp;</div>\n\n<div>&nbsp;\n<div>&nbsp;\n<div data-darkreader-inline-border-left=\"\" name=\"quote\" style=\"margin: 10px 5px 5px 10px; padding: 10px 0px 10px 10px; border-left: 2px solid rgb(195, 217, 229); overflow-wrap: break-word; --darkreader-inline-border-left:#274759;\">\n<div style=\"margin:0 0 10px 0;\"><b>Gesendet:</b>&nbsp;Donnerstag, 12. August 2021 um 15:52 Uhr<br/>\n<b>Von:</b>&nbsp;&quot;Claire&quot; &lt;claire@example.org&gt;<br/>\n<b>An:</b>&nbsp;alice@example.com<br/>\n<b>Betreff:</b>&nbsp;subject</div>\n\n<div name=\"quoted-content\">bodytext</div>\n</div>\n</div>\n</div></div></body></html>\n\n");
+        assert_eq!(msg.id.get_html(&t).await?.unwrap().replace("\r\n", "\n"), "<html><head></head><body><div style=\"font-family: Verdana;font-size: 12.0px;\"><div>&nbsp;</div>\n\n<div>&nbsp;\n<div>&nbsp;\n<div data-darkreader-inline-border-left=\"\" name=\"quote\" style=\"margin: 10px 5px 5px 10px; padding: 10px 0px 10px 10px; border-left: 2px solid rgb(195, 217, 229); overflow-wrap: break-word; --darkreader-inline-border-left:#274759;\">\n<div style=\"margin:0 0 10px 0;\"><b>Gesendet:</b>&nbsp;Donnerstag, 12. August 2021 um 15:52 Uhr<br/>\n<b>Von:</b>&nbsp;&quot;Claire&quot; &lt;claire@example.org&gt;<br/>\n<b>An:</b>&nbsp;alice@example.org<br/>\n<b>Betreff:</b>&nbsp;subject</div>\n\n<div name=\"quoted-content\">bodytext</div>\n</div>\n</div>\n</div></div></body></html>\n\n");
 
         Ok(())
     }
@@ -4769,7 +4769,7 @@ Second thread."#;
 
         let mime = br#"Subject: First
 Message-ID: first@example.net
-To: Alice <alice@example.com>
+To: Alice <alice@example.org>
 From: Bob <bob@example.net>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
@@ -4778,7 +4778,7 @@ First."#;
         let first = t.get_last_msg().await;
         let mime = br#"Subject: Second
 Message-ID: second@example.net
-To: Alice <alice@example.com>
+To: Alice <alice@example.org>
 From: Bob <bob@example.net>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
@@ -4787,7 +4787,7 @@ First."#;
         let second = t.get_last_msg().await;
         let mime = br#"Subject: Third
 Message-ID: third@example.net
-To: Alice <alice@example.com>
+To: Alice <alice@example.org>
 From: Bob <bob@example.net>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
@@ -4797,7 +4797,7 @@ First."#;
 
         let mime = br#"Subject: Message with references.
 Message-ID: second@example.net
-To: Alice <alice@example.com>
+To: Alice <alice@example.org>
 From: Bob <bob@example.net>
 In-Reply-To: <third@example.net>
 References: <second@example.net> <nonexistent@example.net> <first@example.net>

@@ -413,7 +413,7 @@ mod tests {
         let t = TestContext::new().await;
 
         let param = LoginParam {
-            addr: "alice@example.com".to_string(),
+            addr: "alice@example.org".to_string(),
             imap: ServerLoginParam {
                 server: "imap.example.com".to_string(),
                 user: "alice".to_string(),
@@ -424,7 +424,7 @@ mod tests {
             },
             smtp: ServerLoginParam {
                 server: "smtp.example.com".to_string(),
-                user: "alice@example.com".to_string(),
+                user: "alice@example.org".to_string(),
                 password: "bar".to_string(),
                 port: 456,
                 security: Socket::Ssl,

@@ -936,7 +936,7 @@ mod tests {
         dc_receive_imf(
             &alice,
             b"From: Bob <bob@example.com>\n\
-                    To: Alice <alice@example.com>\n\
+                    To: Alice <alice@example.org>\n\
                     Chat-Version: 1.0\n\
                     Subject: Subject\n\
                     Message-ID: <first@example.com>\n\
@@ -957,7 +957,7 @@ mod tests {
         dc_receive_imf(
             &alice,
             b"From: Bob <bob@example.com>\n\
-                    To: Alice <alice@example.com>\n\
+                    To: Alice <alice@example.org>\n\
                     Chat-Version: 1.0\n\
                     Subject: Subject\n\
                     Message-ID: <second@example.com>\n\
@@ -994,7 +994,7 @@ mod tests {
         dc_receive_imf(
             &alice,
             b"From: Bob <bob@example.com>\n\
-                    To: Alice <alice@example.com>\n\
+                    To: Alice <alice@example.org>\n\
                     Chat-Version: 1.0\n\
                     Subject: Subject\n\
                     Message-ID: <third@example.com>\n\

@@ -668,7 +668,7 @@ mod tests {
             .unwrap();
         let msg = format!(
             "From: {}\n\
-             To: alice@example.com\n\
+             To: alice@example.org\n\
              Message-ID: <{}>\n\
              Chat-Version: 1.0\n\
              Date: Sun, 22 Mar 2020 22:37:57 +0000\n\

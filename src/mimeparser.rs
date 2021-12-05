@@ -3034,9 +3034,9 @@ Some reply
 Chat-Version: 1.0\n\
 Message-ID: <foobarbaz@example.org>
 To: Bob <bob@example.org>
-From: Alice <alice@example.com>
+From: Alice <alice@example.org>
 Subject: subject
-Chat-Disposition-Notification-To: alice@example.com
+Chat-Disposition-Notification-To: alice@example.org
 
 Message.
 "###;
@@ -3064,12 +3064,12 @@ Message.
         dc_receive_imf(
             &alice,
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                 From: alice@example.com\n\
+                 From: alice@example.org\n\
                  To: bob@example.net\n\
                  Subject: foo\n\
                  Message-ID: first@example.com\n\
                  Chat-Version: 1.0\n\
-                 Chat-Disposition-Notification-To: alice@example.com\n\
+                 Chat-Disposition-Notification-To: alice@example.org\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n"
@@ -3087,8 +3087,8 @@ Message.
         dc_receive_imf(
             &alice,
                 "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                 From: alice@example.com\n\
-                 To: alice@example.com\n\
+                 From: alice@example.org\n\
+                 To: alice@example.org\n\
                  Subject: message opened\n\
                  Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
                  Chat-Version: 1.0\n\

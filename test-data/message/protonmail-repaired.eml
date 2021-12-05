@@ -1,9 +1,9 @@
-Return-Path: <alice@example.com>
+Return-Path: <alice@example.org>
 Delivered-To: bob@example.org
 Date: Mon, 29 Mar 2021 11:30:57 +0000
 To: Bob <bob@example.org>
-From: Alice <alice@example.com>
-Reply-To: Alice <alice@example.com>
+From: Alice <alice@example.org>
+Reply-To: Alice <alice@example.org>
 Subject: ...
 Message-ID: <Mr.AkmaxDNOYj0.oNPtoFR8EHC@example.com>
 In-Reply-To: <Mr.Y1EWG9-FLhN.KUZ4cu74MYR@example.org>

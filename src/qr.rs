@@ -792,12 +792,12 @@ mod tests {
     async fn test_decode_openpgp_fingerprint() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let alice_contact_id = Contact::create(&ctx, "Alice", "alice@example.com")
+        let alice_contact_id = Contact::create(&ctx, "Alice", "alice@example.org")
             .await
             .context("failed to create contact")?;
         let pub_key = alice_keypair().public;
         let peerstate = Peerstate {
-            addr: "alice@example.com".to_string(),
+            addr: "alice@example.org".to_string(),
             last_seen: 1,
             last_seen_autocrypt: 1,
             prefer_encrypt: EncryptPreference::Mutual,
@@ -818,7 +818,7 @@ mod tests {
 
         let qr = check_qr(
             &ctx.ctx,
-            "OPENPGP4FPR:1234567890123456789012345678901234567890#a=alice@example.com",
+            "OPENPGP4FPR:1234567890123456789012345678901234567890#a=alice@example.org",
         )
         .await?;
         if let Qr::FprMismatch { contact_id, .. } = qr {
@@ -829,7 +829,7 @@ mod tests {
 
         let qr = check_qr(
             &ctx.ctx,
-            &format!("OPENPGP4FPR:{}#a=alice@example.com", pub_key.fingerprint()),
+            &format!("OPENPGP4FPR:{}#a=alice@example.org", pub_key.fingerprint()),
         )
         .await?;
         if let Qr::FprOk { contact_id, .. } = qr {

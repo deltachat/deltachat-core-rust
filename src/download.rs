@@ -360,7 +360,7 @@ mod tests {
         dc_receive_imf_inner(
             &t,
             b"From: Bob <bob@example.org>\n\
-                    To: Alice <alice@example.com>\n\
+                    To: Alice <alice@example.org>\n\
                     Chat-Version: 1.0\n\
                     Subject: subject\n\
                     Message-ID: <first@example.org>\n\

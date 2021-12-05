@@ -499,7 +499,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Subject: foo\n\
                  Message-ID: <msg1234@example.org>\n\
                  Chat-Version: 1.0\n\
@@ -561,7 +561,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: bob@example.org\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Subject: foo\n\
                  Message-ID: <msg5678@example.org>\n\
                  Chat-Version: 1.0\n\

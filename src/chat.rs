@@ -4135,7 +4135,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: bob@example.org\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Message-ID: <1@example.org>\n\
                  Chat-Version: 1.0\n\
                  Date: Fri, 23 Apr 2021 10:00:57 +0000\n\
@@ -4184,7 +4184,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: bob@example.org\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Message-ID: <1@example.org>\n\
                  Chat-Version: 1.0\n\
                  Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
@@ -4233,7 +4233,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: bob@example.org\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Message-ID: <2@example.org>\n\
                  Chat-Version: 1.0\n\
                  Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
@@ -4282,7 +4282,7 @@ mod tests {
         dc_receive_imf(
             &alice,
             b"From: bob@example.org\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Message-ID: <1@example.org>\n\
                  Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
                  \n\

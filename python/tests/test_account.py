@@ -57,7 +57,7 @@ class TestOfflineAccountBasic:
         alice_public = data.read_path("key/alice-public.asc")
         alice_secret = data.read_path("key/alice-secret.asc")
         assert alice_public and alice_secret
-        ac._preconfigure_keypair("alice@example.com", alice_public, alice_secret)
+        ac._preconfigure_keypair("alice@example.org", alice_public, alice_secret)
 
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
@@ -1359,7 +1359,7 @@ class TestOnlineAccount:
         If the draft email is sent out later (i.e. moved to "Sent"), it must be shown."""
         ac1 = acfactory.get_online_configuring_account()
         ac1.set_config("show_emails", "2")
-        ac1.create_contact("alice@example.com").create_chat()
+        ac1.create_contact("alice@example.org").create_chat()
 
         acfactory.wait_configure(ac1)
         ac1.direct_imap.create_folder("Drafts")
@@ -1373,7 +1373,7 @@ class TestOnlineAccount:
         ac1.direct_imap.append("Drafts", """
             From: ac1 <{}>
             Subject: subj
-            To: alice@example.com
+            To: alice@example.org
             Message-ID: <aepiors@example.org>
             Content-Type: text/plain; charset=utf-8
 
@@ -1382,7 +1382,7 @@ class TestOnlineAccount:
         ac1.direct_imap.append("Sent", """
             From: ac1 <{}>
             Subject: subj
-            To: alice@example.com
+            To: alice@example.org
             Message-ID: <hsabaeni@example.org>
             Content-Type: text/plain; charset=utf-8
 

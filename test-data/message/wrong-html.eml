@@ -1,5 +1,5 @@
 Return-Path: <camping@otherdomain.eu>
-X-Original-To: alice@example.com
+X-Original-To: alice@example.org
 Delivered-To: m045a7e8@dd37930.kasserver.com
 Received: from mout.kundenserver.de (mout.kundenserver.de [212.227.126.131])
 	by dd37930.kasserver.com (Postfix) with ESMTPS id 271F34B4258C
@@ -11,7 +11,7 @@ Received: from oxbsltgw18.schlund.de ([172.19.249.35]) by
 Date: Thu, 6 Aug 2020 18:40:30 +0200 (CEST)
 From: Camping <camping@otherdomain.eu>
 Reply-To: Camping <camping@otherdomain.eu>
-To: Alice <alice@example.com>
+To: Alice <alice@example.org>
 Message-ID: <512278196.1287440.1596732031020@email.ionos.fr>
 Subject: Re: subj?
 MIME-Version: 1.0

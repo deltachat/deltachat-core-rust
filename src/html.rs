@@ -468,7 +468,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
         // bob: check that bob also got the html-part of the forwarded message
         let bob = TestContext::new_bob().await;
-        let chat = bob.create_chat_with_contact("", "alice@example.com").await;
+        let chat = bob.create_chat_with_contact("", "alice@example.org").await;
         bob.recv_msg(&alice.pop_sent_msg().await).await;
         let msg = bob.get_last_msg_in(chat.get_id()).await;
         assert_ne!(msg.get_from_id(), DC_CONTACT_ID_SELF);

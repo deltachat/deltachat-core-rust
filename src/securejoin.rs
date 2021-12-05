@@ -975,7 +975,7 @@ mod tests {
 
         let sent = bob.pop_sent_msg().await;
         assert!(!bob.ctx.has_ongoing().await);
-        assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
+        assert_eq!(sent.recipient(), "alice@example.org".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
         assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vc-request");
@@ -1010,7 +1010,7 @@ mod tests {
                     progress,
                 } => {
                     let alice_contact_id =
-                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
                             .await
                             .expect("Error looking up contact")
                             .expect("Contact not found");
@@ -1095,7 +1095,7 @@ mod tests {
 
         // Bob should not yet have Alice verified
         let contact_alice_id =
-            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
                 .await
                 .expect("Error looking up contact")
                 .expect("Contact not found");
@@ -1130,7 +1130,7 @@ mod tests {
             let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
             assert!(msg.is_info());
             let text = msg.get_text().unwrap();
-            assert!(text.contains("alice@example.com verified"));
+            assert!(text.contains("alice@example.org verified"));
         }
 
         // Check Bob sent the final message
@@ -1171,7 +1171,7 @@ mod tests {
         // Ensure Bob knows Alice_FP
         let alice_pubkey = SignedPublicKey::load_self(&alice.ctx).await?;
         let peerstate = Peerstate {
-            addr: "alice@example.com".into(),
+            addr: "alice@example.org".into(),
             last_seen: 10,
             last_seen_autocrypt: 10,
             prefer_encrypt: EncryptPreference::Mutual,
@@ -1207,7 +1207,7 @@ mod tests {
                     progress,
                 } => {
                     let alice_contact_id =
-                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
                             .await
                             .expect("Error looking up contact")
                             .expect("Contact not found");
@@ -1265,7 +1265,7 @@ mod tests {
 
         // Bob should not yet have Alice verified
         let contact_alice_id =
-            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
                 .await
                 .expect("Error looking up contact")
                 .expect("Contact not found");
@@ -1317,7 +1317,7 @@ mod tests {
             .pop_sent_msg()
             .await
             .payload()
-            .contains("alice@example.com"));
+            .contains("alice@example.org"));
 
         Ok(())
     }
@@ -1354,7 +1354,7 @@ mod tests {
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
 
         let sent = bob.pop_sent_msg().await;
-        assert_eq!(sent.recipient(), "alice@example.com".parse().unwrap());
+        assert_eq!(sent.recipient(), "alice@example.org".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
         assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vg-request");
@@ -1389,7 +1389,7 @@ mod tests {
                     progress,
                 } => {
                     let alice_contact_id =
-                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
                             .await
                             .expect("Error looking up contact")
                             .expect("Contact not found");
@@ -1442,7 +1442,7 @@ mod tests {
 
         // Bob should not yet have Alice verified
         let contact_alice_id =
-            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.com", Origin::Unknown)
+            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
                 .await
                 .expect("Error looking up contact")
                 .expect("Contact not found");

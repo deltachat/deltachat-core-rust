@@ -195,7 +195,7 @@ impl TestContext {
         sinks.push(Box::new(move |evt| Box::pin(sink(evt))));
     }
 
-    /// Configure with alice@example.com.
+    /// Configure with alice@example.org.
     ///
     /// The context will be fake-configured as the alice user, with a pre-generated secret
     /// key.  The email address of the user is returned as a string.
@@ -544,13 +544,13 @@ impl SentMessage {
     }
 }
 
-/// Load a pre-generated keypair for alice@example.com from disk.
+/// Load a pre-generated keypair for alice@example.org from disk.
 ///
 /// This saves CPU cycles by avoiding having to generate a key.
 ///
 /// The keypair was created using the crate::key::tests::gen_key test.
 pub fn alice_keypair() -> key::KeyPair {
-    let addr = EmailAddress::new("alice@example.com").unwrap();
+    let addr = EmailAddress::new("alice@example.org").unwrap();
 
     let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/alice-public.asc"))
         .unwrap()

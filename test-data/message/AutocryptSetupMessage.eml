@@ -1,10 +1,10 @@
-Return-Path: <alice@example.com>
-Delivered-To: alice@example.com
+Return-Path: <alice@example.org>
+Delivered-To: alice@example.org
 Received: from hq5.merlinux.eu
 	by hq5.merlinux.eu with LMTP
 	id gNKpOrrTvF+tVAAAPzvFDg
-	(envelope-from <alice@example.com>)
-	for <alice@example.com>; Tue, 24 Nov 2020 10:34:50 +0100
+	(envelope-from <alice@example.org>)
+	for <alice@example.org>; Tue, 24 Nov 2020 10:34:50 +0100
 Subject: Autocrypt Setup Message
 DKIM-Signature: v=1; a=rsa-sha256; c=simple/simple; d=testrun.org;
 	s=testrun; t=1606210490;
@@ -21,8 +21,8 @@ Date: Tue, 24 Nov 2020 09:34:48 +0000
 Chat-Version: 1.0
 Autocrypt-Setup-Message: v1
 Message-ID: <abc@example.com>
-To: <alice@example.com>
-From:  <alice@example.com>
+To: <alice@example.org>
+From:  <alice@example.org>
 Content-Type: multipart/mixed; boundary="dKhu3bbmBniQsT8W8w58YRCCiBK2YY"
 
 

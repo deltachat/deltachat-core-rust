@@ -1229,20 +1229,20 @@ mod tests {
     async fn test_stock_system_msg_add_member_by_me() {
         let t = TestContext::new().await;
         assert_eq!(
-            msg_add_member(&t, "alice@example.com", DC_CONTACT_ID_SELF).await,
-            "Member alice@example.com added by me."
+            msg_add_member(&t, "alice@example.org", DC_CONTACT_ID_SELF).await,
+            "Member alice@example.org added by me."
         )
     }
 
     #[async_std::test]
     async fn test_stock_system_msg_add_member_by_me_with_displayname() {
         let t = TestContext::new().await;
-        Contact::create(&t, "Alice", "alice@example.com")
+        Contact::create(&t, "Alice", "alice@example.org")
             .await
             .expect("failed to create contact");
         assert_eq!(
-            msg_add_member(&t, "alice@example.com", DC_CONTACT_ID_SELF).await,
-            "Member Alice (alice@example.com) added by me."
+            msg_add_member(&t, "alice@example.org", DC_CONTACT_ID_SELF).await,
+            "Member Alice (alice@example.org) added by me."
         );
     }
 
@@ -1250,7 +1250,7 @@ mod tests {
     async fn test_stock_system_msg_add_member_by_other_with_displayname() {
         let t = TestContext::new().await;
         let contact_id = {
-            Contact::create(&t, "Alice", "alice@example.com")
+            Contact::create(&t, "Alice", "alice@example.org")
                 .await
                 .expect("Failed to create contact Alice");
             Contact::create(&t, "Bob", "bob@example.com")
@@ -1258,8 +1258,8 @@ mod tests {
                 .expect("failed to create bob")
         };
         assert_eq!(
-            msg_add_member(&t, "alice@example.com", contact_id,).await,
-            "Member Alice (alice@example.com) added by Bob (bob@example.com)."
+            msg_add_member(&t, "alice@example.org", contact_id,).await,
+            "Member Alice (alice@example.org) added by Bob (bob@example.com)."
         );
     }
 

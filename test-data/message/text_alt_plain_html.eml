@@ -1,7 +1,7 @@
 Subject: mime-modified test
 Message-ID: 12345@testrun.org
 Date: Sat, 07 Dec 2019 19:00:27 +0000
-To: alice@example.com
+To: alice@example.org
 From: sender@testrun.org
 Content-Type: multipart/alternative; boundary="==BREAK=="
 

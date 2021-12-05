@@ -1,16 +1,16 @@
 Return-Path: <paula@example.org>
-Delivered-To: alice@example.com
+Delivered-To: alice@example.org
 Received: from hq5.merlinux.eu
 	by hq5.merlinux.eu with LMTP
 	id t5IeKWSbkV+eZAAAPzvFDg
 	(envelope-from <paula@example.org>)
-	for <alice@example.com>; Thu, 22 Oct 2020 16:47:00 +0200
+	for <alice@example.org>; Thu, 22 Oct 2020 16:47:00 +0200
 Received: from dd37930.kasserver.com (dd37930.kasserver.com [85.13.154.127])
 	by hq5.merlinux.eu (Postfix) with ESMTPS id E942727A0011
-	for <alice@example.com>; Thu, 22 Oct 2020 16:46:59 +0200 (CEST)
+	for <alice@example.org>; Thu, 22 Oct 2020 16:46:59 +0200 (CEST)
 Received: from macbook.fritz.box (i59F5C9C2.versanet.de [89.245.201.194])
 	by dd37930.kasserver.com (Postfix) with ESMTPSA id C1EAC53C066B
-	for <alice@example.com>; Thu, 22 Oct 2020 16:46:58 +0200 (CEST)
+	for <alice@example.org>; Thu, 22 Oct 2020 16:46:58 +0200 (CEST)
 From: paula <paula@example.org>
 Content-Type: multipart/alternative;
 	boundary="Apple-Mail=_9A2A284B-D732-46ED-9F21-7E32AE214CE9"
@@ -22,7 +22,7 @@ Subject: =?utf-8?Q?Anker_SoundCore_2_Bluetooth_Lautsprecher=2C_Fantastisch?=
  =?utf-8?Q?_=26_HiFi?=
 Message-Id: <7D32DF54-6498-48A6-B0F9-952499061C19@kadeifalong.de>
 Date: Thu, 22 Oct 2020 16:46:56 +0200
-To: alice@example.com
+To: alice@example.org
 X-Mailer: Apple Mail (2.3445.104.11)
 X-Spam: Yes
 

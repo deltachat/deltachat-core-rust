@@ -1528,7 +1528,7 @@ mod tests {
             msg_to_subject_str(
                 b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                 From: Bob <bob@example.com>\n\
-                To: alice@example.com\n\
+                To: alice@example.org\n\
                 Subject: Antw: Chat: hello\n\
                 Message-ID: <2222@example.com>\n\
                 Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
@@ -1543,7 +1543,7 @@ mod tests {
             msg_to_subject_str(
                 b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                 From: Bob <bob@example.com>\n\
-                To: alice@example.com\n\
+                To: alice@example.org\n\
                 Subject: Infos: 42\n\
                 Message-ID: <2222@example.com>\n\
                 Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
@@ -1562,7 +1562,7 @@ mod tests {
             msg_to_subject_str(
                 b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                 From: bob@example.com\n\
-                To: alice@example.com\n\
+                To: alice@example.org\n\
                 Subject: Chat: hello\n\
                 Chat-Version: 1.0\n\
                 Message-ID: <2223@example.com>\n\
@@ -1580,7 +1580,7 @@ mod tests {
         // 3. Send the first message to a new contact
         let t = TestContext::new_alice().await;
 
-        assert_eq!(first_subject_str(t).await, "Message from alice@example.com");
+        assert_eq!(first_subject_str(t).await, "Message from alice@example.org");
 
         let t = TestContext::new_alice().await;
         t.set_config(Config::Displayname, Some("Alice"))
@@ -1595,7 +1595,7 @@ mod tests {
         msg_to_subject_str(
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
             From: bob@example.com\n\
-            To: alice@example.com\n\
+            To: alice@example.org\n\
             Subject: äääää\n\
             Chat-Version: 1.0\n\
             Message-ID: <2893@example.com>\n\
@@ -1609,7 +1609,7 @@ mod tests {
         msg_to_subject_str(
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
             From: bob@example.com\n\
-            To: alice@example.com\n\
+            To: alice@example.org\n\
             Subject: aäääää\n\
             Chat-Version: 1.0\n\
             Message-ID: <2893@example.com>\n\
@@ -1628,7 +1628,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-            From: alice@example.com\n\
+            From: alice@example.org\n\
             To: bob@example.com\n\
             Subject: Hello, Bob\n\
             Chat-Version: 1.0\n\
@@ -1645,7 +1645,7 @@ mod tests {
         let new_msg = incoming_msg_to_reply_msg(
             b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                  From: bob@example.com\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Subject: message opened\n\
                  Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
                  Chat-Version: 1.0\n\
@@ -1720,7 +1720,7 @@ mod tests {
             format!(
                 "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                 From: bob@example.com\n\
-                To: alice@example.com\n\
+                To: alice@example.org\n\
                 Subject: Different subject\n\
                 In-Reply-To: {}\n\
                 Message-ID: <2893@example.com>\n\
@@ -1775,7 +1775,7 @@ mod tests {
         mf.subject_str(&t).await.unwrap()
     }
 
-    // In `imf_raw`, From has to be bob@example.com, To has to be alice@example.com
+    // In `imf_raw`, From has to be bob@example.com, To has to be alice@example.org
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
         let subject_str = msg_to_subject_str_inner(imf_raw, false, false, false).await;
 
@@ -1836,7 +1836,7 @@ mod tests {
                 &t,
                 b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: Bob <bob@example.com>\n\
-                    To: alice@example.com\n\
+                    To: alice@example.org\n\
                     Subject: Some other, completely unrelated subject\n\
                     Message-ID: <3cl4@example.com>\n\
                     Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
@@ -1896,7 +1896,7 @@ mod tests {
         let msg = incoming_msg_to_reply_msg(
             b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                 From: Charlie <charlie@example.com>\n\
-                To: alice@example.com\n\
+                To: alice@example.org\n\
                 Subject: Chat: hello\n\
                 Chat-Version: 1.0\n\
                 Message-ID: <2223@example.com>\n\

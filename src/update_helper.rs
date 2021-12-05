@@ -92,7 +92,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Subject: updated subject\n\
                  Message-ID: <msg2@example.org>\n\
                  Chat-Version: 1.0\n\
@@ -107,7 +107,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Subject: original subject\n\
                  Message-ID: <msg1@example.org>\n\
                  Chat-Version: 1.0\n\
@@ -137,7 +137,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Message-ID: <msg1@example.org>\n\
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: abcde\n\
@@ -157,7 +157,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Message-ID: <msg3@example.org>\n\
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: abcde\n\
@@ -174,7 +174,7 @@ mod tests {
         dc_receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
-                 To: alice@example.com\n\
+                 To: alice@example.org\n\
                  Message-ID: <msg2@example.org>\n\
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: abcde\n\

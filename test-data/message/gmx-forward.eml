@@ -1,9 +1,9 @@
-Return-Path: <alice@example.com>
+Return-Path: <alice@example.org>
 Delivered-To: bob@example.org
 Received: from hq5.merlinux.eu
 	by hq5.merlinux.eu with LMTP
 	id GJ4eNagpFWF5UwAAPzvFDg
-	(envelope-from <alice@example.com>)
+	(envelope-from <alice@example.org>)
 	for <bob@example.org>; Thu, 12 Aug 2021 16:01:12 +0200
 Received: from mout.gmx.net (mout.gmx.net [212.227.17.22])
 	by hq5.merlinux.eu (Postfix) with ESMTPS id 3033227A0003
@@ -24,7 +24,7 @@ Received: from [193.96.224.73] ([193.96.224.73]) by web-mail.gmx.net
  16:01:11 +0200
 MIME-Version: 1.0
 Message-ID: <trinity-18545f24-4f02-4dc8-9f80-8d2646646d03-1628776871644@3c-app-gmx-bap57>
-From: Alice <alice@example.com>
+From: Alice <alice@example.org>
 To: bob@example.org
 Subject: Fw: subject
 Content-Type: text/html; charset=UTF-8
@@ -60,7 +60,7 @@ X-UI-Out-Filterresults: notjunk:1;V03:K0:pksZU4GoRZI=:jPKwLt7m9sSdgel28Ha/o7
 <div data-darkreader-inline-border-left="" name="quote" style="margin: 10px 5px 5px 10px; padding: 10px 0px 10px 10px; border-left: 2px solid rgb(195, 217, 229); overflow-wrap: break-word; --darkreader-inline-border-left:#274759;">
 <div style="margin:0 0 10px 0;"><b>Gesendet:</b>&nbsp;Donnerstag, 12. August 2021 um 15:52 Uhr<br/>
 <b>Von:</b>&nbsp;&quot;Claire&quot; &lt;claire@example.org&gt;<br/>
-<b>An:</b>&nbsp;alice@example.com<br/>
+<b>An:</b>&nbsp;alice@example.org<br/>
 <b>Betreff:</b>&nbsp;subject</div>
 
 <div name="quoted-content">bodytext</div>
