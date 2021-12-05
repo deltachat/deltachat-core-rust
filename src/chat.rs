@@ -2147,6 +2147,12 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
     Ok(())
 }
 
+/// Marks messages preceding outgoing messages as noticed.
+///
+/// In a chat, if there is an outgoing message, it can be assumed that all previous
+/// messages were noticed. So, this function takes a Vec of messages that were
+/// just received, and for all the outgoing messages, it marks all
+/// previous messages as noticed.
 pub(crate) async fn mark_old_messages_as_noticed(
     context: &Context,
     mut msgs: Vec<ReceivedMsg>,

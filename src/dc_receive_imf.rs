@@ -56,8 +56,14 @@ pub struct ReceivedMsg {
 /// Receive a message and add it to the database.
 ///
 /// Returns an error on recoverable errors, e.g. database errors. In this case,
-/// message parsing should be retried later. If message itself is wrong, logs
-/// the error and returns success.
+/// message parsing should be retried later.
+///
+/// If message itself is wrong, logs
+/// the error and returns success:
+/// - If possible, creates a database entry to prevent the message from being
+///   downloaded again, sets `chat_id=DC_CHAT_ID_TRASH` and returns `Ok(Some(…))`
+/// - If the message is so wrong that we didn't even create a database entry,
+///   returns `Ok(None)`
 pub async fn dc_receive_imf(
     context: &Context,
     imf_raw: &[u8],
