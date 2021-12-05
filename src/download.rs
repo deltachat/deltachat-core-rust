@@ -172,8 +172,8 @@ impl Imap {
         // we are connected, and the folder is selected
         info!(context, "Downloading message {}/{} fully...", folder, uid);
 
-        let (_, error_cnt) = self
-            .fetch_many_msgs(context, folder, vec![uid], false, false, &mut Vec::new())
+        let (_, error_cnt, _) = self
+            .fetch_many_msgs(context, folder, vec![uid], false, false)
             .await;
         if error_cnt > 0 {
             return ImapActionResult::Failed;

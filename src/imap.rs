@@ -676,7 +676,6 @@ impl Imap {
         let mut uids_fetch_fully = Vec::with_capacity(msgs.len());
         let mut uids_fetch_partially = Vec::with_capacity(msgs.len());
         let mut largest_uid_skipped = None;
-        let mut received_msgs = Vec::new();
 
         for (current_uid, msg) in msgs.into_iter() {
             let (headers, msg_id) = match get_fetch_headers(&msg) {
@@ -723,28 +722,27 @@ impl Imap {
             self.connectivity.set_working(context).await;
         }
 
-        let (largest_uid_fully_fetched, error_cnt) = self
+        let (largest_uid_fully_fetched, error_cnt, mut received_msgs) = self
             .fetch_many_msgs(
                 context,
                 folder,
                 uids_fetch_fully,
                 false,
                 fetch_existing_msgs,
-                &mut received_msgs,
             )
             .await;
         read_errors += error_cnt;
 
-        let (largest_uid_partially_fetched, error_cnt) = self
+        let (largest_uid_partially_fetched, error_cnt, received_msgs_2) = self
             .fetch_many_msgs(
                 context,
                 folder,
                 uids_fetch_partially,
                 true,
                 fetch_existing_msgs,
-                &mut received_msgs,
             )
             .await;
+        received_msgs.extend(received_msgs_2);
         read_errors += error_cnt;
 
         // determine which uid_next to use to update to
@@ -903,17 +901,17 @@ impl Imap {
         server_uids: Vec<u32>,
         fetch_partially: bool,
         fetching_existing_messages: bool,
-        received_msgs: &mut Vec<ReceivedMsg>,
-    ) -> (Option<u32>, usize) {
+    ) -> (Option<u32>, usize, Vec<ReceivedMsg>) {
+        let mut received_msgs = Vec::new();
         if server_uids.is_empty() {
-            return (None, 0);
+            return (None, 0, Vec::new());
         }
 
         let session = match self.session.as_mut() {
             Some(session) => session,
             None => {
                 warn!(context, "Not connected");
-                return (None, server_uids.len());
+                return (None, server_uids.len(), Vec::new());
             }
         };
 
@@ -946,7 +944,7 @@ impl Imap {
                         folder,
                         err
                     );
-                    return (None, server_uids.len());
+                    return (None, server_uids.len(), Vec::new());
                 }
             };
 
@@ -1027,7 +1025,7 @@ impl Imap {
             );
         }
 
-        (last_uid, read_errors)
+        (last_uid, read_errors, received_msgs)
     }
 
     pub async fn mv(
