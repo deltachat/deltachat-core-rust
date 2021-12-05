@@ -305,7 +305,7 @@ async fn decrypt_part(
 
     if has_decrypted_pgp_armor(&data) {
         let (plain, ret_valid_signatures) =
-            pgp::pk_decrypt(data, private_keyring, public_keyring_for_validate).await?;
+            pgp::pk_decrypt(data, private_keyring, &public_keyring_for_validate).await?;
 
         // If the message was wrongly or not signed, still return the plain text.
         // The caller has to check the signatures then.

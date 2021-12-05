@@ -284,7 +284,7 @@ pub async fn pk_encrypt(
 pub async fn pk_decrypt(
     ctext: Vec<u8>,
     private_keys_for_decryption: Keyring<SignedSecretKey>,
-    public_keys_for_validation: Keyring<SignedPublicKey>,
+    public_keys_for_validation: &Keyring<SignedPublicKey>,
 ) -> Result<(Vec<u8>, HashSet<Fingerprint>)> {
     let mut ret_signature_fingerprints: HashSet<Fingerprint> = Default::default();
 
@@ -310,21 +310,17 @@ pub async fn pk_decrypt(
         };
 
         if !public_keys_for_validation.is_empty() {
-            let fingerprints = async_std::task::spawn_blocking(move || {
-                let pkeys = public_keys_for_validation.keys();
+            let pkeys = public_keys_for_validation.keys();
 
-                let mut fingerprints: Vec<Fingerprint> = Vec::new();
-                if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
-                    for pkey in pkeys {
-                        if signed_msg.verify(&pkey.primary_key).is_ok() {
-                            let fp = DcKey::fingerprint(pkey);
-                            fingerprints.push(fp);
-                        }
+            let mut fingerprints: Vec<Fingerprint> = Vec::new();
+            if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
+                for pkey in pkeys {
+                    if signed_msg.verify(&pkey.primary_key).is_ok() {
+                        let fp = DcKey::fingerprint(pkey);
+                        fingerprints.push(fp);
                     }
                 }
-                fingerprints
-            })
-            .await;
+            }
 
             ret_signature_fingerprints.extend(fingerprints);
         }
@@ -494,7 +490,7 @@ mod tests {
         let (plain, valid_signatures) = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             decrypt_keyring,
-            sig_check_keyring
+            &sig_check_keyring,
         )
         .await
         .map_err(|err| println!("{:?}", err))
@@ -510,7 +506,7 @@ mod tests {
         let (plain, valid_signatures) = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             decrypt_keyring,
-            sig_check_keyring
+            &sig_check_keyring,
         )
         .await
         .map_err(|err| println!("{:?}", err))
@@ -525,7 +521,7 @@ mod tests {
         keyring.add(KEYS.alice_secret.clone());
         let empty_keyring = Keyring::new();
         let (plain, valid_signatures) =
-            pk_decrypt(CTEXT_SIGNED.as_bytes().to_vec(), keyring, empty_keyring)
+            pk_decrypt(CTEXT_SIGNED.as_bytes().to_vec(), keyring, &empty_keyring)
                 .await
                 .unwrap();
         assert_eq!(plain, CLEARTEXT);
@@ -542,7 +538,7 @@ mod tests {
         let (plain, valid_signatures) = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             decrypt_keyring,
-            sig_check_keyring,
+            &sig_check_keyring,
         )
         .await
         .unwrap();
@@ -558,7 +554,7 @@ mod tests {
         let (plain, valid_signatures) = pk_decrypt(
             CTEXT_UNSIGNED.as_bytes().to_vec(),
             decrypt_keyring,
-            sig_check_keyring,
+            &sig_check_keyring,
         )
         .await
         .unwrap();
