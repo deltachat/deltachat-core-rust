@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use anyhow::{bail, ensure, format_err, Result};
+use anyhow::{bail, format_err, Result};
 use mailparse::ParsedMail;
 use num_traits::FromPrimitive;
 
@@ -179,7 +179,6 @@ pub async fn try_decrypt(
     // Possibly perform decryption
     let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context).await?;
     let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
-    let mut signatures = HashSet::default();
 
     if let Some(ref mut peerstate) = peerstate {
         peerstate
@@ -192,14 +191,17 @@ pub async fn try_decrypt(
         }
     }
 
-    let out_mail = decrypt_if_autocrypt_message(
+    let (out_mail, signatures) = match decrypt_if_autocrypt_message(
         context,
         mail,
         private_keyring,
         public_keyring_for_validate,
-        &mut signatures,
     )
-    .await?;
+    .await?
+    {
+        Some((out_mail, signatures)) => (Some(out_mail), signatures),
+        None => (None, Default::default()),
+    };
 
     if let Some(mut peerstate) = peerstate {
         // If message is not encrypted and it is not a read receipt, degrade encryption.
@@ -275,8 +277,7 @@ async fn decrypt_if_autocrypt_message(
     mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
-    ret_valid_signatures: &mut HashSet<Fingerprint>,
-) -> Result<Option<Vec<u8>>> {
+) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let encrypted_data_part = match get_autocrypt_mime(mail).or_else(|| get_mixed_up_mime(mail)) {
         None => {
             // not an autocrypt mime message, abort and ignore
@@ -290,7 +291,6 @@ async fn decrypt_if_autocrypt_message(
         encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
-        ret_valid_signatures,
     )
     .await
 }
@@ -300,26 +300,17 @@ async fn decrypt_part(
     mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
-    ret_valid_signatures: &mut HashSet<Fingerprint>,
-) -> Result<Option<Vec<u8>>> {
+) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let data = mail.get_body_raw()?;
 
     if has_decrypted_pgp_armor(&data) {
-        // we should only have one decryption happening
-        ensure!(ret_valid_signatures.is_empty(), "corrupt signatures");
-
-        let plain = pgp::pk_decrypt(
-            data,
-            private_keyring,
-            public_keyring_for_validate,
-            Some(ret_valid_signatures),
-        )
-        .await?;
+        let (plain, ret_valid_signatures) =
+            pgp::pk_decrypt(data, private_keyring, public_keyring_for_validate).await?;
 
         // If the message was wrongly or not signed, still return the plain text.
         // The caller has to check the signatures then.
 
-        return Ok(Some(plain));
+        return Ok(Some((plain, ret_valid_signatures)));
     }
 
     Ok(None)
