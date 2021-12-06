@@ -19,7 +19,7 @@ use crate::constants::{
 };
 use crate::context::Context;
 use crate::dc_receive_imf::{
-    dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message,
+    dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
 };
 use crate::dc_tools::dc_extract_grpid_from_rfc724_mid;
 use crate::events::EventType;
@@ -722,7 +722,7 @@ impl Imap {
             self.connectivity.set_working(context).await;
         }
 
-        let (largest_uid_fully_fetched, error_cnt) = self
+        let (largest_uid_fully_fetched, error_cnt, mut received_msgs) = self
             .fetch_many_msgs(
                 context,
                 folder,
@@ -733,7 +733,7 @@ impl Imap {
             .await;
         read_errors += error_cnt;
 
-        let (largest_uid_partially_fetched, error_cnt) = self
+        let (largest_uid_partially_fetched, error_cnt, received_msgs_2) = self
             .fetch_many_msgs(
                 context,
                 folder,
@@ -742,6 +742,7 @@ impl Imap {
                 fetch_existing_msgs,
             )
             .await;
+        received_msgs.extend(received_msgs_2);
         read_errors += error_cnt;
 
         // determine which uid_next to use to update to
@@ -771,6 +772,8 @@ impl Imap {
                 "{} mails read from \"{}\" with {} errors.", read_cnt, folder, read_errors
             );
         }
+
+        chat::mark_old_messages_as_noticed(context, received_msgs).await?;
 
         Ok(read_cnt > 0)
     }
@@ -898,16 +901,17 @@ impl Imap {
         server_uids: Vec<u32>,
         fetch_partially: bool,
         fetching_existing_messages: bool,
-    ) -> (Option<u32>, usize) {
+    ) -> (Option<u32>, usize, Vec<ReceivedMsg>) {
+        let mut received_msgs = Vec::new();
         if server_uids.is_empty() {
-            return (None, 0);
+            return (None, 0, Vec::new());
         }
 
         let session = match self.session.as_mut() {
             Some(session) => session,
             None => {
                 warn!(context, "Not connected");
-                return (None, server_uids.len());
+                return (None, server_uids.len(), Vec::new());
             }
         };
 
@@ -940,7 +944,7 @@ impl Imap {
                         folder,
                         err
                     );
-                    return (None, server_uids.len());
+                    return (None, server_uids.len(), Vec::new());
                 }
             };
 
@@ -996,7 +1000,12 @@ impl Imap {
                 )
                 .await
                 {
-                    Ok(_) => last_uid = Some(server_uid),
+                    Ok(received_msg) => {
+                        if let Some(m) = received_msg {
+                            received_msgs.push(m);
+                        }
+                        last_uid = Some(server_uid)
+                    }
                     Err(err) => {
                         warn!(context, "dc_receive_imf error: {}", err);
                         read_errors += 1;
@@ -1016,7 +1025,7 @@ impl Imap {
             );
         }
 
-        (last_uid, read_errors)
+        (last_uid, read_errors, received_msgs)
     }
 
     pub async fn mv(

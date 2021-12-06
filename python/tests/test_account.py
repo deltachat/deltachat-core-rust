@@ -1413,6 +1413,35 @@ class TestOnlineAccount:
         assert msg2.text == "subj – message in Drafts that is moved to Sent later"
         assert len(msg.chat.get_messages()) == 2
 
+    def test_no_old_msg_is_fresh(self, acfactory, lp):
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+        ac1_clone = acfactory.clone_online_account(ac1)
+        acfactory.wait_configure_and_start_io()
+
+        ac1.set_config("e2ee_enabled", "0")
+        ac1_clone.set_config("e2ee_enabled", "0")
+        ac2.set_config("e2ee_enabled", "0")
+
+        ac1_clone.set_config("bcc_self", "1")
+
+        ac1.create_chat(ac2)
+        ac1_clone.create_chat(ac2)
+
+        lp.sec("Send a first message from ac2 to ac1 and check that it's 'fresh'")
+        first_msg_id = ac2.create_chat(ac1).send_text("Hi")
+        ac1._evtracker.wait_next_incoming_message()
+        assert ac1.create_chat(ac2).count_fresh_messages() == 1
+        assert len(list(ac1.get_fresh_messages())) == 1
+
+        lp.sec("Send a message from ac1_clone to ac2 and check that ac1 marks the first message as 'noticed'")
+        ac1_clone.create_chat(ac2).send_text("Hi back")
+        ev = ac1._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
+
+        assert ev.data1 == first_msg_id.id
+        assert ac1.create_chat(ac2).count_fresh_messages() == 0
+        assert len(list(ac1.get_fresh_messages())) == 0
+
     def test_prefer_encrypt(self, acfactory, lp):
         """Test quorum rule for encryption preference in 1:1 and group chat."""
         ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)

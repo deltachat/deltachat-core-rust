@@ -172,7 +172,7 @@ impl Imap {
         // we are connected, and the folder is selected
         info!(context, "Downloading message {}/{} fully...", folder, uid);
 
-        let (_, error_cnt) = self
+        let (_, error_cnt, _) = self
             .fetch_many_msgs(context, folder, vec![uid], false, false)
             .await;
         if error_cnt > 0 {

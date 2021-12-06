@@ -1,5 +1,6 @@
 //! # Chat module.
 
+use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
@@ -21,6 +22,7 @@ use crate::constants::{
 };
 use crate::contact::{addr_cmp, Contact, Origin, VerifiedStatus};
 use crate::context::Context;
+use crate::dc_receive_imf::ReceivedMsg;
 use crate::dc_tools::{
     dc_create_id, dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp,
     dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, improve_single_line_input,
@@ -2141,6 +2143,75 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
         .await?;
 
     context.emit_event(EventType::MsgsNoticed(chat_id));
+
+    Ok(())
+}
+
+/// Marks messages preceding outgoing messages as noticed.
+///
+/// In a chat, if there is an outgoing message, it can be assumed that all previous
+/// messages were noticed. So, this function takes a Vec of messages that were
+/// just received, and for all the outgoing messages, it marks all
+/// previous messages as noticed.
+pub(crate) async fn mark_old_messages_as_noticed(
+    context: &Context,
+    mut msgs: Vec<ReceivedMsg>,
+) -> Result<()> {
+    msgs.retain(|m| m.state.is_outgoing());
+    if msgs.is_empty() {
+        return Ok(());
+    }
+
+    let mut msgs_by_chat: HashMap<ChatId, ReceivedMsg> = HashMap::new();
+    for msg in msgs {
+        let chat_id = msg.chat_id;
+        if let Some(existing_msg) = msgs_by_chat.get(&chat_id) {
+            if msg.sort_timestamp > existing_msg.sort_timestamp {
+                msgs_by_chat.insert(chat_id, msg);
+            }
+        } else {
+            msgs_by_chat.insert(chat_id, msg);
+        }
+    }
+
+    let changed_chats = context
+        .sql
+        .transaction(|transaction| {
+            let mut changed_chats = Vec::new();
+            for (_, msg) in msgs_by_chat {
+                let changed_rows = transaction.execute(
+                    "UPDATE msgs
+            SET state=?
+          WHERE state=?
+            AND hidden=0
+            AND chat_id=?
+            AND timestamp<=?;",
+                    paramsv![
+                        MessageState::InNoticed,
+                        MessageState::InFresh,
+                        msg.chat_id,
+                        msg.sort_timestamp
+                    ],
+                )?;
+                if changed_rows > 0 {
+                    changed_chats.push(msg.chat_id);
+                }
+            }
+            Ok(changed_chats)
+        })
+        .await?;
+
+    if !changed_chats.is_empty() {
+        info!(
+            context,
+            "Marking chats as noticed because there are newer outgoing messages: {:?}",
+            changed_chats
+        );
+    }
+
+    for c in changed_chats {
+        context.emit_event(EventType::MsgsNoticed(c));
+    }
 
     Ok(())
 }
