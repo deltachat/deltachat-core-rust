@@ -42,9 +42,10 @@ enum CreateEvent {
     IncomingMsg,
 }
 
-/// Return type of dc_receive_imf() and dc_receive_imf_inner().
-/// Contains exactly the information about the received message
-/// that's useful for its callers to know.
+/// This is the struct that is returned after receiving one email (aka MIME message).
+///
+/// One email with multiple attachments can end up as multiple chat messages, but they
+/// all have the same chat_id, state and sort_timestamp.
 #[derive(Debug)]
 pub struct ReceivedMsg {
     pub chat_id: ChatId,
