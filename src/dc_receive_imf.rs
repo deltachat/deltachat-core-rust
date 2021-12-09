@@ -912,8 +912,6 @@ async fn add_parts(
         EphemeralTimer::Disabled
     };
 
-    // correct message_timestamp, it should not be used before,
-    // however, we cannot do this earlier as we need chat_id to be set
     let in_fresh = state == MessageState::InFresh;
     let sort_timestamp = calc_sort_timestamp(context, sent_timestamp, chat_id, in_fresh).await?;
 
