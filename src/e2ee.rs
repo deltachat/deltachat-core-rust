@@ -502,7 +502,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
 
         // Alice sends plaintext message with Autocrypt header.
         let mut msg = Message::new(Viewtype::Text);
-        msg.param.set_int(Param::ForcePlaintext, 1);
+        msg.force_plaintext();
         chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
         chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
         let sent = alice.pop_sent_msg().await;
@@ -516,7 +516,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
 
         // Alice sends plaintext message without Autocrypt header.
         let mut msg = Message::new(Viewtype::Text);
-        msg.param.set_int(Param::ForcePlaintext, 1);
+        msg.force_plaintext();
         msg.param.set_int(Param::SkipAutocrypt, 1);
         chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
         chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;

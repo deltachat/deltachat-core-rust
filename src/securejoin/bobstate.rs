@@ -422,7 +422,7 @@ impl BobState {
             BobHandshakeMsg::Request => {
                 // Sends the Secure-Join-Invitenumber header in mimefactory.rs.
                 msg.param.set(Param::Arg2, self.invite.invitenumber());
-                msg.param.set_int(Param::ForcePlaintext, 1);
+                msg.force_plaintext();
             }
             BobHandshakeMsg::RequestWithAuth => {
                 // Sends the Secure-Join-Auth header in mimefactory.rs.
