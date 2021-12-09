@@ -118,7 +118,7 @@ jobs:
         RUSTFLAGS: -D warnings
       with:
         command: check
-        args: --all --bins --examples --tests --features repl
+        args: --all --bins --examples --tests --features repl --benches
 
     - name: tests
       uses: actions-rs/cargo@v1

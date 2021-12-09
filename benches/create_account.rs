@@ -8,7 +8,7 @@ async fn create_accounts(n: u32) {
     let dir = tempdir().unwrap();
     let p: PathBuf = dir.path().join("accounts").into();
 
-    let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+    let mut accounts = Accounts::new(p.clone()).await.unwrap();
 
     for expected_id in 2..n {
         let id = accounts.add_account().await.unwrap();
