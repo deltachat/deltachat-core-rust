@@ -8,9 +8,7 @@ async fn address_book_benchmark(n: u32, read_count: u32) {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     let id = 100;
-    let context = Context::new("FakeOS".into(), dbfile.into(), id)
-        .await
-        .unwrap();
+    let context = Context::new(dbfile.into(), id).await.unwrap();
 
     let book = (0..n)
         .map(|i| format!("Name {}\naddr{}@example.org\n", i, i))
