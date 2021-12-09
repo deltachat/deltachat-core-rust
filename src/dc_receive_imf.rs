@@ -235,9 +235,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // Update gossiped timestamp for the chat if someone else or our other device sent
     // Autocrypt-Gossip for all recipients in the chat to avoid sending Autocrypt-Gossip ourselves
     // and waste traffic.
-    let chat_id = received_msg
-        .as_ref()
-        .map_or(DC_CHAT_ID_TRASH, |received_msg| received_msg.chat_id);
+    let chat_id = received_msg.chat_id;
     if !chat_id.is_special()
         && mime_parser
             .recipients
@@ -387,7 +385,7 @@ pub(crate) async fn dc_receive_imf_inner(
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
         .await;
 
-    Ok(received_msg)
+    Ok(Some(received_msg))
 }
 
 /// Converts "From" field to contact id.
@@ -457,7 +455,7 @@ async fn add_parts(
     create_event_to_send: &mut Option<CreateEvent>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
-) -> Result<Option<ReceivedMsg>> {
+) -> Result<ReceivedMsg> {
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
     let mut incoming_origin = incoming_origin;
@@ -531,7 +529,8 @@ async fn add_parts(
                 }
                 Err(err) => {
                     warn!(context, "Error in Secure-Join message handling: {}", err);
-                    return Ok(None);
+                    chat_id = Some(DC_CHAT_ID_TRASH);
+                    securejoin_seen = true;
                 }
             }
         } else {
@@ -758,7 +757,7 @@ async fn add_parts(
                 }
                 Err(err) => {
                     warn!(context, "Error in Secure-Join watching: {}", err);
-                    return Ok(None);
+                    chat_id = Some(DC_CHAT_ID_TRASH);
                 }
             }
         } else if mime_parser.sync_items.is_some() && self_sent {
@@ -1035,7 +1034,7 @@ async fn add_parts(
                                 sort_timestamp,
                             )
                             .await?;
-                            return Ok(None); // do not return an error as this would result in retrying the message
+                            // do not return an error as this would result in retrying the message
                         }
                     }
                     set_better_msg(
@@ -1253,11 +1252,11 @@ INSERT INTO msgs
         }
     }
 
-    Ok(Some(ReceivedMsg {
+    Ok(ReceivedMsg {
         chat_id,
         state,
         sort_timestamp,
-    }))
+    })
 }
 
 /// Saves attached locations to the database.
