@@ -783,7 +783,7 @@ dependencies = [
  "hmac",
  "percent-encoding",
  "rand 0.8.4",
- "sha2",
+ "sha2 0.9.8",
  "time 0.2.27",
  "version_check 0.9.3",
 ]
@@ -1129,7 +1129,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha-1 0.10.0",
- "sha2",
+ "sha2 0.10.0",
  "smallvec",
  "stop-token 0.6.1",
  "strum",
@@ -1289,7 +1289,7 @@ dependencies = [
  "ed25519",
  "rand 0.7.3",
  "serde",
- "sha2",
+ "sha2 0.9.8",
  "zeroize",
 ]
 
@@ -2605,7 +2605,7 @@ dependencies = [
  "ripemd160",
  "rsa",
  "sha-1 0.9.8",
- "sha2",
+ "sha2 0.9.8",
  "sha3",
  "signature",
  "smallvec",
@@ -3072,7 +3072,7 @@ dependencies = [
  "num-traits",
  "pem",
  "rand 0.7.3",
- "sha2",
+ "sha2 0.9.8",
  "simple_asn1",
  "subtle",
  "thiserror",
@@ -3359,6 +3359,17 @@ dependencies = [
  "cpufeatures",
  "digest 0.9.0",
  "opaque-debug",
+]
+
+[[package]]
+name = "sha2"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "900d964dd36bb15bcf2f2b35694c072feab74969a54f2bbeec7a2d725d2bdcb6"
+dependencies = [
+ "cfg-if 1.0.0",
+ "cpufeatures",
+ "digest 0.10.0",
 ]
 
 [[package]]
