@@ -966,8 +966,6 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @param msg The message to save as a draft.
  *     Existing draft will be overwritten.
  *     NULL deletes the existing draft, if any, without sending it.
- *     Currently, also non-text-messages
- *     will delete the existing drafts.
  */
 void            dc_set_draft                 (dc_context_t* context, uint32_t chat_id, dc_msg_t* msg);
 
@@ -1383,7 +1381,6 @@ dc_chat_t*      dc_get_chat                  (dc_context_t* context, uint32_t ch
  * Create a new group chat.
  *
  * After creation,
- * the draft of the chat is set to a default text,
  * the group has one member with the ID DC_CONTACT_ID_SELF
  * and is in _unpromoted_ state.
  * This means, you can add or remove members, change the name,
