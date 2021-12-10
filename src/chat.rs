@@ -661,9 +661,9 @@ impl ChatId {
             bail!("Can't set a draft: Can't send");
         }
 
-        context
+        let row_id = context
             .sql
-            .execute(
+            .insert(
                 "INSERT INTO msgs (
                  chat_id,
                  from_id,
@@ -688,6 +688,7 @@ impl ChatId {
                 ],
             )
             .await?;
+        msg.id = MsgId::new(row_id.try_into()?);
         Ok(())
     }
 
@@ -3281,6 +3282,27 @@ mod tests {
         let msg_text = msg.get_text();
         let draft_text = draft.get_text();
         assert_eq!(msg_text, draft_text);
+    }
+
+    #[async_std::test]
+    async fn test_draft_stable_ids() -> Result<()> {
+        let t = TestContext::new().await;
+        let chat_id = &t.get_self_chat().await.id;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("hello".to_string()));
+        assert_eq!(msg.id, MsgId::new_unset());
+        assert!(chat_id.get_draft_msg_id(&t).await?.is_none());
+
+        chat_id.set_draft(&t, Some(&mut msg)).await?;
+        let id_after_1st_set = msg.id;
+        assert_ne!(id_after_1st_set, MsgId::new_unset());
+        assert_eq!(
+            id_after_1st_set,
+            chat_id.get_draft_msg_id(&t).await?.unwrap()
+        );
+        assert_eq!(id_after_1st_set, chat_id.get_draft(&t).await?.unwrap().id);
+
+        Ok(())
     }
 
     #[async_std::test]
