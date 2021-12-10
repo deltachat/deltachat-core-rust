@@ -212,7 +212,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.5.0"
-source = "git+https://github.com/async-email/async-imap#c2e92dfd33b000c7f57612b41ca776b4d8784cc3"
+source = "git+https://github.com/async-email/async-imap#bb73dfc2034737cb0849d707edaa71e9ebd0faea"
 dependencies = [
  "async-native-tls",
  "async-std",
@@ -221,9 +221,9 @@ dependencies = [
  "chrono",
  "futures",
  "imap-proto",
- "lazy_static",
  "log",
  "nom 6.1.2",
+ "once_cell",
  "ouroboros",
  "pin-utils",
  "stop-token 0.2.0",
