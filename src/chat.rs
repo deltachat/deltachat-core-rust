@@ -3285,6 +3285,27 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_delete_draft() -> Result<()> {
+        let t = TestContext::new().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("hi!".to_string()));
+        chat_id.set_draft(&t, Some(&mut msg)).await?;
+        assert!(chat_id.get_draft(&t).await?.is_some());
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("another".to_string()));
+        chat_id.set_draft(&t, Some(&mut msg)).await?;
+        assert!(chat_id.get_draft(&t).await?.is_some());
+
+        chat_id.set_draft(&t, None).await?;
+        assert!(chat_id.get_draft(&t).await?.is_none());
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_draft_stable_ids() -> Result<()> {
         let t = TestContext::new().await;
         let chat_id = &t.get_self_chat().await.id;
