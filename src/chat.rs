@@ -572,7 +572,7 @@ impl ChatId {
 
         let changed = match &mut msg {
             None => self.maybe_delete_draft(context).await?,
-            Some(msg) => self.set_draft_raw(context, msg).await?,
+            Some(msg) => self.do_set_draft(context, msg).await?,
         };
 
         if changed {
@@ -590,15 +590,6 @@ impl ChatId {
         }
 
         Ok(())
-    }
-
-    /// Similar to as dc_set_draft() but does not emit an event
-    async fn set_draft_raw(self, context: &Context, msg: &mut Message) -> Result<bool> {
-        let deleted = self.maybe_delete_draft(context).await?;
-        let set = self.do_set_draft(context, msg).await.is_ok();
-
-        // Can't inline. Both functions above must be called, no shortcut!
-        Ok(deleted || set)
     }
 
     async fn get_draft_msg_id(self, context: &Context) -> Result<Option<MsgId>> {
@@ -636,9 +627,8 @@ impl ChatId {
     }
 
     /// Set provided message as draft message for specified chat.
-    ///
-    /// Return true on success, false on database error.
-    async fn do_set_draft(self, context: &Context, msg: &mut Message) -> Result<()> {
+    /// Returns true on changes.
+    async fn do_set_draft(self, context: &Context, msg: &mut Message) -> Result<bool> {
         match msg.viewtype {
             Viewtype::Unknown => bail!("Can not set draft of unknown type."),
             Viewtype::Text => {
@@ -661,6 +651,41 @@ impl ChatId {
             bail!("Can't set a draft: Can't send");
         }
 
+        // set back draft information to allow identifying the draft later on -
+        // no matter if message object is reused or reloaded from db
+        msg.state = MessageState::OutDraft;
+        msg.chat_id = self;
+
+        // if possible, replace existing draft and keep id
+        if !msg.id.is_special() {
+            if let Some(old_draft) = self.get_draft(context).await? {
+                if old_draft.id == msg.id
+                    && old_draft.chat_id == self
+                    && old_draft.state == MessageState::OutDraft
+                {
+                    context
+                        .sql
+                        .execute(
+                            "UPDATE msgs
+                            SET timestamp=?,type=?,txt=?, param=?,mime_in_reply_to=?
+                            WHERE id=?;",
+                            paramsv![
+                                time(),
+                                msg.viewtype,
+                                msg.text.as_deref().unwrap_or(""),
+                                msg.param.to_string(),
+                                msg.in_reply_to.as_deref().unwrap_or_default(),
+                                msg.id
+                            ],
+                        )
+                        .await?;
+                    return Ok(true);
+                }
+            }
+        }
+
+        // insert new draft
+        self.maybe_delete_draft(context).await?;
         let row_id = context
             .sql
             .insert(
@@ -689,7 +714,7 @@ impl ChatId {
             )
             .await?;
         msg.id = MsgId::new(row_id.try_into()?);
-        Ok(())
+        Ok(true)
     }
 
     /// Returns number of messages in a chat.
@@ -3322,6 +3347,19 @@ mod tests {
             chat_id.get_draft_msg_id(&t).await?.unwrap()
         );
         assert_eq!(id_after_1st_set, chat_id.get_draft(&t).await?.unwrap().id);
+
+        msg.set_text(Some("hello2".to_string()));
+        chat_id.set_draft(&t, Some(&mut msg)).await?;
+        let id_after_2nd_set = msg.id;
+
+        assert_eq!(id_after_2nd_set, id_after_1st_set);
+        assert_eq!(
+            id_after_2nd_set,
+            chat_id.get_draft_msg_id(&t).await?.unwrap()
+        );
+        let test = chat_id.get_draft(&t).await?.unwrap();
+        assert_eq!(id_after_2nd_set, test.id);
+        assert_eq!(test.text, Some("hello2".to_string()));
 
         Ok(())
     }
