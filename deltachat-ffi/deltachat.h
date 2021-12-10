@@ -1383,7 +1383,6 @@ dc_chat_t*      dc_get_chat                  (dc_context_t* context, uint32_t ch
  * Create a new group chat.
  *
  * After creation,
- * the draft of the chat is set to a default text,
  * the group has one member with the ID DC_CONTACT_ID_SELF
  * and is in _unpromoted_ state.
  * This means, you can add or remove members, change the name,
