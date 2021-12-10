@@ -966,8 +966,6 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @param msg The message to save as a draft.
  *     Existing draft will be overwritten.
  *     NULL deletes the existing draft, if any, without sending it.
- *     Currently, also non-text-messages
- *     will delete the existing drafts.
  */
 void            dc_set_draft                 (dc_context_t* context, uint32_t chat_id, dc_msg_t* msg);
 
