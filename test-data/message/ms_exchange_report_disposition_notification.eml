@@ -1,0 +1,108 @@
+Return-Path: <anonymous@example.org>
+Delivered-To: anonymous@posteo.de
+Received: from proxy02.posteo.name ([127.0.0.1])
+	by dovecot16.posteo.name (Dovecot) with LMTP id Cp2uFxP1sWHbCQEAchYRkQ
+	for <anonymous@posteo.de>; Thu, 09 Dec 2021 13:25:38 +0100
+Received: from proxy02.posteo.de ([127.0.0.1])
+	by proxy02.posteo.name (Dovecot) with LMTP id MWsaCwrvsWG0wgEAGFAyLg
+	; Thu, 09 Dec 2021 13:25:38 +0100
+Received: from mailin06.posteo.de (unknown [10.0.1.6])
+	by proxy02.posteo.de (Postfix) with ESMTPS id 4J8tXy0KkMz120l
+	for <anonymous@posteo.de>; Thu,  9 Dec 2021 13:25:38 +0100 (CET)
+Received: from mx04.posteo.de (mailin06.posteo.de [127.0.0.1])
+	by mailin06.posteo.de (Postfix) with ESMTPS id F24DE215B8
+	for <anonymous@posteo.de>; Thu,  9 Dec 2021 13:25:37 +0100 (CET)
+X-Virus-Scanned: amavisd-new at posteo.de
+X-Spam-Flag: NO
+X-Spam-Score: 0.011
+X-Spam-Level: 
+X-Spam-Status: No, score=0.011 tagged_above=-1000 required=7
+	tests=[HTML_MESSAGE=0.001, T_POSTEO_TLSINY=0.01] autolearn=disabled
+X-Posteo-Antispam-Signature: v=1; e=base64; a=aes-256-gcm; d=27yedFdXeAzOobR4x685XJ/5e6WQmX8PP5pSnOlGU2a9Ismhk38wb5AS44xh1yeL5PUxla78UEsHwGkPR0IyPRlHWaLMFLd5CJZN3GzFfrj/2CuB+cd1hOLpp9hRmCebc3rchuDr
+Authentication-Results: posteo.de; dmarc=none (p=none dis=none) header.from=example.org
+X-Posteo-TLS-Received-Status: TLSv1.2
+Received: from mail.example.org (mail.example.org [0.0.0.0])
+	by mx04.posteo.de (Postfix) with ESMTPS id 4J8tXx38vRz10yw
+	for <anonymous@posteo.at>; Thu,  9 Dec 2021 13:25:37 +0100 (CET)
+Received: from [192.168.1.11] (port=22105 helo=mail.example.org)
+	by mail.example.org with esmtps  (TLS1.2) tls TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384
+	(Exim 4.94.2)
+	(envelope-from <anonymous@example.org>)
+	id 1mvIUG-0007VC-2U
+	for anonymous@posteo.at; Thu, 09 Dec 2021 13:25:24 +0100
+From: Anonymous <anonymous@example.org>
+To: Anonymous <anonymous@posteo.at>
+Subject: Gelesen: Test message
+Thread-Topic: Test message
+Thread-Index: AQHX7Dt/+5f88Aokk0KrqG0hbF8dN6wqFvxh
+Date: Thu, 9 Dec 2021 12:25:24 +0000
+Message-ID: <1711fc3548cd4b2699ccd4fffac17713@anonymous>
+In-Reply-To: <75dd051097b02468183707ad0dd62ebd@posteo.de>
+Accept-Language: de-AT, de-DE, en-US
+Content-Language: de-DE
+X-MS-Has-Attach:
+X-MS-TNEF-Correlator:
+x-ms-exchange-transport-fromentityheader: Hosted
+x-originating-ip: [192.168.120.215]
+Content-Type: multipart/report;
+	boundary="_000_1711fc3548cd4b2699ccd4fffac17713anonymous_";
+	report-type=disposition-notification
+MIME-Version: 1.0
+
+--_000_1711fc3548cd4b2699ccd4fffac17713anonymous_
+Content-Type: multipart/alternative;
+	boundary="_002_1711fc3548cd4b2699ccd4fffac17713anonymous_"
+
+--_002_1711fc3548cd4b2699ccd4fffac17713anonymous_
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+Ihre Nachricht
+
+   An: Anonymous
+   Betreff: Test message
+   Gesendet: Mittwoch, 8. Dezember 2021 14:57:05 (UTC+01:00) Amsterdam, Ber=
+lin, Bern, Rom, Stockholm, Wien
+
+ wurde am Donnerstag, 9. Dezember 2021 13:24:34 (UTC+01:00) Amsterdam, Berl=
+in, Bern, Rom, Stockholm, Wien gelesen.
+
+--_002_1711fc3548cd4b2699ccd4fffac17713anonymous_
+Content-Type: text/html; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+<html>
+<head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Diso-8859-=
+1">
+<meta name=3D"Generator" content=3D"Microsoft Exchange Server">
+<!-- converted from text --><style><!-- .EmailQuote { margin-left: 1pt; pad=
+ding-left: 4pt; border-left: #800000 2px solid; } --></style>
+</head>
+<body>
+<font size=3D"2"><span style=3D"font-size:10pt;">
+<div class=3D"PlainText">Ihre Nachricht <br>
+<br>
+&nbsp;&nbsp; An: Anonymous<br>
+&nbsp;&nbsp; Betreff: Test message<br>
+&nbsp;&nbsp; Gesendet: Mittwoch, 8. Dezember 2021 14:57:05 (UTC&#43;01:00) =
+Amsterdam, Berlin, Bern, Rom, Stockholm, Wien<br>
+<br>
+&nbsp;wurde am Donnerstag, 9. Dezember 2021 13:24:34 (UTC&#43;01:00) Amster=
+dam, Berlin, Bern, Rom, Stockholm, Wien gelesen.</div>
+</span></font>
+</body>
+</html>
+
+--_002_1711fc3548cd4b2699ccd4fffac17713anonymous_--
+
+--_000_1711fc3548cd4b2699ccd4fffac17713anonymous_
+Content-Type: message/disposition-notification
+
+Final-recipient: RFC822; anonymous@example.org
+Disposition: automatic-action/MDN-sent-automatically; displayed
+X-MSExch-Correlation-Key: coNC5vaCQkiAOjek1v1Uew==
+X-Display-Name: Anonymous
+
+
+--_000_1711fc3548cd4b2699ccd4fffac17713anonymous_--
