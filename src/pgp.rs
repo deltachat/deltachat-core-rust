@@ -8,7 +8,7 @@ use anyhow::{bail, ensure, format_err, Result};
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
-    SignedPublicSubKey, SignedSecretKey, SubkeyParamsBuilder,
+    SignedPublicSubKey, SignedSecretKey, StandaloneSignature, SubkeyParamsBuilder,
 };
 use pgp::crypto::{HashAlgorithm, SymmetricKeyAlgorithm};
 use pgp::types::{
@@ -277,16 +277,17 @@ pub async fn pk_encrypt(
 /// Receiver private keys are provided in
 /// `private_keys_for_decryption`.
 ///
-/// If `ret_signature_fingerprints` is not `None`, stores fingerprints
+/// Returns decrypted message and fingerprints
 /// of all keys from the `public_keys_for_validation` keyring that
 /// have valid signatures there.
 #[allow(clippy::implicit_hasher)]
 pub async fn pk_decrypt(
     ctext: Vec<u8>,
     private_keys_for_decryption: Keyring<SignedSecretKey>,
-    public_keys_for_validation: Keyring<SignedPublicKey>,
-    ret_signature_fingerprints: Option<&mut HashSet<Fingerprint>>,
-) -> Result<Vec<u8>> {
+    public_keys_for_validation: &Keyring<SignedPublicKey>,
+) -> Result<(Vec<u8>, HashSet<Fingerprint>)> {
+    let mut ret_signature_fingerprints: HashSet<Fingerprint> = Default::default();
+
     let msgs = async_std::task::spawn_blocking(move || {
         let cursor = Cursor::new(ctext);
         let (msg, _) = Message::from_armor_single(cursor)?;
@@ -308,31 +309,52 @@ pub async fn pk_decrypt(
             None => bail!("The decrypted message is empty"),
         };
 
-        if let Some(ret_signature_fingerprints) = ret_signature_fingerprints {
-            if !public_keys_for_validation.is_empty() {
-                let fingerprints = async_std::task::spawn_blocking(move || {
-                    let pkeys = public_keys_for_validation.keys();
+        if !public_keys_for_validation.is_empty() {
+            let pkeys = public_keys_for_validation.keys();
 
-                    let mut fingerprints: Vec<Fingerprint> = Vec::new();
-                    if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
-                        for pkey in pkeys {
-                            if signed_msg.verify(&pkey.primary_key).is_ok() {
-                                let fp = DcKey::fingerprint(pkey);
-                                fingerprints.push(fp);
-                            }
-                        }
+            let mut fingerprints: Vec<Fingerprint> = Vec::new();
+            if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
+                for pkey in pkeys {
+                    if signed_msg.verify(&pkey.primary_key).is_ok() {
+                        let fp = DcKey::fingerprint(pkey);
+                        fingerprints.push(fp);
                     }
-                    fingerprints
-                })
-                .await;
-
-                ret_signature_fingerprints.extend(fingerprints);
+                }
             }
+
+            ret_signature_fingerprints.extend(fingerprints);
         }
-        Ok(content)
+        Ok((content, ret_signature_fingerprints))
     } else {
         bail!("No valid messages found");
     }
+}
+
+/// Validates detached signature.
+pub async fn pk_validate(
+    content: &[u8],
+    signature: &[u8],
+    public_keys_for_validation: &Keyring<SignedPublicKey>,
+) -> Result<HashSet<Fingerprint>> {
+    let mut ret: HashSet<Fingerprint> = Default::default();
+
+    let standalone_signature = StandaloneSignature::from_armor_single(Cursor::new(signature))?.0;
+    let pkeys = public_keys_for_validation.keys();
+
+    // Remove trailing CRLF before the delimiter.
+    // According to RFC 3156 it is considered to be part of the MIME delimiter for the purpose of
+    // OpenPGP signature calculation.
+    let content = content
+        .get(..content.len().saturating_sub(2))
+        .ok_or_else(|| format_err!("index is out of range"))?;
+
+    for pkey in pkeys {
+        if standalone_signature.verify(pkey, content).is_ok() {
+            let fp = DcKey::fingerprint(pkey);
+            ret.insert(fp);
+        }
+    }
+    Ok(ret)
 }
 
 /// Symmetric encryption.
@@ -492,12 +514,10 @@ mod tests {
         decrypt_keyring.add(KEYS.alice_secret.clone());
         let mut sig_check_keyring: Keyring<SignedPublicKey> = Keyring::new();
         sig_check_keyring.add(KEYS.alice_public.clone());
-        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
-        let plain = pk_decrypt(
+        let (plain, valid_signatures) = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             decrypt_keyring,
-            sig_check_keyring,
-            Some(&mut valid_signatures),
+            &sig_check_keyring,
         )
         .await
         .map_err(|err| println!("{:?}", err))
@@ -510,12 +530,10 @@ mod tests {
         decrypt_keyring.add(KEYS.bob_secret.clone());
         let mut sig_check_keyring = Keyring::new();
         sig_check_keyring.add(KEYS.alice_public.clone());
-        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
-        let plain = pk_decrypt(
+        let (plain, valid_signatures) = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             decrypt_keyring,
-            sig_check_keyring,
-            Some(&mut valid_signatures),
+            &sig_check_keyring,
         )
         .await
         .map_err(|err| println!("{:?}", err))
@@ -529,15 +547,10 @@ mod tests {
         let mut keyring = Keyring::new();
         keyring.add(KEYS.alice_secret.clone());
         let empty_keyring = Keyring::new();
-        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
-        let plain = pk_decrypt(
-            CTEXT_SIGNED.as_bytes().to_vec(),
-            keyring,
-            empty_keyring,
-            Some(&mut valid_signatures),
-        )
-        .await
-        .unwrap();
+        let (plain, valid_signatures) =
+            pk_decrypt(CTEXT_SIGNED.as_bytes().to_vec(), keyring, &empty_keyring)
+                .await
+                .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
     }
@@ -549,12 +562,10 @@ mod tests {
         decrypt_keyring.add(KEYS.bob_secret.clone());
         let mut sig_check_keyring = Keyring::new();
         sig_check_keyring.add(KEYS.bob_public.clone());
-        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
-        let plain = pk_decrypt(
+        let (plain, valid_signatures) = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             decrypt_keyring,
-            sig_check_keyring,
-            Some(&mut valid_signatures),
+            &sig_check_keyring,
         )
         .await
         .unwrap();
@@ -567,34 +578,14 @@ mod tests {
         let mut decrypt_keyring = Keyring::new();
         decrypt_keyring.add(KEYS.bob_secret.clone());
         let sig_check_keyring = Keyring::new();
-        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
-        let plain = pk_decrypt(
+        let (plain, valid_signatures) = pk_decrypt(
             CTEXT_UNSIGNED.as_bytes().to_vec(),
             decrypt_keyring,
-            sig_check_keyring,
-            Some(&mut valid_signatures),
+            &sig_check_keyring,
         )
         .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
-    }
-
-    #[async_std::test]
-    async fn test_decrypt_signed_no_sigret() {
-        // Check decrypting signed cyphertext without providing the HashSet for signatures.
-        let mut decrypt_keyring = Keyring::new();
-        decrypt_keyring.add(KEYS.bob_secret.clone());
-        let mut sig_check_keyring = Keyring::new();
-        sig_check_keyring.add(KEYS.alice_public.clone());
-        let plain = pk_decrypt(
-            CTEXT_SIGNED.as_bytes().to_vec(),
-            decrypt_keyring,
-            sig_check_keyring,
-            None,
-        )
-        .await
-        .unwrap();
-        assert_eq!(plain, CLEARTEXT);
     }
 }

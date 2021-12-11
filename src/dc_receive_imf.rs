@@ -4845,4 +4845,31 @@ Message with references."#;
 
         Ok(())
     }
+
+    /// Test a message with RFC 1847 encapsulation as created by Thunderbird.
+    #[async_std::test]
+    async fn test_rfc1847_encapsulation() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        alice.configure_addr("alice@example.org").await;
+
+        // Alice sends an Autocrypt message to Bob so Bob gets Alice's key.
+        let chat_alice = alice.create_chat(&bob).await;
+        let first_msg = alice
+            .send_text(chat_alice.id, "Sending Alice key to Bob.")
+            .await;
+        bob.recv_msg(&first_msg).await;
+        message::delete_msgs(&bob, &[bob.get_last_msg().await.id]).await?;
+
+        bob.set_config(Config::ShowEmails, Some("2")).await?;
+
+        // Alice sends a message to Bob using Thunderbird.
+        let raw = include_bytes!("../test-data/message/rfc1847_encapsulation.eml");
+        dc_receive_imf(&bob, raw, "INBOX", 2, false).await?;
+
+        let msg = bob.get_last_msg().await;
+        assert!(msg.get_showpadlock());
+
+        Ok(())
+    }
 }
