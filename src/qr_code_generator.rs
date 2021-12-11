@@ -89,21 +89,23 @@ fn inner_generate_secure_join_qr_code(
     let mut w = tagger::new(&mut svg);
 
     w.elem("svg", |d| {
-        d.attr("xmlns", "http://www.w3.org/2000/svg")
-            .attr("viewBox", format_args!("0 0 {} {}", width, height));
-    })
+        d.attr("xmlns", "http://www.w3.org/2000/svg")?;
+        d.attr("viewBox", format_args!("0 0 {} {}", width, height))?;
+        Ok(())
+    })?
     .build(|w| {
         // White Background apears like a card
         w.single("rect", |d| {
-            d.attr("x", card_border_size)
-                .attr("y", card_border_size)
-                .attr("rx", card_roundness)
-                .attr("stroke", "#c6c6c6")
-                .attr("stroke-width", card_border_size)
-                .attr("width", width - (card_border_size * 2.0))
-                .attr("height", height - (card_border_size * 2.0))
-                .attr("style", "fill:#f2f2f2");
-        });
+            d.attr("x", card_border_size)?;
+            d.attr("y", card_border_size)?;
+            d.attr("rx", card_roundness)?;
+            d.attr("stroke", "#c6c6c6")?;
+            d.attr("stroke-width", card_border_size)?;
+            d.attr("width", width - (card_border_size * 2.0))?;
+            d.attr("height", height - (card_border_size * 2.0))?;
+            d.attr("style", "fill:#f2f2f2")?;
+            Ok(())
+        })?;
         // Qrcode
         w.elem("g", |d| {
             d.attr(
@@ -113,12 +115,12 @@ fn inner_generate_secure_join_qr_code(
                     (width - qr_code_size) / 2.0,
                     ((height - qr_code_size) / 2.0) - qr_translate_up
                 ),
-            );
+            )
             // If the qr code should be in the wrong place,
             // we could also translate and scale the points in the path already,
             // but that would make the resulting svg way bigger in size and might bring up rounding issues,
             // so better avoid doing it manually if possible
-        })
+        })?
         .build(|w| {
             w.single("path", |d| {
                 let mut path_data = String::with_capacity(0);
@@ -132,16 +134,16 @@ fn inner_generate_secure_join_qr_code(
                     }
                 }
 
-                d.attr("style", "fill:#000000")
-                    .attr("d", path_data)
-                    .attr("transform", format!("scale({})", scale));
-            });
-        });
+                d.attr("style", "fill:#000000")?;
+                d.attr("d", path_data)?;
+                d.attr("transform", format!("scale({})", scale))
+            })
+        })?;
 
         // Text
         const BIG_TEXT_CHARS_PER_LINE: usize = 32;
         const SMALL_TEXT_CHARS_PER_LINE: usize = 38;
-        let chars_per_line = if qrcode_description.len() > SMALL_TEXT_CHARS_PER_LINE*2 {
+        let chars_per_line = if qrcode_description.len() > SMALL_TEXT_CHARS_PER_LINE * 2 {
             SMALL_TEXT_CHARS_PER_LINE
         } else {
             BIG_TEXT_CHARS_PER_LINE
@@ -152,27 +154,27 @@ fn inner_generate_secure_join_qr_code(
         } else {
             (19.0, -10.0)
         };
-        for (count, line) in lines.split('\n').enumerate()
-        {
+        for (count, line) in lines.split('\n').enumerate() {
             w.elem("text", |d| {
-                d.attr("y", (count as f32 * (text_font_size * 1.2)) + text_y_pos + text_y_shift)
-                    .attr("x", width / 2.0)
-                    .attr("text-anchor", "middle")
-                    .attr(
-                        "style",
-                        format!(
-                            "font-family:sans-serif;\
+                d.attr(
+                    "y",
+                    (count as f32 * (text_font_size * 1.2)) + text_y_pos + text_y_shift,
+                )?;
+                d.attr("x", width / 2.0)?;
+                d.attr("text-anchor", "middle")?;
+                d.attr(
+                    "style",
+                    format!(
+                        "font-family:sans-serif;\
                         font-weight:bold;\
                         font-size:{}px;\
                         fill:#000000;\
                         stroke:none",
-                            text_font_size
-                        ),
-                    );
-            })
-            .build(|w| {
-                w.put_raw(line);
-            });
+                        text_font_size
+                    ),
+                )
+            })?
+            .build(|w| w.put_raw(line))?;
         }
         // contact avatar in middle of qrcode
         const LOGO_SIZE: f32 = 94.4;
@@ -183,68 +185,64 @@ fn inner_generate_secure_join_qr_code(
             ((height - qr_code_size) / 2.0) - qr_translate_up + logo_position_in_qr;
 
         w.single("circle", |d| {
-            d.attr("cx", logo_position_x + HALF_LOGO_SIZE)
-                .attr("cy", logo_position_y + HALF_LOGO_SIZE)
-                .attr("r", HALF_LOGO_SIZE + avatar_border_size)
-                .attr("style", "fill:#f2f2f2");
-        });
+            d.attr("cx", logo_position_x + HALF_LOGO_SIZE)?;
+            d.attr("cy", logo_position_y + HALF_LOGO_SIZE)?;
+            d.attr("r", HALF_LOGO_SIZE + avatar_border_size)?;
+            d.attr("style", "fill:#f2f2f2")
+        })?;
 
         if let Some(img) = avatar {
-            w.elem("defs", |_| {}).build(|w| {
-                w.elem("clipPath", |d| {
-                    d.attr("id", "avatar-cut");
-                })
-                .build(|w| {
-                    w.single("circle", |d| {
-                        d.attr("cx", logo_position_x + HALF_LOGO_SIZE)
-                            .attr("cy", logo_position_y + HALF_LOGO_SIZE)
-                            .attr("r", HALF_LOGO_SIZE);
-                    });
-                });
-            });
+            w.elem("defs", tagger::no_attr())?.build(|w| {
+                w.elem("clipPath", |d| d.attr("id", "avatar-cut"))?
+                    .build(|w| {
+                        w.single("circle", |d| {
+                            d.attr("cx", logo_position_x + HALF_LOGO_SIZE)?;
+                            d.attr("cy", logo_position_y + HALF_LOGO_SIZE)?;
+                            d.attr("r", HALF_LOGO_SIZE)
+                        })
+                    })
+            })?;
 
             w.single("image", |d| {
-                d.attr("x", logo_position_x)
-                    .attr("y", logo_position_y)
-                    .attr("width", HALF_LOGO_SIZE * 2.0)
-                    .attr("height", HALF_LOGO_SIZE * 2.0)
-                    .attr("preserveAspectRatio", "none")
-                    .attr("clip-path", "url(#avatar-cut)")
-                    .attr(
-                        "href" /*might need xlink:href instead if it doesn't work on older devices?*/, 
-                        format!("data:image/jpeg;base64,{}", base64::encode(img)),
-                    );
-            });
+                d.attr("x", logo_position_x)?;
+                d.attr("y", logo_position_y)?;
+                d.attr("width", HALF_LOGO_SIZE * 2.0)?;
+                d.attr("height", HALF_LOGO_SIZE * 2.0)?;
+                d.attr("preserveAspectRatio", "none")?;
+                d.attr("clip-path", "url(#avatar-cut)")?;
+                d.attr(
+                    "href", /*might need xlink:href instead if it doesn't work on older devices?*/
+                    format!("data:image/jpeg;base64,{}", base64::encode(img)),
+                )
+            })?;
         } else {
             w.single("circle", |d| {
-                d.attr("cx", logo_position_x + HALF_LOGO_SIZE)
-                    .attr("cy", logo_position_y + HALF_LOGO_SIZE)
-                    .attr("r", HALF_LOGO_SIZE)
-                    .attr("style", format!("fill:{}", &color));
-            });
+                d.attr("cx", logo_position_x + HALF_LOGO_SIZE)?;
+                d.attr("cy", logo_position_y + HALF_LOGO_SIZE)?;
+                d.attr("r", HALF_LOGO_SIZE)?;
+                d.attr("style", format!("fill:{}", &color))
+            })?;
 
             let avatar_font_size = LOGO_SIZE * 0.65;
             let font_offset = avatar_font_size * 0.1;
             w.elem("text", |d| {
-                d.attr("y", logo_position_y + HALF_LOGO_SIZE + font_offset)
-                    .attr("x", logo_position_x + HALF_LOGO_SIZE)
-                    .attr("text-anchor", "middle")
-                    .attr("dominant-baseline", "central")
-                    .attr("alignment-baseline", "middle")
-                    .attr(
-                        "style",
-                        format!(
-                            "font-family:sans-serif;\
+                d.attr("y", logo_position_y + HALF_LOGO_SIZE + font_offset)?;
+                d.attr("x", logo_position_x + HALF_LOGO_SIZE)?;
+                d.attr("text-anchor", "middle")?;
+                d.attr("dominant-baseline", "central")?;
+                d.attr("alignment-baseline", "middle")?;
+                d.attr(
+                    "style",
+                    format!(
+                        "font-family:sans-serif;\
                             font-weight:400;\
                             font-size:{}px;\
                             fill:#ffffff;",
-                            avatar_font_size
-                        ),
-                    );
-            })
-            .build(|w| {
-                w.put_raw(avatar_letter.to_uppercase());
-            });
+                        avatar_font_size
+                    ),
+                )
+            })?
+            .build(|w| w.put_raw(avatar_letter.to_uppercase()))?;
         }
 
         // Footer logo
@@ -258,12 +256,10 @@ fn inner_generate_secure_join_qr_code(
                     (width - FOOTER_WIDTH) / 2.0,
                     height - logo_offset - FOOTER_HEIGHT - text_y_shift
                 ),
-            );
-        })
-        .build(|w| {
-            w.put_raw(include_str!("../assets/qrcode_logo_footer.svg"));
-        });
-    });
+            )
+        })?
+        .build(|w| w.put_raw(include_str!("../assets/qrcode_logo_footer.svg")))
+    })?;
 
     Ok(svg)
 }
