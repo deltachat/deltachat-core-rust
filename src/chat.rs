@@ -2923,11 +2923,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
 
         for id in ids {
             let src_msg_id: MsgId = id;
-            let msg = Message::load_from_db(context, src_msg_id).await;
-            if msg.is_err() {
-                break;
-            }
-            let mut msg = msg.unwrap();
+            let mut msg = Message::load_from_db(context, src_msg_id).await?;
             let original_param = msg.param.clone();
 
             // we tested a sort of broadcast
@@ -2949,7 +2945,9 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             msg.subject = "".to_string();
 
             let new_msg_id: MsgId;
-            if msg.state == MessageState::OutPreparing {
+            if msg.state == MessageState::OutDraft {
+                bail!("cannot forward drafts.");
+            } else if msg.state == MessageState::OutPreparing {
                 let fresh9 = curr_timestamp;
                 curr_timestamp += 1;
                 new_msg_id = chat.prepare_msg_raw(context, &mut msg, fresh9).await?;
@@ -3327,6 +3325,20 @@ mod tests {
         chat_id.set_draft(&t, None).await?;
         assert!(chat_id.get_draft(&t).await?.is_none());
 
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_forwarding_draft_failing() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = &t.get_self_chat().await.id;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("hello".to_string()));
+        chat_id.set_draft(&t, Some(&mut msg)).await?;
+        assert_eq!(msg.id, chat_id.get_draft(&t).await?.unwrap().id);
+
+        let chat_id2 = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        assert!(forward_msgs(&t, &[msg.id], chat_id2).await.is_err());
         Ok(())
     }
 
