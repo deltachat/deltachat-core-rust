@@ -1214,6 +1214,7 @@ impl Chat {
         &mut self,
         context: &Context,
         msg: &mut Message,
+        update_msg_id: Option<MsgId>,
         timestamp: i64,
     ) -> Result<MsgId> {
         let mut new_references = "".into();
@@ -1375,10 +1376,46 @@ impl Chat {
 
         // add message to the database
 
-        let msg_id = context
-            .sql
-            .insert(
-                "INSERT INTO msgs (
+        if let Some(update_msg_id) = update_msg_id {
+            context
+                .sql
+                .execute(
+                    "UPDATE msgs
+                     SET rfc724_mid=?, chat_id=?, from_id=?, to_id=?, timestamp=?, type=?,
+                         state=?, txt=?, subject=?, param=?,
+                         hidden=?, mime_in_reply_to=?, mime_references=?, mime_modified=?,
+                         mime_headers=?, location_id=?, ephemeral_timer=?, ephemeral_timestamp=?
+                     WHERE id=?;",
+                    paramsv![
+                        new_rfc724_mid,
+                        self.id,
+                        DC_CONTACT_ID_SELF,
+                        to_id as i32,
+                        timestamp,
+                        msg.viewtype,
+                        msg.state,
+                        msg.text.as_ref().cloned().unwrap_or_default(),
+                        &msg.subject,
+                        msg.param.to_string(),
+                        msg.hidden,
+                        msg.in_reply_to.as_deref().unwrap_or_default(),
+                        new_references,
+                        new_mime_headers.is_some(),
+                        new_mime_headers.unwrap_or_default(),
+                        location_id as i32,
+                        ephemeral_timer,
+                        ephemeral_timestamp,
+                        update_msg_id
+                    ],
+                )
+                .await?;
+            schedule_ephemeral_task(context).await;
+            msg.id = update_msg_id;
+        } else {
+            let raw_id = context
+                .sql
+                .insert(
+                    "INSERT INTO msgs (
                         rfc724_mid,
                         chat_id,
                         from_id,
@@ -1398,31 +1435,32 @@ impl Chat {
                         ephemeral_timer,
                         ephemeral_timestamp)
                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
-                paramsv![
-                    new_rfc724_mid,
-                    self.id,
-                    DC_CONTACT_ID_SELF,
-                    to_id as i32,
-                    timestamp,
-                    msg.viewtype,
-                    msg.state,
-                    msg.text.as_ref().cloned().unwrap_or_default(),
-                    &msg.subject,
-                    msg.param.to_string(),
-                    msg.hidden,
-                    msg.in_reply_to.as_deref().unwrap_or_default(),
-                    new_references,
-                    new_mime_headers.is_some(),
-                    new_mime_headers.unwrap_or_default(),
-                    location_id as i32,
-                    ephemeral_timer,
-                    ephemeral_timestamp
-                ],
-            )
-            .await?;
+                    paramsv![
+                        new_rfc724_mid,
+                        self.id,
+                        DC_CONTACT_ID_SELF,
+                        to_id as i32,
+                        timestamp,
+                        msg.viewtype,
+                        msg.state,
+                        msg.text.as_ref().cloned().unwrap_or_default(),
+                        &msg.subject,
+                        msg.param.to_string(),
+                        msg.hidden,
+                        msg.in_reply_to.as_deref().unwrap_or_default(),
+                        new_references,
+                        new_mime_headers.is_some(),
+                        new_mime_headers.unwrap_or_default(),
+                        location_id as i32,
+                        ephemeral_timer,
+                        ephemeral_timestamp
+                    ],
+                )
+                .await?;
+            msg.id = MsgId::new(u32::try_from(raw_id)?);
+        }
         schedule_ephemeral_task(context).await;
-
-        Ok(MsgId::new(u32::try_from(msg_id)?))
+        Ok(msg.id)
     }
 }
 
@@ -1729,8 +1767,7 @@ pub async fn prepare_msg(context: &Context, chat_id: ChatId, msg: &mut Message) 
         "Cannot prepare message for special chat"
     );
 
-    msg.state = MessageState::OutPreparing;
-    let msg_id = prepare_msg_common(context, chat_id, msg).await?;
+    let msg_id = prepare_msg_common(context, chat_id, msg, MessageState::OutPreparing).await?;
     context.emit_event(EventType::MsgsChanged {
         chat_id: msg.chat_id,
         msg_id: msg.id,
@@ -1809,24 +1846,36 @@ async fn prepare_msg_common(
     context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
+    change_state_to: MessageState,
 ) -> Result<MsgId> {
-    msg.id = MsgId::new_unset();
     prepare_msg_blob(context, msg).await?;
     chat_id.unarchive(context).await?;
 
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     ensure!(chat.can_send(context).await?, "cannot send to {}", chat_id);
 
-    // The OutPreparing state is set by dc_prepare_msg() before it
-    // calls this function and the message is left in the OutPreparing
-    // state.  Otherwise we got called by send_msg() and we change the
-    // state to OutPending.
-    if msg.state != MessageState::OutPreparing {
-        msg.state = MessageState::OutPending;
-    }
+    // check current MessageState for drafts (to keep msg_id) ...
+    let update_msg_id = if msg.state == MessageState::OutDraft {
+        msg.hidden = false;
+        if !msg.id.is_special() && msg.chat_id == chat_id {
+            Some(msg.id)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // ... then change the MessageState in the message object
+    msg.state = change_state_to;
 
     msg.id = chat
-        .prepare_msg_raw(context, msg, dc_create_smeared_timestamp(context).await)
+        .prepare_msg_raw(
+            context,
+            msg,
+            update_msg_id,
+            dc_create_smeared_timestamp(context).await,
+        )
         .await?;
     msg.chat_id = chat_id;
 
@@ -1944,7 +1993,7 @@ async fn prepare_send_msg(
     // the state to OutPending.
     if msg.state != MessageState::OutPreparing {
         // automatically prepare normal messages
-        prepare_msg_common(context, chat_id, msg).await?;
+        prepare_msg_common(context, chat_id, msg, MessageState::OutPending).await?;
     } else {
         // update message state of separately prepared messages
         ensure!(
@@ -2950,7 +2999,9 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             } else if msg.state == MessageState::OutPreparing {
                 let fresh9 = curr_timestamp;
                 curr_timestamp += 1;
-                new_msg_id = chat.prepare_msg_raw(context, &mut msg, fresh9).await?;
+                new_msg_id = chat
+                    .prepare_msg_raw(context, &mut msg, None, fresh9)
+                    .await?;
                 let save_param = msg.param.clone();
                 msg.param = original_param;
                 msg.id = src_msg_id;
@@ -2969,7 +3020,9 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
                 msg.state = MessageState::OutPending;
                 let fresh10 = curr_timestamp;
                 curr_timestamp += 1;
-                new_msg_id = chat.prepare_msg_raw(context, &mut msg, fresh10).await?;
+                new_msg_id = chat
+                    .prepare_msg_raw(context, &mut msg, None, fresh10)
+                    .await?;
                 if let Some(send_job) = job::send_msg_job(context, new_msg_id).await? {
                     job::add(context, send_job).await?;
                 }
@@ -3344,7 +3397,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_draft_stable_ids() -> Result<()> {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let chat_id = &t.get_self_chat().await.id;
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
@@ -3371,7 +3424,18 @@ mod tests {
         );
         let test = chat_id.get_draft(&t).await?.unwrap();
         assert_eq!(id_after_2nd_set, test.id);
+        assert_eq!(id_after_2nd_set, msg.id);
         assert_eq!(test.text, Some("hello2".to_string()));
+        assert_eq!(test.state, MessageState::OutDraft);
+
+        let id_after_prepare = prepare_msg(&t, *chat_id, &mut msg).await?;
+        assert_eq!(id_after_prepare, id_after_1st_set);
+        let test = Message::load_from_db(&t, id_after_prepare).await?;
+        assert_eq!(test.state, MessageState::OutPreparing);
+        assert!(!test.hidden); // sent draft must no longer be hidden
+
+        let id_after_send = send_msg(&t, *chat_id, &mut msg).await?;
+        assert_eq!(id_after_send, id_after_1st_set);
 
         Ok(())
     }
