@@ -1853,9 +1853,6 @@ async fn prepare_msg_common(
     msg: &mut Message,
     change_state_to: MessageState,
 ) -> Result<MsgId> {
-    prepare_msg_blob(context, msg).await?;
-    chat_id.unarchive(context).await?;
-
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     ensure!(chat.can_send(context).await?, "cannot send to {}", chat_id);
 
@@ -1874,6 +1871,8 @@ async fn prepare_msg_common(
     // ... then change the MessageState in the message object
     msg.state = change_state_to;
 
+    prepare_msg_blob(context, msg).await?;
+    chat_id.unarchive(context).await?;
     msg.id = chat
         .prepare_msg_raw(
             context,
