@@ -1159,7 +1159,9 @@ impl<'a> MimeFactory<'a> {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
             parts.push(context.build_status_update_part(json).await);
         } else if self.msg.viewtype == Viewtype::W30 {
-            let json = context.get_w30_status_updates(self.msg.id, None).await?;
+            let json = context
+                .get_w30_status_updates_with_format(self.msg.id, None, true)
+                .await?;
             if json != "[]" {
                 parts.push(context.build_status_update_part(&json).await);
             }
