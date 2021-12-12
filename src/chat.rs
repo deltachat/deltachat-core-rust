@@ -2978,6 +2978,10 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         for id in ids {
             let src_msg_id: MsgId = id;
             let mut msg = Message::load_from_db(context, src_msg_id).await?;
+            if msg.state == MessageState::OutDraft {
+                bail!("cannot forward drafts.");
+            }
+
             let original_param = msg.param.clone();
 
             // we tested a sort of broadcast
@@ -2999,9 +3003,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             msg.subject = "".to_string();
 
             let new_msg_id: MsgId;
-            if msg.state == MessageState::OutDraft {
-                bail!("cannot forward drafts.");
-            } else if msg.state == MessageState::OutPreparing {
+            if msg.state == MessageState::OutPreparing {
                 let fresh9 = curr_timestamp;
                 curr_timestamp += 1;
                 new_msg_id = chat
