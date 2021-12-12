@@ -936,9 +936,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_render_setup_file() {
-        let t = TestContext::new().await;
-
-        t.configure_alice().await;
+        let t = TestContext::new_alice().await;
         let msg = render_setup_file(&t, "hello").await.unwrap();
         println!("{}", &msg);
         // Check some substrings, indicating things got substituted.
@@ -955,11 +953,10 @@ mod tests {
 
     #[async_std::test]
     async fn test_render_setup_file_newline_replace() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         t.set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
             .await
             .unwrap();
-        t.configure_alice().await;
         let msg = render_setup_file(&t, "pw").await.unwrap();
         println!("{}", &msg);
         assert!(msg.contains("<p>hello<br>there</p>"));
@@ -1012,15 +1009,13 @@ mod tests {
 
     #[async_std::test]
     async fn test_export_and_import_key() {
-        let context = TestContext::new().await;
-        context.configure_alice().await;
+        let context = TestContext::new_alice().await;
         let blobdir = context.ctx.get_blobdir();
         if let Err(err) = imex(&context.ctx, ImexMode::ExportSelfKeys, blobdir).await {
             panic!("got error on export: {:?}", err);
         }
 
-        let context2 = TestContext::new().await;
-        context2.configure_alice().await;
+        let context2 = TestContext::new_alice().await;
         if let Err(err) = imex(&context2.ctx, ImexMode::ImportSelfKeys, blobdir).await {
             panic!("got error on import: {:?}", err);
         }

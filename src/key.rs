@@ -510,8 +510,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[async_std::test]
     async fn test_load_self_existing() {
         let alice = alice_keypair();
-        let t = TestContext::new().await;
-        t.configure_alice().await;
+        let t = TestContext::new_alice().await;
         let pubkey = SignedPublicKey::load_self(&t).await.unwrap();
         assert_eq!(alice.public, pubkey);
         let seckey = SignedSecretKey::load_self(&t).await.unwrap();

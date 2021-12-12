@@ -1525,9 +1525,9 @@ mod tests {
         let t = TestContext::new().await;
         assert_eq!(t.is_self_addr("me@me.org").await?, false);
 
-        let addr = t.configure_alice().await;
+        t.configure_addr("you@you.net").await;
         assert_eq!(t.is_self_addr("me@me.org").await?, false);
-        assert_eq!(t.is_self_addr(&addr).await?, true);
+        assert_eq!(t.is_self_addr("you@you.net").await?, true);
 
         Ok(())
     }

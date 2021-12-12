@@ -48,11 +48,70 @@ type EventSink =
 static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
 
+#[derive(Debug, Clone, Default)]
+pub struct TestContextBuilder {
+    key_pair: Option<KeyPair>,
+    log_sink: Option<Sender<Event>>,
+}
+
+impl TestContextBuilder {
+    /// Configures as alice@example.com with fixed secret key.
+    ///
+    /// This is a shortcut for `.with_key_pair(alice_keypair()).
+    pub fn configure_alice(self) -> Self {
+        self.with_key_pair(alice_keypair())
+    }
+
+    /// Configures as bob@example.net with fixed secret key.
+    ///
+    /// This is a shortcut for `.with_key_pair(bob_keypair()).
+    pub fn configure_bob(self) -> Self {
+        self.with_key_pair(bob_keypair())
+    }
+
+    /// Configures the new [`TestContext`] with the provided [`KeyPair`].
+    ///
+    /// This will extract the email address from the key and configure the context with the
+    /// given identity.
+    pub fn with_key_pair(mut self, key_pair: KeyPair) -> Self {
+        self.key_pair = Some(key_pair);
+        self
+    }
+
+    /// Attaches a [`LogSink`] to this [`TestContext`].
+    ///
+    /// This is useful when using multiple [`TestContext`] instances in one test: it allows
+    /// using a single [`LogSink`] for both contexts.  This shows the log messages in
+    /// sequence as they occurred rather than all messages from each context in a single
+    /// block.
+    pub fn with_log_sink(mut self, sink: Sender<Event>) -> Self {
+        self.log_sink = Some(sink);
+        self
+    }
+
+    /// Builds the [`TestContext`].
+    pub async fn build(self) -> TestContext {
+        let name = self.key_pair.as_ref().map(|key| key.addr.local.clone());
+
+        let test_context = TestContext::new_internal(name, self.log_sink).await;
+
+        if let Some(key_pair) = self.key_pair {
+            test_context
+                .configure_addr(&key_pair.addr.to_string())
+                .await;
+            key::store_self_keypair(&test_context, &key_pair, KeyPairUse::Default)
+                .await
+                .expect("Failed to save key");
+        }
+        test_context
+    }
+}
+
 /// A Context and temporary directory.
 ///
 /// The temporary directory can be used to store the SQLite database,
 /// see e.g. [test_context] which does this.
-pub(crate) struct TestContext {
+pub struct TestContext {
     pub ctx: Context,
     pub dir: TempDir,
     pub evtracker: EvTracker,
@@ -62,10 +121,12 @@ pub(crate) struct TestContext {
     poison_receiver: Receiver<String>,
     /// Reference to implicit [`LogSink`] so it is dropped together with the context.
     ///
-    /// Only used if no explicit [`LogSink`] was given during construction.  This is a
-    /// convenience in case only a single [`TestContext`] is used to avoid dealing with
-    /// [`LogSink`].  Never read, thus "dead code", since the only purpose is to control
-    /// when Drop is invoked.
+    /// Only used if no explicit `log_sender` is passed into [`TestContext::new_internal`]
+    /// (which is assumed to be the sending end of a [`LogSink`]).
+    ///
+    /// This is a convenience in case only a single [`TestContext`] is used to avoid dealing
+    /// with [`LogSink`].  Never read, thus "dead code", since the only purpose is to
+    /// control when Drop is invoked.
     #[allow(dead_code)]
     log_sink: Option<LogSink>,
 }
@@ -81,6 +142,11 @@ impl fmt::Debug for TestContext {
 }
 
 impl TestContext {
+    /// Returns the builder to have more control over creating the context.
+    pub fn builder() -> TestContextBuilder {
+        TestContextBuilder::default()
+    }
+
     /// Creates a new [`TestContext`].
     ///
     /// The [Context] will be created and have an SQLite database named "db.sqlite" in the
@@ -89,19 +155,33 @@ impl TestContext {
     ///
     /// [Context]: crate::context::Context
     pub async fn new() -> Self {
-        Self::new_named(None, None).await
+        Self::new_internal(None, None).await
     }
 
-    /// Creates a new [`TestContext`] with a set name used in event logging.
-    pub async fn with_name(name: impl Into<String>) -> Self {
-        Self::new_named(Some(name.into()), None).await
+    /// Creates a new configured [`TestContext`].
+    ///
+    /// This is a shortcut which automatically calls [`TestContext::configure_alice`] after
+    /// creating the context.
+    pub async fn new_alice() -> Self {
+        Self::builder().configure_alice().build().await
     }
 
-    async fn with_name_and_log_sink(name: String, log_sink: Sender<Event>) -> Self {
-        Self::new_named(Some(name), Some(log_sink)).await
+    /// Creates a new configured [`TestContext`].
+    ///
+    /// This is a shortcut which configures bob@example.net with a fixed key.
+    pub async fn new_bob() -> Self {
+        Self::builder().configure_bob().build().await
     }
 
-    async fn new_named(name: Option<String>, log_sender: Option<Sender<Event>>) -> Self {
+    /// Internal constructor.
+    ///
+    /// `name` is used to identify this context in e.g. log output.  This is useful mostly
+    /// when you have multiple [`TestContext`]s in a test.
+    ///
+    /// `log_sender` is assumed to be the sender for a [`LogSink`].  If not supplied a new
+    /// [`LogSink`] will be created so that events are logged to this test when the
+    /// [`TestContext`] is dropped.
+    async fn new_internal(name: Option<String>, log_sender: Option<Sender<Event>>) -> Self {
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
         let id = rand::thread_rng().gen();
@@ -116,9 +196,7 @@ impl TestContext {
         let events = ctx.get_event_emitter();
 
         let (log_sender, log_sink) = match log_sender {
-            Some(sender) => {
-                (Arc::new(RwLock::new(sender)), None)
-            }
+            Some(sender) => (Arc::new(RwLock::new(sender)), None),
             None => {
                 let (sender, sink) = LogSink::create();
                 (Arc::new(RwLock::new(sender)), Some(sink))
@@ -172,45 +250,6 @@ impl TestContext {
         }
     }
 
-    /// Creates a new configured [`TestContext`].
-    ///
-    /// This is a shortcut which automatically calls [`TestContext::configure_alice`] after
-    /// creating the context.
-    pub async fn new_alice() -> Self {
-        let t = Self::with_name("alice").await;
-        t.configure_alice().await;
-        t
-    }
-
-    pub async fn new_alice_with_log_sink(log_sink: Sender<Event>) -> Self {
-        let t = Self::with_name_and_log_sink("alice".into(), log_sink).await;
-        t.configure_alice().await;
-        t
-    }
-
-    /// Creates a new configured [`TestContext`].
-    ///
-    /// This is a shortcut which configures bob@example.net with a fixed key.
-    pub async fn new_bob() -> Self {
-        let t = Self::with_name("bob").await;
-        let keypair = bob_keypair();
-        t.configure_addr(&keypair.addr.to_string()).await;
-        key::store_self_keypair(&t, &keypair, KeyPairUse::Default)
-            .await
-            .expect("Failed to save Bob's key");
-        t
-    }
-
-    pub async fn new_bob_with_log_sink(log_sink: Sender<Event>) -> Self {
-        let t = Self::with_name_and_log_sink("bob".into(), log_sink).await;
-        let keypair = bob_keypair();
-        t.configure_addr(&keypair.addr.to_string()).await;
-        key::store_self_keypair(&t, &keypair, KeyPairUse::Default)
-            .await
-            .expect("Failed to save Bob's key");
-        t
-    }
-
     /// Sets a name for this [`TestContext`] if one isn't yet set.
     ///
     /// This will show up in events logged in the test output.
@@ -236,18 +275,6 @@ impl TestContext {
         sinks.push(Box::new(move |evt| Box::pin(sink(evt))));
     }
 
-    /// Configure with alice@example.org.
-    ///
-    /// The context will be fake-configured as the alice user, with a pre-generated secret
-    /// key.  The email address of the user is returned as a string.
-    pub async fn configure_alice(&self) -> String {
-        let keypair = alice_keypair();
-        self.configure_addr(&keypair.addr.to_string()).await;
-        key::store_self_keypair(&self.ctx, &keypair, KeyPairUse::Default)
-            .await
-            .expect("Failed to save Alice's key");
-        keypair.addr.to_string()
-    }
 
     /// Configure as a given email address.
     ///
@@ -561,6 +588,9 @@ impl Drop for TestContext {
 ///
 /// This sink achieves this by printing the events, in the order received, at the time it is
 /// dropped.  Thus to use you must only make sure this sink is dropped in the test itself.
+///
+/// To use this create an instance using [`LogSink::create`] and then use the
+/// [`TestContextBuilder::with_log_sink`].
 pub struct LogSink {
     events: Receiver<Event>,
 }
@@ -839,14 +869,14 @@ mod tests {
 
     #[async_std::test]
     async fn test_with_alice() {
-        let alice = TestContext::builder().as_alice().build().await;
+        let alice = TestContext::builder().configure_alice().build().await;
         alice.ctx.emit_event(EventType::Info("hello".into()));
         // panic!("Alice fails");
     }
 
     #[async_std::test]
     async fn test_with_bob() {
-        let bob = TestContext::builder().as_bob().build().await;
+        let bob = TestContext::builder().configure_bob().build().await;
         bob.ctx.emit_event(EventType::Info("there".into()));
         // panic!("Bob fails");
     }
@@ -855,12 +885,12 @@ mod tests {
     async fn test_with_both() {
         let (log_sender, _log_sink) = LogSink::create();
         let alice = TestContext::builder()
-            .as_alice()
+            .configure_alice()
             .with_log_sink(log_sender.clone())
             .build()
             .await;
         let bob = TestContext::builder()
-            .as_bob()
+            .configure_bob()
             .with_log_sink(log_sender)
             .build()
             .await;

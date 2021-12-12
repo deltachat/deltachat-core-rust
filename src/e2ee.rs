@@ -416,9 +416,8 @@ mod tests {
 
         #[async_std::test]
         async fn test_prexisting() {
-            let t = TestContext::new().await;
-            let test_addr = t.configure_alice().await;
-            assert_eq!(ensure_secret_key_exists(&t).await.unwrap(), test_addr);
+            let t = TestContext::new_alice().await;
+            assert_eq!(ensure_secret_key_exists(&t).await.unwrap(), "alice@example.com");
         }
 
         #[async_std::test]
