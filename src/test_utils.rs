@@ -12,9 +12,7 @@ use std::time::{Duration, Instant};
 
 use ansi_term::Color;
 use async_std::channel::{self, Receiver, Sender};
-use async_std::future::Future;
 use async_std::path::PathBuf;
-use async_std::pin::Pin;
 use async_std::sync::{Arc, RwLock};
 use async_std::task;
 use chat::ChatItem;
@@ -41,9 +39,6 @@ use crate::param::{Param, Params};
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
 
-type EventSink =
-    dyn Fn(Event) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync + 'static;
-
 /// Map of [`Context::id`] to names for [`TestContext`]s.
 static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
@@ -55,7 +50,7 @@ pub struct TestContextBuilder {
 }
 
 impl TestContextBuilder {
-    /// Configures as alice@example.com with fixed secret key.
+    /// Configures as alice@example.org with fixed secret key.
     ///
     /// This is a shortcut for `.with_key_pair(alice_keypair()).
     pub fn configure_alice(self) -> Self {
@@ -115,8 +110,8 @@ pub struct TestContext {
     pub ctx: Context,
     pub dir: TempDir,
     pub evtracker: EvTracker,
-    /// Functions to call for events received.
-    event_sinks: Arc<RwLock<Vec<Box<EventSink>>>>,
+    /// Channels which should receive events from this context.
+    event_senders: Arc<RwLock<Vec<Sender<Event>>>>,
     /// Receives panics from sinks ("sink" means "event handler" here)
     poison_receiver: Receiver<String>,
     /// Reference to implicit [`LogSink`] so it is dropped together with the context.
@@ -196,16 +191,15 @@ impl TestContext {
         let events = ctx.get_event_emitter();
 
         let (log_sender, log_sink) = match log_sender {
-            Some(sender) => (Arc::new(RwLock::new(sender)), None),
+            Some(sender) => (sender, None),
             None => {
                 let (sender, sink) = LogSink::create();
-                (Arc::new(RwLock::new(sender)), Some(sink))
+                (sender, Some(sink))
             }
         };
-        let log_sender_clone = Arc::clone(&log_sender);
 
-        let event_sinks: Arc<RwLock<Vec<Box<EventSink>>>> = Arc::new(RwLock::new(Vec::new()));
-        let sinks = Arc::clone(&event_sinks);
+        let event_senders = Arc::new(RwLock::new(vec![log_sender]));
+        let senders = Arc::clone(&event_senders);
         let (poison_sender, poison_receiver) = channel::bounded(1);
         let (evtracker_sender, evtracker_receiver) = channel::unbounded();
 
@@ -225,17 +219,13 @@ impl TestContext {
 
             while let Some(event) = events.recv().await {
                 {
-                    let sinks = sinks.read().await;
-                    for sink in sinks.iter() {
-                        sink(event.clone()).await;
+                    let sinks = senders.read().await;
+                    for sender in sinks.iter() {
+                        // Best effort, don't block because someone wanted to use a oneshot
+                        // receiver.
+                        sender.try_send(event.clone()).ok();
                     }
                 }
-                log_sender_clone
-                    .read()
-                    .await
-                    .send(event.clone())
-                    .await
-                    .expect("log sender can not block");
                 evtracker_sender.send(event.typ).await.ok();
             }
         });
@@ -244,7 +234,7 @@ impl TestContext {
             ctx,
             dir,
             evtracker: EvTracker(evtracker_receiver),
-            event_sinks,
+            event_senders,
             poison_receiver,
             log_sink,
         }
@@ -260,21 +250,13 @@ impl TestContext {
             .or_insert_with(|| name.into());
     }
 
-    /// Add a new callback which will receive events.
+    /// Adds a new [`Event`]s sender.
     ///
-    /// The test context runs an async task receiving all events from the [`Context`], which
-    /// are logged to stdout.  This allows you to register additional callbacks which will
-    /// receive all events in case your tests need to watch for a specific event.
-    pub async fn add_event_sink<F, R>(&self, sink: F)
-    where
-        // Aka `F: EventSink` but type aliases are not allowed.
-        F: Fn(Event) -> R + Send + Sync + 'static,
-        R: Future<Output = ()> + Send + 'static,
-    {
-        let mut sinks = self.event_sinks.write().await;
-        sinks.push(Box::new(move |evt| Box::pin(sink(evt))));
+    /// Once added, all events emitted by this context will be sent to this channel.  This
+    /// is useful if you need to wait for events or make assertions on them.
+    pub async fn add_event_sender(&self, sink: Sender<Event>) {
+        self.event_senders.write().await.push(sink)
     }
-
 
     /// Configure as a given email address.
     ///
