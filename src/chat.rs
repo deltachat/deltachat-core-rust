@@ -3369,7 +3369,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_delete_draft() -> Result<()> {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
 
         let mut msg = Message::new(Viewtype::Text);
