@@ -621,10 +621,13 @@ mod tests {
 
     use super::*;
 
+    use crate::chat::{create_group_chat, ProtectionStatus};
     use crate::{
+        chat,
         message::Message,
         test_utils::{self, TestContext},
     };
+    use anyhow::Result;
     use image::Pixel;
 
     #[async_std::test]
@@ -1065,5 +1068,39 @@ mod tests {
         assert_eq!(img.width() as u32, compressed_width);
         assert_eq!(img.height() as u32, compressed_height);
         Ok(img)
+    }
+
+    #[async_std::test]
+    async fn test_increation_in_blobdir() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
+
+        let file = t.get_blobdir().join("anyfile.dat");
+        File::create(&file).await?.write_all("bla".as_ref()).await?;
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file(file.to_str().unwrap(), None);
+        let prepared_id = chat::prepare_msg(&t, chat_id, &mut msg).await?;
+        assert_eq!(prepared_id, msg.id);
+        assert!(msg.is_increation());
+
+        let msg = Message::load_from_db(&t, prepared_id).await?;
+        assert!(msg.is_increation());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_increation_not_blobdir() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
+        assert_ne!(t.get_blobdir().to_str(), t.dir.path().to_str());
+
+        let file = t.dir.path().join("anyfile.dat");
+        File::create(&file).await?.write_all("bla".as_ref()).await?;
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file(file.to_str().unwrap(), None);
+        assert!(chat::prepare_msg(&t, chat_id, &mut msg).await.is_err());
+
+        Ok(())
     }
 }
