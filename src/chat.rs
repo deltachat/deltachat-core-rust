@@ -627,7 +627,7 @@ impl ChatId {
     }
 
     /// Set provided message as draft message for specified chat.
-    /// Returns true on changes.
+    /// Returns true if the draft was added or updated in place.
     async fn do_set_draft(self, context: &Context, msg: &mut Message) -> Result<bool> {
         match msg.viewtype {
             Viewtype::Unknown => bail!("Can not set draft of unknown type."),
@@ -1210,6 +1210,11 @@ impl Chat {
         }
     }
 
+    /// Adds missing values to the msg object,
+    /// writes the record to the database and returns its msg_id.
+    ///
+    /// If `update_msg_id` is set, that record is reused;
+    /// if `update_msg_id` is None, a new record is created.
     async fn prepare_msg_raw(
         &mut self,
         context: &Context,
