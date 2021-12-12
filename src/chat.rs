@@ -3004,11 +3004,10 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
 
             let new_msg_id: MsgId;
             if msg.state == MessageState::OutPreparing {
-                let fresh9 = curr_timestamp;
-                curr_timestamp += 1;
                 new_msg_id = chat
-                    .prepare_msg_raw(context, &mut msg, None, fresh9)
+                    .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
                     .await?;
+                curr_timestamp += 1;
                 let save_param = msg.param.clone();
                 msg.param = original_param;
                 msg.id = src_msg_id;
@@ -3025,11 +3024,10 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
                 msg.param = save_param;
             } else {
                 msg.state = MessageState::OutPending;
-                let fresh10 = curr_timestamp;
-                curr_timestamp += 1;
                 new_msg_id = chat
-                    .prepare_msg_raw(context, &mut msg, None, fresh10)
+                    .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
                     .await?;
+                curr_timestamp += 1;
                 if let Some(send_job) = job::send_msg_job(context, new_msg_id).await? {
                     job::add(context, send_job).await?;
                 }
