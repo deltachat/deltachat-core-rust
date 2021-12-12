@@ -102,7 +102,7 @@ impl Context {
         match instance.state {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft => {
                 // send update once the instance is actually send;
-                // on sending, the updates are retrieved using get_w30_status_updates() then.
+                // on sending, the updates are retrieved using get_w30_status_updates_with_format() then.
                 Ok(None)
             }
             _ => {
@@ -118,8 +118,12 @@ impl Context {
                 status_update.param.set_cmd(SystemMessage::W30StatusUpdate);
                 status_update.param.set(
                     Param::Arg,
-                    self.get_w30_status_updates(instance_msg_id, Some(status_update_id))
-                        .await?,
+                    self.get_w30_status_updates_with_format(
+                        instance_msg_id,
+                        Some(status_update_id),
+                        true,
+                    )
+                    .await?,
                 );
                 status_update.set_quote(self, &instance).await?;
                 let status_update_msg_id =
@@ -145,13 +149,9 @@ impl Context {
     /// `msg_id` may be an instance (in case there are initial status updates)
     /// or a reply to an instance (for all other updates).
     ///
-    /// `json_array` is an array containing one or more payloads as created by send_w30_status_update(),
+    /// `json` is an array containing one or more payloads as created by send_w30_status_update(),
     /// the array is parsed using serde, the single payloads are used as is.
-    pub(crate) async fn receive_status_update(
-        &self,
-        msg_id: MsgId,
-        json_array: &str,
-    ) -> Result<()> {
+    pub(crate) async fn receive_status_update(&self, msg_id: MsgId, json: &str) -> Result<()> {
         let msg = Message::load_from_db(self, msg_id).await?;
         let instance = if msg.viewtype == Viewtype::W30 {
             msg
@@ -165,10 +165,13 @@ impl Context {
             bail!("receive_status_update: status message has no parent.")
         };
 
-        let payloads: Vec<Value> = serde_json::from_str(json_array)?;
-        for payload in payloads {
+        let update_items: Vec<StatusUpdateItem> = serde_json::from_str(json)?;
+        for update_item in update_items {
             let status_update_id = self
-                .create_status_update_record(instance.id, &*serde_json::to_string(&payload)?)
+                .create_status_update_record(
+                    instance.id,
+                    &*serde_json::to_string(&update_item.payload)?,
+                )
                 .await?;
             self.emit_event(EventType::W30StatusUpdate {
                 msg_id: instance.id,
@@ -188,7 +191,28 @@ impl Context {
         instance_msg_id: MsgId,
         status_update_id: Option<StatusUpdateId>,
     ) -> Result<String> {
-        let json_array = self
+        self.get_w30_status_updates_with_format(instance_msg_id, status_update_id, false)
+            .await
+    }
+
+    /// Returns status updates as JSON-array.
+    ///
+    /// If `for_wire` is `false`, the result is suitable to be passed to the app,
+    /// that get back exactly the payloads as sent:
+    /// `["any update data", "another update data"]`
+    /// get_w30_status_updates() returns this format.
+    ///
+    /// If `for_wire` is `true`, the payload is wrapped to an object
+    /// and can be enhanced in the future:
+    /// `[{"payload":"any update data"},{"payload":"another update data"}]`
+    /// This is suitable for sending objects  that are not visible to apps:
+    pub(crate) async fn get_w30_status_updates_with_format(
+        &self,
+        instance_msg_id: MsgId,
+        status_update_id: Option<StatusUpdateId>,
+        for_wire: bool,
+    ) -> Result<String> {
+        let json = self
             .sql
             .query_map(
                 "SELECT payload FROM msgs_status_updates WHERE msg_id=? AND (1=? OR id=?)",
@@ -199,19 +223,25 @@ impl Context {
                 ],
                 |row| row.get::<_, String>(0),
                 |rows| {
-                    let mut json_array = String::default();
+                    let mut json = String::default();
                     for row in rows {
-                        let json_entry = row?;
-                        if !json_array.is_empty() {
-                            json_array.push_str(",\n");
+                        let payload = row?;
+                        if !json.is_empty() {
+                            json.push_str(",\n");
                         }
-                        json_array.push_str(&json_entry);
+                        if for_wire {
+                            json.push_str("{\"payload\":");
+                        }
+                        json.push_str(&payload);
+                        if for_wire {
+                            json.push('}');
+                        }
                     }
-                    Ok(json_array)
+                    Ok(json)
                 },
             )
             .await?;
-        Ok(format!("[{}]", json_array))
+        Ok(format!("[{}]", json))
     }
 }
 
@@ -405,14 +435,27 @@ true]"#
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
         let instance = send_w30_instance(&t, chat_id).await?;
 
-        t.receive_status_update(instance.id, r#"[{"foo":"bar"}]"#)
+        assert!(t
+            .receive_status_update(instance.id, r#"foo: bar"#)
+            .await
+            .is_err()); // no json
+        assert!(t
+            .receive_status_update(instance.id, r#"[{"foo":"bar"}]"#)
+            .await
+            .is_err()); // "payload" field missing
+        assert!(t
+            .receive_status_update(instance.id, r#"{"payload":{"foo":"bar"}}"#)
+            .await
+            .is_err()); // not an array
+
+        t.receive_status_update(instance.id, r#"[{"payload":{"foo":"bar"}}]"#)
             .await?;
         assert_eq!(
             t.get_w30_status_updates(instance.id, None).await?,
             r#"[{"foo":"bar"}]"#
         );
 
-        t.receive_status_update(instance.id, r#" [ 42 , 23 ] "#)
+        t.receive_status_update(instance.id, r#" [ {"payload" :42} , {"payload": 23} ] "#)
             .await?;
         assert_eq!(
             t.get_w30_status_updates(instance.id, None).await?,
@@ -570,7 +613,7 @@ true]"#
         assert_eq!(bob_instance.get_filename(), Some("index.w30".to_string()));
         assert!(sent1.payload().contains("Content-Type: application/json"));
         assert!(sent1.payload().contains("status-update.json"));
-        assert!(sent1.payload().contains(r#"{"foo":"bar"}"#));
+        assert!(sent1.payload().contains(r#""payload":{"foo":"bar"}"#));
         assert_eq!(
             bob.get_w30_status_updates(bob_instance.id, None).await?,
             r#"[{"foo":"bar"},
