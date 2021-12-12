@@ -79,8 +79,7 @@ mod tests {
     #[async_std::test]
     async fn test_keyring_load_self() {
         // new_self() implies load_self()
-        let t = TestContext::new().await;
-        t.configure_alice().await;
+        let t = TestContext::new_alice().await;
         let alice = alice_keypair();
 
         let pub_ring: Keyring<SignedPublicKey> = Keyring::new_self(&t).await.unwrap();
