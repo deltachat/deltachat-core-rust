@@ -829,17 +829,24 @@ mod tests {
         assert!(!disable_server_delete);
         assert!(!recode_avatar);
 
-        info!(&t, "test_migration_flags: XXX");
+        info!(&t, "test_migration_flags: XXX END MARKER");
 
         loop {
-            if let EventType::Info(info) = t.evtracker.recv().await.unwrap() {
-                assert!(
-                    !info.contains("[migration]"),
-                    "Migrations were run twice, you probably forgot to update the db version"
-                );
-                if info.contains("test_migration_flags: XXX") {
-                    break;
+            let evt = t
+                .evtracker
+                .get_matching(|evt| matches!(evt, EventType::Info(_)))
+                .await;
+            match evt {
+                EventType::Info(msg) => {
+                    assert!(
+                        !msg.contains("[migration]"),
+                        "Migrations were run twice, you probably forgot to update the db version"
+                    );
+                    if msg.contains("test_migration_flags: XXX END MARKER") {
+                        break;
+                    }
                 }
+                _ => unreachable!(),
             }
         }
 
