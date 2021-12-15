@@ -2029,7 +2029,7 @@ CCCB 5AA9 F6E1 141C 9431
 
         alice1
             .evtracker
-            .get_matching(|e| e == EventType::SelfavatarChanged)
+            .get_matching(|e| matches!(e, EventType::SelfavatarChanged))
             .await;
 
         // Bob sends a message so that Alice can encrypt to him.
@@ -2059,7 +2059,7 @@ CCCB 5AA9 F6E1 141C 9431
         assert!(alice2.get_config(Config::Selfavatar).await?.is_some());
         alice2
             .evtracker
-            .get_matching(|e| e == EventType::SelfavatarChanged)
+            .get_matching(|e| matches!(e, EventType::SelfavatarChanged))
             .await;
 
         Ok(())

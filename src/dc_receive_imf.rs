@@ -4684,14 +4684,18 @@ Second thread."#;
         let chat = chat::Chat::load_from_db(&t, msg.chat_id).await?;
         assert!(chat.is_contact_request());
 
-        let duration = std::time::Duration::from_secs(1);
         loop {
-            let event = async_std::future::timeout(duration, t.evtracker.recv()).await??;
-
-            if let EventType::IncomingMsg { chat_id, msg_id } = &event {
-                assert_eq!(msg.chat_id, *chat_id);
-                assert_eq!(msg.id, *msg_id);
-                return Ok(());
+            let event = t
+                .evtracker
+                .get_matching(|evt| matches!(evt, EventType::IncomingMsg { .. }))
+                .await;
+            match event {
+                EventType::IncomingMsg { chat_id, msg_id } => {
+                    assert_eq!(msg.chat_id, chat_id);
+                    assert_eq!(msg.id, msg_id);
+                    return Ok(());
+                }
+                _ => unreachable!(),
             }
         }
     }
