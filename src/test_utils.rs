@@ -570,7 +570,7 @@ pub struct LogSink {
 
 impl LogSink {
     /// Creates a new [`LogSink`] and returns the attached event sink.
-    fn create() -> (Sender<Event>, Self) {
+    pub fn create() -> (Sender<Event>, Self) {
         let (tx, rx) = channel::unbounded();
         (tx, Self { events: rx })
     }
