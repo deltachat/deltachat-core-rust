@@ -936,15 +936,12 @@ fn encrypted_and_signed(
 mod tests {
     use super::*;
 
-    use async_std::prelude::*;
-
     use crate::chat;
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::peerstate::Peerstate;
     use crate::test_utils::TestContext;
-    use std::time::Duration;
 
     #[async_std::test]
     async fn test_setup_contact() -> Result<()> {
@@ -952,10 +949,6 @@ mod tests {
         let bob = TestContext::new_bob().await;
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
-
-        // Setup JoinerProgress sinks.
-        let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::unbounded();
-        bob.add_event_sender(joiner_progress_tx).await;
 
         // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
         let qr = dc_get_securejoin_qr(&alice.ctx, None).await?;
@@ -988,33 +981,25 @@ mod tests {
         bob.recv_msg(&sent).await;
 
         // Check Bob emitted the JoinerProgress event.
-        async {
-            loop {
-                let event = joiner_progress_rx.recv().await.unwrap();
-                match event.typ {
-                    EventType::SecurejoinJoinerProgress {
-                        contact_id,
-                        progress,
-                    } => {
-                        let alice_contact_id = Contact::lookup_id_by_addr(
-                            &bob.ctx,
-                            "alice@example.org",
-                            Origin::Unknown,
-                        )
+        let event = bob
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::SecurejoinJoinerProgress { .. }))
+            .await;
+        match event {
+            EventType::SecurejoinJoinerProgress {
+                contact_id,
+                progress,
+            } => {
+                let alice_contact_id =
+                    Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
                         .await
                         .expect("Error looking up contact")
                         .expect("Contact not found");
-                        assert_eq!(contact_id, alice_contact_id);
-                        assert_eq!(progress, 400);
-                        break;
-                    }
-                    _ => {}
-                }
+                assert_eq!(contact_id, alice_contact_id);
+                assert_eq!(progress, 400);
             }
+            _ => unreachable!(),
         }
-        .timeout(Duration::from_secs(10))
-        .await
-        .expect("timeout waiting for JoinerProgress event");
 
         // Check Bob sent the right message.
         let sent = bob.pop_sent_msg().await;
@@ -1151,10 +1136,6 @@ mod tests {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        // Setup JoinerProgress sinks.
-        let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::unbounded();
-        bob.add_event_sender(joiner_progress_tx).await;
-
         // Ensure Bob knows Alice_FP
         let alice_pubkey = SignedPublicKey::load_self(&alice.ctx).await?;
         let peerstate = Peerstate {
@@ -1181,34 +1162,25 @@ mod tests {
         dc_join_securejoin(&bob.ctx, &qr).await.unwrap();
 
         // Check Bob emitted the JoinerProgress event.
-        async {
-            loop {
-                let event = joiner_progress_rx.recv().await.unwrap();
-                match event.typ {
-                    EventType::SecurejoinJoinerProgress {
-                        contact_id,
-                        progress,
-                    } => {
-                        let alice_contact_id = Contact::lookup_id_by_addr(
-                            &bob.ctx,
-                            "alice@example.org",
-                            Origin::Unknown,
-                        )
+        let event = bob
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::SecurejoinJoinerProgress { .. }))
+            .await;
+        match event {
+            EventType::SecurejoinJoinerProgress {
+                contact_id,
+                progress,
+            } => {
+                let alice_contact_id =
+                    Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
                         .await
                         .expect("Error looking up contact")
                         .expect("Contact not found");
-                        assert_eq!(contact_id, alice_contact_id);
-                        assert_eq!(progress, 400);
-                        break;
-                    }
-                    _ => {}
-                }
+                assert_eq!(contact_id, alice_contact_id);
+                assert_eq!(progress, 400);
             }
+            _ => unreachable!(),
         }
-        .timeout(Duration::from_secs(10))
-        .await
-        .expect("timeout waiting for JoinerProgress event");
-        assert!(!bob.ctx.has_ongoing().await);
 
         // Check Bob sent the right handshake message.
         let sent = bob.pop_sent_msg().await;
@@ -1320,10 +1292,6 @@ mod tests {
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
 
-        // Setup JoinerProgress sinks.
-        let (joiner_progress_tx, joiner_progress_rx) = async_std::channel::unbounded();
-        bob.add_event_sender(joiner_progress_tx).await;
-
         let chatid =
             chat::create_group_chat(&alice.ctx, ProtectionStatus::Protected, "the chat").await?;
 
@@ -1359,33 +1327,25 @@ mod tests {
         let sent = bob.pop_sent_msg().await;
 
         // Check Bob emitted the JoinerProgress event.
-        async {
-            loop {
-                let event = joiner_progress_rx.recv().await.unwrap();
-                match event.typ {
-                    EventType::SecurejoinJoinerProgress {
-                        contact_id,
-                        progress,
-                    } => {
-                        let alice_contact_id = Contact::lookup_id_by_addr(
-                            &bob.ctx,
-                            "alice@example.org",
-                            Origin::Unknown,
-                        )
+        let event = bob
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::SecurejoinJoinerProgress { .. }))
+            .await;
+        match event {
+            EventType::SecurejoinJoinerProgress {
+                contact_id,
+                progress,
+            } => {
+                let alice_contact_id =
+                    Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
                         .await
                         .expect("Error looking up contact")
                         .expect("Contact not found");
-                        assert_eq!(contact_id, alice_contact_id);
-                        assert_eq!(progress, 400);
-                        break;
-                    }
-                    _ => {}
-                }
+                assert_eq!(contact_id, alice_contact_id);
+                assert_eq!(progress, 400);
             }
+            _ => unreachable!(),
         }
-        .timeout(Duration::from_secs(10))
-        .await
-        .expect("timeout waiting for JoinerProgress event");
 
         // Check Bob sent the right handshake message.
         let msg = alice.parse_msg(&sent).await;
