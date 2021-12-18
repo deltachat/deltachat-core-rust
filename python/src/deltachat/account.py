@@ -404,7 +404,7 @@ class Account(object):
         arr = array("i")
         for msg in messages:
             if isinstance(msg, Message):
-                arr.append(getattr(msg, "id"))
+                arr.append(msg.id)
             else:
                 arr.append(msg)
         msg_ids = ffi.cast("uint32_t*", ffi.from_buffer(arr))
