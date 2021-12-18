@@ -465,7 +465,7 @@ class BotProcess:
         # the (unicode) lines available for readers through a queue.
         self.stdout_queue = queue.Queue()
         self.stdout_thread = t = threading.Thread(target=self._run_stdout_thread, name="bot-stdout-thread")
-        t.setDaemon(True)
+        t.daemon = True
         t.start()
 
     def _run_stdout_thread(self) -> None:

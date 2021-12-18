@@ -40,7 +40,7 @@ class FFIEventLogger:
 
     @account_hookimpl
     def ac_log_line(self, message):
-        t = threading.currentThread()
+        t = threading.current_thread()
         tname = getattr(t, "name", t)
         if tname == "MainThread":
             tname = "MAIN"
@@ -193,7 +193,7 @@ class EventThread(threading.Thread):
     def __init__(self, account) -> None:
         self.account = account
         super(EventThread, self).__init__(name="events")
-        self.setDaemon(True)
+        self.daemon = True
         self._marked_for_shutdown = False
         self.start()
 
