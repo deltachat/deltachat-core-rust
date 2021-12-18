@@ -1142,7 +1142,7 @@ class TestOnlineAccount:
         assert not msg_reply1.chat.is_group()
         assert msg_reply1.chat.id == private_chat1.id
 
-    def test_mdn_asymetric(self, acfactory, lp):
+    def test_mdn_asymmetric(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts(move=True)
 
         lp.sec("ac1: create chat with ac2")
