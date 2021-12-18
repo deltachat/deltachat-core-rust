@@ -1590,6 +1590,7 @@ async fn apply_group_changes(
         .cloned()
     {
         removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
+        recreate_member_list = true;
         match removed_id {
             Some(contact_id) => {
                 mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
@@ -1672,32 +1673,24 @@ async fn apply_group_changes(
         }
     }
 
-    if let Some(avatar_action) = &mime_parser.group_avatar {
-        info!(context, "group-avatar change for {}", chat_id);
-        if chat
-            .param
-            .update_timestamp(Param::AvatarTimestamp, sent_timestamp)?
-        {
-            match avatar_action {
-                AvatarAction::Change(profile_image) => {
-                    chat.param.set(Param::ProfileImage, profile_image);
-                }
-                AvatarAction::Delete => {
-                    chat.param.remove(Param::ProfileImage);
-                }
-            };
-            chat.update_param(context).await?;
-            send_event_chat_modified = true;
-        }
-    }
-
     // add members to group/check members
     if recreate_member_list {
-        if chat_id
+        if chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await?
+            && !chat::is_contact_in_chat(context, chat_id, from_id).await?
+        {
+            warn!(
+                context,
+                "Contact {} attempts to modify group chat {} member list without being a member.",
+                from_id,
+                chat_id
+            );
+        } else if chat_id
             .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
             .await?
         {
-            if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await? {
+            if removed_id.is_some()
+                || !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await?
+            {
                 // Members could have been removed while we were
                 // absent. We can't use existing member list and need to
                 // start from scratch.
@@ -1709,7 +1702,9 @@ async fn apply_group_changes(
                     )
                     .await?;
 
-                chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await?;
+                if removed_id != Some(DC_CONTACT_ID_SELF) {
+                    chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await?;
+                }
             }
             if from_id > DC_CONTACT_ID_LAST_SPECIAL
                 && !Contact::addr_equals_contact(context, &self_addr, from_id).await?
@@ -1718,24 +1713,49 @@ async fn apply_group_changes(
                 chat::add_to_chat_contacts_table(context, chat_id, from_id).await?;
             }
             for &to_id in to_ids.iter() {
-                info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
                 if !Contact::addr_equals_contact(context, &self_addr, to_id).await?
                     && !chat::is_contact_in_chat(context, chat_id, to_id).await?
+                    && removed_id != Some(to_id)
                 {
+                    info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
                     chat::add_to_chat_contacts_table(context, chat_id, to_id).await?;
                 }
             }
             send_event_chat_modified = true;
         }
-    } else if let Some(contact_id) = removed_id {
-        // in contrast to `Chat-Group-Member-Added` we do not reconstruct the whole state from To: on removing -
-        // otherwise out-of-order removals won't work as members are re-added quickly.
-        //
-        // therefore, we need to ignore `MemberListTimestamp`
-        // and execute `Chat-Group-Member-Removed` statements even when they arrive out of order.
-        // we do not set `MemberListTimestamp` as we do not reconstuct the memberlist.
-        chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
-        send_event_chat_modified = true;
+    }
+
+    if let Some(avatar_action) = &mime_parser.group_avatar {
+        if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await? {
+            warn!(
+                context,
+                "Received group avatar update for group chat {} we are not a member of.", chat_id
+            );
+        } else if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
+            warn!(
+                context,
+                "Contact {} attempts to modify group chat {} avatar without being a member.",
+                from_id,
+                chat_id
+            );
+        } else {
+            info!(context, "group-avatar change for {}", chat_id);
+            if chat
+                .param
+                .update_timestamp(Param::AvatarTimestamp, sent_timestamp)?
+            {
+                match avatar_action {
+                    AvatarAction::Change(profile_image) => {
+                        chat.param.set(Param::ProfileImage, profile_image);
+                    }
+                    AvatarAction::Delete => {
+                        chat.param.remove(Param::ProfileImage);
+                    }
+                };
+                chat.update_param(context).await?;
+                send_event_chat_modified = true;
+            }
+        }
     }
 
     if send_event_chat_modified {

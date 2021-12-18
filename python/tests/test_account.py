@@ -2905,7 +2905,8 @@ class TestGroupStressTests:
         lp.sec("ac2: check that ac3 is removed")
         msg = ac2._evtracker.wait_next_incoming_message()
 
-        assert msg.chat.num_contacts() == chat.num_contacts()
+        assert chat.num_contacts() == 2
+        assert msg.chat.num_contacts() == 2
         acfactory.dump_imap_summary(sys.stdout)
 
 
