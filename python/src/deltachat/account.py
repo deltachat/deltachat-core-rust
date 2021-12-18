@@ -403,7 +403,10 @@ class Account(object):
         """
         arr = array("i")
         for msg in messages:
-            arr.append(getattr(msg, "id", msg))
+            if isinstance(msg, Message):
+                arr.append(getattr(msg, "id"))
+            else:
+                arr.append(msg)
         msg_ids = ffi.cast("uint32_t*", ffi.from_buffer(arr))
         lib.dc_markseen_msgs(self._dc_context, msg_ids, len(messages))
 
