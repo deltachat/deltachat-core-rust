@@ -329,10 +329,6 @@ static P_DUBBY_ORG: Lazy<Provider> = Lazy::new(|| Provider {
             value: "0",
         },
         ConfigDefault {
-            key: Config::MvboxWatch,
-            value: "0",
-        },
-        ConfigDefault {
             key: Config::MvboxMove,
             value: "0",
         },
@@ -473,10 +469,6 @@ static P_FIVE_CHAT: Lazy<Provider> = Lazy::new(|| Provider {
         },
         ConfigDefault {
             key: Config::SentboxWatch,
-            value: "0",
-        },
-        ConfigDefault {
-            key: Config::MvboxWatch,
             value: "0",
         },
         ConfigDefault {
@@ -824,10 +816,6 @@ static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| Provider {
             value: "0",
         },
         ConfigDefault {
-            key: Config::MvboxWatch,
-            value: "0",
-        },
-        ConfigDefault {
             key: Config::MvboxMove,
             value: "0",
         },
@@ -1099,10 +1087,6 @@ static P_TESTRUN: Lazy<Provider> = Lazy::new(|| Provider {
         },
         ConfigDefault {
             key: Config::SentboxWatch,
-            value: "0",
-        },
-        ConfigDefault {
-            key: Config::MvboxWatch,
             value: "0",
         },
         ConfigDefault {

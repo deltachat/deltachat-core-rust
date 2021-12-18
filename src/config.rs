@@ -74,9 +74,6 @@ pub enum Config {
     SentboxWatch,
 
     #[strum(props(default = "1"))]
-    MvboxWatch,
-
-    #[strum(props(default = "1"))]
     MvboxMove,
 
     #[strum(props(default = "0"))]

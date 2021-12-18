@@ -303,21 +303,20 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 self._preconfigure_key(ac, configdict['addr'])
             return ac, dict(configdict)
 
-        def get_online_configuring_account(self, mvbox=False, sentbox=False, move=False,
+        def get_online_configuring_account(self, sentbox=False, move=False,
                                            pre_generated_key=True, quiet=False, config={}):
             ac, configdict = self.get_online_config(
                 pre_generated_key=pre_generated_key, quiet=quiet)
             configdict.update(config)
-            configdict["mvbox_watch"] = str(int(mvbox))
             configdict["mvbox_move"] = str(int(move))
             configdict["sentbox_watch"] = str(int(sentbox))
             ac.update_config(configdict)
             ac._configtracker = ac.configure()
             return ac
 
-        def get_one_online_account(self, pre_generated_key=True, mvbox=False, move=False):
+        def get_one_online_account(self, pre_generated_key=True, move=False):
             ac1 = self.get_online_configuring_account(
-                pre_generated_key=pre_generated_key, mvbox=mvbox, move=move)
+                pre_generated_key=pre_generated_key, move=move)
             self.wait_configure_and_start_io([ac1])
             return ac1
 
@@ -336,7 +335,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             return accounts
 
         def clone_online_account(self, account, pre_generated_key=True):
-            """ Clones addr, mail_pw, mvbox_watch, mvbox_move, sentbox_watch and the
+            """ Clones addr, mail_pw, mvbox_move, sentbox_watch and the
             direct_imap object of an online account. This simulates the user setting
             up a new device without importing a backup.
 
@@ -351,7 +350,6 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac.update_config(dict(
                 addr=account.get_config("addr"),
                 mail_pw=account.get_config("mail_pw"),
-                mvbox_watch=account.get_config("mvbox_watch"),
                 mvbox_move=account.get_config("mvbox_move"),
                 sentbox_watch=account.get_config("sentbox_watch"),
             ))

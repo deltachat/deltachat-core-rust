@@ -106,7 +106,7 @@ pub(crate) async fn get_watched_folders(context: &Context) -> Vec<String> {
     let mut res = Vec::new();
     let folder_watched_configured = &[
         (Config::SentboxWatch, Config::ConfiguredSentboxFolder),
-        (Config::MvboxWatch, Config::ConfiguredMvboxFolder),
+        (Config::MvboxMove, Config::ConfiguredMvboxFolder),
         (Config::InboxWatch, Config::ConfiguredInboxFolder),
     ];
     for (watched, configured) in folder_watched_configured {

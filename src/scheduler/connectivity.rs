@@ -367,7 +367,7 @@ impl Context {
                     ),
                     (
                         Config::ConfiguredMvboxFolder,
-                        Config::MvboxWatch,
+                        Config::MvboxMove,
                         mvbox.state.connectivity.clone(),
                     ),
                     (

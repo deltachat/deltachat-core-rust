@@ -353,7 +353,7 @@ impl Scheduler {
             }))
         };
 
-        if ctx.get_config_bool(Config::MvboxWatch).await? {
+        if ctx.get_config_bool(Config::MvboxMove).await? {
             let ctx = ctx.clone();
             mvbox_handle = Some(task::spawn(async move {
                 simple_imap_loop(

@@ -860,7 +860,7 @@ class TestOnlineAccount:
 
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
-        ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True, sentbox=True)
+        ac1 = acfactory.get_online_configuring_account(move=True, sentbox=True)
 
         lp.sec("ac2: start without mvbox/sentbox threads")
         ac2 = acfactory.get_online_configuring_account()
@@ -874,7 +874,7 @@ class TestOnlineAccount:
 
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
+        ac2 = acfactory.get_online_configuring_account(move=True)
         acfactory.wait_configure_and_start_io()
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
@@ -883,7 +883,7 @@ class TestOnlineAccount:
         ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
     def test_move_works_on_self_sent(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
+        ac1 = acfactory.get_online_configuring_account(move=True)
         ac2 = acfactory.get_online_configuring_account()
         acfactory.wait_configure_and_start_io()
         ac1.set_config("bcc_self", "1")
@@ -953,7 +953,7 @@ class TestOnlineAccount:
         assert msg_in.is_forwarded()
 
     def test_send_self_message(self, acfactory, lp):
-        ac1 = acfactory.get_one_online_account(mvbox=True, move=True)
+        ac1 = acfactory.get_one_online_account(move=True)
         lp.sec("ac1: create self chat")
         chat = ac1.get_self_contact().create_chat()
         chat.send_text("hello")
@@ -1034,7 +1034,7 @@ class TestOnlineAccount:
 
     def test_moved_markseen(self, acfactory, lp):
         """Test that message already moved to DeltaChat folder is marked as seen."""
-        ac1 = acfactory.get_online_configuring_account(mvbox=True, config={"inbox_watch": "0"})
+        ac1 = acfactory.get_online_configuring_account(move=True, config={"inbox_watch": "0"})
         ac2 = acfactory.get_online_configuring_account()
         acfactory.wait_configure_and_start_io([ac1, ac2])
         ac1.set_config("bcc_self", "1")
@@ -1095,8 +1095,8 @@ class TestOnlineAccount:
     def test_markseen_message_and_mdn(self, acfactory, mvbox_move):
         # Please only change this test if you are very sure that it will still catch the issues it catches now.
         # We had so many problems with markseen, if in doubt, rather create another test, it can't harm.
-        ac1 = acfactory.get_online_configuring_account(move=mvbox_move, mvbox=mvbox_move)
-        ac2 = acfactory.get_online_configuring_account(move=mvbox_move, mvbox=mvbox_move)
+        ac1 = acfactory.get_online_configuring_account(move=mvbox_move)
+        ac2 = acfactory.get_online_configuring_account(move=mvbox_move)
 
         acfactory.wait_configure_and_start_io()
         # Do not send BCC to self, we only want to test MDN on ac1.
@@ -2349,7 +2349,7 @@ class TestOnlineAccount:
 
     def test_immediate_autodelete(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(mvbox=False, move=False, sentbox=False)
+        ac2 = acfactory.get_online_configuring_account(move=False, sentbox=False)
 
         # "1" means delete immediately, while "0" means do not delete
         ac2.set_config("delete_server_after", "1")
@@ -2677,7 +2677,7 @@ class TestOnlineAccount:
             if mvbox_move:
                 assert ac.get_config("configured_mvbox_folder")
 
-        ac1 = acfactory.get_online_configuring_account(mvbox=mvbox_move, move=mvbox_move)
+        ac1 = acfactory.get_online_configuring_account(move=mvbox_move)
         ac1.set_config("sentbox_move", "1")
         ac2 = acfactory.get_online_configuring_account()
 
@@ -2777,7 +2777,7 @@ class TestOnlineAccount:
 
     def test_delete_deltachat_folder(self, acfactory):
         """Test that DeltaChat folder is recreated if user deletes it manually."""
-        ac1 = acfactory.get_online_configuring_account(mvbox=True)
+        ac1 = acfactory.get_online_configuring_account(move=True)
         ac2 = acfactory.get_online_configuring_account()
         acfactory.wait_configure(ac1)
 

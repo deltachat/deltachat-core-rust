@@ -299,12 +299,11 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `sentbox_watch`= 1=watch `Sent`-folder for changes (default),
  *                    0=do not watch the `Sent`-folder,
  *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
- * - `mvbox_watch`  = 1=watch `DeltaChat`-folder for changes (default),
- *                    0=do not watch the `DeltaChat`-folder,
- *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
- * - `mvbox_move`   = 1=heuristically detect chat-messages
- *                    and move them to the `DeltaChat`-folder,
+ * - `mvbox_move`   = 1=detect chat messages,
+ *                    move them to the `DeltaChat` folder,
+ *                    and watch the `DeltaChat` folder for updates (default),
  *                    0=do not move chat-messages
+ *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
  * - `show_emails`  = DC_SHOW_EMAILS_OFF (0)=
  *                    show direct replies to chats only (default),
  *                    DC_SHOW_EMAILS_ACCEPTED_CONTACTS (1)=

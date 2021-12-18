@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### API changes
+
+- Removed `mvbox_watch` option. #2906
+  It is automatically enabled whenever `mvbox_move` is enabled.
+
 ## 1.70.0
 
 ### Fixes
