@@ -717,7 +717,11 @@ pub(crate) fn parse_receive_headers(headers: &Headers) -> String {
         .map(|(i, header_value)| (i + 1).to_string() + ". " + &parse_receive_header(header_value))
         .collect::<Vec<_>>();
 
-    headers.iter().map(|a| a.to_string()).collect::<Vec<_>>().join("\n")
+    headers
+        .iter()
+        .map(|a| a.to_string())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[cfg(test)]
