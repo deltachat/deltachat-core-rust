@@ -740,7 +740,7 @@ mod tests {
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
         let mail = mailparse::parse_mail(&raw[..]).unwrap();
         let hop_info = parse_receive_headers(&mail.get_headers());
-        let expected = vec!(
+        let expected = vec![
             "1. Hop:",
             // "Date: Sat, 14 Sep 2019 19:00:22 +0200\n",
             "From: localhost",
@@ -750,10 +750,13 @@ mod tests {
             // "Date: Sat, 14 Sep 2019 19:00:25 +0200\n",
             "From: hq5.merlinux.eu",
             "By: hq5.merlinux.eu",
-            ""
-        );
+            "",
+        ];
         // remove Date lines because they are not deterministic
-        let hop_info = hop_info.split("\n").filter(|line| !line.starts_with("Date:")).collect::<Vec<_>>();
+        let hop_info = hop_info
+            .split("\n")
+            .filter(|line| !line.starts_with("Date:"))
+            .collect::<Vec<_>>();
         assert_eq!(hop_info, expected)
     }
 
@@ -786,7 +789,10 @@ By: hq5.merlinux.eu
         let capped_result = &result[result.find("State").unwrap()..];
 
         // remove Date lines because they are not deterministic
-        let capped_result = capped_result.split("\n").filter(|line| !line.starts_with("Date:")).collect::<Vec<_>>();
+        let capped_result = capped_result
+            .split("\n")
+            .filter(|line| !line.starts_with("Date:"))
+            .collect::<Vec<_>>();
         assert_eq!(expected.split("\n").collect::<Vec<_>>(), capped_result);
         Ok(())
     }
