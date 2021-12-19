@@ -16,7 +16,6 @@ use crate::config::Config;
 use crate::contact::{normalize_name, Contact, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, dc_read_file, time};
-use crate::ephemeral::load_imap_deletion_msgid;
 use crate::events::EventType;
 use crate::imap::{Imap, ImapActionResult};
 use crate::location;
@@ -96,11 +95,6 @@ pub enum Action {
     // this is user initiated so it should have a fairly high priority
     UpdateRecentQuota = 140,
 
-    // Moving message is prioritized lower than deletion so we don't
-    // bother moving message if it is already scheduled for deletion.
-    MoveMsg = 200,
-    DeleteMsgOnImap = 210,
-
     // This job will download partially downloaded messages completely
     // and is added when download_full() is called.
     // Most messages are downloaded automatically on fetch
@@ -133,10 +127,8 @@ impl From<Action> for Thread {
 
             Housekeeping => Thread::Imap,
             FetchExistingMsgs => Thread::Imap,
-            DeleteMsgOnImap => Thread::Imap,
             ResyncFolders => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
-            MoveMsg => Thread::Imap,
             UpdateRecentQuota => Thread::Imap,
             DownloadMsg => Thread::Imap,
 
@@ -553,149 +545,6 @@ impl Job {
         .await
     }
 
-    async fn move_msg(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.prepare(context).await {
-            warn!(context, "could not connect: {:?}", err);
-            return Status::RetryLater;
-        }
-
-        let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-        let server_folder = &job_try!(msg
-            .server_folder
-            .context("Can't move message out of folder if we don't know the current folder"));
-
-        let move_res = msg.id.needs_move(context, server_folder).await;
-        let dest_folder = match move_res {
-            Err(e) => {
-                warn!(context, "could not load dest folder: {}", e);
-                return Status::RetryLater;
-            }
-            Ok(None) => {
-                warn!(
-                    context,
-                    "msg {} does not need to be moved from {}", msg.id, server_folder
-                );
-                return Status::Finished(Ok(()));
-            }
-            Ok(Some(config)) => match context.get_config(config).await {
-                Ok(folder) => folder,
-                Err(err) => {
-                    warn!(context, "failed to load config: {}", err);
-                    return Status::RetryLater;
-                }
-            },
-        };
-
-        if let Some(dest_folder) = dest_folder {
-            match imap
-                .mv(context, server_folder, msg.server_uid, &dest_folder)
-                .await
-            {
-                ImapActionResult::RetryLater => Status::RetryLater,
-                ImapActionResult::Success => {
-                    // Rust-Imap provides no target uid on mv, so just set it to 0, update again when precheck_imf() is called for the moved message
-                    message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, 0).await;
-                    Status::Finished(Ok(()))
-                }
-                ImapActionResult::Failed => {
-                    Status::Finished(Err(format_err!("IMAP action failed")))
-                }
-                ImapActionResult::AlreadyDone => Status::Finished(Ok(())),
-            }
-        } else {
-            Status::Finished(Err(format_err!("No mvbox folder configured")))
-        }
-    }
-
-    /// Deletes a message on the server.
-    ///
-    /// `foreign_id` is a MsgId.
-    ///
-    /// If the message is in the trash chat or hidden, this job
-    /// removes database record, otherwise it only clears the
-    /// `server_uid` column.  If there are no more records pointing to
-    /// the same message on the server, the job actually removes the
-    /// message on the server.
-    async fn delete_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.prepare(context).await {
-            warn!(context, "could not connect: {:?}", err);
-            return Status::RetryLater;
-        }
-
-        let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-
-        if !msg.rfc724_mid.is_empty() {
-            let cnt = message::rfc724_mid_cnt(context, &msg.rfc724_mid).await;
-            info!(
-                context,
-                "Running delete job for message {} which has {} entries in the database",
-                &msg.rfc724_mid,
-                cnt
-            );
-            if cnt > 1 {
-                info!(
-                    context,
-                    "The message is deleted from the server when all parts are deleted.",
-                );
-            } else if cnt == 0 {
-                warn!(
-                    context,
-                    "The message {} has no UID on the server to delete", &msg.rfc724_mid
-                );
-            } else {
-                /* if this is the last existing part of the message,
-                we delete the message from the server */
-                let mid = msg.rfc724_mid;
-                let server_folder = msg.server_folder.as_ref().unwrap();
-                let res = if msg.server_uid == 0 {
-                    // Message is already deleted on IMAP server.
-                    ImapActionResult::AlreadyDone
-                } else {
-                    imap.delete_msg(context, &mid, server_folder, msg.server_uid)
-                        .await
-                };
-                match res {
-                    ImapActionResult::AlreadyDone | ImapActionResult::Success => {}
-                    ImapActionResult::RetryLater | ImapActionResult::Failed => {
-                        // If job has failed, for example due to some
-                        // IMAP bug, we postpone it instead of failing
-                        // immediately. This will prevent adding it
-                        // immediately again if user has enabled
-                        // automatic message deletion. Without this,
-                        // we might waste a lot of traffic constantly
-                        // retrying message deletion.
-                        return Status::RetryLater;
-                    }
-                }
-            }
-            if msg.chat_id.is_trash() || msg.hidden {
-                // Messages are stored in trash chat only to keep
-                // their server UID and Message-ID. Once message is
-                // deleted from the server, database record can be
-                // removed as well.
-                //
-                // Hidden messages are similar to trashed, but are
-                // related to some chat. We also delete their
-                // database records.
-                job_try!(msg.id.delete_from_db(context).await)
-            } else {
-                // Remove server UID from the database record.
-                //
-                // We have either just removed the message from the
-                // server, in which case UID is not valid anymore, or
-                // we have more refernces to the same server UID, so
-                // we remove UID to reduce the number of messages
-                // pointing to the corresponding UID. Once the counter
-                // reaches zero, we will remove the message.
-                job_try!(msg.id.unlink(context).await);
-            }
-            Status::Finished(Ok(()))
-        } else {
-            /* eg. device messages have no Message-ID */
-            Status::Finished(Ok(()))
-        }
-    }
-
     /// Read the recipients from old emails sent by the user and add them as contacts.
     /// This way, we can already offer them some email addresses they can write to.
     ///
@@ -774,55 +623,58 @@ impl Job {
         }
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-
-        let folder = msg.server_folder.as_ref().unwrap();
-
-        let result = if msg.server_uid == 0 {
-            // The message is moved or deleted by us.
-            //
-            // Do not call set_seen with zero UID, as it will return
-            // ImapActionResult::RetryLater, but we do not want to
-            // retry. If the message was moved, we will create another
-            // job to mark the message as seen later. If it was
-            // deleted, there is nothing to do.
-            info!(context, "Can't mark message as seen: No UID");
-            ImapActionResult::Failed
-        } else {
-            imap.set_seen(context, folder, msg.server_uid).await
-        };
-
-        match result {
-            ImapActionResult::RetryLater => Status::RetryLater,
-            ImapActionResult::AlreadyDone => Status::Finished(Ok(())),
-            ImapActionResult::Success | ImapActionResult::Failed => {
-                // XXX the message might just have been moved
-                // we want to send out an MDN anyway
-                // The job will not be retried so locally
-                // there is no risk of double-sending MDNs.
-                //
-                // Read receipts for system messages are never
-                // sent. These messages have no place to display
-                // received read receipt anyway.  And since their text
-                // is locally generated, quoting them is dangerous as
-                // it may contain contact names. E.g., for original
-                // message "Group left by me", a read receipt will
-                // quote "Group left by <name>", and the name can be a
-                // display name stored in address book rather than
-                // the name sent in the From field by the user.
-                if msg.param.get_bool(Param::WantsMdn).unwrap_or_default()
-                    && !msg.is_system_message()
-                {
-                    let mdns_enabled = job_try!(context.get_config_bool(Config::MdnsEnabled).await);
-                    if mdns_enabled {
-                        if let Err(err) = send_mdn(context, &msg).await {
-                            warn!(context, "could not send out mdn for {}: {}", msg.id, err);
-                            return Status::Finished(Err(err));
-                        }
+        let row = job_try!(
+            context
+                .sql
+                .query_row_optional(
+                    "SELECT uid, folder FROM imap
+                    WHERE rfc724_mid=? AND folder=target
+                    ORDER BY uid ASC
+                    LIMIT 1",
+                    paramsv![msg.rfc724_mid],
+                    |row| {
+                        let uid: u32 = row.get(0)?;
+                        let folder: String = row.get(1)?;
+                        Ok((uid, folder))
                     }
+                )
+                .await
+        );
+        if let Some((server_uid, server_folder)) = row {
+            let result = imap.set_seen(context, &server_folder, server_uid).await;
+            match result {
+                ImapActionResult::RetryLater => return Status::RetryLater,
+                ImapActionResult::Success | ImapActionResult::Failed => {}
+            }
+        } else {
+            info!(
+                context,
+                "Can't mark the message {} as seen on IMAP because there is no known UID",
+                msg.rfc724_mid
+            );
+        }
+
+        // XXX we send MDN even in case of failure to mark the messages as seen, e.g. if it was
+        // already deleted on the server by another device. The job will not be retried so locally
+        // there is no risk of double-sending MDNs.
+        //
+        // Read receipts for system messages are never sent. These messages have no place to
+        // display received read receipt anyway.  And since their text is locally generated,
+        // quoting them is dangerous as it may contain contact names. E.g., for original message
+        // "Group left by me", a read receipt will quote "Group left by <name>", and the name can
+        // be a display name stored in address book rather than the name sent in the From field by
+        // the user.
+        if msg.param.get_bool(Param::WantsMdn).unwrap_or_default() && !msg.is_system_message() {
+            let mdns_enabled = job_try!(context.get_config_bool(Config::MdnsEnabled).await);
+            if mdns_enabled {
+                if let Err(err) = send_mdn(context, &msg).await {
+                    warn!(context, "could not send out mdn for {}: {}", msg.id, err);
+                    return Status::Finished(Err(err));
                 }
-                Status::Finished(Ok(()))
             }
         }
+
+        Status::Finished(Ok(()))
     }
 }
 
@@ -1046,13 +898,6 @@ pub(crate) enum Connection<'a> {
     Smtp(&'a mut Smtp),
 }
 
-pub(crate) async fn load_imap_deletion_job(context: &Context) -> Result<Option<Job>> {
-    let res = load_imap_deletion_msgid(context)
-        .await?
-        .map(|msg_id| Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), Params::new(), 0));
-    Ok(res)
-}
-
 impl<'a> fmt::Display for Connection<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -1161,10 +1006,8 @@ async fn perform_job_action(
         Action::MaybeSendLocationsEnded => {
             location::job_maybe_send_locations_ended(context, job).await
         }
-        Action::DeleteMsgOnImap => job.delete_msg_on_imap(context, connection.inbox()).await,
         Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
         Action::MarkseenMsgOnImap => job.markseen_msg_on_imap(context, connection.inbox()).await,
-        Action::MoveMsg => job.move_msg(context, connection.inbox()).await,
         Action::FetchExistingMsgs => job.fetch_existing_msgs(context, connection.inbox()).await,
         Action::Housekeeping => {
             sql::housekeeping(context).await.ok_or_log(context);
@@ -1241,11 +1084,9 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
         match action {
             Action::Unknown => unreachable!(),
             Action::Housekeeping
-            | Action::DeleteMsgOnImap
             | Action::ResyncFolders
             | Action::MarkseenMsgOnImap
             | Action::FetchExistingMsgs
-            | Action::MoveMsg
             | Action::UpdateRecentQuota
             | Action::DownloadMsg => {
                 info!(context, "interrupt: imap");
@@ -1378,12 +1219,6 @@ LIMIT 1;
         }
         Thread::Imap => {
             if let Some(job) = job {
-                if job.action < Action::DeleteMsgOnImap {
-                    Ok(load_imap_deletion_job(context).await?.or(Some(job)))
-                } else {
-                    Ok(Some(job))
-                }
-            } else if let Some(job) = load_imap_deletion_job(context).await? {
                 Ok(Some(job))
             } else {
                 Ok(load_housekeeping_job(context).await?)
@@ -1409,8 +1244,12 @@ mod tests {
                  VALUES (?, ?, ?, ?, ?, ?);",
                 paramsv![
                     now,
-                    Thread::from(Action::MoveMsg),
-                    if valid { Action::MoveMsg as i32 } else { -1 },
+                    Thread::from(Action::DownloadMsg),
+                    if valid {
+                        Action::DownloadMsg as i32
+                    } else {
+                        -1
+                    },
                     foreign_id,
                     Params::new().to_string(),
                     now
@@ -1429,7 +1268,7 @@ mod tests {
         insert_job(&t, 1, false).await; // This can not be loaded into Job struct.
         let jobs = load_next(
             &t,
-            Thread::from(Action::MoveMsg),
+            Thread::from(Action::DownloadMsg),
             &InterruptInfo::new(false, None),
         )
         .await?;
@@ -1439,7 +1278,7 @@ mod tests {
         insert_job(&t, 1, true).await;
         let jobs = load_next(
             &t,
-            Thread::from(Action::MoveMsg),
+            Thread::from(Action::DownloadMsg),
             &InterruptInfo::new(false, None),
         )
         .await?;
@@ -1455,7 +1294,7 @@ mod tests {
 
         let jobs = load_next(
             &t,
-            Thread::from(Action::MoveMsg),
+            Thread::from(Action::DownloadMsg),
             &InterruptInfo::new(false, None),
         )
         .await?;

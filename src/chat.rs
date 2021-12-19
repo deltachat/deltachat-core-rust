@@ -4369,7 +4369,7 @@ mod tests {
         assert_eq!(msg.match_indices("Gr.").count(), 1);
 
         // Bob receives this message, he may detect group by `References:`- or `Chat-Group:`-header
-        dc_receive_imf(&bob, msg.as_bytes(), "INBOX", 1, false)
+        dc_receive_imf(&bob, msg.as_bytes(), "INBOX", false)
             .await
             .unwrap();
         let msg = bob.get_last_msg().await;
@@ -4389,7 +4389,7 @@ mod tests {
         assert_eq!(msg.match_indices("Chat-").count(), 0);
 
         // Alice receives this message - she can still detect the group by the `References:`-header
-        dc_receive_imf(&alice, msg.as_bytes(), "INBOX", 2, false)
+        dc_receive_imf(&alice, msg.as_bytes(), "INBOX", false)
             .await
             .unwrap();
         let msg = alice.get_last_msg().await;
@@ -4417,7 +4417,6 @@ mod tests {
                  \n\
                  hello\n",
             "INBOX",
-            1,
             false,
         )
         .await?;
@@ -4466,7 +4465,6 @@ mod tests {
                  \n\
                  hello\n",
             "INBOX",
-            1,
             false,
         )
         .await?;
@@ -4515,7 +4513,6 @@ mod tests {
                  \n\
                  hello\n",
             "INBOX",
-            1,
             false,
         )
         .await?;
@@ -4563,7 +4560,6 @@ mod tests {
                  \n\
                  hello\n",
             "INBOX",
-            1,
             false,
         )
         .await?;

@@ -2855,7 +2855,6 @@ On 2020-10-25, Bob wrote:
             &t.ctx,
             include_bytes!("../test-data/message/subj_with_multimedia_msg.eml"),
             "INBOX",
-            1,
             false,
         )
         .await
@@ -3004,7 +3003,7 @@ Subject: ...
 
 Some quote.
 "###;
-        dc_receive_imf(&t, raw, "INBOX", 1, false).await?;
+        dc_receive_imf(&t, raw, "INBOX", false).await?;
 
         // Delta Chat generates In-Reply-To with a starting tab when Message-ID is too long.
         let raw = br###"In-Reply-To:
@@ -3021,7 +3020,7 @@ Subject: ...
 Some reply
 "###;
 
-        dc_receive_imf(&t, raw, "INBOX", 2, false).await?;
+        dc_receive_imf(&t, raw, "INBOX", false).await?;
 
         let msg = t.get_last_msg().await;
         assert_eq!(msg.get_text().unwrap(), "Some reply");
@@ -3049,13 +3048,13 @@ Message.
 "###;
 
         // Bob receives message.
-        dc_receive_imf(&bob, raw, "INBOX", 1, false).await?;
+        dc_receive_imf(&bob, raw, "INBOX", false).await?;
         let msg = bob.get_last_msg().await;
         // Message is incoming.
         assert!(msg.param.get_bool(Param::WantsMdn).unwrap());
 
         // Alice receives copy-to-self.
-        dc_receive_imf(&alice, raw, "INBOX", 1, false).await?;
+        dc_receive_imf(&alice, raw, "INBOX", false).await?;
         let msg = alice.get_last_msg().await;
         // Message is outgoing, don't send read receipt to self.
         assert!(msg.param.get_bool(Param::WantsMdn).is_none());
@@ -3082,7 +3081,6 @@ Message.
                  hello\n"
                 .as_bytes(),
             "INBOX",
-            1,
             false,
         )
         .await?;
@@ -3121,7 +3119,6 @@ Message.
                  --SNIPP--"
             .as_bytes(),
             "INBOX",
-            2,
             false,
         )
         .await?;

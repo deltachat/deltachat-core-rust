@@ -776,7 +776,6 @@ mod tests {
 hi
 
 Message-ID: 2dfdbde7@example.org
-Last seen as: INBOX/1
 
 Hop: From: localhost; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:22 +0000
 Hop: From: hq5.merlinux.eu; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:25 +0000";
@@ -793,7 +792,6 @@ hi back\r\n\
 Sent with my Delta Chat Messenger: https://delta.chat
 
 Message-ID: Mr.adQpEwndXLH.LPDdlFVJ7wG@example.net
-Last seen as: INBOX/1
 
 Hop: From: [127.0.0.1]; By: mail.example.org; Date: Mon, 27 Dec 2021 11:21:21 +0000
 Hop: From: mout.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22 +0000
@@ -804,7 +802,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
     async fn check_parse_receive_headers_integration(raw: &[u8], expected: &str) {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
-        dc_receive_imf(&t, raw, "INBOX", 1, false).await.unwrap();
+        dc_receive_imf(&t, raw, "INBOX", false).await.unwrap();
         let msg = t.get_last_msg().await;
         let msg_info = get_msg_info(&t, msg.id).await.unwrap();
 

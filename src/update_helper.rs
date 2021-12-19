@@ -100,7 +100,6 @@ mod tests {
                  \n\
                  second message\n",
             "INBOX",
-            1,
             false,
         )
         .await?;
@@ -115,7 +114,6 @@ mod tests {
                  \n\
                  first message\n",
             "INBOX",
-            2,
             false,
         )
         .await?;
@@ -146,7 +144,6 @@ mod tests {
                  \n\
                  first message\n",
             "INBOX",
-            1,
             false,
         )
         .await?;
@@ -167,7 +164,6 @@ mod tests {
                  \n\
                  third message\n",
             "INBOX",
-            2,
             false,
         )
         .await?;
@@ -184,7 +180,6 @@ mod tests {
                  \n\
                  second message\n",
             "INBOX",
-            3,
             false,
         )
         .await?;

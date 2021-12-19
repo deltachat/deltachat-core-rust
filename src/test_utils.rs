@@ -52,8 +52,6 @@ pub(crate) struct TestContext {
     pub ctx: Context,
     pub dir: TempDir,
     pub evtracker: EvTracker,
-    /// Counter for fake IMAP UIDs in [recv_msg], for private use in that function only.
-    recv_idx: RwLock<u32>,
     /// Functions to call for events received.
     event_sinks: Arc<RwLock<Vec<Box<EventSink>>>>,
     /// Receives panics from sinks ("sink" means "event handler" here)
@@ -65,7 +63,6 @@ impl fmt::Debug for TestContext {
         f.debug_struct("TestContext")
             .field("ctx", &self.ctx)
             .field("dir", &self.dir)
-            .field("recv_idx", &self.recv_idx)
             .field("event_sinks", &String::from("Vec<EventSink>"))
             .finish()
     }
@@ -141,7 +138,6 @@ impl TestContext {
             ctx,
             dir,
             evtracker: EvTracker(evtracker_receiver),
-            recv_idx: RwLock::new(0),
             event_sinks,
             poison_receiver,
         }
@@ -302,13 +298,11 @@ impl TestContext {
     ///
     /// Receives a message using the `dc_receive_imf()` pipeline.
     pub async fn recv_msg(&self, msg: &SentMessage) {
-        let mut idx = self.recv_idx.write().await;
-        *idx += 1;
         let received_msg =
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n"
                 .to_owned()
                 + &msg.payload();
-        dc_receive_imf(&self.ctx, received_msg.as_bytes(), "INBOX", *idx, false)
+        dc_receive_imf(&self.ctx, received_msg.as_bytes(), "INBOX", false)
             .await
             .unwrap();
     }

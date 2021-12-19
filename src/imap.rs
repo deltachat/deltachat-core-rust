@@ -13,28 +13,29 @@ use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
+use crate::chat;
+use crate::chat::ChatIdBlocked;
 use crate::constants::{
-    Chattype, ShowEmails, Viewtype, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
-    DC_LP_AUTH_OAUTH2,
+    Blocked, Chattype, ShowEmails, Viewtype, DC_CONTACT_ID_SELF, DC_FETCH_EXISTING_MSGS_COUNT,
+    DC_FOLDERS_CONFIGURED_VERSION, DC_LP_AUTH_OAUTH2,
 };
 use crate::context::Context;
 use crate::dc_receive_imf::{
     dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
 };
-use crate::dc_tools::dc_extract_grpid_from_rfc724_mid;
+use crate::ephemeral::delete_expired_imap_messages;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::login_param::{ServerAddress, Socks5Config};
-use crate::message::{self, update_server_uid, MessageState};
+use crate::message::{self, MessengerMessage};
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::provider::Socket;
 use crate::scheduler::InterruptInfo;
 use crate::stock_str;
-use crate::{chat, constants::DC_CONTACT_ID_SELF};
 use crate::{config::Config, scheduler::connectivity::ConnectivityStore};
 
 mod client;
@@ -43,7 +44,6 @@ pub mod scan_folders;
 pub mod select_folder;
 mod session;
 
-use chat::get_chat_id_by_grpid;
 use client::Client;
 use mailparse::SingleInfo;
 use message::Message;
@@ -55,7 +55,6 @@ use self::select_folder::NewlySelected;
 pub enum ImapActionResult {
     Failed,
     RetryLater,
-    AlreadyDone,
     Success,
 }
 
@@ -72,10 +71,6 @@ const PREFETCH_FLAGS: &str = "(UID RFC822.SIZE BODY.PEEK[HEADER.FIELDS (\
                               CHAT-VERSION \
                               AUTOCRYPT-SETUP-MESSAGE\
                               )])";
-const DELETE_CHECK_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
-                                  MESSAGE-ID \
-                                  X-MICROSOFT-ORIGINAL-MESSAGE-ID\
-                                  )])";
 const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
                              MESSAGE-ID \
                              X-MICROSOFT-ORIGINAL-MESSAGE-ID\
@@ -453,19 +448,31 @@ impl Imap {
         self.should_reconnect = true;
     }
 
-    pub async fn fetch(&mut self, context: &Context, watch_folder: &str) -> Result<()> {
+    /// FETCH-MOVE-DELETE iteration.
+    ///
+    /// Prefetches headers and downloads new message from the folder, moves messages away from the
+    /// folder and deletes messages in the folder.
+    pub async fn fetch_move_delete(&mut self, context: &Context, watch_folder: &str) -> Result<()> {
         if !context.sql.is_open().await {
             // probably shutdown
             bail!("IMAP operation attempted while it is torn down");
         }
         self.prepare(context).await?;
 
-        while self
-            .fetch_new_messages(context, watch_folder, false)
-            .await?
-        {
-            // We fetch until no more new messages are there.
-        }
+        self.fetch_new_messages(context, watch_folder, false)
+            .await
+            .context("fetch_new_messages")?;
+
+        // Mark expired messages for deletion.
+        delete_expired_imap_messages(context).await?;
+
+        self.move_messages(context, watch_folder)
+            .await
+            .context("move_messages")?;
+        self.delete_messages(context, watch_folder)
+            .await
+            .context("delete_messages")?;
+
         Ok(())
     }
 
@@ -631,6 +638,16 @@ impl Imap {
 
         set_uid_next(context, folder, new_uid_next).await?;
         set_uidvalidity(context, folder, new_uid_validity).await?;
+
+        // Collect garbage entries in `imap` table.
+        context
+            .sql
+            .execute(
+                "DELETE FROM imap WHERE folder=? AND uidvalidity!=?",
+                paramsv![folder, new_uid_validity],
+            )
+            .await?;
+
         if old_uid_validity != 0 || old_uid_next != 0 {
             job::schedule_resync(context).await?;
         }
@@ -652,10 +669,6 @@ impl Imap {
         folder: &str,
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
-        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
-            .unwrap_or_default();
-        let download_limit = context.download_limit().await?;
-
         let new_emails = self.select_with_uidvalidity(context, folder).await?;
 
         if !new_emails && !fetch_existing_msgs {
@@ -663,6 +676,7 @@ impl Imap {
             return Ok(false);
         }
 
+        let uid_validity = get_uidvalidity(context, folder).await?;
         let old_uid_next = get_uid_next(context, folder).await?;
 
         let msgs = if fetch_existing_msgs {
@@ -672,49 +686,92 @@ impl Imap {
         };
         let read_cnt = msgs.len();
 
-        let mut read_errors = 0;
+        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
+            .unwrap_or_default();
+        let download_limit = context.download_limit().await?;
         let mut uids_fetch_fully = Vec::with_capacity(msgs.len());
         let mut uids_fetch_partially = Vec::with_capacity(msgs.len());
         let mut largest_uid_skipped = None;
 
-        for (current_uid, msg) in msgs.into_iter() {
-            let (headers, msg_id) = match get_fetch_headers(&msg) {
-                Ok(headers) => {
-                    let msg_id = prefetch_get_message_id(&headers).unwrap_or_default();
-                    (headers, msg_id)
-                }
+        // Store the info about IMAP messages in the database.
+        for (uid, ref fetch_response) in msgs {
+            let headers = match get_fetch_headers(fetch_response) {
+                Ok(headers) => headers,
                 Err(err) => {
-                    warn!(context, "{}", err);
-                    read_errors += 1;
+                    warn!(context, "Failed to parse FETCH headers: {}", err);
                     continue;
                 }
             };
 
-            if message_needs_processing(
-                context,
-                current_uid,
-                &headers,
-                &msg_id,
-                msg.flags(),
-                folder,
-                show_emails,
-            )
-            .await
+            let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
+
+            let target = match target_folder(context, folder, &headers).await? {
+                Some(config) => match context.get_config(config).await? {
+                    Some(target) => target,
+                    None => folder.to_string(),
+                },
+                None => folder.to_string(),
+            };
+
+            let duplicate = context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
+                     FROM imap
+                     WHERE rfc724_mid=?
+                     AND folder=?
+                     AND uid<?",
+                    paramsv![message_id, &target, uid],
+                )
+                .await?
+                > 0;
+
+            context
+                .sql
+                .execute(
+                    "INSERT INTO imap (rfc724_mid, folder, uid, uidvalidity, target)
+                       VALUES         (?1,         ?2,     ?3,  ?4,          ?5)
+                       ON CONFLICT(folder, uid, uidvalidity)
+                       DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
+                                     target=excluded.target",
+                    paramsv![
+                        message_id,
+                        folder,
+                        uid,
+                        uid_validity,
+                        if duplicate { "" } else { &target }
+                    ],
+                )
+                .await?;
+
+            // Download only the messages which have reached their target folder if there are
+            // multiple devices. This prevents race conditions in multidevice case, where one
+            // device tries to download the message while another device moves the message at the
+            // same time. Even in single device case it is possible to fail downloading the first
+            // message, move it to the movebox and then download the second message before
+            // downloading the first one, if downloading from inbox before moving is allowed.
+            if folder == target
+                && prefetch_should_download(
+                    context,
+                    &headers,
+                    &message_id,
+                    fetch_response.flags(),
+                    show_emails,
+                )
+                .await?
             {
                 match download_limit {
                     Some(download_limit) => {
-                        if msg.size.unwrap_or_default() > download_limit {
-                            uids_fetch_partially.push(current_uid);
+                        if fetch_response.size.unwrap_or_default() > download_limit {
+                            uids_fetch_partially.push(uid);
                         } else {
-                            uids_fetch_fully.push(current_uid)
+                            uids_fetch_fully.push(uid)
                         }
                     }
-                    None => uids_fetch_fully.push(current_uid),
+                    None => uids_fetch_fully.push(uid),
                 }
-            } else if read_errors == 0 {
-                // If there were errors (`read_errors != 0`), stop updating largest_uid_skipped so that uid_next will
-                // not be updated and we will retry prefetching next time
-                largest_uid_skipped = Some(current_uid);
+            } else {
+                largest_uid_skipped = Some(uid);
             }
         }
 
@@ -722,7 +779,8 @@ impl Imap {
             self.connectivity.set_working(context).await;
         }
 
-        let (largest_uid_fully_fetched, error_cnt, mut received_msgs) = self
+        // Actually download messages.
+        let (largest_uid_fully_fetched, mut received_msgs) = self
             .fetch_many_msgs(
                 context,
                 folder,
@@ -731,9 +789,8 @@ impl Imap {
                 fetch_existing_msgs,
             )
             .await;
-        read_errors += error_cnt;
 
-        let (largest_uid_partially_fetched, error_cnt, received_msgs_2) = self
+        let (largest_uid_partially_fetched, received_msgs_2) = self
             .fetch_many_msgs(
                 context,
                 folder,
@@ -743,7 +800,6 @@ impl Imap {
             )
             .await;
         received_msgs.extend(received_msgs_2);
-        read_errors += error_cnt;
 
         // determine which uid_next to use to update to
         // dc_receive_imf() returns an `Err` value only on recoverable errors, otherwise it just logs an error.
@@ -764,18 +820,185 @@ impl Imap {
             set_uid_next(context, folder, new_uid_next).await?;
         }
 
-        if read_errors == 0 {
-            info!(context, "{} mails read from \"{}\".", read_cnt, folder,);
-        } else {
-            warn!(
-                context,
-                "{} mails read from \"{}\" with {} errors.", read_cnt, folder, read_errors
-            );
-        }
+        info!(context, "{} mails read from \"{}\".", read_cnt, folder);
 
         chat::mark_old_messages_as_noticed(context, received_msgs).await?;
 
         Ok(read_cnt > 0)
+    }
+
+    /// Moves messages.
+    ///
+    /// This is the only place where messages are moved on the IMAP server.
+    async fn move_messages(&mut self, context: &Context, folder: &str) -> Result<()> {
+        let rows = context
+            .sql
+            .query_map(
+                "SELECT id, uid, target FROM imap
+        WHERE folder = ?
+        AND target != folder
+        AND target != '' -- Not planned for deletion.
+        ORDER BY id",
+                paramsv![folder],
+                |row| {
+                    let rowid: i64 = row.get(0)?;
+                    let uid: u32 = row.get(1)?;
+                    let target: String = row.get(2)?;
+                    Ok((rowid, uid, target))
+                },
+                |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+            )
+            .await?;
+
+        self.prepare(context).await?;
+        self.select_folder(context, Some(folder)).await?;
+
+        for (rowid, uid, target) in rows {
+            // TODO: batch moves of messages with the same destination.
+            let set = uid.to_string();
+
+            if self.config.can_move {
+                if let Some(session) = &mut self.session {
+                    match session.uid_mv(&set, &target).await {
+                        Ok(_) => {
+                            context.emit_event(EventType::ImapMessageMoved(format!(
+                                "IMAP message {}/{} moved to {}",
+                                folder, uid, target
+                            )));
+                            context
+                                .sql
+                                .execute("DELETE FROM imap WHERE id=?", paramsv![rowid])
+                                .await?;
+                            continue;
+                        }
+                        Err(async_imap::error::Error::No(text)) => {
+                            // "NO" response, probably the message is moved already.
+                            info!(
+                                context,
+                                "IMAP message {}/{} cannot be moved: {}", folder, uid, text
+                            );
+                            context
+                                .sql
+                                .execute("DELETE FROM imap WHERE id=?", paramsv![rowid])
+                                .await?;
+                            continue;
+                        }
+                        Err(err) => {
+                            warn!(
+                                context,
+                                "Cannot move message, fallback to COPY/DELETE {}/{} to {}: {}",
+                                folder,
+                                uid,
+                                target,
+                                err
+                            );
+                        }
+                    }
+                } else {
+                    bail!("No session while attempting to move the message");
+                }
+            } else {
+                info!(
+                    context,
+                    "Server does not support MOVE, fallback to COPY/DELETE {}/{} to {}",
+                    folder,
+                    uid,
+                    target
+                );
+            }
+
+            // Server does not support MOVE or MOVE failed.
+            // Copy the message to the destination folder and mark the record for deletion.
+            if let Some(session) = &mut self.session {
+                match session.uid_copy(&set, &target).await {
+                    Ok(_) => {
+                        context.emit_event(EventType::ImapMessageMoved(format!(
+                            "IMAP message {}/{} copied to {}",
+                            folder, uid, target
+                        )));
+                        // Plan deletion of the original message.
+                        context
+                            .sql
+                            .execute("UPDATE imap SET target='' WHERE id=?", paramsv![rowid])
+                            .await?;
+                    }
+                    Err(async_imap::error::Error::No(text)) => {
+                        // "NO" response, probably the message is moved already.
+                        info!(
+                            context,
+                            "IMAP message {}/{} cannot be copied: {}", folder, uid, text
+                        );
+                        context
+                            .sql
+                            .execute("DELETE FROM imap WHERE id=?", paramsv![rowid])
+                            .await?;
+                        continue;
+                    }
+                    Err(err) => {
+                        warn!(
+                            context,
+                            "Could not copy message {}/{}: {}", folder, uid, err
+                        );
+                        // Break the loop to avoid moving messages out of order.
+                        // We can't proceed until this message is moved or copied.
+                        break;
+                    }
+                }
+            } else {
+                bail!("No session while attempting to copy the message");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Deletes messages that are marked as planned for deletion in `imap` table.
+    ///
+    /// This is the only place where messages are deleted from the IMAP server.
+    async fn delete_messages(&mut self, context: &Context, folder: &str) -> Result<()> {
+        let rows = context
+            .sql
+            .query_map(
+                "SELECT id, uid FROM imap
+                WHERE folder=? AND target=''
+                ORDER BY uid ASC
+                LIMIT 50", // Do not try to delete too many messages at once.
+                paramsv![folder],
+                |row| {
+                    let rowid: i64 = row.get(0)?;
+                    let uid: u32 = row.get(1)?;
+                    Ok((rowid, uid))
+                },
+                |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+            )
+            .await?;
+
+        if rows.is_empty() {
+            return Ok(());
+        }
+
+        for (rowid, uid) in rows {
+            match self.delete_msg(context, folder, uid).await {
+                ImapActionResult::Failed | ImapActionResult::RetryLater => {
+                    warn!(context, "Deletion of message {}/{} failed", folder, uid);
+                    break;
+                }
+                ImapActionResult::Success => {
+                    context
+                        .sql
+                        .execute("DELETE FROM imap WHERE id=?", paramsv![rowid])
+                        .await?;
+                }
+            }
+        }
+
+        // Expunge folder if needed, e.g. if some jobs have
+        // deleted messages on the server.
+        if let Err(err) = self.maybe_close_folder(context).await {
+            warn!(context, "failed to close folder: {:?}", err);
+        }
+
+        Ok(())
     }
 
     /// Gets the from, to and bcc addresses from all existing outgoing emails.
@@ -893,7 +1116,7 @@ impl Imap {
 
     /// Fetches a list of messages by server UID.
     ///
-    /// Returns the last uid fetch successfully and an error count.
+    /// Returns the last uid fetch successfully and the info about each downloaded message.
     pub(crate) async fn fetch_many_msgs(
         &mut self,
         context: &Context,
@@ -901,22 +1124,21 @@ impl Imap {
         server_uids: Vec<u32>,
         fetch_partially: bool,
         fetching_existing_messages: bool,
-    ) -> (Option<u32>, usize, Vec<ReceivedMsg>) {
+    ) -> (Option<u32>, Vec<ReceivedMsg>) {
         let mut received_msgs = Vec::new();
         if server_uids.is_empty() {
-            return (None, 0, Vec::new());
+            return (None, Vec::new());
         }
 
         let session = match self.session.as_mut() {
             Some(session) => session,
             None => {
                 warn!(context, "Not connected");
-                return (None, server_uids.len(), Vec::new());
+                return (None, Vec::new());
             }
         };
 
         let sets = build_sequence_sets(server_uids.clone());
-        let mut read_errors = 0;
         let mut count = 0;
         let mut last_uid = None;
 
@@ -944,7 +1166,7 @@ impl Imap {
                         folder,
                         err
                     );
-                    return (None, server_uids.len(), Vec::new());
+                    return (None, Vec::new());
                 }
             };
 
@@ -993,7 +1215,6 @@ impl Imap {
                     &context,
                     body,
                     &folder,
-                    server_uid,
                     is_seen,
                     partial,
                     fetching_existing_messages,
@@ -1008,7 +1229,6 @@ impl Imap {
                     }
                     Err(err) => {
                         warn!(context, "dc_receive_imf error: {}", err);
-                        read_errors += 1;
                     }
                 };
             }
@@ -1025,91 +1245,7 @@ impl Imap {
             );
         }
 
-        (last_uid, read_errors, received_msgs)
-    }
-
-    pub async fn mv(
-        &mut self,
-        context: &Context,
-        folder: &str,
-        uid: u32,
-        dest_folder: &str,
-    ) -> ImapActionResult {
-        if folder == dest_folder {
-            info!(
-                context,
-                "Skip moving message; message {}/{} is already in {}...", folder, uid, dest_folder,
-            );
-            return ImapActionResult::AlreadyDone;
-        }
-        if let Some(imapresult) = self
-            .prepare_imap_operation_on_msg(context, folder, uid)
-            .await
-        {
-            return imapresult;
-        }
-        // we are connected, and the folder is selected
-        let set = format!("{}", uid);
-        let display_folder_id = format!("{}/{}", folder, uid);
-
-        if self.config.can_move {
-            if let Some(ref mut session) = &mut self.session {
-                match session.uid_mv(&set, &dest_folder).await {
-                    Ok(_) => {
-                        context.emit_event(EventType::ImapMessageMoved(format!(
-                            "IMAP Message {} moved to {}",
-                            display_folder_id, dest_folder
-                        )));
-                        return ImapActionResult::Success;
-                    }
-                    Err(err) => {
-                        warn!(
-                            context,
-                            "Cannot move message, fallback to COPY/DELETE {}/{} to {}: {}",
-                            folder,
-                            uid,
-                            dest_folder,
-                            err
-                        );
-                    }
-                }
-            } else {
-                unreachable!();
-            };
-        } else {
-            info!(
-                context,
-                "Server does not support MOVE, fallback to COPY/DELETE {}/{} to {}",
-                folder,
-                uid,
-                dest_folder
-            );
-        }
-
-        if let Some(ref mut session) = &mut self.session {
-            if let Err(err) = session.uid_copy(&set, &dest_folder).await {
-                warn!(context, "Could not copy message: {}", err);
-                return ImapActionResult::Failed;
-            }
-        } else {
-            unreachable!();
-        }
-
-        if !self.add_flag_finalized(context, uid, "\\Deleted").await {
-            warn!(context, "Cannot mark {} as \"Deleted\" after copy.", uid);
-            context.emit_event(EventType::ImapMessageMoved(format!(
-                "IMAP Message {} copied to {} (delete FAILED)",
-                display_folder_id, dest_folder
-            )));
-            ImapActionResult::Failed
-        } else {
-            self.config.selected_folder_needs_expunge = true;
-            context.emit_event(EventType::ImapMessageMoved(format!(
-                "IMAP Message {} copied to {} (delete successfull)",
-                display_folder_id, dest_folder
-            )));
-            ImapActionResult::Success
-        }
+        (last_uid, received_msgs)
     }
 
     async fn add_flag_finalized(&mut self, context: &Context, server_uid: u32, flag: &str) -> bool {
@@ -1224,7 +1360,6 @@ impl Imap {
     pub async fn delete_msg(
         &mut self,
         context: &Context,
-        message_id: &str,
         folder: &str,
         uid: u32,
     ) -> ImapActionResult {
@@ -1236,62 +1371,7 @@ impl Imap {
         }
         // we are connected, and the folder is selected
 
-        let set = format!("{}", uid);
         let display_imap_id = format!("{}/{}", folder, uid);
-
-        // double-check that we are deleting the correct message-id
-        // this comes at the expense of another imap query
-        if let Some(ref mut session) = &mut self.session {
-            match session.uid_fetch(set, DELETE_CHECK_FLAGS).await {
-                Ok(mut msgs) => {
-                    let mut remote_message_id = None;
-
-                    while let Some(response) = msgs.next().await {
-                        match response {
-                            Ok(fetch) => {
-                                if fetch.uid == Some(uid) {
-                                    remote_message_id = get_fetch_headers(&fetch)
-                                        .and_then(|headers| prefetch_get_message_id(&headers))
-                                        .ok();
-                                }
-                            }
-                            Err(err) => {
-                                warn!(context, "IMAP fetch error {}", err);
-                                return ImapActionResult::RetryLater;
-                            }
-                        }
-                    }
-
-                    if let Some(remote_message_id) = remote_message_id {
-                        if remote_message_id != message_id {
-                            warn!(
-                                context,
-                                "Cannot delete on IMAP, {}: remote message-id '{}' != '{}'",
-                                display_imap_id,
-                                remote_message_id,
-                                message_id,
-                            );
-                            return ImapActionResult::Failed;
-                        }
-                    } else {
-                        warn!(
-                            context,
-                            "Cannot delete on IMAP, {}: imap entry gone '{}'",
-                            display_imap_id,
-                            message_id,
-                        );
-                        return ImapActionResult::AlreadyDone;
-                    }
-                }
-                Err(err) => {
-                    warn!(
-                        context,
-                        "Cannot delete on IMAP, {}: {}", display_imap_id, err,
-                    );
-                    return ImapActionResult::RetryLater;
-                }
-            }
-        }
 
         // mark the message for deletion
         if !self.add_flag_finalized(context, uid, "\\Deleted").await {
@@ -1302,8 +1382,8 @@ impl Imap {
             ImapActionResult::RetryLater
         } else {
             context.emit_event(EventType::ImapMessageDeleted(format!(
-                "IMAP Message {} marked as deleted [{}]",
-                display_imap_id, message_id
+                "IMAP Message {} marked as deleted",
+                display_imap_id
             )));
             self.config.selected_folder_needs_expunge = true;
             ImapActionResult::Success
@@ -1478,6 +1558,134 @@ impl Imap {
     }
 }
 
+/// Returns target folder for a message found in the Spam folder.
+async fn spam_target_folder(
+    context: &Context,
+    folder: &str,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<Option<Config>> {
+    if let Some(chat) = prefetch_get_chat(context, headers).await? {
+        if chat.blocked != Blocked::Not {
+            // Blocked or contact request message in the spam folder, leave it there.
+            return Ok(None);
+        }
+    } else {
+        // No chat found.
+        let (from_id, blocked_contact, _origin) =
+            from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
+        if blocked_contact {
+            // Contact is blocked, leave the message in spam.
+            return Ok(None);
+        }
+
+        if let Some(chat_id_blocked) = ChatIdBlocked::lookup_by_contact(context, from_id).await? {
+            if chat_id_blocked.blocked != Blocked::Not {
+                return Ok(None);
+            }
+        } else if from_id != DC_CONTACT_ID_SELF {
+            // No chat with this contact found.
+            return Ok(None);
+        }
+    }
+
+    if needs_move_to_mvbox(context, headers).await? {
+        Ok(Some(Config::ConfiguredMvboxFolder))
+    } else if needs_move_to_sentbox(context, folder, headers).await? {
+        Ok(Some(Config::ConfiguredSentboxFolder))
+    } else {
+        Ok(Some(Config::ConfiguredInboxFolder))
+    }
+}
+
+/// Returns `ConfiguredInboxFolder`, `ConfiguredMvboxFolder` or `ConfiguredSentboxFolder` if
+/// the message needs to be moved from `folder`. Otherwise returns `None`.
+pub async fn target_folder(
+    context: &Context,
+    folder: &str,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<Option<Config>> {
+    if context.is_mvbox(folder).await? {
+        return Ok(None);
+    }
+
+    if context.is_spam_folder(folder).await? {
+        spam_target_folder(context, folder, headers).await
+    } else if needs_move_to_mvbox(context, headers).await? {
+        Ok(Some(Config::ConfiguredMvboxFolder))
+    } else if needs_move_to_sentbox(context, folder, headers).await? {
+        Ok(Some(Config::ConfiguredSentboxFolder))
+    } else {
+        Ok(None)
+    }
+}
+
+async fn needs_move_to_mvbox(
+    context: &Context,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<bool> {
+    if !context.get_config_bool(Config::MvboxMove).await? {
+        return Ok(false);
+    }
+
+    if headers
+        .get_header_value(HeaderDef::AutocryptSetupMessage)
+        .is_some()
+    {
+        // do not move setup messages;
+        // there may be a non-delta device that wants to handle it
+        return Ok(false);
+    }
+
+    if headers.get_header_value(HeaderDef::ChatVersion).is_some() {
+        Ok(true)
+    } else if let Some(parent) = get_prefetch_parent_message(context, headers).await? {
+        match parent.is_dc_message {
+            MessengerMessage::No => Ok(false),
+            MessengerMessage::Yes | MessengerMessage::Reply => Ok(true),
+        }
+    } else {
+        Ok(false)
+    }
+}
+
+async fn prefetch_is_outgoing(
+    context: &Context,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<bool> {
+    let from_address_list = &mimeparser::get_from(headers);
+
+    // Only looking at the first address in the `From:` field.
+    if let Some(info) = from_address_list.first() {
+        if context.is_self_addr(&info.addr).await? {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    } else {
+        Ok(false)
+    }
+}
+
+async fn needs_move_to_sentbox(
+    context: &Context,
+    folder: &str,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<bool> {
+    let needs_move = context.get_config_bool(Config::SentboxMove).await?
+        && context
+            .get_config(Config::ConfiguredSentboxFolder)
+            .await?
+            .is_some()
+        && context.is_inbox(folder).await?
+        && headers.get_header_value(HeaderDef::ChatVersion).is_some()
+        && headers
+            .get_header_value(HeaderDef::AutocryptSetupMessage)
+            .is_none()
+        && prefetch_is_outgoing(context, headers).await?;
+
+    Ok(needs_move)
+}
+
 /// Try to get the folder meaning by the name of the folder only used if the server does not support XLIST.
 // TODO: lots languages missing - maybe there is a list somewhere on other MUAs?
 // however, if we fail to find out the sent-folder,
@@ -1588,103 +1796,15 @@ fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
     FolderMeaning::Unknown
 }
 
-async fn precheck_imf(
-    context: &Context,
-    rfc724_mid: &str,
-    server_folder: &str,
-    server_uid: u32,
-) -> Result<bool> {
-    if let Some((old_server_folder, old_server_uid, msg_id)) =
-        message::rfc724_mid_exists(context, rfc724_mid).await?
-    {
-        if old_server_folder.is_empty() && old_server_uid == 0 {
-            info!(
-                context,
-                "[move] detected bcc-self {} as {}/{}", rfc724_mid, server_folder, server_uid
-            );
-
-            let delete_server_after = context.get_config_delete_server_after().await?;
-
-            if delete_server_after != Some(0) {
-                if msg_id
-                    .needs_move(context, server_folder)
-                    .await
-                    .unwrap_or_default()
-                    .is_some()
-                {
-                    // If the bcc-self message is not moved, directly
-                    // add MarkSeen job, otherwise MarkSeen job is
-                    // added after the Move Job completed.
-                    job::add(
-                        context,
-                        job::Job::new(Action::MoveMsg, msg_id.to_u32(), Params::new(), 0),
-                    )
-                    .await?;
-                } else {
-                    job::add(
-                        context,
-                        job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
-                    )
-                    .await?;
-                }
-            }
-        } else if old_server_folder != server_folder {
-            info!(
-                context,
-                "[move] detected message {} moved by other device from {}/{} to {}/{}",
-                rfc724_mid,
-                old_server_folder,
-                old_server_uid,
-                server_folder,
-                server_uid
-            );
-        } else if old_server_uid == 0 {
-            info!(
-                context,
-                "[move] detected message {} moved by us from {}/{} to {}/{}",
-                rfc724_mid,
-                old_server_folder,
-                old_server_uid,
-                server_folder,
-                server_uid
-            );
-        } else if old_server_uid != server_uid {
-            warn!(
-                context,
-                "UID for message {} in folder {} changed from {} to {}",
-                rfc724_mid,
-                server_folder,
-                old_server_uid,
-                server_uid
-            );
-        }
-
-        if old_server_folder != server_folder || old_server_uid != server_uid {
-            info!(context, "Updating server uid");
-            update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
-            if let Ok(message_state) = msg_id.get_state(context).await {
-                if message_state == MessageState::InSeen || message_state.is_outgoing() {
-                    job::add(
-                        context,
-                        job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
-                    )
-                    .await?;
-                }
-            }
-        }
-        Ok(true)
-    } else {
-        Ok(false)
-    }
-}
-
+/// Parses the headers from the FETCH result.
 fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>> {
-    let header_bytes = match prefetch_msg.header() {
-        Some(header_bytes) => header_bytes,
-        None => return Ok(Vec::new()),
-    };
-    let (headers, _) = mailparse::parse_headers(header_bytes)?;
-    Ok(headers)
+    match prefetch_msg.header() {
+        Some(header_bytes) => {
+            let (headers, _) = mailparse::parse_headers(header_bytes)?;
+            Ok(headers)
+        }
+        None => Ok(Vec::new()),
+    }
 }
 
 fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
@@ -1697,32 +1817,47 @@ fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> 
     }
 }
 
+/// Returns chat by prefetched headers.
+async fn prefetch_get_chat(
+    context: &Context,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<Option<chat::Chat>> {
+    let parent = get_prefetch_parent_message(context, headers).await?;
+    if let Some(parent) = &parent {
+        return Ok(Some(
+            chat::Chat::load_from_db(context, parent.get_chat_id()).await?,
+        ));
+    }
+
+    Ok(None)
+}
+
+/// Determines whether the message should be downloaded based on prefetched headers.
 pub(crate) async fn prefetch_should_download(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
+    message_id: &str,
     mut flags: impl Iterator<Item = Flag<'_>>,
     show_emails: ShowEmails,
 ) -> Result<bool> {
-    let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
-    let parent = get_prefetch_parent_message(context, headers).await?;
-    let is_reply_to_chat_message = parent.is_some();
-    if let Some(parent) = &parent {
-        let chat = chat::Chat::load_from_db(context, parent.get_chat_id()).await?;
+    if let Some(msg_id) = message::rfc724_mid_exists(context, message_id).await? {
+        // We know the Message-ID already, it must be a Bcc: to self.
+        job::add(
+            context,
+            job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
+        )
+        .await?;
+        return Ok(false);
+    }
+
+    // We do not know the Message-ID or the Message-ID is missing (in this case, we create one in
+    // the further process).
+
+    if let Some(chat) = prefetch_get_chat(context, headers).await? {
         if chat.typ == Chattype::Group && !chat.id.is_special() {
             // This might be a group command, like removing a group member.
             // We really need to fetch this to avoid inconsistent group state.
             return Ok(true);
-        }
-    }
-
-    // Same as previous check, but using group IDs embedded into
-    // Message-IDs as a last resort, in case parent message was
-    // deleted from the database or has not arrived yet.
-    if let Some(rfc724_mid) = headers.get_header_value(HeaderDef::MessageId) {
-        if let Some(group_id) = dc_extract_grpid_from_rfc724_mid(&rfc724_mid) {
-            if get_chat_id_by_grpid(context, group_id).await?.is_some() {
-                return Ok(true);
-            }
         }
     }
 
@@ -1738,17 +1873,26 @@ pub(crate) async fn prefetch_should_download(
         .get_header_value(HeaderDef::AutocryptSetupMessage)
         .is_some();
 
-    let (from_id, blocked_contact, origin) =
+    let (_from_id, blocked_contact, origin) =
         from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
     // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
     // (prevent_rename is the last argument of from_field_to_contact_id())
 
-    if flags.any(|f| f == Flag::Draft) && from_id == DC_CONTACT_ID_SELF {
+    if flags.any(|f| f == Flag::Draft) {
         info!(context, "Ignoring draft message");
         return Ok(false);
     }
 
+    let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
     let accepted_contact = origin.is_known();
+    let is_reply_to_chat_message = get_prefetch_parent_message(context, headers)
+        .await?
+        .map(|parent| match parent.is_dc_message {
+            MessengerMessage::No => false,
+            MessengerMessage::Yes | MessengerMessage::Reply => true,
+        })
+        .unwrap_or_default();
+
     let show = is_autocrypt_setup_message
         || match show_emails {
             ShowEmails::Off => is_chat_message || is_reply_to_chat_message,
@@ -1760,54 +1904,6 @@ pub(crate) async fn prefetch_should_download(
 
     let should_download = (show && !blocked_contact) || maybe_ndn;
     Ok(should_download)
-}
-
-async fn message_needs_processing(
-    context: &Context,
-    current_uid: u32,
-    headers: &[mailparse::MailHeader<'_>],
-    msg_id: &str,
-    flags: impl Iterator<Item = Flag<'_>>,
-    folder: &str,
-    show_emails: ShowEmails,
-) -> bool {
-    let skip = match precheck_imf(context, msg_id, folder, current_uid).await {
-        Ok(skip) => skip,
-        Err(err) => {
-            warn!(context, "precheck_imf error: {}", err);
-            true
-        }
-    };
-
-    if skip {
-        // we know the message-id already or don't want the message otherwise.
-        info!(
-            context,
-            "Skipping message {} from \"{}\" by precheck.", msg_id, folder,
-        );
-        return false;
-    }
-
-    // we do not know the message-id
-    // or the message-id is missing (in this case, we create one in the further process)
-    // or some other error happened
-    let show = match prefetch_should_download(context, headers, flags, show_emails).await {
-        Ok(show) => show,
-        Err(err) => {
-            warn!(context, "prefetch_should_download error: {}", err);
-            true
-        }
-    };
-
-    if !show {
-        info!(
-            context,
-            "Ignoring new message {} from \"{}\".", msg_id, folder,
-        );
-        return false;
-    }
-
-    true
 }
 
 fn get_fallback_folder(delimiter: &str) -> String {
@@ -1951,7 +2047,11 @@ impl std::fmt::Display for UidRange {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::ChatId;
+    use crate::config::Config;
+    use crate::contact::Contact;
     use crate::test_utils::TestContext;
+
     #[test]
     fn test_get_folder_meaning_by_name() {
         assert_eq!(get_folder_meaning_by_name("Gesendet"), FolderMeaning::Sent);
@@ -2043,5 +2143,197 @@ mod tests {
                 .iter()
                 .any(|set| set.split(',').any(|n| n.parse::<u32>().unwrap() == *number)));
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn check_target_folder_combination(
+        folder: &str,
+        mvbox_move: bool,
+        chat_msg: bool,
+        expected_destination: &str,
+        accepted_chat: bool,
+        outgoing: bool,
+        setupmessage: bool,
+        sentbox_move: bool,
+    ) -> Result<()> {
+        println!("Testing: For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}",
+                               folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage);
+
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ConfiguredSpamFolder, Some("Spam"))
+            .await?;
+        t.ctx
+            .set_config(Config::ConfiguredMvboxFolder, Some("DeltaChat"))
+            .await?;
+        t.ctx
+            .set_config(Config::ConfiguredSentboxFolder, Some("Sent"))
+            .await?;
+        t.ctx
+            .set_config(Config::MvboxMove, Some(if mvbox_move { "1" } else { "0" }))
+            .await?;
+        t.ctx.set_config(Config::ShowEmails, Some("2")).await?;
+        t.ctx
+            .set_config_bool(Config::SentboxMove, sentbox_move)
+            .await?;
+
+        if accepted_chat {
+            let contact_id = Contact::create(&t.ctx, "", "bob@example.net").await?;
+            ChatId::create_for_contact(&t.ctx, contact_id).await?;
+        }
+        let temp;
+
+        let bytes = if setupmessage {
+            include_bytes!("../test-data/message/AutocryptSetupMessage.eml")
+        } else {
+            temp = format!(
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    {}\
+                    Subject: foo\n\
+                    Message-ID: <abc@example.com>\n\
+                    {}\
+                    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                    \n\
+                    hello\n",
+                if outgoing {
+                    "From: alice@example.org\nTo: bob@example.net\n"
+                } else {
+                    "From: bob@example.net\nTo: alice@example.org\n"
+                },
+                if chat_msg { "Chat-Version: 1.0\n" } else { "" },
+            );
+            temp.as_bytes()
+        };
+
+        let (headers, _) = mailparse::parse_headers(bytes)?;
+
+        let actual = if let Some(config) = target_folder(&t, folder, &headers).await? {
+            t.get_config(config).await?
+        } else {
+            None
+        };
+
+        let expected = if expected_destination == folder {
+            None
+        } else {
+            Some(expected_destination)
+        };
+        assert_eq!(expected, actual.as_deref(), "For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}: expected {:?}, got {:?}",
+                                                     folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage, expected, actual);
+        Ok(())
+    }
+
+    // chat_msg means that the message was sent by Delta Chat
+    // The tuples are (folder, mvbox_move, chat_msg, expected_destination)
+    const COMBINATIONS_ACCEPTED_CHAT: &[(&str, bool, bool, &str)] = &[
+        ("INBOX", false, false, "INBOX"),
+        ("INBOX", false, true, "INBOX"),
+        ("INBOX", true, false, "INBOX"),
+        ("INBOX", true, true, "DeltaChat"),
+        ("Sent", false, false, "Sent"),
+        ("Sent", false, true, "Sent"),
+        ("Sent", true, false, "Sent"),
+        ("Sent", true, true, "DeltaChat"),
+        ("Spam", false, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
+        ("Spam", false, true, "INBOX"),
+        ("Spam", true, false, "INBOX"), // Move classical emails in accepted chats from Spam to Inbox, not 100% sure on this, we could also just never move non-chat-msgs
+        ("Spam", true, true, "DeltaChat"),
+    ];
+
+    // These are the same as above, but all messages in Spam stay in Spam
+    const COMBINATIONS_REQUEST: &[(&str, bool, bool, &str)] = &[
+        ("INBOX", false, false, "INBOX"),
+        ("INBOX", false, true, "INBOX"),
+        ("INBOX", true, false, "INBOX"),
+        ("INBOX", true, true, "DeltaChat"),
+        ("Sent", false, false, "Sent"),
+        ("Sent", false, true, "Sent"),
+        ("Sent", true, false, "Sent"),
+        ("Sent", true, true, "DeltaChat"),
+        ("Spam", false, false, "Spam"),
+        ("Spam", false, true, "Spam"),
+        ("Spam", true, false, "Spam"),
+        ("Spam", true, true, "Spam"),
+    ];
+
+    #[async_std::test]
+    async fn test_target_folder_incoming_accepted() -> Result<()> {
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            check_target_folder_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                expected_destination,
+                true,
+                false,
+                false,
+                false,
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_target_folder_incoming_request() -> Result<()> {
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_REQUEST {
+            check_target_folder_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                expected_destination,
+                false,
+                false,
+                false,
+                false,
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_target_folder_outgoing() -> Result<()> {
+        for sentbox_move in &[true, false] {
+            // Test outgoing emails
+            for (folder, mvbox_move, chat_msg, mut expected_destination) in
+                COMBINATIONS_ACCEPTED_CHAT
+            {
+                if *folder == "INBOX" && !mvbox_move && *chat_msg && *sentbox_move {
+                    expected_destination = "Sent"
+                }
+                check_target_folder_combination(
+                    folder,
+                    *mvbox_move,
+                    *chat_msg,
+                    expected_destination,
+                    true,
+                    true,
+                    false,
+                    *sentbox_move,
+                )
+                .await?;
+            }
+        }
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_target_folder_setupmsg() -> Result<()> {
+        // Test setupmessages
+        for (folder, mvbox_move, chat_msg, _expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            check_target_folder_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                if folder == &"Spam" { "INBOX" } else { folder }, // Never move setup messages, except if they are in "Spam"
+                false,
+                true,
+                true,
+                false,
+            )
+            .await?;
+        }
+        Ok(())
     }
 }

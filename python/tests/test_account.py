@@ -878,9 +878,13 @@ class TestOnlineAccount:
         acfactory.wait_configure_and_start_io()
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
+
+        # Message is moved to the movebox
+        ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+
+        # Message is downloaded
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
-        ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
     def test_move_works_on_self_sent(self, acfactory):
         ac1 = acfactory.get_online_configuring_account(move=True)
@@ -1167,6 +1171,9 @@ class TestOnlineAccount:
 
         assert len(msg.chat.get_messages()) == 1
 
+        ac1.direct_imap.select_config_folder("mvbox")
+        ac1.direct_imap.idle_start()
+
         lp.sec("ac2: mark incoming message as seen")
         ac2.mark_seen_messages([msg])
 
@@ -1175,6 +1182,9 @@ class TestOnlineAccount:
         ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
         assert len(chat.get_messages()) == 1
+
+        # Wait for the message to be marked as seen on IMAP.
+        assert ac1.direct_imap.idle_wait_for_seen()
 
         # MDN is received even though MDNs are already disabled
         assert msg_out.is_out_mdn_received()
@@ -2651,11 +2661,7 @@ class TestOnlineAccount:
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
 
-        # Wait until the message was moved (if at all) and we are IDLEing again:
-        if inbox_watch == "1":
-            ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
-        else:
-            ac1._evtracker.get_info_contains("IMAP-fake-IDLE: no folder, waiting for interrupt")
+        # The message has been downloaded, which means it has reached its destination.
         ac1.direct_imap.select_folder(expected_destination)
         assert len(ac1.direct_imap.get_all_messages()) == 1
         if folder != expected_destination:

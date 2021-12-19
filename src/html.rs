@@ -440,9 +440,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
             .create_chat_with_contact("", "sender@testrun.org")
             .await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
-        dc_receive_imf(&alice, raw, "INBOX", 1, false)
-            .await
-            .unwrap();
+        dc_receive_imf(&alice, raw, "INBOX", false).await.unwrap();
         let msg = alice.get_last_msg_in(chat.get_id()).await;
         assert_ne!(msg.get_from_id(), DC_CONTACT_ID_SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::No);
@@ -491,9 +489,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
             .create_chat_with_contact("", "sender@testrun.org")
             .await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
-        dc_receive_imf(&alice, raw, "INBOX", 1, false)
-            .await
-            .unwrap();
+        dc_receive_imf(&alice, raw, "INBOX", false).await.unwrap();
         let msg = alice.get_last_msg_in(chat.get_id()).await;
 
         // forward the message to saved-messages,
@@ -560,7 +556,6 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
             &t,
             include_bytes!("../test-data/message/cp1252-html.eml"),
             "INBOX",
-            0,
             false,
         )
         .await?;

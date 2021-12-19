@@ -101,7 +101,7 @@ async fn reset_tables(context: &Context, bits: i32) {
 async fn poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<()> {
     let data = dc_read_file(context, filename).await?;
 
-    if let Err(err) = dc_receive_imf(context, &data, "import", 0, false).await {
+    if let Err(err) = dc_receive_imf(context, &data, "import", false).await {
         println!("dc_receive_imf errored: {:?}", err);
     }
     Ok(())

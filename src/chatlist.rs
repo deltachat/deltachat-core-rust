@@ -507,7 +507,6 @@ mod tests {
                  \n\
                  hello foo\n",
             "INBOX",
-            1,
             false,
         )
         .await?;
@@ -569,7 +568,6 @@ mod tests {
                  \n\
                  hello foo\n",
             "INBOX",
-            1,
             false,
         )
         .await?;

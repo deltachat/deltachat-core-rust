@@ -10,7 +10,7 @@ use async_std::prelude::*;
 use super::{get_folder_meaning, get_folder_meaning_by_name};
 
 impl Imap {
-    pub async fn scan_folders(&mut self, context: &Context) -> Result<()> {
+    pub(crate) async fn scan_folders(&mut self, context: &Context) -> Result<()> {
         // First of all, debounce to once per minute:
         let mut last_scan = context.last_full_folder_scan.lock().await;
         if let Some(last_scan) = *last_scan {
@@ -74,7 +74,7 @@ impl Imap {
                 self.server_sent_unsolicited_exists(context);
 
                 loop {
-                    self.fetch_new_messages(context, folder.name(), false)
+                    self.fetch_move_delete(context, folder.name())
                         .await
                         .ok_or_log_msg(context, "Can't fetch new msgs in scanned folder");
 

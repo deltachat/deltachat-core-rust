@@ -129,24 +129,48 @@ impl Job {
         }
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-        let server_folder = msg.server_folder.unwrap_or_default();
-        match imap
-            .fetch_single_msg(context, &server_folder, msg.server_uid)
-            .await
-        {
-            ImapActionResult::RetryLater | ImapActionResult::Failed => {
-                job_try!(
-                    msg.id
-                        .update_download_state(context, DownloadState::Failure)
-                        .await
-                );
-                Status::Finished(Err(anyhow!("Call download_full() again to try over.")))
+        let row = job_try!(
+            context
+                .sql
+                .query_row_optional(
+                    "SELECT uid, folder FROM imap WHERE rfc724_mid=? AND target!=''",
+                    paramsv![msg.rfc724_mid],
+                    |row| {
+                        let server_uid: u32 = row.get(0)?;
+                        let server_folder: String = row.get(1)?;
+                        Ok((server_uid, server_folder))
+                    }
+                )
+                .await
+        );
+
+        if let Some((server_uid, server_folder)) = row {
+            match imap
+                .fetch_single_msg(context, &server_folder, server_uid)
+                .await
+            {
+                ImapActionResult::RetryLater | ImapActionResult::Failed => {
+                    job_try!(
+                        msg.id
+                            .update_download_state(context, DownloadState::Failure)
+                            .await
+                    );
+                    Status::Finished(Err(anyhow!("Call download_full() again to try over.")))
+                }
+                ImapActionResult::Success => {
+                    // update_download_state() not needed as receive_imf() already
+                    // set the state and emitted the event.
+                    Status::Finished(Ok(()))
+                }
             }
-            ImapActionResult::Success | ImapActionResult::AlreadyDone => {
-                // update_download_state() not needed as receive_imf() already
-                // set the state and emitted the event.
-                Status::Finished(Ok(()))
-            }
+        } else {
+            // No IMAP record found, we don't know the UID and folder.
+            job_try!(
+                msg.id
+                    .update_download_state(context, DownloadState::Failure)
+                    .await
+            );
+            Status::Finished(Err(anyhow!("Call download_full() again to try over.")))
         }
     }
 }
@@ -172,14 +196,14 @@ impl Imap {
         // we are connected, and the folder is selected
         info!(context, "Downloading message {}/{} fully...", folder, uid);
 
-        let (_, error_cnt, _) = self
+        let (last_uid, _received) = self
             .fetch_many_msgs(context, folder, vec![uid], false, false)
             .await;
-        if error_cnt > 0 {
-            return ImapActionResult::Failed;
+        if last_uid.is_none() {
+            ImapActionResult::Failed
+        } else {
+            ImapActionResult::Success
         }
-
-        ImapActionResult::Success
     }
 }
 
@@ -309,16 +333,7 @@ mod tests {
              Date: Sun, 22 Mar 2020 22:37:57 +0000\
              Content-Type: text/plain";
 
-        dc_receive_imf_inner(
-            &t,
-            header.as_bytes(),
-            "INBOX",
-            1,
-            false,
-            Some(100000),
-            false,
-        )
-        .await?;
+        dc_receive_imf_inner(&t, header.as_bytes(), "INBOX", false, Some(100000), false).await?;
         let msg = t.get_last_msg().await;
         assert_eq!(msg.download_state(), DownloadState::Available);
         assert_eq!(msg.get_subject(), "foo");
@@ -331,7 +346,6 @@ mod tests {
             &t,
             format!("{}\n\n100k text...", header).as_bytes(),
             "INBOX",
-            1,
             false,
             None,
             false,
@@ -367,7 +381,6 @@ mod tests {
                     Date: Sun, 14 Nov 2021 00:10:00 +0000\
                     Content-Type: text/plain",
             "INBOX",
-            1,
             false,
             Some(100000),
             false,

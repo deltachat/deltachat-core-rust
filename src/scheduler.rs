@@ -82,11 +82,15 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
         let mut jobs_loaded = 0;
         let mut info = InterruptInfo::default();
         loop {
-            match job::load_next(&ctx, Thread::Imap, &info)
-                .await
-                .ok()
-                .flatten()
-            {
+            let job = match job::load_next(&ctx, Thread::Imap, &info).await {
+                Err(err) => {
+                    error!(ctx, "Failed loading job from the database: {:#}.", err);
+                    None
+                }
+                Ok(job) => job,
+            };
+
+            match job {
                 Some(job) if jobs_loaded <= 20 => {
                     jobs_loaded += 1;
                     job::perform_job(&ctx, job::Connection::Inbox(&mut connection), job).await;
@@ -106,12 +110,6 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                 }
                 None => {
                     jobs_loaded = 0;
-
-                    // Expunge folder if needed, e.g. if some jobs have
-                    // deleted messages on the server.
-                    if let Err(err) = connection.maybe_close_folder(&ctx).await {
-                        warn!(ctx, "failed to close folder: {:?}", err);
-                    }
 
                     maybe_add_time_based_warnings(&ctx).await;
 
@@ -157,7 +155,7 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
             }
 
             // fetch
-            if let Err(err) = connection.fetch(ctx, &watch_folder).await {
+            if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
                 connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
             }
@@ -183,13 +181,9 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 return connection.fake_idle(ctx, Some(watch_folder)).await;
             }
 
-            // fetch
-            if let Err(err) = connection.fetch(ctx, &watch_folder).await {
-                connection.trigger_reconnect(ctx).await;
-                warn!(ctx, "{:#}", err);
-                return InterruptInfo::new(false, None);
-            }
-
+            // Scan other folders before fetching from watched folder. This may result in the
+            // messages being moved into the watched folder, for example from the Spam folder to
+            // the Inbox folder.
             if folder == Config::ConfiguredInboxFolder {
                 // Only scan on the Inbox thread in order to prevent parallel scans, which might lead to duplicate messages
                 if let Err(err) = connection.scan_folders(ctx).await {
@@ -197,6 +191,13 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                     // but maybe just one folder can't be selected or something
                     warn!(ctx, "{}", err);
                 }
+            }
+
+            // fetch
+            if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
+                connection.trigger_reconnect(ctx).await;
+                warn!(ctx, "{:#}", err);
+                return InterruptInfo::new(false, None);
             }
 
             connection.connectivity.set_connected(ctx).await;

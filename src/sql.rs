@@ -666,9 +666,11 @@ async fn maybe_add_from_param(
 /// have a server UID.
 async fn prune_tombstones(sql: &Sql) -> Result<()> {
     sql.execute(
-        "DELETE FROM msgs \
-         WHERE (chat_id = ? OR hidden) \
-         AND server_uid = 0",
+        "DELETE FROM msgs
+         WHERE (chat_id=? OR hidden)
+         AND NOT EXISTS (
+         SELECT * FROM imap WHERE msgs.rfc724_mid=rfc724_mid AND target!=''
+         )",
         paramsv![DC_CHAT_ID_TRASH],
     )
     .await?;

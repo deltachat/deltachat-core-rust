@@ -502,6 +502,40 @@ item TEXT DEFAULT '');"#,
         sql.execute_migration("ALTER TABLE msgs ADD COLUMN hop_info TEXT;", 81)
             .await?;
     }
+    if dbversion < 82 {
+        info!(context, "[migration] v82");
+        sql.execute_migration(
+            r#"CREATE TABLE imap (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+rfc724_mid TEXT DEFAULT '', -- Message-ID header
+folder TEXT DEFAULT '', -- IMAP folder
+target TEXT DEFAULT '', -- Destination folder, empty to delete.
+uid INTEGER DEFAULT 0, -- UID
+uidvalidity INTEGER DEFAULT 0,
+UNIQUE (folder, uid, uidvalidity)
+);
+CREATE INDEX imap_folder ON imap(folder);
+CREATE INDEX imap_messageid ON imap(rfc724_mid);
+
+INSERT INTO imap
+(rfc724_mid, folder, target, uid, uidvalidity)
+SELECT
+rfc724_mid,
+server_folder AS folder,
+server_folder AS target,
+server_uid AS uid,
+(SELECT uidvalidity FROM imap_sync WHERE folder=server_folder) AS uidvalidity
+FROM msgs
+WHERE server_uid>0
+ON CONFLICT (folder, uid, uidvalidity)
+DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
+              target=excluded.target;
+"#,
+            82,
+        )
+        .await?;
+    }
+
     Ok((
         recalc_fingerprints,
         update_icons,
