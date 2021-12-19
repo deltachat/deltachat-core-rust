@@ -740,18 +740,21 @@ mod tests {
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
         let mail = mailparse::parse_mail(&raw[..]).unwrap();
         let hop_info = parse_receive_headers(&mail.get_headers());
-        let expected = concat!(
-            "1. Hop:\n",
-            "Date: Sat, 14 Sep 2019 19:00:22 +0200\n",
-            "From: localhost\n",
-            "By: hq5.merlinux.eu\n",
-            "\n",
-            "2. Hop:\n",
-            "Date: Sat, 14 Sep 2019 19:00:25 +0200\n",
-            "From: hq5.merlinux.eu\n",
-            "By: hq5.merlinux.eu\n",
+        let expected = vec!(
+            "1. Hop:",
+            // "Date: Sat, 14 Sep 2019 19:00:22 +0200\n",
+            "From: localhost",
+            "By: hq5.merlinux.eu",
+            "",
+            "2. Hop:",
+            // "Date: Sat, 14 Sep 2019 19:00:25 +0200\n",
+            "From: hq5.merlinux.eu",
+            "By: hq5.merlinux.eu",
+            ""
         );
-        assert_eq!(&hop_info, expected)
+        // remove Date lines because they are not deterministic
+        let hop_info = hop_info.split("\n").filter(|line| !line.starts_with("Date:")).collect::<Vec<_>>();
+        assert_eq!(hop_info, expected)
     }
 
     #[async_std::test]
@@ -769,12 +772,10 @@ hi
 Message-ID: 2dfdbde7@example.org
 Last seen as: INBOX/1
 1. Hop:
-Date: Sat, 14 Sep 2019 19:00:22 +0200
 From: localhost
 By: hq5.merlinux.eu
 
 2. Hop:
-Date: Sat, 14 Sep 2019 19:00:25 +0200
 From: hq5.merlinux.eu
 By: hq5.merlinux.eu
 ";
@@ -783,7 +784,10 @@ By: hq5.merlinux.eu
         // send time that depends and the test runtime which makes it impossible to
         // compare with a static string
         let capped_result = &result[result.find("State").unwrap()..];
-        assert_eq!(expected, capped_result);
+
+        // remove Date lines because they are not deterministic
+        let capped_result = capped_result.split("\n").filter(|line| !line.starts_with("Date:")).collect::<Vec<_>>();
+        assert_eq!(expected.split("\n").collect::<Vec<_>>(), capped_result);
         Ok(())
     }
 
