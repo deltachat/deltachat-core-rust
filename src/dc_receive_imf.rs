@@ -3140,7 +3140,7 @@ mod tests {
         assert!(mime.contains("In-Reply-To: <38942@posteo.org>\r\n"));
         assert!(mime.contains("Chat-Version: 1.0\r\n"));
         assert!(mime.contains("To: <delta@codespeak.net>\r\n"));
-        assert!(mime.contains("From: <alice@example.com>\r\n"));
+        assert!(mime.contains("From: <alice@example.org>\r\n"));
         assert!(mime.contains(
             "\r\n\
 \r\n\
@@ -3191,10 +3191,10 @@ Sent with my Delta Chat Messenger: https://delta.chat\r\n"
         dc_receive_imf(
             &t,
             b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-            From: Alice <alice@example.com>\n\
+            From: Alice <alice@example.org>\n\
             To: delta@codespeak.net\n\
             Subject: [delta-dev] Subject\n\
-            Message-ID: <0476@example.com>\n\
+            Message-ID: <0476@example.org>\n\
             Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
             \n\
             body 4\n",
