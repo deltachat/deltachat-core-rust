@@ -1766,8 +1766,10 @@ async fn create_or_lookup_mailinglist(
         let (contact_id, _) =
             Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
         let mut contact = Contact::load_from_db(context, contact_id).await?;
-        contact.param.set(Param::ListPost, &listid);
-        contact.update_param(context).await?;
+        if contact.param.get(Param::ListPost) != Some(&listid) {
+            contact.param.set(Param::ListPost, &listid);
+            contact.update_param(context).await?;
+        }
     }
 
     if let Some((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await? {
