@@ -754,7 +754,7 @@ mod tests {
         ];
         // remove Date lines because they are not deterministic
         let hop_info = hop_info
-            .split("\n")
+            .split('\n')
             .filter(|line| !line.starts_with("Date:"))
             .collect::<Vec<_>>();
         assert_eq!(hop_info, expected)
@@ -790,10 +790,10 @@ By: hq5.merlinux.eu
 
         // remove Date lines because they are not deterministic
         let capped_result = capped_result
-            .split("\n")
+            .split('\n')
             .filter(|line| !line.starts_with("Date:"))
             .collect::<Vec<_>>();
-        assert_eq!(expected.split("\n").collect::<Vec<_>>(), capped_result);
+        assert_eq!(expected.split('\n').collect::<Vec<_>>(), capped_result);
         Ok(())
     }
 
