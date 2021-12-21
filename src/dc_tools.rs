@@ -693,15 +693,15 @@ pub(crate) fn parse_receive_header(header: &str) -> String {
 
     if let Ok(date) = dateparse(header) {
         let date_obj = Local.timestamp(date, 0);
-        hop_info.push_str(&format!("Date: {}\n", date_obj.to_rfc2822()));
+        hop_info += &format!("Date: {}\n", date_obj.to_rfc2822());
     };
 
     if let Some(from) = extract_address_from_receive_header(header, "from ") {
-        hop_info.push_str(&format!("From: {}\n", from.trim()));
+        hop_info += &format!("From: {}\n", from.trim());
     }
 
     if let Some(by) = extract_address_from_receive_header(header, "by ") {
-        hop_info.push_str(&format!("By: {}\n", by.trim()));
+        hop_info += &format!("By: {}\n", by.trim());
     }
     hop_info
 }
