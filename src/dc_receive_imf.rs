@@ -3124,7 +3124,7 @@ mod tests {
         chat_id.accept(&t).await.unwrap();
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert_eq!(chat.name, "delta-dev");
-        assert!(chat.can_send(&t).await.unwrap());
+        assert!(chat.can_send(&t).await?);
 
         let msg = get_chat_msg(&t, chat_id, 0, 1).await;
         let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
