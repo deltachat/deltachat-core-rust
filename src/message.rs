@@ -1178,7 +1178,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
         .await?;
 
     ret.push_str(&hop_info.unwrap_or_else(|| "No Hop info".to_owned()));
-    
+
     Ok(ret)
 }
 
