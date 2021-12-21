@@ -42,7 +42,8 @@ impl rusqlite::types::ToSql for StatusUpdateId {
     }
 }
 
-#[derive(Debug, Deserialize)]
+/// Update items as sent on the wire and as stored in the database.
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct StatusUpdateItem {
     payload: Value,
 }
@@ -65,13 +66,14 @@ impl Context {
         if payload.is_empty() {
             bail!("create_status_update_record: empty payload");
         }
-        let _test: Value = serde_json::from_str(payload)?; // checks if input data are valid json
+        let payload: Value = serde_json::from_str(payload)?; // checks if input data are valid json
+        let status_update_item = StatusUpdateItem { payload };
 
         let rowid = self
             .sql
             .insert(
                 "INSERT INTO msgs_status_updates (msg_id, payload) VALUES(?, ?);",
-                paramsv![instance_msg_id, payload],
+                paramsv![instance_msg_id, serde_json::to_string(&status_update_item)?],
             )
             .await?;
         Ok(StatusUpdateId(u32::try_from(rowid)?))
@@ -118,12 +120,8 @@ impl Context {
                 status_update.param.set_cmd(SystemMessage::W30StatusUpdate);
                 status_update.param.set(
                     Param::Arg,
-                    self.get_w30_status_updates_with_format(
-                        instance_msg_id,
-                        Some(status_update_id),
-                        true,
-                    )
-                    .await?,
+                    self.get_w30_status_updates(instance_msg_id, Some(status_update_id))
+                        .await?,
                 );
                 status_update.set_quote(self, &instance).await?;
                 let status_update_msg_id =
@@ -184,33 +182,13 @@ impl Context {
 
     /// Returns status updates as an JSON-array.
     ///
+    /// Example: `[{"payload":"any update data"},{"payload":"another update data"}]`
     /// The updates may be filtered by a given status_update_id;
     /// if no updates are available, an empty JSON-array is returned.
     pub async fn get_w30_status_updates(
         &self,
         instance_msg_id: MsgId,
         status_update_id: Option<StatusUpdateId>,
-    ) -> Result<String> {
-        self.get_w30_status_updates_with_format(instance_msg_id, status_update_id, false)
-            .await
-    }
-
-    /// Returns status updates as JSON-array.
-    ///
-    /// If `for_wire` is `false`, the result is suitable to be passed to the app,
-    /// that get back exactly the payloads as sent:
-    /// `["any update data", "another update data"]`
-    /// get_w30_status_updates() returns this format.
-    ///
-    /// If `for_wire` is `true`, the payload is wrapped to an object
-    /// and can be enhanced in the future:
-    /// `[{"payload":"any update data"},{"payload":"another update data"}]`
-    /// This is suitable for sending objects  that are not visible to apps:
-    pub(crate) async fn get_w30_status_updates_with_format(
-        &self,
-        instance_msg_id: MsgId,
-        status_update_id: Option<StatusUpdateId>,
-        for_wire: bool,
     ) -> Result<String> {
         let json = self
             .sql
@@ -229,13 +207,7 @@ impl Context {
                         if !json.is_empty() {
                             json.push_str(",\n");
                         }
-                        if for_wire {
-                            json.push_str("{\"payload\":");
-                        }
                         json.push_str(&payload);
-                        if for_wire {
-                            json.push('}');
-                        }
                     }
                     Ok(json)
                 },
@@ -359,7 +331,7 @@ mod tests {
         t.send_w30_status_update(instance.id, "descr", "42").await?;
         assert_eq!(
             t.get_w30_status_updates(instance.id, None).await?,
-            "[42]".to_string()
+            r#"[{"payload":42}]"#.to_string()
         );
 
         // set_draft(None) deletes the message without the need to simulate network
@@ -391,7 +363,7 @@ mod tests {
             .await?;
         assert_eq!(
             t.get_w30_status_updates(instance.id, Some(id)).await?,
-            r#"[{"foo":"bar"}]"#
+            r#"[{"payload":{"foo":"bar"}}]"#
         );
 
         assert!(t
@@ -404,11 +376,11 @@ mod tests {
             .is_err());
         assert_eq!(
             t.get_w30_status_updates(instance.id, Some(id)).await?,
-            r#"[{"foo":"bar"}]"#
+            r#"[{"payload":{"foo":"bar"}}]"#
         );
         assert_eq!(
             t.get_w30_status_updates(instance.id, None).await?,
-            r#"[{"foo":"bar"}]"#
+            r#"[{"payload":{"foo":"bar"}}]"#
         );
 
         let id = t
@@ -416,14 +388,14 @@ mod tests {
             .await?;
         assert_eq!(
             t.get_w30_status_updates(instance.id, Some(id)).await?,
-            r#"[{"foo2":"bar2"}]"#
+            r#"[{"payload":{"foo2":"bar2"}}]"#
         );
         t.create_status_update_record(instance.id, "true").await?;
         assert_eq!(
             t.get_w30_status_updates(instance.id, None).await?,
-            r#"[{"foo":"bar"},
-{"foo2":"bar2"},
-true]"#
+            r#"[{"payload":{"foo":"bar"}},
+{"payload":{"foo2":"bar2"}},
+{"payload":true}]"#
         );
 
         Ok(())
@@ -452,16 +424,16 @@ true]"#
             .await?;
         assert_eq!(
             t.get_w30_status_updates(instance.id, None).await?,
-            r#"[{"foo":"bar"}]"#
+            r#"[{"payload":{"foo":"bar"}}]"#
         );
 
         t.receive_status_update(instance.id, r#" [ {"payload" :42} , {"payload": 23} ] "#)
             .await?;
         assert_eq!(
             t.get_w30_status_updates(instance.id, None).await?,
-            r#"[{"foo":"bar"},
-42,
-23]"#
+            r#"[{"payload":{"foo":"bar"}},
+{"payload":42},
+{"payload":23}]"#
         );
 
         Ok(())
@@ -501,7 +473,7 @@ true]"#
             alice
                 .get_w30_status_updates(alice_instance.id, None)
                 .await?,
-            r#"[{"foo":"bar"}]"#
+            r#"[{"payload":{"foo":"bar"}}]"#
         );
 
         alice
@@ -512,8 +484,8 @@ true]"#
             alice
                 .get_w30_status_updates(alice_instance.id, None)
                 .await?,
-            r#"[{"foo":"bar"},
-{"snipp":"snapp"}]"#
+            r#"[{"payload":{"foo":"bar"}},
+{"payload":{"snipp":"snapp"}}]"#
         );
 
         // Bob receives all messages
@@ -549,7 +521,7 @@ true]"#
                 assert_eq!(
                     bob.get_w30_status_updates(msg_id, Some(status_update_id))
                         .await?,
-                    r#"[{"foo":"bar"}]"#
+                    r#"[{"payload":{"foo":"bar"}}]"#
                 );
                 assert_eq!(msg_id, bob_instance.id);
             }
@@ -559,7 +531,7 @@ true]"#
 
         assert_eq!(
             bob.get_w30_status_updates(bob_instance.id, None).await?,
-            r#"[{"foo":"bar"}]"#
+            r#"[{"payload":{"foo":"bar"}}]"#
         );
 
         // Alice has a second device and also receives messages there
@@ -616,8 +588,8 @@ true]"#
         assert!(sent1.payload().contains(r#""payload":{"foo":"bar"}"#));
         assert_eq!(
             bob.get_w30_status_updates(bob_instance.id, None).await?,
-            r#"[{"foo":"bar"},
-42]"#
+            r#"[{"payload":{"foo":"bar"}},
+{"payload":42}]"#
         );
 
         Ok(())
