@@ -128,7 +128,8 @@ pub enum Param {
     /// For Chats and Contacts
     ///
     /// For Chats: If this is a mailing list chat, contains the List-Post address.
-    /// If it's empty, the mailing list is read-only.
+    /// None if there simply is no `List-Post` header in the mailing list.
+    /// Some("") if the mailing list is using multiple different List-Post headers.
     ///
     /// For Contacts: If this is the List-Post address of a mailing list, contains
     /// the List-Id of the mailing list (which is also used as the group id of the chat).

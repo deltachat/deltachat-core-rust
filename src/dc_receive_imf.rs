@@ -1780,9 +1780,12 @@ async fn create_or_lookup_mailinglist(
                 if list_post != old_list_post {
                     // Apparently the mailing list is using a different List-Post header in each message.
                     // Make the mailing list read-only because we would't know which message the user wants to reply to.
-                    chat.param.remove(Param::ListPost);
+                    chat.param.set(Param::ListPost, "");
                     chat.update_param(context).await?;
                 }
+            } else {
+                chat.param.set(Param::ListPost, list_post);
+                chat.update_param(context).await?;
             }
         }
 
