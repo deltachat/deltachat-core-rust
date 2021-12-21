@@ -624,6 +624,10 @@ async fn add_parts(
             }
         }
 
+        if let Some(chat_id) = chat_id {
+            apply_mailinglist_changes(context, mime_parser, chat_id).await?;
+        }
+
         // if contact renaming is prevented (for mailinglists and bots),
         // we use name from From:-header as override name
         if prevent_rename {
@@ -1762,33 +1766,7 @@ async fn create_or_lookup_mailinglist(
         ),
     };
 
-    if let Some(list_post) = &mime_parser.list_post {
-        let (contact_id, _) =
-            Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
-        let mut contact = Contact::load_from_db(context, contact_id).await?;
-        if contact.param.get(Param::ListPost) != Some(&listid) {
-            contact.param.set(Param::ListPost, &listid);
-            contact.update_param(context).await?;
-        }
-    }
-
     if let Some((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await? {
-        if let Some(list_post) = &mime_parser.list_post {
-            let mut chat = Chat::load_from_db(context, chat_id).await?;
-
-            if let Some(old_list_post) = chat.param.get(Param::ListPost) {
-                if list_post != old_list_post {
-                    // Apparently the mailing list is using a different List-Post header in each message.
-                    // Make the mailing list read-only because we would't know which message the user wants to reply to.
-                    chat.param.set(Param::ListPost, "");
-                    chat.update_param(context).await?;
-                }
-            } else {
-                chat.param.set(Param::ListPost, list_post);
-                chat.update_param(context).await?;
-            }
-        }
-
         return Ok(Some((chat_id, blocked)));
     }
 
@@ -1877,6 +1855,44 @@ async fn create_or_lookup_mailinglist(
         info!(context, "creating list forbidden by caller");
         Ok(None)
     }
+}
+
+async fn apply_mailinglist_changes(
+    context: &Context,
+    mime_parser: &MimeMessage,
+    chat_id: ChatId,
+) -> Result<()> {
+    let mut chat = Chat::load_from_db(context, chat_id).await?;
+    if chat.typ != Chattype::Mailinglist {
+        return Ok(());
+    }
+    let listid = &chat.grpid;
+
+    if let Some(list_post) = &mime_parser.list_post {
+        let (contact_id, _) =
+            Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
+        let mut contact = Contact::load_from_db(context, contact_id).await?;
+        if contact.param.get(Param::ListPost) != Some(&listid) {
+            contact.param.set(Param::ListPost, &listid);
+            contact.update_param(context).await?;
+        }
+    }
+
+    if let Some(list_post) = &mime_parser.list_post {
+        if let Some(old_list_post) = chat.param.get(Param::ListPost) {
+            if list_post != old_list_post {
+                // Apparently the mailing list is using a different List-Post header in each message.
+                // Make the mailing list read-only because we would't know which message the user wants to reply to.
+                chat.param.set(Param::ListPost, "");
+                chat.update_param(context).await?;
+            }
+        } else {
+            chat.param.set(Param::ListPost, list_post);
+            chat.update_param(context).await?;
+        }
+    }
+
+    Ok(())
 }
 
 fn try_getting_grpid(mime_parser: &MimeMessage) -> Option<String> {
