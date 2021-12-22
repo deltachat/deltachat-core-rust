@@ -497,7 +497,10 @@ item TEXT DEFAULT '');"#,
         )
         .await?;
     }
-
+    if dbversion < 81 {
+        sql.execute_migration("ALTER TABLE msgs ADD COLUMN hop_info TEXT;", 81)
+            .await?;
+    }
     Ok((
         recalc_fingerprints,
         update_icons,
