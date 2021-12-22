@@ -689,32 +689,31 @@ fn extract_address_from_receive_header<'a>(header: &'a str, start: &str) -> Opti
 }
 
 pub(crate) fn parse_receive_header(header: &str) -> String {
-    let mut hop_info = String::from("Hop:\n");
+    let mut hop_info = String::from("Hop: ");
 
     if let Ok(date) = dateparse(header) {
         let date_obj = Local.timestamp(date, 0);
-        hop_info += &format!("Date: {}\n", date_obj.to_rfc2822());
+        hop_info += &format!("Date: {}", date_obj.to_rfc2822());
     };
 
     if let Some(from) = extract_address_from_receive_header(header, "from ") {
-        hop_info += &format!("From: {}\n", from.trim());
+        hop_info += &format!("; From: {}", from.trim());
     }
 
     if let Some(by) = extract_address_from_receive_header(header, "by ") {
-        hop_info += &format!("By: {}\n", by.trim());
+        hop_info += &format!("; By: {}", by.trim());
     }
     hop_info
 }
 
 /// parses "receive"-headers
 pub(crate) fn parse_receive_headers(headers: &Headers) -> String {
-    let headers = headers.get_all_headers("Received");
     headers
+        .get_all_headers("Received")
         .iter()
         .rev()
         .filter_map(|header_map_item| from_utf8(header_map_item.get_value_raw()).ok())
-        .enumerate()
-        .map(|(i, header_value)| (i + 1).to_string() + ". " + &parse_receive_header(header_value))
+        .map(parse_receive_header)
         .collect::<Vec<_>>()
         .join("\n")
 }
