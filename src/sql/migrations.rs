@@ -555,8 +555,8 @@ DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
             r#"CREATE TABLE msgs_status_updates (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
 msg_id INTEGER,
-payload TEXT DEFAULT '',
-payload_read INTEGER DEFAULT 0);
+update_item TEXT DEFAULT '',
+update_item_read INTEGER DEFAULT 0);
 CREATE INDEX msgs_status_updates_index1 ON msgs_status_updates (msg_id);"#,
             84,
         )
