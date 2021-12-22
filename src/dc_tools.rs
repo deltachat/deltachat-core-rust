@@ -682,24 +682,25 @@ fn extract_address_from_receive_header<'a>(header: &'a str, start: &str) -> Opti
         begin += start.len();
         let end = header
             .get(begin..)?
-            .find(|c| c == ' ' || c == '\n')
+            .find(|c: char| c.is_whitespace())
             .unwrap_or(header_len);
         header.get(begin..begin + end)
     })
 }
 
 pub(crate) fn parse_receive_header(header: &str) -> String {
+    let header = header.replace(&['\r', '\n'][..], "");
     let mut hop_info = String::from("Hop: ");
 
-    if let Some(from) = extract_address_from_receive_header(header, "from ") {
+    if let Some(from) = extract_address_from_receive_header(&header, "from ") {
         hop_info += &format!("From: {}; ", from.trim());
     }
 
-    if let Some(by) = extract_address_from_receive_header(header, "by ") {
+    if let Some(by) = extract_address_from_receive_header(&header, "by ") {
         hop_info += &format!("By: {}; ", by.trim());
     }
 
-    if let Ok(date) = dateparse(header) {
+    if let Ok(date) = dateparse(&header) {
         // In tests, use the UTC timezone so that the test is reproducible
         #[cfg(test)]
         let date_obj = chrono::Utc.timestamp(date, 0);
@@ -737,18 +738,33 @@ mod tests {
 
     #[test]
     fn test_parse_receive_headers() {
+        // Test `parse_receive_headers()` with some more-or-less random emails from the test-data
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
-        let mail = mailparse::parse_mail(&raw[..]).unwrap();
+        let expected =
+            "Hop: From: localhost; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:22 +0000\n\
+             Hop: From: hq5.merlinux.eu; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:25 +0000";
+        check_parse_receive_headers(raw, expected);
+
+        let raw = include_bytes!("../test-data/message/wrong-html.eml");
+        let expected =
+            "Hop: From: oxbsltgw18.schlund.de; By: mrelayeu.kundenserver.de; Date: Thu, 06 Aug 2020 16:40:31 +0000\n\
+             Hop: From: mout.kundenserver.de; By: dd37930.kasserver.com; Date: Thu, 06 Aug 2020 16:40:32 +0000";
+        check_parse_receive_headers(raw, expected);
+
+        let raw = include_bytes!("../test-data/message/posteo_ndn.eml");
+        let expected =
+            "Hop: By: mout01.posteo.de; Date: Tue, 09 Jun 2020 18:44:22 +0000\n\
+             Hop: From: mout01.posteo.de; By: mx04.posteo.de; Date: Tue, 09 Jun 2020 18:44:22 +0000\n\
+             Hop: From: mx04.posteo.de; By: mailin06.posteo.de; Date: Tue, 09 Jun 2020 18:44:23 +0000\n\
+             Hop: From: mailin06.posteo.de; By: proxy02.posteo.de; Date: Tue, 09 Jun 2020 18:44:23 +0000\n\
+             Hop: From: proxy02.posteo.de; By: proxy02.posteo.name; Date: Tue, 09 Jun 2020 18:44:23 +0000\n\
+             Hop: From: proxy02.posteo.name; By: dovecot03.posteo.local; Date: Tue, 09 Jun 2020 18:44:24 +0000";
+        check_parse_receive_headers(raw, expected);
+    }
+
+    fn check_parse_receive_headers(raw: &[u8], expected: &str) {
+        let mail = mailparse::parse_mail(raw).unwrap();
         let hop_info = parse_receive_headers(&mail.get_headers());
-        let expected = vec![
-            "Hop: From: localhost; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:22 +0000",
-            "Hop: From: hq5.merlinux.eu; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:25 +0000"
-        ];
-        // remove Date lines because they are not deterministic
-        let hop_info = hop_info
-            .split('\n')
-            .filter(|line| !line.starts_with("Date:"))
-            .collect::<Vec<_>>();
         assert_eq!(hop_info, expected)
     }
 
