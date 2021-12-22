@@ -691,6 +691,14 @@ fn extract_address_from_receive_header<'a>(header: &'a str, start: &str) -> Opti
 pub(crate) fn parse_receive_header(header: &str) -> String {
     let mut hop_info = String::from("Hop: ");
 
+    if let Some(from) = extract_address_from_receive_header(header, "from ") {
+        hop_info += &format!("From: {}; ", from.trim());
+    }
+
+    if let Some(by) = extract_address_from_receive_header(header, "by ") {
+        hop_info += &format!("By: {}; ", by.trim());
+    }
+
     if let Ok(date) = dateparse(header) {
         // In tests, use the UTC timezone so that the test is reproducible
         #[cfg(test)]
@@ -698,16 +706,9 @@ pub(crate) fn parse_receive_header(header: &str) -> String {
         #[cfg(not(test))]
         let date_obj = Local.timestamp(date, 0);
 
-        hop_info += &format!("Date: {}; ", date_obj.to_rfc2822());
+        hop_info += &format!("Date: {}", date_obj.to_rfc2822());
     };
 
-    if let Some(from) = extract_address_from_receive_header(header, "from ") {
-        hop_info += &format!("From: {}; ", from.trim());
-    }
-
-    if let Some(by) = extract_address_from_receive_header(header, "by ") {
-        hop_info += &format!("By: {}", by.trim());
-    }
     hop_info
 }
 
@@ -740,8 +741,8 @@ mod tests {
         let mail = mailparse::parse_mail(&raw[..]).unwrap();
         let hop_info = parse_receive_headers(&mail.get_headers());
         let expected = vec![
-            "Hop: Date: Sat, 14 Sep 2019 17:00:22 +0000; From: localhost; By: hq5.merlinux.eu",
-            "Hop: Date: Sat, 14 Sep 2019 17:00:25 +0000; From: hq5.merlinux.eu; By: hq5.merlinux.eu"
+            "Hop: From: localhost; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:22 +0000",
+            "Hop: From: hq5.merlinux.eu; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:25 +0000"
         ];
         // remove Date lines because they are not deterministic
         let hop_info = hop_info
@@ -766,8 +767,8 @@ hi
 Message-ID: 2dfdbde7@example.org
 Last seen as: INBOX/1
 
-Hop: Date: Sat, 14 Sep 2019 17:00:22 +0000; From: localhost; By: hq5.merlinux.eu
-Hop: Date: Sat, 14 Sep 2019 17:00:25 +0000; From: hq5.merlinux.eu; By: hq5.merlinux.eu";
+Hop: From: localhost; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:22 +0000
+Hop: From: hq5.merlinux.eu; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:25 +0000";
         let result = get_msg_info(&t, g.id).await.unwrap();
         // little hack to ignore the first row of a parsed email because it contains a
         // send time that depends and the test runtime which makes it impossible to
