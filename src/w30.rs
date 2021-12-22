@@ -72,7 +72,7 @@ impl Context {
         let rowid = self
             .sql
             .insert(
-                "INSERT INTO msgs_status_updates (msg_id, payload) VALUES(?, ?);",
+                "INSERT INTO msgs_status_updates (msg_id, update_item) VALUES(?, ?);",
                 paramsv![instance_msg_id, serde_json::to_string(&status_update_item)?],
             )
             .await?;
@@ -151,7 +151,7 @@ impl Context {
     /// `msg_id` may be an instance (in case there are initial status updates)
     /// or a reply to an instance (for all other updates).
     ///
-    /// `json` is an array containing one or more payloads as created by send_w30_status_update(),
+    /// `json` is an array containing one or more update items as created by send_w30_status_update(),
     /// the array is parsed using serde, the single payloads are used as is.
     pub(crate) async fn receive_status_update(&self, msg_id: MsgId, json: &str) -> Result<()> {
         let msg = Message::load_from_db(self, msg_id).await?;
@@ -197,7 +197,7 @@ impl Context {
         let json = self
             .sql
             .query_map(
-                "SELECT payload FROM msgs_status_updates WHERE msg_id=? AND (1=? OR id=?)",
+                "SELECT update_item FROM msgs_status_updates WHERE msg_id=? AND (1=? OR id=?)",
                 paramsv![
                     instance_msg_id,
                     if status_update_id.is_some() { 0 } else { 1 },
@@ -207,11 +207,11 @@ impl Context {
                 |rows| {
                     let mut json = String::default();
                     for row in rows {
-                        let payload = row?;
+                        let update_item = row?;
                         if !json.is_empty() {
                             json.push_str(",\n");
                         }
-                        json.push_str(&payload);
+                        json.push_str(&update_item);
                     }
                     Ok(json)
                 },
