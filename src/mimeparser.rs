@@ -1537,7 +1537,6 @@ fn get_mime_type(mail: &mailparse::ParsedMail<'_>) -> Result<(Mime, Viewtype)> {
         }
         mime::IMAGE => match mimetype.subtype() {
             mime::GIF => Viewtype::Gif,
-            mime::SVG => Viewtype::File,
             _ => Viewtype::Image,
         },
         mime::AUDIO => Viewtype::Audio,

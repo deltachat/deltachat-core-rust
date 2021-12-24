@@ -1232,7 +1232,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "rar" => (Viewtype::File, "application/vnd.rar"),
         "rtf" => (Viewtype::File, "application/rtf"),
         "spx" => (Viewtype::File, "audio/ogg"), // Ogg Speex Profile
-        "svg" => (Viewtype::File, "image/svg+xml"),
+        "svg" => (Viewtype::Image, "image/svg+xml"),
         "tgs" => (Viewtype::Sticker, "application/x-tgsticker"),
         "tiff" => (Viewtype::File, "image/tiff"),
         "tif" => (Viewtype::File, "image/tiff"),
