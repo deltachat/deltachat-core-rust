@@ -168,6 +168,14 @@ CREATE TABLE tokens (
     timestamp INTEGER DEFAULT 0
 );
 
+-- The currently running securejoin protocols, joiner-side.
+-- CREATE TABLE bobstate (
+--     id INTEGER PRIMARY KEY AUTOINCREMENT,
+--     invite TEXT NOT NULL,
+--     next_step INTEGER NOT NULL,
+--     chat_id INTEGER NOT NULL
+-- );
+
 CREATE TABLE locations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     latitude REAL DEFAULT 0.0,

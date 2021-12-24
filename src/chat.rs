@@ -175,7 +175,7 @@ impl ChatId {
     /// Returns the unblocked 1:1 chat with `contact_id`.
     ///
     /// This should be used when **a user action** creates a chat 1:1, it ensures the chat
-    /// exists and is unblocked and scales the [`Contact`]'s origin.
+    /// exists, is unblocked and scales the [`Contact`]'s origin.
     pub async fn create_for_contact(context: &Context, contact_id: u32) -> Result<Self> {
         ChatId::create_for_contact_with_blocked(context, contact_id, Blocked::Not).await
     }

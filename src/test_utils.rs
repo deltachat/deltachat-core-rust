@@ -23,7 +23,7 @@ use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF, DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
-use crate::contact::{Contact, Origin};
+use crate::contact::{Contact, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
@@ -399,31 +399,56 @@ impl TestContext {
             .expect("failed to load msg")
     }
 
+    /// Returns the [`Contact`] for the other [`TestContext`], creating it if necessary.
+    pub async fn add_or_lookup_contact(&self, other: &TestContext) -> Contact {
+        let name = other
+            .ctx
+            .get_config(Config::Displayname)
+            .await
+            .unwrap_or_default()
+            .unwrap_or_default();
+        let addr = other
+            .ctx
+            .get_config(Config::ConfiguredAddr)
+            .await
+            .unwrap()
+            .unwrap();
+        // MailinglistAddress is the lowest allowed origin, we'd prefer to not modify the
+        // origin when creating this contact.
+        let (contact_id, modified) =
+            Contact::add_or_lookup(self, &name, &addr, Origin::MailinglistAddress)
+                .await
+                .unwrap();
+        match modified {
+            Modifier::None => (),
+            Modifier::Modified => warn!(&self.ctx, "Contact {} modified by TestContext", &addr),
+            Modifier::Created => warn!(&self.ctx, "Contact {} created by TestContext", &addr),
+        }
+        Contact::load_from_db(&self.ctx, contact_id).await.unwrap()
+    }
+
+    /// Returns 1:1 [`Chat`] with another account, if it exists.
+    ///
+    /// This first creates a contact using the configured details on the other account, then
+    /// creates a 1:1 chat with this contact.
+    pub async fn get_chat(&self, other: &TestContext) -> Option<Chat> {
+        let contact = self.add_or_lookup_contact(other).await;
+        match ChatId::lookup_by_contact(&self.ctx, contact.id)
+            .await
+            .unwrap()
+        {
+            Some(id) => Some(Chat::load_from_db(&self.ctx, id).await.unwrap()),
+            None => None,
+        }
+    }
+
     /// Creates or returns an existing 1:1 [`Chat`] with another account.
     ///
     /// This first creates a contact using the configured details on the other account, then
     /// creates a 1:1 chat with this contact.
     pub async fn create_chat(&self, other: &TestContext) -> Chat {
-        let (contact_id, _modified) = Contact::add_or_lookup(
-            self,
-            &other
-                .ctx
-                .get_config(Config::Displayname)
-                .await
-                .unwrap_or_default()
-                .unwrap_or_default(),
-            &other
-                .ctx
-                .get_config(Config::ConfiguredAddr)
-                .await
-                .unwrap()
-                .unwrap(),
-            Origin::ManuallyCreated,
-        )
-        .await
-        .unwrap();
-
-        let chat_id = ChatId::create_for_contact(self, contact_id).await.unwrap();
+        let contact = self.add_or_lookup_contact(other).await;
+        let chat_id = ChatId::create_for_contact(self, contact.id).await.unwrap();
         Chat::load_from_db(self, chat_id).await.unwrap()
     }
 

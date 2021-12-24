@@ -5,14 +5,13 @@
 //! provides all the information to its driver so it can perform the correct interactions.
 //!
 //! The [`BobState`] is only directly used to initially create it when starting the
-//! protocol.  Afterwards it must be stored in a mutex and the [`BobStateHandle`] should be
-//! used to work with the state.
+//! protocol.
 
-use anyhow::{bail, Error, Result};
-use async_std::sync::MutexGuard;
+use anyhow::{Error, Result};
+use rusqlite::Connection;
 
 use crate::chat::{self, ChatId};
-use crate::constants::{Blocked, Viewtype};
+use crate::constants::Viewtype;
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
@@ -21,6 +20,7 @@ use crate::key::{DcKey, SignedPublicKey};
 use crate::message::Message;
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
+use crate::sql::Sql;
 
 use super::qrinvite::QrInvite;
 use super::{
@@ -46,123 +46,14 @@ pub enum BobHandshakeStage {
     Terminated(&'static str),
 }
 
-/// A handle to work with the [`BobState`] of Bob's securejoin protocol.
+/// The securejoin state kept while Bob is joining.
 ///
-/// This handle can only be created for when an underlying [`BobState`] exists.  It keeps
-/// open a lock which guarantees unique access to the state and this struct must be dropped
-/// to return the lock.
-pub struct BobStateHandle<'a> {
-    guard: MutexGuard<'a, Option<BobState>>,
-    bobstate: BobState,
-    clear_state_on_drop: bool,
-}
-
-impl<'a> BobStateHandle<'a> {
-    /// Creates a new instance, upholding the guarantee that [`BobState`] must exist.
-    pub fn from_guard(mut guard: MutexGuard<'a, Option<BobState>>) -> Option<Self> {
-        guard.take().map(|bobstate| Self {
-            guard,
-            bobstate,
-            clear_state_on_drop: false,
-        })
-    }
-
-    /// Returns the [`ChatId`] of the group chat to join or the 1:1 chat with Alice.
-    pub async fn chat_id(&self, context: &Context) -> Result<ChatId> {
-        match self.bobstate.invite {
-            QrInvite::Group { ref grpid, .. } => {
-                if let Some((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, grpid).await? {
-                    Ok(chat_id)
-                } else {
-                    bail!("chat not found")
-                }
-            }
-            QrInvite::Contact { .. } => Ok(self.bobstate.chat_id),
-        }
-    }
-
-    /// Returns a reference to the [`QrInvite`] of the joiner process.
-    pub fn invite(&self) -> &QrInvite {
-        &self.bobstate.invite
-    }
-
-    /// Handles the given message for the securejoin handshake for Bob.
-    ///
-    /// This proxies to [`BobState::handle_message`] and makes sure to clear the state when
-    /// the protocol state is terminal.  It returns `Some` if the message successfully
-    /// advanced the state of the protocol state machine, `None` otherwise.
-    pub async fn handle_message(
-        &mut self,
-        context: &Context,
-        mime_message: &MimeMessage,
-    ) -> Option<BobHandshakeStage> {
-        info!(context, "Handling securejoin message for BobStateHandle");
-        match self.bobstate.handle_message(context, mime_message).await {
-            Ok(Some(stage)) => {
-                if matches!(
-                    stage,
-                    BobHandshakeStage::Completed | BobHandshakeStage::Terminated(_)
-                ) {
-                    self.finish_protocol(context).await;
-                }
-                Some(stage)
-            }
-            Ok(None) => None,
-            Err(err) => {
-                warn!(
-                    context,
-                    "Error handling handshake message, aborting handshake: {}", err
-                );
-                self.finish_protocol(context).await;
-                None
-            }
-        }
-    }
-
-    /// Marks the bob handshake as finished.
-    ///
-    /// This will clear the state on [`InnerContext::bob`] once this handle is dropped,
-    /// allowing a new handshake to be started from [`Bob`].
-    ///
-    /// Note that the state is only cleared on Drop since otherwise the invariant that the
-    /// state is always consistent is violated.  However the "ongoing" process is released
-    /// here a little bit earlier as this requires access to the Context, which we do not
-    /// have on Drop (Drop can not run asynchronous code).  Stopping the "ongoing" process
-    /// will release [`securejoin`](super::securejoin) which in turn will finally free the
-    /// ongoing process using [`Context::free_ongoing`].
-    ///
-    /// [`InnerContext::bob`]: crate::context::InnerContext::bob
-    /// [`Bob`]: super::Bob
-    async fn finish_protocol(&mut self, context: &Context) {
-        info!(context, "Finishing securejoin handshake protocol for Bob");
-        self.clear_state_on_drop = true;
-        if let QrInvite::Group { .. } = self.bobstate.invite {
-            context.stop_ongoing().await;
-        }
-    }
-}
-
-impl<'a> Drop for BobStateHandle<'a> {
-    fn drop(&mut self) {
-        if self.clear_state_on_drop {
-            // The Option should already be empty because we take it out in the ctor,
-            // however the typesystem doesn't guarantee this so do it again anyway.
-            self.guard.take();
-        } else {
-            // Make sure to put back the BobState into the Option of the Mutex, it was taken
-            // out by the constructor.
-            self.guard.replace(self.bobstate.clone());
-        }
-    }
-}
-
-/// The securejoin state kept in-memory while Bob is joining.
+/// This is stored in the database and loaded from there using [`BobState::from_db`].  To
+/// create a new one use [`BobState::start_protocol`].
 ///
-/// This is currently stored in [`Bob`] which is stored on the [`Context`], thus Bob can
-/// only run one securejoin joiner protocol at a time.
-///
-/// This purposefully has nothing optional, the state is always fully valid.  See
-/// [`Bob::state`] to get access to this state.
+/// This purposefully has nothing optional, the state is always fully valid.  However once a
+/// terminal state is reached in [`BobState::next`] the entry in the database will already
+/// have been deleted.
 ///
 /// # Conducting the securejoin handshake
 ///
@@ -177,6 +68,8 @@ impl<'a> Drop for BobStateHandle<'a> {
 /// [`Bob::state`]: super::Bob::state
 #[derive(Debug, Clone)]
 pub struct BobState {
+    /// Database primary key.
+    id: i64,
     /// The QR Invite code.
     invite: QrInvite,
     /// The next expected message from Alice.
@@ -188,44 +81,157 @@ pub struct BobState {
 impl BobState {
     /// Starts the securejoin protocol and creates a new [`BobState`].
     ///
+    /// The `chat_id` needs to be the ID of the 1:1 chat with Alice, this chat will be used
+    /// to exchange the SecureJoin handshake messages as well as for showing error messages.
+    ///
     /// # Bob - the joiner's side
     /// ## Step 2 in the "Setup Contact protocol", section 2.1 of countermitm 0.10.0
+    ///
+    /// This currently aborts any other securejoin process if any did not yet complete.  The
+    /// ChatIds of the relevant 1:1 chat of any aborted handshakes are returned so that you
+    /// can report the aboreted handshake in the chat.  (Yes, there can only ever be one
+    /// ChatId in that Vec, the database doesn't care though.)
     pub async fn start_protocol(
         context: &Context,
         invite: QrInvite,
-    ) -> Result<(Self, BobHandshakeStage), JoinError> {
-        let chat_id =
-            ChatId::create_for_contact_with_blocked(context, invite.contact_id(), Blocked::Yes)
-                .await
-                .map_err(JoinError::UnknownContact)?;
-        if fingerprint_equals_sender(context, invite.fingerprint(), invite.contact_id()).await? {
-            // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
-            info!(context, "Taking securejoin protocol shortcut");
-            let state = Self {
-                invite,
-                next: SecureJoinStep::ContactConfirm,
-                chat_id,
+        chat_id: ChatId,
+    ) -> Result<(Self, BobHandshakeStage, Vec<Self>), JoinError> {
+        let (stage, next) =
+            if fingerprint_equals_sender(context, invite.fingerprint(), invite.contact_id()).await?
+            {
+                // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
+                info!(context, "Taking securejoin protocol shortcut");
+                send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::RequestWithAuth)
+                    .await?;
+                (
+                    BobHandshakeStage::RequestWithAuthSent,
+                    SecureJoinStep::ContactConfirm,
+                )
+            } else {
+                send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::Request).await?;
+                (BobHandshakeStage::RequestSent, SecureJoinStep::AuthRequired)
             };
-            state
-                .send_handshake_message(context, BobHandshakeMsg::RequestWithAuth)
-                .await?;
-            Ok((state, BobHandshakeStage::RequestWithAuthSent))
-        } else {
-            let state = Self {
-                invite,
-                next: SecureJoinStep::AuthRequired,
-                chat_id,
-            };
-            state
-                .send_handshake_message(context, BobHandshakeMsg::Request)
-                .await?;
-            Ok((state, BobHandshakeStage::RequestSent))
-        }
+        let (id, aborted_states) =
+            Self::insert_new_db_entry(context, next, invite.clone(), chat_id).await?;
+        let state = Self {
+            id,
+            invite,
+            next,
+            chat_id,
+        };
+        Ok((state, stage, aborted_states))
+    }
+
+    /// Inserts a new entry in the bobstate table, deleting all previous entries.
+    ///
+    /// Returns the ID of the newly inserted entry and all the aborted states.
+    async fn insert_new_db_entry(
+        context: &Context,
+        next: SecureJoinStep,
+        invite: QrInvite,
+        chat_id: ChatId,
+    ) -> Result<(i64, Vec<Self>)> {
+        context
+            .sql
+            .transaction(move |transaction| {
+                // We need to start a write transaction right away, so that we have the
+                // database locked and no one else can write to this table while we read the
+                // rows that we will delete.  So start with a dummy UPDATE.
+                transaction.execute(
+                    r#"UPDATE bobstate SET next_step=?;"#,
+                    params![SecureJoinStep::Terminated],
+                )?;
+                let mut stmt = transaction.prepare("SELECT id FROM bobstate;")?;
+                let mut aborted = Vec::new();
+                for id in stmt.query_map(params![], |row| row.get::<_, i64>(0))? {
+                    let id = id?;
+                    let state = BobState::from_db_id(transaction, id)?;
+                    aborted.push(state);
+                }
+
+                // Finally delete everything and insert new row.
+                transaction.execute("DELETE FROM bobstate;", params![])?;
+                transaction.execute(
+                    "INSERT INTO bobstate (invite, next_step, chat_id) VALUES (?, ?, ?);",
+                    params![invite, next, chat_id],
+                )?;
+                let id = transaction.last_insert_rowid();
+                Ok((id, aborted))
+            })
+            .await
+    }
+
+    /// Load [`BobState`] from the database.
+    pub async fn from_db(sql: &Sql) -> Result<Option<Self>> {
+        // Because of how Self::start_protocol() updates the database we are currently
+        // guaranteed to only have one row.
+        sql.query_row_optional(
+            "SELECT id, invite, next_step, chat_id FROM bobstate;",
+            paramsv![],
+            |row| {
+                let s = BobState {
+                    id: row.get(0)?,
+                    invite: row.get(1)?,
+                    next: row.get(2)?,
+                    chat_id: row.get(3)?,
+                };
+                Ok(s)
+            },
+        )
+        .await
+    }
+
+    fn from_db_id(connection: &Connection, id: i64) -> rusqlite::Result<Self> {
+        connection.query_row(
+            "SELECT invite, next_step, chat_id FROM bobstate WHERE id=?;",
+            params![id],
+            |row| {
+                let s = BobState {
+                    id,
+                    invite: row.get(0)?,
+                    next: row.get(1)?,
+                    chat_id: row.get(2)?,
+                };
+                Ok(s)
+            },
+        )
     }
 
     /// Returns the [`QrInvite`] used to create this [`BobState`].
     pub fn invite(&self) -> &QrInvite {
         &self.invite
+    }
+
+    /// Returns the [`ChatId`] of the 1:1 chat with the inviter (Alice).
+    pub fn alice_chat(&self) -> ChatId {
+        self.chat_id
+    }
+
+    /// Updates the [`BobState::next`] field in memory and the database.
+    ///
+    /// If the next state is a terminal state it will remove this [`BobState`] from the
+    /// database.
+    ///
+    /// If a user scanned a new QR code after this [`BobState`] was loaded this update will
+    /// fail currently because starting a new joiner process currently kills any previously
+    /// running processes.  This is a limitation which will go away in the future.
+    async fn update_next(&mut self, sql: &Sql, next: SecureJoinStep) -> Result<()> {
+        // TODO: write test verifying how this would fail.
+        match next {
+            SecureJoinStep::AuthRequired | SecureJoinStep::ContactConfirm => {
+                sql.execute(
+                    "UPDATE bobstate SET next_step=? WHERE id=?;",
+                    paramsv![next, self.id],
+                )
+                .await?;
+            }
+            SecureJoinStep::Terminated | SecureJoinStep::Completed => {
+                sql.execute("DELETE FROM bobstate WHERE id=?;", paramsv!(self.id))
+                    .await?;
+            }
+        }
+        self.next = next;
+        Ok(())
     }
 
     /// Handles the given message for the securejoin handshake for Bob.
@@ -234,14 +240,7 @@ impl BobState {
     /// stage is returned.  Once [`BobHandshakeStage::Completed`] or
     /// [`BobHandshakeStage::Terminated`] are reached this [`BobState`] should be destroyed,
     /// further calling it will just result in the messages being unused by this handshake.
-    ///
-    /// # Errors
-    ///
-    /// Under normal operation this should never return an error, regardless of what kind of
-    /// message it is called with.  Any errors therefore should be treated as fatal internal
-    /// errors and this entire [`BobState`] should be thrown away as the state machine can
-    /// no longer be considered consistent.
-    async fn handle_message(
+    pub async fn handle_message(
         &mut self,
         context: &Context,
         mime_message: &MimeMessage,
@@ -304,17 +303,20 @@ impl BobState {
             } else {
                 "Required encryption missing"
             };
-            self.next = SecureJoinStep::Terminated;
+            self.update_next(&context.sql, SecureJoinStep::Terminated)
+                .await?;
             return Ok(Some(BobHandshakeStage::Terminated(reason)));
         }
         if !fingerprint_equals_sender(context, self.invite.fingerprint(), self.invite.contact_id())
             .await?
         {
-            self.next = SecureJoinStep::Terminated;
+            self.update_next(&context.sql, SecureJoinStep::Terminated)
+                .await?;
             return Ok(Some(BobHandshakeStage::Terminated("Fingerprint mismatch")));
         }
         info!(context, "Fingerprint verified.",);
-        self.next = SecureJoinStep::ContactConfirm;
+        self.update_next(&context.sql, SecureJoinStep::ContactConfirm)
+            .await?;
         self.send_handshake_message(context, BobHandshakeMsg::RequestWithAuth)
             .await?;
         Ok(Some(BobHandshakeStage::RequestWithAuthSent))
@@ -362,7 +364,8 @@ impl BobState {
         if vg_expect_encrypted
             && !encrypted_and_signed(context, mime_message, Some(self.invite.fingerprint()))
         {
-            self.next = SecureJoinStep::Terminated;
+            self.update_next(&context.sql, SecureJoinStep::Terminated)
+                .await?;
             return Ok(Some(BobHandshakeStage::Terminated(
                 "Contact confirm message not encrypted",
             )));
@@ -394,7 +397,8 @@ impl BobState {
             // This is not an error affecting the protocol outcome.
             .ok();
 
-        self.next = SecureJoinStep::Completed;
+        self.update_next(&context.sql, SecureJoinStep::Completed)
+            .await?;
         Ok(Some(BobHandshakeStage::Completed))
     }
 
@@ -406,46 +410,58 @@ impl BobState {
         context: &Context,
         step: BobHandshakeMsg,
     ) -> Result<(), SendMsgError> {
-        let mut msg = Message {
-            viewtype: Viewtype::Text,
-            text: Some(step.body_text(&self.invite)),
-            hidden: true,
-            ..Default::default()
-        };
-        msg.param.set_cmd(SystemMessage::SecurejoinMessage);
-
-        // Sends the step in Secure-Join header.
-        msg.param
-            .set(Param::Arg, step.securejoin_header(&self.invite));
-
-        match step {
-            BobHandshakeMsg::Request => {
-                // Sends the Secure-Join-Invitenumber header in mimefactory.rs.
-                msg.param.set(Param::Arg2, self.invite.invitenumber());
-                msg.force_plaintext();
-            }
-            BobHandshakeMsg::RequestWithAuth => {
-                // Sends the Secure-Join-Auth header in mimefactory.rs.
-                msg.param.set(Param::Arg2, self.invite.authcode());
-                msg.param.set_int(Param::GuaranteeE2ee, 1);
-            }
-            BobHandshakeMsg::ContactConfirmReceived => {
-                msg.param.set_int(Param::GuaranteeE2ee, 1);
-            }
-        };
-
-        // Sends our own fingerprint in the Secure-Join-Fingerprint header.
-        let bob_fp = SignedPublicKey::load_self(context).await?.fingerprint();
-        msg.param.set(Param::Arg3, bob_fp.hex());
-
-        // Sends the grpid in the Secure-Join-Group header.
-        if let QrInvite::Group { ref grpid, .. } = self.invite {
-            msg.param.set(Param::Arg4, grpid);
-        }
-
-        chat::send_msg(context, self.chat_id, &mut msg).await?;
-        Ok(())
+        send_handshake_message(context, &self.invite, self.chat_id, step).await
     }
+}
+
+/// Sends the requested handshake message to Alice.
+///
+/// Same as [`BobState::send_handshake_message`] but this variation allows us to send this
+/// message before we create the state in [`BobState::start_protocol`].
+async fn send_handshake_message(
+    context: &Context,
+    invite: &QrInvite,
+    chat_id: ChatId,
+    step: BobHandshakeMsg,
+) -> Result<(), SendMsgError> {
+    let mut msg = Message {
+        viewtype: Viewtype::Text,
+        text: Some(step.body_text(invite)),
+        hidden: true,
+        ..Default::default()
+    };
+    msg.param.set_cmd(SystemMessage::SecurejoinMessage);
+
+    // Sends the step in Secure-Join header.
+    msg.param.set(Param::Arg, step.securejoin_header(invite));
+
+    match step {
+        BobHandshakeMsg::Request => {
+            // Sends the Secure-Join-Invitenumber header in mimefactory.rs.
+            msg.param.set(Param::Arg2, invite.invitenumber());
+            msg.force_plaintext();
+        }
+        BobHandshakeMsg::RequestWithAuth => {
+            // Sends the Secure-Join-Auth header in mimefactory.rs.
+            msg.param.set(Param::Arg2, invite.authcode());
+            msg.param.set_int(Param::GuaranteeE2ee, 1);
+        }
+        BobHandshakeMsg::ContactConfirmReceived => {
+            msg.param.set_int(Param::GuaranteeE2ee, 1);
+        }
+    };
+
+    // Sends our own fingerprint in the Secure-Join-Fingerprint header.
+    let bob_fp = SignedPublicKey::load_self(context).await?.fingerprint();
+    msg.param.set(Param::Arg3, bob_fp.hex());
+
+    // Sends the grpid in the Secure-Join-Group header.
+    if let QrInvite::Group { ref grpid, .. } = invite {
+        msg.param.set(Param::Arg4, grpid);
+    }
+
+    chat::send_msg(context, chat_id, &mut msg).await?;
+    Ok(())
 }
 
 /// Identifies the SecureJoin handshake messages Bob can send.
@@ -492,8 +508,8 @@ impl BobHandshakeMsg {
 }
 
 /// The next message expected by [`BobState`] in the setup-contact/secure-join protocol.
-#[derive(Debug, Clone, PartialEq)]
-enum SecureJoinStep {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SecureJoinStep {
     /// Expecting the auth-required message.
     ///
     /// This corresponds to the `vc-auth-required` or `vg-auth-required` message of step 3d.
@@ -531,5 +547,31 @@ impl SecureJoinStep {
                 false
             }
         }
+    }
+}
+
+impl rusqlite::types::ToSql for SecureJoinStep {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        let num = match &self {
+            SecureJoinStep::AuthRequired => 0,
+            SecureJoinStep::ContactConfirm => 1,
+            SecureJoinStep::Terminated => 2,
+            SecureJoinStep::Completed => 3,
+        };
+        let val = rusqlite::types::Value::Integer(num);
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
+    }
+}
+
+impl rusqlite::types::FromSql for SecureJoinStep {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        i64::column_result(value).and_then(|val| match val {
+            0 => Ok(SecureJoinStep::AuthRequired),
+            1 => Ok(SecureJoinStep::ContactConfirm),
+            2 => Ok(SecureJoinStep::Terminated),
+            3 => Ok(SecureJoinStep::Completed),
+            _ => Err(rusqlite::types::FromSqlError::OutOfRange(val)),
+        })
     }
 }

@@ -579,6 +579,19 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 86 {
+        info!(context, "[migration] v86");
+        sql.execute_migration(
+            r#"CREATE TABLE bobstate (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   invite TEXT NOT NULL,
+                   next_step INTEGER NOT NULL,
+                   chat_id INTEGER NOT NULL
+            );"#,
+            86,
+        )
+        .await?;
+    }
 
     Ok((
         recalc_fingerprints,

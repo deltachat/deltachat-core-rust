@@ -636,20 +636,19 @@ pub(crate) async fn secure_join_group_qr_description(context: &Context, chat: &C
 }
 
 /// Stock string: `%1$s verified.`.
-pub(crate) async fn contact_verified(context: &Context, contact_addr: impl AsRef<str>) -> String {
+pub(crate) async fn contact_verified(context: &Context, contact: &Contact) -> String {
+    let addr = contact.get_name_n_addr();
     translated(context, StockMessage::ContactVerified)
         .await
-        .replace1(contact_addr)
+        .replace1(addr)
 }
 
 /// Stock string: `Cannot verify %1$s`.
-pub(crate) async fn contact_not_verified(
-    context: &Context,
-    contact_addr: impl AsRef<str>,
-) -> String {
+pub(crate) async fn contact_not_verified(context: &Context, contact: &Contact) -> String {
+    let addr = contact.get_name_n_addr();
     translated(context, StockMessage::ContactNotVerified)
         .await
-        .replace1(contact_addr)
+        .replace1(addr)
 }
 
 /// Stock string: `Changed setup for %1$s`.
@@ -1197,8 +1196,15 @@ mod tests {
     #[async_std::test]
     async fn test_stock_string_repl_str() {
         let t = TestContext::new().await;
+        let contact_id = Contact::create(&t.ctx, "Someone", "someone@example.org")
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         // uses %1$s substitution
-        assert_eq!(contact_verified(&t, "Foo").await, "Foo verified.");
+        assert_eq!(
+            contact_verified(&t, &contact).await,
+            "Someone (someone@example.org) verified."
+        );
         // We have no string using %1$d to test...
     }
 
