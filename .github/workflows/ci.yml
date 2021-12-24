@@ -21,6 +21,8 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add rustfmt
+      - name: Cache rust cargo artifacts
+        uses: swatinem/rust-cache@v1
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
@@ -35,6 +37,8 @@ jobs:
             toolchain: stable
             components: clippy
             override: true
+      - name: Cache rust cargo artifacts
+        uses: swatinem/rust-cache@v1
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -94,23 +98,8 @@ jobs:
         toolchain: ${{ matrix.rust }}
         override: true
 
-    - name: Cache cargo registry
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo/registry
-        key: ${{ matrix.os }}-${{ matrix.rust }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
-
-    - name: Cache cargo index
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo/git
-        key: ${{ matrix.os }}-${{ matrix.rust }}-cargo-index-${{ hashFiles('**/Cargo.toml') }}
-
-    - name: Cache cargo build
-      uses: actions/cache@v2
-      with:
-        path: target
-        key: ${{ matrix.os }}-${{ matrix.rust }}-cargo-build-target-${{ hashFiles('**/Cargo.toml') }}
+    - name: Cache rust cargo artifacts
+      uses: swatinem/rust-cache@v1
 
     - name: check
       uses: actions-rs/cargo@v1
