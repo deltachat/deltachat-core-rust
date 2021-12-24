@@ -24,7 +24,6 @@ use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::quota::QuotaInfo;
 use crate::scheduler::Scheduler;
-use crate::securejoin::Bob;
 use crate::sql::Sql;
 
 #[derive(Clone, Debug)]
@@ -45,7 +44,6 @@ pub struct InnerContext {
     /// Blob directory path
     pub(crate) blobdir: PathBuf,
     pub(crate) sql: Sql,
-    pub(crate) bob: Bob,
     pub(crate) last_smeared_timestamp: RwLock<i64>,
     pub(crate) running_state: RwLock<RunningState>,
     /// Mutex to avoid generating the key for the user more than once.
@@ -171,7 +169,6 @@ impl Context {
             blobdir,
             running_state: RwLock::new(Default::default()),
             sql: Sql::new(dbfile),
-            bob: Default::default(),
             last_smeared_timestamp: RwLock::new(0),
             generating_key_mutex: Mutex::new(()),
             oauth2_mutex: Mutex::new(()),

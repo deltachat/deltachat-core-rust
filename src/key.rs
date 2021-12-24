@@ -318,7 +318,7 @@ pub async fn store_self_keypair(
 }
 
 /// A key fingerprint
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct Fingerprint(Vec<u8>);
 
 impl Fingerprint {
