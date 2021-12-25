@@ -362,17 +362,17 @@ impl Context {
                 [
                     (
                         Config::ConfiguredInboxFolder,
-                        Config::InboxWatch,
+                        None,
                         inbox.state.connectivity.clone(),
                     ),
                     (
                         Config::ConfiguredMvboxFolder,
-                        Config::MvboxMove,
+                        Some(Config::MvboxMove),
                         mvbox.state.connectivity.clone(),
                     ),
                     (
                         Config::ConfiguredSentboxFolder,
-                        Config::SentboxWatch,
+                        Some(Config::SentboxWatch),
                         sentbox.state.connectivity.clone(),
                     ),
                 ],
@@ -393,10 +393,18 @@ impl Context {
 
         ret += &format!("<h3>{}</h3><ul>", stock_str::incoming_messages(self).await);
         for (folder, watch, state) in &folders_states {
-            let w = self.get_config(*watch).await.ok_or_log(self);
+            let w = if let Some(watch_config) = *watch {
+                self.get_config(watch_config)
+                    .await
+                    .ok_or_log(self)
+                    .flatten()
+                    == Some("1".to_string())
+            } else {
+                true
+            };
 
             let mut folder_added = false;
-            if w.flatten() == Some("1".to_string()) {
+            if w {
                 let f = self.get_config(*folder).await.ok_or_log(self).flatten();
 
                 if let Some(foldername) = f {

@@ -137,7 +137,7 @@ impl Context {
         }
 
         let quota = if imap.can_check_quota() {
-            let folders = get_watched_folders(self).await;
+            let folders = get_watched_folders(self).await?;
             get_unique_quota_roots_and_usage(folders, imap).await
         } else {
             Err(anyhow!(stock_str::not_supported_by_provider(self).await))

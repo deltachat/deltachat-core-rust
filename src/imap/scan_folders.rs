@@ -29,7 +29,7 @@ impl Imap {
         let session = self.session.as_mut();
         let session = session.context("scan_folders(): IMAP No Connection established")?;
         let folders: Vec<_> = session.list(Some(""), Some("*")).await?.collect().await;
-        let watched_folders = get_watched_folders(context).await;
+        let watched_folders = get_watched_folders(context).await?;
 
         let mut folder_configs = BTreeMap::new();
 
@@ -102,19 +102,21 @@ impl Imap {
     }
 }
 
-pub(crate) async fn get_watched_folders(context: &Context) -> Vec<String> {
+pub(crate) async fn get_watched_folders(context: &Context) -> Result<Vec<String>> {
     let mut res = Vec::new();
+    if let Some(inbox_folder) = context.get_config(Config::ConfiguredInboxFolder).await? {
+        res.push(inbox_folder);
+    }
     let folder_watched_configured = &[
         (Config::SentboxWatch, Config::ConfiguredSentboxFolder),
         (Config::MvboxMove, Config::ConfiguredMvboxFolder),
-        (Config::InboxWatch, Config::ConfiguredInboxFolder),
     ];
     for (watched, configured) in folder_watched_configured {
-        if context.get_config_bool(*watched).await.unwrap_or_default() {
-            if let Ok(Some(folder)) = context.get_config(*configured).await {
+        if context.get_config_bool(*watched).await? {
+            if let Some(folder) = context.get_config(*configured).await? {
                 res.push(folder);
             }
         }
     }
-    res
+    Ok(res)
 }

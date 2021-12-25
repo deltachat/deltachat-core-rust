@@ -322,7 +322,6 @@ impl Context {
             Err(err) => format!("<key failure: {}>", err),
         };
 
-        let inbox_watch = self.get_config_int(Config::InboxWatch).await?;
         let sentbox_watch = self.get_config_int(Config::SentboxWatch).await?;
         let mvbox_move = self.get_config_int(Config::MvboxMove).await?;
         let sentbox_move = self.get_config_int(Config::SentboxMove).await?;
@@ -380,7 +379,6 @@ impl Context {
                 .await?
                 .to_string(),
         );
-        res.insert("inbox_watch", inbox_watch.to_string());
         res.insert("sentbox_watch", sentbox_watch.to_string());
         res.insert("mvbox_move", mvbox_move.to_string());
         res.insert("sentbox_move", sentbox_move.to_string());

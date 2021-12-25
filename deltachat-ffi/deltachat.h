@@ -293,9 +293,6 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    1=send a copy of outgoing messages to self.
  *                    Sending messages to self is needed for a proper multi-account setup,
  *                    however, on the other hand, may lead to unwanted notifications in non-delta clients.
- * - `inbox_watch`  = 1=watch `INBOX`-folder for changes (default),
- *                    0=do not watch the `INBOX`-folder,
- *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
  * - `sentbox_watch`= 1=watch `Sent`-folder for changes (default),
  *                    0=do not watch the `Sent`-folder,
  *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().

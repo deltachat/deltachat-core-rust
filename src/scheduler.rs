@@ -98,35 +98,15 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                 Some(job) => {
                     // Let the fetch run, but return back to the job afterwards.
                     jobs_loaded = 0;
-                    if ctx
-                        .get_config_bool(Config::InboxWatch)
-                        .await
-                        .unwrap_or_default()
-                    {
-                        info!(ctx, "postponing imap-job {} to run fetch...", job);
-                        fetch(&ctx, &mut connection).await;
-                    }
+                    info!(ctx, "postponing imap-job {} to run fetch...", job);
+                    fetch(&ctx, &mut connection).await;
                 }
                 None => {
                     jobs_loaded = 0;
 
                     maybe_add_time_based_warnings(&ctx).await;
 
-                    info = if ctx
-                        .get_config_bool(Config::InboxWatch)
-                        .await
-                        .unwrap_or_default()
-                    {
-                        fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await
-                    } else {
-                        if let Err(err) = connection.scan_folders(&ctx).await {
-                            warn!(ctx, "{}", err);
-                            connection.connectivity.set_err(&ctx, err).await;
-                        } else {
-                            connection.connectivity.set_not_configured(&ctx).await;
-                        }
-                        connection.fake_idle(&ctx, None).await
-                    };
+                    info = fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await;
                 }
             }
         }
