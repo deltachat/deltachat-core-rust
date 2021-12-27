@@ -1,8 +1,18 @@
+Return-Path: <bob@example.org>
+Delivered-To: alice@example.org
+Received: from hq5.example.org
+	by hq5.example.org with LMTP
+	id ODfyL7KhyWEANgAAPzvFDg
+	(envelope-from <bob@example.org>)
+	for <bob@example.org>; Mon, 27 Dec 2021 12:21:22 +0100
+Received: from mout.example.org (mout.example.org [212.227.17.22])
+	by hq5.example.org (Postfix) with ESMTPS id 45BAF27A0001
+	for <bob@example.org>; Mon, 27 Dec 2021 12:21:22 +0100 (CET)
+Received: from [127.0.0.1] ([217.80.24.163]) by mail.example.org (mrgmx105
+ [212.227.17.168]) with ESMTPSA (Nemesis) id 1MF3HU-1nCnTl33U0-00FXCF; Mon, 27
+ Dec 2021 12:21:21 +0100
 Subject: ...
 MIME-Version: 1.0
-References: <Mr.TGEX8aAVEjU.2vk3EZTpuJV@example.org>
-        <Mr.TGEX8aAVEjU.2vk3EZTpuJV@example.org>
-In-Reply-To: <Mr.TGEX8aAVEjU.2vk3EZTpuJV@example.org>
 Date: Mon, 27 Dec 2021 13:12:03 +0000
 Chat-Version: 1.0
 Autocrypt: addr=bob@example.net; prefer-encrypt=mutual;
