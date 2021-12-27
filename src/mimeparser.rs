@@ -165,6 +165,7 @@ impl MimeMessage {
             .get_header_value(HeaderDef::Date)
             .and_then(|v| mailparse::dateparse(&v).ok())
             .unwrap_or_default();
+        let hop_info = parse_receive_headers(&mail.get_headers());
 
         let mut headers = Default::default();
         let mut recipients = Default::default();
@@ -296,7 +297,7 @@ impl MimeMessage {
             footer: None,
             is_mime_modified: false,
             decoded_data: Vec::new(),
-            hop_info: parse_receive_headers(&mail.get_headers()),
+            hop_info,
         };
 
         match partial {
