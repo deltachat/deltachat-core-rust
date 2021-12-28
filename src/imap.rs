@@ -1228,7 +1228,7 @@ impl Imap {
                         last_uid = Some(server_uid)
                     }
                     Err(err) => {
-                        warn!(context, "dc_receive_imf error: {}", err);
+                        warn!(context, "dc_receive_imf error: {:#}", err);
                     }
                 };
             }
