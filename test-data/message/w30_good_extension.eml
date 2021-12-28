@@ -11,12 +11,19 @@ Content-Type: multipart/mixed; boundary="==BREAK=="
 Content-Type: text/plain; charset=utf-8
 
 w30 with good extension;
-the mimetype is ignored then.
+the mimetype is ignored then,
+content is checked.
 
 --==BREAK==
 Content-Type: text/html
-Content-Disposition: attachment; filename=index.w30
+Content-Disposition: attachment; filename=minimal.w30
+Content-Transfer-Encoding: base64
 
-<html>hey!<html>
+UEsDBBQAAgAIAFJqnVOItjSofAAAALwAAAAKABwAaW5kZXguaHRtbFVUCQADG1LMYV1SzGF1eAsAAQ
+T1AQAABBQAAACzUXTxdw6JDHBVyCjJzbHjsoFQCgo2SfkplSCGgkJJanGJIphlU5xclFlQAhFWUEjJ
+Ty7NTc0r0SsvyixJ1VAqyU8EqlTStIYo1kdWbZOXj6o5uiQjsxhodkWJQnFGfmlOikJefolCUiqIV5
+4XCzUCWZeNPsRNNvoQRwIAUEsBAh4DFAACAAgAUmqdU4i2NKh8AAAAvAAAAAoAGAAAAAAAAQAAAKSB
+AAAAAGluZGV4Lmh0bWxVVAUAAxtSzGF1eAsAAQT1AQAABBQAAABQSwUGAAAAAAEAAQBQAAAAwAAAAA
+AA
 
 --==BREAK==--
