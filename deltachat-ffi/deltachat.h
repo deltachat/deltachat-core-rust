@@ -3676,6 +3676,20 @@ char*           dc_msg_get_filemime           (const dc_msg_t* msg);
 
 
 /**
+ * Return file from inside an archive.
+ * Currently, this works for W30 messages only.
+ *
+ * @param msg The W30 instance.
+ * @param filename The name inside the archive,
+ *     must be given as a relative path (no leading `/`).
+ * @param ret_bytes Pointer to a size_t. The size of the blob will be written here.
+ * @return The blob must be released using dc_str_unref() after usage.
+ *     NULL if there is no such file in the archive or on errors.
+ */
+char*             dc_msg_get_blob_from_archive  (const dc_msg_t* msg, const char* filename, size_t* ret_bytes);
+
+
+/**
  * Get the size of the file.  Returns the size of the file associated with a
  * message, if applicable.
  *

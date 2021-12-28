@@ -3071,6 +3071,39 @@ pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_blob_from_archive(
+    msg: *mut dc_msg_t,
+    filename: *const libc::c_char,
+    ret_bytes: *mut libc::size_t,
+) -> *mut libc::c_char {
+    if msg.is_null() || filename.is_null() || ret_bytes.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_blob_from_archive()");
+        return ptr::null_mut();
+    }
+    let ffi_msg = &*msg;
+    let ctx = &*ffi_msg.context;
+    let blob = block_on(async move {
+        ffi_msg
+            .message
+            .get_blob_from_archive(ctx, &to_string_lossy(filename))
+            .await
+    });
+    match blob {
+        Ok(blob) => {
+            // TODO: introduce dc_blob_t to avoid malloc and returning size by pointer and to save copying data
+            *ret_bytes = blob.len();
+            let ptr = libc::malloc(*ret_bytes);
+            libc::memcpy(ptr, blob.as_ptr() as *mut libc::c_void, *ret_bytes);
+            ptr as *mut libc::c_char
+        }
+        Err(err) => {
+            eprintln!("failed read blob from archive: {}", err);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_filemime()");
