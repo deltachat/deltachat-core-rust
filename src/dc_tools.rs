@@ -769,13 +769,8 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_parse_receive_headers_integration() -> anyhow::Result<()> {
-        let t = TestContext::new_alice().await;
-        t.set_config(Config::ShowEmails, Some("2")).await?;
+    async fn test_parse_receive_headers_integration() {
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
-        dc_receive_imf(&t, raw, "INBOX", 1, false).await.unwrap();
-        let g = t.get_last_msg().await;
-
         let expected = r"State: Fresh
 
 hi
@@ -785,14 +780,39 @@ Last seen as: INBOX/1
 
 Hop: From: localhost; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:22 +0000
 Hop: From: hq5.merlinux.eu; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:25 +0000";
-        let result = get_msg_info(&t, g.id).await.unwrap();
-        // little hack to ignore the first row of a parsed email because it contains a
-        // send time that depends and the test runtime which makes it impossible to
-        // compare with a static string
-        let capped_result = &result[result.find("State").unwrap()..];
+        check_parse_receive_headers_integration(raw, expected).await;
 
+        let raw = include_bytes!("../test-data/message/encrypted_with_received_headers.eml");
+        let expected = "State: Fresh, Encrypted
+
+Re: Message from alice@example.org
+
+hi back\r\n\
+\r\n\
+-- \r\n\
+Sent with my Delta Chat Messenger: https://delta.chat
+
+Message-ID: Mr.adQpEwndXLH.LPDdlFVJ7wG@example.net
+Last seen as: INBOX/1
+
+Hop: From: [127.0.0.1]; By: mail.example.org; Date: Mon, 27 Dec 2021 11:21:21 +0000
+Hop: From: mout.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22 +0000
+Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22 +0000";
+        check_parse_receive_headers_integration(raw, expected).await;
+    }
+
+    async fn check_parse_receive_headers_integration(raw: &[u8], expected: &str) {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+        dc_receive_imf(&t, raw, "INBOX", 1, false).await.unwrap();
+        let msg = t.get_last_msg().await;
+        let msg_info = get_msg_info(&t, msg.id).await.unwrap();
+
+        // Ignore the first rows of the msg_info because they contain a
+        // received time that depends on the test time which makes it impossible to
+        // compare with a static string
+        let capped_result = &msg_info[msg_info.find("State").unwrap()..];
         assert_eq!(expected, capped_result);
-        Ok(())
     }
 
     #[test]
