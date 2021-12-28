@@ -2,16 +2,18 @@
 
 use crate::constants::Viewtype;
 use crate::context::Context;
+use crate::dc_tools::dc_open_file_std;
 use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::{chat, EventType};
-use anyhow::{bail, Result};
+use anyhow::{bail, ensure, format_err, Result};
 use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::convert::TryFrom;
+use std::io::Read;
 
 pub const W30_SUFFIX: &str = "w30";
 
@@ -49,12 +51,16 @@ pub(crate) struct StatusUpdateItem {
 }
 
 impl Context {
-    pub(crate) async fn is_w30_file(&self, filename: &str, _decoded_data: &[u8]) -> Result<bool> {
+    pub(crate) async fn is_w30_file(&self, filename: &str, buf: &[u8]) -> Result<bool> {
         if filename.ends_with(W30_SUFFIX) {
-            Ok(true)
-        } else {
-            Ok(false)
+            let reader = std::io::Cursor::new(buf);
+            if let Ok(mut archive) = zip::ZipArchive::new(reader) {
+                if let Ok(_index_html) = archive.by_name("index.html") {
+                    return Ok(true);
+                }
+            }
         }
+        Ok(false)
     }
 
     async fn create_status_update_record(
@@ -221,6 +227,26 @@ impl Context {
     }
 }
 
+impl Message {
+    /// Return file form inside an archive.
+    /// Currently, this works only if the message is an w30 instance.
+    pub async fn get_blob_from_archive(&self, context: &Context, name: &str) -> Result<Vec<u8>> {
+        ensure!(self.viewtype == Viewtype::W30, "No w30 instance.");
+
+        let archive = self
+            .get_file(context)
+            .ok_or_else(|| format_err!("No w30 instance file."))?;
+        let archive = dc_open_file_std(context, archive)?;
+        let mut archive = zip::ZipArchive::new(archive)?;
+
+        let mut file = archive.by_name(name)?;
+
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
+        Ok(buf)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,14 +265,35 @@ mod tests {
         let t = TestContext::new().await;
         assert!(
             !t.is_w30_file(
-                "issue_523.txt",
+                "bad-ext-no-zip.txt",
                 include_bytes!("../test-data/message/issue_523.txt")
             )
             .await?
         );
         assert!(
+            !t.is_w30_file(
+                "bad-ext-good-zip.txt",
+                include_bytes!("../test-data/w30/minimal.w30")
+            )
+            .await?
+        );
+        assert!(
+            !t.is_w30_file(
+                "good-ext-no-zip.w30",
+                include_bytes!("../test-data/message/issue_523.txt")
+            )
+            .await?
+        );
+        assert!(
+            !t.is_w30_file(
+                "good-ext-no-index-html.w30",
+                include_bytes!("../test-data/w30/no-index-html.w30")
+            )
+            .await?
+        );
+        assert!(
             t.is_w30_file(
-                "minimal.w30",
+                "good-ext-good-zip.w30",
                 include_bytes!("../test-data/w30/minimal.w30")
             )
             .await?
@@ -255,10 +302,10 @@ mod tests {
     }
 
     async fn create_w30_instance(t: &TestContext) -> Result<Message> {
-        let file = t.get_blobdir().join("index.w30");
+        let file = t.get_blobdir().join("minimal.w30");
         File::create(&file)
             .await?
-            .write_all("<html>ola!</html>".as_ref())
+            .write_all(include_bytes!("../test-data/w30/minimal.w30"))
             .await?;
         let mut instance = Message::new(Viewtype::File);
         instance.set_file(file.to_str().unwrap(), None);
@@ -279,7 +326,7 @@ mod tests {
         // send as .w30 file
         let instance = send_w30_instance(&t, chat_id).await?;
         assert_eq!(instance.viewtype, Viewtype::W30);
-        assert_eq!(instance.get_filename(), Some("index.w30".to_string()));
+        assert_eq!(instance.get_filename(), Some("minimal.w30".to_string()));
         assert_eq!(instance.chat_id, chat_id);
 
         // sending using bad extension is not working, even when setting Viewtype to W30
@@ -308,7 +355,7 @@ mod tests {
         .await?;
         let instance = t.get_last_msg().await;
         assert_eq!(instance.viewtype, Viewtype::W30);
-        assert_eq!(instance.get_filename(), Some("index.w30".to_string()));
+        assert_eq!(instance.get_filename(), Some("minimal.w30".to_string()));
 
         dc_receive_imf(
             &t,
@@ -596,14 +643,17 @@ mod tests {
         let sent1 = alice.pop_sent_msg().await;
         let alice_instance = Message::load_from_db(&alice, alice_instance_id).await?;
         assert_eq!(alice_instance.viewtype, Viewtype::W30);
-        assert_eq!(alice_instance.get_filename(), Some("index.w30".to_string()));
+        assert_eq!(
+            alice_instance.get_filename(),
+            Some("minimal.w30".to_string())
+        );
         assert_eq!(alice_instance.chat_id, alice_chat_id);
 
         // bob receives the instance together with the initial updates in a single message
         bob.recv_msg(&sent1).await;
         let bob_instance = bob.get_last_msg().await;
         assert_eq!(bob_instance.viewtype, Viewtype::W30);
-        assert_eq!(bob_instance.get_filename(), Some("index.w30".to_string()));
+        assert_eq!(bob_instance.get_filename(), Some("minimal.w30".to_string()));
         assert!(sent1.payload().contains("Content-Type: application/json"));
         assert!(sent1.payload().contains("status-update.json"));
         assert!(sent1.payload().contains(r#""payload":{"foo":"bar"}"#));
@@ -625,6 +675,65 @@ mod tests {
             .send_w30_status_update(msg_id, "descr", r#"{"foo":"bar"}"#)
             .await
             .is_err());
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_get_blob_from_archive() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let instance = send_w30_instance(&t, chat_id).await?;
+
+        let buf = instance.get_blob_from_archive(&t, "index.html").await?;
+        assert_eq!(buf.len(), 188);
+        assert!(String::from_utf8_lossy(&buf).contains("document.write"));
+
+        assert!(instance
+            .get_blob_from_archive(&t, "not-existent.html")
+            .await
+            .is_err());
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_get_blob_from_archive_subdirs() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let file = t.get_blobdir().join("some-files.w30");
+        File::create(&file)
+            .await?
+            .write_all(include_bytes!("../test-data/w30/some-files.w30"))
+            .await?;
+        let mut instance = Message::new(Viewtype::W30);
+        instance.set_file(file.to_str().unwrap(), None);
+        chat_id.set_draft(&t, Some(&mut instance)).await?;
+
+        let buf = instance.get_blob_from_archive(&t, "index.html").await?;
+        assert_eq!(buf.len(), 65);
+        assert!(String::from_utf8_lossy(&buf).contains("many files"));
+
+        let buf = instance.get_blob_from_archive(&t, "subdir/bla.txt").await?;
+        assert_eq!(buf.len(), 4);
+        assert!(String::from_utf8_lossy(&buf).starts_with("bla"));
+
+        let buf = instance
+            .get_blob_from_archive(&t, "subdir/subsubdir/text.md")
+            .await?;
+        assert_eq!(buf.len(), 24);
+        assert!(String::from_utf8_lossy(&buf).starts_with("this is a markdown file"));
+
+        let buf = instance
+            .get_blob_from_archive(&t, "subdir/subsubdir/text2.md")
+            .await?;
+        assert_eq!(buf.len(), 22);
+        assert!(String::from_utf8_lossy(&buf).starts_with("another markdown"));
+
+        let buf = instance
+            .get_blob_from_archive(&t, "anotherdir/anothersubsubdir/foo.txt")
+            .await?;
+        assert_eq!(buf.len(), 4);
+        assert!(String::from_utf8_lossy(&buf).starts_with("foo"));
+
         Ok(())
     }
 }
