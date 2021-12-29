@@ -183,7 +183,7 @@ pub unsafe extern "C" fn dc_get_config(
                     .unwrap_or_default()
                     .strdup(),
                 Err(_) => {
-                    warn!(ctx, "dc_get_config(): invalid key");
+                    warn!(ctx, "dc_get_config(): invalid key '{}'", &key);
                     "".strdup()
                 }
             }
