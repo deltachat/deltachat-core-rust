@@ -239,6 +239,14 @@ impl Message {
         let archive = dc_open_file_std(context, archive)?;
         let mut archive = zip::ZipArchive::new(archive)?;
 
+        // ignore first slash.
+        // this way, files can be accessed absolutely (`/index.html`) as well as relatively (`index.html`)
+        let name = if name.starts_with('/') {
+            name.split_at(1).1
+        } else {
+            name
+        };
+
         let mut file = archive.by_name(name)?;
 
         let mut buf = Vec::new();
@@ -690,6 +698,22 @@ mod tests {
 
         assert!(instance
             .get_blob_from_archive(&t, "not-existent.html")
+            .await
+            .is_err());
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_get_blob_from_archive_with_absolute_paths() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let instance = send_w30_instance(&t, chat_id).await?;
+
+        let buf = instance.get_blob_from_archive(&t, "/index.html").await?;
+        assert!(String::from_utf8_lossy(&buf).contains("document.write"));
+
+        assert!(instance
+            .get_blob_from_archive(&t, "/not-there")
             .await
             .is_err());
         Ok(())
