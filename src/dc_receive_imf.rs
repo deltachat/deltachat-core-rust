@@ -1872,7 +1872,7 @@ async fn apply_mailinglist_changes(
         let (contact_id, _) =
             Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
         let mut contact = Contact::load_from_db(context, contact_id).await?;
-        if contact.param.get(Param::ListPost) != Some(&listid) {
+        if contact.param.get(Param::ListPost) != Some(listid) {
             contact.param.set(Param::ListPost, &listid);
             contact.update_param(context).await?;
         }
