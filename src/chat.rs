@@ -3642,6 +3642,36 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_leave_group() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Create group chat with Bob.
+        let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
+        let bob_contact = Contact::create(&alice, "", "bob@example.net").await?;
+        add_contact_to_chat(&alice, alice_chat_id, bob_contact).await?;
+
+        // Alice sends first message to group.
+        let sent_msg = alice.send_text(alice_chat_id, "Hello!").await;
+        bob.recv_msg(&sent_msg).await;
+
+        assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
+
+        // Bob leaves the group.
+        let bob_msg = bob.get_last_msg().await;
+        let bob_chat_id = bob_msg.chat_id;
+        bob_chat_id.accept(&bob).await?;
+        remove_contact_from_chat(&bob, bob_chat_id, DC_CONTACT_ID_SELF).await?;
+
+        let leave_msg = bob.pop_sent_msg().await;
+        alice.recv_msg(&leave_msg).await;
+
+        assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 1);
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_add_remove_contact_for_single() {
         let ctx = TestContext::new_alice().await;
         let bob = Contact::create(&ctx, "", "bob@f.br").await.unwrap();

@@ -1669,6 +1669,7 @@ async fn apply_group_changes(
             if from_id > DC_CONTACT_ID_LAST_SPECIAL
                 && !Contact::addr_equals_contact(context, &self_addr, from_id).await?
                 && !chat::is_contact_in_chat(context, chat_id, from_id).await?
+                && removed_id != Some(from_id)
             {
                 chat::add_to_chat_contacts_table(context, chat_id, from_id).await?;
             }
