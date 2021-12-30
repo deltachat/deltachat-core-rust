@@ -261,12 +261,8 @@ mod tests {
     use crate::chat::{create_group_chat, send_msg, send_text_msg, ChatId, ProtectionStatus};
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
-    use crate::Event;
-    use async_std::channel::Receiver;
     use async_std::fs::File;
     use async_std::io::WriteExt;
-    use async_std::prelude::*;
-    use std::time::Duration;
 
     #[async_std::test]
     async fn test_is_w30_file() -> Result<()> {
@@ -357,7 +353,6 @@ mod tests {
             &t,
             include_bytes!("../test-data/message/w30_good_extension.eml"),
             "INBOX",
-            1,
             false,
         )
         .await?;
@@ -369,7 +364,6 @@ mod tests {
             &t,
             include_bytes!("../test-data/message/w30_bad_extension.eml"),
             "INBOX",
-            2,
             false,
         )
         .await?;
@@ -499,32 +493,12 @@ mod tests {
         Ok(())
     }
 
-    async fn add_status_update_event_sink(t: &TestContext) -> Receiver<Event> {
-        let (event_tx, event_rx) = async_std::channel::bounded(100);
-        t.add_event_sink(move |event: Event| {
-            let event_tx = event_tx.clone();
-            async move {
-                if let EventType::W30StatusUpdate { .. } = event.typ {
-                    event_tx.try_send(event).ok();
-                }
-            }
-        })
-        .await;
-        event_rx
-    }
-
-    async fn expect_status_update_event(
-        t: &TestContext,
-        instance_id: MsgId,
-        event_rx: Receiver<Event>,
-    ) -> Result<()> {
-        let event = event_rx
-            .recv()
-            .timeout(Duration::from_secs(10))
-            .await
-            .expect("timeout waiting for W30StatusUpdate event")
-            .expect("missing W30StatusUpdate event");
-        match event.typ {
+    async fn expect_status_update_event(t: &TestContext, instance_id: MsgId) -> Result<()> {
+        let event = t
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::W30StatusUpdate { .. }))
+            .await;
+        match event {
             EventType::W30StatusUpdate {
                 msg_id,
                 status_update_id,
@@ -536,7 +510,7 @@ mod tests {
                 );
                 assert_eq!(msg_id, instance_id);
             }
-            _ => panic!("Wrong event type"),
+            _ => unreachable!(),
         }
         Ok(())
     }
@@ -553,12 +527,11 @@ mod tests {
         assert_eq!(alice_instance.viewtype, Viewtype::W30);
         assert!(!sent1.payload().contains("report-type=status-update"));
 
-        let alice_event_rx = add_status_update_event_sink(&alice).await;
         let status_update_msg_id = alice
             .send_w30_status_update(alice_instance.id, "descr text", r#"{"foo":"bar"}"#)
             .await?
             .unwrap();
-        expect_status_update_event(&alice, alice_instance.id, alice_event_rx).await?;
+        expect_status_update_event(&alice, alice_instance.id).await?;
         let sent2 = &alice.pop_sent_msg().await;
         let alice_update = Message::load_from_db(&alice, status_update_msg_id).await?;
         assert!(alice_update.hidden);
@@ -600,9 +573,8 @@ mod tests {
         assert_eq!(bob_instance.viewtype, Viewtype::W30);
         assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 1);
 
-        let bob_event_rx = add_status_update_event_sink(&bob).await;
         bob.recv_msg(sent2).await;
-        expect_status_update_event(&bob, bob_instance.id, bob_event_rx).await?;
+        expect_status_update_event(&bob, bob_instance.id).await?;
         assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 1);
 
         assert_eq!(
