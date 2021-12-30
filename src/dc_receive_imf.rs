@@ -3042,7 +3042,7 @@ mod tests {
     Subject: Let's put some [brackets here that] have nothing to do with the topic\n\
     Message-ID: <3333@example.org>\n\
     List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
-    List-Post: <mailto:reply+ELERNSHSETUSHOYSESHETIHSEUSAFERUHSEDTISNEU@reply.github.com>
+    List-Post: <mailto:reply+ELERNSHSETUSHOYSESHETIHSEUSAFERUHSEDTISNEU@reply.github.com>\n\
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
@@ -3055,7 +3055,7 @@ mod tests {
     Subject: [deltachat/deltachat-core-rust] PR run failed\n\
     Message-ID: <3334@example.org>\n\
     List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
-    List-Post: <mailto:reply+EGELITBABIHXSITUZIEPAKYONASITEPUANERGRUSHE@reply.github.com>
+    List-Post: <mailto:reply+EGELITBABIHXSITUZIEPAKYONASITEPUANERGRUSHE@reply.github.com>\n\
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
@@ -3076,7 +3076,7 @@ mod tests {
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
 
         assert!(chat.is_mailing_list());
-        assert_eq!(chat.can_send(&t.ctx).await?, false);
+        assert!(chat.can_send(&t.ctx).await?);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await?.len(), 1);
 
@@ -3171,7 +3171,7 @@ Hello mailinglist!\r\n\
 Sent with my Delta Chat Messenger: https://delta.chat\r\n"
         ));
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", 2, false).await?;
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", false).await?;
 
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
         assert!(chat.can_send(&t.ctx).await?);
@@ -3183,7 +3183,7 @@ Sent with my Delta Chat Messenger: https://delta.chat\r\n"
     async fn test_other_device_writes_to_mailinglist() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await?;
-        dc_receive_imf(&t, DC_MAILINGLIST, "INBOX", 1, false)
+        dc_receive_imf(&t, DC_MAILINGLIST, "INBOX", false)
             .await
             .unwrap();
         let first_msg = t.get_last_msg().await;
@@ -3220,7 +3220,6 @@ Sent with my Delta Chat Messenger: https://delta.chat\r\n"
             \n\
             body 4\n",
             "INBOX",
-            2,
             false,
         )
         .await
