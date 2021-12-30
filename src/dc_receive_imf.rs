@@ -3048,8 +3048,8 @@ mod tests {
     \n\
     hello\n";
 
-    static GH_MAILINGLIST2: &[u8] =
-        b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+    static GH_MAILINGLIST2: &str =
+        "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
     From: Github <notifications@github.com>\n\
     To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
     Subject: [deltachat/deltachat-core-rust] PR run failed\n\
@@ -3080,7 +3080,7 @@ mod tests {
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await?.len(), 1);
 
-        dc_receive_imf(&t.ctx, GH_MAILINGLIST2, "INBOX", false).await?;
+        dc_receive_imf(&t.ctx, GH_MAILINGLIST2.as_bytes(), "INBOX", false).await?;
 
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
         assert!(!chat.can_send(&t.ctx).await?);
@@ -3650,6 +3650,54 @@ Sent with my Delta Chat Messenger: https://delta.chat\r\n"
         let html = msg.get_id().get_html(&t).await.unwrap().unwrap();
         assert!(html.contains("content text"));
         assert!(!html.contains("footer text"));
+    }
+
+    /// Test that the changes from apply_mailinglist_changes() are also applied
+    /// if the message is assigned to the chat by In-Reply-To
+    #[async_std::test]
+    async fn test_apply_mailinglist_changes_assigned_by_reply() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        dc_receive_imf(&t, GH_MAILINGLIST, "INBOX", false)
+            .await
+            .unwrap();
+
+        let chat_id = t.get_last_msg().await.chat_id;
+        chat_id.accept(&t).await.unwrap();
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(chat.can_send(&t).await.unwrap());
+
+        let imf_raw = format!("In-Reply-To: 3333@example.org\n{}", GH_MAILINGLIST2);
+        dc_receive_imf(&t, imf_raw.as_bytes(), "INBOX", false)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            t.get_last_msg().await.in_reply_to.unwrap(),
+            "3333@example.org"
+        );
+        // `Assigning message to Chat#... as it's a reply to 3333@example.org`
+        t.evtracker
+            .get_info_contains("as it's a reply to 3333@example.org")
+            .await;
+
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(!chat.can_send(&t).await.unwrap());
+
+        let contact_id = Contact::lookup_id_by_addr(
+            &t,
+            "reply+EGELITBABIHXSITUZIEPAKYONASITEPUANERGRUSHE@reply.github.com",
+            Origin::Hidden,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        assert_eq!(
+            contact.param.get(Param::ListPost).unwrap(),
+            "deltachat-core-rust.deltachat.github.com"
+        )
     }
 
     #[async_std::test]
