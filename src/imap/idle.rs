@@ -150,7 +150,7 @@ impl Imap {
                     }
                     if self.config.can_idle {
                         // we only fake-idled because network was gone during IDLE, probably
-                        break InterruptInfo::new(false, None);
+                        break InterruptInfo::new(false);
                     }
                     info!(context, "fake_idle is connected");
                     // we are connected, let's see if fetching messages results
@@ -162,7 +162,7 @@ impl Imap {
                         Ok(res) => {
                             info!(context, "fetch_new_messages returned {:?}", res);
                             if res {
-                                break InterruptInfo::new(false, None);
+                                break InterruptInfo::new(false);
                             }
                         }
                         Err(err) => {

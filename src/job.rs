@@ -1090,18 +1090,14 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
             | Action::UpdateRecentQuota
             | Action::DownloadMsg => {
                 info!(context, "interrupt: imap");
-                context
-                    .interrupt_inbox(InterruptInfo::new(false, None))
-                    .await;
+                context.interrupt_inbox(InterruptInfo::new(false)).await;
             }
             Action::MaybeSendLocations
             | Action::MaybeSendLocationsEnded
             | Action::SendMdn
             | Action::SendMsgToSmtp => {
                 info!(context, "interrupt: smtp");
-                context
-                    .interrupt_smtp(InterruptInfo::new(false, None))
-                    .await;
+                context.interrupt_smtp(InterruptInfo::new(false)).await;
             }
         }
     }
@@ -1136,20 +1132,9 @@ pub(crate) async fn load_next(
     let query;
     let params;
     let t = time();
-    let m;
     let thread_i = thread as i64;
 
-    if let Some(msg_id) = info.msg_id {
-        query = r#"
-SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
-FROM jobs
-WHERE thread=? AND foreign_id=?
-ORDER BY action DESC, added_timestamp
-LIMIT 1;
-"#;
-        m = msg_id;
-        params = paramsv![thread_i, m];
-    } else if !info.probe_network {
+    if !info.probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
         query = r#"
@@ -1269,7 +1254,7 @@ mod tests {
         let jobs = load_next(
             &t,
             Thread::from(Action::DownloadMsg),
-            &InterruptInfo::new(false, None),
+            &InterruptInfo::new(false),
         )
         .await?;
         // The housekeeping job should be loaded as we didn't run housekeeping in the last day:
@@ -1279,7 +1264,7 @@ mod tests {
         let jobs = load_next(
             &t,
             Thread::from(Action::DownloadMsg),
-            &InterruptInfo::new(false, None),
+            &InterruptInfo::new(false),
         )
         .await?;
         assert!(jobs.is_some());
@@ -1295,7 +1280,7 @@ mod tests {
         let jobs = load_next(
             &t,
             Thread::from(Action::DownloadMsg),
-            &InterruptInfo::new(false, None),
+            &InterruptInfo::new(false),
         )
         .await?;
         assert!(jobs.is_some());

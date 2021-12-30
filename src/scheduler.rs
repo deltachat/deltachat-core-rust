@@ -10,7 +10,6 @@ use crate::context::Context;
 use crate::dc_tools::maybe_add_time_based_warnings;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
-use crate::message::MsgId;
 use crate::smtp::Smtp;
 
 use self::connectivity::ConnectivityStore;
@@ -197,7 +196,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
                 connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
-                return InterruptInfo::new(false, None);
+                return InterruptInfo::new(false);
             }
 
             connection.connectivity.set_connected(ctx).await;
@@ -209,7 +208,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                     Err(err) => {
                         connection.trigger_reconnect(ctx).await;
                         warn!(ctx, "{}", err);
-                        InterruptInfo::new(false, None)
+                        InterruptInfo::new(false)
                     }
                 }
             } else {
@@ -438,10 +437,10 @@ impl Scheduler {
             return;
         }
 
-        self.interrupt_inbox(InterruptInfo::new(true, None))
-            .join(self.interrupt_mvbox(InterruptInfo::new(true, None)))
-            .join(self.interrupt_sentbox(InterruptInfo::new(true, None)))
-            .join(self.interrupt_smtp(InterruptInfo::new(true, None)))
+        self.interrupt_inbox(InterruptInfo::new(true))
+            .join(self.interrupt_mvbox(InterruptInfo::new(true)))
+            .join(self.interrupt_sentbox(InterruptInfo::new(true)))
+            .join(self.interrupt_smtp(InterruptInfo::new(true)))
             .await;
     }
 
@@ -450,10 +449,10 @@ impl Scheduler {
             return;
         }
 
-        self.interrupt_inbox(InterruptInfo::new(false, None))
-            .join(self.interrupt_mvbox(InterruptInfo::new(false, None)))
-            .join(self.interrupt_sentbox(InterruptInfo::new(false, None)))
-            .join(self.interrupt_smtp(InterruptInfo::new(false, None)))
+        self.interrupt_inbox(InterruptInfo::new(false))
+            .join(self.interrupt_mvbox(InterruptInfo::new(false)))
+            .join(self.interrupt_sentbox(InterruptInfo::new(false)))
+            .join(self.interrupt_smtp(InterruptInfo::new(false)))
             .await;
     }
 
@@ -683,14 +682,10 @@ struct ImapConnectionHandlers {
 #[derive(Default, Debug)]
 pub struct InterruptInfo {
     pub probe_network: bool,
-    pub msg_id: Option<MsgId>,
 }
 
 impl InterruptInfo {
-    pub fn new(probe_network: bool, msg_id: Option<MsgId>) -> Self {
-        Self {
-            probe_network,
-            msg_id,
-        }
+    pub fn new(probe_network: bool) -> Self {
+        Self { probe_network }
     }
 }

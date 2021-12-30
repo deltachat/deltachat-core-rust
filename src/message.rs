@@ -1230,9 +1230,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     }
 
     // Interrupt Inbox loop to start message deletion.
-    context
-        .interrupt_inbox(InterruptInfo::new(false, None))
-        .await;
+    context.interrupt_inbox(InterruptInfo::new(false)).await;
     Ok(())
 }
 
