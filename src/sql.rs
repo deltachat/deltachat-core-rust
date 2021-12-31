@@ -123,6 +123,15 @@ impl Sql {
         if !readonly {
             {
                 let conn = self.get_conn().await?;
+
+                // Try to enable auto_vacuum. This will only be
+                // applied if the database is new or after successful
+                // VACUUM, which usually happens before backup export.
+                // When auto_vacuum is INCREMENTAL, it is possible to
+                // use PRAGMA incremental_vacuum to return unused
+                // database pages to the filesystem.
+                conn.pragma_update(None, "auto_vacuum", &"INCREMENTAL".to_string())?;
+
                 // journal_mode is persisted, it is sufficient to change it only for one handle.
                 conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
 
@@ -604,6 +613,16 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
 
     context.schedule_quota_update().await?;
 
+    // Try to clear the freelist to free some space on the disk. This
+    // only works if auto_vacuum is enabled.
+    if let Err(err) = context
+        .sql
+        .execute("PRAGMA incremental_vacuum", paramsv![])
+        .await
+    {
+        warn!(context, "Failed to run incremental vacuum: {}", err);
+    }
+
     if let Err(e) = context
         .set_config(Config::LastHousekeeping, Some(&time().to_string()))
         .await
@@ -726,6 +745,22 @@ mod tests {
         assert!(t.ctx.sql.col_exists("msgs", "mime_modified").await.unwrap());
         assert!(!t.ctx.sql.col_exists("msgs", "foobar").await.unwrap());
         assert!(!t.ctx.sql.col_exists("foobar", "foobar").await.unwrap());
+    }
+
+    /// Tests that auto_vacuum is enabled for new databases.
+    #[async_std::test]
+    async fn test_auto_vacuum() -> Result<()> {
+        let t = TestContext::new().await;
+
+        let conn = t.sql.get_conn().await?;
+        let auto_vacuum = conn.pragma_query_value(None, "auto_vacuum", |row| {
+            let auto_vacuum: i32 = row.get(0)?;
+            Ok(auto_vacuum)
+        })?;
+
+        // auto_vacuum=2 is the same as auto_vacuum=INCREMENTAL
+        assert_eq!(auto_vacuum, 2);
+        Ok(())
     }
 
     #[async_std::test]
