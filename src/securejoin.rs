@@ -326,6 +326,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
                     group_name,
                     Blocked::Not,
                     ProtectionStatus::Unprotected, // protection is added later as needed
+                    None,
                 )
                 .await?
             };

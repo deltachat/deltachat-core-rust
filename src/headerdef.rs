@@ -33,6 +33,7 @@ pub enum HeaderDef {
     XMozillaDraftInfo,
 
     ListId,
+    ListPost,
     References,
     InReplyTo,
     Precedence,

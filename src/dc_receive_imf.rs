@@ -624,6 +624,10 @@ async fn add_parts(
             }
         }
 
+        if let Some(chat_id) = chat_id {
+            apply_mailinglist_changes(context, mime_parser, chat_id).await?;
+        }
+
         // if contact renaming is prevented (for mailinglists and bots),
         // we use name from From:-header as override name
         if prevent_rename {
@@ -786,12 +790,20 @@ async fn add_parts(
                 }
             }
             if chat_id.is_none() && allow_creation {
-                let create_blocked = if !Contact::is_blocked_load(context, to_id).await? {
+                let to_contact = Contact::load_from_db(context, to_id).await?;
+                let create_blocked = if !to_contact.blocked {
                     Blocked::Not
                 } else {
                     Blocked::Request
                 };
-                if let Ok(chat) =
+                if let Some(list_id) = to_contact.param.get(Param::ListId) {
+                    if let Some((id, _, blocked)) =
+                        chat::get_chat_id_by_grpid(context, list_id).await?
+                    {
+                        chat_id = Some(id);
+                        chat_id_blocked = blocked;
+                    }
+                } else if let Ok(chat) =
                     ChatIdBlocked::get_for_contact(context, to_id, create_blocked).await
                 {
                     chat_id = Some(chat.id);
@@ -1467,6 +1479,7 @@ async fn create_or_lookup_group(
             grpname,
             create_blocked,
             create_protected,
+            None,
         )
         .await
         .with_context(|| format!("Failed to create group '{}' for grpid={}", grpname, grpid))?;
@@ -1814,6 +1827,12 @@ async fn create_or_lookup_mailinglist(
 
     if allow_creation {
         // list does not exist but should be created
+        let param = mime_parser.list_post.as_ref().map(|list_post| {
+            let mut p = Params::new();
+            p.set(Param::ListPost, list_post);
+            p.to_string()
+        });
+
         let chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Mailinglist,
@@ -1821,6 +1840,7 @@ async fn create_or_lookup_mailinglist(
             &name,
             Blocked::Request,
             ProtectionStatus::Unprotected,
+            param,
         )
         .await
         .map_err(|err| {
@@ -1836,6 +1856,45 @@ async fn create_or_lookup_mailinglist(
         info!(context, "creating list forbidden by caller");
         Ok(None)
     }
+}
+
+/// Set ListId param on the contact and ListPost param the chat.
+/// Only called for incoming messages since outgoing messages never have a
+/// List-Post header, anyway.
+async fn apply_mailinglist_changes(
+    context: &Context,
+    mime_parser: &MimeMessage,
+    chat_id: ChatId,
+) -> Result<()> {
+    if let Some(list_post) = &mime_parser.list_post {
+        let mut chat = Chat::load_from_db(context, chat_id).await?;
+        if chat.typ != Chattype::Mailinglist {
+            return Ok(());
+        }
+        let listid = &chat.grpid;
+
+        let (contact_id, _) =
+            Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
+        let mut contact = Contact::load_from_db(context, contact_id).await?;
+        if contact.param.get(Param::ListId) != Some(listid) {
+            contact.param.set(Param::ListId, &listid);
+            contact.update_param(context).await?;
+        }
+
+        if let Some(old_list_post) = chat.param.get(Param::ListPost) {
+            if list_post != old_list_post {
+                // Apparently the mailing list is using a different List-Post header in each message.
+                // Make the mailing list read-only because we would't know which message the user wants to reply to.
+                chat.param.set(Param::ListPost, "");
+                chat.update_param(context).await?;
+            }
+        } else {
+            chat.param.set(Param::ListPost, list_post);
+            chat.update_param(context).await?;
+        }
+    }
+
+    Ok(())
 }
 
 fn try_getting_grpid(mime_parser: &MimeMessage) -> Option<String> {
@@ -1921,6 +1980,7 @@ async fn create_adhoc_group(
         &grpname,
         create_blocked,
         ProtectionStatus::Unprotected,
+        None,
     )
     .await?;
     for &member_id in member_ids.iter() {
@@ -2984,18 +3044,20 @@ mod tests {
     Subject: Let's put some [brackets here that] have nothing to do with the topic\n\
     Message-ID: <3333@example.org>\n\
     List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
+    List-Post: <mailto:reply+ELERNSHSETUSHOYSESHETIHSEUSAFERUHSEDTISNEU@reply.github.com>\n\
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
     hello\n";
 
-    static GH_MAILINGLIST2: &[u8] =
-        b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+    static GH_MAILINGLIST2: &str =
+        "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
     From: Github <notifications@github.com>\n\
     To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
     Subject: [deltachat/deltachat-core-rust] PR run failed\n\
     Message-ID: <3334@example.org>\n\
     List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
+    List-Post: <mailto:reply+EGELITBABIHXSITUZIEPAKYONASITEPUANERGRUSHE@reply.github.com>\n\
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
@@ -3016,11 +3078,14 @@ mod tests {
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
 
         assert!(chat.is_mailing_list());
-        assert_eq!(chat.can_send(&t.ctx).await?, false);
+        assert!(chat.can_send(&t.ctx).await?);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await?.len(), 1);
 
-        dc_receive_imf(&t.ctx, GH_MAILINGLIST2, "INBOX", false).await?;
+        dc_receive_imf(&t.ctx, GH_MAILINGLIST2.as_bytes(), "INBOX", false).await?;
+
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
+        assert!(!chat.can_send(&t.ctx).await?);
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
@@ -3043,10 +3108,11 @@ mod tests {
 
     static DC_MAILINGLIST: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
     From: Bob <bob@posteo.org>\n\
-    To: delta-dev@codespeak.net\n\
+    To: delta@codespeak.net\n\
     Subject: Re: [delta-dev] What's up?\n\
     Message-ID: <38942@posteo.org>\n\
     List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
+    List-Post: <mailto:delta@codespeak.net>\n\
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
@@ -3054,17 +3120,18 @@ mod tests {
 
     static DC_MAILINGLIST2: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
     From: Charlie <charlie@posteo.org>\n\
-    To: delta-dev@codespeak.net\n\
+    To: delta@codespeak.net\n\
     Subject: Re: [delta-dev] DC is nice!\n\
     Message-ID: <38943@posteo.org>\n\
     List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
+    List-Post: <mailto:delta@codespeak.net>\n\
     Precedence: list\n\
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
     body 4\n";
 
     #[async_std::test]
-    async fn test_classic_mailing_list() {
+    async fn test_classic_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
@@ -3078,10 +3145,93 @@ mod tests {
         chat_id.accept(&t).await.unwrap();
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert_eq!(chat.name, "delta-dev");
+        assert!(chat.can_send(&t).await?);
 
         let msg = get_chat_msg(&t, chat_id, 0, 1).await;
         let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
         assert_eq!(contact1.get_addr(), "bob@posteo.org");
+
+        let sent = t.send_text(chat.id, "Hello mailinglist!").await;
+        let mime = sent.payload();
+
+        println!("Sent mime message is:\n\n{}\n\n", mime);
+        assert!(
+            mime.contains("Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no\r\n")
+        );
+        assert!(mime.contains("Subject: =?utf-8?q?Re=3A_=5Bdelta-dev=5D_What=27s_up=3F?=\r\n"));
+        assert!(mime.contains("MIME-Version: 1.0\r\n"));
+        assert!(mime.contains("In-Reply-To: <38942@posteo.org>\r\n"));
+        assert!(mime.contains("Chat-Version: 1.0\r\n"));
+        assert!(mime.contains("To: <delta@codespeak.net>\r\n"));
+        assert!(mime.contains("From: <alice@example.org>\r\n"));
+        assert!(mime.contains(
+            "\r\n\
+\r\n\
+Hello mailinglist!\r\n\
+\r\n\
+-- \r\n\
+Sent with my Delta Chat Messenger: https://delta.chat\r\n"
+        ));
+
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", false).await?;
+
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
+        assert!(chat.can_send(&t.ctx).await?);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_other_device_writes_to_mailinglist() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+        dc_receive_imf(&t, DC_MAILINGLIST, "INBOX", false)
+            .await
+            .unwrap();
+        let first_msg = t.get_last_msg().await;
+        let first_chat = Chat::load_from_db(&t, first_msg.chat_id).await?;
+        assert_eq!(
+            first_chat.param.get(Param::ListPost).unwrap(),
+            "delta@codespeak.net"
+        );
+
+        let list_post_contact_id =
+            Contact::lookup_id_by_addr(&t, "delta@codespeak.net", Origin::Unknown)
+                .await?
+                .unwrap();
+        let list_post_contact = Contact::load_from_db(&t, list_post_contact_id).await?;
+        assert_eq!(
+            list_post_contact.param.get(Param::ListId).unwrap(),
+            "delta.codespeak.net"
+        );
+        assert_eq!(
+            chat::get_chat_id_by_grpid(&t, "delta.codespeak.net")
+                .await?
+                .unwrap(),
+            (first_chat.id, false, Blocked::Request)
+        );
+
+        dc_receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+            From: Alice <alice@example.org>\n\
+            To: delta@codespeak.net\n\
+            Subject: [delta-dev] Subject\n\
+            Message-ID: <0476@example.org>\n\
+            Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+            \n\
+            body 4\n",
+            "INBOX",
+            false,
+        )
+        .await
+        .unwrap();
+
+        let second_msg = t.get_last_msg().await;
+
+        assert_eq!(first_msg.chat_id, second_msg.chat_id);
+
+        Ok(())
     }
 
     #[async_std::test]
@@ -3216,6 +3366,8 @@ mod tests {
 
         let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 2);
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
+        assert!(chat.can_send(&t.ctx).await.unwrap());
     }
 
     #[async_std::test]
@@ -3500,6 +3652,54 @@ mod tests {
         let html = msg.get_id().get_html(&t).await.unwrap().unwrap();
         assert!(html.contains("content text"));
         assert!(!html.contains("footer text"));
+    }
+
+    /// Test that the changes from apply_mailinglist_changes() are also applied
+    /// if the message is assigned to the chat by In-Reply-To
+    #[async_std::test]
+    async fn test_apply_mailinglist_changes_assigned_by_reply() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+
+        dc_receive_imf(&t, GH_MAILINGLIST, "INBOX", false)
+            .await
+            .unwrap();
+
+        let chat_id = t.get_last_msg().await.chat_id;
+        chat_id.accept(&t).await.unwrap();
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(chat.can_send(&t).await.unwrap());
+
+        let imf_raw = format!("In-Reply-To: 3333@example.org\n{}", GH_MAILINGLIST2);
+        dc_receive_imf(&t, imf_raw.as_bytes(), "INBOX", false)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            t.get_last_msg().await.in_reply_to.unwrap(),
+            "3333@example.org"
+        );
+        // `Assigning message to Chat#... as it's a reply to 3333@example.org`
+        t.evtracker
+            .get_info_contains("as it's a reply to 3333@example.org")
+            .await;
+
+        let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
+        assert!(!chat.can_send(&t).await.unwrap());
+
+        let contact_id = Contact::lookup_id_by_addr(
+            &t,
+            "reply+EGELITBABIHXSITUZIEPAKYONASITEPUANERGRUSHE@reply.github.com",
+            Origin::Hidden,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        assert_eq!(
+            contact.param.get(Param::ListId).unwrap(),
+            "deltachat-core-rust.deltachat.github.com"
+        )
     }
 
     #[async_std::test]

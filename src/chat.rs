@@ -225,10 +225,11 @@ impl ChatId {
         grpname: impl AsRef<str>,
         create_blocked: Blocked,
         create_protected: ProtectionStatus,
+        param: Option<String>,
     ) -> Result<Self> {
         let row_id =
             context.sql.insert(
-                "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected) VALUES(?, ?, ?, ?, ?, ?);",
+                "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected, param) VALUES(?, ?, ?, ?, ?, ?, ?);",
                 paramsv![
                     chattype,
                     grpname.as_ref(),
@@ -236,6 +237,7 @@ impl ChatId {
                     create_blocked,
                     dc_create_smeared_timestamp(context).await,
                     create_protected,
+                    param.unwrap_or_default(),
                 ],
             ).await?;
 
@@ -1061,11 +1063,12 @@ impl Chat {
 
     /// Returns true if user can send messages to this chat.
     pub async fn can_send(&self, context: &Context) -> Result<bool> {
-        Ok(!self.id.is_special()
-            && !self.is_device_talk()
-            && !self.is_mailing_list()
-            && !self.is_contact_request()
-            && self.is_self_in_chat(context).await?)
+        let cannot_send = self.id.is_special()
+            || self.is_device_talk()
+            || self.is_contact_request()
+            || (self.is_mailing_list() && self.param.get(Param::ListPost).is_none_or_empty())
+            || !self.is_self_in_chat(context).await?;
+        Ok(!cannot_send)
     }
 
     /// Checks if the user is part of a chat
