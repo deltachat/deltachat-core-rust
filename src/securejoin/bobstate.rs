@@ -71,7 +71,7 @@ impl<'a> BobStateHandle<'a> {
     pub async fn chat_id(&self, context: &Context) -> Result<ChatId> {
         match self.bobstate.invite {
             QrInvite::Group { ref grpid, .. } => {
-                if let Some((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, &grpid).await? {
+                if let Some((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, grpid).await? {
                     Ok(chat_id)
                 } else {
                     bail!("chat not found")

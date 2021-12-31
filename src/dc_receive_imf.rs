@@ -563,7 +563,7 @@ async fn add_parts(
                 let chat = Chat::load_from_db(context, chat_id).await?;
                 if chat.is_protected() {
                     let s = stock_str::unknown_sender_for_chat(context).await;
-                    mime_parser.repl_msg_by_error(s);
+                    mime_parser.repl_msg_by_error(&s);
                 } else if let Some(from) = mime_parser.from.first() {
                     // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
                     // to the sender's name, indicating to the user that he/she is not part of the group.
@@ -943,7 +943,7 @@ async fn add_parts(
                     chat::add_info_msg(
                         context,
                         chat_id,
-                        stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
+                        &stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
                         sort_timestamp,
                     )
                     .await?;
@@ -986,7 +986,7 @@ async fn add_parts(
             {
                 warn!(context, "verification problem: {}", err);
                 let s = format!("{}. See 'Info' for more details", err);
-                mime_parser.repl_msg_by_error(s);
+                mime_parser.repl_msg_by_error(&s);
             } else {
                 // change chat protection only when verification check passes
                 if let Some(new_status) = new_status {
@@ -1002,7 +1002,7 @@ async fn add_parts(
                             chat::add_info_msg(
                                 context,
                                 chat_id,
-                                format!("Cannot set protection: {}", e),
+                                &format!("Cannot set protection: {}", e),
                                 sort_timestamp,
                             )
                             .await?;
@@ -2300,7 +2300,7 @@ async fn dc_add_or_lookup_contacts_by_address_list(
 /// Add contacts to database on receiving messages.
 async fn add_or_lookup_contact_by_addr(
     context: &Context,
-    display_name: Option<impl AsRef<str>>,
+    display_name: Option<&str>,
     addr: &str,
     origin: Origin,
 ) -> Result<u32> {

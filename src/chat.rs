@@ -221,8 +221,8 @@ impl ChatId {
     pub(crate) async fn create_multiuser_record(
         context: &Context,
         chattype: Chattype,
-        grpid: impl AsRef<str>,
-        grpname: impl AsRef<str>,
+        grpid: &str,
+        grpname: &str,
         create_blocked: Blocked,
         create_protected: ProtectionStatus,
         param: Option<String>,
@@ -232,8 +232,8 @@ impl ChatId {
                 "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected, param) VALUES(?, ?, ?, ?, ?, ?, ?);",
                 paramsv![
                     chattype,
-                    grpname.as_ref(),
-                    grpid.as_ref(),
+                    grpname,
+                    grpid,
                     create_blocked,
                     dc_create_smeared_timestamp(context).await,
                     create_protected,
@@ -244,10 +244,7 @@ impl ChatId {
         let chat_id = ChatId::new(u32::try_from(row_id)?);
         info!(
             context,
-            "Created group/mailinglist '{}' grpid={} as {}",
-            grpname.as_ref(),
-            grpid.as_ref(),
-            chat_id
+            "Created group/mailinglist '{}' grpid={} as {}", grpname, grpid, chat_id
         );
 
         Ok(chat_id)
@@ -438,7 +435,7 @@ impl ChatId {
             add_info_msg_with_cmd(
                 context,
                 self,
-                msg_text,
+                &msg_text,
                 cmd,
                 dc_create_smeared_timestamp(context).await,
             )
@@ -2818,15 +2815,12 @@ async fn set_group_explicitly_left(context: &Context, grpid: &str) -> Result<()>
     Ok(())
 }
 
-pub(crate) async fn is_group_explicitly_left(
-    context: &Context,
-    grpid: impl AsRef<str>,
-) -> Result<bool> {
+pub(crate) async fn is_group_explicitly_left(context: &Context, grpid: &str) -> Result<bool> {
     let exists = context
         .sql
         .exists(
             "SELECT COUNT(*) FROM leftgrps WHERE grpid=?;",
-            paramsv![grpid.as_ref()],
+            paramsv![grpid],
         )
         .await?;
     Ok(exists)
@@ -3066,13 +3060,13 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
 /// Returns a tuple of `(chatid, is_protected, blocked)`.
 pub(crate) async fn get_chat_id_by_grpid(
     context: &Context,
-    grpid: impl AsRef<str>,
+    grpid: &str,
 ) -> Result<Option<(ChatId, bool, Blocked)>> {
     context
         .sql
         .query_row_optional(
             "SELECT id, blocked, protected FROM chats WHERE grpid=?;",
-            paramsv![grpid.as_ref()],
+            paramsv![grpid],
             |row| {
                 let chat_id = row.get::<_, ChatId>(0)?;
 
@@ -3242,7 +3236,7 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 pub(crate) async fn add_info_msg_with_cmd(
     context: &Context,
     chat_id: ChatId,
-    text: impl AsRef<str>,
+    text: &str,
     cmd: SystemMessage,
     timestamp: i64,
 ) -> Result<MsgId> {
@@ -3264,7 +3258,7 @@ pub(crate) async fn add_info_msg_with_cmd(
             timestamp,
             Viewtype::Text,
             MessageState::InNoticed,
-            text.as_ref().to_string(),
+            text,
             rfc724_mid,
             ephemeral_timer,
             param.to_string(),
@@ -3280,7 +3274,7 @@ pub(crate) async fn add_info_msg_with_cmd(
 pub(crate) async fn add_info_msg(
     context: &Context,
     chat_id: ChatId,
-    text: impl AsRef<str>,
+    text: &str,
     timestamp: i64,
 ) -> Result<MsgId> {
     add_info_msg_with_cmd(context, chat_id, text, SystemMessage::Unknown, timestamp).await

@@ -1969,11 +1969,8 @@ async fn get_uidvalidity(context: &Context, folder: &str) -> Result<u32> {
 }
 
 /// Deprecated, use get_uid_next() and get_uidvalidity()
-pub async fn get_config_last_seen_uid<S: AsRef<str>>(
-    context: &Context,
-    folder: S,
-) -> Result<(u32, u32)> {
-    let key = format!("imap.mailbox.{}", folder.as_ref());
+pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result<(u32, u32)> {
+    let key = format!("imap.mailbox.{}", folder);
     if let Some(entry) = context.sql.get_raw_config(&key).await? {
         // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
         let mut parts = entry.split(':');

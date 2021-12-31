@@ -277,7 +277,7 @@ impl Peerstate {
 
                 let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
 
-                chat::add_info_msg(context, chat_id, msg, timestamp).await?;
+                chat::add_info_msg(context, chat_id, &msg, timestamp).await?;
                 context.emit_event(EventType::ChatModified(chat_id));
             } else {
                 bail!("contact with peerstate.addr {:?} not found", &self.addr);

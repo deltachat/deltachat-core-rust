@@ -282,7 +282,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
             chat::add_info_msg(
                 context,
                 chat.id,
-                format!("{} verified.", peerstate.addr),
+                &format!("{} verified.", peerstate.addr),
                 time(),
             )
             .await?;
@@ -424,7 +424,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             grpid,
             ..
         } => {
-            let chat_id = get_chat_id_by_grpid(context, grpid)
+            let chat_id = get_chat_id_by_grpid(context, &grpid)
                 .await?
                 .map(|(chat_id, _protected, _blocked)| chat_id);
             token::save(

@@ -740,7 +740,7 @@ async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, fold
                 let display_name_normalized = contact
                     .display_name
                     .as_ref()
-                    .map(normalize_name)
+                    .map(|s| normalize_name(s))
                     .unwrap_or_default();
 
                 match Contact::add_or_lookup(

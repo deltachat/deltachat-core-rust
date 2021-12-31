@@ -223,7 +223,7 @@ pub async fn send_locations_to_chat(
             .unwrap_or_default();
     } else if 0 == seconds && is_sending_locations_before {
         let stock_str = stock_str::msg_location_disabled(context).await;
-        chat::add_info_msg(context, chat_id, stock_str, now).await?;
+        chat::add_info_msg(context, chat_id, &stock_str, now).await?;
     }
     context.emit_event(EventType::ChatModified(chat_id));
     if 0 != seconds {
@@ -747,7 +747,7 @@ pub(crate) async fn job_maybe_send_locations_ended(
             );
 
             let stock_str = stock_str::msg_location_disabled(context).await;
-            job_try!(chat::add_info_msg(context, chat_id, stock_str, now).await);
+            job_try!(chat::add_info_msg(context, chat_id, &stock_str, now).await);
             context.emit_event(EventType::ChatModified(chat_id));
         }
     }

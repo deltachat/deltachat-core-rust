@@ -36,9 +36,9 @@ impl Dehtml {
             ""
         }
     }
-    fn append_prefix(&self, line_end: impl AsRef<str>) -> String {
+    fn append_prefix(&self, line_end: &str) -> String {
         // line_end is e.g. "\n\n". We add "> " if necessary.
-        line_end.as_ref().to_owned() + self.line_prefix()
+        line_end.to_string() + self.line_prefix()
     }
     fn get_add_text(&self) -> AddText {
         if self.divs_since_quote_div > 0 && self.divs_since_quoted_content_div == 0 {

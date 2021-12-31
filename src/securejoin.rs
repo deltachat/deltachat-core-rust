@@ -322,8 +322,8 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
                 ChatId::create_multiuser_record(
                     context,
                     Chattype::Group,
-                    group_id,
-                    group_name,
+                    &group_id,
+                    &group_name,
                     Blocked::Not,
                     ProtectionStatus::Unprotected, // protection is added later as needed
                     None,
@@ -334,7 +334,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
                 chat::add_to_chat_contacts_table(context, chat_id, contact_id).await?;
             }
             let msg = stock_str::secure_join_started(context, contact_id).await;
-            chat::add_info_msg(context, chat_id, msg, time()).await?;
+            chat::add_info_msg(context, chat_id, &msg, time()).await?;
             Ok(chat_id)
         }
     }
@@ -541,7 +541,7 @@ pub(crate) async fn handle_securejoin_handshake(
                             chat::add_info_msg(
                                 context,
                                 bobstate.chat_id(context).await?,
-                                msg,
+                                &msg,
                                 time(),
                             )
                             .await?;
@@ -742,7 +742,7 @@ pub(crate) async fn handle_securejoin_handshake(
                         .get_header(HeaderDef::SecureJoinGroup)
                         .map(|s| s.as_str())
                         .unwrap_or_else(|| "");
-                    if let Err(err) = chat::get_chat_id_by_grpid(context, &field_grpid).await {
+                    if let Err(err) = chat::get_chat_id_by_grpid(context, field_grpid).await {
                         warn!(context, "Failed to lookup chat_id from grpid: {}", err);
                         return Err(
                             err.context(format!("Chat for group {} not found", &field_grpid))
@@ -852,7 +852,7 @@ async fn secure_connection_established(
 ) -> Result<(), Error> {
     let contact = Contact::get_by_id(context, contact_id).await?;
     let msg = stock_str::contact_verified(context, contact.get_name_n_addr()).await;
-    chat::add_info_msg(context, chat_id, msg, time()).await?;
+    chat::add_info_msg(context, chat_id, &msg, time()).await?;
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
 }

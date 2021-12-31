@@ -1535,7 +1535,7 @@ async fn ndn_maybe_add_info_msg(
                 chat::add_info_msg(
                     context,
                     chat_id,
-                    text,
+                    &text,
                     dc_create_smeared_timestamp(context).await,
                 )
                 .await?;

@@ -311,17 +311,17 @@ impl Contact {
     /// use `dc_may_be_valid_addr()`.
     pub async fn lookup_id_by_addr(
         context: &Context,
-        addr: impl AsRef<str>,
+        addr: &str,
         min_origin: Origin,
     ) -> Result<Option<u32>> {
-        if addr.as_ref().is_empty() {
+        if addr.is_empty() {
             bail!("lookup_id_by_addr: empty address");
         }
 
-        let addr_normalized = addr_normalize(addr.as_ref());
+        let addr_normalized = addr_normalize(addr);
 
         if let Some(addr_self) = context.get_config(Config::ConfiguredAddr).await? {
-            if addr_cmp(addr_normalized, addr_self) {
+            if addr_cmp(addr_normalized, &addr_self) {
                 return Ok(Some(DC_CONTACT_ID_SELF));
             }
         }
@@ -383,7 +383,7 @@ impl Contact {
             .await?
             .unwrap_or_default();
 
-        if addr_cmp(&addr, addr_self) {
+        if addr_cmp(&addr, &addr_self) {
             return Ok((DC_CONTACT_ID_SELF, sth_modified));
         }
 
@@ -582,7 +582,7 @@ impl Contact {
 
         for (name, addr) in split_address_book(addr_book).into_iter() {
             let (name, addr) = sanitize_name_and_addr(name, addr);
-            let name = normalize_name(name);
+            let name = normalize_name(&name);
             match Contact::add_or_lookup(context, &name, &addr, Origin::AddressBook).await {
                 Err(err) => {
                     warn!(
@@ -1210,7 +1210,8 @@ WHERE type=? AND id IN (
         // also unblock mailinglist
         // if the contact is a mailinglist address explicitly created to allow unblocking
         if !new_blocking && contact.origin == Origin::MailinglistAddress {
-            if let Some((chat_id, _, _)) = chat::get_chat_id_by_grpid(context, contact.addr).await?
+            if let Some((chat_id, _, _)) =
+                chat::get_chat_id_by_grpid(context, &contact.addr).await?
             {
                 chat_id.unblock(context).await?;
             }
@@ -1326,8 +1327,8 @@ pub(crate) async fn update_last_seen(
 /// - Trims the resulting string
 ///
 /// Typically, this function is not needed as it is called implicitly by `Contact::add_address_book`.
-pub fn normalize_name(full_name: impl AsRef<str>) -> String {
-    let full_name = full_name.as_ref().trim();
+pub fn normalize_name(full_name: &str) -> String {
+    let full_name = full_name.trim();
     if full_name.is_empty() {
         return full_name.into();
     }
@@ -1371,16 +1372,16 @@ impl Context {
     /// determine whether the specified addr maps to the/a self addr
     pub async fn is_self_addr(&self, addr: &str) -> Result<bool> {
         if let Some(self_addr) = self.get_config(Config::ConfiguredAddr).await? {
-            Ok(addr_cmp(self_addr, addr))
+            Ok(addr_cmp(&self_addr, addr))
         } else {
             Ok(false)
         }
     }
 }
 
-pub fn addr_cmp(addr1: impl AsRef<str>, addr2: impl AsRef<str>) -> bool {
-    let norm1 = addr_normalize(addr1.as_ref()).to_lowercase();
-    let norm2 = addr_normalize(addr2.as_ref()).to_lowercase();
+pub fn addr_cmp(addr1: &str, addr2: &str) -> bool {
+    let norm1 = addr_normalize(addr1).to_lowercase();
+    let norm2 = addr_normalize(addr2).to_lowercase();
 
     norm1 == norm2
 }

@@ -1727,7 +1727,7 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     let ctx = &*context;
 
     block_on(async move {
-        Contact::lookup_id_by_addr(ctx, to_string_lossy(addr), Origin::IncomingReplyTo)
+        Contact::lookup_id_by_addr(ctx, &to_string_lossy(addr), Origin::IncomingReplyTo)
             .await
             .unwrap_or_log_default(ctx, "failed to lookup id")
             .unwrap_or(0)
