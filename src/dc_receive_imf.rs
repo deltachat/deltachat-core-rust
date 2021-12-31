@@ -1857,18 +1857,21 @@ async fn create_or_lookup_mailinglist(
     }
 }
 
+/// Set ListId param on the contact and ListPost param the chat.
+/// Only called for incoming messages since outgoing messages never have a
+/// List-Post header, anyway.
 async fn apply_mailinglist_changes(
     context: &Context,
     mime_parser: &MimeMessage,
     chat_id: ChatId,
 ) -> Result<()> {
-    let mut chat = Chat::load_from_db(context, chat_id).await?;
-    if chat.typ != Chattype::Mailinglist {
-        return Ok(());
-    }
-    let listid = &chat.grpid;
-
     if let Some(list_post) = &mime_parser.list_post {
+        let mut chat = Chat::load_from_db(context, chat_id).await?;
+        if chat.typ != Chattype::Mailinglist {
+            return Ok(());
+        }
+        let listid = &chat.grpid;
+
         let (contact_id, _) =
             Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
         let mut contact = Contact::load_from_db(context, contact_id).await?;
@@ -1876,9 +1879,7 @@ async fn apply_mailinglist_changes(
             contact.param.set(Param::ListId, &listid);
             contact.update_param(context).await?;
         }
-    }
 
-    if let Some(list_post) = &mime_parser.list_post {
         if let Some(old_list_post) = chat.param.get(Param::ListPost) {
             if list_post != old_list_post {
                 // Apparently the mailing list is using a different List-Post header in each message.
