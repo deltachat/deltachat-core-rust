@@ -796,7 +796,7 @@ async fn add_parts(
                 } else {
                     Blocked::Request
                 };
-                if let Some(list_id) = to_contact.param.get(Param::ListPost) {
+                if let Some(list_id) = to_contact.param.get(Param::ListId) {
                     if let Some((id, _, blocked)) =
                         chat::get_chat_id_by_grpid(context, list_id).await?
                     {
@@ -1872,8 +1872,8 @@ async fn apply_mailinglist_changes(
         let (contact_id, _) =
             Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
         let mut contact = Contact::load_from_db(context, contact_id).await?;
-        if contact.param.get(Param::ListPost) != Some(listid) {
-            contact.param.set(Param::ListPost, &listid);
+        if contact.param.get(Param::ListId) != Some(listid) {
+            contact.param.set(Param::ListId, &listid);
             contact.update_param(context).await?;
         }
     }
@@ -3199,7 +3199,7 @@ Sent with my Delta Chat Messenger: https://delta.chat\r\n"
                 .unwrap();
         let list_post_contact = Contact::load_from_db(&t, list_post_contact_id).await?;
         assert_eq!(
-            list_post_contact.param.get(Param::ListPost).unwrap(),
+            list_post_contact.param.get(Param::ListId).unwrap(),
             "delta.codespeak.net"
         );
         assert_eq!(
@@ -3695,7 +3695,7 @@ Sent with my Delta Chat Messenger: https://delta.chat\r\n"
         .unwrap();
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(
-            contact.param.get(Param::ListPost).unwrap(),
+            contact.param.get(Param::ListId).unwrap(),
             "deltachat-core-rust.deltachat.github.com"
         )
     }
