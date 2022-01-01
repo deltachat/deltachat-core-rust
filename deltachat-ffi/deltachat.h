@@ -14,6 +14,7 @@ extern "C" {
 typedef struct _dc_context  dc_context_t;
 typedef struct _dc_accounts dc_accounts_t;
 typedef struct _dc_array    dc_array_t;
+typedef struct _dc_blob     dc_blob_t;
 typedef struct _dc_chatlist dc_chatlist_t;
 typedef struct _dc_chat     dc_chat_t;
 typedef struct _dc_msg      dc_msg_t;
@@ -2872,6 +2873,45 @@ int              dc_array_search_id          (const dc_array_t* array, uint32_t 
 
 
 /**
+ * @class dc_blob_t
+ *
+ * An object representing a file blob.
+ */
+
+
+/**
+ * Free a blob object.
+ *
+ * @memberof dc_blob_t
+ * @param blob The blob object.
+ */
+void             dc_blob_unref               (dc_blob_t* blob);
+
+/**
+ * Returns blob size in bytes.
+ *
+ * @memberof dc_blob_t
+ * @param blob The blob object.
+ * @return Returns blob size. Never fails.
+ */
+
+size_t           dc_blob_bytes               (dc_blob_t* blob);
+
+/**
+ * Reads data from a blob.
+ * Reads exactly the number of bytes requested and
+ * returns an error if it's not possible.
+ *
+ * @memberof dc_blob_t
+ * @param blob The blob object.
+ * @param count Number of bytes to read from the blob.
+ * @param offset Offset of the first byte to read inside the blob.
+ * @return 1 on success, 0 on error.
+ */
+int              dc_blob_read                (dc_blob_t* blob, void* buf, size_t count, off_t offset);
+
+
+/**
  * @class dc_chatlist_t
  *
  * An object representing a single chatlist in memory.
@@ -3569,6 +3609,16 @@ char*           dc_msg_get_filemime           (const dc_msg_t* msg);
  * @return File size in bytes, 0 if not applicable or on errors.
  */
 uint64_t        dc_msg_get_filebytes          (const dc_msg_t* msg);
+
+
+/**
+ * Get the file blob.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return File blob, NULL if not applicable or on errors.
+ */
+dc_blob_t      *dc_msg_get_fileblob           (const dc_msg_t* msg);
 
 
 /**
