@@ -66,7 +66,7 @@ pub struct MimeMessage {
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
     pub(crate) sync_items: Option<SyncItems>,
-    pub(crate) w30_status_update: Option<String>,
+    pub(crate) webxdc_status_update: Option<String>,
     pub(crate) user_avatar: Option<AvatarAction>,
     pub(crate) group_avatar: Option<AvatarAction>,
     pub(crate) mdn_reports: Vec<Report>,
@@ -138,8 +138,8 @@ pub enum SystemMessage {
     MultiDeviceSync = 20,
 
     // Sync message that contains a json payload
-    // sent to the other w30 instances
-    W30StatusUpdate = 30,
+    // sent to the other webxdc instances
+    WebxdcStatusUpdate = 30,
 }
 
 impl Default for SystemMessage {
@@ -301,7 +301,7 @@ impl MimeMessage {
             location_kml: None,
             message_kml: None,
             sync_items: None,
-            w30_status_update: None,
+            webxdc_status_update: None,
             user_avatar: None,
             group_avatar: None,
             failure_report: None,
@@ -544,7 +544,7 @@ impl MimeMessage {
             };
 
             if let Some(ref subject) = self.get_subject() {
-                if !self.has_chat_version() && self.w30_status_update.is_none() {
+                if !self.has_chat_version() && self.webxdc_status_update.is_none() {
                     part.msg = subject.to_string();
                 }
             }
@@ -1019,11 +1019,11 @@ impl MimeMessage {
             return;
         }
         let msg_type = if context
-            .is_w30_file(filename, decoded_data)
+            .is_webxdc_file(filename, decoded_data)
             .await
             .unwrap_or(false)
         {
-            Viewtype::W30
+            Viewtype::Webxdc
         } else if filename.ends_with(".kml") {
             // XXX what if somebody sends eg an "location-highlights.kml"
             // attachment unrelated to location streaming?
@@ -1057,7 +1057,7 @@ impl MimeMessage {
             let serialized = String::from_utf8_lossy(decoded_data)
                 .parse()
                 .unwrap_or_default();
-            self.w30_status_update = Some(serialized);
+            self.webxdc_status_update = Some(serialized);
             return;
         } else {
             msg_type

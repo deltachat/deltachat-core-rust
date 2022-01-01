@@ -1168,12 +1168,12 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "ttf" => (Viewtype::File, "font/ttf"),
         "vcard" => (Viewtype::File, "text/vcard"),
         "vcf" => (Viewtype::File, "text/vcard"),
-        "w30" => (Viewtype::W30, "application/w30+zip"),
         "wav" => (Viewtype::File, "audio/wav"),
         "weba" => (Viewtype::File, "audio/webm"),
         "webm" => (Viewtype::Video, "video/webm"),
         "webp" => (Viewtype::Image, "image/webp"), // iOS via SDWebImage, Android since 4.0
         "wmv" => (Viewtype::Video, "video/x-ms-wmv"),
+        "xdc" => (Viewtype::Webxdc, "application/webxdc+zip"),
         "xhtml" => (Viewtype::File, "application/xhtml+xml"),
         "xlsx" => (
             Viewtype::File,
@@ -1706,8 +1706,8 @@ mod tests {
             Some((Viewtype::File, "text/html"))
         );
         assert_eq!(
-            guess_msgtype_from_suffix(Path::new("foo/file.w30")),
-            Some((Viewtype::W30, "application/w30+zip"))
+            guess_msgtype_from_suffix(Path::new("foo/file.xdc")),
+            Some((Viewtype::Webxdc, "application/webxdc+zip"))
         );
     }
 

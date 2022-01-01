@@ -37,7 +37,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::stock_str;
-use crate::w30::W30_SUFFIX;
+use crate::webxdc::WEBXDC_SUFFIX;
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone)]
@@ -643,8 +643,8 @@ impl ChatId {
                     .await?
                     .ok_or_else(|| format_err!("No file stored in params"))?;
                 msg.param.set(Param::File, blob.as_name());
-                if blob.suffix() == Some(W30_SUFFIX) {
-                    msg.viewtype = Viewtype::W30;
+                if blob.suffix() == Some(WEBXDC_SUFFIX) {
+                    msg.viewtype = Viewtype::Webxdc;
                 }
             }
         }
@@ -1797,7 +1797,7 @@ pub(crate) fn msgtype_has_file(msgtype: Viewtype) -> bool {
         Viewtype::Video => true,
         Viewtype::File => true,
         Viewtype::VideochatInvitation => false,
-        Viewtype::W30 => true,
+        Viewtype::Webxdc => true,
     }
 }
 
@@ -1841,8 +1841,12 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             }
         }
 
-        if msg.viewtype == Viewtype::W30 && blob.suffix() != Some(W30_SUFFIX) {
-            bail!("w30 message {} does not have suffix {}", blob, W30_SUFFIX);
+        if msg.viewtype == Viewtype::Webxdc && blob.suffix() != Some(WEBXDC_SUFFIX) {
+            bail!(
+                "webxdc message {} does not have suffix {}",
+                blob,
+                WEBXDC_SUFFIX
+            );
         }
 
         info!(
