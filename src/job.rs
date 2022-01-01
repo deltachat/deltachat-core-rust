@@ -583,15 +583,7 @@ impl Job {
         Status::Finished(Ok(()))
     }
 
-    /// Synchronizes UIDs for sentbox, inbox and mvbox, in this order.
-    ///
-    /// If a copy of the message is present in multiple folders, mvbox
-    /// is preferred to inbox, which is in turn preferred to
-    /// sentbox. This is because in the database it is impossible to
-    /// store multiple UIDs for one message, so we prefer to
-    /// automatically delete messages in the folders managed by Delta
-    /// Chat in contrast to the Sent folder, which is normally managed
-    /// by the user via webmail or another email client.
+    /// Synchronizes UIDs for sentbox, inbox and mvbox.
     async fn resync_folders(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);

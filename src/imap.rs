@@ -525,21 +525,23 @@ impl Imap {
             &folder
         );
 
+        let uid_validity = get_uidvalidity(context, &folder).await?;
+
         // Write collected UIDs to SQLite database.
         context
             .sql
             .transaction(move |transaction| {
-                transaction.execute(
-                    "UPDATE msgs SET server_uid=0 WHERE server_folder=?",
-                    params![folder],
-                )?;
+                transaction.execute("DELETE FROM imap WHERE folder=?", params![folder])?;
                 for (uid, rfc724_mid) in &msg_ids {
                     // This may detect previously undetected moved
                     // messages, so we update server_folder too.
                     transaction.execute(
-                        "UPDATE msgs \
-                             SET server_folder=?,server_uid=? WHERE rfc724_mid=?",
-                        params![folder, uid, rfc724_mid],
+                        "INSERT INTO imap (rfc724_mid, folder, uid, uidvalidity, target)
+                         VALUES           (?1,         ?2,     ?3,  ?4,          ?5)
+                         ON CONFLICT(folder, uid, uidvalidity)
+                         DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
+                                       target=excluded.target",
+                        params![rfc724_mid, folder, uid, uid_validity, folder],
                     )?;
                 }
                 Ok(())
