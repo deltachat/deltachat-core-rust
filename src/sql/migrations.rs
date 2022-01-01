@@ -562,6 +562,23 @@ CREATE INDEX msgs_status_updates_index1 ON msgs_status_updates (msg_id);"#,
         )
         .await?;
     }
+    if dbversion < 85 {
+        info!(context, "[migration] v85");
+        sql.execute_migration(
+            r#"CREATE TABLE smtp (
+id INTEGER PRIMARY KEY,
+rfc724_mid TEXT NOT NULL,          -- Message-ID
+mime TEXT NOT NULL,                -- SMTP payload
+msg_id INTEGER NOT NULL,           -- ID of the message in `msgs` table
+recipients TEXT NOT NULL,          -- List of recipients separated by space
+retries INTEGER NOT NULL DEFAULT 0 -- Number of failed attempts to send the messsage
+);
+CREATE INDEX smtp_messageid ON imap(rfc724_mid);
+"#,
+            85,
+        )
+        .await?;
+    }
 
     Ok((
         recalc_fingerprints,

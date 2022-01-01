@@ -5,7 +5,7 @@ use std::convert::{TryFrom, TryInto};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
-use anyhow::{bail, ensure, format_err, Context as _, Result};
+use anyhow::{bail, ensure, Context as _, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
@@ -32,10 +32,14 @@ use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer a
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
 use crate::job::{self, Action};
+use crate::location;
 use crate::message::{self, Message, MessageState, MsgId};
+use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::scheduler::InterruptInfo;
+use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
 use crate::webxdc::{WEBXDC_SENDING_LIMIT, WEBXDC_SUFFIX};
 
@@ -1283,7 +1287,7 @@ impl Chat {
             msg.param.set_int(Param::AttachGroupImage, 1);
             self.param.remove(Param::Unpromoted);
             self.update_param(context).await?;
-            // send_sync_msg() is called (usually) a moment later at Job::send_msg_to_smtp()
+            // send_sync_msg() is called (usually) a moment later at send_msg_to_smtp()
             // when the group-creation message is actually sent though SMTP -
             // this makes sure, the other devices are aware of grpid that is used in the sync-message.
             context.sync_qr_code_tokens(Some(self.id)).await?;
@@ -1963,41 +1967,25 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
 
 /// Tries to send a message synchronously.
 ///
-/// Directly  opens an smtp
-/// connection and sends the message, bypassing the job system. If this fails, it writes a send job to
-/// the database.
+/// Creates a new message in `smtp` table, then drectly opens an SMTP connection and sends the
+/// message. If this fails, the message remains in the database to be sent later.
 pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    if let Some(mut job) = prepare_send_msg(context, chat_id, msg).await? {
+    if let Some(rowid) = prepare_send_msg(context, chat_id, msg).await? {
         let mut smtp = crate::smtp::Smtp::new();
+        send_msg_to_smtp(context, &mut smtp, rowid)
+            .await
+            .context("failed to send message, queued for later sending")?;
 
-        let status = job.send_msg_to_smtp(context, &mut smtp).await;
-
-        match status {
-            job::Status::Finished(Ok(_)) => {
-                context.emit_event(EventType::MsgsChanged {
-                    chat_id: msg.chat_id,
-                    msg_id: msg.id,
-                });
-
-                Ok(msg.id)
-            }
-            _ => {
-                job.save(context).await?;
-                Err(format_err!(
-                    "failed to send message, queued for later sending"
-                ))
-            }
-        }
-    } else {
-        // Nothing to do
-        Ok(msg.id)
+        context.emit_event(EventType::MsgsChanged {
+            chat_id: msg.chat_id,
+            msg_id: msg.id,
+        });
     }
+    Ok(msg.id)
 }
 
 async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    if let Some(send_job) = prepare_send_msg(context, chat_id, msg).await? {
-        job::add(context, send_job).await?;
-
+    if prepare_send_msg(context, chat_id, msg).await?.is_some() {
         context.emit_event(EventType::MsgsChanged {
             chat_id: msg.chat_id,
             msg_id: msg.id,
@@ -2006,16 +1994,19 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
         if msg.param.exists(Param::SetLatitude) {
             context.emit_event(EventType::LocationChanged(Some(DC_CONTACT_ID_SELF)));
         }
+
+        context.interrupt_smtp(InterruptInfo::new(false)).await;
     }
 
     Ok(msg.id)
 }
 
+/// Returns rowid from `smtp` table.
 async fn prepare_send_msg(
     context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
-) -> Result<Option<crate::job::Job>> {
+) -> Result<Option<i64>> {
     // dc_prepare_msg() leaves the message state to OutPreparing, we
     // only have to change the state to OutPending in this case.
     // Otherwise we still have to prepare the message, which will set
@@ -2031,9 +2022,143 @@ async fn prepare_send_msg(
         );
         message::update_msg_state(context, msg.id, MessageState::OutPending).await?;
     }
-    let job = job::send_msg_job(context, msg.id).await?;
+    let row_id = create_send_msg_job(context, msg.id).await?;
+    Ok(row_id)
+}
 
-    Ok(job)
+/// Constructs a job for sending a message and inserts into `smtp` table.
+///
+/// Returns rowid if job was created or `None` if SMTP job is not needed, e.g. when sending to a
+/// group with only self and no BCC-to-self configured.
+///
+/// The caller has to interrupt SMTP loop or otherwise process a new row.
+async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<i64>> {
+    let mut msg = Message::load_from_db(context, msg_id).await?;
+    msg.try_calc_and_set_dimensions(context)
+        .await
+        .context("failed to calculate media dimensions")?;
+
+    /* create message */
+    let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
+
+    let attach_selfavatar = match shall_attach_selfavatar(context, msg.chat_id).await {
+        Ok(attach_selfavatar) => attach_selfavatar,
+        Err(err) => {
+            warn!(context, "job: cannot get selfavatar-state: {}", err);
+            false
+        }
+    };
+
+    let mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar).await?;
+
+    let mut recipients = mimefactory.recipients();
+
+    let from = context
+        .get_config(Config::ConfiguredAddr)
+        .await?
+        .unwrap_or_default();
+    let lowercase_from = from.to_lowercase();
+
+    // Send BCC to self if it is enabled and we are not going to
+    // delete it immediately.
+    if context.get_config_bool(Config::BccSelf).await?
+        && context.get_config_delete_server_after().await? != Some(0)
+        && !recipients
+            .iter()
+            .any(|x| x.to_lowercase() == lowercase_from)
+    {
+        recipients.push(from);
+    }
+
+    if recipients.is_empty() {
+        // may happen eg. for groups with only SELF and bcc_self disabled
+        info!(
+            context,
+            "message {} has no recipient, skipping smtp-send", msg_id
+        );
+        msg_id.set_delivered(context).await?;
+        return Ok(None);
+    }
+
+    let rendered_msg = match mimefactory.render(context).await {
+        Ok(res) => Ok(res),
+        Err(err) => {
+            message::set_msg_failed(context, msg_id, Some(err.to_string())).await;
+            Err(err)
+        }
+    }?;
+
+    if needs_encryption && !rendered_msg.is_encrypted {
+        /* unrecoverable */
+        message::set_msg_failed(
+            context,
+            msg_id,
+            Some("End-to-end-encryption unavailable unexpectedly."),
+        )
+        .await;
+        bail!(
+            "e2e encryption unavailable {} - {:?}",
+            msg_id,
+            needs_encryption
+        );
+    }
+
+    if rendered_msg.is_gossiped {
+        msg.chat_id.set_gossiped_timestamp(context, time()).await?;
+    }
+
+    if 0 != rendered_msg.last_added_location_id {
+        if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, time()).await {
+            error!(context, "Failed to set kml sent_timestamp: {:?}", err);
+        }
+        if !msg.hidden {
+            if let Err(err) =
+                location::set_msg_location_id(context, msg.id, rendered_msg.last_added_location_id)
+                    .await
+            {
+                error!(context, "Failed to set msg_location_id: {:?}", err);
+            }
+        }
+    }
+
+    if let Some(sync_ids) = rendered_msg.sync_ids_to_delete {
+        if let Err(err) = context.delete_sync_ids(sync_ids).await {
+            error!(context, "Failed to delete sync ids: {:?}", err);
+        }
+    }
+
+    if attach_selfavatar {
+        if let Err(err) = msg.chat_id.set_selfavatar_timestamp(context, time()).await {
+            error!(context, "Failed to set selfavatar timestamp: {:?}", err);
+        }
+    }
+
+    if rendered_msg.is_encrypted && !needs_encryption {
+        msg.param.set_int(Param::GuaranteeE2ee, 1);
+        msg.update_param(context).await;
+    }
+
+    ensure!(!recipients.is_empty(), "no recipients for smtp job set");
+
+    let recipients = recipients.join(" ");
+
+    msg.subject = rendered_msg.subject.clone();
+    msg.update_subject(context).await;
+
+    let row_id = context
+        .sql
+        .insert(
+            "INSERT INTO smtp (rfc724_mid, recipients, mime, msg_id)
+             VALUES           (?1,         ?2,         ?3,   ?4)",
+            paramsv![
+                &rendered_msg.rfc724_mid,
+                recipients,
+                &rendered_msg.message,
+                msg_id
+            ],
+        )
+        .await?;
+    Ok(Some(row_id))
 }
 
 pub async fn send_text_msg(
@@ -3049,8 +3174,8 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
                     .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
                     .await?;
                 curr_timestamp += 1;
-                if let Some(send_job) = job::send_msg_job(context, new_msg_id).await? {
-                    job::add(context, send_job).await?;
+                if create_send_msg_job(context, new_msg_id).await?.is_some() {
+                    context.interrupt_smtp(InterruptInfo::new(false)).await;
                 }
             }
             created_chats.push(chat_id);
@@ -4467,7 +4592,8 @@ mod tests {
         );
 
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
-        let msg = alice.pop_sent_msg().await.payload();
+        let sent_msg = alice.pop_sent_msg().await;
+        let msg = sent_msg.payload();
         assert_eq!(msg.match_indices("Gr.").count(), 2);
         let msg = msg.replace("Message-ID: <Gr.", "Message-ID: <XXX");
         assert_eq!(msg.match_indices("Gr.").count(), 1);
@@ -4487,7 +4613,8 @@ mod tests {
         // Bob answers - simulate a normal MUA by not setting `Chat-*`-headers;
         // moreover, Bob's SMTP-server also replaces the `Message-ID:`-header
         send_text_msg(&bob, bob_chat.id, "ho!".to_string()).await?;
-        let msg = bob.pop_sent_msg().await.payload();
+        let sent_msg = bob.pop_sent_msg().await;
+        let msg = sent_msg.payload();
         let msg = msg.replace("Message-ID: <Gr.", "Message-ID: <XXX");
         let msg = msg.replace("Chat-", "XXXX-");
         assert_eq!(msg.match_indices("Chat-").count(), 0);

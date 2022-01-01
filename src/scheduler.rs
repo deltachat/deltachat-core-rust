@@ -10,7 +10,7 @@ use crate::context::Context;
 use crate::dc_tools::maybe_add_time_based_warnings;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
-use crate::smtp::Smtp;
+use crate::smtp::{send_smtp_messages, Smtp};
 
 use self::connectivity::ConnectivityStore;
 
@@ -273,17 +273,25 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
 
         let mut interrupt_info = Default::default();
         loop {
-            match job::load_next(&ctx, Thread::Smtp, &interrupt_info)
-                .await
-                .ok()
-                .flatten()
-            {
+            let job = match job::load_next(&ctx, Thread::Smtp, &interrupt_info).await {
+                Err(err) => {
+                    error!(ctx, "Failed loading job from the database: {:#}.", err);
+                    None
+                }
+                Ok(job) => job,
+            };
+
+            match job {
                 Some(job) => {
                     info!(ctx, "executing smtp job");
                     job::perform_job(&ctx, job::Connection::Smtp(&mut connection), job).await;
                     interrupt_info = Default::default();
                 }
                 None => {
+                    if let Err(err) = send_smtp_messages(&ctx, &mut connection).await {
+                        warn!(ctx, "send_smtp_messages failed: {:#}", err);
+                    }
+
                     // Fake Idle
                     info!(ctx, "smtp fake idle - started");
                     match &connection.last_send_error {

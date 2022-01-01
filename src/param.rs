@@ -110,9 +110,6 @@ pub enum Param {
     /// For Jobs
     AlsoMove = b'M',
 
-    /// For Jobs: space-separated list of message recipients
-    Recipients = b'R',
-
     /// For MDN-sending job
     MsgId = b'I',
 

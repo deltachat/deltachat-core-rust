@@ -737,7 +737,6 @@ class TestOnlineAccount:
         # make sure we are not sending message to ourselves
         assert self_addr not in ev.data2
         assert other_addr in ev.data2
-        ev = ac1._evtracker.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
         lp.sec("ac1: setting bcc_self=1")
         ac1.set_config("bcc_self", "1")
@@ -753,7 +752,6 @@ class TestOnlineAccount:
         # now make sure we are sending message to ourselves too
         assert self_addr in ev.data2
         assert other_addr in ev.data2
-        ev = ac1._evtracker.get_matching("DC_EVENT_DELETED_BLOB_FILE")
         assert ac1.direct_imap.idle_wait_for_seen()
 
         # Second client receives only second message, but not the first

@@ -5,13 +5,11 @@
 use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::panic;
-use std::str::FromStr;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use ansi_term::Color;
 use async_std::channel::{self, Receiver, Sender};
-use async_std::path::PathBuf;
 use async_std::prelude::*;
 use async_std::sync::{Arc, RwLock};
 use async_std::task;
@@ -30,11 +28,9 @@ use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
 use crate::events::{Event, EventType};
-use crate::job::Action;
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId};
 use crate::mimeparser::MimeMessage;
-use crate::param::{Param, Params};
 
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
@@ -275,27 +271,27 @@ impl TestContext {
     /// Panics if there is no message or on any error.
     pub async fn pop_sent_msg(&self) -> SentMessage {
         let start = Instant::now();
-        let (rowid, foreign_id, raw_params) = loop {
+        let (rowid, msg_id, payload, recipients) = loop {
             let row = self
                 .ctx
                 .sql
-                .query_row(
+                .query_row_optional(
                     r#"
-                    SELECT id, foreign_id, param
-                      FROM jobs
-                     WHERE action=?
-                  ORDER BY desired_timestamp DESC;
-                "#,
-                    paramsv![Action::SendMsgToSmtp],
+                    SELECT id, msg_id, mime, recipients
+                    FROM smtp
+                    ORDER BY id DESC"#,
+                    paramsv![],
                     |row| {
-                        let id: u32 = row.get(0)?;
-                        let foreign_id: u32 = row.get(1)?;
-                        let param: String = row.get(2)?;
-                        Ok((id, foreign_id, param))
+                        let rowid: i64 = row.get(0)?;
+                        let msg_id: MsgId = row.get(1)?;
+                        let mime: String = row.get(2)?;
+                        let recipients: String = row.get(3)?;
+                        Ok((rowid, msg_id, mime, recipients))
                     },
                 )
-                .await;
-            if let Ok(row) = row {
+                .await
+                .expect("query_row_optional failed");
+            if let Some(row) = row {
                 break row;
             }
             if start.elapsed() < Duration::from_secs(3) {
@@ -304,26 +300,18 @@ impl TestContext {
                 panic!("no sent message found in jobs table");
             }
         };
-        let id = MsgId::new(foreign_id);
-        let params = Params::from_str(&raw_params).unwrap();
-        let blob_path = params
-            .get_blob(Param::File, &self.ctx, false)
-            .await
-            .expect("failed to parse blob from param")
-            .expect("no Param::File found in Params")
-            .to_abs_path();
         self.ctx
             .sql
             .execute("DELETE FROM jobs WHERE id=?;", paramsv![rowid])
             .await
             .expect("failed to remove job");
-        update_msg_state(&self.ctx, id, MessageState::OutDelivered)
+        update_msg_state(&self.ctx, msg_id, MessageState::OutDelivered)
             .await
             .expect("failed to update message state");
         SentMessage {
-            params,
-            blob_path,
-            sender_msg_id: id,
+            payload,
+            sender_msg_id: msg_id,
+            recipients,
         }
     }
 
@@ -347,7 +335,7 @@ impl TestContext {
         let received_msg =
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n"
                 .to_owned()
-                + &msg.payload();
+                + msg.payload();
         dc_receive_imf(&self.ctx, received_msg.as_bytes(), "INBOX", false)
             .await
             .unwrap();
@@ -592,8 +580,8 @@ impl Drop for LogSink {
 /// passed through a SMTP-IMAP pipeline.
 #[derive(Debug, Clone)]
 pub struct SentMessage {
-    params: Params,
-    blob_path: PathBuf,
+    payload: String,
+    recipients: String,
     pub sender_msg_id: MsgId,
 }
 
@@ -602,17 +590,17 @@ impl SentMessage {
     ///
     /// If there are multiple recipients this is just a random one, so is not very useful.
     pub fn recipient(&self) -> EmailAddress {
-        let raw = self
-            .params
-            .get(Param::Recipients)
-            .expect("no recipients in params");
-        let rcpt = raw.split(' ').next().expect("no recipient found");
+        let rcpt = self
+            .recipients
+            .split(' ')
+            .next()
+            .expect("no recipient found");
         rcpt.parse().expect("failed to parse email address")
     }
 
     /// The raw message payload.
-    pub fn payload(&self) -> String {
-        std::fs::read_to_string(&self.blob_path).unwrap()
+    pub fn payload(&self) -> &str {
+        &self.payload
     }
 }
 

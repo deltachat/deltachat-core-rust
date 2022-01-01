@@ -271,10 +271,10 @@ impl Sql {
         &self,
         query: impl AsRef<str>,
         params: impl rusqlite::Params,
-    ) -> anyhow::Result<usize> {
+    ) -> Result<i64> {
         let conn = self.get_conn().await?;
         conn.execute(query.as_ref(), params)?;
-        Ok(usize::try_from(conn.last_insert_rowid())?)
+        Ok(conn.last_insert_rowid())
     }
 
     /// Prepares and executes the statement and maps a function over the resulting rows.

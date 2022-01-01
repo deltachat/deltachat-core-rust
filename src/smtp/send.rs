@@ -30,7 +30,7 @@ impl Smtp {
         context: &Context,
         recipients: Vec<EmailAddress>,
         message: Vec<u8>,
-        job_id: u32,
+        rowid: i64,
     ) -> Result<()> {
         let message_len_bytes = message.len();
 
@@ -52,7 +52,7 @@ impl Smtp {
                 .map_err(Error::Envelope)?;
             let mail = SendableEmail::new(
                 envelope,
-                format!("{}", job_id), // only used for internal logging
+                rowid.to_string(), // only used for internal logging
                 &message,
             );
 

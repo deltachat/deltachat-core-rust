@@ -3,28 +3,24 @@
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
 use std::fmt;
-use std::future::Future;
 
-use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
-use async_smtp::smtp::response::{Category, Code, Detail};
+use anyhow::{bail, format_err, Context as _, Error, Result};
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
-use crate::blob::BlobObject;
-use crate::chat::{self, ChatId};
 use crate::config::Config;
 use crate::contact::{normalize_name, Contact, Modifier, Origin};
 use crate::context::Context;
-use crate::dc_tools::{dc_delete_file, dc_read_file, time};
+use crate::dc_tools::time;
 use crate::events::EventType;
 use crate::imap::{Imap, ImapActionResult};
 use crate::location;
 use crate::log::LogExt;
-use crate::message::{self, Message, MessageState, MsgId};
+use crate::message::{Message, MsgId};
 use crate::mimefactory::MimeFactory;
 use crate::param::{Param, Params};
 use crate::scheduler::InterruptInfo;
-use crate::smtp::Smtp;
+use crate::smtp::{smtp_send, Smtp};
 use crate::sql;
 
 // results in ~3 weeks for the last backoff timespan
@@ -109,7 +105,6 @@ pub enum Action {
     MaybeSendLocations = 5005, // low priority ...
     MaybeSendLocationsEnded = 5007,
     SendMdn = 5010,
-    SendMsgToSmtp = 5901, // ... high priority
 }
 
 impl Default for Action {
@@ -135,7 +130,6 @@ impl From<Action> for Thread {
             MaybeSendLocations => Thread::Smtp,
             MaybeSendLocationsEnded => Thread::Smtp,
             SendMdn => Thread::Smtp,
-            SendMsgToSmtp => Thread::Smtp,
         }
     }
 }
@@ -224,217 +218,6 @@ impl Job {
         }
 
         Ok(())
-    }
-
-    async fn smtp_send<F, Fut>(
-        &mut self,
-        context: &Context,
-        recipients: Vec<async_smtp::EmailAddress>,
-        message: Vec<u8>,
-        job_id: u32,
-        smtp: &mut Smtp,
-        success_cb: F,
-    ) -> Status
-    where
-        F: FnOnce() -> Fut,
-        Fut: Future<Output = Result<()>>,
-    {
-        // hold the smtp lock during sending of a job and
-        // its ok/error response processing. Note that if a message
-        // was sent we need to mark it in the database ASAP as we
-        // otherwise might send it twice.
-        if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-            info!(context, "smtp-sending out mime message:");
-            println!("{}", String::from_utf8_lossy(&message));
-        }
-
-        smtp.connectivity.set_working(context).await;
-
-        let send_result = smtp.send(context, recipients, message, job_id).await;
-        smtp.last_send_error = send_result.as_ref().err().map(|e| e.to_string());
-
-        let status = match send_result {
-            Err(crate::smtp::send::Error::SmtpSend(err)) => {
-                // Remote error, retry later.
-                warn!(context, "SMTP failed to send: {:?}", &err);
-
-                let res = match err {
-                    async_smtp::smtp::error::Error::Permanent(ref response) => {
-                        // Workaround for incorrectly configured servers returning permanent errors
-                        // instead of temporary ones.
-                        let maybe_transient = match response.code {
-                            // Sometimes servers send a permanent error when actually it is a temporary error
-                            // For documentation see <https://tools.ietf.org/html/rfc3463>
-                            Code {
-                                category: Category::MailSystem,
-                                detail: Detail::Zero,
-                                ..
-                            } => {
-                                // Ignore status code 5.5.0, see <https://support.delta.chat/t/every-other-message-gets-stuck/877/2>
-                                // Maybe incorrectly configured Postfix milter with "reject" instead of "tempfail", which returns
-                                // "550 5.5.0 Service unavailable" instead of "451 4.7.1 Service unavailable - try again later".
-                                //
-                                // Other enhanced status codes, such as Postfix
-                                // "550 5.1.1 <foobar@example.org>: Recipient address rejected: User unknown in local recipient table"
-                                // are not ignored.
-                                response.first_word() == Some(&"5.5.0".to_string())
-                            }
-                            _ => false,
-                        };
-
-                        if maybe_transient {
-                            Status::RetryLater
-                        } else {
-                            // If we do not retry, add an info message to the chat.
-                            // Yandex error "554 5.7.1 [2] Message rejected under suspicion of SPAM; https://ya.cc/..."
-                            // should definitely go here, because user has to open the link to
-                            // resume message sending.
-                            Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
-                        }
-                    }
-                    async_smtp::smtp::error::Error::Transient(ref response) => {
-                        // We got a transient 4xx response from SMTP server.
-                        // Give some time until the server-side error maybe goes away.
-
-                        if let Some(first_word) = response.first_word() {
-                            if first_word.ends_with(".1.1")
-                                || first_word.ends_with(".1.2")
-                                || first_word.ends_with(".1.3")
-                            {
-                                // Sometimes we receive transient errors that should be permanent.
-                                // Any extended smtp status codes like x.1.1, x.1.2 or x.1.3 that we
-                                // receive as a transient error are misconfigurations of the smtp server.
-                                // See <https://tools.ietf.org/html/rfc3463#section-3.2>
-                                info!(context, "Smtp-job #{} Received extended status code {} for a transient error. This looks like a misconfigured smtp server, let's fail immediatly", self.job_id, first_word);
-                                Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
-                            } else {
-                                Status::RetryLater
-                            }
-                        } else {
-                            Status::RetryLater
-                        }
-                    }
-                    _ => {
-                        if smtp.has_maybe_stale_connection().await {
-                            info!(context, "stale connection? immediately reconnecting");
-                            Status::RetryNow
-                        } else {
-                            Status::RetryLater
-                        }
-                    }
-                };
-
-                // this clears last_success info
-                smtp.disconnect().await;
-
-                res
-            }
-            Err(crate::smtp::send::Error::Envelope(err)) => {
-                // Local error, job is invalid, do not retry.
-                smtp.disconnect().await;
-                warn!(context, "SMTP job is invalid: {}", err);
-                Status::Finished(Err(err.into()))
-            }
-            Err(crate::smtp::send::Error::NoTransport) => {
-                // Should never happen.
-                // It does not even make sense to disconnect here.
-                error!(context, "SMTP job failed because SMTP has no transport");
-                Status::Finished(Err(format_err!("SMTP has not transport")))
-            }
-            Err(crate::smtp::send::Error::Other(err)) => {
-                // Local error, job is invalid, do not retry.
-                smtp.disconnect().await;
-                warn!(context, "unable to load job: {}", err);
-                Status::Finished(Err(err))
-            }
-            Ok(()) => {
-                job_try!(success_cb().await);
-                Status::Finished(Ok(()))
-            }
-        };
-
-        if let Status::Finished(Err(err)) = &status {
-            // We couldn't send the message, so mark it as failed
-            let msg_id = MsgId::new(self.foreign_id);
-            message::set_msg_failed(context, msg_id, Some(err.to_string())).await;
-        }
-        status
-    }
-
-    pub(crate) async fn send_msg_to_smtp(&mut self, context: &Context, smtp: &mut Smtp) -> Status {
-        //  SMTP server, if not yet done
-        if let Err(err) = smtp.connect_configured(context).await {
-            warn!(context, "SMTP connection failure: {:?}", err);
-            smtp.last_send_error = Some(format!("SMTP connection failure: {:#}", err));
-            return Status::RetryLater;
-        }
-
-        let filename = job_try!(job_try!(self
-            .param
-            .get_path(Param::File, context)
-            .context("can't get filename"))
-        .context("Can't get filename"));
-        let body = job_try!(dc_read_file(context, &filename).await);
-        let recipients = job_try!(self
-            .param
-            .get(Param::Recipients)
-            .context("missing recipients"));
-
-        let recipients_list = recipients
-            .split('\x1e')
-            .filter_map(
-                |addr| match async_smtp::EmailAddress::new(addr.to_string()) {
-                    Ok(addr) => Some(addr),
-                    Err(err) => {
-                        warn!(context, "invalid recipient: {} {:?}", addr, err);
-                        None
-                    }
-                },
-            )
-            .collect::<Vec<_>>();
-
-        /* if there is a msg-id and it does not exist in the db, cancel sending.
-        this happends if dc_delete_msgs() was called
-        before the generated mime was sent out */
-        if 0 != self.foreign_id {
-            match message::exists(context, MsgId::new(self.foreign_id)).await {
-                Ok(exists) => {
-                    if !exists {
-                        return Status::Finished(Err(format_err!(
-                            "Not sending Message {} as it was deleted",
-                            self.foreign_id
-                        )));
-                    }
-                }
-                Err(err) => {
-                    warn!(context, "failed to check message existence: {:?}", err);
-                    smtp.last_send_error =
-                        Some(format!("failed to check message existence: {:#}", err));
-                    return Status::RetryLater;
-                }
-            }
-        };
-
-        let foreign_id = self.foreign_id;
-        self.smtp_send(context, recipients_list, body, self.job_id, smtp, || {
-            async move {
-                // smtp success, update db ASAP, then delete smtp file
-                if 0 != foreign_id {
-                    set_delivered(context, MsgId::new(foreign_id)).await?;
-                }
-                // now also delete the generated file
-                dc_delete_file(context, filename).await;
-
-                // finally, create another send-job if there are items to be synced.
-                // triggering sync-job after msg-send-job guarantees, the recipient has grpid etc.
-                // once the sync message arrives.
-                // if there are no items to sync, this function returns fast.
-                context.send_sync_msg().await?;
-
-                Ok(())
-            }
-        })
-        .await
     }
 
     /// Get `SendMdn` jobs with foreign_id equal to `contact_id` excluding the `job_id` job.
@@ -535,14 +318,13 @@ impl Job {
             return Status::RetryLater;
         }
 
-        self.smtp_send(context, recipients, body, self.job_id, smtp, || {
-            async move {
-                // Remove additional SendMdn jobs we have aggregated into this one.
-                kill_ids(context, &additional_job_ids).await?;
-                Ok(())
-            }
-        })
-        .await
+        let status = smtp_send(context, recipients, body, smtp, msg_id, 0).await;
+        if matches!(status, Status::Finished(Ok(_))) {
+            // Remove additional SendMdn jobs we have aggregated into this one.
+            job_try!(kill_ids(context, &additional_job_ids).await);
+        }
+
+        status
     }
 
     /// Read the recipients from old emails sent by the user and add them as contacts.
@@ -703,17 +485,6 @@ pub async fn action_exists(context: &Context, action: Action) -> Result<bool> {
     Ok(exists)
 }
 
-async fn set_delivered(context: &Context, msg_id: MsgId) -> Result<()> {
-    message::update_msg_state(context, msg_id, MessageState::OutDelivered).await?;
-    let chat_id: ChatId = context
-        .sql
-        .query_get_value("SELECT chat_id FROM msgs WHERE id=?", paramsv![msg_id])
-        .await?
-        .unwrap_or_default();
-    context.emit_event(EventType::MsgDelivered { chat_id, msg_id });
-    Ok(())
-}
-
 async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, folder: Config) {
     let mailbox = if let Ok(Some(m)) = context.get_config(folder).await {
         m
@@ -757,132 +528,6 @@ async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, fold
         }
         Err(e) => warn!(context, "Could not add recipients: {}", e),
     };
-}
-
-/// Constructs a job for sending a message.
-///
-/// Returns `None` if no messages need to be sent out.
-///
-/// In order to be processed, must be `add`ded.
-pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job>> {
-    let mut msg = Message::load_from_db(context, msg_id).await?;
-    msg.try_calc_and_set_dimensions(context).await.ok();
-
-    /* create message */
-    let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
-
-    let attach_selfavatar = match chat::shall_attach_selfavatar(context, msg.chat_id).await {
-        Ok(attach_selfavatar) => attach_selfavatar,
-        Err(err) => {
-            warn!(context, "job: cannot get selfavatar-state: {}", err);
-            false
-        }
-    };
-
-    let mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar).await?;
-
-    let mut recipients = mimefactory.recipients();
-
-    let from = context
-        .get_config(Config::ConfiguredAddr)
-        .await?
-        .unwrap_or_default();
-    let lowercase_from = from.to_lowercase();
-
-    // Send BCC to self if it is enabled and we are not going to
-    // delete it immediately.
-    if context.get_config_bool(Config::BccSelf).await?
-        && context.get_config_delete_server_after().await? != Some(0)
-        && !recipients
-            .iter()
-            .any(|x| x.to_lowercase() == lowercase_from)
-    {
-        recipients.push(from);
-    }
-
-    if recipients.is_empty() {
-        // may happen eg. for groups with only SELF and bcc_self disabled
-        info!(
-            context,
-            "message {} has no recipient, skipping smtp-send", msg_id
-        );
-        set_delivered(context, msg_id).await?;
-        return Ok(None);
-    }
-
-    let rendered_msg = match mimefactory.render(context).await {
-        Ok(res) => Ok(res),
-        Err(err) => {
-            message::set_msg_failed(context, msg_id, Some(err.to_string())).await;
-            Err(err)
-        }
-    }?;
-
-    if needs_encryption && !rendered_msg.is_encrypted {
-        /* unrecoverable */
-        message::set_msg_failed(
-            context,
-            msg_id,
-            Some("End-to-end-encryption unavailable unexpectedly."),
-        )
-        .await;
-        bail!(
-            "e2e encryption unavailable {} - {:?}",
-            msg_id,
-            needs_encryption
-        );
-    }
-
-    if rendered_msg.is_gossiped {
-        msg.chat_id.set_gossiped_timestamp(context, time()).await?;
-    }
-
-    if 0 != rendered_msg.last_added_location_id {
-        if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, time()).await {
-            error!(context, "Failed to set kml sent_timestamp: {:?}", err);
-        }
-        if !msg.hidden {
-            if let Err(err) =
-                location::set_msg_location_id(context, msg.id, rendered_msg.last_added_location_id)
-                    .await
-            {
-                error!(context, "Failed to set msg_location_id: {:?}", err);
-            }
-        }
-    }
-
-    if let Some(sync_ids) = rendered_msg.sync_ids_to_delete {
-        if let Err(err) = context.delete_sync_ids(sync_ids).await {
-            error!(context, "Failed to delete sync ids: {:?}", err);
-        }
-    }
-
-    if attach_selfavatar {
-        if let Err(err) = msg.chat_id.set_selfavatar_timestamp(context, time()).await {
-            error!(context, "Failed to set selfavatar timestamp: {:?}", err);
-        }
-    }
-
-    if rendered_msg.is_encrypted && !needs_encryption {
-        msg.param.set_int(Param::GuaranteeE2ee, 1);
-        msg.update_param(context).await;
-    }
-
-    ensure!(!recipients.is_empty(), "no recipients for smtp job set");
-    let mut param = Params::new();
-    let bytes = &rendered_msg.message;
-    let blob = BlobObject::create(context, &rendered_msg.rfc724_mid, bytes).await?;
-
-    let recipients = recipients.join("\x1e");
-    param.set(Param::File, blob.as_name());
-    param.set(Param::Recipients, &recipients);
-
-    msg.subject = rendered_msg.subject.clone();
-    msg.update_subject(context).await;
-
-    let job = create(Action::SendMsgToSmtp, msg_id.to_u32(), param, 0)?;
-
-    Ok(Some(job))
 }
 
 pub(crate) enum Connection<'a> {
@@ -992,7 +637,6 @@ async fn perform_job_action(
 
     let try_res = match job.action {
         Action::Unknown => Status::Finished(Err(format_err!("Unknown job id found"))),
-        Action::SendMsgToSmtp => job.send_msg_to_smtp(context, connection.smtp()).await,
         Action::SendMdn => job.send_mdn(context, connection.smtp()).await,
         Action::MaybeSendLocations => location::job_maybe_send_locations(context, job).await,
         Action::MaybeSendLocationsEnded => {
@@ -1056,16 +700,6 @@ pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
     Ok(())
 }
 
-/// Creates a job.
-pub fn create(action: Action, foreign_id: u32, param: Params, delay_seconds: i64) -> Result<Job> {
-    ensure!(
-        action != Action::Unknown,
-        "Invalid action passed to job_add"
-    );
-
-    Ok(Job::new(action, foreign_id, param, delay_seconds))
-}
-
 /// Adds a job to the database, scheduling it.
 pub async fn add(context: &Context, job: Job) -> Result<()> {
     let action = job.action;
@@ -1084,10 +718,7 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
                 info!(context, "interrupt: imap");
                 context.interrupt_inbox(InterruptInfo::new(false)).await;
             }
-            Action::MaybeSendLocations
-            | Action::MaybeSendLocationsEnded
-            | Action::SendMdn
-            | Action::SendMsgToSmtp => {
+            Action::MaybeSendLocations | Action::MaybeSendLocationsEnded | Action::SendMdn => {
                 info!(context, "interrupt: smtp");
                 context.interrupt_smtp(InterruptInfo::new(false)).await;
             }

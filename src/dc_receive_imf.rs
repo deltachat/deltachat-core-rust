@@ -4866,7 +4866,7 @@ Second thread."#;
         let mdn_body = rendered_mdn.message;
 
         // Alice receives the read receipt.
-        dc_receive_imf(&alice, &mdn_body, "INBOX", false).await?;
+        dc_receive_imf(&alice, mdn_body.as_bytes(), "INBOX", false).await?;
 
         // Chat should not pop up in the chatlist.
         let chats = Chatlist::try_load(&alice, 0, None, None).await?;

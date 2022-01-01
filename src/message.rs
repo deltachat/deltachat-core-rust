@@ -113,10 +113,14 @@ WHERE id=?;
         Ok(())
     }
 
-    /// Deletes a message and corresponding MDNs from the database.
+    /// Deletes a message, corresponding MDNs and unsent SMTP messages from the database.
     pub async fn delete_from_db(self, context: &Context) -> Result<()> {
         // We don't use transactions yet, so remove MDNs first to make
         // sure they are not left while the message is deleted.
+        context
+            .sql
+            .execute("DELETE FROM smtp WHERE msg_id=?", paramsv![self])
+            .await?;
         context
             .sql
             .execute("DELETE FROM msgs_mdns WHERE msg_id=?;", paramsv![self])
@@ -132,6 +136,20 @@ WHERE id=?;
             .sql
             .execute("DELETE FROM msgs WHERE id=?;", paramsv![self])
             .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn set_delivered(self, context: &Context) -> Result<()> {
+        update_msg_state(context, self, MessageState::OutDelivered).await?;
+        let chat_id: ChatId = context
+            .sql
+            .query_get_value("SELECT chat_id FROM msgs WHERE id=?", paramsv![self])
+            .await?
+            .unwrap_or_default();
+        context.emit_event(EventType::MsgDelivered {
+            chat_id,
+            msg_id: self,
+        });
         Ok(())
     }
 
