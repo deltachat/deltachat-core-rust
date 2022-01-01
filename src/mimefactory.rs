@@ -641,7 +641,7 @@ impl<'a> MimeFactory<'a> {
                     "Content-Type".to_string(),
                     "multipart/report; report-type=multi-device-sync".to_string(),
                 ))
-            } else if self.msg.param.get_cmd() == SystemMessage::W30StatusUpdate {
+            } else if self.msg.param.get_cmd() == SystemMessage::WebxdcStatusUpdate {
                 PartBuilder::new().header((
                     "Content-Type".to_string(),
                     "multipart/report; report-type=status-update".to_string(),
@@ -922,7 +922,7 @@ impl<'a> MimeFactory<'a> {
             }
             SystemMessage::LocationOnly
             | SystemMessage::MultiDeviceSync
-            | SystemMessage::W30StatusUpdate => {
+            | SystemMessage::WebxdcStatusUpdate => {
                 // This should prevent automatic replies,
                 // such as non-delivery reports.
                 //
@@ -1159,11 +1159,11 @@ impl<'a> MimeFactory<'a> {
             let ids = self.msg.param.get(Param::Arg2).unwrap_or_default();
             parts.push(context.build_sync_part(json.to_string()).await);
             self.sync_ids_to_delete = Some(ids.to_string());
-        } else if command == SystemMessage::W30StatusUpdate {
+        } else if command == SystemMessage::WebxdcStatusUpdate {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
             parts.push(context.build_status_update_part(json).await);
-        } else if self.msg.viewtype == Viewtype::W30 {
-            let json = context.get_w30_status_updates(self.msg.id, None).await?;
+        } else if self.msg.viewtype == Viewtype::Webxdc {
+            let json = context.get_webxdc_status_updates(self.msg.id, None).await?;
             if json != "[]" {
                 parts.push(context.build_status_update_part(&json).await);
             }

@@ -1,33 +1,33 @@
-# W30 User Guide
+# Webxdc User Guide
 
-## W30 File Format
+## Webxdc File Format
 
-- a **W30** app is a **ZIP-file** with the extension `.w30`
+- a **Webxdc app** is a **ZIP-file** with the extension `.xdc`
 - the ZIP-file must contain at least the file `index.html`
-- if the W30 app is started, `index.html` is opened in a restricted webview
+- if the Webxdc app is started, `index.html` is opened in a restricted webview
   that allow accessing resources only from the ZIP-file
 
 
-## W30 API
+## Webxdc API
 
-W30 apps can do anything that is allowed in webviews -
+Webxdc apps can do anything that is allowed in webviews -
 html, css, images, canvas, javascript and so on.
 
-There are some additional APIs available once `deltachat.js` is included
+There are some additional APIs available once `webxdc.js` is included
 (the file will be provided by the concrete implementations,
-no need to add `deltachat.js` to your ZIP-file):
+no need to add `webxdc.js` to your ZIP-file):
 
 ```
-<script src="deltachat.js></script>
+<script src="webxdc.js></script>
 ```
 
 ### sendUpdate()
 
 ```
-window.deltachat.sendUpdate(descr, payload);
+window.webxdc.sendUpdate(descr, payload);
 ```
 
-W30 apps are usually shared in a chat and run independently on each peer.
+Webxdc apps are usually shared in a chat and run independently on each peer.
 To get a shared state, the peers use `sendUpdate()` to send updates to each other.
 
 - `descr`: short, human-readable description what this update is about.
@@ -40,7 +40,7 @@ will receive the update by the callback given to `setUpdateListener()`.
 ### setUpdateListener()
 
 ```
-window.deltachat.setUpdateListener((update) => {});
+window.webxdc.setUpdateListener((update) => {});
 ```
 
 With `setUpdateListener()` you define a callback that receives the updates
@@ -55,21 +55,21 @@ The callback is called for updates sent by you or other peers.
 ### getAllUpdates()
 
 ```
-payloads = window.deltachat.getAllUpdates()
+payloads = window.webxdc.getAllUpdates()
 ```
 
-In case your W30 was just started,
+In case your Webxdc was just started,
 you may want to reconstruct the state from the last run -
 and also incorporate updates that may have arrived while the app was not running.
 
 - `payloads`: the function returns all previous updates in an array, 
   eg. `[{payload: "foo"},{payload: "bar"}]`
-  if `deltachat.sendUpdate("foo"); deltachat.sendUpdate("bar");` was called on the last run.
+  if `webxdc.sendUpdate("foo"); webxdc.sendUpdate("bar");` was called on the last run.
 
 ### selfAddr()
 
 ```
-addr = window.deltachat.selfAddr()
+addr = window.webxdc.selfAddr()
 ```
 
 Returns the peer's own address.
@@ -78,7 +78,7 @@ just send the address along with the payload,
 and, if needed, compare the payload addresses against selfAddr() later on.
 
 
-## W30 Example
+## Webxdc Example
 
 The following example shows an input field and  every input is show on all peers.
 
@@ -87,7 +87,7 @@ The following example shows an input field and  every input is show on all peers
 <html>
   <head>
     <meta charset="utf-8"/>
-    <script src="deltachat.js"></script>
+    <script src="webxdc.js"></script>
   </head>
   <body>
     <input id="input" type="text"/>
@@ -97,21 +97,21 @@ The following example shows an input field and  every input is show on all peers
     
       function sendMsg() {
         msg = document.getElementById("input").value;
-        window.deltachat.sendUpdate('Someone typed "'+msg+'".', msg);
+        window.webxdc.sendUpdate('Someone typed "'+msg+'".', msg);
       }
     
       function receiveUpdate(update) {
         document.getElementById('output').innerHTML += update.payload + "<br>";
       }
     
-      window.deltachat.setUpdateListener(receiveUpdate);
+      window.webxdc.setUpdateListener(receiveUpdate);
 
     </script>
   </body>
 </html>
 ```
 
-For a more advanved example, see https://github.com/r10s/w30-poll/ .
+For a more advanved example, see https://github.com/r10s/webxdc-poll/ .
 
 
 ## Closing Remarks
