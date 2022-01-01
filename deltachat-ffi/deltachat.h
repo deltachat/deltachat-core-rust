@@ -864,23 +864,6 @@ uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t ch
  */
 uint32_t        dc_send_msg                  (dc_context_t* context, uint32_t chat_id, dc_msg_t* msg);
 
-/**
- * Send a message defined by a dc_msg_t object to a chat, synchronously.
- * This bypasses the IO scheduler and creates its own SMTP connection. Which means
- * this is useful when the scheduler is not running.
- *
- * @memberof dc_context_t
- * @param context The context object as returned from dc_context_new().
- * @param chat_id Chat ID to send the message to.
- *     If dc_prepare_msg() was called before, this parameter can be 0.
- * @param msg Message object to send to the chat defined by the chat ID.
- *     On succcess, msg_id of the object is set up,
- *     The function does not take ownership of the object,
- *     so you have to free it using dc_msg_unref() as usual.
- * @return The ID of the message that is about to be sent. 0 in case of errors.
- */
-uint32_t        dc_send_msg_sync                  (dc_context_t* context, uint32_t chat_id, dc_msg_t* msg);
-
 
 /**
  * Send a simple text message a given chat.

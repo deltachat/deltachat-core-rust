@@ -1936,39 +1936,6 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
     send_msg_inner(context, chat_id, msg).await
 }
 
-/// Tries to send a message synchronously.
-///
-/// Directly  opens an smtp
-/// connection and sends the message, bypassing the job system. If this fails, it writes a send job to
-/// the database.
-pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    if let Some(mut job) = prepare_send_msg(context, chat_id, msg).await? {
-        let mut smtp = crate::smtp::Smtp::new();
-
-        let status = job.send_msg_to_smtp(context, &mut smtp).await;
-
-        match status {
-            job::Status::Finished(Ok(_)) => {
-                context.emit_event(EventType::MsgsChanged {
-                    chat_id: msg.chat_id,
-                    msg_id: msg.id,
-                });
-
-                Ok(msg.id)
-            }
-            _ => {
-                job.save(context).await?;
-                Err(format_err!(
-                    "failed to send message, queued for later sending"
-                ))
-            }
-        }
-    } else {
-        // Nothing to do
-        Ok(msg.id)
-    }
-}
-
 async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     if let Some(send_job) = prepare_send_msg(context, chat_id, msg).await? {
         job::add(context, send_job).await?;
