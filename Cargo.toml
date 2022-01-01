@@ -54,7 +54,7 @@ r2d2 = "0.8"
 r2d2_sqlite = "0.19"
 rand = "0.7"
 regex = "1.5"
-rusqlite = "0.26"
+rusqlite = { version = "0.26", features = ["sqlcipher"] }
 rust-hsluv = "0.1"
 rustyline = { version = "9", optional = true }
 sanitize-filename = "0.3"
@@ -120,5 +120,5 @@ harness = false
 default = ["vendored"]
 internals = []
 repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term", "dirs"]
-vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored", "rusqlite/bundled"]
+vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored", "rusqlite/bundled-sqlcipher-vendored-openssl"]
 nightly = ["pgp/nightly"]
