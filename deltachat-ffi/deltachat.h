@@ -941,39 +941,39 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
 
 
 /**
- * An w30 instance send a status update to its other members.
+ * An webxdc instance send a status update to its other members.
  *
  * In js-land, that would be mapped to sth. as:
  * ```
  * success = window.webxdc.sendUpdate('move A3 B4', '{"action":"move","src":"A3","dest":"B4"}');
  * ```
- * `context` and `msg_id` is not needed in js as that is unique within an w30 instance.
- * See dc_get_w30_status_updates() for the receiving counterpart.
+ * `context` and `msg_id` is not needed in js as that is unique within an webxdc instance.
+ * See dc_get_webxdc_status_updates() for the receiving counterpart.
  *
- * If the w30 instance is a draft, the update is not send immediately.
+ * If the webxdc instance is a draft, the update is not send immediately.
  * Instead, the updates are collected and sent out in batch when the instance is actually sent.
- * This allows preparing w30 instances,
+ * This allows preparing webxdc instances,
  * eg. defining a poll with predefined answers.
  *
- * Other members will be informed by #DC_EVENT_W30_STATUS_UPDATE that there is a new update.
- * You will also get the #DC_EVENT_W30_STATUS_UPDATE yourself
- * and the update you're sent will also be included in dc_get_w30_status_updates().
+ * Other members will be informed by #DC_EVENT_WEBXDC_STATUS_UPDATE that there is a new update.
+ * You will also get the #DC_EVENT_WEBXDC_STATUS_UPDATE yourself
+ * and the update you're sent will also be included in dc_get_webxdc_status_updates().
  *
  * @memberof dc_context_t
  * @param context The context object
- * @param msg_id id of the message with the w30 instance
+ * @param msg_id id of the message with the webxdc instance
  * @param descr user-visible description of the json-data,
  *     in case of a chess game, eg. the move.
  * @param json program-readable data, the actual payload
  * @return 1=success, 0=error
  */
-int dc_send_w30_status_update (dc_context_t* context, uint32_t msg_id, const char* descr, const char* json);
+int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const char* descr, const char* json);
 
 
 /**
  * Get status updates.
- * The status updates may be sent by yourself or by other members using dc_send_w30_status_update().
- * In both cases, you will be informed by #DC_EVENT_W30_STATUS_UPDATE
+ * The status updates may be sent by yourself or by other members using dc_send_webxdc_status_update().
+ * In both cases, you will be informed by #DC_EVENT_WEBXDC_STATUS_UPDATE
  * whenever there is a new update.
  *
  * In js-land, that would be mapped to sth. as:
@@ -988,15 +988,15 @@ int dc_send_w30_status_update (dc_context_t* context, uint32_t msg_id, const cha
  *
  * @memberof dc_context_t
  * @param context The context object
- * @param msg_id id of the message with the w30 instance
+ * @param msg_id id of the message with the webxdc instance
  * @param status_update_id Can be used to filter out only a concrete status update.
  *     When set to 0, all known status updates are returned.
  * @return JSON-array containing the requested updates,
- *     each element was created by dc_send_w30_status_update()
+ *     each element was created by dc_send_webxdc_status_update()
  *     on this or other devices.
  *     If there are no updates, an empty JSON-array is returned.
  */
-char* dc_get_w30_status_updates (dc_context_t* context, uint32_t msg_id, uint32_t status_update_id);
+char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint32_t status_update_id);
 
 /**
  * Save a draft for a chat in the database.
@@ -3617,17 +3617,17 @@ char*           dc_msg_get_filemime           (const dc_msg_t* msg);
 
 
 /**
- * Return file from inside an archive.
- * Currently, this works for W30 messages only.
+ * Return file from inside an webxdc message.
  *
- * @param msg The W30 instance.
+ * @memberof dc_msg_t
+ * @param msg The webxdc instance.
  * @param filename The name inside the archive,
  *     must be given as a relative path (no leading `/`).
  * @param ret_bytes Pointer to a size_t. The size of the blob will be written here.
  * @return The blob must be released using dc_str_unref() after usage.
  *     NULL if there is no such file in the archive or on errors.
  */
-char*             dc_msg_get_blob_from_archive  (const dc_msg_t* msg, const char* filename, size_t* ret_bytes);
+char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* filename, size_t* ret_bytes);
 
 
 /**
@@ -4789,12 +4789,12 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
- * w30-Message.
+ * webxdc-Message.
  * Message with HTML5, CSS and related content.
  *
- * To send data to a w30 instance, use dc_send_w30_status_update()
+ * To send data to a webxdc instance, use dc_send_webxdc_status_update()
  */
-#define DC_MSG_W30    80
+#define DC_MSG_WEBXDC    80
 
 
 /**
@@ -5491,18 +5491,18 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * w30 status update received.
- * To get the received status update, use dc_get_w30_status_updates().
- * To send status updates, use dc_send_w30_status_update().
+ * webxdc status update received.
+ * To get the received status update, use dc_get_webxdc_status_updates().
+ * To send status updates, use dc_send_webxdc_status_update().
  *
  * Note, that you do not get events that arrive when the app is not running;
- * instead, you can use dc_get_w30_status_updates() to get all status updates
+ * instead, you can use dc_get_webxdc_status_updates() to get all status updates
  * and catch up that way.
  *
  * @param data1 (int) msg_id
  * @param data2 (int) status_update_id
  */
-#define DC_EVENT_W30_STATUS_UPDATE                2120
+#define DC_EVENT_WEBXDC_STATUS_UPDATE                2120
 
 
 /**

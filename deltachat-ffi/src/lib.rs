@@ -36,7 +36,7 @@ use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
 use deltachat::stock_str::StockMessage;
-use deltachat::w30::StatusUpdateId;
+use deltachat::webxdc::StatusUpdateId;
 use deltachat::*;
 use deltachat::{accounts::Accounts, log::LogExt};
 
@@ -450,7 +450,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         EventType::ImexFileWritten(_) => 0,
         EventType::SecurejoinInviterProgress { contact_id, .. }
         | EventType::SecurejoinJoinerProgress { contact_id, .. } => *contact_id as libc::c_int,
-        EventType::W30StatusUpdate { msg_id, .. } => msg_id.to_u32() as libc::c_int,
+        EventType::WebxdcStatusUpdate { msg_id, .. } => msg_id.to_u32() as libc::c_int,
     }
 }
 
@@ -492,7 +492,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         EventType::SecurejoinInviterProgress { progress, .. }
         | EventType::SecurejoinJoinerProgress { progress, .. } => *progress as libc::c_int,
         EventType::ChatEphemeralTimerModified { timer, .. } => timer.to_u32() as libc::c_int,
-        EventType::W30StatusUpdate {
+        EventType::WebxdcStatusUpdate {
             status_update_id, ..
         } => status_update_id.to_u32() as libc::c_int,
     }
@@ -536,7 +536,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SecurejoinJoinerProgress { .. }
         | EventType::ConnectivityChanged
         | EventType::SelfavatarChanged
-        | EventType::W30StatusUpdate { .. }
+        | EventType::WebxdcStatusUpdate { .. }
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {
@@ -827,40 +827,40 @@ pub unsafe extern "C" fn dc_send_videochat_invitation(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_send_w30_status_update(
+pub unsafe extern "C" fn dc_send_webxdc_status_update(
     context: *mut dc_context_t,
     msg_id: u32,
     descr: *const libc::c_char,
     json: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_send_w30_status_update()");
+        eprintln!("ignoring careless call to dc_send_webxdc_status_update()");
         return 0;
     }
     let ctx = &*context;
 
-    block_on(ctx.send_w30_status_update(
+    block_on(ctx.send_webxdc_status_update(
         MsgId::new(msg_id),
         &to_string_lossy(descr),
         &to_string_lossy(json),
     ))
-    .log_err(ctx, "Failed to send w30 update")
+    .log_err(ctx, "Failed to send webxdc update")
     .is_ok() as libc::c_int
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_w30_status_updates(
+pub unsafe extern "C" fn dc_get_webxdc_status_updates(
     context: *mut dc_context_t,
     msg_id: u32,
     status_update_id: u32,
 ) -> *mut libc::c_char {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_get_w30_status_updates()");
+        eprintln!("ignoring careless call to dc_get_webxdc_status_updates()");
         return "".strdup();
     }
     let ctx = &*context;
 
-    block_on(ctx.get_w30_status_updates(
+    block_on(ctx.get_webxdc_status_updates(
         MsgId::new(msg_id),
         if status_update_id == 0 {
             None
@@ -3020,13 +3020,13 @@ pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_blob_from_archive(
+pub unsafe extern "C" fn dc_msg_get_webxdc_blob(
     msg: *mut dc_msg_t,
     filename: *const libc::c_char,
     ret_bytes: *mut libc::size_t,
 ) -> *mut libc::c_char {
     if msg.is_null() || filename.is_null() || ret_bytes.is_null() {
-        eprintln!("ignoring careless call to dc_msg_get_blob_from_archive()");
+        eprintln!("ignoring careless call to dc_msg_get_webxdc_blob()");
         return ptr::null_mut();
     }
     let ffi_msg = &*msg;
@@ -3034,7 +3034,7 @@ pub unsafe extern "C" fn dc_msg_get_blob_from_archive(
     let blob = block_on(async move {
         ffi_msg
             .message
-            .get_blob_from_archive(ctx, &to_string_lossy(filename))
+            .get_webxdc_blob(ctx, &to_string_lossy(filename))
             .await
     });
     match blob {

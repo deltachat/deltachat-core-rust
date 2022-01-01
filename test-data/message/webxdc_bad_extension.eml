@@ -1,4 +1,4 @@
-Subject: W30 object attached
+Subject: webxdc object attached
 Message-ID: 67890@example.org
 Date: Fri, 03 Dec 2021 10:00:27 +0000
 To: alice@example.org
@@ -10,11 +10,10 @@ Content-Type: multipart/mixed; boundary="==BREAK=="
 --==BREAK==
 Content-Type: text/plain; charset=utf-8
 
-w30 with correct extension;
-this is not that important here.
+webxdc with bad extension and bad content.
 
 --==BREAK==
-Content-Type: application/html+w30
+Content-Type: application/webxdc+zip
 Content-Disposition: attachment; filename=index.html
 
 <html>hey!<html>

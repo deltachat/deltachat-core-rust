@@ -191,7 +191,7 @@ const CHAT_COMMANDS: [&str; 36] = [
     "sendfile",
     "sendhtml",
     "sendsyncmsg",
-    "sendw30",
+    "sendupdate",
     "videochat",
     "draft",
     "listmedia",

@@ -1,4 +1,4 @@
-//! # Handle W30 messages.
+//! # Handle webxdc messages.
 
 use crate::constants::Viewtype;
 use crate::context::Context;
@@ -15,7 +15,7 @@ use serde_json::Value;
 use std::convert::TryFrom;
 use std::io::Read;
 
-pub const W30_SUFFIX: &str = "w30";
+pub const WEBXDC_SUFFIX: &str = "xdc";
 
 /// Status Update ID.
 #[derive(
@@ -51,8 +51,8 @@ pub(crate) struct StatusUpdateItem {
 }
 
 impl Context {
-    pub(crate) async fn is_w30_file(&self, filename: &str, buf: &[u8]) -> Result<bool> {
-        if filename.ends_with(W30_SUFFIX) {
+    pub(crate) async fn is_webxdc_file(&self, filename: &str, buf: &[u8]) -> Result<bool> {
+        if filename.ends_with(WEBXDC_SUFFIX) {
             let reader = std::io::Cursor::new(buf);
             if let Ok(mut archive) = zip::ZipArchive::new(reader) {
                 if let Ok(_index_html) = archive.by_name("index.html") {
@@ -85,22 +85,22 @@ impl Context {
         Ok(StatusUpdateId(u32::try_from(rowid)?))
     }
 
-    /// Sends a status update for an w30 instance.
+    /// Sends a status update for an webxdc instance.
     ///
     /// If the instance is a draft,
     /// the status update is sent once the instance is actually sent.
     ///
     /// If an update is sent immediately, the message-id of the update-message is returned,
     /// this update-message is visible in chats, however, the id may be useful.
-    pub async fn send_w30_status_update(
+    pub async fn send_webxdc_status_update(
         &self,
         instance_msg_id: MsgId,
         descr: &str,
         payload: &str,
     ) -> Result<Option<MsgId>> {
         let instance = Message::load_from_db(self, instance_msg_id).await?;
-        if instance.viewtype != Viewtype::W30 {
-            bail!("send_w30_status_update: is no w30 message");
+        if instance.viewtype != Viewtype::Webxdc {
+            bail!("send_webxdc_status_update: is no webxdc message");
         }
 
         let status_update_id = self
@@ -109,8 +109,7 @@ impl Context {
 
         match instance.state {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft => {
-                // send update once the instance is actually send;
-                // on sending, the updates are retrieved using get_w30_status_updates_with_format() then.
+                // send update once the instance is actually send
                 Ok(None)
             }
             _ => {
@@ -123,16 +122,18 @@ impl Context {
                     hidden: true,
                     ..Default::default()
                 };
-                status_update.param.set_cmd(SystemMessage::W30StatusUpdate);
+                status_update
+                    .param
+                    .set_cmd(SystemMessage::WebxdcStatusUpdate);
                 status_update.param.set(
                     Param::Arg,
-                    self.get_w30_status_updates(instance_msg_id, Some(status_update_id))
+                    self.get_webxdc_status_updates(instance_msg_id, Some(status_update_id))
                         .await?,
                 );
                 status_update.set_quote(self, &instance).await?;
                 let status_update_msg_id =
                     chat::send_msg(self, instance.chat_id, &mut status_update).await?;
-                self.emit_event(EventType::W30StatusUpdate {
+                self.emit_event(EventType::WebxdcStatusUpdate {
                     msg_id: instance_msg_id,
                     status_update_id,
                 });
@@ -157,17 +158,17 @@ impl Context {
     /// `msg_id` may be an instance (in case there are initial status updates)
     /// or a reply to an instance (for all other updates).
     ///
-    /// `json` is an array containing one or more update items as created by send_w30_status_update(),
+    /// `json` is an array containing one or more update items as created by send_webxdc_status_update(),
     /// the array is parsed using serde, the single payloads are used as is.
     pub(crate) async fn receive_status_update(&self, msg_id: MsgId, json: &str) -> Result<()> {
         let msg = Message::load_from_db(self, msg_id).await?;
-        let instance = if msg.viewtype == Viewtype::W30 {
+        let instance = if msg.viewtype == Viewtype::Webxdc {
             msg
         } else if let Some(parent) = msg.parent(self).await? {
-            if parent.viewtype == Viewtype::W30 {
+            if parent.viewtype == Viewtype::Webxdc {
                 parent
             } else {
-                bail!("receive_status_update: message is not the child of a W30 message.")
+                bail!("receive_status_update: message is not the child of a webxdc message.")
             }
         } else {
             bail!("receive_status_update: status message has no parent.")
@@ -181,7 +182,7 @@ impl Context {
                     &*serde_json::to_string(&update_item.payload)?,
                 )
                 .await?;
-            self.emit_event(EventType::W30StatusUpdate {
+            self.emit_event(EventType::WebxdcStatusUpdate {
                 msg_id: instance.id,
                 status_update_id,
             });
@@ -195,7 +196,7 @@ impl Context {
     /// Example: `[{"payload":"any update data"},{"payload":"another update data"}]`
     /// The updates may be filtered by a given status_update_id;
     /// if no updates are available, an empty JSON-array is returned.
-    pub async fn get_w30_status_updates(
+    pub async fn get_webxdc_status_updates(
         &self,
         instance_msg_id: MsgId,
         status_update_id: Option<StatusUpdateId>,
@@ -229,13 +230,13 @@ impl Context {
 
 impl Message {
     /// Return file form inside an archive.
-    /// Currently, this works only if the message is an w30 instance.
-    pub async fn get_blob_from_archive(&self, context: &Context, name: &str) -> Result<Vec<u8>> {
-        ensure!(self.viewtype == Viewtype::W30, "No w30 instance.");
+    /// Currently, this works only if the message is an webxdc instance.
+    pub async fn get_webxdc_blob(&self, context: &Context, name: &str) -> Result<Vec<u8>> {
+        ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
 
         let archive = self
             .get_file(context)
-            .ok_or_else(|| format_err!("No w30 instance file."))?;
+            .ok_or_else(|| format_err!("No webxdc instance file."))?;
         let archive = dc_open_file_std(context, archive)?;
         let mut archive = zip::ZipArchive::new(archive)?;
 
@@ -265,81 +266,81 @@ mod tests {
     use async_std::io::WriteExt;
 
     #[async_std::test]
-    async fn test_is_w30_file() -> Result<()> {
+    async fn test_is_webxdc_file() -> Result<()> {
         let t = TestContext::new().await;
         assert!(
-            !t.is_w30_file(
+            !t.is_webxdc_file(
                 "bad-ext-no-zip.txt",
                 include_bytes!("../test-data/message/issue_523.txt")
             )
             .await?
         );
         assert!(
-            !t.is_w30_file(
+            !t.is_webxdc_file(
                 "bad-ext-good-zip.txt",
-                include_bytes!("../test-data/w30/minimal.w30")
+                include_bytes!("../test-data/webxdc/minimal.xdc")
             )
             .await?
         );
         assert!(
-            !t.is_w30_file(
-                "good-ext-no-zip.w30",
+            !t.is_webxdc_file(
+                "good-ext-no-zip.xdc",
                 include_bytes!("../test-data/message/issue_523.txt")
             )
             .await?
         );
         assert!(
-            !t.is_w30_file(
-                "good-ext-no-index-html.w30",
-                include_bytes!("../test-data/w30/no-index-html.w30")
+            !t.is_webxdc_file(
+                "good-ext-no-index-html.xdc",
+                include_bytes!("../test-data/webxdc/no-index-html.xdc")
             )
             .await?
         );
         assert!(
-            t.is_w30_file(
-                "good-ext-good-zip.w30",
-                include_bytes!("../test-data/w30/minimal.w30")
+            t.is_webxdc_file(
+                "good-ext-good-zip.xdc",
+                include_bytes!("../test-data/webxdc/minimal.xdc")
             )
             .await?
         );
         Ok(())
     }
 
-    async fn create_w30_instance(t: &TestContext) -> Result<Message> {
-        let file = t.get_blobdir().join("minimal.w30");
+    async fn create_webxdc_instance(t: &TestContext) -> Result<Message> {
+        let file = t.get_blobdir().join("minimal.xdc");
         File::create(&file)
             .await?
-            .write_all(include_bytes!("../test-data/w30/minimal.w30"))
+            .write_all(include_bytes!("../test-data/webxdc/minimal.xdc"))
             .await?;
         let mut instance = Message::new(Viewtype::File);
         instance.set_file(file.to_str().unwrap(), None);
         Ok(instance)
     }
 
-    async fn send_w30_instance(t: &TestContext, chat_id: ChatId) -> Result<Message> {
-        let mut instance = create_w30_instance(t).await?;
+    async fn send_webxdc_instance(t: &TestContext, chat_id: ChatId) -> Result<Message> {
+        let mut instance = create_webxdc_instance(t).await?;
         let instance_msg_id = send_msg(t, chat_id, &mut instance).await?;
         Message::load_from_db(t, instance_msg_id).await
     }
 
     #[async_std::test]
-    async fn test_send_w30_instance() -> Result<()> {
+    async fn test_send_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
 
-        // send as .w30 file
-        let instance = send_w30_instance(&t, chat_id).await?;
-        assert_eq!(instance.viewtype, Viewtype::W30);
-        assert_eq!(instance.get_filename(), Some("minimal.w30".to_string()));
+        // send as .xdc file
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        assert_eq!(instance.viewtype, Viewtype::Webxdc);
+        assert_eq!(instance.get_filename(), Some("minimal.xdc".to_string()));
         assert_eq!(instance.chat_id, chat_id);
 
-        // sending using bad extension is not working, even when setting Viewtype to W30
+        // sending using bad extension is not working, even when setting Viewtype to webxdc
         let file = t.get_blobdir().join("index.html");
         File::create(&file)
             .await?
             .write_all("<html>ola!</html>".as_ref())
             .await?;
-        let mut instance = Message::new(Viewtype::W30);
+        let mut instance = Message::new(Viewtype::Webxdc);
         instance.set_file(file.to_str().unwrap(), None);
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
 
@@ -347,22 +348,22 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_receive_w30_instance() -> Result<()> {
+    async fn test_receive_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
         dc_receive_imf(
             &t,
-            include_bytes!("../test-data/message/w30_good_extension.eml"),
+            include_bytes!("../test-data/message/webxdc_good_extension.eml"),
             "INBOX",
             false,
         )
         .await?;
         let instance = t.get_last_msg().await;
-        assert_eq!(instance.viewtype, Viewtype::W30);
-        assert_eq!(instance.get_filename(), Some("minimal.w30".to_string()));
+        assert_eq!(instance.viewtype, Viewtype::Webxdc);
+        assert_eq!(instance.get_filename(), Some("minimal.xdc".to_string()));
 
         dc_receive_imf(
             &t,
-            include_bytes!("../test-data/message/w30_bad_extension.eml"),
+            include_bytes!("../test-data/message/webxdc_bad_extension.eml"),
             "INBOX",
             false,
         )
@@ -375,23 +376,24 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_delete_w30_instance() -> Result<()> {
+    async fn test_delete_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
 
-        let mut instance = create_w30_instance(&t).await?;
+        let mut instance = create_webxdc_instance(&t).await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let instance = chat_id.get_draft(&t).await?.unwrap();
-        t.send_w30_status_update(instance.id, "descr", "42").await?;
+        t.send_webxdc_status_update(instance.id, "descr", "42")
+            .await?;
         assert_eq!(
-            t.get_w30_status_updates(instance.id, None).await?,
+            t.get_webxdc_status_updates(instance.id, None).await?,
             r#"[{"payload":42}]"#.to_string()
         );
 
         // set_draft(None) deletes the message without the need to simulate network
         chat_id.set_draft(&t, None).await?;
         assert_eq!(
-            t.get_w30_status_updates(instance.id, None).await?,
+            t.get_webxdc_status_updates(instance.id, None).await?,
             "[]".to_string()
         );
         assert_eq!(
@@ -408,15 +410,15 @@ mod tests {
     async fn test_create_status_update_record() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let instance = send_w30_instance(&t, chat_id).await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
 
-        assert_eq!(t.get_w30_status_updates(instance.id, None).await?, "[]");
+        assert_eq!(t.get_webxdc_status_updates(instance.id, None).await?, "[]");
 
         let id = t
             .create_status_update_record(instance.id, "\n\n{\"foo\":\"bar\"}\n")
             .await?;
         assert_eq!(
-            t.get_w30_status_updates(instance.id, Some(id)).await?,
+            t.get_webxdc_status_updates(instance.id, Some(id)).await?,
             r#"[{"payload":{"foo":"bar"}}]"#
         );
 
@@ -429,11 +431,11 @@ mod tests {
             .await
             .is_err());
         assert_eq!(
-            t.get_w30_status_updates(instance.id, Some(id)).await?,
+            t.get_webxdc_status_updates(instance.id, Some(id)).await?,
             r#"[{"payload":{"foo":"bar"}}]"#
         );
         assert_eq!(
-            t.get_w30_status_updates(instance.id, None).await?,
+            t.get_webxdc_status_updates(instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}}]"#
         );
 
@@ -441,12 +443,12 @@ mod tests {
             .create_status_update_record(instance.id, r#"{"foo2":"bar2"}"#)
             .await?;
         assert_eq!(
-            t.get_w30_status_updates(instance.id, Some(id)).await?,
+            t.get_webxdc_status_updates(instance.id, Some(id)).await?,
             r#"[{"payload":{"foo2":"bar2"}}]"#
         );
         t.create_status_update_record(instance.id, "true").await?;
         assert_eq!(
-            t.get_w30_status_updates(instance.id, None).await?,
+            t.get_webxdc_status_updates(instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}},
 {"payload":{"foo2":"bar2"}},
 {"payload":true}]"#
@@ -459,7 +461,7 @@ mod tests {
     async fn test_receive_status_update() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let instance = send_w30_instance(&t, chat_id).await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
 
         assert!(t
             .receive_status_update(instance.id, r#"foo: bar"#)
@@ -477,14 +479,14 @@ mod tests {
         t.receive_status_update(instance.id, r#"[{"payload":{"foo":"bar"}}]"#)
             .await?;
         assert_eq!(
-            t.get_w30_status_updates(instance.id, None).await?,
+            t.get_webxdc_status_updates(instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}}]"#
         );
 
         t.receive_status_update(instance.id, r#" [ {"payload" :42} , {"payload": 23} ] "#)
             .await?;
         assert_eq!(
-            t.get_w30_status_updates(instance.id, None).await?,
+            t.get_webxdc_status_updates(instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}},
 {"payload":42},
 {"payload":23}]"#
@@ -496,15 +498,15 @@ mod tests {
     async fn expect_status_update_event(t: &TestContext, instance_id: MsgId) -> Result<()> {
         let event = t
             .evtracker
-            .get_matching(|evt| matches!(evt, EventType::W30StatusUpdate { .. }))
+            .get_matching(|evt| matches!(evt, EventType::WebxdcStatusUpdate { .. }))
             .await;
         match event {
-            EventType::W30StatusUpdate {
+            EventType::WebxdcStatusUpdate {
                 msg_id,
                 status_update_id,
             } => {
                 assert_eq!(
-                    t.get_w30_status_updates(msg_id, Some(status_update_id))
+                    t.get_webxdc_status_updates(msg_id, Some(status_update_id))
                         .await?,
                     r#"[{"payload":{"foo":"bar"}}]"#
                 );
@@ -516,19 +518,19 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_send_w30_status_update() -> Result<()> {
+    async fn test_send_webxdc_status_update() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        // Alice sends an w30 instance and a status update
+        // Alice sends an webxdc instance and a status update
         let alice_chat = alice.create_chat(&bob).await;
-        let alice_instance = send_w30_instance(&alice, alice_chat.id).await?;
+        let alice_instance = send_webxdc_instance(&alice, alice_chat.id).await?;
         let sent1 = &alice.pop_sent_msg().await;
-        assert_eq!(alice_instance.viewtype, Viewtype::W30);
+        assert_eq!(alice_instance.viewtype, Viewtype::Webxdc);
         assert!(!sent1.payload().contains("report-type=status-update"));
 
         let status_update_msg_id = alice
-            .send_w30_status_update(alice_instance.id, "descr text", r#"{"foo":"bar"}"#)
+            .send_webxdc_status_update(alice_instance.id, "descr text", r#"{"foo":"bar"}"#)
             .await?
             .unwrap();
         expect_status_update_event(&alice, alice_instance.id).await?;
@@ -548,18 +550,18 @@ mod tests {
         assert!(sent2.payload().contains("descr text"));
         assert_eq!(
             alice
-                .get_w30_status_updates(alice_instance.id, None)
+                .get_webxdc_status_updates(alice_instance.id, None)
                 .await?,
             r#"[{"payload":{"foo":"bar"}}]"#
         );
 
         alice
-            .send_w30_status_update(alice_instance.id, "bla text", r#"{"snipp":"snapp"}"#)
+            .send_webxdc_status_update(alice_instance.id, "bla text", r#"{"snipp":"snapp"}"#)
             .await?
             .unwrap();
         assert_eq!(
             alice
-                .get_w30_status_updates(alice_instance.id, None)
+                .get_webxdc_status_updates(alice_instance.id, None)
                 .await?,
             r#"[{"payload":{"foo":"bar"}},
 {"payload":{"snipp":"snapp"}}]"#
@@ -570,7 +572,7 @@ mod tests {
         let bob_instance = bob.get_last_msg().await;
         let bob_chat_id = bob_instance.chat_id;
         assert_eq!(bob_instance.rfc724_mid, alice_instance.rfc724_mid);
-        assert_eq!(bob_instance.viewtype, Viewtype::W30);
+        assert_eq!(bob_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 1);
 
         bob.recv_msg(sent2).await;
@@ -578,7 +580,7 @@ mod tests {
         assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 1);
 
         assert_eq!(
-            bob.get_w30_status_updates(bob_instance.id, None).await?,
+            bob.get_webxdc_status_updates(bob_instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}}]"#
         );
 
@@ -588,57 +590,57 @@ mod tests {
         alice2.recv_msg(sent2).await;
         let alice2_instance = alice2.get_last_msg().await;
         let alice2_chat_id = alice2_instance.chat_id;
-        assert_eq!(alice2_instance.viewtype, Viewtype::W30);
+        assert_eq!(alice2_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(alice2_chat_id.get_msg_cnt(&alice2).await?, 1);
 
         Ok(())
     }
 
     #[async_std::test]
-    async fn test_draft_and_send_w30_status_update() -> Result<()> {
+    async fn test_draft_and_send_webxdc_status_update() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat_id = alice.create_chat(&bob).await.id;
 
-        // prepare w30 instance,
-        // status updates are not sent for drafts, therefore send_w30_status_update() returns Ok(None)
-        let mut alice_instance = create_w30_instance(&alice).await?;
+        // prepare webxdc instance,
+        // status updates are not sent for drafts, therefore send_webxdc_status_update() returns Ok(None)
+        let mut alice_instance = create_webxdc_instance(&alice).await?;
         alice_chat_id
             .set_draft(&alice, Some(&mut alice_instance))
             .await?;
         let mut alice_instance = alice_chat_id.get_draft(&alice).await?.unwrap();
 
         let status_update_msg_id = alice
-            .send_w30_status_update(alice_instance.id, "descr", r#"{"foo":"bar"}"#)
+            .send_webxdc_status_update(alice_instance.id, "descr", r#"{"foo":"bar"}"#)
             .await?;
         assert_eq!(status_update_msg_id, None);
         let status_update_msg_id = alice
-            .send_w30_status_update(alice_instance.id, "descr", r#"42"#)
+            .send_webxdc_status_update(alice_instance.id, "descr", r#"42"#)
             .await?;
         assert_eq!(status_update_msg_id, None);
 
-        // send w30 instance,
+        // send webxdc instance,
         // the initial status updates are sent together in the same message
         let alice_instance_id = send_msg(&alice, alice_chat_id, &mut alice_instance).await?;
         let sent1 = alice.pop_sent_msg().await;
         let alice_instance = Message::load_from_db(&alice, alice_instance_id).await?;
-        assert_eq!(alice_instance.viewtype, Viewtype::W30);
+        assert_eq!(alice_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(
             alice_instance.get_filename(),
-            Some("minimal.w30".to_string())
+            Some("minimal.xdc".to_string())
         );
         assert_eq!(alice_instance.chat_id, alice_chat_id);
 
         // bob receives the instance together with the initial updates in a single message
         bob.recv_msg(&sent1).await;
         let bob_instance = bob.get_last_msg().await;
-        assert_eq!(bob_instance.viewtype, Viewtype::W30);
-        assert_eq!(bob_instance.get_filename(), Some("minimal.w30".to_string()));
+        assert_eq!(bob_instance.viewtype, Viewtype::Webxdc);
+        assert_eq!(bob_instance.get_filename(), Some("minimal.xdc".to_string()));
         assert!(sent1.payload().contains("Content-Type: application/json"));
         assert!(sent1.payload().contains("status-update.json"));
         assert!(sent1.payload().contains(r#""payload":{"foo":"bar"}"#));
         assert_eq!(
-            bob.get_w30_status_updates(bob_instance.id, None).await?,
+            bob.get_webxdc_status_updates(bob_instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}},
 {"payload":42}]"#
         );
@@ -647,85 +649,82 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_send_w30_status_update_to_non_w30() -> Result<()> {
+    async fn test_send_webxdc_status_update_to_non_webxdc() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
         let msg_id = send_text_msg(&t, chat_id, "ho!".to_string()).await?;
         assert!(t
-            .send_w30_status_update(msg_id, "descr", r#"{"foo":"bar"}"#)
+            .send_webxdc_status_update(msg_id, "descr", r#"{"foo":"bar"}"#)
             .await
             .is_err());
         Ok(())
     }
 
     #[async_std::test]
-    async fn test_get_blob_from_archive() -> Result<()> {
+    async fn test_get_webxdc_blob() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let instance = send_w30_instance(&t, chat_id).await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
 
-        let buf = instance.get_blob_from_archive(&t, "index.html").await?;
+        let buf = instance.get_webxdc_blob(&t, "index.html").await?;
         assert_eq!(buf.len(), 188);
         assert!(String::from_utf8_lossy(&buf).contains("document.write"));
 
         assert!(instance
-            .get_blob_from_archive(&t, "not-existent.html")
+            .get_webxdc_blob(&t, "not-existent.html")
             .await
             .is_err());
         Ok(())
     }
 
     #[async_std::test]
-    async fn test_get_blob_from_archive_with_absolute_paths() -> Result<()> {
+    async fn test_get_webxdc_blob_with_absolute_paths() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let instance = send_w30_instance(&t, chat_id).await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
 
-        let buf = instance.get_blob_from_archive(&t, "/index.html").await?;
+        let buf = instance.get_webxdc_blob(&t, "/index.html").await?;
         assert!(String::from_utf8_lossy(&buf).contains("document.write"));
 
-        assert!(instance
-            .get_blob_from_archive(&t, "/not-there")
-            .await
-            .is_err());
+        assert!(instance.get_webxdc_blob(&t, "/not-there").await.is_err());
         Ok(())
     }
 
     #[async_std::test]
-    async fn test_get_blob_from_archive_subdirs() -> Result<()> {
+    async fn test_get_webxdc_blob_with_subdirs() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let file = t.get_blobdir().join("some-files.w30");
+        let file = t.get_blobdir().join("some-files.xdc");
         File::create(&file)
             .await?
-            .write_all(include_bytes!("../test-data/w30/some-files.w30"))
+            .write_all(include_bytes!("../test-data/webxdc/some-files.xdc"))
             .await?;
-        let mut instance = Message::new(Viewtype::W30);
+        let mut instance = Message::new(Viewtype::Webxdc);
         instance.set_file(file.to_str().unwrap(), None);
         chat_id.set_draft(&t, Some(&mut instance)).await?;
 
-        let buf = instance.get_blob_from_archive(&t, "index.html").await?;
+        let buf = instance.get_webxdc_blob(&t, "index.html").await?;
         assert_eq!(buf.len(), 65);
         assert!(String::from_utf8_lossy(&buf).contains("many files"));
 
-        let buf = instance.get_blob_from_archive(&t, "subdir/bla.txt").await?;
+        let buf = instance.get_webxdc_blob(&t, "subdir/bla.txt").await?;
         assert_eq!(buf.len(), 4);
         assert!(String::from_utf8_lossy(&buf).starts_with("bla"));
 
         let buf = instance
-            .get_blob_from_archive(&t, "subdir/subsubdir/text.md")
+            .get_webxdc_blob(&t, "subdir/subsubdir/text.md")
             .await?;
         assert_eq!(buf.len(), 24);
         assert!(String::from_utf8_lossy(&buf).starts_with("this is a markdown file"));
 
         let buf = instance
-            .get_blob_from_archive(&t, "subdir/subsubdir/text2.md")
+            .get_webxdc_blob(&t, "subdir/subsubdir/text2.md")
             .await?;
         assert_eq!(buf.len(), 22);
         assert!(String::from_utf8_lossy(&buf).starts_with("another markdown"));
 
         let buf = instance
-            .get_blob_from_archive(&t, "anotherdir/anothersubsubdir/foo.txt")
+            .get_webxdc_blob(&t, "anotherdir/anothersubsubdir/foo.txt")
             .await?;
         assert_eq!(buf.len(), 4);
         assert!(String::from_utf8_lossy(&buf).starts_with("foo"));
