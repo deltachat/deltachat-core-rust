@@ -93,7 +93,11 @@ impl Imap {
         // select new folder
         if let Some(folder) = folder {
             if let Some(ref mut session) = &mut self.session {
-                let res = session.select(folder).await;
+                let res = if self.config.can_condstore {
+                    session.select_condstore(folder).await
+                } else {
+                    session.select(folder).await
+                };
 
                 // <https://tools.ietf.org/html/rfc3501#section-6.3.1>
                 // says that if the server reports select failure we are in

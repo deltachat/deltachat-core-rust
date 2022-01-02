@@ -535,6 +535,16 @@ DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
         )
         .await?;
     }
+    if dbversion < 83 {
+        info!(context, "[migration] v83");
+        sql.execute_migration(
+            "ALTER TABLE imap_sync
+             ADD COLUMN modseq -- Highest modification sequence
+             INTEGER DEFAULT 0",
+            83,
+        )
+        .await?;
+    }
 
     Ok((
         recalc_fingerprints,
