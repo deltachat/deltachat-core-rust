@@ -1,6 +1,6 @@
 //! # Messages and their identifiers.
 
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::convert::TryInto;
 
 use anyhow::{ensure, format_err, Context as _, Result};
@@ -1283,7 +1283,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
     })
     .await?;
 
-    let mut updated_chat_ids = BTreeMap::new();
+    let mut updated_chat_ids = BTreeSet::new();
 
     for (id, curr_chat_id, curr_state, curr_blocked) in msgs.into_iter() {
         if let Err(err) = id.start_ephemeral_timer(context).await {
@@ -1305,12 +1305,12 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                 job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
             )
             .await?;
-            updated_chat_ids.insert(curr_chat_id, true);
+            updated_chat_ids.insert(curr_chat_id);
         }
     }
 
-    for updated_chat_id in updated_chat_ids.keys() {
-        context.emit_event(EventType::MsgsNoticed(*updated_chat_id));
+    for updated_chat_id in updated_chat_ids {
+        context.emit_event(EventType::MsgsNoticed(updated_chat_id));
     }
 
     Ok(())
