@@ -1456,7 +1456,7 @@ class TestOnlineAccount:
         ac1_clone.create_chat(ac2).send_text("Hi back")
         ev = ac1._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
 
-        assert ev.data1 == first_msg_id.id
+        assert ev.data1 == first_msg_id.chat.id
         assert ac1.create_chat(ac2).count_fresh_messages() == 0
         assert len(list(ac1.get_fresh_messages())) == 0
 
