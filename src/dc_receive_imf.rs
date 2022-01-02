@@ -17,7 +17,9 @@ use crate::constants::{
     Blocked, Chattype, ShowEmails, Viewtype, DC_CHAT_ID_TRASH, DC_CONTACT_ID_LAST_SPECIAL,
     DC_CONTACT_ID_SELF,
 };
-use crate::contact::{addr_cmp, normalize_name, Contact, Origin, VerifiedStatus};
+use crate::contact::{
+    addr_cmp, may_be_valid_addr, normalize_name, Contact, Origin, VerifiedStatus,
+};
 use crate::context::Context;
 use crate::dc_tools::{dc_extract_grpid_from_rfc724_mid, dc_smeared_time};
 use crate::download::DownloadState;
@@ -2284,14 +2286,17 @@ async fn dc_add_or_lookup_contacts_by_address_list(
 ) -> Result<Vec<u32>> {
     let mut contact_ids = BTreeSet::new();
     for info in address_list.iter() {
+        let addr = &info.addr;
+        if !may_be_valid_addr(addr) {
+            continue;
+        }
         let display_name = if prevent_rename {
             Some("")
         } else {
             info.display_name.as_deref()
         };
-        contact_ids.insert(
-            add_or_lookup_contact_by_addr(context, display_name, &info.addr, origin).await?,
-        );
+        contact_ids
+            .insert(add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?);
     }
 
     Ok(contact_ids.into_iter().collect::<Vec<u32>>())
@@ -4986,6 +4991,18 @@ Message with references."#;
 
         let msg = bob.get_last_msg().await;
         assert!(msg.get_showpadlock());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_invalid_to_address() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let mime = include_bytes!("../test-data/message/invalid_email_to.eml");
+
+        // dc_receive_imf should not fail on this mail with invalid To: field
+        dc_receive_imf(&alice, mime, "Inbox", false).await?;
 
         Ok(())
     }
