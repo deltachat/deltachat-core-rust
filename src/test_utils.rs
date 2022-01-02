@@ -317,7 +317,9 @@ impl TestContext {
             .execute("DELETE FROM jobs WHERE id=?;", paramsv![rowid])
             .await
             .expect("failed to remove job");
-        update_msg_state(&self.ctx, id, MessageState::OutDelivered).await;
+        update_msg_state(&self.ctx, id, MessageState::OutDelivered)
+            .await
+            .expect("failed to update message state");
         SentMessage {
             params,
             blob_path,

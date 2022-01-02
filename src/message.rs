@@ -1297,7 +1297,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
         if curr_blocked == Blocked::Not
             && (curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed)
         {
-            update_msg_state(context, id, MessageState::InSeen).await;
+            update_msg_state(context, id, MessageState::InSeen).await?;
             info!(context, "Seen message {}.", id);
 
             job::add(
@@ -1316,15 +1316,19 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
     Ok(())
 }
 
-pub async fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageState) -> bool {
+pub(crate) async fn update_msg_state(
+    context: &Context,
+    msg_id: MsgId,
+    state: MessageState,
+) -> Result<()> {
     context
         .sql
         .execute(
             "UPDATE msgs SET state=? WHERE id=?;",
             paramsv![state, msg_id],
         )
-        .await
-        .is_ok()
+        .await?;
+    Ok(())
 }
 
 // as we do not cut inside words, this results in about 32-42 characters.
@@ -1456,7 +1460,7 @@ pub async fn handle_mdn(
         || msg_state == MessageState::OutPending
         || msg_state == MessageState::OutDelivered
     {
-        update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await;
+        update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await?;
         Ok(Some((chat_id, msg_id)))
     } else {
         Ok(None)
@@ -2043,7 +2047,7 @@ mod tests {
         let payload = alice.pop_sent_msg().await;
         assert_state(&alice, alice_msg.id, MessageState::OutDelivered).await;
 
-        update_msg_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await;
+        update_msg_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await?;
         assert_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await;
 
         set_msg_failed(&alice, alice_msg.id, Some("badly failed")).await;

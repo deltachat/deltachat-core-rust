@@ -2004,7 +2004,7 @@ async fn prepare_send_msg(
             chat_id.is_unset() || chat_id == msg.chat_id,
             "Inconsistent chat ID"
         );
-        message::update_msg_state(context, msg.id, MessageState::OutPending).await;
+        message::update_msg_state(context, msg.id, MessageState::OutPending).await?;
     }
     let job = job::send_msg_job(context, msg.id).await?;
 

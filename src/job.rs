@@ -704,7 +704,7 @@ pub async fn action_exists(context: &Context, action: Action) -> Result<bool> {
 }
 
 async fn set_delivered(context: &Context, msg_id: MsgId) -> Result<()> {
-    message::update_msg_state(context, msg_id, MessageState::OutDelivered).await;
+    message::update_msg_state(context, msg_id, MessageState::OutDelivered).await?;
     let chat_id: ChatId = context
         .sql
         .query_get_value("SELECT chat_id FROM msgs WHERE id=?", paramsv![msg_id])
