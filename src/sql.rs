@@ -84,7 +84,8 @@ impl Sql {
             .with_flags(open_flags)
             .with_init(|c| {
                 c.execute_batch(&format!(
-                    "PRAGMA secure_delete=on;
+                    "PRAGMA cipher_memory_security = OFF; -- Too slow on Android
+                     PRAGMA secure_delete=on;
                      PRAGMA busy_timeout = {};
                      PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                      ",
