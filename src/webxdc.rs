@@ -106,7 +106,10 @@ impl Context {
         let status_update_id = self
             .create_status_update_record(instance_msg_id, payload)
             .await?;
-
+        self.emit_event(EventType::WebxdcStatusUpdate {
+            msg_id: instance_msg_id,
+            status_update_id,
+        });
         match instance.state {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft => {
                 // send update once the instance is actually send
@@ -133,10 +136,6 @@ impl Context {
                 status_update.set_quote(self, &instance).await?;
                 let status_update_msg_id =
                     chat::send_msg(self, instance.chat_id, &mut status_update).await?;
-                self.emit_event(EventType::WebxdcStatusUpdate {
-                    msg_id: instance_msg_id,
-                    status_update_id,
-                });
                 Ok(Some(status_update_msg_id))
             }
         }
@@ -614,6 +613,7 @@ mod tests {
             .send_webxdc_status_update(alice_instance.id, "descr", r#"{"foo":"bar"}"#)
             .await?;
         assert_eq!(status_update_msg_id, None);
+        expect_status_update_event(&alice, alice_instance.id).await?;
         let status_update_msg_id = alice
             .send_webxdc_status_update(alice_instance.id, "descr", r#"42"#)
             .await?;
