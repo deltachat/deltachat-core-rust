@@ -3631,6 +3631,27 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
 
 
 /**
+ * Get info a webxdc message, in JSON format.
+ * The returned JSON string has the following key/values:
+ *
+ * - name: The name of the app.
+ *   Defaults to the filename if not set in the manifest.
+ * - icon: App icon file name.
+ *   Defaults to an standard icon if nothing is set in the manifest.
+ *   To get the file, use dc_msg_get_webxdc_blob().
+ *   App icons should should be square,
+ *   the implementations will add round corners etc. as needed.
+ *
+ * @memberof dc_msg_t
+ * @param msg The webxdc instance.
+ * @return a UTF8-encoded JSON string containing all requested info.
+ *     Must be freed using dc_str_unref().
+ *     NULL is never returned.
+ */
+char*             dc_msg_get_webxdc_info      (const dc_msg_t* msg);
+
+
+/**
  * Get the size of the file.  Returns the size of the file associated with a
  * message, if applicable.
  *
