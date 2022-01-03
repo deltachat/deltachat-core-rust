@@ -12,6 +12,7 @@ Filename encoding                | Encoded Words ([RFC 2047](https://tools.ietf.
 Identify server folders          | IMAP LIST Extension ([RFC 6154](https://tools.ietf.org/html/rfc6154))
 Push                             | IMAP IDLE ([RFC 2177](https://tools.ietf.org/html/rfc2177))
 Quota                            | IMAP QUOTA extension ([RFC 2087](https://tools.ietf.org/html/rfc2087))
+Seen status synchronization      | IMAP CONDSTORE extension ([RFC 7162](https://tools.ietf.org/html/rfc7162))
 Authorization                    | OAuth2 ([RFC 6749](https://tools.ietf.org/html/rfc6749))
 End-to-end encryption            | [Autocrypt Level 1](https://autocrypt.org/level1.html), OpenPGP ([RFC 4880](https://tools.ietf.org/html/rfc4880)), Security Multiparts for MIME ([RFC 1847](https://tools.ietf.org/html/rfc1847)) and [“Mixed Up” Encryption repairing](https://tools.ietf.org/id/draft-dkg-openpgp-pgpmime-message-mangling-00.html)
 Configuration assistance         | [Autoconfigure](https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration) and [Autodiscover](https://technet.microsoft.com/library/bb124251(v=exchg.150).aspx)
