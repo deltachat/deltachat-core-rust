@@ -16,6 +16,22 @@ use std::convert::TryFrom;
 use std::io::Read;
 
 pub const WEBXDC_SUFFIX: &str = "xdc";
+const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
+
+/// Raw information read from manifest.toml
+#[derive(Debug, Deserialize)]
+#[non_exhaustive]
+struct WebxdcManifest {
+    name: Option<String>,
+    icon: Option<String>,
+}
+
+/// Parsed information from WebxdcManifest and fallbacks.
+#[derive(Debug, Serialize)]
+pub struct WebxdcInfo {
+    pub name: String,
+    pub icon: String,
+}
 
 /// Status Update ID.
 #[derive(
@@ -227,11 +243,20 @@ impl Context {
     }
 }
 
+async fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
+    let manifest: WebxdcManifest = toml::from_slice(bytes)?;
+    Ok(manifest)
+}
+
 impl Message {
     /// Return file form inside an archive.
     /// Currently, this works only if the message is an webxdc instance.
     pub async fn get_webxdc_blob(&self, context: &Context, name: &str) -> Result<Vec<u8>> {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
+
+        if name == WEBXDC_DEFAULT_ICON {
+            return Ok(include_bytes!("../assets/icon-webxdc.png").to_vec());
+        }
 
         let archive = self
             .get_file(context)
@@ -252,6 +277,58 @@ impl Message {
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)?;
         Ok(buf)
+    }
+
+    /// Return info from manifest.toml or from fallbacks.
+    pub async fn get_webxdc_info(&self, context: &Context) -> Result<WebxdcInfo> {
+        ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
+
+        let mut manifest = if let Ok(bytes) = self.get_webxdc_blob(context, "manifest.toml").await {
+            if let Ok(manifest) = parse_webxdc_manifest(&bytes).await {
+                manifest
+            } else {
+                WebxdcManifest {
+                    name: None,
+                    icon: None,
+                }
+            }
+        } else {
+            WebxdcManifest {
+                name: None,
+                icon: None,
+            }
+        };
+
+        if let Some(ref name) = manifest.name {
+            let name = name.trim();
+            if name.is_empty() {
+                warn!(context, "empty name given in manifest");
+                manifest.name = None;
+            }
+        }
+
+        if let Some(ref icon) = manifest.icon {
+            if !icon.ends_with(".png") && !icon.ends_with(".jpg") {
+                warn!(context, "bad icon format \"{}\"; use .png or .jpg", icon);
+                manifest.icon = None;
+            } else if self.get_webxdc_blob(context, icon).await.is_err() {
+                warn!(context, "cannot find icon \"{}\"", icon);
+                manifest.icon = None;
+            }
+        }
+
+        Ok(WebxdcInfo {
+            name: if let Some(name) = manifest.name {
+                name
+            } else {
+                self.get_filename().unwrap_or_default()
+            },
+            icon: if let Some(icon) = manifest.icon {
+                icon
+            } else {
+                WEBXDC_DEFAULT_ICON.to_string()
+            },
+        })
     }
 }
 
@@ -305,19 +382,21 @@ mod tests {
         Ok(())
     }
 
-    async fn create_webxdc_instance(t: &TestContext) -> Result<Message> {
-        let file = t.get_blobdir().join("minimal.xdc");
-        File::create(&file)
-            .await?
-            .write_all(include_bytes!("../test-data/webxdc/minimal.xdc"))
-            .await?;
+    async fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
+        let file = t.get_blobdir().join(name);
+        File::create(&file).await?.write_all(bytes).await?;
         let mut instance = Message::new(Viewtype::File);
         instance.set_file(file.to_str().unwrap(), None);
         Ok(instance)
     }
 
     async fn send_webxdc_instance(t: &TestContext, chat_id: ChatId) -> Result<Message> {
-        let mut instance = create_webxdc_instance(t).await?;
+        let mut instance = create_webxdc_instance(
+            t,
+            "minimal.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
         let instance_msg_id = send_msg(t, chat_id, &mut instance).await?;
         Message::load_from_db(t, instance_msg_id).await
     }
@@ -379,7 +458,12 @@ mod tests {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
 
-        let mut instance = create_webxdc_instance(&t).await?;
+        let mut instance = create_webxdc_instance(
+            &t,
+            "minimal.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let instance = chat_id.get_draft(&t).await?.unwrap();
         t.send_webxdc_status_update(instance.id, "descr", "42")
@@ -603,7 +687,12 @@ mod tests {
 
         // prepare webxdc instance,
         // status updates are not sent for drafts, therefore send_webxdc_status_update() returns Ok(None)
-        let mut alice_instance = create_webxdc_instance(&alice).await?;
+        let mut alice_instance = create_webxdc_instance(
+            &alice,
+            "minimal.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
         alice_chat_id
             .set_draft(&alice, Some(&mut alice_instance))
             .await?;
@@ -678,6 +767,18 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_get_webxdc_blob_default_icon() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+
+        let buf = instance.get_webxdc_blob(&t, WEBXDC_DEFAULT_ICON).await?;
+        assert!(buf.len() > 100);
+        assert!(String::from_utf8_lossy(&buf).contains("PNG\r\n"));
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_get_webxdc_blob_with_absolute_paths() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -694,13 +795,12 @@ mod tests {
     async fn test_get_webxdc_blob_with_subdirs() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let file = t.get_blobdir().join("some-files.xdc");
-        File::create(&file)
-            .await?
-            .write_all(include_bytes!("../test-data/webxdc/some-files.xdc"))
-            .await?;
-        let mut instance = Message::new(Viewtype::Webxdc);
-        instance.set_file(file.to_str().unwrap(), None);
+        let mut instance = create_webxdc_instance(
+            &t,
+            "some-files.xdc",
+            include_bytes!("../test-data/webxdc/some-files.xdc"),
+        )
+        .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
 
         let buf = instance.get_webxdc_blob(&t, "index.html").await?;
@@ -728,6 +828,128 @@ mod tests {
             .await?;
         assert_eq!(buf.len(), 4);
         assert!(String::from_utf8_lossy(&buf).starts_with("foo"));
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_parse_webxdc_manifest() -> Result<()> {
+        let result = parse_webxdc_manifest(r#"key = syntax error"#.as_bytes()).await;
+        assert!(result.is_err());
+
+        let manifest = parse_webxdc_manifest(r#"no_name = "no name, no icon""#.as_bytes()).await?;
+        assert_eq!(manifest.name, None);
+        assert_eq!(manifest.icon, None);
+
+        let manifest = parse_webxdc_manifest(r#"name = "name, no icon""#.as_bytes()).await?;
+        assert_eq!(manifest.name, Some("name, no icon".to_string()));
+        assert_eq!(manifest.icon, None);
+
+        let manifest = parse_webxdc_manifest(
+            r#"name = "foo"
+icon = "bar""#
+                .as_bytes(),
+        )
+        .await?;
+        assert_eq!(manifest.name, Some("foo".to_string()));
+        assert_eq!(manifest.icon, Some("bar".to_string()));
+
+        let manifest = parse_webxdc_manifest(
+            r#"name = "foz"
+icon = "baz"
+add_item = "that should be just ignored"
+
+[section]
+sth_for_the = "future""#
+                .as_bytes(),
+        )
+        .await?;
+        assert_eq!(manifest.name, Some("foz".to_string()));
+        assert_eq!(manifest.icon, Some("baz".to_string()));
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_get_webxdc_info() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        let info = instance.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "minimal.xdc");
+        assert_eq!(info.icon, WEBXDC_DEFAULT_ICON.to_string());
+
+        let mut instance = create_webxdc_instance(
+            &t,
+            "with-manifest-empty-name.xdc",
+            include_bytes!("../test-data/webxdc/with-manifest-empty-name.xdc"),
+        )
+        .await?;
+        chat_id.set_draft(&t, Some(&mut instance)).await?;
+        let info = instance.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "with-manifest-empty-name.xdc");
+        assert_eq!(info.icon, WEBXDC_DEFAULT_ICON.to_string());
+
+        let mut instance = create_webxdc_instance(
+            &t,
+            "with-manifest-no-name.xdc",
+            include_bytes!("../test-data/webxdc/with-manifest-no-name.xdc"),
+        )
+        .await?;
+        chat_id.set_draft(&t, Some(&mut instance)).await?;
+        let info = instance.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "with-manifest-no-name.xdc");
+        assert_eq!(info.icon, "some.png".to_string());
+
+        let mut instance = create_webxdc_instance(
+            &t,
+            "with-minimal-manifest.xdc",
+            include_bytes!("../test-data/webxdc/with-minimal-manifest.xdc"),
+        )
+        .await?;
+        chat_id.set_draft(&t, Some(&mut instance)).await?;
+        let info = instance.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "nice app!");
+        assert_eq!(info.icon, WEBXDC_DEFAULT_ICON.to_string());
+
+        let mut instance = create_webxdc_instance(
+            &t,
+            "with-manifest-icon-not-existent.xdc",
+            include_bytes!("../test-data/webxdc/with-manifest-icon-not-existent.xdc"),
+        )
+        .await?;
+        chat_id.set_draft(&t, Some(&mut instance)).await?;
+        let info = instance.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "with bad icon");
+        assert_eq!(info.icon, WEBXDC_DEFAULT_ICON.to_string());
+
+        let mut instance = create_webxdc_instance(
+            &t,
+            "with-manifest-and-icon.xdc",
+            include_bytes!("../test-data/webxdc/with-manifest-and-icon.xdc"),
+        )
+        .await?;
+        chat_id.set_draft(&t, Some(&mut instance)).await?;
+        let info = instance.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "with some icon");
+        assert_eq!(info.icon, "some.png");
+
+        let mut instance = create_webxdc_instance(
+            &t,
+            "with-manifest-and-unsupported-icon-format.xdc",
+            include_bytes!("../test-data/webxdc/with-manifest-and-unsupported-icon-format.xdc"),
+        )
+        .await?;
+        chat_id.set_draft(&t, Some(&mut instance)).await?;
+        let info = instance.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "with tiff icon");
+        assert_eq!(info.icon, WEBXDC_DEFAULT_ICON);
+
+        let msg_id = send_text_msg(&t, chat_id, "foo".to_string()).await?;
+        let msg = Message::load_from_db(&t, msg_id).await?;
+        let result = msg.get_webxdc_info(&t).await;
+        assert!(result.is_err());
 
         Ok(())
     }
