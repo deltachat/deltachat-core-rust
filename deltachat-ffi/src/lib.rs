@@ -3039,7 +3039,6 @@ pub unsafe extern "C" fn dc_msg_get_webxdc_blob(
     });
     match blob {
         Ok(blob) => {
-            // TODO: introduce dc_blob_t to avoid malloc and returning size by pointer and to save copying data
             *ret_bytes = blob.len();
             let ptr = libc::malloc(*ret_bytes);
             libc::memcpy(ptr, blob.as_ptr() as *mut libc::c_void, *ret_bytes);
@@ -3050,6 +3049,29 @@ pub unsafe extern "C" fn dc_msg_get_webxdc_blob(
             ptr::null_mut()
         }
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_webxdc_info(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_webxdc_info()");
+        return "".strdup();
+    }
+    let ffi_msg = &*msg;
+    let ctx = &*ffi_msg.context;
+
+    block_on(async move {
+        let info = match ffi_msg.message.get_webxdc_info(ctx).await {
+            Ok(info) => info,
+            Err(err) => {
+                error!(ctx, "dc_msg_get_webxdc_info() failed to get info: {}", err);
+                return "".strdup();
+            }
+        };
+        serde_json::to_string(&info)
+            .unwrap_or_log_default(ctx, "dc_msg_get_webxdc_info() failed to serialise to json")
+            .strdup()
+    })
 }
 
 #[no_mangle]
