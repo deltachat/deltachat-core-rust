@@ -66,6 +66,7 @@ and also incorporate updates that may have arrived while the app was not running
   eg. `[{payload: "foo"},{payload: "bar"}]`
   if `webxdc.sendUpdate("foo"); webxdc.sendUpdate("bar");` was called on the last run.
 
+
 ### selfAddr()
 
 ```
@@ -76,6 +77,17 @@ Returns the peer's own address.
 This is esp. useful if you want to differ between different peers -
 just send the address along with the payload,
 and, if needed, compare the payload addresses against selfAddr() later on.
+
+
+### selfName()
+
+```
+addr = window.webxdc.selfName()
+```
+
+Returns the peer's own name.
+This is name chosen by the user in their settings,
+if there is nothing set, that defaults to the peer's address.
 
 
 ## Webxdc Example
