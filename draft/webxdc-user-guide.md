@@ -105,6 +105,7 @@ The following example shows an input field and  every input is show on all peers
       }
     
       window.webxdc.setUpdateListener(receiveUpdate);
+      window.webxdc.getAllUpdates().forEach(receiveUpdate);
 
     </script>
   </body>
