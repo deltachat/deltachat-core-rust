@@ -1,22 +1,19 @@
 # webxdc: at least 200 times more interesting than Web3 :) 
 
-webxdc combines secure chat-messaging and web tech in a unique way to fix shortcomings of both Web2 and Web3 to provide: 
-
-- the well-known Web UX without logins, accounts or servers 
-- a new fun P2P web app dev playground with very low barrier of entry 
-
-In other words, decentralized secure interactive web apps without coins, chains or stores :)
+webxdc combines secure chat-messaging and web tech to provide fertile ground for
+a decentralized secure web app eco-system without servers, coins or chains. 
 
 ## How webxdc works  
 
+webxdc apps use existing chat groups (instead of web servers) to communicate with each other, with roughly this technical work flow: 
+
 1. Send a message to a chat with an webxdc app (archive or bundled html) as attachment. 
 
-2. On tapping chat members can open a sandboxed system web view from the unpacked webxdc app.
+2. On tapping chat members open a sandboxed system web view from the unpacked webxdc app.
+   Sandboxed webxdc apps are barred from making any network requests, reloading code or resources. 
 
-3. webxdc apps use automatically injected send/receive app message API to route app-state updates to other app users in the chat.
+3. webxdc apps can not reach the internet themselves and rather can only send "app-state" update message to other app users in the chat group.
 
-Sandboxed webxdc apps are barred from making any network requests, reloading code or resources. 
-Webxdc apps rather need to bring all the resources with them and need to use the send/receive API provided by Delta Chat Apps.
 
 ## Benefits to users of webxdc apps 
 
@@ -25,7 +22,7 @@ Webxdc apps rather need to bring all the resources with them and need to use the
 - no need for logins, accounts or discovery mechanisms because apps start and run privately 
   from an existing social chat context 
 
-- privacy by protocol: leaking of content or metadata from app app usage virtually impossible
+- privacy by protocol: leaking of content or metadata from app usage virtually impossible
 
 - webxdc app messaging is also e2e-encrypted by default and there is no
   way to read or collect app state information, not even by webxdc app developers 
@@ -56,4 +53,7 @@ Network usage is minimal. Webxdc is designed to run and to be tested with end-us
 
 As webxdc does not require browsers to make remote network requests, a lot of the related attack surfaces and code complexity is cut out. 
 
-webxdc apps could be easily used also by other chat messengers. Alas, most messengers are busy with introducing advertising or blockchains so we are not holding our breath. We will be there and open for collaboration when the time comes :) 
+## Is webxdc tied to Delta Chat? 
+
+Webxdc apps could be used by other chat messengers. However, most of those are busy with introducing advertising or blockchains so we are not holding our breath right now. Rest assured, when the time comes and interest rises we'll be there and open to collaboration :)
+
