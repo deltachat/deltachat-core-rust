@@ -17,13 +17,13 @@ There are some additional APIs available once `webxdc.js` is included
 (the file will be provided by the concrete implementations,
 no need to add `webxdc.js` to your ZIP-file):
 
-```
+```html
 <script src="webxdc.js></script>
 ```
 
 ### sendUpdate()
 
-```
+```js
 window.webxdc.sendUpdate(descr, payload);
 ```
 
@@ -39,7 +39,7 @@ will receive the update by the callback given to `setUpdateListener()`.
 
 ### setUpdateListener()
 
-```
+```js
 window.webxdc.setUpdateListener((update) => {});
 ```
 
@@ -69,7 +69,7 @@ and also incorporate updates that may have arrived while the app was not running
 
 ### selfAddr()
 
-```
+```js
 addr = window.webxdc.selfAddr()
 ```
 
@@ -81,13 +81,33 @@ and, if needed, compare the payload addresses against selfAddr() later on.
 
 ### selfName()
 
-```
+```js
 addr = window.webxdc.selfName()
 ```
 
 Returns the peer's own name.
 This is name chosen by the user in their settings,
 if there is nothing set, that defaults to the peer's address.
+
+
+## manifest.toml
+
+If the ZIP-file contains a `manifest.toml` in its root directory,
+some basic information are read and used from there.
+
+the `manifest.toml` has the following format
+
+```toml
+name = "My App Name"
+icon = "icon.png"
+```
+
+- **name** - The name of the app.
+  If no name is set or if there is no manifest, the filename is used as the app name.
+- **icon** - The icon to use for the app.
+  The icon must be a `.png` or `.jpg` file and is read from the ZIP-file root directory.
+  The icon should be a square at reasonable width/height.
+  If no icon is set or if there is no manifest, a default icon will be used.
 
 
 ## Webxdc Example
