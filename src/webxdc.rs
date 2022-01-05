@@ -149,7 +149,7 @@ impl Context {
                     self.get_webxdc_status_updates(instance_msg_id, Some(status_update_id))
                         .await?,
                 );
-                status_update.set_quote(self, &instance).await?;
+                status_update.set_quote(self, Some(&instance)).await?;
                 let status_update_msg_id =
                     chat::send_msg(self, instance.chat_id, &mut status_update).await?;
                 Ok(Some(status_update_msg_id))
