@@ -3442,6 +3442,58 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_change_quotes_on_reused_message_object() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
+        let quote1 =
+            Message::load_from_db(&t, send_text_msg(&t, chat_id, "quote1".to_string()).await?)
+                .await?;
+        let quote2 =
+            Message::load_from_db(&t, send_text_msg(&t, chat_id, "quote2".to_string()).await?)
+                .await?;
+
+        // save a draft
+        let mut draft = Message::new(Viewtype::Text);
+        draft.set_text(Some("draft text".to_string()));
+        chat_id.set_draft(&t, Some(&mut draft)).await?;
+
+        let test = Message::load_from_db(&t, draft.id).await?;
+        assert_eq!(test.text, Some("draft text".to_string()));
+        assert!(test.quoted_text().is_none());
+        assert!(test.quoted_message(&t).await?.is_none());
+
+        // add quote to same message object
+        draft.set_quote(&t, Some(&quote1)).await?;
+        chat_id.set_draft(&t, Some(&mut draft)).await?;
+
+        let test = Message::load_from_db(&t, draft.id).await?;
+        assert_eq!(test.text, Some("draft text".to_string()));
+        assert_eq!(test.quoted_text(), Some("quote1".to_string()));
+        assert_eq!(test.quoted_message(&t).await?.unwrap().id, quote1.id);
+
+        // change quote on same message object
+        draft.set_text(Some("another draft text".to_string()));
+        draft.set_quote(&t, Some(&quote2)).await?;
+        chat_id.set_draft(&t, Some(&mut draft)).await?;
+
+        let test = Message::load_from_db(&t, draft.id).await?;
+        assert_eq!(test.text, Some("another draft text".to_string()));
+        assert_eq!(test.quoted_text(), Some("quote2".to_string()));
+        assert_eq!(test.quoted_message(&t).await?.unwrap().id, quote2.id);
+
+        // remove quote on same message object
+        draft.set_quote(&t, None).await?;
+        chat_id.set_draft(&t, Some(&mut draft)).await?;
+
+        let test = Message::load_from_db(&t, draft.id).await?;
+        assert_eq!(test.text, Some("another draft text".to_string()));
+        assert!(test.quoted_text().is_none());
+        assert!(test.quoted_message(&t).await?.is_none());
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
         let t = TestContext::new().await;
@@ -4746,7 +4798,7 @@ mod tests {
         // Bob quotes received message and sends a reply to Alice.
         let mut reply = Message::new(Viewtype::Text);
         reply.set_text(Some("Reply".to_owned()));
-        reply.set_quote(&bob, &received_msg).await?;
+        reply.set_quote(&bob, Some(&received_msg)).await?;
         let sent_reply = bob.send_msg(bob_chat.id, &mut reply).await;
         alice.recv_msg(&sent_reply).await;
         let received_reply = alice.get_last_msg().await;

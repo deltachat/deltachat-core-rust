@@ -756,35 +756,40 @@ impl Message {
     ///
     /// The message itself is not required to exist in the database,
     /// it may even be deleted from the database by the time the message is prepared.
-    pub async fn set_quote(&mut self, context: &Context, quote: &Message) -> Result<()> {
-        ensure!(
-            !quote.rfc724_mid.is_empty(),
-            "Message without Message-Id cannot be quoted"
-        );
-        self.in_reply_to = Some(quote.rfc724_mid.clone());
+    pub async fn set_quote(&mut self, context: &Context, quote: Option<&Message>) -> Result<()> {
+        if let Some(quote) = quote {
+            ensure!(
+                !quote.rfc724_mid.is_empty(),
+                "Message without Message-Id cannot be quoted"
+            );
+            self.in_reply_to = Some(quote.rfc724_mid.clone());
 
-        if quote
-            .param
-            .get_bool(Param::GuaranteeE2ee)
-            .unwrap_or_default()
-        {
-            self.param.set(Param::GuaranteeE2ee, "1");
+            if quote
+                .param
+                .get_bool(Param::GuaranteeE2ee)
+                .unwrap_or_default()
+            {
+                self.param.set(Param::GuaranteeE2ee, "1");
+            }
+
+            let text = quote.get_text().unwrap_or_default();
+            self.param.set(
+                Param::Quote,
+                if text.is_empty() {
+                    // Use summary, similar to "Image" to avoid sending empty quote.
+                    quote
+                        .get_summary(context, None)
+                        .await?
+                        .truncated_text(500)
+                        .to_string()
+                } else {
+                    text
+                },
+            );
+        } else {
+            self.in_reply_to = None;
+            self.param.remove(Param::Quote);
         }
-
-        let text = quote.get_text().unwrap_or_default();
-        self.param.set(
-            Param::Quote,
-            if text.is_empty() {
-                // Use summary, similar to "Image" to avoid sending empty quote.
-                quote
-                    .get_summary(context, None)
-                    .await?
-                    .truncated_text(500)
-                    .to_string()
-            } else {
-                text
-            },
-        );
 
         Ok(())
     }
@@ -1850,7 +1855,9 @@ mod tests {
         assert!(!msg.rfc724_mid.is_empty());
 
         let mut msg2 = Message::new(Viewtype::Text);
-        msg2.set_quote(ctx, &msg).await.expect("can't set quote");
+        msg2.set_quote(ctx, Some(&msg))
+            .await
+            .expect("can't set quote");
         assert!(msg2.quoted_text() == msg.get_text());
 
         let quoted_msg = msg2

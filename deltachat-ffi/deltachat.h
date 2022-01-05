@@ -4165,7 +4165,8 @@ void            dc_msg_latefiling_mediasize   (dc_msg_t* msg, int width, int hei
  *
  * @memberof dc_msg_t
  * @param msg The message object to set the reply to.
- * @param quote The quote to set for msg.
+ * @param quote The quote to set for the message object given as `msg`.
+ *     NULL removes an previously set quote.
  */
 void             dc_msg_set_quote             (dc_msg_t* msg, const dc_msg_t* quote);
 
