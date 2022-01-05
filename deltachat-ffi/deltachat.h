@@ -971,7 +971,7 @@ int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const 
 
 
 /**
- * Get status updates.
+ * Get webxdc status updates.
  * The status updates may be sent by yourself or by other members using dc_send_webxdc_status_update().
  * In both cases, you will be informed by #DC_EVENT_WEBXDC_STATUS_UPDATE
  * whenever there is a new update.
@@ -4810,8 +4810,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
- * webxdc-Message.
- * Message with HTML5, CSS and related content.
+ * The message is a webxdc instance.
  *
  * To send data to a webxdc instance, use dc_send_webxdc_status_update()
  */
