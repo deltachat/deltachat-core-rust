@@ -3372,17 +3372,21 @@ pub unsafe extern "C" fn dc_msg_set_quote(msg: *mut dc_msg_t, quote: *const dc_m
         return;
     }
     let ffi_msg = &mut *msg;
-    let ffi_quote = &*quote;
-
-    if ffi_msg.context != ffi_quote.context {
-        eprintln!("ignoring attempt to quote message from a different context");
-        return;
-    }
+    let quote_msg = if quote.is_null() {
+        None
+    } else {
+        let ffi_quote = &*quote;
+        if ffi_msg.context != ffi_quote.context {
+            eprintln!("ignoring attempt to quote message from a different context");
+            return;
+        }
+        Some(&ffi_quote.message)
+    };
 
     block_on(async move {
         ffi_msg
             .message
-            .set_quote(&*ffi_msg.context, &ffi_quote.message)
+            .set_quote(&*ffi_msg.context, quote_msg)
             .await
             .log_err(&*ffi_msg.context, "failed to set quote")
             .ok();

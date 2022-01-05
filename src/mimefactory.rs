@@ -1688,7 +1688,7 @@ mod tests {
             let mut new_msg = Message::new(Viewtype::Text);
             new_msg.set_text(Some("Hi".to_string()));
             if let Some(q) = quote {
-                new_msg.set_quote(t, q).await?;
+                new_msg.set_quote(t, Some(q)).await?;
             }
             let sent = t.send_msg(group_id, &mut new_msg).await;
             get_subject(t, sent).await
@@ -1857,7 +1857,7 @@ mod tests {
         }
 
         if reply {
-            new_msg.set_quote(&t, &incoming_msg).await.unwrap();
+            new_msg.set_quote(&t, Some(&incoming_msg)).await.unwrap();
         }
 
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
