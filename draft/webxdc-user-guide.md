@@ -10,15 +10,12 @@
 
 ## Webxdc API
 
-Webxdc apps can do anything that is allowed in webviews -
-html, css, images, canvas, javascript and so on.
-
 There are some additional APIs available once `webxdc.js` is included
 (the file will be provided by the concrete implementations,
 no need to add `webxdc.js` to your ZIP-file):
 
 ```html
-<script src="webxdc.js></script>
+<script src="webxdc.js"></script>
 ```
 
 ### sendUpdate()
@@ -106,7 +103,8 @@ icon = "icon.png"
   If no name is set or if there is no manifest, the filename is used as the app name.
 - **icon** - The icon to use for the app.
   The icon must be a `.png` or `.jpg` file and is read from the ZIP-file root directory.
-  The icon should be a square at reasonable width/height.
+  The icon should be a square at reasonable width/height
+  and the implementations will add round corners etc. as needed.
   If no icon is set or if there is no manifest, a default icon will be used.
 
 
