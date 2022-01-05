@@ -71,7 +71,7 @@ impl Imap {
             // Don't scan folders that are watched anyway
             if !watched_folders.contains(&folder.name().to_string()) && !is_drafts {
                 // Drain leftover unsolicited EXISTS messages
-                self.server_sent_unsolicited_exists(context);
+                self.server_sent_unsolicited_exists(context)?;
 
                 loop {
                     self.fetch_move_delete(context, folder.name())
@@ -79,7 +79,7 @@ impl Imap {
                         .ok_or_log_msg(context, "Can't fetch new msgs in scanned folder");
 
                     // If the server sent an unsocicited EXISTS during the fetch, we need to fetch again
-                    if !self.server_sent_unsolicited_exists(context) {
+                    if !self.server_sent_unsolicited_exists(context)? {
                         break;
                     }
                 }

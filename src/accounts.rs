@@ -56,7 +56,9 @@ impl Accounts {
         let config_file = dir.join(CONFIG_NAME);
         ensure!(config_file.exists().await, "accounts.toml does not exist");
 
-        let config = Config::from_file(config_file).await?;
+        let config = Config::from_file(config_file)
+            .await
+            .context("failed to load accounts config")?;
         let accounts = config.load_accounts().await?;
 
         let emitter = EventEmitter::new();

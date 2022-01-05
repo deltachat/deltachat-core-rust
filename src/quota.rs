@@ -1,6 +1,6 @@
 //! # Support for IMAP QUOTA extension.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context as _, Result};
 use async_imap::types::{Quota, QuotaResource};
 use std::collections::BTreeMap;
 
@@ -64,7 +64,7 @@ async fn get_unique_quota_roots_and_usage(
                     .iter()
                     .find(|q| &q.root_name == quota_root_name)
                     .cloned()
-                    .ok_or_else(|| anyhow!("quota_root should have a quota"))?;
+                    .context("quota_root should have a quota")?;
                 // replace old quotas, because between fetching quotaroots for folders,
                 // messages could be recieved and so the usage could have been changed
                 *unique_quota_roots
@@ -96,7 +96,7 @@ fn get_highest_usage<'t>(
         }
     }
 
-    highest.ok_or_else(|| anyhow!("no quota_resource found, this is unexpected"))
+    highest.context("no quota_resource found, this is unexpected")
 }
 
 /// Checks if a quota warning is needed.

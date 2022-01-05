@@ -563,7 +563,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 );
 
                 for i in (0..cnt).rev() {
-                    let chat = Chat::load_from_db(&context, chatlist.get_chat_id(i)).await?;
+                    let chat = Chat::load_from_db(&context, chatlist.get_chat_id(i)?).await?;
                     println!(
                         "{}#{}: {} [{} fresh] {}{}{}{}",
                         chat_prefix(&chat),
@@ -1142,7 +1142,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     if 0 != i {
                         res += ", ";
                     }
-                    let chat = Chat::load_from_db(&context, chatlist.get_chat_id(i)).await?;
+                    let chat = Chat::load_from_db(&context, chatlist.get_chat_id(i)?).await?;
                     res += &format!("{}#{}", chat_prefix(&chat), chat.get_id());
                 }
             }

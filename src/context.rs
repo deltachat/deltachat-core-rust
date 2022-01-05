@@ -5,7 +5,7 @@ use std::ffi::OsString;
 use std::ops::Deref;
 use std::time::{Instant, SystemTime};
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{bail, ensure, Context as _, Result};
 use async_std::{
     channel::{self, Receiver, Sender},
     path::{Path, PathBuf},
@@ -155,7 +155,10 @@ impl Context {
         let ctx = Context {
             inner: Arc::new(inner),
         };
-        ctx.sql.open(&ctx, &ctx.dbfile, false).await?;
+        ctx.sql
+            .open(&ctx, &ctx.dbfile, false)
+            .await
+            .context("failed to open SQL database")?;
 
         Ok(ctx)
     }

@@ -1164,7 +1164,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         maybe_warn_on_bad_time(&t, timestamp_past, get_provider_update_timestamp()).await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        let device_chat_id = chats.get_chat_id(0);
+        let device_chat_id = chats.get_chat_id(0).unwrap();
         let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
             .await
             .unwrap();
@@ -1202,7 +1202,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         .await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        assert_eq!(device_chat_id, chats.get_chat_id(0));
+        assert_eq!(device_chat_id, chats.get_chat_id(0).unwrap());
         let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
             .await
             .unwrap();
@@ -1234,7 +1234,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         .await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        let device_chat_id = chats.get_chat_id(0);
+        let device_chat_id = chats.get_chat_id(0).unwrap();
         let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
             .await
             .unwrap();
@@ -1256,7 +1256,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         .await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        let device_chat_id = chats.get_chat_id(0);
+        let device_chat_id = chats.get_chat_id(0).unwrap();
         let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
             .await
             .unwrap();
@@ -1273,7 +1273,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         .await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        let device_chat_id = chats.get_chat_id(0);
+        let device_chat_id = chats.get_chat_id(0).unwrap();
         let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
             .await
             .unwrap();

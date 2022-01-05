@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::time::Duration;
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{bail, Context as _, Result};
 use async_std::prelude::*;
 use rusqlite::OpenFlags;
 
@@ -145,7 +145,9 @@ impl Sql {
             // rely themselves on the low-level structure.
 
             let (recalc_fingerprints, update_icons, disable_server_delete, recode_avatar) =
-                migrations::run(context, self).await?;
+                migrations::run(context, self)
+                    .await
+                    .context("failed to run migrations")?;
 
             // (2) updates that require high-level objects
             // the structure is complete now and all objects are usable
@@ -261,9 +263,7 @@ impl Sql {
         &self,
     ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
         let lock = self.pool.read().await;
-        let pool = lock
-            .as_ref()
-            .ok_or_else(|| format_err!("No SQL connection"))?;
+        let pool = lock.as_ref().context("no SQL connection")?;
         let conn = pool.get()?;
 
         Ok(conn)

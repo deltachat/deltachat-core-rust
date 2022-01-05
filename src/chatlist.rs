@@ -1,6 +1,6 @@
 //! # Chat list module.
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{ensure, Context as _, Result};
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
@@ -271,21 +271,23 @@ impl Chatlist {
     /// Get a single chat ID of a chatlist.
     ///
     /// To get the message object from the message ID, use dc_get_chat().
-    pub fn get_chat_id(&self, index: usize) -> ChatId {
-        match self.ids.get(index) {
-            Some((chat_id, _msg_id)) => *chat_id,
-            None => ChatId::new(0),
-        }
+    pub fn get_chat_id(&self, index: usize) -> Result<ChatId> {
+        let (chat_id, _msg_id) = self
+            .ids
+            .get(index)
+            .context("chatlist index is out of range")?;
+        Ok(*chat_id)
     }
 
     /// Get a single message ID of a chatlist.
     ///
     /// To get the message object from the message ID, use dc_get_msg().
     pub fn get_msg_id(&self, index: usize) -> Result<Option<MsgId>> {
-        match self.ids.get(index) {
-            Some((_chat_id, msg_id)) => Ok(*msg_id),
-            None => bail!("Chatlist index out of range"),
-        }
+        let (_chat_id, msg_id) = self
+            .ids
+            .get(index)
+            .context("chatlist index is out of range")?;
+        Ok(*msg_id)
     }
 
     /// Returns a summary for a given chatlist index.
@@ -299,11 +301,10 @@ impl Chatlist {
         // This is because we may want to display drafts here or stuff as
         // "is typing".
         // Also, sth. as "No messages" would not work if the summary comes from a message.
-        let (chat_id, lastmsg_id) = match self.ids.get(index) {
-            Some(ids) => ids,
-            None => bail!("Chatlist index out of range"),
-        };
-
+        let (chat_id, lastmsg_id) = self
+            .ids
+            .get(index)
+            .context("chatlist index is out of range")?;
         Chatlist::get_summary2(context, *chat_id, *lastmsg_id, chat).await
     }
 
@@ -395,9 +396,9 @@ mod tests {
         // check that the chatlist starts with the most recent message
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 3);
-        assert_eq!(chats.get_chat_id(0), chat_id3);
-        assert_eq!(chats.get_chat_id(1), chat_id2);
-        assert_eq!(chats.get_chat_id(2), chat_id1);
+        assert_eq!(chats.get_chat_id(0).unwrap(), chat_id3);
+        assert_eq!(chats.get_chat_id(1).unwrap(), chat_id2);
+        assert_eq!(chats.get_chat_id(2).unwrap(), chat_id1);
 
         // New drafts are sorted to the top
         // We have to set a draft on the other two messages, too, as
@@ -414,7 +415,7 @@ mod tests {
         }
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        assert_eq!(chats.get_chat_id(0), chat_id2);
+        assert_eq!(chats.get_chat_id(0).unwrap(), chat_id2);
 
         // check chatlist query and archive functionality
         let chats = Chatlist::try_load(&t, 0, Some("b"), None).await.unwrap();
@@ -445,7 +446,7 @@ mod tests {
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert!(chats.len() == 3);
-        assert!(!Chat::load_from_db(&t, chats.get_chat_id(0))
+        assert!(!Chat::load_from_db(&t, chats.get_chat_id(0).unwrap())
             .await
             .unwrap()
             .is_self_talk());
@@ -454,7 +455,7 @@ mod tests {
             .await
             .unwrap();
         assert!(chats.len() == 2); // device chat cannot be written and is skipped on forwarding
-        assert!(Chat::load_from_db(&t, chats.get_chat_id(0))
+        assert!(Chat::load_from_db(&t, chats.get_chat_id(0).unwrap())
             .await
             .unwrap()
             .is_self_talk());
@@ -527,7 +528,7 @@ mod tests {
         // check, the one-to-one-chat can be found using chatlist search query
         let chats = Chatlist::try_load(&t, 0, Some("bob authname"), None).await?;
         assert_eq!(chats.len(), 1);
-        assert_eq!(chats.get_chat_id(0), chat_id);
+        assert_eq!(chats.get_chat_id(0).unwrap(), chat_id);
 
         // change the name of the contact; this also changes the name of the one-to-one-chat
         let test_id = Contact::create(&t, "Bob Nickname", "bob@example.org").await?;
@@ -583,7 +584,7 @@ mod tests {
         // check, the one-to-one-chat can be found using chatlist search query
         let chats = Chatlist::try_load(&t, 0, Some("bob@example.org"), None).await?;
         assert_eq!(chats.len(), 1);
-        assert_eq!(chats.get_chat_id(0), chat_id);
+        assert_eq!(chats.get_chat_id(0)?, chat_id);
 
         // change the name of the contact; this also changes the name of the one-to-one-chat
         let test_id = Contact::create(&t, "Bob Nickname", "bob@example.org").await?;
@@ -594,7 +595,7 @@ mod tests {
         assert_eq!(chats.len(), 0); // email-addresses are searchable in contacts, not in chats
         let chats = Chatlist::try_load(&t, 0, Some("Bob Nickname"), None).await?;
         assert_eq!(chats.len(), 1);
-        assert_eq!(chats.get_chat_id(0), chat_id);
+        assert_eq!(chats.get_chat_id(0)?, chat_id);
 
         // revert name change, this again changes the name of the one-to-one-chat to the email-address
         let test_id = Contact::create(&t, "", "bob@example.org").await?;

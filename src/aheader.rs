@@ -2,7 +2,7 @@
 //!
 //! Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
 
-use anyhow::{bail, format_err, Error, Result};
+use anyhow::{bail, Context as _, Error, Result};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::{fmt, str};
@@ -139,15 +139,14 @@ impl str::FromStr for Aheader {
         };
         let public_key: SignedPublicKey = attributes
             .remove("keydata")
-            .ok_or_else(|| format_err!("keydata attribute is not found"))
+            .context("keydata attribute is not found")
             .and_then(|raw| {
-                SignedPublicKey::from_base64(&raw)
-                    .map_err(|_| format_err!("Autocrypt key cannot be decoded"))
+                SignedPublicKey::from_base64(&raw).context("autocrypt key cannot be decoded")
             })
             .and_then(|key| {
                 key.verify()
                     .and(Ok(key))
-                    .map_err(|_| format_err!("Autocrypt key cannot be verified"))
+                    .context("autocrypt key cannot be verified")
             })?;
 
         let prefer_encrypt = attributes

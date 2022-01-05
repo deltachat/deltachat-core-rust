@@ -1,6 +1,6 @@
 //! Migrations module.
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 
 use crate::config::Config;
 use crate::constants::ShowEmails;
@@ -19,7 +19,11 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool
     let mut exists_before_update = false;
     let mut dbversion_before_update = DBVERSION;
 
-    if !sql.table_exists("config").await? {
+    if !sql
+        .table_exists("config")
+        .await
+        .context("failed to check if config table exists")?
+    {
         info!(context, "First time init: creating tables",);
         sql.transaction(move |transaction| {
             transaction.execute_batch(TABLES)?;
@@ -572,7 +576,8 @@ impl Sql {
 
             Ok(())
         })
-        .await?;
+        .await
+        .with_context(|| format!("execute_migration failed for version {}", version))?;
 
         Ok(())
     }

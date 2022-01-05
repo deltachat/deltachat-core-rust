@@ -196,9 +196,13 @@ impl Imap {
         // we are connected, and the folder is selected
         info!(context, "Downloading message {}/{} fully...", folder, uid);
 
-        let (last_uid, _received) = self
+        let (last_uid, _received) = match self
             .fetch_many_msgs(context, folder, vec![uid], false, false)
-            .await;
+            .await
+        {
+            Ok(res) => res,
+            Err(_) => return ImapActionResult::Failed,
+        };
         if last_uid.is_none() {
             ImapActionResult::Failed
         } else {

@@ -372,13 +372,13 @@ impl Job {
         let filename = job_try!(job_try!(self
             .param
             .get_path(Param::File, context)
-            .map_err(|_| format_err!("Can't get filename")))
-        .ok_or_else(|| format_err!("Can't get filename")));
+            .context("can't get filename"))
+        .context("Can't get filename"));
         let body = job_try!(dc_read_file(context, &filename).await);
-        let recipients = job_try!(self.param.get(Param::Recipients).ok_or_else(|| {
-            warn!(context, "Missing recipients for job {}", self.job_id);
-            format_err!("Missing recipients")
-        }));
+        let recipients = job_try!(self
+            .param
+            .get(Param::Recipients)
+            .context("missing recipients"));
 
         let recipients_list = recipients
             .split('\x1e')

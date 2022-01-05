@@ -209,7 +209,7 @@ pub(crate) async fn dc_receive_imf_inner(
         prevent_rename,
     )
     .await
-    .map_err(|err| err.context("add_parts error"))?;
+    .context("add_parts error")?;
 
     if from_id > DC_CONTACT_ID_LAST_SPECIAL {
         contact::update_last_seen(context, from_id, sent_timestamp).await?;
@@ -1845,11 +1845,11 @@ async fn create_or_lookup_mailinglist(
             param,
         )
         .await
-        .map_err(|err| {
-            err.context(format!(
+        .with_context(|| {
+            format!(
                 "Failed to create mailinglist '{}' for grpid={}",
                 &name, &listid
-            ))
+            )
         })?;
 
         chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await?;
@@ -2505,7 +2505,7 @@ mod tests {
         dc_receive_imf(&t, MSGRMSG, "INBOX", false).await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        let chat_id = chats.get_chat_id(0);
+        let chat_id = chats.get_chat_id(0).unwrap();
         assert!(!chat_id.is_special());
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert!(chat.is_contact_request());
@@ -2539,7 +2539,7 @@ mod tests {
         dc_receive_imf(&t, GRP_MAIL, "INBOX", false).await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
-        let chat_id = chats.get_chat_id(0);
+        let chat_id = chats.get_chat_id(0).unwrap();
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(chat.name, "group with Alice, Bob and Claire");
@@ -2555,7 +2555,7 @@ mod tests {
         // adhoc-group with unknown contacts with show_emails=all will show up in a single chat
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        let chat_id = chats.get_chat_id(0);
+        let chat_id = chats.get_chat_id(0).unwrap();
         let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
         assert!(chat.is_contact_request());
         chat_id.accept(&t).await.unwrap();
@@ -3078,7 +3078,7 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
 
-        let chat_id = chats.get_chat_id(0);
+        let chat_id = chats.get_chat_id(0).unwrap();
         chat_id.accept(&t).await.unwrap();
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
 
@@ -3146,7 +3146,7 @@ mod tests {
             .await
             .unwrap();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        let chat_id = chats.get_chat_id(0);
+        let chat_id = chats.get_chat_id(0).unwrap();
         chat_id.accept(&t).await.unwrap();
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert_eq!(chat.name, "delta-dev");
@@ -3249,7 +3249,7 @@ Hello mailinglist!\r\n"
             .unwrap();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
-        let chat_id = chats.get_chat_id(0);
+        let chat_id = chats.get_chat_id(0).unwrap();
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert!(chat.is_contact_request());
 

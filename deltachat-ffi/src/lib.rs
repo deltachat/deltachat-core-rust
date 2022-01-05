@@ -2443,7 +2443,14 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
         return 0;
     }
     let ffi_list = &*chatlist;
-    ffi_list.list.get_chat_id(index as usize).to_u32()
+    let ctx = &*ffi_list.context;
+    match ffi_list.list.get_chat_id(index as usize) {
+        Ok(chat_id) => chat_id.to_u32(),
+        Err(err) => {
+            warn!(ctx, "get_chat_id failed: {}", err);
+            0
+        }
+    }
 }
 
 #[no_mangle]

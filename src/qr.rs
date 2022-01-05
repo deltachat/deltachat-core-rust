@@ -304,14 +304,14 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
 fn decode_account(qr: &str) -> Result<Qr> {
     let payload = qr
         .get(DCACCOUNT_SCHEME.len()..)
-        .ok_or_else(|| format_err!("Invalid DCACCOUNT payload"))?;
+        .context("invalid DCACCOUNT payload")?;
     let url =
         url::Url::parse(payload).with_context(|| format!("Invalid account URL: {:?}", payload))?;
     if url.scheme() == "http" || url.scheme() == "https" {
         Ok(Qr::Account {
             domain: url
                 .host_str()
-                .ok_or_else(|| format_err!("Can't extract WebRTC instance domain"))?
+                .context("can't extract WebRTC instance domain")?
                 .to_string(),
         })
     } else {
@@ -323,7 +323,7 @@ fn decode_account(qr: &str) -> Result<Qr> {
 fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
     let payload = qr
         .get(DCWEBRTC_SCHEME.len()..)
-        .ok_or_else(|| format_err!("Invalid DCWEBRTC payload"))?;
+        .context("invalid DCWEBRTC payload")?;
 
     let (_type, url) = Message::parse_webrtc_instance(payload);
     let url =
@@ -333,7 +333,7 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
         Ok(Qr::WebrtcInstance {
             domain: url
                 .host_str()
-                .ok_or_else(|| format_err!("Can't extract WebRTC instance domain"))?
+                .context("can't extract WebRTC instance domain")?
                 .to_string(),
             instance_pattern: payload.to_string(),
         })

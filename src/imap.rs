@@ -314,33 +314,24 @@ impl Imap {
             }
         };
 
-        let login_res = match connection_res {
-            Ok(client) => {
-                let config = &self.config;
-                let imap_user: &str = config.lp.user.as_ref();
-                let imap_pw: &str = config.lp.password.as_ref();
+        let client = connection_res?;
+        let config = &self.config;
+        let imap_user: &str = config.lp.user.as_ref();
+        let imap_pw: &str = config.lp.password.as_ref();
 
-                if oauth2 {
-                    let addr: &str = config.addr.as_ref();
+        let login_res = if oauth2 {
+            let addr: &str = config.addr.as_ref();
 
-                    if let Some(token) =
-                        dc_get_oauth2_access_token(context, addr, imap_pw, true).await?
-                    {
-                        let auth = OAuth2 {
-                            user: imap_user.into(),
-                            access_token: token,
-                        };
-                        client.authenticate("XOAUTH2", auth).await
-                    } else {
-                        bail!("IMAP Could not get OAUTH token");
-                    }
-                } else {
-                    client.login(imap_user, imap_pw).await
-                }
-            }
-            Err(err) => {
-                bail!(err);
-            }
+            let token = dc_get_oauth2_access_token(context, addr, imap_pw, true)
+                .await?
+                .context("IMAP could not get OAUTH token")?;
+            let auth = OAuth2 {
+                user: imap_user.into(),
+                access_token: token,
+            };
+            client.authenticate("XOAUTH2", auth).await
+        } else {
+            client.login(imap_user, imap_pw).await
         };
 
         self.should_reconnect = false;
@@ -397,24 +388,19 @@ impl Imap {
             return Ok(());
         }
 
-        match &mut self.session {
-            Some(ref mut session) => match session.capabilities().await {
-                Ok(caps) => {
-                    self.config.can_idle = caps.has_str("IDLE");
-                    self.config.can_move = caps.has_str("MOVE");
-                    self.config.can_check_quota = caps.has_str("QUOTA");
-                    self.config.can_condstore = caps.has_str("CONDSTORE");
-                    self.capabilities_determined = true;
-                    Ok(())
-                }
-                Err(err) => {
-                    bail!("CAPABILITY command error: {}", err);
-                }
-            },
-            None => {
-                bail!("Can't determine server capabilities because connection was not established")
-            }
-        }
+        let session = self.session.as_mut().context(
+            "Can't determine server capabilities because connection was not established",
+        )?;
+        let caps = session
+            .capabilities()
+            .await
+            .context("CAPABILITY command error")?;
+        self.config.can_idle = caps.has_str("IDLE");
+        self.config.can_move = caps.has_str("MOVE");
+        self.config.can_check_quota = caps.has_str("QUOTA");
+        self.config.can_condstore = caps.has_str("CONDSTORE");
+        self.capabilities_determined = true;
+        Ok(())
     }
 
     /// Prepare for IMAP operation.
@@ -505,29 +491,25 @@ impl Imap {
 
         self.select_folder(context, Some(&folder)).await?;
 
-        let session = if let Some(ref mut session) = &mut self.session {
-            session
-        } else {
-            bail!("IMAP No Connection established");
-        };
+        let session = self
+            .session
+            .as_mut()
+            .context("IMAP No connection established")?;
 
-        match session.uid_fetch("1:*", RFC724MID_UID).await {
-            Ok(mut list) => {
-                while let Some(fetch) = list.next().await {
-                    let msg = fetch?;
+        let mut list = session
+            .uid_fetch("1:*", RFC724MID_UID)
+            .await
+            .with_context(|| format!("can't resync folder {}", folder))?;
+        while let Some(fetch) = list.next().await {
+            let msg = fetch?;
 
-                    // Get Message-ID
-                    let message_id = get_fetch_headers(&msg)
-                        .and_then(|headers| prefetch_get_message_id(&headers))
-                        .ok();
+            // Get Message-ID
+            let message_id = get_fetch_headers(&msg)
+                .and_then(|headers| prefetch_get_message_id(&headers))
+                .ok();
 
-                    if let (Some(uid), Some(rfc724_mid)) = (msg.uid, message_id) {
-                        msg_ids.insert(uid, rfc724_mid);
-                    }
-                }
-            }
-            Err(err) => {
-                bail!("Can't resync folder {}: {}", folder, err);
+            if let (Some(uid), Some(rfc724_mid)) = (msg.uid, message_id) {
+                msg_ids.insert(uid, rfc724_mid);
             }
         }
 
@@ -575,9 +557,11 @@ impl Imap {
     ) -> Result<bool> {
         let newly_selected = self.select_or_create_folder(context, folder).await?;
 
-        let mailbox = &mut self.config.selected_mailbox.as_ref();
-        let mailbox =
-            mailbox.with_context(|| format!("No mailbox selected, folder: {}", folder))?;
+        let mailbox = self
+            .config
+            .selected_mailbox
+            .as_mut()
+            .with_context(|| format!("No mailbox selected, folder: {}", folder))?;
 
         let new_uid_validity = mailbox
             .uid_validity
@@ -806,7 +790,7 @@ impl Imap {
                 false,
                 fetch_existing_msgs,
             )
-            .await;
+            .await?;
 
         let (largest_uid_partially_fetched, received_msgs_2) = self
             .fetch_many_msgs(
@@ -816,7 +800,7 @@ impl Imap {
                 true,
                 fetch_existing_msgs,
             )
-            .await;
+            .await?;
         received_msgs.extend(received_msgs_2);
 
         // determine which uid_next to use to update to
@@ -1121,15 +1105,14 @@ impl Imap {
 
     /// Gets the from, to and bcc addresses from all existing outgoing emails.
     pub async fn get_all_recipients(&mut self, context: &Context) -> Result<Vec<SingleInfo>> {
-        if self.session.is_none() {
-            bail!("IMAP No Connection established");
-        }
-
-        let session = self.session.as_mut().unwrap();
+        let session = self
+            .session
+            .as_mut()
+            .context("IMAP No Connection established")?;
         let self_addr = context
             .get_config(Config::ConfiguredAddr)
             .await?
-            .ok_or_else(|| format_err!("Not configured"))?;
+            .context("not configured")?;
 
         let search_command = format!("FROM \"{}\"", self_addr);
         let uids = session
@@ -1143,9 +1126,7 @@ impl Imap {
             let mut list = session
                 .uid_fetch(uid_set, "(UID BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
                 .await
-                .map_err(|err| {
-                    format_err!("IMAP Could not fetch (get_all_recipients()): {}", err)
-                })?;
+                .context("IMAP Could not fetch")?;
 
             while let Some(fetch) = list.next().await {
                 let msg = fetch?;
@@ -1177,7 +1158,7 @@ impl Imap {
         let mut list = session
             .uid_fetch(set, PREFETCH_FLAGS)
             .await
-            .map_err(|err| format_err!("IMAP Could not fetch: {}", err))?;
+            .context("IMAP could not fetch")?;
 
         let mut msgs = BTreeMap::new();
         while let Some(fetch) = list.next().await {
@@ -1203,13 +1184,14 @@ impl Imap {
     /// Like fetch_after(), but not for new messages but existing ones (the DC_FETCH_EXISTING_MSGS_COUNT newest messages)
     async fn prefetch_existing_msgs(&mut self) -> Result<BTreeMap<u32, async_imap::types::Fetch>> {
         let exists: i64 = {
-            let mailbox = self.config.selected_mailbox.as_ref();
-            let mailbox = mailbox.context("fetch_existing_msgs_prefetch(): no mailbox selected")?;
+            let mailbox = self
+                .config
+                .selected_mailbox
+                .as_ref()
+                .context("no mailbox")?;
             mailbox.exists.into()
         };
-        let session = self.session.as_mut();
-        let session =
-            session.context("fetch_existing_msgs_prefetch(): IMAP No Connection established")?;
+        let session = self.session.as_mut().context("no IMAP session")?;
 
         // Fetch last DC_FETCH_EXISTING_MSGS_COUNT (100) messages.
         // Sequence numbers are sequential. If there are 1000 messages in the inbox,
@@ -1219,7 +1201,7 @@ impl Imap {
         let mut list = session
             .fetch(&set, PREFETCH_FLAGS)
             .await
-            .map_err(|err| format_err!("IMAP Could not fetch: {}", err))?;
+            .context("IMAP Could not fetch")?;
 
         let mut msgs = BTreeMap::new();
         while let Some(fetch) = list.next().await {
@@ -1242,19 +1224,13 @@ impl Imap {
         server_uids: Vec<u32>,
         fetch_partially: bool,
         fetching_existing_messages: bool,
-    ) -> (Option<u32>, Vec<ReceivedMsg>) {
+    ) -> Result<(Option<u32>, Vec<ReceivedMsg>)> {
         let mut received_msgs = Vec::new();
         if server_uids.is_empty() {
-            return (None, Vec::new());
+            return Ok((None, Vec::new()));
         }
 
-        let session = match self.session.as_mut() {
-            Some(session) => session,
-            None => {
-                warn!(context, "Not connected");
-                return (None, Vec::new());
-            }
-        };
+        let session = self.session.as_mut().context("no IMAP session")?;
 
         let sets = build_sequence_sets(server_uids.clone());
         let mut count = 0;
@@ -1277,14 +1253,12 @@ impl Imap {
                     // TODO: maybe differentiate between IO and input/parsing problems
                     // so we don't reconnect if we have a (rare) input/output parsing problem?
                     self.should_reconnect = true;
-                    warn!(
-                        context,
+                    bail!(
                         "Error on fetching messages #{} from folder \"{}\"; error={}.",
                         &set,
                         folder,
                         err
                     );
-                    return (None, Vec::new());
                 }
             };
 
@@ -1363,50 +1337,34 @@ impl Imap {
             );
         }
 
-        (last_uid, received_msgs)
+        Ok((last_uid, received_msgs))
     }
 
-    async fn add_flag_finalized(&mut self, context: &Context, server_uid: u32, flag: &str) -> bool {
-        // return true if we successfully set the flag or we otherwise
-        // think add_flag should not be retried: Disconnection during setting
-        // the flag, or other imap-errors, returns true as well.
-        //
-        // returning false means that the operation can be retried.
-        if server_uid == 0 {
-            return true; // might be moved but we don't want to have a stuck job
-        }
+    /// Returns success if we successfully set the flag or we otherwise
+    /// think add_flag should not be retried: Disconnection during setting
+    /// the flag, or other imap-errors, returns true as well.
+    ///
+    /// Returning error means that the operation can be retried.
+    async fn add_flag_finalized(&mut self, server_uid: u32, flag: &str) -> Result<()> {
         let s = server_uid.to_string();
-        self.add_flag_finalized_with_set(context, &s, flag).await
+        self.add_flag_finalized_with_set(&s, flag).await
     }
 
-    async fn add_flag_finalized_with_set(
-        &mut self,
-        context: &Context,
-        uid_set: &str,
-        flag: &str,
-    ) -> bool {
+    async fn add_flag_finalized_with_set(&mut self, uid_set: &str, flag: &str) -> Result<()> {
         if self.should_reconnect() {
-            return false;
+            bail!("Can't set flag, should reconnect");
         }
-        if let Some(ref mut session) = &mut self.session {
-            let query = format!("+FLAGS ({})", flag);
-            match session.uid_store(uid_set, &query).await {
-                Ok(mut responses) => {
-                    while let Some(_response) = responses.next().await {
-                        // Read all the responses
-                    }
-                }
-                Err(err) => {
-                    warn!(
-                        context,
-                        "IMAP failed to store: ({}, {}) {:?}", uid_set, query, err
-                    );
-                }
-            }
-            true // we tried once, that's probably enough for setting flag
-        } else {
-            unreachable!();
+
+        let session = self.session.as_mut().context("No session").unwrap();
+        let query = format!("+FLAGS ({})", flag);
+        let mut responses = session
+            .uid_store(uid_set, &query)
+            .await
+            .with_context(|| format!("IMAP failed to store: ({}, {})", uid_set, query))?;
+        while let Some(_response) = responses.next().await {
+            // Read all the responses
         }
+        Ok(())
     }
 
     pub async fn prepare_imap_operation_on_msg(
@@ -1449,7 +1407,7 @@ impl Imap {
         }
     }
 
-    pub async fn set_seen(
+    pub(crate) async fn set_seen(
         &mut self,
         context: &Context,
         folder: &str,
@@ -1464,14 +1422,14 @@ impl Imap {
         // we are connected, and the folder is selected
         info!(context, "Marking message {}/{} as seen...", folder, uid,);
 
-        if self.add_flag_finalized(context, uid, "\\Seen").await {
-            ImapActionResult::Success
-        } else {
+        if let Err(err) = self.add_flag_finalized(uid, "\\Seen").await {
             warn!(
                 context,
-                "Cannot mark message {} in folder {} as seen, ignoring.", uid, folder
+                "Cannot mark message {} in folder {} as seen, ignoring: {}.", uid, folder, err
             );
             ImapActionResult::Failed
+        } else {
+            ImapActionResult::Success
         }
     }
 
@@ -1492,10 +1450,10 @@ impl Imap {
         let display_imap_id = format!("{}/{}", folder, uid);
 
         // mark the message for deletion
-        if !self.add_flag_finalized(context, uid, "\\Deleted").await {
+        if let Err(err) = self.add_flag_finalized(uid, "\\Deleted").await {
             warn!(
                 context,
-                "Cannot mark message {} as \"Deleted\".", display_imap_id
+                "Cannot mark message {} as \"Deleted\": {}.", display_imap_id, err
             );
             ImapActionResult::RetryLater
         } else {
@@ -1522,18 +1480,15 @@ impl Imap {
     }
 
     pub async fn configure_folders(&mut self, context: &Context, create_mvbox: bool) -> Result<()> {
-        let session = match self.session {
-            Some(ref mut session) => session,
-            None => bail!("no IMAP connection established"),
-        };
+        let session = self
+            .session
+            .as_mut()
+            .context("no IMAP connection established")?;
 
-        let mut folders = match session.list(Some(""), Some("*")).await {
-            Ok(f) => f,
-            Err(err) => {
-                bail!("list_folders failed: {}", err);
-            }
-        };
-
+        let mut folders = session
+            .list(Some(""), Some("*"))
+            .await
+            .context("list_folders failed")?;
         let mut delimiter = ".".to_string();
         let mut delimiter_is_default = true;
         let mut mvbox_folder = None;
@@ -1638,11 +1593,8 @@ impl Imap {
     /// Drains all responses from `session.unsolicited_responses` in the process.
     /// If this returns `true`, this means that new emails arrived and you should
     /// fetch again, even if you just fetched.
-    fn server_sent_unsolicited_exists(&self, context: &Context) -> bool {
-        let session = match &self.session {
-            Some(s) => s,
-            None => return false,
-        };
+    fn server_sent_unsolicited_exists(&self, context: &Context) -> Result<bool> {
+        let session = self.session.as_ref().context("no session")?;
         let mut unsolicited_exists = false;
         while let Ok(response) = session.unsolicited_responses.try_recv() {
             match response {
@@ -1656,7 +1608,7 @@ impl Imap {
                 _ => info!(context, "ignoring unsolicited response {:?}", response),
             }
         }
-        unsolicited_exists
+        Ok(unsolicited_exists)
     }
 
     pub fn can_check_quota(&self) -> bool {

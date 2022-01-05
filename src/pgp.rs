@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::io::Cursor;
 
-use anyhow::{bail, ensure, format_err, Result};
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
@@ -346,7 +346,7 @@ pub async fn pk_validate(
     // OpenPGP signature calculation.
     let content = content
         .get(..content.len().saturating_sub(2))
-        .ok_or_else(|| format_err!("index is out of range"))?;
+        .context("index is out of range")?;
 
     for pkey in pkeys {
         if standalone_signature.verify(pkey, content).is_ok() {
@@ -520,7 +520,6 @@ mod tests {
             &sig_check_keyring,
         )
         .await
-        .map_err(|err| println!("{:?}", err))
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 1);
@@ -536,7 +535,6 @@ mod tests {
             &sig_check_keyring,
         )
         .await
-        .map_err(|err| println!("{:?}", err))
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 1);

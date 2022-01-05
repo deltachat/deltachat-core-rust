@@ -1,6 +1,6 @@
 use super::Imap;
 
-use anyhow::{bail, format_err, Result};
+use anyhow::{bail, Context as _, Result};
 use async_imap::extensions::idle::IdleResponse;
 use async_std::prelude::*;
 use std::time::{Duration, SystemTime};
@@ -31,7 +31,7 @@ impl Imap {
         let timeout = Duration::from_secs(23 * 60);
         let mut info = Default::default();
 
-        if self.server_sent_unsolicited_exists(context) {
+        if self.server_sent_unsolicited_exists(context)? {
             return Ok(info);
         }
 
@@ -90,8 +90,8 @@ impl Imap {
             let session = handle
                 .done()
                 .timeout(Duration::from_secs(15))
-                .await
-                .map_err(|err| format_err!("IMAP IDLE protocol timed out: {}", err))??;
+                .await?
+                .context("IMAP IDLE protocol timed out")?;
             self.session = Some(Session { inner: session });
         } else {
             warn!(context, "Attempted to idle without a session");

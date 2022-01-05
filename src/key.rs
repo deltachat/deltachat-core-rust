@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Cursor;
 
-use anyhow::{format_err, Result};
+use anyhow::{format_err, Context as _, Result};
 use async_trait::async_trait;
 use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
@@ -50,8 +50,7 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     /// the ASCII-armored representation.
     fn from_asc(data: &str) -> Result<(Self::KeyType, BTreeMap<String, String>)> {
         let bytes = data.as_bytes();
-        Self::KeyType::from_armor_single(Cursor::new(bytes))
-            .map_err(|err| format_err!("rPGP error: {}", err))
+        Self::KeyType::from_armor_single(Cursor::new(bytes)).context("rPGP error")
     }
 
     /// Load the users' default key from the database.
@@ -202,7 +201,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     let addr = context
         .get_config(Config::ConfiguredAddr)
         .await?
-        .ok_or_else(|| format_err!("No address configured"))?;
+        .context("no address configured")?;
     let addr = EmailAddress::new(&addr)?;
     let _guard = context.generating_key_mutex.lock().await;
 
@@ -289,13 +288,13 @@ pub async fn store_self_keypair(
             paramsv![public_key, secret_key],
         )
         .await
-        .map_err(|err| err.context("failed to remove old use of key"))?;
+        .context("failed to remove old use of key")?;
     if default == KeyPairUse::Default {
         context
             .sql
             .execute("UPDATE keypairs SET is_default=0;", paramsv![])
             .await
-            .map_err(|err| err.context("failed to clear default"))?;
+            .context("failed to clear default")?;
     }
     let is_default = match default {
         KeyPairUse::Default => true as i32,
@@ -313,7 +312,7 @@ pub async fn store_self_keypair(
             paramsv![addr, is_default, public_key, secret_key, t],
         )
         .await
-        .map_err(|err| err.context("failed to insert keypair"))?;
+        .context("failed to insert keypair")?;
 
     Ok(())
 }

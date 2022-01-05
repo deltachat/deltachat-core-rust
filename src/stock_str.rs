@@ -1280,11 +1280,13 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
 
-        let chat0 = Chat::load_from_db(&t, chats.get_chat_id(0)).await.unwrap();
+        let chat0 = Chat::load_from_db(&t, chats.get_chat_id(0).unwrap())
+            .await
+            .unwrap();
         let (self_talk_id, device_chat_id) = if chat0.is_self_talk() {
-            (chats.get_chat_id(0), chats.get_chat_id(1))
+            (chats.get_chat_id(0).unwrap(), chats.get_chat_id(1).unwrap())
         } else {
-            (chats.get_chat_id(1), chats.get_chat_id(0))
+            (chats.get_chat_id(1).unwrap(), chats.get_chat_id(0).unwrap())
         };
 
         // delete self-talk first; this adds a message to device-chat about how self-talk can be restored

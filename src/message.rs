@@ -1534,9 +1534,7 @@ async fn ndn_maybe_add_info_msg(
                 let contact_id =
                     Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
                         .await?
-                        .ok_or_else(|| {
-                            format_err!("ndn_maybe_add_info_msg: Contact ID not found")
-                        })?;
+                        .context("contact ID not found")?;
                 let contact = Contact::load_from_db(context, contact_id).await?;
                 // Tell the user which of the recipients failed if we know that (because in
                 // a group, this might otherwise be unclear)
@@ -1988,9 +1986,9 @@ mod tests {
         let msg2 = alice.get_last_msg().await;
         let chats = Chatlist::try_load(&alice, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
-        assert_eq!(chats.get_chat_id(0), alice_chat.id);
-        assert_eq!(chats.get_chat_id(0), msg1.chat_id);
-        assert_eq!(chats.get_chat_id(0), msg2.chat_id);
+        assert_eq!(chats.get_chat_id(0)?, alice_chat.id);
+        assert_eq!(chats.get_chat_id(0)?, msg1.chat_id);
+        assert_eq!(chats.get_chat_id(0)?, msg2.chat_id);
         assert_eq!(alice_chat.id.get_fresh_msg_cnt(&alice).await?, 2);
         assert_eq!(alice.get_fresh_msgs().await?.len(), 2);
 
