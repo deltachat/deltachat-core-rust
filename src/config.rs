@@ -13,7 +13,6 @@ use crate::events::EventType;
 use crate::message::MsgId;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
-use crate::stock_str;
 
 /// The available configuration keys.
 #[derive(
@@ -199,7 +198,6 @@ impl Context {
 
         // Default values
         match key {
-            Config::Selfstatus => Ok(Some(stock_str::status_line(self).await)),
             Config::ConfiguredInboxFolder => Ok(Some("INBOX".to_owned())),
             _ => Ok(key.get_str("default").map(|s| s.to_string())),
         }
@@ -283,17 +281,6 @@ impl Context {
                     }
                 }
                 self.emit_event(EventType::SelfavatarChanged);
-                Ok(())
-            }
-            Config::Selfstatus => {
-                let def = stock_str::status_line(self).await;
-                let val = if value.is_none() || value.unwrap() == def {
-                    None
-                } else {
-                    value
-                };
-
-                self.sql.set_raw_config(key, val).await?;
                 Ok(())
             }
             Config::DeleteDeviceAfter => {

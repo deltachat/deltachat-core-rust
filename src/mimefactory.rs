@@ -207,7 +207,6 @@ impl<'a> MimeFactory<'a> {
             )
             .await?;
 
-        let default_str = stock_str::status_line(context).await;
         let factory = MimeFactory {
             from_addr,
             from_displayname,
@@ -215,7 +214,7 @@ impl<'a> MimeFactory<'a> {
             selfstatus: context
                 .get_config(Config::Selfstatus)
                 .await?
-                .unwrap_or(default_str),
+                .unwrap_or_default(),
             recipients,
             timestamp: msg.timestamp_sort,
             loaded: Loaded::Message { chat },
@@ -246,11 +245,10 @@ impl<'a> MimeFactory<'a> {
             .get_config(Config::Displayname)
             .await?
             .unwrap_or_default();
-        let default_str = stock_str::status_line(context).await;
         let selfstatus = context
             .get_config(Config::Selfstatus)
             .await?
-            .unwrap_or(default_str);
+            .unwrap_or_default();
         let timestamp = dc_create_smeared_timestamp(context).await;
 
         let res = MimeFactory::<'a> {

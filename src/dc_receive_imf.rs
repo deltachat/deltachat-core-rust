@@ -3172,10 +3172,7 @@ mod tests {
         assert!(mime.contains(
             "\r\n\
 \r\n\
-Hello mailinglist!\r\n\
-\r\n\
--- \r\n\
-Sent with my Delta Chat Messenger: https://delta.chat\r\n"
+Hello mailinglist!\r\n"
         ));
 
         dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", false).await?;

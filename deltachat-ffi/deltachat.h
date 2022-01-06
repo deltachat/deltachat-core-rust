@@ -5634,12 +5634,6 @@ void dc_event_unref(dc_event_t* event);
 /// Used in summaries.
 #define DC_STR_FILE                       12
 
-/// "Sent with my Delta Chat Messenger: https://delta.chat"
-///
-/// Used as the default footer
-/// if nothing else is set by the dc_set_config()-option `selfstatus`.
-#define DC_STR_STATUSLINE                 13
-
 /// "Group name changed from %1$s to %2$s."
 ///
 /// Used in status messages for group name changes.

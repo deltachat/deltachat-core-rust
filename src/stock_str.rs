@@ -53,9 +53,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "File"))]
     File = 12,
 
-    #[strum(props(fallback = "Sent with my Delta Chat Messenger: https://delta.chat"))]
-    StatusLine = 13,
-
     #[strum(props(fallback = "Group name changed from \"%1$s\" to \"%2$s\"."))]
     MsgGrpName = 15,
 
@@ -453,11 +450,6 @@ pub(crate) async fn audio(context: &Context) -> String {
 /// Stock string: `File`.
 pub(crate) async fn file(context: &Context) -> String {
     translated(context, StockMessage::File).await
-}
-
-/// Stock string: `Sent with my Delta Chat Messenger: https://delta.chat`.
-pub(crate) async fn status_line(context: &Context) -> String {
-    translated(context, StockMessage::StatusLine).await
 }
 
 /// Stock string: `Group name changed from "%1$s" to "%2$s".`.
