@@ -96,16 +96,19 @@ the `manifest.toml` has the following format
 
 ```toml
 name = "My App Name"
-icon = "icon.png"
 ```
 
 - **name** - The name of the app.
   If no name is set or if there is no manifest, the filename is used as the app name.
-- **icon** - The icon to use for the app.
-  The icon must be a `.png` or `.jpg` file and is read from the ZIP-file root directory.
-  The icon should be a square at reasonable width/height
-  and the implementations will add round corners etc. as needed.
-  If no icon is set or if there is no manifest, a default icon will be used.
+
+
+## App Icon
+
+If the ZIP-root contains an `icon.png` or `icon.jpg`,
+these files are used as the icon for the app.
+The icon should be a square at reasonable width/height;
+round corners etc. will be added by the implementations as needed.
+If no icon is set, a default icon will be used.
 
 
 ## Webxdc Example
