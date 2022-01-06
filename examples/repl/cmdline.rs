@@ -915,7 +915,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             );
             let msg_id = MsgId::new(arg1.parse()?);
             context
-                .send_webxdc_status_update(msg_id, "this is a webxdc status update", arg2)
+                .send_webxdc_status_update(msg_id, arg2, "this is a webxdc status update")
                 .await?;
         }
         "videochat" => {

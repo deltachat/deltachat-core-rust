@@ -987,7 +987,7 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  *
  * In js-land, that would be mapped to sth. as:
  * ```
- * success = window.webxdc.sendUpdate('move A3 B4', '{"action":"move","src":"A3","dest":"B4"}');
+ * success = window.webxdc.sendUpdate('{"action":"move","src":"A3","dest":"B4"}', 'move A3 B4');
  * ```
  * `context` and `msg_id` is not needed in js as that is unique within an webxdc instance.
  * See dc_get_webxdc_status_updates() for the receiving counterpart.
@@ -1004,12 +1004,12 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @memberof dc_context_t
  * @param context The context object
  * @param msg_id id of the message with the webxdc instance
+ * @param json program-readable data, the actual payload
  * @param descr user-visible description of the json-data,
  *     in case of a chess game, eg. the move.
- * @param json program-readable data, the actual payload
  * @return 1=success, 0=error
  */
-int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const char* descr, const char* json);
+int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const char* json, const char* descr);
 
 
 /**

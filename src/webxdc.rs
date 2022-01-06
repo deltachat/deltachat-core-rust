@@ -112,8 +112,8 @@ impl Context {
     pub async fn send_webxdc_status_update(
         &self,
         instance_msg_id: MsgId,
-        descr: &str,
         payload: &str,
+        descr: &str,
     ) -> Result<Option<MsgId>> {
         let instance = Message::load_from_db(self, instance_msg_id).await?;
         if instance.viewtype != Viewtype::Webxdc {
@@ -463,7 +463,7 @@ mod tests {
         .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let instance = chat_id.get_draft(&t).await?.unwrap();
-        t.send_webxdc_status_update(instance.id, "descr", "42")
+        t.send_webxdc_status_update(instance.id, "42", "descr")
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, None).await?,
@@ -610,7 +610,7 @@ mod tests {
         assert!(!sent1.payload().contains("report-type=status-update"));
 
         let status_update_msg_id = alice
-            .send_webxdc_status_update(alice_instance.id, "descr text", r#"{"foo":"bar"}"#)
+            .send_webxdc_status_update(alice_instance.id, r#"{"foo":"bar"}"#, "descr text")
             .await?
             .unwrap();
         expect_status_update_event(&alice, alice_instance.id).await?;
@@ -636,7 +636,7 @@ mod tests {
         );
 
         alice
-            .send_webxdc_status_update(alice_instance.id, "bla text", r#"{"snipp":"snapp"}"#)
+            .send_webxdc_status_update(alice_instance.id, r#"{"snipp":"snapp"}"#, "bla text")
             .await?
             .unwrap();
         assert_eq!(
@@ -696,12 +696,12 @@ mod tests {
         let mut alice_instance = alice_chat_id.get_draft(&alice).await?.unwrap();
 
         let status_update_msg_id = alice
-            .send_webxdc_status_update(alice_instance.id, "descr", r#"{"foo":"bar"}"#)
+            .send_webxdc_status_update(alice_instance.id, r#"{"foo":"bar"}"#, "descr")
             .await?;
         assert_eq!(status_update_msg_id, None);
         expect_status_update_event(&alice, alice_instance.id).await?;
         let status_update_msg_id = alice
-            .send_webxdc_status_update(alice_instance.id, "descr", r#"42"#)
+            .send_webxdc_status_update(alice_instance.id, r#"42"#, "descr")
             .await?;
         assert_eq!(status_update_msg_id, None);
 
@@ -740,7 +740,7 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
         let msg_id = send_text_msg(&t, chat_id, "ho!".to_string()).await?;
         assert!(t
-            .send_webxdc_status_update(msg_id, "descr", r#"{"foo":"bar"}"#)
+            .send_webxdc_status_update(msg_id, r#"{"foo":"bar"}"#, "descr")
             .await
             .is_err());
         Ok(())
