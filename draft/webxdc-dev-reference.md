@@ -21,15 +21,15 @@ no need to add `webxdc.js` to your ZIP-file):
 ### sendUpdate()
 
 ```js
-window.webxdc.sendUpdate(descr, payload);
+window.webxdc.sendUpdate(payload, descr);
 ```
 
 Webxdc apps are usually shared in a chat and run independently on each peer.
 To get a shared state, the peers use `sendUpdate()` to send updates to each other.
 
+- `payload`: any javascript primitive, array or object.
 - `descr`: short, human-readable description what this update is about.
   this is shown eg. as a fallback text in an email program.
-- `payload`: any javascript primitive, array or object.
 
 All peers, including the sending one,
 will receive the update by the callback given to `setUpdateListener()`.
@@ -130,7 +130,7 @@ The following example shows an input field and  every input is show on all peers
     
       function sendMsg() {
         msg = document.getElementById("input").value;
-        window.webxdc.sendUpdate('Someone typed "'+msg+'".', msg);
+        window.webxdc.sendUpdate(msg, 'Someone typed "'+msg+'".');
       }
     
       function receiveUpdate(update) {
