@@ -25,7 +25,6 @@ const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 #[non_exhaustive]
 struct WebxdcManifest {
     name: Option<String>,
-    icon: Option<String>,
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
@@ -299,16 +298,10 @@ impl Message {
             if let Ok(manifest) = parse_webxdc_manifest(&bytes).await {
                 manifest
             } else {
-                WebxdcManifest {
-                    name: None,
-                    icon: None,
-                }
+                WebxdcManifest { name: None }
             }
         } else {
-            WebxdcManifest {
-                name: None,
-                icon: None,
-            }
+            WebxdcManifest { name: None }
         };
 
         if let Some(ref name) = manifest.name {
@@ -319,24 +312,16 @@ impl Message {
             }
         }
 
-        if let Some(ref icon) = manifest.icon {
-            if !icon.ends_with(".png") && !icon.ends_with(".jpg") {
-                warn!(context, "bad icon format \"{}\"; use .png or .jpg", icon);
-                manifest.icon = None;
-            } else if archive.by_name(icon).is_err() {
-                warn!(context, "cannot find icon \"{}\"", icon);
-                manifest.icon = None;
-            }
-        }
-
         Ok(WebxdcInfo {
             name: if let Some(name) = manifest.name {
                 name
             } else {
                 self.get_filename().unwrap_or_default()
             },
-            icon: if let Some(icon) = manifest.icon {
-                icon
+            icon: if archive.by_name("icon.png").is_ok() {
+                "icon.png".to_string()
+            } else if archive.by_name("icon.jpg").is_ok() {
+                "icon.jpg".to_string()
             } else {
                 WEBXDC_DEFAULT_ICON.to_string()
             },
@@ -851,11 +836,9 @@ mod tests {
 
         let manifest = parse_webxdc_manifest(r#"no_name = "no name, no icon""#.as_bytes()).await?;
         assert_eq!(manifest.name, None);
-        assert_eq!(manifest.icon, None);
 
         let manifest = parse_webxdc_manifest(r#"name = "name, no icon""#.as_bytes()).await?;
         assert_eq!(manifest.name, Some("name, no icon".to_string()));
-        assert_eq!(manifest.icon, None);
 
         let manifest = parse_webxdc_manifest(
             r#"name = "foo"
@@ -864,7 +847,6 @@ icon = "bar""#
         )
         .await?;
         assert_eq!(manifest.name, Some("foo".to_string()));
-        assert_eq!(manifest.icon, Some("bar".to_string()));
 
         let manifest = parse_webxdc_manifest(
             r#"name = "foz"
@@ -877,7 +859,6 @@ sth_for_the = "future""#
         )
         .await?;
         assert_eq!(manifest.name, Some("foz".to_string()));
-        assert_eq!(manifest.icon, Some("baz".to_string()));
 
         Ok(())
     }
@@ -912,7 +893,7 @@ sth_for_the = "future""#
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "with-manifest-no-name.xdc");
-        assert_eq!(info.icon, "some.png".to_string());
+        assert_eq!(info.icon, WEBXDC_DEFAULT_ICON.to_string());
 
         let mut instance = create_webxdc_instance(
             &t,
@@ -927,36 +908,36 @@ sth_for_the = "future""#
 
         let mut instance = create_webxdc_instance(
             &t,
-            "with-manifest-icon-not-existent.xdc",
-            include_bytes!("../test-data/webxdc/with-manifest-icon-not-existent.xdc"),
-        )
-        .await?;
-        chat_id.set_draft(&t, Some(&mut instance)).await?;
-        let info = instance.get_webxdc_info(&t).await?;
-        assert_eq!(info.name, "with bad icon");
-        assert_eq!(info.icon, WEBXDC_DEFAULT_ICON.to_string());
-
-        let mut instance = create_webxdc_instance(
-            &t,
-            "with-manifest-and-icon.xdc",
-            include_bytes!("../test-data/webxdc/with-manifest-and-icon.xdc"),
+            "with-manifest-and-png-icon.xdc",
+            include_bytes!("../test-data/webxdc/with-manifest-and-png-icon.xdc"),
         )
         .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "with some icon");
-        assert_eq!(info.icon, "some.png");
+        assert_eq!(info.icon, "icon.png");
 
         let mut instance = create_webxdc_instance(
             &t,
-            "with-manifest-and-unsupported-icon-format.xdc",
-            include_bytes!("../test-data/webxdc/with-manifest-and-unsupported-icon-format.xdc"),
+            "with-png-icon.xdc",
+            include_bytes!("../test-data/webxdc/with-png-icon.xdc"),
         )
         .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
-        assert_eq!(info.name, "with tiff icon");
-        assert_eq!(info.icon, WEBXDC_DEFAULT_ICON);
+        assert_eq!(info.name, "with-png-icon.xdc");
+        assert_eq!(info.icon, "icon.png");
+
+        let mut instance = create_webxdc_instance(
+            &t,
+            "with-jpg-icon.xdc",
+            include_bytes!("../test-data/webxdc/with-jpg-icon.xdc"),
+        )
+        .await?;
+        chat_id.set_draft(&t, Some(&mut instance)).await?;
+        let info = instance.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "with-jpg-icon.xdc");
+        assert_eq!(info.icon, "icon.jpg");
 
         let msg_id = send_text_msg(&t, chat_id, "foo".to_string()).await?;
         let msg = Message::load_from_db(&t, msg_id).await?;
