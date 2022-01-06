@@ -3681,7 +3681,7 @@ char*           dc_msg_get_filemime           (const dc_msg_t* msg);
  * @memberof dc_msg_t
  * @param msg The webxdc instance.
  * @param filename The name inside the archive,
- *     can be given as a absolute path (`/file.png`)
+ *     can be given as an absolute path (`/file.png`)
  *     or as a relative path (`file.png`, no leading slash)
  * @param ret_bytes Pointer to a size_t. The size of the blob will be written here.
  * @return The blob must be released using dc_str_unref() after usage.
