@@ -354,63 +354,6 @@ pub async fn dc_delete_files_in_dir(context: &Context, path: impl AsRef<Path>) {
     }
 }
 
-pub(crate) async fn dc_copy_file(
-    context: &Context,
-    src_path: impl AsRef<Path>,
-    dest_path: impl AsRef<Path>,
-) -> bool {
-    let src_abs = dc_get_abs_path(context, &src_path);
-    let mut src_file = match fs::File::open(&src_abs).await {
-        Ok(file) => file,
-        Err(err) => {
-            warn!(
-                context,
-                "failed to open for read '{}': {}",
-                src_abs.display(),
-                err
-            );
-            return false;
-        }
-    };
-
-    let dest_abs = dc_get_abs_path(context, &dest_path);
-    let mut dest_file = match fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&dest_abs)
-        .await
-    {
-        Ok(file) => file,
-        Err(err) => {
-            warn!(
-                context,
-                "failed to open for write '{}': {}",
-                dest_abs.display(),
-                err
-            );
-            return false;
-        }
-    };
-
-    match io::copy(&mut src_file, &mut dest_file).await {
-        Ok(_) => true,
-        Err(err) => {
-            error!(
-                context,
-                "Cannot copy \"{}\" to \"{}\": {}",
-                src_abs.display(),
-                dest_abs.display(),
-                err
-            );
-            {
-                // Attempt to remove the failed file, swallow errors resulting from that.
-                fs::remove_file(dest_abs).await.ok();
-            }
-            false
-        }
-    }
-}
-
 pub(crate) async fn dc_create_folder(
     context: &Context,
     path: impl AsRef<Path>,
@@ -1025,20 +968,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
 
         assert!(dc_file_exist!(context, &abs_path).await);
 
-        assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada").await);
-
-        // attempting to copy a second time should fail
-        assert!(!dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada").await);
-
-        assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada").await, 7);
-
-        let buf = dc_read_file(context, "$BLOBDIR/dada").await.unwrap();
-
-        assert_eq!(buf.len(), 7);
-        assert_eq!(&buf, b"content");
-
         assert!(dc_delete_file(context, "$BLOBDIR/foobar").await);
-        assert!(dc_delete_file(context, "$BLOBDIR/dada").await);
         assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder")
             .await
             .is_ok());

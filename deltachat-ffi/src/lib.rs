@@ -27,6 +27,7 @@ use async_std::sync::RwLock;
 use async_std::task::{block_on, spawn};
 use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use num_traits::{FromPrimitive, ToPrimitive};
+use rand::Rng;
 
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration, ProtectionStatus};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
@@ -75,7 +76,6 @@ pub unsafe extern "C" fn dc_context_new(
     }
 
     let ctx = if blobdir.is_null() || *blobdir == 0 {
-        use rand::Rng;
         // generate random ID as this functionality is not yet available on the C-api.
         let id = rand::thread_rng().gen();
         block_on(Context::new(as_path(dbfile).to_path_buf().into(), id))
@@ -86,10 +86,61 @@ pub unsafe extern "C" fn dc_context_new(
     match ctx {
         Ok(ctx) => Box::into_raw(Box::new(ctx)),
         Err(err) => {
-            eprintln!("failed to create context: {}", err);
+            eprintln!("failed to create context: {:#}", err);
             ptr::null_mut()
         }
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_context_new_closed(dbfile: *const libc::c_char) -> *mut dc_context_t {
+    setup_panic!();
+
+    if dbfile.is_null() {
+        eprintln!("ignoring careless call to dc_context_new_closed()");
+        return ptr::null_mut();
+    }
+
+    let id = rand::thread_rng().gen();
+    match block_on(Context::new_closed(
+        as_path(dbfile).to_path_buf().into(),
+        id,
+    )) {
+        Ok(context) => Box::into_raw(Box::new(context)),
+        Err(err) => {
+            eprintln!("failed to create context: {:#}", err);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_context_open(
+    context: *mut dc_context_t,
+    passphrase: *const libc::c_char,
+) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_context_open()");
+        return 0;
+    }
+
+    let ctx = &*context;
+    let passphrase = to_string_lossy(passphrase);
+    block_on(ctx.open(passphrase))
+        .log_err(ctx, "dc_context_open() failed")
+        .map(|b| b as libc::c_int)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_context_is_open(context: *mut dc_context_t) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_context_is_open()");
+        return 0;
+    }
+
+    let ctx = &*context;
+    block_on(ctx.is_open()) as libc::c_int
 }
 
 /// Release the context structure.
@@ -3953,6 +4004,30 @@ pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -
     block_on(async move {
         let mut accounts = accounts.write().await;
         match accounts.add_account().await {
+            Ok(id) => id,
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!(
+                    "Failed to add account: {:#}",
+                    err
+                )));
+                0
+            }
+        }
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_add_closed_account(accounts: *mut dc_accounts_t) -> u32 {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_add_closed_account()");
+        return 0;
+    }
+
+    let accounts = &mut *accounts;
+
+    block_on(async move {
+        let mut accounts = accounts.write().await;
+        match accounts.add_closed_account().await {
             Ok(id) => id,
             Err(err) => {
                 accounts.emit_event(EventType::Error(format!(

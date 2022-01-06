@@ -5,7 +5,7 @@ use std::ffi::OsString;
 use std::ops::Deref;
 use std::time::{Instant, SystemTime};
 
-use anyhow::{bail, ensure, Context as _, Result};
+use anyhow::{bail, ensure, Result};
 use async_std::{
     channel::{self, Receiver, Sender},
     path::{Path, PathBuf},
@@ -42,8 +42,6 @@ impl Deref for Context {
 
 #[derive(Debug)]
 pub struct InnerContext {
-    /// Database file path
-    pub(crate) dbfile: PathBuf,
     /// Blob directory path
     pub(crate) blobdir: PathBuf,
     pub(crate) sql: Sql,
@@ -106,10 +104,19 @@ pub fn get_info() -> BTreeMap<&'static str, String> {
 }
 
 impl Context {
-    /// Creates new context.
+    /// Creates new context and opens the database.
     pub async fn new(dbfile: PathBuf, id: u32) -> Result<Context> {
-        // pretty_env_logger::try_init_timed().ok();
+        let context = Self::new_closed(dbfile, id).await?;
 
+        // Open the database if is not encrypted.
+        if context.set_passphrase("".to_string()).await? {
+            context.sql.open(&context).await?;
+        }
+        Ok(context)
+    }
+
+    /// Creates new context without opening the database.
+    pub async fn new_closed(dbfile: PathBuf, id: u32) -> Result<Context> {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
@@ -117,7 +124,35 @@ impl Context {
         if !blobdir.exists().await {
             async_std::fs::create_dir_all(&blobdir).await?;
         }
-        Context::with_blobdir(dbfile, blobdir, id).await
+        let context = Context::with_blobdir(dbfile, blobdir, id).await?;
+        Ok(context)
+    }
+
+    /// Opens the database with the given passphrase.
+    ///
+    /// Returns true if passphrase is correct, false is passphrase is not correct. Fails on other
+    /// errors.
+    pub async fn open(&self, passphrase: String) -> Result<bool> {
+        if self.sql.set_passphrase(passphrase).await? {
+            self.sql.open(self).await?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Returns true if database is open.
+    pub async fn is_open(&self) -> bool {
+        self.sql.is_open().await
+    }
+
+    /// Sets the database passphrase.
+    ///
+    /// Returns true if passphrase is correct.
+    ///
+    /// Fails if database is already open.
+    pub async fn set_passphrase(&self, passphrase: String) -> Result<bool> {
+        self.sql.set_passphrase(passphrase).await
     }
 
     pub(crate) async fn with_blobdir(
@@ -134,9 +169,8 @@ impl Context {
         let inner = InnerContext {
             id,
             blobdir,
-            dbfile,
             running_state: RwLock::new(Default::default()),
-            sql: Sql::new(),
+            sql: Sql::new(dbfile),
             bob: Default::default(),
             last_smeared_timestamp: RwLock::new(0),
             generating_key_mutex: Mutex::new(()),
@@ -155,10 +189,6 @@ impl Context {
         let ctx = Context {
             inner: Arc::new(inner),
         };
-        ctx.sql
-            .open(&ctx, &ctx.dbfile, false)
-            .await
-            .context("failed to open SQL database")?;
 
         Ok(ctx)
     }
@@ -196,7 +226,7 @@ impl Context {
 
     /// Returns database file path.
     pub fn get_dbfile(&self) -> &Path {
-        self.dbfile.as_path()
+        self.sql.dbfile.as_path()
     }
 
     /// Returns blob directory path.
@@ -641,16 +671,21 @@ mod tests {
     use crate::dc_tools::dc_create_outgoing_rfc724_mid;
     use crate::message::Message;
     use crate::test_utils::TestContext;
+    use anyhow::Context as _;
     use std::time::Duration;
     use strum::IntoEnumIterator;
+    use tempfile::tempdir;
 
     #[async_std::test]
-    async fn test_wrong_db() {
-        let tmp = tempfile::tempdir().unwrap();
+    async fn test_wrong_db() -> Result<()> {
+        let tmp = tempfile::tempdir()?;
         let dbfile = tmp.path().join("db.sqlite");
-        std::fs::write(&dbfile, b"123").unwrap();
-        let res = Context::new(dbfile.into(), 1).await;
-        assert!(res.is_err());
+        std::fs::write(&dbfile, b"123")?;
+        let res = Context::new(dbfile.into(), 1).await?;
+
+        // Broken database is indistinguishable from encrypted one.
+        assert_eq!(res.is_open().await, false);
+        Ok(())
     }
 
     #[async_std::test]
@@ -999,6 +1034,31 @@ mod tests {
         // In-chat should not be not limited
         let res = alice.search_msgs(Some(chat.id), "foo").await?;
         assert_eq!(res.len(), 1001);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_set_passphrase() -> Result<()> {
+        let dir = tempdir()?;
+        let dbfile = dir.path().join("db.sqlite");
+
+        let id = 1;
+        let context = Context::new_closed(dbfile.clone().into(), id)
+            .await
+            .context("failed to create context")?;
+        assert_eq!(context.open("foo".to_string()).await?, true);
+        assert_eq!(context.is_open().await, true);
+        drop(context);
+
+        let id = 2;
+        let context = Context::new(dbfile.into(), id)
+            .await
+            .context("failed to create context")?;
+        assert_eq!(context.is_open().await, false);
+        assert_eq!(context.set_passphrase("bar".to_string()).await?, false);
+        assert_eq!(context.open("false".to_string()).await?, false);
+        assert_eq!(context.open("foo".to_string()).await?, true);
 
         Ok(())
     }

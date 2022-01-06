@@ -179,16 +179,31 @@ typedef struct _dc_accounts_event_emitter dc_accounts_event_emitter_t;
 // create/open/config/information
 
 /**
- * Create a new context object.  After creation it is usually
- * opened, connected and mails are fetched.
+ * Create a new context object and try to open it without passphrase. If
+ * database is encrypted, the result is the same as using
+ * dc_context_new_closed() and the database should be opened with
+ * dc_context_open() before using.
  *
  * @memberof dc_context_t
- * @param os_name is only for decorative use.
- *     You can give the name of the app, the operating system,
- *     the used environment and/or the version here.
+ * @param os_name Deprecated, pass NULL or empty string here.
  * @param dbfile The file to use to store the database,
  *     something like `~/file` won't work, use absolute paths.
  * @param blobdir Deprecated, pass NULL or an empty string here.
+ * @return A context object with some public members.
+ *     The object must be passed to the other context functions
+ *     and must be freed using dc_context_unref() after usage.
+ */
+dc_context_t*   dc_context_new               (const char* os_name, const char* dbfile, const char* blobdir);
+
+
+/**
+ * Create a new context object.  After creation it is usually opened with
+ * dc_context_open() and started with dc_start_io() so it is connected and
+ * mails are fetched.
+ *
+ * @memberof dc_context_t
+ * @param dbfile The file to use to store the database,
+ *     something like `~/file` won't work, use absolute paths.
  * @return A context object with some public members.
  *     The object must be passed to the other context functions
  *     and must be freed using dc_context_unref() after usage.
@@ -196,7 +211,34 @@ typedef struct _dc_accounts_event_emitter dc_accounts_event_emitter_t;
  * If you want to use multiple context objects at the same time,
  * this can be managed using dc_accounts_t.
  */
-dc_context_t*   dc_context_new               (const char* os_name, const char* dbfile, const char* blobdir);
+dc_context_t*   dc_context_new_closed        (const char* dbfile);
+
+
+/**
+ * Opens the database with the given passphrase. This can only be used on
+ * closed context, such as created by dc_context_new_closed(). If the database
+ * is new, this operation sets the database passphrase. For existing databases
+ * the passphrase should be the one used to encrypt the database the first
+ * time.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param passphrase The passphrase to use with the database. Pass NULL or
+ * empty string to use no passphrase and no encryption.
+ * @return 1 if the database is opened with this passphrase, 0 if the
+ * passphrase is incorrect and on error.
+ */
+int             dc_context_open              (dc_context_t *context, const char* passphrase);
+
+
+/**
+ * Returns 1 if database is open.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @return 1 if database is open, 0 if database is closed
+ */
+int             dc_context_is_open           (dc_context_t *context);
 
 
 /**
@@ -2470,6 +2512,7 @@ void dc_str_unref (char* str);
  * To make this possible, some dc_context_t functions must not be called
  * when using the account manager:
  * - use dc_accounts_add_account() and dc_accounts_get_account() instead of dc_context_new()
+ * - use dc_accounts_add_closed_account() instead of dc_context_new_closed()
  * - use dc_accounts_start_io() and dc_accounts_stop_io() instead of dc_start_io() and dc_stop_io()
  * - use dc_accounts_maybe_network() instead of dc_maybe_network()
  * - use dc_accounts_get_event_emitter() instead of dc_get_event_emitter()
@@ -2527,6 +2570,22 @@ void           dc_accounts_unref                (dc_accounts_t* accounts);
  */
 uint32_t       dc_accounts_add_account          (dc_accounts_t* accounts);
 
+/**
+ * Add a new closed account to the account manager.
+ * Internally, dc_context_new_closed() is called using a unique database-name
+ * in the directory specified at dc_accounts_new().
+ *
+ * If the function succeeds,
+ * dc_accounts_get_all() will return one more account
+ * and you can access the newly created account using dc_accounts_get_account().
+ * Moreover, the newly created account will be the selected one.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return Account-id, use dc_accounts_get_account() to get the context object.
+ *     On errors, 0 is returned.
+ */
+uint32_t       dc_accounts_add_closed_account   (dc_accounts_t* accounts);
 
 /**
  * Migrate independent accounts into accounts managed by the account manager.

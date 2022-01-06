@@ -36,7 +36,8 @@ def test_wrong_db(tmpdir):
     # write an invalid database file
     p.write("x123" * 10)
 
-    assert ffi.NULL == lib.dc_context_new(ffi.NULL, p.strpath.encode("ascii"), ffi.NULL)
+    context = lib.dc_context_new(ffi.NULL, p.strpath.encode("ascii"), ffi.NULL)
+    assert not lib.dc_context_is_open(context)
 
 
 def test_empty_blobdir(tmpdir):

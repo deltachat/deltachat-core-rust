@@ -179,6 +179,12 @@ class Account(object):
         """
         return True if lib.dc_is_configured(self._dc_context) else False
 
+    def is_open(self) -> bool:
+        """Determine if account is open
+
+        :returns True if account is open."""
+        return True if lib.dc_context_is_open(self._dc_context) else False
+
     def set_avatar(self, img_path: Optional[str]) -> None:
         """Set self avatar.
 

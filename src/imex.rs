@@ -19,7 +19,7 @@ use crate::config::Config;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
 use crate::dc_tools::{
-    dc_copy_file, dc_create_folder, dc_delete_file, dc_delete_files_in_dir, dc_get_filesuffix_lc,
+    dc_create_folder, dc_delete_file, dc_delete_files_in_dir, dc_get_filesuffix_lc,
     dc_open_file_std, dc_read_file, dc_write_file, get_next_backup_path, time, EmailAddress,
 };
 use crate::e2ee;
@@ -30,7 +30,7 @@ use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::pgp;
-use crate::sql::{self, Sql};
+use crate::sql;
 use crate::stock_str;
 
 // Name of the database file in the backup.
@@ -116,14 +116,14 @@ async fn cleanup_aborted_imex(context: &Context, what: ImexMode) {
         dc_delete_files_in_dir(context, context.get_blobdir()).await;
     }
     if what == ImexMode::ExportBackup || what == ImexMode::ImportBackup {
-        if let Err(e) = context.sql.open(context, context.get_dbfile(), false).await {
+        if let Err(e) = context.sql.open(context).await {
             warn!(context, "Re-opening db after imex failed: {}", e);
         }
     }
 }
 
 /// Returns the filename of the backup found (otherwise an error)
-pub async fn has_backup(context: &Context, dir_name: &Path) -> Result<String> {
+pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
     let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
     let mut newest_backup_name = "".to_string();
     let mut newest_backup_path: Option<PathBuf> = None;
@@ -145,59 +145,6 @@ pub async fn has_backup(context: &Context, dir_name: &Path) -> Result<String> {
         }
     }
 
-    match newest_backup_path {
-        Some(path) => Ok(path.to_string_lossy().into_owned()),
-        None => has_backup_old(context, dir_name).await,
-        // When we decide to remove support for .bak backups, we can replace this with `None => bail!("no backup found in {}", dir_name.display()),`.
-    }
-}
-
-/// Returns the filename of the backup found (otherwise an error)
-pub async fn has_backup_old(context: &Context, dir_name: &Path) -> Result<String> {
-    let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
-    let mut newest_backup_time = 0;
-    let mut newest_backup_name = "".to_string();
-    let mut newest_backup_path: Option<PathBuf> = None;
-    while let Some(dirent) = dir_iter.next().await {
-        if let Ok(dirent) = dirent {
-            let path = dirent.path();
-            let name = dirent.file_name();
-            let name = name.to_string_lossy();
-            if name.starts_with("delta-chat") && name.ends_with(".bak") {
-                let sql = Sql::new();
-                match sql.open(context, &path, true).await {
-                    Ok(_) => {
-                        let curr_backup_time = sql
-                            .get_raw_config_int("backup_time")
-                            .await?
-                            .unwrap_or_default();
-                        if curr_backup_time > newest_backup_time {
-                            newest_backup_path = Some(path);
-                            newest_backup_time = curr_backup_time;
-                        }
-                        info!(context, "backup_time of {} is {}", name, curr_backup_time);
-                        sql.close().await;
-                    }
-                    Err(e) => {
-                        warn!(
-                            context,
-                            "Found backup file {} which could not be opened: {}", name, e
-                        );
-                        // On some Android devices we can't open sql files that are not in our private directory
-                        // (see <https://github.com/deltachat/deltachat-android/issues/1768>). So, compare names
-                        // to still find the newest backup.
-                        let name: String = name.into();
-                        if newest_backup_time == 0
-                            && (newest_backup_name.is_empty() || name > newest_backup_name)
-                        {
-                            newest_backup_path = Some(path);
-                            newest_backup_name = name;
-                        }
-                    }
-                }
-            }
-        }
-    }
     match newest_backup_path {
         Some(path) => Ok(path.to_string_lossy().into_owned()),
         None => bail!("no backup found in {}", dir_name.display()),
@@ -468,18 +415,12 @@ async fn imex_inner(context: &Context, what: ImexMode, path: &Path) -> Result<()
         ImexMode::ImportSelfKeys => import_self_keys(context, path).await,
 
         ImexMode::ExportBackup => export_backup(context, path).await,
-        // import_backup() will call import_backup_old() if this is an old backup.
         ImexMode::ImportBackup => import_backup(context, path).await,
     }
 }
 
 /// Import Backup
 async fn import_backup(context: &Context, backup_to_import: &Path) -> Result<()> {
-    if backup_to_import.to_string_lossy().ends_with(".bak") {
-        // Backwards compability
-        return import_backup_old(context, backup_to_import).await;
-    }
-
     info!(
         context,
         "Import \"{}\" to \"{}\".",
@@ -543,123 +484,13 @@ async fn import_backup(context: &Context, backup_to_import: &Path) -> Result<()>
 
     context
         .sql
-        .open(context, context.get_dbfile(), false)
+        .open(context)
         .await
         .context("Could not re-open db")?;
 
     delete_and_reset_all_device_msgs(context).await?;
 
     Ok(())
-}
-
-async fn import_backup_old(context: &Context, backup_to_import: &Path) -> Result<()> {
-    info!(
-        context,
-        "Import \"{}\" to \"{}\".",
-        backup_to_import.display(),
-        context.get_dbfile().display()
-    );
-
-    ensure!(
-        !context.is_configured().await?,
-        "Cannot import backups to accounts in use."
-    );
-    ensure!(
-        !context.scheduler.read().await.is_running(),
-        "cannot import backup, IO already running"
-    );
-    context.sql.close().await;
-    dc_delete_file(context, context.get_dbfile()).await;
-    ensure!(
-        !context.get_dbfile().exists().await,
-        "Cannot delete old database."
-    );
-
-    ensure!(
-        dc_copy_file(context, backup_to_import, context.get_dbfile()).await,
-        "could not copy file"
-    );
-    /* error already logged */
-    /* re-open copied database file */
-    context
-        .sql
-        .open(context, context.get_dbfile(), false)
-        .await
-        .context("Could not re-open db")?;
-
-    delete_and_reset_all_device_msgs(context).await?;
-
-    let total_files_cnt = context
-        .sql
-        .count("SELECT COUNT(*) FROM backup_blobs;", paramsv![])
-        .await?;
-    info!(
-        context,
-        "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
-    );
-
-    // Load IDs only for now, without the file contents, to avoid
-    // consuming too much memory.
-    let file_ids = context
-        .sql
-        .query_map(
-            "SELECT id FROM backup_blobs ORDER BY id",
-            paramsv![],
-            |row| row.get(0),
-            |ids| {
-                ids.collect::<std::result::Result<Vec<i64>, _>>()
-                    .map_err(Into::into)
-            },
-        )
-        .await?;
-
-    let mut all_files_extracted = true;
-    for (processed_files_cnt, file_id) in file_ids.into_iter().enumerate() {
-        // Load a single blob into memory
-        let (file_name, file_blob) = context
-            .sql
-            .query_row(
-                "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
-                paramsv![file_id],
-                |row| {
-                    let file_name: String = row.get(0)?;
-                    let file_blob: Vec<u8> = row.get(1)?;
-                    Ok((file_name, file_blob))
-                },
-            )
-            .await?;
-
-        if context.shall_stop_ongoing().await {
-            all_files_extracted = false;
-            break;
-        }
-        let mut permille = processed_files_cnt * 1000 / total_files_cnt;
-        if permille < 10 {
-            permille = 10
-        }
-        if permille > 990 {
-            permille = 990
-        }
-        context.emit_event(EventType::ImexProgress(permille));
-        if file_blob.is_empty() {
-            continue;
-        }
-
-        let path_filename = context.get_blobdir().join(file_name);
-        dc_write_file(context, &path_filename, &file_blob).await?;
-    }
-
-    if all_files_extracted {
-        // only delete backup_blobs if all files were successfully extracted
-        context
-            .sql
-            .execute("DROP TABLE backup_blobs;", paramsv![])
-            .await?;
-        context.sql.execute("VACUUM;", paramsv![]).await.ok();
-        Ok(())
-    } else {
-        bail!("received stop signal");
-    }
 }
 
 /*******************************************************************************
@@ -702,7 +533,7 @@ async fn export_backup(context: &Context, dir: &Path) -> Result<()> {
     let res = export_backup_inner(context, &temp_path).await;
 
     // we re-open the database after export is finished
-    context.sql.open(context, context.get_dbfile(), false).await;
+    context.sql.open(context).await;
 
     match &res {
         Ok(_) => {

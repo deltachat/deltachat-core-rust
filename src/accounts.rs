@@ -59,7 +59,10 @@ impl Accounts {
         let config = Config::from_file(config_file)
             .await
             .context("failed to load accounts config")?;
-        let accounts = config.load_accounts().await?;
+        let accounts = config
+            .load_accounts()
+            .await
+            .context("failed to load accounts")?;
 
         let emitter = EventEmitter::new();
 
@@ -68,7 +71,9 @@ impl Accounts {
         emitter.sender.send(events.get_emitter()).await?;
 
         for account in accounts.values() {
-            emitter.add_account(account).await?;
+            emitter.add_account(account).await.with_context(|| {
+                format!("failed to add account {} to event emitter", account.id)
+            })?;
         }
 
         Ok(Self {
@@ -106,11 +111,24 @@ impl Accounts {
         Ok(())
     }
 
-    /// Add a new account.
+    /// Add a new account and opens it.
+    ///
+    /// Returns account ID.
     pub async fn add_account(&mut self) -> Result<u32> {
         let account_config = self.config.new_account(&self.dir).await?;
 
         let ctx = Context::new(account_config.dbfile().into(), account_config.id).await?;
+        self.emitter.add_account(&ctx).await?;
+        self.accounts.insert(account_config.id, ctx);
+
+        Ok(account_config.id)
+    }
+
+    /// Adds a new closed account.
+    pub async fn add_closed_account(&mut self) -> Result<u32> {
+        let account_config = self.config.new_account(&self.dir).await?;
+
+        let ctx = Context::new_closed(account_config.dbfile().into(), account_config.id).await?;
         self.emitter.add_account(&ctx).await?;
         self.accounts.insert(account_config.id, ctx);
 
@@ -184,7 +202,7 @@ impl Accounts {
 
         match res {
             Ok(_) => {
-                let ctx = Context::with_blobdir(new_dbfile, new_blobdir, account_config.id).await?;
+                let ctx = Context::new(new_dbfile, account_config.id).await?;
                 self.emitter.add_account(&ctx).await?;
                 self.accounts.insert(account_config.id, ctx);
                 Ok(account_config.id)
@@ -385,7 +403,15 @@ impl Config {
     pub async fn load_accounts(&self) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
         for account_config in &self.inner.accounts {
-            let ctx = Context::new(account_config.dbfile().into(), account_config.id).await?;
+            let ctx = Context::new(account_config.dbfile().into(), account_config.id)
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed to create context from file {:?}",
+                        account_config.dbfile()
+                    )
+                })?;
+
             accounts.insert(account_config.id, ctx);
         }
 
@@ -410,8 +436,13 @@ impl Config {
 
         self.sync().await?;
 
-        self.select_account(id).await.expect("just added");
-        let cfg = self.get_account(id).await.expect("just added");
+        self.select_account(id)
+            .await
+            .context("failed to select just added account")?;
+        let cfg = self
+            .get_account(id)
+            .await
+            .context("failed to get just added account")?;
         Ok(cfg)
     }
 
@@ -700,6 +731,51 @@ mod tests {
         // When account manager is dropped, event emitter is exhausted.
         drop(accounts);
         assert_eq!(event_emitter.recv().await?, None);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_encrypted_account() -> Result<()> {
+        let dir = tempfile::tempdir().context("failed to create tempdir")?;
+        let p: PathBuf = dir.path().join("accounts").into();
+
+        let mut accounts = Accounts::new(p.clone())
+            .await
+            .context("failed to create accounts manager")?;
+
+        assert_eq!(accounts.accounts.len(), 0);
+        let account_id = accounts
+            .add_closed_account()
+            .await
+            .context("failed to add closed account")?;
+        let account = accounts
+            .get_selected_account()
+            .await
+            .context("failed to get account")?;
+        assert_eq!(account.id, account_id);
+        let passphrase_set_success = account
+            .open("foobar".to_string())
+            .await
+            .context("failed to set passphrase")?;
+        assert!(passphrase_set_success);
+        drop(accounts);
+
+        let accounts = Accounts::new(p.clone())
+            .await
+            .context("failed to create second accounts manager")?;
+        let account = accounts
+            .get_selected_account()
+            .await
+            .context("failed to get account")?;
+        assert_eq!(account.is_open().await, false);
+
+        // Try wrong passphrase.
+        assert_eq!(account.open("barfoo".to_string()).await?, false);
+        assert_eq!(account.open("".to_string()).await?, false);
+
+        assert_eq!(account.open("foobar".to_string()).await?, true);
+        assert_eq!(account.is_open().await, true);
 
         Ok(())
     }

@@ -8,8 +8,9 @@ use std::convert::TryFrom;
 use std::time::Duration;
 
 use anyhow::{bail, Context as _, Result};
+use async_std::path::PathBuf;
 use async_std::prelude::*;
-use rusqlite::OpenFlags;
+use rusqlite::{Connection, OpenFlags};
 
 use crate::blob::BlobObject;
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
@@ -38,20 +39,55 @@ mod migrations;
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(Debug)]
 pub struct Sql {
-    pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
-}
+    /// Database file path
+    pub(crate) dbfile: PathBuf,
 
-impl Default for Sql {
-    fn default() -> Self {
-        Self {
-            pool: RwLock::new(None),
-        }
-    }
+    pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
+
+    /// SQLCipher passphrase.
+    ///
+    /// Empty string if database is not encrypted.
+    passphrase: RwLock<String>,
 }
 
 impl Sql {
-    pub fn new() -> Sql {
-        Self::default()
+    pub fn new(dbfile: PathBuf) -> Sql {
+        Self {
+            dbfile,
+            pool: Default::default(),
+            passphrase: Default::default(),
+        }
+    }
+
+    /// Sets SQLCipher passphrase for key derivation.
+    ///
+    /// Returns true if passphrase is correct, i.e. the database is new or can be unlocked with
+    /// this passphrase, and false if the database is already encrypted with another passphrase or
+    /// corrupted.
+    ///
+    /// Fails if database is already open.
+    pub async fn set_passphrase(&self, passphrase: String) -> Result<bool> {
+        if self.is_open().await {
+            bail!("Database is already opened.");
+        }
+
+        // Hold the lock to prevent other thread from opening the database.
+        let _lock = self.pool.write().await;
+
+        // Test that the key is correct using a single connection.
+        let connection = Connection::open(&self.dbfile)?;
+        connection
+            .pragma_update(None, "key", &passphrase)
+            .context("failed to set PRAGMA key")?;
+        let key_is_correct = connection
+            .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
+            .is_ok();
+
+        if key_is_correct {
+            *self.passphrase.write().await = passphrase;
+        }
+
+        Ok(key_is_correct)
     }
 
     /// Checks if there is currently a connection to the underlying Sqlite database.
@@ -65,24 +101,20 @@ impl Sql {
         // drop closes the connection
     }
 
-    pub fn new_pool(
+    fn new_pool(
         dbfile: &Path,
-        readonly: bool,
-    ) -> anyhow::Result<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>> {
+        passphrase: String,
+    ) -> Result<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>> {
         let mut open_flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
-        if readonly {
-            open_flags.insert(OpenFlags::SQLITE_OPEN_READ_ONLY);
-        } else {
-            open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
-            open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
-        }
+        open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
+        open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
 
         // this actually creates min_idle database handles just now.
         // therefore, with_init() must not try to modify the database as otherwise
         // we easily get busy-errors (eg. table-creation, journal_mode etc. should be done on only one handle)
         let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile)
             .with_flags(open_flags)
-            .with_init(|c| {
+            .with_init(move |c| {
                 c.execute_batch(&format!(
                     "PRAGMA cipher_memory_security = OFF; -- Too slow on Android
                      PRAGMA secure_delete=on;
@@ -91,6 +123,7 @@ impl Sql {
                      ",
                     Duration::from_secs(10).as_millis()
                 ))?;
+                c.pragma_update(None, "key", passphrase.clone())?;
                 Ok(())
             });
 
@@ -103,116 +136,123 @@ impl Sql {
         Ok(pool)
     }
 
+    async fn try_open(&self, context: &Context, dbfile: &Path, passphrase: String) -> Result<()> {
+        *self.pool.write().await = Some(Self::new_pool(dbfile, passphrase.to_string())?);
+
+        {
+            let conn = self.get_conn().await?;
+
+            // Try to enable auto_vacuum. This will only be
+            // applied if the database is new or after successful
+            // VACUUM, which usually happens before backup export.
+            // When auto_vacuum is INCREMENTAL, it is possible to
+            // use PRAGMA incremental_vacuum to return unused
+            // database pages to the filesystem.
+            conn.pragma_update(None, "auto_vacuum", &"INCREMENTAL".to_string())?;
+
+            // journal_mode is persisted, it is sufficient to change it only for one handle.
+            conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
+
+            // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
+            conn.pragma_update(None, "synchronous", &"NORMAL".to_string())?;
+        }
+
+        // (1) update low-level database structure.
+        // this should be done before updates that use high-level objects that
+        // rely themselves on the low-level structure.
+
+        let (recalc_fingerprints, update_icons, disable_server_delete, recode_avatar) =
+            migrations::run(context, self)
+                .await
+                .context("failed to run migrations")?;
+
+        // (2) updates that require high-level objects
+        // the structure is complete now and all objects are usable
+
+        if recalc_fingerprints {
+            info!(context, "[migration] recalc fingerprints");
+            let addrs = self
+                .query_map(
+                    "SELECT addr FROM acpeerstates;",
+                    paramsv![],
+                    |row| row.get::<_, String>(0),
+                    |addrs| {
+                        addrs
+                            .collect::<std::result::Result<Vec<_>, _>>()
+                            .map_err(Into::into)
+                    },
+                )
+                .await?;
+            for addr in &addrs {
+                if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
+                    peerstate.recalc_fingerprint();
+                    peerstate.save_to_db(self, false).await?;
+                }
+            }
+        }
+
+        if update_icons {
+            update_saved_messages_icon(context).await?;
+            update_device_icon(context).await?;
+        }
+
+        if disable_server_delete {
+            // We now always watch all folders and delete messages there if delete_server is enabled.
+            // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
+            if context.get_config_delete_server_after().await?.is_some() {
+                let mut msg = Message::new(Viewtype::Text);
+                msg.text = Some(stock_str::delete_server_turned_off(context).await);
+                add_device_msg(context, None, Some(&mut msg)).await?;
+                context
+                    .set_config(Config::DeleteServerAfter, Some("0"))
+                    .await?;
+            }
+        }
+
+        if recode_avatar {
+            if let Some(avatar) = context.get_config(Config::Selfavatar).await? {
+                let mut blob = BlobObject::new_from_path(context, avatar.as_ref()).await?;
+                match blob.recode_to_avatar_size(context).await {
+                    Ok(()) => {
+                        context
+                            .set_config(Config::Selfavatar, Some(&avatar))
+                            .await?
+                    }
+                    Err(e) => {
+                        warn!(context, "Migrations can't recode avatar, removing. {:#}", e);
+                        context.set_config(Config::Selfavatar, None).await?
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Opens the provided database and runs any necessary migrations.
     /// If a database is already open, this will return an error.
-    pub async fn open(
-        &self,
-        context: &Context,
-        dbfile: &Path,
-        readonly: bool,
-    ) -> anyhow::Result<()> {
+    pub async fn open(&self, context: &Context) -> Result<()> {
         if self.is_open().await {
             error!(
                 context,
-                "Cannot open, database \"{:?}\" already opened.", dbfile,
+                "Cannot open, database \"{:?}\" already opened.", self.dbfile,
             );
             bail!("SQL database is already opened.");
         }
 
-        *self.pool.write().await = Some(Self::new_pool(dbfile, readonly)?);
+        let passphrase_lock = self.passphrase.read().await;
+        let passphrase: &str = passphrase_lock.as_ref();
 
-        if !readonly {
-            {
-                let conn = self.get_conn().await?;
-
-                // Try to enable auto_vacuum. This will only be
-                // applied if the database is new or after successful
-                // VACUUM, which usually happens before backup export.
-                // When auto_vacuum is INCREMENTAL, it is possible to
-                // use PRAGMA incremental_vacuum to return unused
-                // database pages to the filesystem.
-                conn.pragma_update(None, "auto_vacuum", &"INCREMENTAL".to_string())?;
-
-                // journal_mode is persisted, it is sufficient to change it only for one handle.
-                conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
-
-                // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
-                conn.pragma_update(None, "synchronous", &"NORMAL".to_string())?;
-            }
-
-            // (1) update low-level database structure.
-            // this should be done before updates that use high-level objects that
-            // rely themselves on the low-level structure.
-
-            let (recalc_fingerprints, update_icons, disable_server_delete, recode_avatar) =
-                migrations::run(context, self)
-                    .await
-                    .context("failed to run migrations")?;
-
-            // (2) updates that require high-level objects
-            // the structure is complete now and all objects are usable
-
-            if recalc_fingerprints {
-                info!(context, "[migration] recalc fingerprints");
-                let addrs = self
-                    .query_map(
-                        "SELECT addr FROM acpeerstates;",
-                        paramsv![],
-                        |row| row.get::<_, String>(0),
-                        |addrs| {
-                            addrs
-                                .collect::<std::result::Result<Vec<_>, _>>()
-                                .map_err(Into::into)
-                        },
-                    )
-                    .await?;
-                for addr in &addrs {
-                    if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
-                        peerstate.recalc_fingerprint();
-                        peerstate.save_to_db(self, false).await?;
-                    }
-                }
-            }
-
-            if update_icons {
-                update_saved_messages_icon(context).await?;
-                update_device_icon(context).await?;
-            }
-
-            if disable_server_delete {
-                // We now always watch all folders and delete messages there if delete_server is enabled.
-                // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
-                if context.get_config_delete_server_after().await?.is_some() {
-                    let mut msg = Message::new(Viewtype::Text);
-                    msg.text = Some(stock_str::delete_server_turned_off(context).await);
-                    add_device_msg(context, None, Some(&mut msg)).await?;
-                    context
-                        .set_config(Config::DeleteServerAfter, Some("0"))
-                        .await?;
-                }
-            }
-
-            if recode_avatar {
-                if let Some(avatar) = context.get_config(Config::Selfavatar).await? {
-                    let mut blob = BlobObject::new_from_path(context, avatar.as_ref()).await?;
-                    match blob.recode_to_avatar_size(context).await {
-                        Ok(()) => {
-                            context
-                                .set_config(Config::Selfavatar, Some(&avatar))
-                                .await?
-                        }
-                        Err(e) => {
-                            warn!(context, "Migrations can't recode avatar, removing. {:#}", e);
-                            context.set_config(Config::Selfavatar, None).await?
-                        }
-                    }
-                }
-            }
+        if let Err(err) = self
+            .try_open(context, &self.dbfile, passphrase.to_string())
+            .await
+        {
+            self.close().await;
+            Err(err)
+        } else {
+            info!(context, "Opened database {:?}.", self.dbfile);
+            Ok(())
         }
-
-        info!(context, "Opened database {:?}.", dbfile);
-
-        Ok(())
     }
 
     /// Execute the given query, returning the number of affected rows.
@@ -788,7 +828,7 @@ mod tests {
 
         t.sql.close().await;
         housekeeping(&t).await.unwrap_err(); // housekeeping should fail as the db is closed
-        t.sql.open(&t, t.get_dbfile(), false).await.unwrap();
+        t.sql.open(&t).await.unwrap();
 
         let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
@@ -828,14 +868,14 @@ mod tests {
         // Create a separate empty database for testing.
         let dir = tempdir()?;
         let dbfile = dir.path().join("testdb.sqlite");
-        let sql = Sql::new();
+        let sql = Sql::new(dbfile.into());
 
         // Create database with all the tables.
-        sql.open(&t, dbfile.as_ref(), false).await.unwrap();
+        sql.open(&t).await.unwrap();
         sql.close().await;
 
         // Reopen the database
-        sql.open(&t, dbfile.as_ref(), false).await?;
+        sql.open(&t).await?;
         sql.execute(
             "INSERT INTO config (keyname, value) VALUES (?, ?);",
             paramsv!("foo", "bar"),
@@ -886,6 +926,38 @@ mod tests {
             }
         }
 
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_set_passphrase() -> Result<()> {
+        use tempfile::tempdir;
+
+        // The context is used only for logging.
+        let t = TestContext::new().await;
+
+        // Create a separate empty database for testing.
+        let dir = tempdir()?;
+        let dbfile = dir.path().join("testdb.sqlite");
+        let sql = Sql::new(dbfile.clone().into());
+
+        sql.set_passphrase("foo".to_string()).await?;
+        sql.open(&t)
+            .await
+            .context("failed to open the database first time")?;
+        sql.close().await;
+
+        // Reopen the database
+        let sql = Sql::new(dbfile.into());
+
+        // Test that we can't open encrypted database without a passphrase.
+        assert!(sql.open(&t).await.is_err());
+
+        // Now set the passphrase and open the database, it should succeed.
+        sql.set_passphrase("foo".to_string()).await?;
+        sql.open(&t)
+            .await
+            .context("failed to open the database second time")?;
         Ok(())
     }
 }
