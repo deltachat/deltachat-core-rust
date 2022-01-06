@@ -3632,7 +3632,7 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
 
 
 /**
- * Get info a webxdc message, in JSON format.
+ * Get info from a webxdc message, in JSON format.
  * The returned JSON string has the following key/values:
  *
  * - name: The name of the app.
