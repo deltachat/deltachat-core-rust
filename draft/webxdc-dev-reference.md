@@ -1,4 +1,4 @@
-# Webxdc User Guide
+# Webxdc Developer Reference
 
 ## Webxdc File Format
 
