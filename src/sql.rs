@@ -87,6 +87,13 @@ impl Sql {
                     "PRAGMA cipher_memory_security = OFF; -- Too slow on Android
                      PRAGMA secure_delete=on;
                      PRAGMA busy_timeout = {};
+                     -- Try to enable auto_vacuum. This will only be
+                     -- applied if the database is new or after successful
+                     -- VACUUM, which usually happens before backup export.
+                     -- When auto_vacuum is INCREMENTAL, it is possible to
+                     -- use PRAGMA incremental_vacuum to return unused
+                     -- database pages to the filesystem.
+                     PRAGMA auto_vacuum=INCREMENTAL;
                      PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                      ",
                     Duration::from_secs(10).as_millis()
@@ -124,14 +131,6 @@ impl Sql {
         if !readonly {
             {
                 let conn = self.get_conn().await?;
-
-                // Try to enable auto_vacuum. This will only be
-                // applied if the database is new or after successful
-                // VACUUM, which usually happens before backup export.
-                // When auto_vacuum is INCREMENTAL, it is possible to
-                // use PRAGMA incremental_vacuum to return unused
-                // database pages to the filesystem.
-                conn.pragma_update(None, "auto_vacuum", &"INCREMENTAL".to_string())?;
 
                 // journal_mode is persisted, it is sufficient to change it only for one handle.
                 conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
