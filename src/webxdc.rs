@@ -13,7 +13,9 @@ use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::convert::TryFrom;
+use std::fs::File;
 use std::io::Read;
+use zip::ZipArchive;
 
 pub const WEBXDC_SUFFIX: &str = "xdc";
 const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
@@ -248,7 +250,25 @@ async fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
     Ok(manifest)
 }
 
+async fn get_blob(archive: &mut ZipArchive<File>, name: &str) -> Result<Vec<u8>> {
+    let mut file = archive.by_name(name)?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf)?;
+    Ok(buf)
+}
+
 impl Message {
+    /// Get handle to a webxdc ZIP-archive.
+    /// To check for file existance use archive.by_name(), to read a file, use get_blob(archive).
+    async fn get_webxdc_archive(&self, context: &Context) -> Result<ZipArchive<File>> {
+        let path = self
+            .get_file(context)
+            .ok_or_else(|| format_err!("No webxdc instance file."))?;
+        let file = dc_open_file_std(context, path)?;
+        let archive = zip::ZipArchive::new(file)?;
+        Ok(archive)
+    }
+
     /// Return file form inside an archive.
     /// Currently, this works only if the message is an webxdc instance.
     pub async fn get_webxdc_blob(&self, context: &Context, name: &str) -> Result<Vec<u8>> {
@@ -258,12 +278,6 @@ impl Message {
             return Ok(include_bytes!("../assets/icon-webxdc.png").to_vec());
         }
 
-        let archive = self
-            .get_file(context)
-            .ok_or_else(|| format_err!("No webxdc instance file."))?;
-        let archive = dc_open_file_std(context, archive)?;
-        let mut archive = zip::ZipArchive::new(archive)?;
-
         // ignore first slash.
         // this way, files can be accessed absolutely (`/index.html`) as well as relatively (`index.html`)
         let name = if name.starts_with('/') {
@@ -272,18 +286,16 @@ impl Message {
             name
         };
 
-        let mut file = archive.by_name(name)?;
-
-        let mut buf = Vec::new();
-        file.read_to_end(&mut buf)?;
-        Ok(buf)
+        let mut archive = self.get_webxdc_archive(context).await?;
+        get_blob(&mut archive, name).await
     }
 
     /// Return info from manifest.toml or from fallbacks.
     pub async fn get_webxdc_info(&self, context: &Context) -> Result<WebxdcInfo> {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
+        let mut archive = self.get_webxdc_archive(context).await?;
 
-        let mut manifest = if let Ok(bytes) = self.get_webxdc_blob(context, "manifest.toml").await {
+        let mut manifest = if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
             if let Ok(manifest) = parse_webxdc_manifest(&bytes).await {
                 manifest
             } else {
@@ -311,7 +323,7 @@ impl Message {
             if !icon.ends_with(".png") && !icon.ends_with(".jpg") {
                 warn!(context, "bad icon format \"{}\"; use .png or .jpg", icon);
                 manifest.icon = None;
-            } else if self.get_webxdc_blob(context, icon).await.is_err() {
+            } else if archive.by_name(icon).is_err() {
                 warn!(context, "cannot find icon \"{}\"", icon);
                 manifest.icon = None;
             }
