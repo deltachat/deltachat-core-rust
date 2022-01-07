@@ -84,7 +84,7 @@ pub struct InnerContext {
 
 #[derive(Debug)]
 pub struct RunningState {
-    pub ongoing_running: bool,
+    ongoing_running: bool,
     shall_stop_ongoing: bool,
     cancel_sender: Option<Sender<()>>,
 }
@@ -224,7 +224,7 @@ impl Context {
 
     // Ongoing process allocation/free/check
 
-    pub async fn alloc_ongoing(&self) -> Result<Receiver<()>> {
+    pub(crate) async fn alloc_ongoing(&self) -> Result<Receiver<()>> {
         if self.has_ongoing().await {
             bail!("There is already another ongoing process running.");
         }
@@ -240,7 +240,7 @@ impl Context {
         Ok(receiver)
     }
 
-    pub async fn free_ongoing(&self) {
+    pub(crate) async fn free_ongoing(&self) {
         let s_a = &self.running_state;
         let mut s = s_a.write().await;
 
@@ -249,7 +249,7 @@ impl Context {
         s.cancel_sender.take();
     }
 
-    pub async fn has_ongoing(&self) -> bool {
+    pub(crate) async fn has_ongoing(&self) -> bool {
         let s_a = &self.running_state;
         let s = s_a.read().await;
 
@@ -274,7 +274,7 @@ impl Context {
         };
     }
 
-    pub async fn shall_stop_ongoing(&self) -> bool {
+    pub(crate) async fn shall_stop_ongoing(&self) -> bool {
         self.running_state.read().await.shall_stop_ongoing
     }
 
@@ -574,14 +574,14 @@ impl Context {
         Ok(spam.as_deref() == Some(folder_name))
     }
 
-    pub fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {
+    pub(crate) fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
         dbfile.with_file_name(blob_fname)
     }
 
-    pub fn derive_walfile(dbfile: &PathBuf) -> PathBuf {
+    pub(crate) fn derive_walfile(dbfile: &PathBuf) -> PathBuf {
         let mut wal_fname = OsString::new();
         wal_fname.push(dbfile.file_name().unwrap_or_default());
         wal_fname.push("-wal");
