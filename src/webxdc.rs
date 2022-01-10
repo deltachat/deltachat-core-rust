@@ -157,7 +157,8 @@ impl Context {
                         instance_msg_id,
                         Some(status_update_id),
                     )
-                    .await?,
+                    .await?
+                    .ok_or_else(|| format_err!("Status object expected."))?,
                 );
                 status_update.set_quote(self, Some(&instance)).await?;
                 let status_update_msg_id =
@@ -257,11 +258,15 @@ impl Context {
         &self,
         instance_msg_id: MsgId,
         status_update_id: Option<StatusUpdateId>,
-    ) -> Result<String> {
+    ) -> Result<Option<String>> {
         let updates_array = self
             .get_webxdc_status_updates(instance_msg_id, status_update_id)
             .await?;
-        Ok(format!(r#"{{"updates":{}}}"#, updates_array))
+        if updates_array == "[]" {
+            Ok(None)
+        } else {
+            Ok(Some(format!(r#"{{"updates":{}}}"#, updates_array)))
+        }
     }
 }
 
@@ -713,6 +718,31 @@ mod tests {
         let alice2_chat_id = alice2_instance.chat_id;
         assert_eq!(alice2_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(alice2_chat_id.get_msg_cnt(&alice2).await?, 1);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_render_webxdc_status_update_object() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat").await?;
+        let mut instance = create_webxdc_instance(
+            &t,
+            "minimal.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
+        chat_id.set_draft(&t, Some(&mut instance)).await?;
+        assert!(t
+            .render_webxdc_status_update_object(instance.id, None)
+            .await?
+            .is_none());
+
+        t.send_webxdc_status_update(instance.id, "1", "bla").await?;
+        assert!(t
+            .render_webxdc_status_update_object(instance.id, None)
+            .await?
+            .is_some());
 
         Ok(())
     }

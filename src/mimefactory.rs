@@ -1163,10 +1163,10 @@ impl<'a> MimeFactory<'a> {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
             parts.push(context.build_status_update_part(json).await);
         } else if self.msg.viewtype == Viewtype::Webxdc {
-            let json = context
+            if let Some(json) = context
                 .render_webxdc_status_update_object(self.msg.id, None)
-                .await?;
-            if json != r#"{{"updates":[]}}"# {
+                .await?
+            {
                 parts.push(context.build_status_update_part(&json).await);
             }
         }
