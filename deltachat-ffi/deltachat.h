@@ -279,7 +279,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `displayname`  = Own name to use when sending messages.  MUAs are allowed to spread this way e.g. using CC, defaults to empty
- * - `selfstatus`   = Own status to display e.g. in email footers, defaults to a standard text defined by #DC_STR_STATUSLINE
+ * - `selfstatus`   = Own status to display e.g. in email footers, defaults to empty
  * - `selfavatar`   = File containing avatar. Will immediately be copied to the 
  *                    `blobdir`; the original image will not be needed anymore.
  *                    NULL to remove the avatar.
