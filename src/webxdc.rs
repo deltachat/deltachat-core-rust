@@ -61,6 +61,12 @@ impl rusqlite::types::ToSql for StatusUpdateId {
     }
 }
 
+// Array of update items as sent on the wire.
+#[derive(Debug, Deserialize)]
+struct StatusUpdates {
+    updates: Vec<StatusUpdateItem>,
+}
+
 /// Update items as sent on the wire and as stored in the database.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct StatusUpdateItem {
@@ -147,8 +153,11 @@ impl Context {
                     .set_cmd(SystemMessage::WebxdcStatusUpdate);
                 status_update.param.set(
                     Param::Arg,
-                    self.get_webxdc_status_updates(instance_msg_id, Some(status_update_id))
-                        .await?,
+                    self.render_webxdc_status_update_object(
+                        instance_msg_id,
+                        Some(status_update_id),
+                    )
+                    .await?,
                 );
                 status_update.set_quote(self, Some(&instance)).await?;
                 let status_update_msg_id =
@@ -190,8 +199,8 @@ impl Context {
             bail!("receive_status_update: status message has no parent.")
         };
 
-        let update_items: Vec<StatusUpdateItem> = serde_json::from_str(json)?;
-        for update_item in update_items {
+        let updates: StatusUpdates = serde_json::from_str(json)?;
+        for update_item in updates.updates {
             let status_update_id = self
                 .create_status_update_record(
                     instance.id,
@@ -241,6 +250,18 @@ impl Context {
             )
             .await?;
         Ok(format!("[{}]", json))
+    }
+
+    /// Render JSON-object for status updates as used on the wire.
+    pub(crate) async fn render_webxdc_status_update_object(
+        &self,
+        instance_msg_id: MsgId,
+        status_update_id: Option<StatusUpdateId>,
+    ) -> Result<String> {
+        let updates_array = self
+            .get_webxdc_status_updates(instance_msg_id, status_update_id)
+            .await?;
+        Ok(format!(r#"{{"updates":{}}}"#, updates_array))
     }
 }
 
@@ -548,28 +569,48 @@ mod tests {
             .await
             .is_err()); // no json
         assert!(t
-            .receive_status_update(instance.id, r#"[{"foo":"bar"}]"#)
+            .receive_status_update(instance.id, r#"{"updada":[{"payload":{"foo":"bar"}}]}"#)
+            .await
+            .is_err()); // "updates" object missing
+        assert!(t
+            .receive_status_update(instance.id, r#"{"updates":[{"foo":"bar"}]}"#)
             .await
             .is_err()); // "payload" field missing
         assert!(t
-            .receive_status_update(instance.id, r#"{"payload":{"foo":"bar"}}"#)
+            .receive_status_update(instance.id, r#"{"updates":{"payload":{"foo":"bar"}}}"#)
             .await
             .is_err()); // not an array
 
-        t.receive_status_update(instance.id, r#"[{"payload":{"foo":"bar"}}]"#)
+        t.receive_status_update(instance.id, r#"{"updates":[{"payload":{"foo":"bar"}}]}"#)
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}}]"#
         );
 
-        t.receive_status_update(instance.id, r#" [ {"payload" :42} , {"payload": 23} ] "#)
-            .await?;
+        t.receive_status_update(
+            instance.id,
+            r#" {"updates": [ {"payload" :42} , {"payload": 23} ] } "#,
+        )
+        .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}},
 {"payload":42},
 {"payload":23}]"#
+        );
+
+        t.receive_status_update(
+            instance.id,
+            r#" {"updates": [ {"payload" :"ok", "future_item": "test"}  ], "from": "future" } "#,
+        )
+        .await?; // ignore members that may be added in the future
+        assert_eq!(
+            t.get_webxdc_status_updates(instance.id, None).await?,
+            r#"[{"payload":{"foo":"bar"}},
+{"payload":42},
+{"payload":23},
+{"payload":"ok"}]"#
         );
 
         Ok(())
