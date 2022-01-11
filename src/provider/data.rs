@@ -690,7 +690,22 @@ static P_MAIL_DE: Lazy<Provider> = Lazy::new(|| Provider {
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/mail-de",
-    server: vec![],
+    server: vec![
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "imap.mail.de",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "smtp.mail.de",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
     config_defaults: None,
     strict_tls: true,
     max_smtp_rcpt_to: None,
@@ -1728,4 +1743,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2022, 1, 10));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2022, 1, 11));
