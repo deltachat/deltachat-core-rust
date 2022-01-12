@@ -4,8 +4,12 @@
 
 ### API changes
 
+- added `DC_MSG_WEBXDC`, `dc_send_webxdc_status_update()`,
+  `dc_get_webxdc_status_updates()`, `dc_msg_get_webxdc_blob()`,
+  `dc_msg_get_webxdc_info()`, and `DC_EVENT_WEBXDC_STATUS_UPDATE` #2826
 - Removed `mvbox_watch` option. #2906
   It is automatically enabled whenever `mvbox_move` is enabled.
+
 
 ## 1.70.0
 
