@@ -1,5 +1,9 @@
 # Delta Chat C Interface
 
+## Installation
+
+see `Installing libdeltachat system wide` in [../README.md](../README.md)
+
 ## Documentation
 
 To generate the C Interface documentation,
