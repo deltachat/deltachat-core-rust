@@ -20,6 +20,23 @@ use zip::ZipArchive;
 pub const WEBXDC_SUFFIX: &str = "xdc";
 const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 
+/// Defines the maximal size in bytes of an .xdc file that can be sent.
+///
+/// We introduce a limit to force developer to create small .xpc
+/// to save user's traffic and disk space for a better ux.
+///
+/// The 100K limit should also let .xdc pass worse-quality auto-download filters
+/// which are usually 160K incl. base64 overhead.
+///
+/// The limit is also an experiment to see how small we can go;
+/// it is planned to raise that limit as needed in subsequent versions.
+pub(crate) const WEBXDC_SENDING_LIMIT: usize = 102400;
+
+/// Be more tolerant for .xdc sizes on receiving -
+/// might be, the senders version uses already a larger limit
+/// and not showing the .xpc on some devices would be even worse ux.
+const WEBXDC_RECEIVING_LIMIT: usize = 1048576;
+
 /// Raw information read from manifest.toml
 #[derive(Debug, Deserialize)]
 #[non_exhaustive]
@@ -79,7 +96,16 @@ impl Context {
             let reader = std::io::Cursor::new(buf);
             if let Ok(mut archive) = zip::ZipArchive::new(reader) {
                 if let Ok(_index_html) = archive.by_name("index.html") {
-                    return Ok(true);
+                    if buf.len() <= WEBXDC_RECEIVING_LIMIT {
+                        return Ok(true);
+                    } else {
+                        error!(
+                            self,
+                            "{} exceeds acceptable size of {} bytes.",
+                            &filename,
+                            WEBXDC_SENDING_LIMIT
+                        );
+                    }
                 }
             }
         }
@@ -363,6 +389,16 @@ mod tests {
     use crate::test_utils::TestContext;
     use async_std::fs::File;
     use async_std::io::WriteExt;
+
+    #[allow(clippy::assertions_on_constants)]
+    #[async_std::test]
+    async fn test_webxdc_file_limits() -> Result<()> {
+        assert!(WEBXDC_SENDING_LIMIT >= 32768);
+        assert!(WEBXDC_SENDING_LIMIT < 16777216);
+        assert!(WEBXDC_RECEIVING_LIMIT >= WEBXDC_SENDING_LIMIT * 2);
+        assert!(WEBXDC_RECEIVING_LIMIT < 16777216);
+        Ok(())
+    }
 
     #[async_std::test]
     async fn test_is_webxdc_file() -> Result<()> {

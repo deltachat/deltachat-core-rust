@@ -25,8 +25,8 @@ use crate::context::Context;
 use crate::dc_receive_imf::ReceivedMsg;
 use crate::dc_tools::{
     dc_create_id, dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp,
-    dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, improve_single_line_input,
-    time, IsNoneOrEmpty,
+    dc_create_smeared_timestamps, dc_get_abs_path, dc_get_filebytes, dc_gm2local_offset,
+    improve_single_line_input, time, IsNoneOrEmpty,
 };
 use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -37,7 +37,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::stock_str;
-use crate::webxdc::WEBXDC_SUFFIX;
+use crate::webxdc::{WEBXDC_SENDING_LIMIT, WEBXDC_SUFFIX};
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone)]
@@ -1842,12 +1842,22 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             }
         }
 
-        if msg.viewtype == Viewtype::Webxdc && blob.suffix() != Some(WEBXDC_SUFFIX) {
-            bail!(
-                "webxdc message {} does not have suffix {}",
-                blob,
-                WEBXDC_SUFFIX
-            );
+        if msg.viewtype == Viewtype::Webxdc {
+            if blob.suffix() != Some(WEBXDC_SUFFIX) {
+                bail!(
+                    "webxdc message {} does not have suffix {}",
+                    blob,
+                    WEBXDC_SUFFIX
+                );
+            } else if dc_get_filebytes(context, blob.to_abs_path()).await
+                > WEBXDC_SENDING_LIMIT as u64
+            {
+                bail!(
+                    "webxdc message {} exceeds acceptable size of {} bytes",
+                    blob.as_name(),
+                    WEBXDC_SENDING_LIMIT
+                );
+            }
         }
 
         info!(
