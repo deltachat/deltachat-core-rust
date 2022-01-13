@@ -86,19 +86,27 @@ impl Context {
         Ok(false)
     }
 
-    /// Takes a payload and writes it to the database.
+    /// Takes an update-json as `{payload: PAYLOAD}` (or legacy `PAYLOAD`)
+    /// and writes it to the database.
     /// Moreover, events are handled.
     async fn create_status_update_record(
         &self,
         instance_msg_id: MsgId,
-        payload: &str,
+        update_str: &str,
     ) -> Result<StatusUpdateId> {
-        let payload = payload.trim();
-        if payload.is_empty() {
-            bail!("create_status_update_record: empty payload");
+        let update_str = update_str.trim();
+        if update_str.is_empty() {
+            bail!("create_status_update_record: empty update.");
         }
-        let payload: Value = serde_json::from_str(payload)?; // checks if input data are valid json
-        let status_update_item = StatusUpdateItem { payload };
+
+        let status_update_item: StatusUpdateItem =
+            if let Ok(status_update_item) = serde_json::from_str(update_str) {
+                status_update_item
+            } else {
+                // TODO: this fallback (legacy `PAYLOAD`) should be deleted soon, together with the test below
+                let payload: Value = serde_json::from_str(update_str)?; // checks if input data are valid json
+                StatusUpdateItem { payload }
+            };
 
         let rowid = self
             .sql
@@ -127,7 +135,7 @@ impl Context {
     pub async fn send_webxdc_status_update(
         &self,
         instance_msg_id: MsgId,
-        payload: &str,
+        update_str: &str,
         descr: &str,
     ) -> Result<Option<MsgId>> {
         let instance = Message::load_from_db(self, instance_msg_id).await?;
@@ -136,7 +144,7 @@ impl Context {
         }
 
         let status_update_id = self
-            .create_status_update_record(instance_msg_id, payload)
+            .create_status_update_record(instance_msg_id, update_str)
             .await?;
         match instance.state {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft => {
@@ -207,11 +215,8 @@ impl Context {
 
         let updates: StatusUpdates = serde_json::from_str(json)?;
         for update_item in updates.updates {
-            self.create_status_update_record(
-                instance.id,
-                &*serde_json::to_string(&update_item.payload)?,
-            )
-            .await?;
+            self.create_status_update_record(instance.id, &*serde_json::to_string(&update_item)?)
+                .await?;
         }
 
         Ok(())
@@ -489,7 +494,7 @@ mod tests {
         .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let instance = chat_id.get_draft(&t).await?.unwrap();
-        t.send_webxdc_status_update(instance.id, "42", "descr")
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 42}"#, "descr")
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, None).await?,
@@ -521,7 +526,7 @@ mod tests {
         assert_eq!(t.get_webxdc_status_updates(instance.id, None).await?, "[]");
 
         let id = t
-            .create_status_update_record(instance.id, "\n\n{\"foo\":\"bar\"}\n")
+            .create_status_update_record(instance.id, "\n\n{\"payload\": {\"foo\":\"bar\"}}\n")
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, Some(id)).await?,
@@ -546,18 +551,39 @@ mod tests {
         );
 
         let id = t
-            .create_status_update_record(instance.id, r#"{"foo2":"bar2"}"#)
+            .create_status_update_record(instance.id, r#"{"payload" : { "foo2":"bar2"}}"#)
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, Some(id)).await?,
             r#"[{"payload":{"foo2":"bar2"}}]"#
         );
-        t.create_status_update_record(instance.id, "true").await?;
+        t.create_status_update_record(instance.id, r#"{"payload":true}"#)
+            .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}},
 {"payload":{"foo2":"bar2"}},
 {"payload":true}]"#
+        );
+
+        let id = t
+            .create_status_update_record(
+                instance.id,
+                r#"{"payload" : 1, "sender": "that is not used"}"#,
+            )
+            .await?;
+        assert_eq!(
+            t.get_webxdc_status_updates(instance.id, Some(id)).await?,
+            r#"[{"payload":1}]"#
+        );
+
+        // TODO: legacy `PAYLOAD` support should be deleted soon
+        let id = t
+            .create_status_update_record(instance.id, r#"{"foo" : 1}"#)
+            .await?;
+        assert_eq!(
+            t.get_webxdc_status_updates(instance.id, Some(id)).await?,
+            r#"[{"payload":{"foo":1}}]"#
         );
 
         Ok(())
@@ -656,7 +682,11 @@ mod tests {
         assert!(!sent1.payload().contains("report-type=status-update"));
 
         let status_update_msg_id = alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"foo":"bar"}"#, "descr text")
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"payload" : {"foo":"bar"}}"#,
+                "descr text",
+            )
             .await?
             .unwrap();
         expect_status_update_event(&alice, alice_instance.id).await?;
@@ -682,7 +712,11 @@ mod tests {
         );
 
         alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"snipp":"snapp"}"#, "bla text")
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"payload":{"snipp":"snapp"}}"#,
+                "bla text",
+            )
             .await?
             .unwrap();
         assert_eq!(
@@ -738,7 +772,8 @@ mod tests {
             .await?
             .is_none());
 
-        t.send_webxdc_status_update(instance.id, "1", "bla").await?;
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 1}"#, "bla")
+            .await?;
         assert!(t
             .render_webxdc_status_update_object(instance.id, None)
             .await?
@@ -767,12 +802,12 @@ mod tests {
         let mut alice_instance = alice_chat_id.get_draft(&alice).await?.unwrap();
 
         let status_update_msg_id = alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"foo":"bar"}"#, "descr")
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload": {"foo":"bar"}}"#, "descr")
             .await?;
         assert_eq!(status_update_msg_id, None);
         expect_status_update_event(&alice, alice_instance.id).await?;
         let status_update_msg_id = alice
-            .send_webxdc_status_update(alice_instance.id, r#"42"#, "descr")
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload":42}"#, "descr")
             .await?;
         assert_eq!(status_update_msg_id, None);
 
