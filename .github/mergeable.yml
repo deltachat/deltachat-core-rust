@@ -3,7 +3,7 @@ mergeable:
   - when: pull_request.*
     name: "Changelog check"
     validate:
-        - do: or
+        - do: and
           validate:
             - do: dependent
               changed:
