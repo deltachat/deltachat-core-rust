@@ -86,6 +86,8 @@ impl Context {
         Ok(false)
     }
 
+    /// Takes a payload and writes it to the database.
+    /// Moreover, events are handled.
     async fn create_status_update_record(
         &self,
         instance_msg_id: MsgId,
@@ -105,7 +107,14 @@ impl Context {
                 paramsv![instance_msg_id, serde_json::to_string(&status_update_item)?],
             )
             .await?;
-        Ok(StatusUpdateId(u32::try_from(rowid)?))
+        let status_update_id = StatusUpdateId(u32::try_from(rowid)?);
+
+        self.emit_event(EventType::WebxdcStatusUpdate {
+            msg_id: instance_msg_id,
+            status_update_id,
+        });
+
+        Ok(status_update_id)
     }
 
     /// Sends a status update for an webxdc instance.
@@ -129,10 +138,6 @@ impl Context {
         let status_update_id = self
             .create_status_update_record(instance_msg_id, payload)
             .await?;
-        self.emit_event(EventType::WebxdcStatusUpdate {
-            msg_id: instance_msg_id,
-            status_update_id,
-        });
         match instance.state {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft => {
                 // send update once the instance is actually send
@@ -202,16 +207,11 @@ impl Context {
 
         let updates: StatusUpdates = serde_json::from_str(json)?;
         for update_item in updates.updates {
-            let status_update_id = self
-                .create_status_update_record(
-                    instance.id,
-                    &*serde_json::to_string(&update_item.payload)?,
-                )
-                .await?;
-            self.emit_event(EventType::WebxdcStatusUpdate {
-                msg_id: instance.id,
-                status_update_id,
-            });
+            self.create_status_update_record(
+                instance.id,
+                &*serde_json::to_string(&update_item.payload)?,
+            )
+            .await?;
         }
 
         Ok(())
