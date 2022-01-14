@@ -22,7 +22,7 @@ const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 
 /// Defines the maximal size in bytes of an .xdc file that can be sent.
 ///
-/// We introduce a limit to force developer to create small .xpc
+/// We introduce a limit to force developer to create small .xdc
 /// to save user's traffic and disk space for a better ux.
 ///
 /// The 100K limit should also let .xdc pass worse-quality auto-download filters
