@@ -34,7 +34,7 @@ pub(crate) const WEBXDC_SENDING_LIMIT: usize = 102400;
 
 /// Be more tolerant for .xdc sizes on receiving -
 /// might be, the senders version uses already a larger limit
-/// and not showing the .xpc on some devices would be even worse ux.
+/// and not showing the .xdc on some devices would be even worse ux.
 const WEBXDC_RECEIVING_LIMIT: usize = 1048576;
 
 /// Raw information read from manifest.toml
