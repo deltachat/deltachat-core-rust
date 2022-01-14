@@ -17,5 +17,5 @@ mergeable:
       - do: checks
         status: 'action_required' 
         payload:
-          title: Changelog needs to be updated
-          summary: "Please update the changelog"
+          title: Changlog might need an update
+          summary: "Changelog not updated, please check if an update is needed."
