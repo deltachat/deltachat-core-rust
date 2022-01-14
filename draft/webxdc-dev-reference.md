@@ -28,7 +28,11 @@ Webxdc apps are usually shared in a chat and run independently on each peer.
 To get a shared state, the peers use `sendUpdate()` to send updates to each other.
 
 - `update`: an object with the following fields:  
-  `update.payload`: any javascript primitive, array or object.
+    - `update.payload`: any javascript primitive, array or object.
+    - `update.info`: optional, short, informational message that will be added to the chat,
+       eg. "Alice voted" or "Bob scored 123 in MyGame";
+       usually only one line of text is shown,
+       use this option sparingly to not spam the chat.
 - `descr`: short, human-readable description what this update is about.
   this is shown eg. as a fallback text in an email program.
 
