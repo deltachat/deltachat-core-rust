@@ -93,7 +93,7 @@ impl<'a> BlobObject<'a> {
     ) -> Result<(String, fs::File), BlobError> {
         let max_attempt = 15;
         let mut name = format!("{}{}", stem, ext);
-        for attempt in 0..max_attempt {
+        for attempt in 1..=max_attempt {
             let path = dir.join(&name);
             match fs::OpenOptions::new()
                 .create_new(true)
