@@ -1328,8 +1328,7 @@ async fn build_body_file(
             "video_{}.{}",
             chrono::Utc
                 .timestamp(msg.timestamp_sort, 0)
-                .format("%Y-%m-%d_%H-%M-%S")
-                .to_string(),
+                .format("%Y-%m-%d_%H-%M-%S"),
             &suffix
         ),
         _ => blob.as_file_name().to_string(),
