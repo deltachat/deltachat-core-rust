@@ -2,7 +2,9 @@
 
 ## Webxdc File Format
 
-- a **Webxdc app** is a **ZIP-file** with the extension `.xdc`
+- a **Webxdc app** or **XDC app** is a **ZIP-file** with the extension `.xdc`
+- They are send (as attachment) to a chat and run independently on
+  each receiving and sending peer.
 - the ZIP-file must contain at least the file `index.html`
 - if the Webxdc app is started, `index.html` is opened in a restricted webview
   that allow accessing resources only from the ZIP-file
@@ -24,12 +26,12 @@ no need to add `webxdc.js` to your ZIP-file):
 window.webxdc.sendUpdate(payload, descr);
 ```
 
-Webxdc apps are usually shared in a chat and run independently on each peer.
-To get a shared state, the peers use `sendUpdate()` to send updates to each other.
+webxdc app instances (on each peer) use `sendUpdate()` to share state updates with each other.with an object containing: 
 
 - `payload`: any javascript primitive, array or object.
-- `descr`: short, human-readable description what this update is about.
-  this is shown eg. as a fallback text in an email program.
+- `descr`: short, human-readable description what this state update is about.
+  this is shown eg. as a fallback text if the receiving peer 
+  lacks capabilities to run webxdc apps safely. 
 
 All peers, including the sending one,
 will receive the update by the callback given to `setUpdateListener()`.
@@ -41,12 +43,12 @@ window.webxdc.setUpdateListener((update) => {});
 ```
 
 With `setUpdateListener()` you define a callback that receives the updates
-sent by `sendUpdate()`.
+sent by `sendUpdate()`: 
 
 - `update`: passed to the callback on updates.
 - `update.payload`: equals the payload given to `sendUpdate()`
 
-The callback is called for updates sent by you or other peers.
+The callback is called for state updates sent by you or other peers's app instances.
 
 
 ### getAllUpdates()
