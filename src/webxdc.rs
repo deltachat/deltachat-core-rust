@@ -49,6 +49,7 @@ struct WebxdcManifest {
 pub struct WebxdcInfo {
     pub name: String,
     pub icon: String,
+    pub summary: String,
 }
 
 /// Status Update ID.
@@ -91,6 +92,9 @@ pub(crate) struct StatusUpdateItem {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     info: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    summary: Option<String>,
 }
 
 impl Context {
@@ -138,13 +142,28 @@ impl Context {
                 StatusUpdateItem {
                     payload,
                     info: None,
+                    summary: None,
                 }
             };
 
-        if status_update_item.info.is_some() {
+        if status_update_item.info.is_some() || status_update_item.summary.is_some() {
             let mut instance = Message::load_from_db(self, instance_msg_id).await?;
             if let Some(ref info) = status_update_item.info {
                 chat::add_info_msg(self, instance.chat_id, info.as_str(), timestamp).await?;
+            }
+
+            if let Some(ref summary) = status_update_item.summary {
+                if instance
+                    .param
+                    .update_timestamp(Param::WebxdcSummaryTimestamp, timestamp)?
+                {
+                    instance.param.set(Param::WebxdcSummary, summary);
+                    instance.update_param(self).await;
+                    self.emit_event(EventType::MsgsChanged {
+                        chat_id: instance.chat_id,
+                        msg_id: instance.id,
+                    });
+                }
             }
         }
 
@@ -404,6 +423,11 @@ impl Message {
             } else {
                 WEBXDC_DEFAULT_ICON.to_string()
             },
+            summary: self
+                .param
+                .get(Param::WebxdcSummary)
+                .unwrap_or_default()
+                .to_string(),
         })
     }
 }
@@ -1116,6 +1140,72 @@ sth_for_the = "future""#
         let msg = Message::load_from_db(&t, msg_id).await?;
         let result = msg.get_webxdc_info(&t).await;
         assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_webxdc_info_summary() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Alice creates an webxdc instance and updates summary
+        let alice_chat = alice.create_chat(&bob).await;
+        let alice_instance = send_webxdc_instance(&alice, alice_chat.id).await?;
+        let sent_instance = &alice.pop_sent_msg().await;
+        let info = alice_instance.get_webxdc_info(&alice).await?;
+        assert_eq!(info.summary, "".to_string());
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"summary":"sum: 1", "payload":1}"#,
+                "descr",
+            )
+            .await?;
+        let sent_update1 = &alice.pop_sent_msg().await;
+        let info = Message::load_from_db(&alice, alice_instance.id)
+            .await?
+            .get_webxdc_info(&alice)
+            .await?;
+        assert_eq!(info.summary, "sum: 1".to_string());
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"summary":"sum: 2", "payload":2}"#,
+                "descr",
+            )
+            .await?;
+        let sent_update2 = &alice.pop_sent_msg().await;
+        let info = Message::load_from_db(&alice, alice_instance.id)
+            .await?
+            .get_webxdc_info(&alice)
+            .await?;
+        assert_eq!(info.summary, "sum: 2".to_string());
+
+        // Bob receives the updates
+        bob.recv_msg(sent_instance).await;
+        let bob_instance = bob.get_last_msg().await;
+        bob.recv_msg(sent_update1).await;
+        bob.recv_msg(sent_update2).await;
+        let info = Message::load_from_db(&bob, bob_instance.id)
+            .await?
+            .get_webxdc_info(&bob)
+            .await?;
+        assert_eq!(info.summary, "sum: 2".to_string());
+
+        // Alice has a second device and also receives the updates there
+        let alice2 = TestContext::new_alice().await;
+        alice2.recv_msg(sent_instance).await;
+        let alice2_instance = alice2.get_last_msg().await;
+        alice2.recv_msg(sent_update1).await;
+        alice2.recv_msg(sent_update2).await;
+        let info = Message::load_from_db(&alice2, alice2_instance.id)
+            .await?
+            .get_webxdc_info(&alice2)
+            .await?;
+        assert_eq!(info.summary, "sum: 2".to_string());
 
         Ok(())
     }

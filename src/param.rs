@@ -171,6 +171,12 @@ pub enum Param {
 
     /// For Chats: timestamp of protection settings update.
     ProtectionSettingsTimestamp = b'L',
+
+    /// For Webxdc Message Instances: Current summary
+    WebxdcSummary = b'N',
+
+    /// For Webxdc Message Instances: timestamp of summary update.
+    WebxdcSummaryTimestamp = b'Q',
 }
 
 /// An object for handling key=value parameter lists.
