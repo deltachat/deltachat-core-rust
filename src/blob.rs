@@ -111,12 +111,10 @@ impl<'a> BlobObject<'a> {
                             blobname: name,
                             cause: err,
                         });
+                    } else if attempt == 1 && !dir.exists().await {
+                        fs::create_dir_all(dir).await.ok_or_log(context);
                     } else {
-                        if attempt == 1 && !dir.exists().await {
-                            fs::create_dir_all(dir).await.ok_or_log(context);
-                        } else {
-                            name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
-                        }
+                        name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
                     }
                 }
             }
