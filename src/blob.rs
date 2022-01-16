@@ -24,6 +24,7 @@ use crate::constants::{
 };
 use crate::context::Context;
 use crate::events::EventType;
+use crate::log::LogExt;
 use crate::message;
 
 /// Represents a file in the blob directory.
@@ -63,7 +64,7 @@ impl<'a> BlobObject<'a> {
     ) -> std::result::Result<BlobObject<'a>, BlobError> {
         let blobdir = context.get_blobdir();
         let (stem, ext) = BlobObject::sanitise_name(suggested_name);
-        let (name, mut file) = BlobObject::create_new_file(blobdir, &stem, &ext).await?;
+        let (name, mut file) = BlobObject::create_new_file(context, blobdir, &stem, &ext).await?;
         file.write_all(data)
             .await
             .map_err(|err| BlobError::WriteFailure {
@@ -87,6 +88,7 @@ impl<'a> BlobObject<'a> {
 
     // Creates a new file, returning a tuple of the name and the handle.
     async fn create_new_file(
+        context: &Context,
         dir: &Path,
         stem: &str,
         ext: &str,
@@ -109,6 +111,8 @@ impl<'a> BlobObject<'a> {
                             blobname: name,
                             cause: err,
                         });
+                    } else if attempt == 1 && !dir.exists().await {
+                        fs::create_dir_all(dir).await.ok_or_log(context);
                     } else {
                         name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
                     }
@@ -149,7 +153,7 @@ impl<'a> BlobObject<'a> {
             })?;
         let (stem, ext) = BlobObject::sanitise_name(&src.to_string_lossy());
         let (name, mut dst_file) =
-            BlobObject::create_new_file(context.get_blobdir(), &stem, &ext).await?;
+            BlobObject::create_new_file(context, context.get_blobdir(), &stem, &ext).await?;
         let name_for_err = name.clone();
         if let Err(err) = io::copy(&mut src_file, &mut dst_file).await {
             {
