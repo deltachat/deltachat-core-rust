@@ -120,22 +120,32 @@ impl Context {
     }
 
     /// Takes an update-json as `{payload: PAYLOAD}` (or legacy `PAYLOAD`)
-    /// and writes it to the database.
-    /// Moreover, events are handled.
+    /// writes it to the database and handles events, info-messages and summary.
     async fn create_status_update_record(
         &self,
         instance_msg_id: MsgId,
         update_str: &str,
         timestamp: i64,
     ) -> Result<StatusUpdateId> {
+        let mut instance = Message::load_from_db(self, instance_msg_id).await?;
+
         let update_str = update_str.trim();
         if update_str.is_empty() {
             bail!("create_status_update_record: empty update.");
         }
 
-        let status_update_item: StatusUpdateItem =
-            if let Ok(status_update_item) = serde_json::from_str(update_str) {
-                status_update_item
+        let status_update_item: StatusUpdateItem = {
+            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(update_str) {
+                match instance.state {
+                    MessageState::Undefined
+                    | MessageState::OutPreparing
+                    | MessageState::OutDraft => StatusUpdateItem {
+                        payload: item.payload,
+                        info: None, // no info-messages in draft mode
+                        summary: item.summary,
+                    },
+                    _ => item,
+                }
             } else {
                 // TODO: this fallback (legacy `PAYLOAD`) should be deleted soon, together with the test below
                 let payload: Value = serde_json::from_str(update_str)?; // checks if input data are valid json
@@ -144,26 +154,24 @@ impl Context {
                     info: None,
                     summary: None,
                 }
-            };
-
-        if status_update_item.info.is_some() || status_update_item.summary.is_some() {
-            let mut instance = Message::load_from_db(self, instance_msg_id).await?;
-            if let Some(ref info) = status_update_item.info {
-                chat::add_info_msg(self, instance.chat_id, info.as_str(), timestamp).await?;
             }
+        };
 
-            if let Some(ref summary) = status_update_item.summary {
-                if instance
-                    .param
-                    .update_timestamp(Param::WebxdcSummaryTimestamp, timestamp)?
-                {
-                    instance.param.set(Param::WebxdcSummary, summary);
-                    instance.update_param(self).await;
-                    self.emit_event(EventType::MsgsChanged {
-                        chat_id: instance.chat_id,
-                        msg_id: instance.id,
-                    });
-                }
+        if let Some(ref info) = status_update_item.info {
+            chat::add_info_msg(self, instance.chat_id, info.as_str(), timestamp).await?;
+        }
+
+        if let Some(ref summary) = status_update_item.summary {
+            if instance
+                .param
+                .update_timestamp(Param::WebxdcSummaryTimestamp, timestamp)?
+            {
+                instance.param.set(Param::WebxdcSummary, summary);
+                instance.update_param(self).await;
+                self.emit_event(EventType::MsgsChanged {
+                    chat_id: instance.chat_id,
+                    msg_id: instance.id,
+                });
             }
         }
 
