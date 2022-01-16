@@ -443,6 +443,7 @@ impl ChatId {
                 &msg_text,
                 cmd,
                 dc_create_smeared_timestamp(context).await,
+                None,
             )
             .await?;
         }
@@ -3391,6 +3392,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     text: &str,
     cmd: SystemMessage,
     timestamp: i64,
+    parent: Option<&Message>,
 ) -> Result<MsgId> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
     let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
@@ -3402,7 +3404,7 @@ pub(crate) async fn add_info_msg_with_cmd(
 
     let row_id =
     context.sql.insert(
-        "INSERT INTO msgs (chat_id,from_id,to_id,timestamp,type,state,txt,rfc724_mid,ephemeral_timer, param) VALUES (?,?,?, ?,?,?, ?,?,?, ?);",
+        "INSERT INTO msgs (chat_id,from_id,to_id,timestamp,type,state,txt,rfc724_mid,ephemeral_timer, param,mime_in_reply_to) VALUES (?,?,?, ?,?,?, ?,?,?, ?,?);",
         paramsv![
             chat_id,
             DC_CONTACT_ID_INFO,
@@ -3414,6 +3416,7 @@ pub(crate) async fn add_info_msg_with_cmd(
             rfc724_mid,
             ephemeral_timer,
             param.to_string(),
+            parent.map(|msg|msg.rfc724_mid.clone()).unwrap_or_default()
         ]
     ).await?;
 
@@ -3429,7 +3432,15 @@ pub(crate) async fn add_info_msg(
     text: &str,
     timestamp: i64,
 ) -> Result<MsgId> {
-    add_info_msg_with_cmd(context, chat_id, text, SystemMessage::Unknown, timestamp).await
+    add_info_msg_with_cmd(
+        context,
+        chat_id,
+        text,
+        SystemMessage::Unknown,
+        timestamp,
+        None,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -4430,6 +4441,7 @@ mod tests {
             "foo bar info",
             SystemMessage::EphemeralTimerChanged,
             10000,
+            None,
         )
         .await
         .unwrap();

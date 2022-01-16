@@ -156,7 +156,15 @@ impl Context {
         };
 
         if let Some(ref info) = status_update_item.info {
-            chat::add_info_msg(self, instance.chat_id, info.as_str(), timestamp).await?;
+            chat::add_info_msg_with_cmd(
+                self,
+                instance.chat_id,
+                info.as_str(),
+                SystemMessage::Unknown,
+                timestamp,
+                Some(instance),
+            )
+            .await?;
         }
 
         if let Some(ref summary) = status_update_item.summary {
