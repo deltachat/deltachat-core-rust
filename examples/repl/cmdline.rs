@@ -472,20 +472,32 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "export-backup" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportBackup, dir.as_ref()).await?;
+            imex(
+                &context,
+                ImexMode::ExportBackup,
+                dir.as_ref(),
+                Some(arg2.to_string()),
+            )
+            .await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            imex(&context, ImexMode::ImportBackup, arg1.as_ref()).await?;
+            imex(
+                &context,
+                ImexMode::ImportBackup,
+                arg1.as_ref(),
+                Some(arg2.to_string()),
+            )
+            .await?;
         }
         "export-keys" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            imex(&context, ImexMode::ExportSelfKeys, dir.as_ref()).await?;
+            imex(&context, ImexMode::ExportSelfKeys, dir.as_ref(), None).await?;
             println!("Exported to {}.", dir.to_string_lossy());
         }
         "import-keys" => {
-            imex(&context, ImexMode::ImportSelfKeys, arg1.as_ref()).await?;
+            imex(&context, ImexMode::ImportSelfKeys, arg1.as_ref(), None).await?;
         }
         "export-setup" => {
             let setup_code = create_setup_code(&context);

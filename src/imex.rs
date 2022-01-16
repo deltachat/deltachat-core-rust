@@ -20,7 +20,7 @@ use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::context::Context;
 use crate::dc_tools::{
     dc_create_folder, dc_delete_file, dc_delete_files_in_dir, dc_get_filesuffix_lc,
-    dc_open_file_std, dc_read_file, dc_write_file, get_next_backup_path, time, EmailAddress,
+    dc_open_file_std, dc_read_file, dc_write_file, time, EmailAddress,
 };
 use crate::e2ee;
 use crate::events::EventType;
@@ -41,24 +41,24 @@ const BLOBS_BACKUP_NAME: &str = "blobs_backup";
 #[repr(u32)]
 pub enum ImexMode {
     /// Export all private keys and all public keys of the user to the
-    /// directory given as `param1`.  The default key is written to the files `public-key-default.asc`
+    /// directory given as `path`.  The default key is written to the files `public-key-default.asc`
     /// and `private-key-default.asc`, if there are more keys, they are written to files as
     /// `public-key-<id>.asc` and `private-key-<id>.asc`
     ExportSelfKeys = 1,
 
-    /// Import private keys found in the directory given as `param1`.
+    /// Import private keys found in the directory given as `path`.
     /// The last imported key is made the default keys unless its name contains the string `legacy`.
     /// Public keys are not imported.
     ImportSelfKeys = 2,
 
-    /// Export a backup to the directory given as `param1`.
+    /// Export a backup to the directory given as `path` with the given `passphrase`.
     /// The backup contains all contacts, chats, images and other data and device independent settings.
     /// The backup does not contain device dependent settings as ringtones or LED notification settings.
     /// The name of the backup is typically `delta-chat-<day>.tar`, if more than one backup is create on a day,
     /// the format is `delta-chat-<day>-<number>.tar`
     ExportBackup = 11,
 
-    /// `param1` is the file (not: directory) to import. The file is normally
+    /// `path` is the file (not: directory) to import. The file is normally
     /// created by DC_IMEX_EXPORT_BACKUP and detected by dc_imex_has_backup(). Importing a backup
     /// is only possible as long as the context is not configured or used in another way.
     ImportBackup = 12,
@@ -78,11 +78,16 @@ pub enum ImexMode {
 ///
 /// Only one import-/export-progress can run at the same time.
 /// To cancel an import-/export-progress, drop the future returned by this function.
-pub async fn imex(context: &Context, what: ImexMode, param1: &Path) -> Result<()> {
+pub async fn imex(
+    context: &Context,
+    what: ImexMode,
+    path: &Path,
+    passphrase: Option<String>,
+) -> Result<()> {
     let cancel = context.alloc_ongoing().await?;
 
     let res = async {
-        let success = imex_inner(context, what, param1).await;
+        let success = imex_inner(context, what, path, passphrase).await;
         match success {
             Ok(()) => {
                 info!(context, "IMEX successfully completed");
@@ -114,11 +119,6 @@ async fn cleanup_aborted_imex(context: &Context, what: ImexMode) {
     if what == ImexMode::ImportBackup {
         dc_delete_file(context, context.get_dbfile()).await;
         dc_delete_files_in_dir(context, context.get_blobdir()).await;
-    }
-    if what == ImexMode::ExportBackup || what == ImexMode::ImportBackup {
-        if let Err(e) = context.sql.open(context).await {
-            warn!(context, "Re-opening db after imex failed: {}", e);
-        }
     }
 }
 
@@ -396,7 +396,12 @@ fn normalize_setup_code(s: &str) -> String {
     out
 }
 
-async fn imex_inner(context: &Context, what: ImexMode, path: &Path) -> Result<()> {
+async fn imex_inner(
+    context: &Context,
+    what: ImexMode,
+    path: &Path,
+    passphrase: Option<String>,
+) -> Result<()> {
     info!(context, "Import/export dir: {}", path.display());
     ensure!(context.sql.is_open().await, "Database not opened.");
     context.emit_event(EventType::ImexProgress(10));
@@ -414,13 +419,26 @@ async fn imex_inner(context: &Context, what: ImexMode, path: &Path) -> Result<()
         ImexMode::ExportSelfKeys => export_self_keys(context, path).await,
         ImexMode::ImportSelfKeys => import_self_keys(context, path).await,
 
-        ImexMode::ExportBackup => export_backup(context, path).await,
-        ImexMode::ImportBackup => import_backup(context, path).await,
+        ImexMode::ExportBackup => {
+            export_backup(context, path, passphrase.unwrap_or_default()).await
+        }
+        ImexMode::ImportBackup => {
+            import_backup(context, path, passphrase.unwrap_or_default()).await
+        }
     }
 }
 
-/// Import Backup
-async fn import_backup(context: &Context, backup_to_import: &Path) -> Result<()> {
+/// Imports backup into the currently open database.
+///
+/// The contents of the currently open database will be lost.
+///
+/// `passphrase` is the passphrase used to open backup database. If backup is unencrypted, pass
+/// empty string here.
+async fn import_backup(
+    context: &Context,
+    backup_to_import: &Path,
+    passphrase: String,
+) -> Result<()> {
     info!(
         context,
         "Import \"{}\" to \"{}\".",
@@ -435,12 +453,6 @@ async fn import_backup(context: &Context, backup_to_import: &Path) -> Result<()>
     ensure!(
         !context.scheduler.read().await.is_running(),
         "cannot import backup, IO already running"
-    );
-    context.sql.close().await;
-    dc_delete_file(context, context.get_dbfile()).await;
-    ensure!(
-        !context.get_dbfile().exists().await,
-        "Cannot delete old database."
     );
 
     let backup_file = File::open(backup_to_import).await?;
@@ -463,11 +475,15 @@ async fn import_backup(context: &Context, backup_to_import: &Path) -> Result<()>
         if f.path()?.file_name() == Some(OsStr::new(DBFILE_BACKUP_NAME)) {
             // async_tar can't unpack to a specified file name, so we just unpack to the blobdir and then move the unpacked file.
             f.unpack_in(context.get_blobdir()).await?;
-            fs::rename(
-                context.get_blobdir().join(DBFILE_BACKUP_NAME),
-                context.get_dbfile(),
-            )
-            .await?;
+            let unpacked_database = context.get_blobdir().join(DBFILE_BACKUP_NAME);
+            context
+                .sql
+                .import(&unpacked_database, passphrase.clone())
+                .await
+                .context("cannot import unpacked database")?;
+            fs::remove_file(unpacked_database)
+                .await
+                .context("cannot remove unpacked database")?;
         } else {
             // async_tar will unpack to blobdir/BLOBS_BACKUP_NAME, so we move the file afterwards.
             f.unpack_in(context.get_blobdir()).await?;
@@ -482,12 +498,6 @@ async fn import_backup(context: &Context, backup_to_import: &Path) -> Result<()>
         }
     }
 
-    context
-        .sql
-        .open(context)
-        .await
-        .context("Could not re-open db")?;
-
     delete_and_reset_all_device_msgs(context).await?;
 
     Ok(())
@@ -496,12 +506,44 @@ async fn import_backup(context: &Context, backup_to_import: &Path) -> Result<()>
 /*******************************************************************************
  * Export backup
  ******************************************************************************/
-#[allow(unused)]
-async fn export_backup(context: &Context, dir: &Path) -> Result<()> {
+
+/// Returns Ok((temp_db_path, temp_path, dest_path)) on success. Unencrypted database can be
+/// written to temp_db_path. The backup can then be written to temp_path. If the backup succeeded,
+/// it can be renamed to dest_path. This guarantees that the backup is complete.
+async fn get_next_backup_path(
+    folder: &Path,
+    backup_time: i64,
+) -> Result<(PathBuf, PathBuf, PathBuf)> {
+    let folder = PathBuf::from(folder);
+    let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
+        // Don't change this file name format, in has_backup() we use string comparison to determine which backup is newer:
+        .format("delta-chat-backup-%Y-%m-%d")
+        .to_string();
+
+    // 64 backup files per day should be enough for everyone
+    for i in 0..64 {
+        let mut tempdbfile = folder.clone();
+        tempdbfile.push(format!("{}-{:02}.db", stem, i));
+
+        let mut tempfile = folder.clone();
+        tempfile.push(format!("{}-{:02}.tar.part", stem, i));
+
+        let mut destfile = folder.clone();
+        destfile.push(format!("{}-{:02}.tar", stem, i));
+
+        if !tempdbfile.exists().await && !tempfile.exists().await && !destfile.exists().await {
+            return Ok((tempdbfile, tempfile, destfile));
+        }
+    }
+    bail!("could not create backup file, disk full?");
+}
+
+async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
-    let (temp_path, dest_path) = get_next_backup_path(dir, now).await?;
-    let _d = DeleteOnDrop(temp_path.clone());
+    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now).await?;
+    let _d1 = DeleteOnDrop(temp_db_path.clone());
+    let _d2 = DeleteOnDrop(temp_path.clone());
 
     context
         .sql
@@ -513,15 +555,13 @@ async fn export_backup(context: &Context, dir: &Path) -> Result<()> {
         .sql
         .execute("VACUUM;", paramsv![])
         .await
-        .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e));
+        .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e))
+        .ok();
 
     ensure!(
         !context.scheduler.read().await.is_running(),
         "cannot export backup, IO already running"
     );
-
-    // we close the database during the export
-    context.sql.close().await;
 
     info!(
         context,
@@ -530,10 +570,13 @@ async fn export_backup(context: &Context, dir: &Path) -> Result<()> {
         dest_path.display(),
     );
 
-    let res = export_backup_inner(context, &temp_path).await;
+    context
+        .sql
+        .export(&temp_db_path, passphrase)
+        .await
+        .with_context(|| format!("failed to backup plaintext database to {:?}", temp_db_path))?;
 
-    // we re-open the database after export is finished
-    context.sql.open(context).await;
+    let res = export_backup_inner(context, &temp_db_path, &temp_path).await;
 
     match &res {
         Ok(_) => {
@@ -552,18 +595,21 @@ impl Drop for DeleteOnDrop {
     fn drop(&mut self) {
         let file = self.0.clone();
         // Not using dc_delete_file() here because it would send a DeletedBlobFile event
-        async_std::task::block_on(async move { fs::remove_file(file).await.ok() });
+        async_std::task::block_on(fs::remove_file(file)).ok();
     }
 }
 
-async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<()> {
+async fn export_backup_inner(
+    context: &Context,
+    temp_db_path: &Path,
+    temp_path: &Path,
+) -> Result<()> {
     let file = File::create(temp_path).await?;
 
     let mut builder = async_tar::Builder::new(file);
 
-    // append_path_with_name() wants the source path as the first argument, append_dir_all() wants it as the second argument.
     builder
-        .append_path_with_name(context.get_dbfile(), DBFILE_BACKUP_NAME)
+        .append_path_with_name(temp_db_path, DBFILE_BACKUP_NAME)
         .await?;
 
     let read_dir: Vec<_> = fs::read_dir(context.get_blobdir()).await?.collect().await;
@@ -842,12 +888,12 @@ mod tests {
     async fn test_export_and_import_key() {
         let context = TestContext::new_alice().await;
         let blobdir = context.ctx.get_blobdir();
-        if let Err(err) = imex(&context.ctx, ImexMode::ExportSelfKeys, blobdir).await {
+        if let Err(err) = imex(&context.ctx, ImexMode::ExportSelfKeys, blobdir, None).await {
             panic!("got error on export: {:?}", err);
         }
 
         let context2 = TestContext::new_alice().await;
-        if let Err(err) = imex(&context2.ctx, ImexMode::ImportSelfKeys, blobdir).await {
+        if let Err(err) = imex(&context2.ctx, ImexMode::ImportSelfKeys, blobdir, None).await {
             panic!("got error on import: {:?}", err);
         }
     }

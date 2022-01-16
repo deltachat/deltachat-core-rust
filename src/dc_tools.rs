@@ -13,7 +13,7 @@ use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use async_std::{fs, io};
 
-use anyhow::{bail, Error};
+use anyhow::Error;
 use chrono::{Local, TimeZone};
 use mailparse::dateparse;
 use mailparse::headers::Headers;
@@ -449,33 +449,6 @@ pub fn dc_open_file_std<P: AsRef<std::path::Path>>(
             Err(err.into())
         }
     }
-}
-
-/// Returns Ok((temp_path, dest_path)) on success. The backup can then be written to temp_path. If the backup succeeded,
-/// it can be renamed to dest_path. This guarantees that the backup is complete.
-pub(crate) async fn get_next_backup_path(
-    folder: impl AsRef<Path>,
-    backup_time: i64,
-) -> Result<(PathBuf, PathBuf), Error> {
-    let folder = PathBuf::from(folder.as_ref());
-    let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
-        // Don't change this file name format, in has_backup() we use string comparison to determine which backup is newer:
-        .format("delta-chat-backup-%Y-%m-%d")
-        .to_string();
-
-    // 64 backup files per day should be enough for everyone
-    for i in 0..64 {
-        let mut tempfile = folder.clone();
-        tempfile.push(format!("{}-{:02}.tar.part", stem, i));
-
-        let mut destfile = folder.clone();
-        destfile.push(format!("{}-{:02}.tar", stem, i));
-
-        if !tempfile.exists().await && !destfile.exists().await {
-            return Ok((tempfile, destfile));
-        }
-    }
-    bail!("could not create backup file, disk full?");
 }
 
 pub(crate) fn time() -> i64 {

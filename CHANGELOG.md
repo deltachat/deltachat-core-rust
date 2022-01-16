@@ -17,6 +17,8 @@
 
 - allow to remove quotes on drafts `dc_msg_set_quote(msg, NULL)` #2950
 
+- Use second parameter of `dc_imex` to provide backup passphrase #2980
+
 #### Removed
 
 - Removed `mvbox_watch` option. #2906

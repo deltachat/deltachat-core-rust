@@ -2022,7 +2022,7 @@ pub unsafe extern "C" fn dc_imex(
     context: *mut dc_context_t,
     what_raw: libc::c_int,
     param1: *const libc::c_char,
-    _param2: *const libc::c_char,
+    param2: *const libc::c_char,
 ) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_imex()");
@@ -2035,12 +2035,13 @@ pub unsafe extern "C" fn dc_imex(
             return;
         }
     };
+    let passphrase = to_opt_string_lossy(param2);
 
     let ctx = &*context;
 
     if let Some(param1) = to_opt_string_lossy(param1) {
         spawn(async move {
-            imex::imex(ctx, what, param1.as_ref())
+            imex::imex(ctx, what, param1.as_ref(), passphrase)
                 .await
                 .log_err(ctx, "IMEX failed")
         });

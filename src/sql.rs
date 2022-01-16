@@ -10,7 +10,7 @@ use std::time::Duration;
 use anyhow::{bail, Context as _, Result};
 use async_std::path::PathBuf;
 use async_std::prelude::*;
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{config::DbConfig, Connection, OpenFlags};
 
 use crate::blob::BlobObject;
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
@@ -43,11 +43,6 @@ pub struct Sql {
     pub(crate) dbfile: PathBuf,
 
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
-
-    /// SQLCipher passphrase.
-    ///
-    /// Empty string if database is not encrypted.
-    passphrase: RwLock<String>,
 }
 
 impl Sql {
@@ -55,18 +50,17 @@ impl Sql {
         Self {
             dbfile,
             pool: Default::default(),
-            passphrase: Default::default(),
         }
     }
 
-    /// Sets SQLCipher passphrase for key derivation.
+    /// Tests SQLCipher passphrase.
     ///
     /// Returns true if passphrase is correct, i.e. the database is new or can be unlocked with
     /// this passphrase, and false if the database is already encrypted with another passphrase or
     /// corrupted.
     ///
     /// Fails if database is already open.
-    pub async fn set_passphrase(&self, passphrase: String) -> Result<bool> {
+    pub async fn check_passphrase(&self, passphrase: String) -> Result<bool> {
         if self.is_open().await {
             bail!("Database is already opened.");
         }
@@ -83,10 +77,6 @@ impl Sql {
             .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
             .is_ok();
 
-        if key_is_correct {
-            *self.passphrase.write().await = passphrase;
-        }
-
         Ok(key_is_correct)
     }
 
@@ -96,9 +86,65 @@ impl Sql {
     }
 
     /// Closes all underlying Sqlite connections.
-    pub async fn close(&self) {
+    async fn close(&self) {
         let _ = self.pool.write().await.take();
         // drop closes the connection
+    }
+
+    /// Exports the database to a separate file with the given passphrase.
+    ///
+    /// Set passphrase to empty string to export the database unencrypted.
+    pub(crate) async fn export(&self, path: &Path, passphrase: String) -> Result<()> {
+        let path_str = path
+            .to_str()
+            .with_context(|| format!("path {:?} is not valid unicode", path))?;
+        let conn = self.get_conn().await?;
+        conn.execute(
+            "ATTACH DATABASE ? AS backup KEY ?",
+            paramsv![path_str, passphrase],
+        )
+        .context("failed to attach backup database")?;
+        let res = conn
+            .query_row("SELECT sqlcipher_export('backup')", [], |_row| Ok(()))
+            .context("failed to export to attached backup database");
+        conn.execute("DETACH DATABASE backup", [])
+            .context("failed to detach backup database")?;
+        res?;
+        Ok(())
+    }
+
+    /// Imports the database from a separate file with the given passphrase.
+    pub(crate) async fn import(&self, path: &Path, passphrase: String) -> Result<()> {
+        let path_str = path
+            .to_str()
+            .with_context(|| format!("path {:?} is not valid unicode", path))?;
+        let conn = self.get_conn().await?;
+
+        // Reset the database without reopening it. We don't want to reopen the database because we
+        // don't have main database passphrase at this point.
+        // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
+        // Without resetting import may fail due to existing tables.
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, true)
+            .context("failed to set SQLITE_DBCONFIG_RESET_DATABASE")?;
+        conn.execute("VACUUM", [])
+            .context("failed to vacuum the database")?;
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, false)
+            .context("failed to unset SQLITE_DBCONFIG_RESET_DATABASE")?;
+
+        conn.execute(
+            "ATTACH DATABASE ? AS backup KEY ?",
+            paramsv![path_str, passphrase],
+        )
+        .context("failed to attach backup database")?;
+        let res = conn
+            .query_row("SELECT sqlcipher_export('main', 'backup')", [], |_row| {
+                Ok(())
+            })
+            .context("failed to import from attached backup database");
+        conn.execute("DETACH DATABASE backup", [])
+            .context("failed to detach backup database")?;
+        res?;
+        Ok(())
     }
 
     fn new_pool(
@@ -231,7 +277,7 @@ impl Sql {
 
     /// Opens the provided database and runs any necessary migrations.
     /// If a database is already open, this will return an error.
-    pub async fn open(&self, context: &Context) -> Result<()> {
+    pub async fn open(&self, context: &Context, passphrase: String) -> Result<()> {
         if self.is_open().await {
             error!(
                 context,
@@ -240,13 +286,7 @@ impl Sql {
             bail!("SQL database is already opened.");
         }
 
-        let passphrase_lock = self.passphrase.read().await;
-        let passphrase: &str = passphrase_lock.as_ref();
-
-        if let Err(err) = self
-            .try_open(context, &self.dbfile, passphrase.to_string())
-            .await
-        {
+        if let Err(err) = self.try_open(context, &self.dbfile, passphrase).await {
             self.close().await;
             Err(err)
         } else {
@@ -828,7 +868,7 @@ mod tests {
 
         t.sql.close().await;
         housekeeping(&t).await.unwrap_err(); // housekeeping should fail as the db is closed
-        t.sql.open(&t).await.unwrap();
+        t.sql.open(&t, "".to_string()).await.unwrap();
 
         let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
@@ -871,11 +911,11 @@ mod tests {
         let sql = Sql::new(dbfile.into());
 
         // Create database with all the tables.
-        sql.open(&t).await.unwrap();
+        sql.open(&t, "".to_string()).await.unwrap();
         sql.close().await;
 
         // Reopen the database
-        sql.open(&t).await?;
+        sql.open(&t, "".to_string()).await?;
         sql.execute(
             "INSERT INTO config (keyname, value) VALUES (?, ?);",
             paramsv!("foo", "bar"),
@@ -930,7 +970,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_set_passphrase() -> Result<()> {
+    async fn test_check_passphrase() -> Result<()> {
         use tempfile::tempdir;
 
         // The context is used only for logging.
@@ -941,8 +981,8 @@ mod tests {
         let dbfile = dir.path().join("testdb.sqlite");
         let sql = Sql::new(dbfile.clone().into());
 
-        sql.set_passphrase("foo".to_string()).await?;
-        sql.open(&t)
+        sql.check_passphrase("foo".to_string()).await?;
+        sql.open(&t, "foo".to_string())
             .await
             .context("failed to open the database first time")?;
         sql.close().await;
@@ -951,11 +991,11 @@ mod tests {
         let sql = Sql::new(dbfile.into());
 
         // Test that we can't open encrypted database without a passphrase.
-        assert!(sql.open(&t).await.is_err());
+        assert!(sql.open(&t, "".to_string()).await.is_err());
 
-        // Now set the passphrase and open the database, it should succeed.
-        sql.set_passphrase("foo".to_string()).await?;
-        sql.open(&t)
+        // Now open the database with passpharse, it should succeed.
+        sql.check_passphrase("foo".to_string()).await?;
+        sql.open(&t, "foo".to_string())
             .await
             .context("failed to open the database second time")?;
         Ok(())

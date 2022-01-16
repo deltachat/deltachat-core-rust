@@ -2105,8 +2105,7 @@ checksum = "c7d73b3f436185384286bd8098d17ec07c9a7d2388a6599f824d8502b529702a"
 [[package]]
 name = "libsqlite3-sys"
 version = "0.23.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2cafc7c74096c336d9d27145f7ebd4f4b6f95ba16aa5a282387267e6925cb58"
+source = "git+https://github.com/rusqlite/rusqlite?branch=master#ddb7141c6dee4b8956af85b2e4a01a28e5fdbacc"
 dependencies = [
  "cc",
  "openssl-sys",
@@ -3079,8 +3078,7 @@ dependencies = [
 [[package]]
 name = "rusqlite"
 version = "0.26.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ba4d3462c8b2e4d7f4fcfcf2b296dc6b65404fbbc7b63daa37fd485c149daf7"
+source = "git+https://github.com/rusqlite/rusqlite?branch=master#ddb7141c6dee4b8956af85b2e4a01a28e5fdbacc"
 dependencies = [
  "bitflags",
  "fallible-iterator",

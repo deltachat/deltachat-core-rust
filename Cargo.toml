@@ -12,6 +12,9 @@ debug = 0
 [profile.release]
 lto = true
 
+[patch.crates-io]
+rusqlite = { git = "https://github.com/rusqlite/rusqlite", branch="master" }
+
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
 
