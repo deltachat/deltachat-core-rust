@@ -435,7 +435,9 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::{create_group_chat, send_msg, send_text_msg, ChatId, ProtectionStatus};
+    use crate::chat::{
+        create_group_chat, forward_msgs, send_msg, send_text_msg, ChatId, ProtectionStatus,
+    };
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
     use async_std::fs::File;
@@ -531,6 +533,44 @@ mod tests {
         let mut instance = Message::new(Viewtype::Webxdc);
         instance.set_file(file.to_str().unwrap(), None);
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_forward_webxdc_instance() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        t.send_webxdc_status_update(
+            instance.id,
+            r#"{"info": "foo", "summary":"bar", "payload": 42}"#,
+            "descr",
+        )
+        .await?;
+        assert!(!instance.is_forwarded());
+        assert_eq!(
+            t.get_webxdc_status_updates(instance.id, None).await?,
+            r#"[{"payload":42,"info":"foo","summary":"bar"}]"#
+        );
+        assert_eq!(chat_id.get_msg_cnt(&t).await?, 2); // instance and info
+        let info = Message::load_from_db(&t, instance.id)
+            .await?
+            .get_webxdc_info(&t)
+            .await?;
+        assert_eq!(info.summary, "bar".to_string());
+
+        // forwarding an instance creates a fresh instance; updates etc. are not forwarded
+        forward_msgs(&t, &[instance.get_id()], chat_id).await?;
+        let instance2 = t.get_last_msg_in(chat_id).await;
+        assert!(instance2.is_forwarded());
+        assert_eq!(t.get_webxdc_status_updates(instance2.id, None).await?, "[]");
+        assert_eq!(chat_id.get_msg_cnt(&t).await?, 3); // two instances, only one info
+        let info = Message::load_from_db(&t, instance2.id)
+            .await?
+            .get_webxdc_info(&t)
+            .await?;
+        assert_eq!(info.summary, "".to_string());
 
         Ok(())
     }
