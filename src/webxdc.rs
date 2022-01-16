@@ -938,9 +938,10 @@ mod tests {
         assert_eq!(status_update_msg_id, None);
         expect_status_update_event(&alice, alice_instance.id).await?;
         let status_update_msg_id = alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"payload":42}"#, "descr")
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload":42, "info":"i"}"#, "descr")
             .await?;
         assert_eq!(status_update_msg_id, None);
+        assert!(!alice.get_last_msg().await.is_info()); // 'info: "i"' message not added in draft mode
 
         // send webxdc instance,
         // the initial status updates are sent together in the same message
@@ -965,7 +966,7 @@ mod tests {
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}},
-{"payload":42}]"#
+{"payload":42}]"# // 'info: "i"' ignored as sent in draft mode
         );
 
         Ok(())
