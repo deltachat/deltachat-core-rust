@@ -93,9 +93,11 @@ impl<'a> BlobObject<'a> {
         stem: &str,
         ext: &str,
     ) -> Result<(String, fs::File), BlobError> {
-        let max_attempt = 15;
+        const MAX_ATTEMPT: u32 = 16;
+        let mut attempt = 0;
         let mut name = format!("{}{}", stem, ext);
-        for attempt in 1..=max_attempt {
+        loop {
+            attempt += 1;
             let path = dir.join(&name);
             match fs::OpenOptions::new()
                 .create_new(true)
@@ -105,7 +107,7 @@ impl<'a> BlobObject<'a> {
             {
                 Ok(file) => return Ok((name, file)),
                 Err(err) => {
-                    if attempt == max_attempt {
+                    if attempt >= MAX_ATTEMPT {
                         return Err(BlobError::CreateFailure {
                             blobdir: dir.to_path_buf(),
                             blobname: name,
@@ -119,12 +121,6 @@ impl<'a> BlobObject<'a> {
                 }
             }
         }
-        // This is supposed to be unreachable, but the compiler doesn't know.
-        Err(BlobError::CreateFailure {
-            blobdir: dir.to_path_buf(),
-            blobname: name,
-            cause: std::io::Error::new(std::io::ErrorKind::Other, "supposedly unreachable"),
-        })
     }
 
     /// Creates a new blob object with unique name by copying an existing file.
