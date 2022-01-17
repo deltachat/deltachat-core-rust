@@ -120,11 +120,10 @@ impl Context {
     }
 
     /// Takes an update-json as `{payload: PAYLOAD}` (or legacy `PAYLOAD`)
-    /// and writes it to the database.
-    /// Moreover, events are handled.
+    /// writes it to the database and handles events, info-messages and summary.
     async fn create_status_update_record(
         &self,
-        instance_msg_id: MsgId,
+        instance: &mut Message,
         update_str: &str,
         timestamp: i64,
     ) -> Result<StatusUpdateId> {
@@ -133,9 +132,18 @@ impl Context {
             bail!("create_status_update_record: empty update.");
         }
 
-        let status_update_item: StatusUpdateItem =
-            if let Ok(status_update_item) = serde_json::from_str(update_str) {
-                status_update_item
+        let status_update_item: StatusUpdateItem = {
+            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(update_str) {
+                match instance.state {
+                    MessageState::Undefined
+                    | MessageState::OutPreparing
+                    | MessageState::OutDraft => StatusUpdateItem {
+                        payload: item.payload,
+                        info: None, // no info-messages in draft mode
+                        summary: item.summary,
+                    },
+                    _ => item,
+                }
             } else {
                 // TODO: this fallback (legacy `PAYLOAD`) should be deleted soon, together with the test below
                 let payload: Value = serde_json::from_str(update_str)?; // checks if input data are valid json
@@ -144,26 +152,24 @@ impl Context {
                     info: None,
                     summary: None,
                 }
-            };
-
-        if status_update_item.info.is_some() || status_update_item.summary.is_some() {
-            let mut instance = Message::load_from_db(self, instance_msg_id).await?;
-            if let Some(ref info) = status_update_item.info {
-                chat::add_info_msg(self, instance.chat_id, info.as_str(), timestamp).await?;
             }
+        };
 
-            if let Some(ref summary) = status_update_item.summary {
-                if instance
-                    .param
-                    .update_timestamp(Param::WebxdcSummaryTimestamp, timestamp)?
-                {
-                    instance.param.set(Param::WebxdcSummary, summary);
-                    instance.update_param(self).await;
-                    self.emit_event(EventType::MsgsChanged {
-                        chat_id: instance.chat_id,
-                        msg_id: instance.id,
-                    });
-                }
+        if let Some(ref info) = status_update_item.info {
+            chat::add_info_msg(self, instance.chat_id, info.as_str(), timestamp).await?;
+        }
+
+        if let Some(ref summary) = status_update_item.summary {
+            if instance
+                .param
+                .update_timestamp(Param::WebxdcSummaryTimestamp, timestamp)?
+            {
+                instance.param.set(Param::WebxdcSummary, summary);
+                instance.update_param(self).await;
+                self.emit_event(EventType::MsgsChanged {
+                    chat_id: instance.chat_id,
+                    msg_id: instance.id,
+                });
             }
         }
 
@@ -171,13 +177,13 @@ impl Context {
             .sql
             .insert(
                 "INSERT INTO msgs_status_updates (msg_id, update_item) VALUES(?, ?);",
-                paramsv![instance_msg_id, serde_json::to_string(&status_update_item)?],
+                paramsv![instance.id, serde_json::to_string(&status_update_item)?],
             )
             .await?;
         let status_update_id = StatusUpdateId(u32::try_from(rowid)?);
 
         self.emit_event(EventType::WebxdcStatusUpdate {
-            msg_id: instance_msg_id,
+            msg_id: instance.id,
             status_update_id,
         });
 
@@ -197,14 +203,14 @@ impl Context {
         update_str: &str,
         descr: &str,
     ) -> Result<Option<MsgId>> {
-        let instance = Message::load_from_db(self, instance_msg_id).await?;
+        let mut instance = Message::load_from_db(self, instance_msg_id).await?;
         if instance.viewtype != Viewtype::Webxdc {
             bail!("send_webxdc_status_update: is no webxdc message");
         }
 
         let status_update_id = self
             .create_status_update_record(
-                instance_msg_id,
+                &mut instance,
                 update_str,
                 dc_create_smeared_timestamp(self).await,
             )
@@ -264,7 +270,7 @@ impl Context {
     /// the array is parsed using serde, the single payloads are used as is.
     pub(crate) async fn receive_status_update(&self, msg_id: MsgId, json: &str) -> Result<()> {
         let msg = Message::load_from_db(self, msg_id).await?;
-        let (timestamp, instance) = if msg.viewtype == Viewtype::Webxdc {
+        let (timestamp, mut instance) = if msg.viewtype == Viewtype::Webxdc {
             (msg.timestamp_sort, msg)
         } else if let Some(parent) = msg.parent(self).await? {
             if parent.viewtype == Viewtype::Webxdc {
@@ -279,7 +285,7 @@ impl Context {
         let updates: StatusUpdates = serde_json::from_str(json)?;
         for update_item in updates.updates {
             self.create_status_update_record(
-                instance.id,
+                &mut instance,
                 &*serde_json::to_string(&update_item)?,
                 timestamp,
             )
@@ -435,7 +441,9 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::{create_group_chat, send_msg, send_text_msg, ChatId, ProtectionStatus};
+    use crate::chat::{
+        create_group_chat, forward_msgs, send_msg, send_text_msg, ChatId, ProtectionStatus,
+    };
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
     use async_std::fs::File;
@@ -536,6 +544,44 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_forward_webxdc_instance() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        t.send_webxdc_status_update(
+            instance.id,
+            r#"{"info": "foo", "summary":"bar", "payload": 42}"#,
+            "descr",
+        )
+        .await?;
+        assert!(!instance.is_forwarded());
+        assert_eq!(
+            t.get_webxdc_status_updates(instance.id, None).await?,
+            r#"[{"payload":42,"info":"foo","summary":"bar"}]"#
+        );
+        assert_eq!(chat_id.get_msg_cnt(&t).await?, 2); // instance and info
+        let info = Message::load_from_db(&t, instance.id)
+            .await?
+            .get_webxdc_info(&t)
+            .await?;
+        assert_eq!(info.summary, "bar".to_string());
+
+        // forwarding an instance creates a fresh instance; updates etc. are not forwarded
+        forward_msgs(&t, &[instance.get_id()], chat_id).await?;
+        let instance2 = t.get_last_msg_in(chat_id).await;
+        assert!(instance2.is_forwarded());
+        assert_eq!(t.get_webxdc_status_updates(instance2.id, None).await?, "[]");
+        assert_eq!(chat_id.get_msg_cnt(&t).await?, 3); // two instances, only one info
+        let info = Message::load_from_db(&t, instance2.id)
+            .await?
+            .get_webxdc_info(&t)
+            .await?;
+        assert_eq!(info.summary, "".to_string());
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_receive_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
         dc_receive_imf(
@@ -603,13 +649,13 @@ mod tests {
     async fn test_create_status_update_record() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let instance = send_webxdc_instance(&t, chat_id).await?;
+        let mut instance = send_webxdc_instance(&t, chat_id).await?;
 
         assert_eq!(t.get_webxdc_status_updates(instance.id, None).await?, "[]");
 
         let id = t
             .create_status_update_record(
-                instance.id,
+                &mut instance,
                 "\n\n{\"payload\": {\"foo\":\"bar\"}}\n",
                 1640178619,
             )
@@ -620,11 +666,11 @@ mod tests {
         );
 
         assert!(t
-            .create_status_update_record(instance.id, "\n\n\n", 1640178619)
+            .create_status_update_record(&mut instance, "\n\n\n", 1640178619)
             .await
             .is_err());
         assert!(t
-            .create_status_update_record(instance.id, "bad json", 1640178619)
+            .create_status_update_record(&mut instance, "bad json", 1640178619)
             .await
             .is_err());
         assert_eq!(
@@ -638,7 +684,7 @@ mod tests {
 
         let id = t
             .create_status_update_record(
-                instance.id,
+                &mut instance,
                 r#"{"payload" : { "foo2":"bar2"}}"#,
                 1640178619,
             )
@@ -647,7 +693,7 @@ mod tests {
             t.get_webxdc_status_updates(instance.id, Some(id)).await?,
             r#"[{"payload":{"foo2":"bar2"}}]"#
         );
-        t.create_status_update_record(instance.id, r#"{"payload":true}"#, 1640178619)
+        t.create_status_update_record(&mut instance, r#"{"payload":true}"#, 1640178619)
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, None).await?,
@@ -658,7 +704,7 @@ mod tests {
 
         let id = t
             .create_status_update_record(
-                instance.id,
+                &mut instance,
                 r#"{"payload" : 1, "sender": "that is not used"}"#,
                 1640178619,
             )
@@ -670,7 +716,7 @@ mod tests {
 
         // TODO: legacy `PAYLOAD` support should be deleted soon
         let id = t
-            .create_status_update_record(instance.id, r#"{"foo" : 1}"#, 1640178619)
+            .create_status_update_record(&mut instance, r#"{"foo" : 1}"#, 1640178619)
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, Some(id)).await?,
@@ -898,9 +944,10 @@ mod tests {
         assert_eq!(status_update_msg_id, None);
         expect_status_update_event(&alice, alice_instance.id).await?;
         let status_update_msg_id = alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"payload":42}"#, "descr")
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload":42, "info":"i"}"#, "descr")
             .await?;
         assert_eq!(status_update_msg_id, None);
+        assert!(!alice.get_last_msg().await.is_info()); // 'info: "i"' message not added in draft mode
 
         // send webxdc instance,
         // the initial status updates are sent together in the same message
@@ -925,7 +972,7 @@ mod tests {
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, None).await?,
             r#"[{"payload":{"foo":"bar"}},
-{"payload":42}]"#
+{"payload":42}]"# // 'info: "i"' ignored as sent in draft mode
         );
 
         Ok(())
