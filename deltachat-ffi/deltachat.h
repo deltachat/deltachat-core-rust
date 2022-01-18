@@ -455,7 +455,7 @@ char*           dc_get_config                (dc_context_t* context, const char*
  *
  * @memberof dc_context_t
  * @param context The context object.
- * @param stock_id The integer id of the stock message, one of the @ref DC_STR constants.
+ * @param stock_id The integer ID of the stock message, one of the @ref DC_STR constants.
  * @param stock_msg The message to be used.
  * @return int (==0 on error, 1 on success)
  */
