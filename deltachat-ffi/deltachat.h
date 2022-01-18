@@ -2066,7 +2066,7 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  * some events are sent out:
  *
  * - A number of #DC_EVENT_IMEX_PROGRESS events are sent and may be used to create
- *   a progress bar or stuff like that. Moreover, you'll be informed when the imex-job is done.
+ *   a progress bar or stuff like that. Moreover, you will be informed when the imex-job is done.
  *
  * - For each file written on export, the function sends #DC_EVENT_IMEX_FILE_WRITTEN
  *
@@ -2077,7 +2077,7 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  * @param context The context.
  * @param what One of the DC_IMEX_* constants.
  * @param param1 Meaning depends on the DC_IMEX_* constants. If this parameter is a directory, it should not end with
- *     a slash (otherwise you'll get double slashes when receiving #DC_EVENT_IMEX_FILE_WRITTEN). Set to NULL if not used.
+ *     a slash (otherwise you will get double slashes when receiving #DC_EVENT_IMEX_FILE_WRITTEN). Set to NULL if not used.
  * @param param2 Meaning depends on the DC_IMEX_* constants. Set to NULL if not used.
  */
 void            dc_imex                      (dc_context_t* context, int what, const char* param1, const char* param2);
@@ -3529,13 +3529,13 @@ int             dc_msg_get_viewtype           (const dc_msg_t* msg);
  * - @ref DC_STATE_OUT_PENDING - The user has pressed the "send" button but the
  *   message is not yet sent and is pending in some way. Maybe we're offline (no checkmark).
  * - @ref DC_STATE_OUT_FAILED - _Unrecoverable_ error (_recoverable_ errors result in pending messages),
- *   you'll receive the event #DC_EVENT_MSG_FAILED.
+ *   you will receive the event #DC_EVENT_MSG_FAILED.
  * - @ref DC_STATE_OUT_DELIVERED - Outgoing message successfully delivered to server (one checkmark).
  *   Note, that already delivered messages may get into the state @ref DC_STATE_OUT_FAILED if we get such a hint from the server.
- *   If a sent message changes to this state, you'll receive the event #DC_EVENT_MSG_DELIVERED.
+ *   If a sent message changes to this state, you will receive the event #DC_EVENT_MSG_DELIVERED.
  * - @ref DC_STATE_OUT_MDN_RCVD - Outgoing message read by the recipient
  *   (two checkmarks; this requires goodwill on the receiver's side)
- *   If a sent message changes to this state, you'll receive the event #DC_EVENT_MSG_READ.
+ *   If a sent message changes to this state, you will receive the event #DC_EVENT_MSG_READ.
  *   Also messages already read by some recipients
  *   may get into the state @ref DC_STATE_OUT_FAILED at a later point,
  *   e.g. when in a group, delivery fails for some recipients.
