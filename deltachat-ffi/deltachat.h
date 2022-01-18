@@ -963,11 +963,11 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
  *
  * - To allow non-delta-clients to join the chat,
  *   the message contains a text-area with some descriptive text
- *   and a URL that can be opened in a supported browser to join the videochat
+ *   and a URL that can be opened in a supported browser to join the videochat.
  *
  * - delta-clients can get all information needed from
  *   the message object, using e.g.
- *   dc_msg_get_videochat_url() and check dc_msg_get_viewtype() for #DC_MSG_VIDEOCHAT_INVITATION
+ *   dc_msg_get_videochat_url() and check dc_msg_get_viewtype() for #DC_MSG_VIDEOCHAT_INVITATION.
  *
  * dc_send_videochat_invitation() is blocking and may take a while,
  * so the UIs will typically call the function from within a thread.
