@@ -618,7 +618,7 @@ int             dc_all_work_done             (dc_context_t* context);
  *
  * If #DC_EVENT_CONFIGURE_PROGRESS reports failure,
  * the core continues to use the last working configuration
- * and parameters as `addr`, `mail_pw` etc. are set to that.URL
+ * and parameters as `addr`, `mail_pw` etc. are set to that.
  *
  * @memberof dc_context_t
  * @param context The context object.
