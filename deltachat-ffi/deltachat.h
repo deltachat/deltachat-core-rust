@@ -3543,7 +3543,7 @@ int             dc_msg_get_viewtype           (const dc_msg_t* msg);
  * If you just want to check if a message is sent or not, please use dc_msg_is_sent() which regards all states accordingly.
  *
  * The state of just created message objects is @ref DC_STATE_UNDEFINED.
- * The state is always set by the core-library, users of the library cannot set the state directly, but it is changed implicitly e.g.
+ * The state is always set by the core library, users of the library cannot set the state directly, but it is changed implicitly e.g.
  * when calling dc_marknoticed_chat() or dc_markseen_msgs().
  *
  * @memberof dc_msg_t
