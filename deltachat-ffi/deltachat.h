@@ -499,7 +499,7 @@ char*           dc_get_info                  (const dc_context_t* context);
 /**
  * Get URL that can be used to initiate an OAuth2 authorization.
  *
- * If an OAuth2 authorization is possible for a given e-mail-address,
+ * If an OAuth2 authorization is possible for a given e-mail address,
  * this function returns the URL that should be opened in a browser.
  *
  * If the user authorizes access,
@@ -514,7 +514,7 @@ char*           dc_get_info                  (const dc_context_t* context);
  * @memberof dc_context_t
  * @param context The context object.
  * @param addr E-mail address the user has entered.
- *     In case the user selects a different e-mail-address during
+ *     In case the user selects a different e-mail address during
  *     authorization, this is corrected in dc_configure()
  * @param redirect_uri URL that will get `code` that is used as `mail_pw` then.
  *     Not all URLs are allowed here, however, the following should work:
@@ -523,7 +523,7 @@ char*           dc_get_info                  (const dc_context_t* context);
  *     (the latter just displays the code the user can copy+paste then)
  * @return URL that can be opened in the browser to start OAuth2.
  *     Returned strings must be released using dc_str_unref().
- *     If OAuth2 is not possible for the given e-mail-address, NULL is returned.
+ *     If OAuth2 is not possible for the given e-mail address, NULL is returned.
  */
 char*           dc_get_oauth2_url            (dc_context_t* context, const char* addr, const char* redirect_uri);
 
@@ -1855,7 +1855,7 @@ dc_msg_t*       dc_get_msg                   (dc_context_t* context, uint32_t ms
  * use dc_lookup_contact_id_by_addr().
  *
  * @memberof dc_context_t
- * @param addr The e-mail-address to check.
+ * @param addr The e-mail address to check.
  * @return 1=address may be a valid e-mail address,
  *     0=address won't be a valid e-mail address
  */
@@ -1871,8 +1871,8 @@ int             dc_may_be_valid_addr         (const char* addr);
  *
  * @memberof dc_context_t
  * @param context The context object.
- * @param addr The e-mail-address to check.
- * @return The contact ID of the contact belonging to the e-mail-address
+ * @param addr The e-mail address to check.
+ * @return The contact ID of the contact belonging to the e-mail address
  *     or 0 if there is no contact that is or was introduced by an accepted contact.
  */
 uint32_t        dc_lookup_contact_id_by_addr (dc_context_t* context, const char* addr);
