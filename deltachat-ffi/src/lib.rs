@@ -3595,6 +3595,29 @@ pub unsafe extern "C" fn dc_msg_get_quoted_msg(msg: *const dc_msg_t) -> *mut dc_
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_parent(msg: *const dc_msg_t) -> *mut dc_msg_t {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_parent()");
+        return ptr::null_mut();
+    }
+    let ffi_msg: &MessageWrapper = &*msg;
+    let context = &*ffi_msg.context;
+    let res = block_on(async move {
+        ffi_msg
+            .message
+            .parent(context)
+            .await
+            .log_err(context, "failed to get parent message")
+            .unwrap_or(None)
+    });
+
+    match res {
+        Some(message) => Box::into_raw(Box::new(MessageWrapper { context, message })),
+        None => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_force_plaintext(msg: *mut dc_msg_t) {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_force_plaintext()");

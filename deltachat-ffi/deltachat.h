@@ -3965,8 +3965,11 @@ int             dc_msg_is_forwarded           (const dc_msg_t* msg);
  * These messages are typically shown in the center of the chat view,
  * dc_msg_get_text() returns a descriptive text about what is going on.
  *
+ * For informational messages created by Webxdc apps,
+ * dc_msg_get_parent() usually returns the Webxdc instance;
+ * UIs can use that to scroll to the Webxdc app when the info is tapped.
+ *
  * There is no need to perform any action when seeing such a message - this is already done by the core.
- * Typically, these messages are displayed in the center of the chat.
  *
  * @memberof dc_msg_t
  * @param msg The message object.
@@ -4366,6 +4369,23 @@ char*           dc_msg_get_quoted_text        (const dc_msg_t* msg);
  *     Must be freed using dc_msg_unref() after usage.
  */
 dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
+
+/**
+ * Get parent message, if available.
+ *
+ * Used for Webxdc-info-messages
+ * to jump to the corresponding instance that created the info message.
+ *
+ * For quotes, please use the more specialized
+ * dc_msg_get_quoted_text() and dc_msg_get_quoted_msg().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The parent message or NULL.
+ *     Must be freed using dc_msg_unref() after usage.
+ */
+dc_msg_t*       dc_msg_get_parent             (const dc_msg_t* msg);
+
 
 /**
  * Force the message to be sent in plain text.
