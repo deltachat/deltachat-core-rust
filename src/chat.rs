@@ -4426,15 +4426,15 @@ mod tests {
         assert_eq!(msg.get_text().unwrap(), "foo info");
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::Unknown);
+        assert!(msg.parent(&t).await?.is_none());
+        assert!(msg.quoted_message(&t).await?.is_none());
         Ok(())
     }
 
     #[async_std::test]
-    async fn test_add_info_msg_with_cmd() {
+    async fn test_add_info_msg_with_cmd() -> Result<()> {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
-            .await
-            .unwrap();
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
         let msg_id = add_info_msg_with_cmd(
             &t,
             chat_id,
@@ -4443,18 +4443,20 @@ mod tests {
             10000,
             None,
         )
-        .await
-        .unwrap();
+        .await?;
 
-        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
+        let msg = Message::load_from_db(&t, msg_id).await?;
         assert_eq!(msg.get_chat_id(), chat_id);
         assert_eq!(msg.get_viewtype(), Viewtype::Text);
         assert_eq!(msg.get_text().unwrap(), "foo bar info");
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::EphemeralTimerChanged);
+        assert!(msg.parent(&t).await?.is_none());
+        assert!(msg.quoted_message(&t).await?.is_none());
 
         let msg2 = t.get_last_msg_in(chat_id).await;
         assert_eq!(msg.get_id(), msg2.get_id());
+        Ok(())
     }
 
     #[async_std::test]
