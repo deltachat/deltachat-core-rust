@@ -830,7 +830,7 @@ impl Message {
         Ok(None)
     }
 
-    pub(crate) async fn parent(&self, context: &Context) -> Result<Option<Message>> {
+    pub async fn parent(&self, context: &Context) -> Result<Option<Message>> {
         if let Some(in_reply_to) = &self.in_reply_to {
             if let Some(msg_id) = rfc724_mid_exists(context, in_reply_to).await? {
                 let msg = Message::load_from_db(context, msg_id).await?;

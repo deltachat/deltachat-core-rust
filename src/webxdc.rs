@@ -156,7 +156,15 @@ impl Context {
         };
 
         if let Some(ref info) = status_update_item.info {
-            chat::add_info_msg(self, instance.chat_id, info.as_str(), timestamp).await?;
+            chat::add_info_msg_with_cmd(
+                self,
+                instance.chat_id,
+                info.as_str(),
+                SystemMessage::Unknown,
+                timestamp,
+                Some(instance),
+            )
+            .await?;
         }
 
         if let Some(ref summary) = status_update_item.summary {
@@ -1284,6 +1292,11 @@ sth_for_the = "future""#
             Some("this appears in-chat".to_string())
         );
         assert_eq!(
+            info_msg.parent(&alice).await?.unwrap().id,
+            alice_instance.id
+        );
+        assert!(info_msg.quoted_message(&alice).await?.is_none());
+        assert_eq!(
             alice
                 .get_webxdc_status_updates(alice_instance.id, None)
                 .await?,
@@ -1302,6 +1315,8 @@ sth_for_the = "future""#
             info_msg.get_text(),
             Some("this appears in-chat".to_string())
         );
+        assert_eq!(info_msg.parent(&bob).await?.unwrap().id, bob_instance.id);
+        assert!(info_msg.quoted_message(&bob).await?.is_none());
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, None).await?,
             r#"[{"payload":"sth. else","info":"this appears in-chat"}]"#
@@ -1320,6 +1335,11 @@ sth_for_the = "future""#
             info_msg.get_text(),
             Some("this appears in-chat".to_string())
         );
+        assert_eq!(
+            info_msg.parent(&alice2).await?.unwrap().id,
+            alice2_instance.id
+        );
+        assert!(info_msg.quoted_message(&alice2).await?.is_none());
         assert_eq!(
             alice2
                 .get_webxdc_status_updates(alice2_instance.id, None)

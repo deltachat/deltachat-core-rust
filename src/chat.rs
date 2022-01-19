@@ -443,6 +443,7 @@ impl ChatId {
                 &msg_text,
                 cmd,
                 dc_create_smeared_timestamp(context).await,
+                None,
             )
             .await?;
         }
@@ -3391,6 +3392,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     text: &str,
     cmd: SystemMessage,
     timestamp: i64,
+    parent: Option<&Message>,
 ) -> Result<MsgId> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
     let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
@@ -3402,7 +3404,7 @@ pub(crate) async fn add_info_msg_with_cmd(
 
     let row_id =
     context.sql.insert(
-        "INSERT INTO msgs (chat_id,from_id,to_id,timestamp,type,state,txt,rfc724_mid,ephemeral_timer, param) VALUES (?,?,?, ?,?,?, ?,?,?, ?);",
+        "INSERT INTO msgs (chat_id,from_id,to_id,timestamp,type,state,txt,rfc724_mid,ephemeral_timer, param,mime_in_reply_to) VALUES (?,?,?, ?,?,?, ?,?,?, ?,?);",
         paramsv![
             chat_id,
             DC_CONTACT_ID_INFO,
@@ -3414,6 +3416,7 @@ pub(crate) async fn add_info_msg_with_cmd(
             rfc724_mid,
             ephemeral_timer,
             param.to_string(),
+            parent.map(|msg|msg.rfc724_mid.clone()).unwrap_or_default()
         ]
     ).await?;
 
@@ -3429,7 +3432,15 @@ pub(crate) async fn add_info_msg(
     text: &str,
     timestamp: i64,
 ) -> Result<MsgId> {
-    add_info_msg_with_cmd(context, chat_id, text, SystemMessage::Unknown, timestamp).await
+    add_info_msg_with_cmd(
+        context,
+        chat_id,
+        text,
+        SystemMessage::Unknown,
+        timestamp,
+        None,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -4415,34 +4426,37 @@ mod tests {
         assert_eq!(msg.get_text().unwrap(), "foo info");
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::Unknown);
+        assert!(msg.parent(&t).await?.is_none());
+        assert!(msg.quoted_message(&t).await?.is_none());
         Ok(())
     }
 
     #[async_std::test]
-    async fn test_add_info_msg_with_cmd() {
+    async fn test_add_info_msg_with_cmd() -> Result<()> {
         let t = TestContext::new().await;
-        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
-            .await
-            .unwrap();
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
         let msg_id = add_info_msg_with_cmd(
             &t,
             chat_id,
             "foo bar info",
             SystemMessage::EphemeralTimerChanged,
             10000,
+            None,
         )
-        .await
-        .unwrap();
+        .await?;
 
-        let msg = Message::load_from_db(&t, msg_id).await.unwrap();
+        let msg = Message::load_from_db(&t, msg_id).await?;
         assert_eq!(msg.get_chat_id(), chat_id);
         assert_eq!(msg.get_viewtype(), Viewtype::Text);
         assert_eq!(msg.get_text().unwrap(), "foo bar info");
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::EphemeralTimerChanged);
+        assert!(msg.parent(&t).await?.is_none());
+        assert!(msg.quoted_message(&t).await?.is_none());
 
         let msg2 = t.get_last_msg_in(chat_id).await;
         assert_eq!(msg.get_id(), msg2.get_id());
+        Ok(())
     }
 
     #[async_std::test]
