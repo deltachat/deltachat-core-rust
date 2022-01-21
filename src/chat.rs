@@ -25,8 +25,8 @@ use crate::context::Context;
 use crate::dc_receive_imf::ReceivedMsg;
 use crate::dc_tools::{
     dc_create_id, dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp,
-    dc_create_smeared_timestamps, dc_get_abs_path, dc_get_filebytes, dc_gm2local_offset,
-    improve_single_line_input, time, IsNoneOrEmpty,
+    dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, improve_single_line_input,
+    time, IsNoneOrEmpty,
 };
 use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -41,7 +41,7 @@ use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
-use crate::webxdc::{WEBXDC_SENDING_LIMIT, WEBXDC_SUFFIX};
+use crate::webxdc::WEBXDC_SUFFIX;
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone)]
@@ -1836,32 +1836,27 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             if let Some((better_type, better_mime)) =
                 message::guess_msgtype_from_suffix(&blob.to_abs_path())
             {
-                msg.viewtype = better_type;
-                if !msg.param.exists(Param::MimeType) {
-                    msg.param.set(Param::MimeType, better_mime);
+                if better_type != Viewtype::Webxdc
+                    || context
+                        .ensure_sendable_webxdc_file(&blob.to_abs_path())
+                        .await
+                        .is_ok()
+                {
+                    msg.viewtype = better_type;
+                    if !msg.param.exists(Param::MimeType) {
+                        msg.param.set(Param::MimeType, better_mime);
+                    }
                 }
             }
-        } else if !msg.param.exists(Param::MimeType) {
-            if let Some((_, mime)) = message::guess_msgtype_from_suffix(&blob.to_abs_path()) {
-                msg.param.set(Param::MimeType, mime);
-            }
+        } else if msg.viewtype == Viewtype::Webxdc {
+            context
+                .ensure_sendable_webxdc_file(&blob.to_abs_path())
+                .await?;
         }
 
-        if msg.viewtype == Viewtype::Webxdc {
-            if blob.suffix() != Some(WEBXDC_SUFFIX) {
-                bail!(
-                    "webxdc message {} does not have suffix {}",
-                    blob,
-                    WEBXDC_SUFFIX
-                );
-            } else if dc_get_filebytes(context, blob.to_abs_path()).await
-                > WEBXDC_SENDING_LIMIT as u64
-            {
-                bail!(
-                    "webxdc message {} exceeds acceptable size of {} bytes",
-                    blob.as_name(),
-                    WEBXDC_SENDING_LIMIT
-                );
+        if !msg.param.exists(Param::MimeType) {
+            if let Some((_, mime)) = message::guess_msgtype_from_suffix(&blob.to_abs_path()) {
+                msg.param.set(Param::MimeType, mime);
             }
         }
 
