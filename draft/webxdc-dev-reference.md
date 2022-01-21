@@ -3,6 +3,8 @@
 ## Webxdc File Format
 
 - a **Webxdc app** is a **ZIP-file** with the extension `.xdc`
+- the ZIP-file must use the default compression methods as of RFC 1950,
+  this is "Deflate" or "Store"
 - the ZIP-file must contain at least the file `index.html`
 - if the Webxdc app is started, `index.html` is opened in a restricted webview
   that allow accessing resources only from the ZIP-file
