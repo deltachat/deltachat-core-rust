@@ -251,6 +251,7 @@ impl Context {
                     .ok_or_else(|| format_err!("Status object expected."))?,
                 );
                 status_update.set_quote(self, Some(&instance)).await?;
+                status_update.param.remove(Param::GuaranteeE2ee); // may be set by set_quote(), if #2985 is done, this line can be removed
                 let status_update_msg_id =
                     chat::send_msg(self, instance.chat_id, &mut status_update).await?;
                 Ok(Some(status_update_msg_id))
