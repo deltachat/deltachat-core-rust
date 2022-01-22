@@ -36,7 +36,7 @@
 - Synchronize Seen status across devices #2942
 - Add API to set the database password #2956
 - Add information about whether the database is encrypted or not to `dc_get_info()` #3000
-- Add Webxdc #2826 #2971 #2975 #2977 #2979 #2993 #2998
+- Add Webxdc #2826 #2971 #2975 #2977 #2979 #2993 #2998 #3001
 
 ### Changed
 - selfstatus now defaults to empty

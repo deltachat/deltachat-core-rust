@@ -44,6 +44,13 @@ To get a shared state, the peers use `sendUpdate()` to send updates to each othe
 All peers, including the sending one,
 will receive the update by the callback given to `setUpdateListener()`.
 
+There are situations where the user cannot send messages to a chat,
+eg. contact requests or if the user has left a group.
+In these cases, you can still call `sendUpdate()`,
+however, the update won't be sent to other peers
+and you won't get the update by `setUpdateListener()` nor by `getAllUpdates()`.
+
+
 ### setUpdateListener()
 
 ```js
