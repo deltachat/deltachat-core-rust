@@ -225,10 +225,16 @@ impl Smtp {
     }
 }
 
+/// Tries to send a message.
+///
+/// Returns Status::Finished if sending the message should not be retried anymore,
+/// Status::RetryLater if sending should be postponed and Status::RetryNow if it is suspected that
+/// temporary failure is caused by stale connection, in which case a second attempt to send the
+/// same message may be done immediately.
 pub(crate) async fn smtp_send(
     context: &Context,
-    recipients: Vec<async_smtp::EmailAddress>,
-    message: String,
+    recipients: &[async_smtp::EmailAddress],
+    message: &str,
     smtp: &mut Smtp,
     msg_id: MsgId,
     rowid: i64,
@@ -241,7 +247,7 @@ pub(crate) async fn smtp_send(
     smtp.connectivity.set_working(context).await;
 
     let send_result = smtp
-        .send(context, recipients, message.into_bytes(), rowid)
+        .send(context, recipients, message.as_bytes(), rowid)
         .await;
     smtp.last_send_error = send_result.as_ref().err().map(|e| e.to_string());
 
@@ -362,7 +368,7 @@ pub(crate) async fn send_msg_to_smtp(
         .await
         .context("SMTP connection failure")
     {
-        smtp.last_send_error = Some(format!("SMTP connection failure: {:#}", err));
+        smtp.last_send_error = Some(format!("{:#}", err));
         return Err(err);
     }
 
@@ -392,7 +398,43 @@ pub(crate) async fn send_msg_to_smtp(
         )
         .collect::<Vec<_>>();
 
-    let status = smtp_send(context, recipients_list, body, smtp, msg_id, rowid).await;
+    let status = match smtp_send(
+        context,
+        &recipients_list,
+        body.as_str(),
+        smtp,
+        msg_id,
+        rowid,
+    )
+    .await
+    {
+        Status::RetryNow => {
+            // Do a single retry immediately without increasing retry counter in case of stale
+            // connection.
+            info!(context, "Doing immediate retry to send message.");
+
+            // smtp_send just closed stale SMTP connection, reconnect and try again.
+            if let Err(err) = smtp
+                .connect_configured(context)
+                .await
+                .context("failed to reopen stale SMTP connection")
+            {
+                smtp.last_send_error = Some(format!("{:#}", err));
+                return Err(err);
+            }
+
+            smtp_send(
+                context,
+                &recipients_list,
+                body.as_str(),
+                smtp,
+                msg_id,
+                rowid,
+            )
+            .await
+        }
+        status => status,
+    };
     match status {
         Status::Finished(res) => {
             if res.is_ok() {

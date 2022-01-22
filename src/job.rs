@@ -318,7 +318,7 @@ impl Job {
             return Status::RetryLater;
         }
 
-        let status = smtp_send(context, recipients, body, smtp, msg_id, 0).await;
+        let status = smtp_send(context, &recipients, &body, smtp, msg_id, 0).await;
         if matches!(status, Status::Finished(Ok(_))) {
             // Remove additional SendMdn jobs we have aggregated into this one.
             job_try!(kill_ids(context, &additional_job_ids).await);

@@ -48,6 +48,7 @@
 - allow removing quotes on existing drafts (#2950)
 - update provider database (11 Jan 2022) #2959
 - python: allow timeout for internal configure tracker API #2967
+- Replace `SendMsgToSmtp` jobs which stored outgoing messages in blobdir with `smtp` SQL table #2939 #2966
 
 ### Fixed
 - Fix: Make `add_parts()` not early-exit #2879

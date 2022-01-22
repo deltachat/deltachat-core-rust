@@ -28,8 +28,8 @@ impl Smtp {
     pub async fn send(
         &mut self,
         context: &Context,
-        recipients: Vec<EmailAddress>,
-        message: Vec<u8>,
+        recipients: &[EmailAddress],
+        message: &[u8],
         rowid: i64,
     ) -> Result<()> {
         let message_len_bytes = message.len();
@@ -53,7 +53,7 @@ impl Smtp {
             let mail = SendableEmail::new(
                 envelope,
                 rowid.to_string(), // only used for internal logging
-                &message,
+                message,
             );
 
             if let Some(ref mut transport) = self.transport {
