@@ -3,11 +3,16 @@ mergeable:
   - when: pull_request.*
     name: "Changelog check"
     validate:
+      - do: or
+        validate:
+        - do: description
+          must_include:
+            regex: '#skip-changelog'
         - do: and
           validate:
             - do: dependent
               changed:
-                file: 'src/**' 
+                file: 'src/**'
                 required: ['CHANGELOG.md']
             - do: dependent
               changed:
