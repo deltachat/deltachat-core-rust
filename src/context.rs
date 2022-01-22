@@ -383,6 +383,13 @@ impl Context {
         res.insert("number_of_contacts", contacts.to_string());
         res.insert("database_dir", self.get_dbfile().display().to_string());
         res.insert("database_version", dbversion.to_string());
+        res.insert(
+            "database_encrypted",
+            self.sql
+                .is_encrypted()
+                .await
+                .map_or_else(|| "closed".to_string(), |b| b.to_string()),
+        );
         res.insert("journal_mode", journal_mode);
         res.insert("blobdir", self.get_blobdir().display().to_string());
         res.insert("display_name", displayname.unwrap_or_else(|| unset.into()));

@@ -43,6 +43,10 @@ pub struct Sql {
     pub(crate) dbfile: PathBuf,
 
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
+
+    /// None if the database is not open, true if it is open with passphrase and false if it is
+    /// open without a passphrase.
+    is_encrypted: RwLock<Option<bool>>,
 }
 
 impl Sql {
@@ -50,6 +54,7 @@ impl Sql {
         Self {
             dbfile,
             pool: Default::default(),
+            is_encrypted: Default::default(),
         }
     }
 
@@ -83,6 +88,13 @@ impl Sql {
     /// Checks if there is currently a connection to the underlying Sqlite database.
     pub async fn is_open(&self) -> bool {
         self.pool.read().await.is_some()
+    }
+
+    /// Returns true if the database is encrypted.
+    ///
+    /// If database is not open, returns `None`.
+    pub(crate) async fn is_encrypted(&self) -> Option<bool> {
+        *self.is_encrypted.read().await
     }
 
     /// Closes all underlying Sqlite connections.
@@ -286,11 +298,13 @@ impl Sql {
             bail!("SQL database is already opened.");
         }
 
+        let passphrase_nonempty = !passphrase.is_empty();
         if let Err(err) = self.try_open(context, &self.dbfile, passphrase).await {
             self.close().await;
             Err(err)
         } else {
             info!(context, "Opened database {:?}.", self.dbfile);
+            *self.is_encrypted.write().await = Some(passphrase_nonempty);
             Ok(())
         }
     }
