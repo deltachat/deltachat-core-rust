@@ -1,5 +1,6 @@
 //! # Handle webxdc messages.
 
+use crate::chat::Chat;
 use crate::constants::Viewtype;
 use crate::context::Context;
 use crate::dc_tools::{dc_create_smeared_timestamp, dc_open_file_std};
@@ -245,6 +246,9 @@ impl Context {
         if instance.viewtype != Viewtype::Webxdc {
             bail!("send_webxdc_status_update: is no webxdc message");
         }
+
+        let chat = Chat::load_from_db(self, instance.chat_id).await?;
+        ensure!(chat.can_send(self).await?, "cannot send to {}", chat.id);
 
         let status_update_id = self
             .create_status_update_record(
@@ -679,6 +683,48 @@ mod tests {
         let instance = t.get_last_msg().await;
         assert_eq!(instance.viewtype, Viewtype::File); // we require the correct extension, only a mime type is not sufficient
         assert_eq!(instance.get_filename(), Some("index.html".to_string()));
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_webxdc_contact_request() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Alice sends an webxdc instance to Bob
+        let alice_chat = alice.create_chat(&bob).await;
+        let _alice_instance = send_webxdc_instance(&alice, alice_chat.id).await?;
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+        // Bob can start the webxdc from a contact request (get index.html)
+        // but cannot send updates to contact requests
+        let bob_instance = bob.get_last_msg().await;
+        let bob_chat = Chat::load_from_db(&bob, bob_instance.chat_id).await?;
+        assert!(bob_chat.is_contact_request());
+        assert!(bob_instance
+            .get_webxdc_blob(&bob, "index.html")
+            .await
+            .is_ok());
+        assert!(bob
+            .send_webxdc_status_update(bob_instance.id, r#"{"payload":42}"#, "descr")
+            .await
+            .is_err());
+        assert_eq!(
+            bob.get_webxdc_status_updates(bob_instance.id, None).await?,
+            "[]"
+        );
+
+        // Once the contact request is accepted, Bob can send updates
+        bob_chat.id.accept(&bob).await?;
+        assert!(bob
+            .send_webxdc_status_update(bob_instance.id, r#"{"payload":42}"#, "descr")
+            .await
+            .is_ok());
+        assert_eq!(
+            bob.get_webxdc_status_updates(bob_instance.id, None).await?,
+            r#"[{"payload":42}]"#
+        );
 
         Ok(())
     }
