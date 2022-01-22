@@ -8,6 +8,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::{chat, EventType};
 use anyhow::{bail, ensure, format_err, Result};
+use async_std::path::PathBuf;
 use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
@@ -30,7 +31,7 @@ const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 ///
 /// The limit is also an experiment to see how small we can go;
 /// it is planned to raise that limit as needed in subsequent versions.
-pub(crate) const WEBXDC_SENDING_LIMIT: usize = 102400;
+const WEBXDC_SENDING_LIMIT: usize = 102400;
 
 /// Be more tolerant for .xdc sizes on receiving -
 /// might be, the senders version uses already a larger limit
@@ -98,6 +99,7 @@ pub(crate) struct StatusUpdateItem {
 }
 
 impl Context {
+    /// check if a file is an acceptable webxdc for sending or receiving.
     pub(crate) async fn is_webxdc_file(&self, filename: &str, buf: &[u8]) -> Result<bool> {
         if filename.ends_with(WEBXDC_SUFFIX) {
             let reader = std::io::Cursor::new(buf);
@@ -106,17 +108,45 @@ impl Context {
                     if buf.len() <= WEBXDC_RECEIVING_LIMIT {
                         return Ok(true);
                     } else {
-                        error!(
+                        info!(
                             self,
-                            "{} exceeds acceptable size of {} bytes.",
+                            "{} exceeds receiving limit of {} bytes",
                             &filename,
-                            WEBXDC_SENDING_LIMIT
+                            WEBXDC_RECEIVING_LIMIT
                         );
                     }
+                } else {
+                    info!(self, "{} misses index.html", &filename);
                 }
+            } else {
+                info!(self, "{} cannot be opened as zip-file", &filename);
             }
         }
         Ok(false)
+    }
+
+    /// ensure that a file is an acceptable webxdc for sending
+    /// (sending has more strict size limits).
+    pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &PathBuf) -> Result<()> {
+        let mut file = std::fs::File::open(path)?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
+        if !self
+            .is_webxdc_file(path.to_str().unwrap_or_default(), &buf)
+            .await?
+        {
+            bail!(
+                "{} is not a valid webxdc file",
+                path.to_str().unwrap_or_default()
+            );
+        } else if buf.len() > WEBXDC_SENDING_LIMIT {
+            bail!(
+                "webxdc {} exceeds acceptable size of {} bytes",
+                path.to_str().unwrap_or_default(),
+                WEBXDC_SENDING_LIMIT
+            );
+        }
+        Ok(())
     }
 
     /// Takes an update-json as `{payload: PAYLOAD}` (or legacy `PAYLOAD`)
@@ -527,6 +557,7 @@ mod tests {
         )
         .await?;
         let instance_msg_id = send_msg(t, chat_id, &mut instance).await?;
+        assert_eq!(instance.viewtype, Viewtype::Webxdc);
         Message::load_from_db(t, instance_msg_id).await
     }
 
@@ -546,6 +577,38 @@ mod tests {
         File::create(&file)
             .await?
             .write_all("<html>ola!</html>".as_ref())
+            .await?;
+        let mut instance = Message::new(Viewtype::Webxdc);
+        instance.set_file(file.to_str().unwrap(), None);
+        assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_send_invalid_webxdc() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+
+        // sending invalid .xdc as file is possible, but must not result in Viewtype::Webxdc
+        let mut instance = create_webxdc_instance(
+            &t,
+            "invalid-no-zip-but-7z.xdc",
+            include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
+        )
+        .await?;
+        let instance_id = send_msg(&t, chat_id, &mut instance).await?;
+        assert_eq!(instance.viewtype, Viewtype::File);
+        let test = Message::load_from_db(&t, instance_id).await?;
+        assert_eq!(test.viewtype, Viewtype::File);
+
+        // sending invalid .xdc as Viewtype::Webxdc should fail already on sending
+        let file = t.get_blobdir().join("invalid2.xdc");
+        File::create(&file)
+            .await?
+            .write_all(include_bytes!(
+                "../test-data/webxdc/invalid-no-zip-but-7z.xdc"
+            ))
             .await?;
         let mut instance = Message::new(Viewtype::Webxdc);
         instance.set_file(file.to_str().unwrap(), None);
