@@ -32,12 +32,12 @@ const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 ///
 /// The limit is also an experiment to see how small we can go;
 /// it is planned to raise that limit as needed in subsequent versions.
-const WEBXDC_SENDING_LIMIT: usize = 102400;
+const WEBXDC_SENDING_LIMIT: usize = 655360;
 
 /// Be more tolerant for .xdc sizes on receiving -
 /// might be, the senders version uses already a larger limit
 /// and not showing the .xdc on some devices would be even worse ux.
-const WEBXDC_RECEIVING_LIMIT: usize = 1048576;
+const WEBXDC_RECEIVING_LIMIT: usize = 4194304;
 
 /// Raw information read from manifest.toml
 #[derive(Debug, Deserialize)]
