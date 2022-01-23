@@ -1,65 +1,55 @@
 # Changelog
 
-## Unreleased
+## 1.71.0
 
-### API changes
-
-#### Added
-
-- added `dc_context_new_closed()`, `dc_context_open()`, `dc_context_is_open()` and `dc_accounts_add_closed_account()` #2956
-
+### API Changes
+- added APIs to handle database passwords: `dc_context_new_closed()`, `dc_context_open()`,
+  `dc_context_is_open()` and `dc_accounts_add_closed_account()` #2956 #2972
+- use second parameter of `dc_imex` to provide backup passphrase #2980
 - added `DC_MSG_WEBXDC`, `dc_send_webxdc_status_update()`,
-  `dc_get_webxdc_status_updates()`, `dc_msg_get_webxdc_blob()`,
-  `dc_msg_get_webxdc_info()`, and `DC_EVENT_WEBXDC_STATUS_UPDATE` #2826
+  `dc_get_webxdc_status_updates()`, `dc_msg_get_webxdc_blob()`, `dc_msg_get_webxdc_info()`
+  and `DC_EVENT_WEBXDC_STATUS_UPDATE` #2826 #2971 #2975 #2977 #2979 #2993 #2994 #2998 #3001 #3003
 - added `dc_msg_get_parent()` #2984
+- added `dc_msg_force_plaintext()` API for bots #2847
+- allow removing quotes on drafts `dc_msg_set_quote(msg, NULL)` #2950
+- removed `mvbox_watch` option; watching is enabled when `mvbox_move` is enabled #2906
+- removed `inbox_watch` option #2922
+- deprecated `os_name` in `dc_context_new()`, pass `NULL` or an empty string #2956
 
-- Add `dc_msg_force_plaintext()` API for bots #2847
-
-- allow to remove quotes on drafts `dc_msg_set_quote(msg, NULL)` #2950
-
-- Use second parameter of `dc_imex` to provide backup passphrase #2980
-
-#### Removed
-
-- Removed `mvbox_watch` option. #2906
-  It is automatically enabled whenever `mvbox_move` is enabled.
-- Removed `inbox_watch` option #2922
-
-#### Deprecated
-- deprecated `os_name` in `dc_context_new(const char* os_name, const char* dbfile, const char* blobdir)`, now you should pass `NULL` or an empty string. #2956
-
-### Added
-- Add imap table to keep track of message UIDs #2909
-- add hop_info #2751
-- Start making it possible to write to mailing lists #2736
+### Changes
+- start making it possible to write to mailing lists #2736
+- add `hop_info` to `dc_get_info()` #2751 #2914 #2923
+- add information about whether the database is encrypted or not to `dc_get_info()` #3000
+- selfstatus now defaults to empty #2951 #2960
+- validate detached cryptographic signatures as used eg. by Thunderbird #2865
+- do not change the draft's `msg_id` on updates and sending #2887
+- add `imap` table to keep track of message UIDs #2909 #2938
+- replace `SendMsgToSmtp` jobs which stored outgoing messages in blobdir with `smtp` SQL table #2939 #2996
 - sql: enable `auto_vacuum=INCREMENTAL` #2931
-- Synchronize Seen status across devices #2942
-- Add API to set the database password #2956
-- Add information about whether the database is encrypted or not to `dc_get_info()` #3000
-- Add Webxdc #2826 #2971 #2975 #2977 #2979 #2993 #2998 #3001 #3003 
-
-### Changed
-- selfstatus now defaults to empty
-- `dc_preconfigure_keypair` now takes ascii armored keys instead of base64. #2862
-- Put removed member in Bcc instead of To in the message about removal #2864
-- do not change the draft's message-id on updates and sending (#2887)
-- Improve group updates #2889
-- Merge `mvbox_move` and `mvbox_watch` options. #2903
-- allow removing quotes on existing drafts (#2950)
+- sql: build rusqlite with sqlcipher #2934
+- synchronize Seen status across devices #2942
+- `dc_preconfigure_keypair` now takes ascii armored keys instead of base64 #2862
+- put removed member in Bcc instead of To in the message about removal #2864
+- improve group updates #2889
+- re-write the blob filename creation loop #2981
 - update provider database (11 Jan 2022) #2959
 - python: allow timeout for internal configure tracker API #2967
-- Replace `SendMsgToSmtp` jobs which stored outgoing messages in blobdir with `smtp` SQL table #2939 #2966
+- python: remove API deprecated in Python 3.10 #2907
+- refactorings #2932 #2957 #2947
+- improve tests #2863 #2866 #2881 #2908 #2918 #2901 #2973
+- improve documentation #2880 #2886 #2895
+- improve ci #2919 #2926 #2969 #2999
 
-### Fixed
-- Fix: Make `add_parts()` not early-exit #2879
-- Fix: Encrypted and signed messages from Thunderbird don't show a padlock #2301
-- Fix: Recognize MS Exchange read receipts as read receipts #2890
-- Improve the log (#2928)
-- Fix: dc_receive_imf: don't fail on invalid address in the To field #2940
+### Fixes
+- fix leaving groups #2929
+- fix unread count #2861
+- make `add_parts()` not early-exit #2879
+- recognize MS Exchange read receipts as read receipts #2890
+- create parent directory if creating a new file fails #2978
+- save "configured" flag later #2974
+- improve log #2928
+- `dc_receive_imf`: don't fail on invalid address in the To field #2940
 
-## Removed
-- Remove `inbox_watch` option #2922
-- Remove default signature advertising Delta Chat #2951
 
 ## 1.70.0
 
