@@ -23,4 +23,4 @@ mergeable:
         status: 'action_required' 
         payload:
           title: Changlog might need an update
-          summary: "Check if CHANGELOG.md needs an update or add #skip-update to the PR description."
+          summary: "Check if CHANGELOG.md needs an update or add #skip-changelog to the PR description."
