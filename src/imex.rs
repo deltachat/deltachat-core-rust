@@ -423,7 +423,8 @@ async fn imex_inner(
             export_backup(context, path, passphrase.unwrap_or_default()).await
         }
         ImexMode::ImportBackup => {
-            import_backup(context, path, passphrase.unwrap_or_default()).await
+            import_backup(context, path, passphrase.unwrap_or_default()).await?;
+            context.sql.run_migrations(context).await
         }
     }
 }

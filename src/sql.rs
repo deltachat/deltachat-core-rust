@@ -215,6 +215,12 @@ impl Sql {
             conn.pragma_update(None, "synchronous", &"NORMAL".to_string())?;
         }
 
+        self.run_migrations(context).await?;
+
+        Ok(())
+    }
+
+    pub async fn run_migrations(&self, context: &Context) -> Result<()> {
         // (1) update low-level database structure.
         // this should be done before updates that use high-level objects that
         // rely themselves on the low-level structure.
