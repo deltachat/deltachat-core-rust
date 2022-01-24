@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+fix: run migrations on backup import #3006
+
 ## 1.71.0
 
 ### API Changes
