@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.72.0
 
-fix: run migrations on backup import #3006
+### Fixes
+- run migrations on backup import #3006
+
 
 ## 1.71.0
 
