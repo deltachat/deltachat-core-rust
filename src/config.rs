@@ -281,31 +281,25 @@ impl Context {
                     }
                 }
                 self.emit_event(EventType::SelfavatarChanged);
-                Ok(())
             }
             Config::DeleteDeviceAfter => {
-                let ret = self
-                    .sql
-                    .set_raw_config(key, value)
-                    .await
-                    .map_err(Into::into);
+                let ret = self.sql.set_raw_config(key, value).await;
                 // Force chatlist reload to delete old messages immediately.
                 self.emit_event(EventType::MsgsChanged {
                     msg_id: MsgId::new(0),
                     chat_id: ChatId::new(0),
                 });
-                ret
+                ret?
             }
             Config::Displayname => {
                 let value = value.map(improve_single_line_input);
                 self.sql.set_raw_config(key, value.as_deref()).await?;
-                Ok(())
             }
             _ => {
                 self.sql.set_raw_config(key, value).await?;
-                Ok(())
             }
         }
+        Ok(())
     }
 
     pub async fn set_config_bool(&self, key: Config, value: bool) -> Result<()> {
