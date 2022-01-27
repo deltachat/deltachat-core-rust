@@ -1852,7 +1852,7 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
     }
 }
 
-fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
+pub(crate) fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
     if let Some(message_id) = headers.get_header_value(HeaderDef::XMicrosoftOriginalMessageId) {
         Ok(crate::mimeparser::parse_message_id(&message_id)?)
     } else if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId) {

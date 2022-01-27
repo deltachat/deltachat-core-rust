@@ -4295,11 +4295,48 @@ YEAAAAAA!.
 
     #[async_std::test]
     async fn test_dont_show_spam() {
-        async fn is_shown(t: &TestContext, raw: &[u8], server_folder: &str) -> bool {
+        async fn check_if_shown(
+            t: &TestContext,
+            raw: &[u8],
+            server_folder: &str,
+            should_be_shown: bool,
+        ) {
             let mail = mailparse::parse_mail(raw).unwrap();
+            let message_id = crate::imap::prefetch_get_message_id(&mail.headers).unwrap();
+
+            let is_downloaded = crate::imap::prefetch_should_download(
+                t,
+                &mail.headers,
+                &message_id,
+                std::iter::empty(),
+                ShowEmails::All,
+                server_folder,
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                is_downloaded,
+                should_be_shown,
+                "The message\n     {}\nin folder \"{}\" was downloaded: {}, but should be shown: {}",
+                std::str::from_utf8(raw).unwrap_or_default().replace("\n", "\n     "),
+                server_folder,
+                is_downloaded,
+                should_be_shown
+            );
+
+            // `prefetch_should_download()` has to return `true` if in doubt
+            // and `dc_receive_imf()` must not show the message if it was dowloaded, anyway:
             dc_receive_imf(t, raw, server_folder, false).await.unwrap();
-            t.get_last_msg().await.rfc724_mid
-                == mail.get_headers().get_first_value("Message-Id").unwrap()
+            let is_shown = t.get_last_msg().await.rfc724_mid == message_id;
+            assert_eq!(
+                is_shown,
+                should_be_shown,
+                "The message\n     {}\nin folder \"{}\" was shown by dc_receive_imf(): {}, but should be shown: {}",
+                std::str::from_utf8(raw).unwrap_or_default().replace("\n", "\n     "),
+                server_folder,
+                is_shown,
+                should_be_shown
+            );
         }
 
         let t = TestContext::new_alice().await;
@@ -4308,59 +4345,54 @@ YEAAAAAA!.
             .unwrap();
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
-        assert!(
-            is_shown(
-                &t,
-                b"Message-Id: abcd1@exmaple.com\n\
+        check_if_shown(
+            &t,
+            b"Message-Id: abcd1@exmaple.com\n\
                 From: bob@example.org\n\
                 Chat-Version: 1.0\n",
-                "Inbox",
-            )
-            .await,
-        );
+            "Inbox",
+            true,
+        )
+        .await;
 
-        assert!(
-            is_shown(
-                &t,
-                b"Message-Id: abcd2@exmaple.com\n\
+        check_if_shown(
+            &t,
+            b"Message-Id: abcd2@exmaple.com\n\
                 From: bob@example.org\n",
-                "Inbox",
-            )
-            .await,
-        );
+            "Inbox",
+            true,
+        )
+        .await;
 
-        assert!(
-            is_shown(
-                &t,
-                b"Message-Id: abcd3@exmaple.com\n\
+        check_if_shown(
+            &t,
+            b"Message-Id: abcd3@exmaple.com\n\
                 From: bob@example.org\n\
                 Chat-Version: 1.0\n",
-                "Spam",
-            )
-            .await,
-        );
+            "Spam",
+            true,
+        )
+        .await;
 
-        assert!(
-            // Note the `!`:
-            !is_shown(
-                &t,
-                b"Message-Id: abcd4@exmaple.com\n\
+        // Note the `!`:
+        check_if_shown(
+            &t,
+            b"Message-Id: abcd4@exmaple.com\n\
                 From: bob@example.org\n",
-                "Spam",
-            )
-            .await,
-        );
+            "Spam",
+            false,
+        )
+        .await;
 
         Contact::create(&t, "", "bob@example.org").await.unwrap();
-        assert!(
-            is_shown(
-                &t,
-                b"Message-Id: abcd5@exmaple.com\n\
+        check_if_shown(
+            &t,
+            b"Message-Id: abcd5@exmaple.com\n\
                 From: bob@example.org\n",
-                "Spam",
-            )
-            .await,
-        );
+            "Spam",
+            true,
+        )
+        .await;
     }
 
     #[async_std::test]
