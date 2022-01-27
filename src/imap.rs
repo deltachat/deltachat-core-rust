@@ -754,6 +754,7 @@ impl Imap {
                     &message_id,
                     fetch_response.flags(),
                     show_emails,
+                    folder,
                 )
                 .await?
             {
@@ -1883,6 +1884,7 @@ pub(crate) async fn prefetch_should_download(
     message_id: &str,
     mut flags: impl Iterator<Item = Flag<'_>>,
     show_emails: ShowEmails,
+    folder: &str,
 ) -> Result<bool> {
     if let Some(msg_id) = message::rfc724_mid_exists(context, message_id).await? {
         // We know the Message-ID already, it must be a Bcc: to self.
@@ -1897,7 +1899,8 @@ pub(crate) async fn prefetch_should_download(
     // We do not know the Message-ID or the Message-ID is missing (in this case, we create one in
     // the further process).
 
-    if let Some(chat) = prefetch_get_chat(context, headers).await? {
+    let chat = prefetch_get_chat(context, headers).await?;
+    if let Some(chat) = &chat {
         if chat.typ == Chattype::Group && !chat.id.is_special() {
             // This might be a group command, like removing a group member.
             // We really need to fetch this to avoid inconsistent group state.
@@ -1936,6 +1939,14 @@ pub(crate) async fn prefetch_should_download(
             MessengerMessage::Yes | MessengerMessage::Reply => true,
         })
         .unwrap_or_default();
+
+    if !is_autocrypt_setup_message
+        && (chat.is_none() || chat.unwrap().blocked == Blocked::Yes)
+        && context.is_spam_folder(folder).await?
+    {
+        info!(context, "Ignoring spam message");
+        return Ok(false);
+    }
 
     let show = is_autocrypt_setup_message
         || match show_emails {

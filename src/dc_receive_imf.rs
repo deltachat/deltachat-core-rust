@@ -193,7 +193,6 @@ pub(crate) async fn dc_receive_imf_inner(
         &mut mime_parser,
         imf_raw,
         incoming,
-        incoming_origin,
         server_folder,
         &to_ids,
         &rfc724_mid,
@@ -415,7 +414,6 @@ async fn add_parts(
     mime_parser: &mut MimeMessage,
     imf_raw: &[u8],
     incoming: bool,
-    incoming_origin: Origin,
     server_folder: &str,
     to_ids: &[u32],
     rfc724_mid: &str,
@@ -432,7 +430,6 @@ async fn add_parts(
 ) -> Result<ReceivedMsg> {
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
-    let mut incoming_origin = incoming_origin;
 
     let parent = get_parent_message(context, mime_parser).await?;
 
@@ -530,6 +527,16 @@ async fn add_parts(
             {
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
+            }
+        }
+
+        if chat_id.is_none() {
+            let is_spam = mime_parser.get_header(HeaderDef::SecureJoin).is_none()
+                && (parent.is_none() || parent.as_ref().unwrap().chat_blocked == Blocked::Yes)
+                && context.is_spam_folder(server_folder).await?;
+            if is_spam {
+                chat_id = Some(DC_CHAT_ID_TRASH);
+                info!(context, "Message is probably spam (TRASH)");
             }
         }
 
@@ -676,7 +683,6 @@ async fn add_parts(
                 if chat_id_blocked != Blocked::Not {
                     if chat_id_blocked != create_blocked {
                         chat_id.set_blocked(context, create_blocked).await?;
-                        chat_id_blocked = create_blocked;
                     }
                     if create_blocked == Blocked::Request && parent.is_some() {
                         // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
@@ -687,9 +693,6 @@ async fn add_parts(
                             context,
                             "Message is a reply to a known message, mark sender as known.",
                         );
-                        if !incoming_origin.is_known() {
-                            incoming_origin = Origin::IncomingReplyTo;
-                        }
                     }
                 }
             }
@@ -701,15 +704,6 @@ async fn add_parts(
             } else {
                 MessageState::InFresh
             };
-
-        let is_spam = (chat_id_blocked == Blocked::Request)
-            && !incoming_origin.is_known()
-            && (is_dc_message == MessengerMessage::No)
-            && context.is_spam_folder(server_folder).await?;
-        if is_spam {
-            chat_id = Some(DC_CHAT_ID_TRASH);
-            info!(context, "Message is probably spam (TRASH)");
-        }
     } else {
         // Outgoing
 
@@ -2977,7 +2971,8 @@ mod tests {
             &headers,
             "some-other-message-id",
             std::iter::empty(),
-            ShowEmails::Off
+            ShowEmails::Off,
+            "INBOX",
         )
         .await
         .unwrap());
