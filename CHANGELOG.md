@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### API changes
+- added `only_fetch_mvbox` config #3014
+
 ## 1.72.0
 
 ### Fixes

@@ -157,7 +157,6 @@ impl Imap {
                     // in anything.  If so, we behave as if IDLE had data but
                     // will have already fetched the messages so perform_*_fetch
                     // will not find any new.
-
                     match self.fetch_new_messages(context, &watch_folder, false).await {
                         Ok(res) => {
                             info!(context, "fetch_new_messages returned {:?}", res);

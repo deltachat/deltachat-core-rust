@@ -671,6 +671,11 @@ impl Imap {
         folder: &str,
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
+        if should_ignore_folder(context, folder).await? {
+            info!(context, "Not fetching from {}", folder);
+            return Ok(false);
+        }
+
         let new_emails = self.select_with_uidvalidity(context, folder).await?;
 
         if !new_emails && !fetch_existing_msgs {
@@ -2074,6 +2079,14 @@ pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result
     } else {
         Ok((0, 0))
     }
+}
+
+async fn should_ignore_folder(context: &Context, folder: &str) -> Result<bool> {
+    Ok(context.get_config_bool(Config::OnlyFetchMvbox).await?
+            && context.is_mvbox(folder).await?
+            // Even if OnlyFetchMvbox is set, we have a look at the spam folder
+            // in case an answer to a known message was put into spam:
+            && context.is_spam_folder(folder).await?)
 }
 
 /// Builds a list of sequence/uid sets. The returned sets have each no more than around 1000
