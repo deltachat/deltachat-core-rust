@@ -433,16 +433,40 @@ mod tests {
         Ok(())
     }
 
-    /// Regression test for https://github.com/deltachat/deltachat-core-rust/issues/3012
     #[async_std::test]
     async fn test_set_config_bool() -> Result<()> {
         let t = TestContext::new().await;
 
+        // Regression test for https://github.com/deltachat/deltachat-core-rust/issues/3012
         // We need some config that defaults to true
         let c = Config::E2eeEnabled;
         assert_eq!(t.get_config_bool(c).await?, true);
         t.set_config_bool(c, false).await?;
         assert_eq!(t.get_config_bool(c).await?, false);
+
+        // Test that OnlyFetchMvbox==true implies MvboxMove==true and SentboxWatch==false
+        t.set_config_bool(Config::SentboxWatch, true).await?;
+
+        t.set_config_bool(Config::OnlyFetchMvbox, true).await?;
+        assert_eq!(t.get_config_bool(Config::SentboxWatch).await?, false);
+        assert_eq!(t.get_config_bool(Config::OnlyFetchMvbox).await?, true);
+
+        t.set_config_bool(Config::MvboxMove, false).await?;
+        assert_eq!(t.get_config_bool(Config::MvboxMove).await?, false);
+        assert_eq!(t.get_config_bool(Config::OnlyFetchMvbox).await?, false);
+
+        t.set_config_bool(Config::SentboxWatch, true).await?;
+        assert_eq!(t.get_config_bool(Config::SentboxWatch).await?, true);
+
+        t.set_config_bool(Config::OnlyFetchMvbox, true).await?;
+        assert_eq!(t.get_config_bool(Config::SentboxWatch).await?, false);
+        assert_eq!(t.get_config_bool(Config::MvboxMove).await?, true);
+        assert_eq!(t.get_config_bool(Config::OnlyFetchMvbox).await?, true);
+
+        t.set_config_bool(Config::SentboxWatch, true).await?;
+        assert_eq!(t.get_config_bool(Config::SentboxWatch).await?, true);
+        assert_eq!(t.get_config_bool(Config::OnlyFetchMvbox).await?, false);
+
         Ok(())
     }
 }
