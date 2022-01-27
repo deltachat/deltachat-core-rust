@@ -309,7 +309,7 @@ impl Context {
     }
 
     pub async fn set_config_bool(&self, key: Config, value: bool) -> Result<()> {
-        self.set_config(key, if value { Some("1") } else { None })
+        self.set_config(key, if value { Some("1") } else { Some("0") })
             .await?;
         Ok(())
     }
@@ -399,6 +399,19 @@ mod tests {
 
         assert!(t.set_ui_config("configured", Some("bar")).await.is_err());
 
+        Ok(())
+    }
+
+    /// Regression test for https://github.com/deltachat/deltachat-core-rust/issues/3012
+    #[async_std::test]
+    async fn test_set_config_bool() -> Result<()> {
+        let t = TestContext::new().await;
+
+        // We need some config that defaults to true
+        let c = Config::E2eeEnabled;
+        assert_eq!(t.get_config_bool(c).await?, true);
+        t.set_config_bool(c, false).await?;
+        assert_eq!(t.get_config_bool(c).await?, false);
         Ok(())
     }
 }
