@@ -128,7 +128,7 @@ round corners etc. will be added by the implementations as needed.
 If no icon is set, a default icon will be used.
 
 
-## Webxdc Example
+## Webxdc Examples
 
 The following example shows an input field and  every input is show on all peers.
 
@@ -162,7 +162,18 @@ The following example shows an input field and  every input is show on all peers
 </html>
 ```
 
-For a more advanved example, see https://github.com/r10s/webxdc-poll/ .
+[Webxdc Development Tool](https://github.com/deltachat/webxdc-dev)
+offers an **Webxdc Simulator** that can be used in many browsers without any installation needed.
+You can also use that repository as a template for your own app -
+just clone and start adapting things to your need.
+
+
+### Advanced Examples
+
+- [2048](https://github.com/adbenitez/2048.xdc)
+- [Draw](https://github.com/adbenitez/draw.xdc)
+- [Poll](https://github.com/r10s/webxdc-poll/)
+- [Tic Tac Toe](https://github.com/Simon-Laux/tictactoe.xdc)
 
 
 ## Closing Remarks
