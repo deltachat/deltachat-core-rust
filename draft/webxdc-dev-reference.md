@@ -182,6 +182,7 @@ just clone and start adapting things to your need.
 - [Draw](https://github.com/adbenitez/draw.xdc)
 - [Poll](https://github.com/r10s/webxdc-poll/)
 - [Tic Tac Toe](https://github.com/Simon-Laux/tictactoe.xdc)
+- Even more with [Topic #webxdc on Github](https://github.com/topics/webxdc)
 
 
 ## Closing Remarks
