@@ -68,38 +68,46 @@ The callback is called for updates sent by you or other peers.
 
 ### getAllUpdates()
 
-```
-payloads = window.webxdc.getAllUpdates()
+```js
+updates = await window.webxdc.getAllUpdates();
 ```
 
 In case your Webxdc was just started,
 you may want to reconstruct the state from the last run -
 and also incorporate updates that may have arrived while the app was not running.
 
-- `payloads`: the function returns all previous updates in an array, 
+- `updates`: All previous updates in an array, 
   eg. `[{payload: "foo"},{payload: "bar"}]`
-  if `webxdc.sendUpdate("foo"); webxdc.sendUpdate("bar");` was called on the last run.
+  if `webxdc.sendUpdate({payload: "foo"}); webxdc.sendUpdate({payload: "bar"};` was called on the last run.
 
-
-### selfAddr()
+The updates are wrapped into a Promise that you can `await` for.
+If you are not in an async function and cannot use `await` therefore,
+you can get the updates with `then()`:
 
 ```js
-addr = window.webxdc.selfAddr()
+window.webxdc.getAllUpdates().then(updates => {});
 ```
 
-Returns the peer's own address.
+
+### selfAddr
+
+```js
+window.webxdc.selfAddr
+```
+
+Property with the peer's own address.
 This is esp. useful if you want to differ between different peers -
 just send the address along with the payload,
 and, if needed, compare the payload addresses against selfAddr() later on.
 
 
-### selfName()
+### selfName
 
 ```js
-addr = window.webxdc.selfName()
+window.webxdc.selfName
 ```
 
-Returns the peer's own name.
+Property with the peer's own name.
 This is name chosen by the user in their settings,
 if there is nothing set, that defaults to the peer's address.
 
@@ -155,7 +163,7 @@ The following example shows an input field and  every input is show on all peers
       }
     
       window.webxdc.setUpdateListener(receiveUpdate);
-      window.webxdc.getAllUpdates().forEach(receiveUpdate);
+      window.webxdc.getAllUpdates().then(updates => updates.forEach(receiveUpdate));
 
     </script>
   </body>
