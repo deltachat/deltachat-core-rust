@@ -97,6 +97,40 @@ impl Sql {
         *self.is_encrypted.read().await
     }
 
+    /// Changes the database passpharse.
+    ///
+    /// The database must be open and encrypted already.
+    pub(crate) async fn change_passphrase(
+        &self,
+        context: &Context,
+        passphrase: String,
+    ) -> Result<()> {
+        // Take the whole pool so nobody opens another connection in parallel.
+        let pool = self
+            .pool
+            .write()
+            .await
+            .take()
+            .context("the database must be open before rekeying")?;
+
+        // Get one connection and rekey the database.
+        // All other connections will stop working after that.
+        let connection = pool
+            .get()
+            .context("failed to get connection from the pool")?;
+        connection
+            .pragma_update(None, "rekey", &passphrase)
+            .context("failed to set PRAGMA rekey")?;
+        drop(pool);
+
+        // Reopen the database with new passphrase.
+        self.open(context, passphrase)
+            .await
+            .context("failed to reopen the database after rekeying")?;
+
+        Ok(())
+    }
+
     /// Closes all underlying Sqlite connections.
     async fn close(&self) {
         let _ = self.pool.write().await.take();

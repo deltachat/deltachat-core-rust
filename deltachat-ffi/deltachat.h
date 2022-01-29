@@ -242,6 +242,32 @@ int             dc_context_is_open           (dc_context_t *context);
 
 
 /**
+ * Return 1 if database is encrypted. Can only be checked on open database.
+ * Use this method to decide whether to present an option to change passphrase
+ * to the user.
+ *
+ * @member dc_context_t
+ * @param context The context object.
+ * @return 1 if database is encrypted, 0 if database is not encrypted or on
+ * error.
+ */
+int             dc_context_is_encrypted      (dc_context_t *context);
+
+
+/**
+ * Changes passphrase for the open database. The database must be encrypted
+ * already, i.e. have a non-empty password. Unencrypted databases can only be
+ * encrypted during import/export.
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param passpharse New passphrase.
+ * @return 1 if database was reencrypted with the new passphrase, 0 on error
+ * (database is closed, database is not encrypted, other SQLCipher error).
+ */
+int             dc_context_change_passphrase (dc_context_t *context, char *passphrase);
+
+
+/**
  * Free a context object.
  *
  * You have to call this function

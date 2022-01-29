@@ -146,6 +146,12 @@ impl Context {
         self.sql.is_open().await
     }
 
+    /// Returns true if database is encrypted. Returns false if database is not open yet or not
+    /// encrypted.
+    pub async fn is_encrypted(&self) -> bool {
+        self.sql.is_encrypted().await.unwrap_or(false)
+    }
+
     /// Tests the database passphrase.
     ///
     /// Returns true if passphrase is correct.
@@ -153,6 +159,14 @@ impl Context {
     /// Fails if database is already open.
     pub(crate) async fn check_passphrase(&self, passphrase: String) -> Result<bool> {
         self.sql.check_passphrase(passphrase).await
+    }
+
+    /// Changes the database passphrase.
+    ///
+    /// Works only for encrypted databases. Encrypted database can only be converted to unencrypted
+    /// one and backwards via import/export.
+    pub async fn change_passphrase(&self, passphrase: String) -> Result<()> {
+        self.sql.change_passphrase(self, passphrase).await
     }
 
     pub(crate) async fn with_blobdir(
@@ -1066,6 +1080,36 @@ mod tests {
         assert_eq!(context.check_passphrase("bar".to_string()).await?, false);
         assert_eq!(context.open("false".to_string()).await?, false);
         assert_eq!(context.open("foo".to_string()).await?, true);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_change_passphrase() -> Result<()> {
+        let dir = tempdir()?;
+        let dbfile = dir.path().join("db.sqlite");
+
+        let id = 1;
+        let context = Context::new_closed(dbfile.clone().into(), id)
+            .await
+            .context("failed to create context")?;
+        assert_eq!(context.open("foo".to_string()).await?, true);
+        assert_eq!(context.is_open().await, true);
+        assert_eq!(context.is_encrypted().await, true);
+
+        context.change_passphrase("bar".to_string()).await?;
+        drop(context);
+
+        let id = 2;
+        let context = Context::new(dbfile.into(), id)
+            .await
+            .context("failed to create context")?;
+        assert_eq!(context.is_open().await, false);
+        assert_eq!(context.check_passphrase("foo".to_string()).await?, false);
+        assert_eq!(context.check_passphrase("bar".to_string()).await?, true);
+        assert_eq!(context.open("foo".to_string()).await?, false);
+        assert_eq!(context.open("bar".to_string()).await?, true);
+        assert_eq!(context.is_encrypted().await, true);
 
         Ok(())
     }

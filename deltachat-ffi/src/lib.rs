@@ -144,6 +144,34 @@ pub unsafe extern "C" fn dc_context_is_open(context: *mut dc_context_t) -> libc:
     block_on(ctx.is_open()) as libc::c_int
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn dc_context_is_encrypted(context: *mut dc_context_t) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_context_is_encrypted()");
+        return 0;
+    }
+
+    let ctx = &*context;
+    block_on(ctx.is_encrypted()) as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_context_change_passphrase(
+    context: *mut dc_context_t,
+    passphrase: *const libc::c_char,
+) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_context_change_passphrase()");
+        return 0;
+    }
+
+    let ctx = &*context;
+    let passphrase = to_string_lossy(passphrase);
+    block_on(ctx.change_passphrase(passphrase))
+        .log_err(ctx, "change_passphrase failed")
+        .is_ok() as libc::c_int
+}
+
 /// Release the context structure.
 ///
 /// This function releases the memory of the `dc_context_t` structure.

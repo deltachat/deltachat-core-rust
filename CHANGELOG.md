@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### API Changes
+- added APIs to check if database is encrypted and to change the passphrase:
+  `dc_context_is_encrypted()` and `dc_context_change_passphrase()` #3029.
+
 ### Changes
 - don't watch Sent folder by default #3025
 - use webxdc app name in chatlist/quotes/replies etc. #3027
