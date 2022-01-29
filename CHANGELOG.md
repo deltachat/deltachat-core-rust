@@ -4,12 +4,10 @@
 
 ### Changes
 - don't watch Sent folder by default #3025
+- use webxdc app name in chatlist/quotes/replies etc. #3027
 
 
 ## 1.72.0
-
-### Changes
-- use webxdc app name in chatlist/quotes/replies etc. #3027
 
 ### Fixes
 - run migrations on backup import #3006
