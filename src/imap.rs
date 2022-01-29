@@ -2081,13 +2081,19 @@ pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result
     }
 }
 
+/// Whether to ignore fetching messages form a folder.
+///
+/// This caters for the [`Config::WatchMvboxOnly`] setting which means mails from folders
+/// not explicitly watched should not be fetched.
 async fn should_ignore_folder(context: &Context, folder: &str) -> Result<bool> {
-    let ignore = if context.get_config_bool(Config::WatchMvboxOnly).await? {
-        context.is_mvbox(folder).await? || context.is_spam_folder(folder).await?
-    } else {
-        false
-    };
-    Ok(ignore)
+    if !context.get_config_bool(Config::WatchMvboxOnly).await? {
+        return Ok(false);
+    }
+    if context.is_sentbox(folder).await? {
+        // Still respect the SentboxWatch setting.
+        return Ok(!context.get_config_bool(Config::SentboxWatch).await?);
+    }
+    Ok(!(context.is_mvbox(folder).await? || context.is_spam_folder(folder).await?))
 }
 
 /// Builds a list of sequence/uid sets. The returned sets have each no more than around 1000
