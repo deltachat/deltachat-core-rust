@@ -403,17 +403,16 @@ mod tests {
         Ok(())
     }
 
+    /// Regression test for https://github.com/deltachat/deltachat-core-rust/issues/3012
     #[async_std::test]
     async fn test_set_config_bool() -> Result<()> {
         let t = TestContext::new().await;
 
-        // Regression test for https://github.com/deltachat/deltachat-core-rust/issues/3012
         // We need some config that defaults to true
         let c = Config::E2eeEnabled;
         assert_eq!(t.get_config_bool(c).await?, true);
         t.set_config_bool(c, false).await?;
         assert_eq!(t.get_config_bool(c).await?, false);
-
         Ok(())
     }
 }

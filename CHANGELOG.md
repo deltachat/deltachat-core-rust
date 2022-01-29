@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### API changes
-- added `only_fetch_mvbox` config #3014
+- added `watch_mvbox_only` config #3028
 
 ### Changes
 - don't watch Sent folder by default #3025

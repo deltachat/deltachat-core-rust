@@ -343,10 +343,12 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    and watch the `DeltaChat` folder for updates (default),
  *                    0=do not move chat-messages
  *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
- * - `only_fetch_mvbox` = 1=ignore all folders except for the `DeltaChat` folder.
- *                    Setting this will automatically set `mvbox_move` to 1 and `sentbox_watch` to 0.
- *                    Setting `mvbox_move` to 0 or `sentbox_watch` to 1 will automatically disable this option.
- *                    When this option is set, the UI should disable the `mvbox_move` and `sentbox_watch` options.
+
+ * - `watch_mvbox_only`
+ *                  = 1=Do not fetch messages from folders other than the
+ *                      `DeltaChat` folder.  Messages will still be fetched from the,
+ *                       spam folder and `sendbox_watch` will also still be respected
+ *                       if enabled.
  *                    0=watch all folders normally (default)
  * - `show_emails`  = DC_SHOW_EMAILS_OFF (0)=
  *                    show direct replies to chats only (default),

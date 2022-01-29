@@ -423,7 +423,7 @@ impl Context {
         res.insert("sentbox_watch", sentbox_watch.to_string());
         res.insert("mvbox_move", mvbox_move.to_string());
         res.insert("sentbox_move", sentbox_move.to_string());
-        res.insert("watch_mvbox_not_inbox", watch_mvbox_only.to_string());
+        res.insert("watch_mvbox_only", watch_mvbox_only.to_string());
         res.insert("folders_configured", folders_configured.to_string());
         res.insert("configured_sentbox_folder", configured_sentbox_folder);
         res.insert("configured_mvbox_folder", configured_mvbox_folder);
