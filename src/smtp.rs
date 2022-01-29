@@ -4,10 +4,10 @@ pub mod send;
 
 use std::time::{Duration, SystemTime};
 
-use anyhow::{format_err, Context as _};
+use anyhow::{bail, format_err, Context as _, Result};
 use async_smtp::smtp::client::net::ClientTlsParameters;
 use async_smtp::smtp::response::{Category, Code, Detail};
-use async_smtp::{error, smtp, EmailAddress, ServerAddress};
+use async_smtp::{smtp, EmailAddress, ServerAddress};
 
 use crate::constants::DC_LP_AUTH_OAUTH2;
 use crate::events::EventType;
@@ -22,28 +22,6 @@ use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
 
 /// SMTP write and read timeout in seconds.
 const SMTP_TIMEOUT: u64 = 30;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Bad parameters")]
-    BadParameters,
-    #[error("Invalid login address {address}: {error}")]
-    InvalidLoginAddress {
-        address: String,
-        #[source]
-        error: error::Error,
-    },
-    #[error("SMTP failed to connect: {0}")]
-    ConnectionFailure(#[source] smtp::error::Error),
-    #[error("SMTP oauth2 error {address}")]
-    Oauth2 { address: String },
-    #[error("TLS error {0}")]
-    Tls(#[from] async_native_tls::Error),
-    #[error("{0}")]
-    Other(#[from] anyhow::Error),
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Default)]
 pub(crate) struct Smtp {
@@ -135,14 +113,11 @@ impl Smtp {
         }
 
         if lp.server.is_empty() || lp.port == 0 {
-            return Err(Error::BadParameters);
+            bail!("bad connection parameters");
         }
 
-        let from =
-            EmailAddress::new(addr.to_string()).map_err(|err| Error::InvalidLoginAddress {
-                address: addr.to_string(),
-                error: err,
-            })?;
+        let from = EmailAddress::new(addr.to_string())
+            .with_context(|| format!("invalid login address {}", addr))?;
 
         self.from = Some(from);
 
@@ -163,9 +138,7 @@ impl Smtp {
             let send_pw = &lp.password;
             let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false).await?;
             if access_token.is_none() {
-                return Err(Error::Oauth2 {
-                    address: addr.to_string(),
-                });
+                bail!("SMTP OAuth 2 error {}", addr);
             }
             let user = &lp.user;
             (
@@ -209,9 +182,7 @@ impl Smtp {
         }
 
         let mut trans = client.into_transport();
-        if let Err(err) = trans.connect().await {
-            return Err(Error::ConnectionFailure(err));
-        }
+        trans.connect().await.context("SMTP failed to connect")?;
 
         self.transport = Some(trans);
         self.last_success = Some(SystemTime::now());
