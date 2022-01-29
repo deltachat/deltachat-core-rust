@@ -403,16 +403,18 @@ impl MimeMessage {
     #[allow(clippy::indexing_slicing)]
     fn squash_attachment_parts(&mut self) {
         if let [textpart, filepart] = &self.parts[..] {
-            let need_drop = {
-                textpart.typ == Viewtype::Text
-                    && (filepart.typ == Viewtype::Image
-                        || filepart.typ == Viewtype::Gif
-                        || filepart.typ == Viewtype::Sticker
-                        || filepart.typ == Viewtype::Audio
-                        || filepart.typ == Viewtype::Voice
-                        || filepart.typ == Viewtype::Video
-                        || filepart.typ == Viewtype::File)
-            };
+            let need_drop = textpart.typ == Viewtype::Text
+                && match filepart.typ {
+                    Viewtype::Image
+                    | Viewtype::Gif
+                    | Viewtype::Sticker
+                    | Viewtype::Audio
+                    | Viewtype::Voice
+                    | Viewtype::Video
+                    | Viewtype::File
+                    | Viewtype::Webxdc => true,
+                    Viewtype::Unknown | Viewtype::Text | Viewtype::VideochatInvitation => false,
+                };
 
             if need_drop {
                 let mut filepart = self.parts.swap_remove(1);

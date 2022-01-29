@@ -7,6 +7,9 @@
 - use webxdc app name in chatlist/quotes/replies etc. #3027
 - refactorings #3023
 
+### Fixes
+- fix splitting off text from webxdc messages #3032
+
 
 ## 1.72.0
 
