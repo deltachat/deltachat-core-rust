@@ -1535,4 +1535,43 @@ sth_for_the = "future""#
 
         Ok(())
     }
+
+    #[async_std::test]
+    async fn test_webxdc_and_text() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Alice sends instance and adds some text
+        let alice_chat = alice.create_chat(&bob).await;
+        let mut alice_instance = create_webxdc_instance(
+            &alice,
+            "minimal.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
+        alice_instance.set_text(Some("user added text".to_string()));
+        send_msg(&alice, alice_chat.id, &mut alice_instance).await?;
+        let alice_instance = alice.get_last_msg().await;
+        assert_eq!(
+            alice_instance.get_text(),
+            Some("user added text".to_string())
+        );
+
+        // Bob receives that instance
+        let sent1 = alice.pop_sent_msg().await;
+        bob.recv_msg(&sent1).await;
+        let bob_instance = bob.get_last_msg().await;
+        assert_eq!(bob_instance.get_text(), Some("user added text".to_string()));
+
+        // Alice's second device receives the instance as well
+        let alice2 = TestContext::new_alice().await;
+        alice2.recv_msg(&sent1).await;
+        let alice2_instance = alice2.get_last_msg().await;
+        assert_eq!(
+            alice2_instance.get_text(),
+            Some("user added text".to_string())
+        );
+
+        Ok(())
+    }
 }
