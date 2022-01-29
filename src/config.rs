@@ -74,8 +74,12 @@ pub enum Config {
     #[strum(props(default = "0"))]
     SentboxMove, // If `MvboxMove` is true, this config is ignored. Currently only used in tests.
 
+    /// Watch for new messages in the "Mvbox" (aka DeltaChat folder) only.
+    ///
+    /// This will not entirely disable other folders, e.g. the spam folder will also still
+    /// be watched for new messages.
     #[strum(props(default = "0"))]
-    OnlyFetchMvbox,
+    WatchMvboxOnly,
 
     #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
     ShowEmails,
@@ -298,33 +302,6 @@ impl Context {
                 let value = value.map(improve_single_line_input);
                 self.sql.set_raw_config(key, value.as_deref()).await?;
             }
-            Config::SentboxWatch => {
-                self.sql.set_raw_config(key, value).await?;
-                if config_to_bool(value) {
-                    self.sql
-                        .set_raw_config(Config::OnlyFetchMvbox, Some("0"))
-                        .await?;
-                }
-            }
-            Config::MvboxMove => {
-                self.sql.set_raw_config(key, value).await?;
-                if !config_to_bool(value) {
-                    self.sql
-                        .set_raw_config(Config::OnlyFetchMvbox, Some("0"))
-                        .await?;
-                }
-            }
-            Config::OnlyFetchMvbox => {
-                self.sql.set_raw_config(key, value).await?;
-                if config_to_bool(value) {
-                    self.sql
-                        .set_raw_config(Config::SentboxWatch, Some("0"))
-                        .await?;
-                    self.sql
-                        .set_raw_config(Config::MvboxMove, Some("1"))
-                        .await?;
-                }
-            }
             _ => {
                 self.sql.set_raw_config(key, value).await?;
             }
@@ -363,13 +340,6 @@ fn get_config_keys_string() -> String {
     });
 
     format!(" {} ", keys)
-}
-
-fn config_to_bool(value: Option<&str>) -> bool {
-    value
-        .and_then(|s| s.parse::<i32>().ok())
-        .unwrap_or_default()
-        != 0
 }
 
 #[cfg(test)]
@@ -443,29 +413,6 @@ mod tests {
         assert_eq!(t.get_config_bool(c).await?, true);
         t.set_config_bool(c, false).await?;
         assert_eq!(t.get_config_bool(c).await?, false);
-
-        // Test that OnlyFetchMvbox==true implies MvboxMove==true and SentboxWatch==false
-        t.set_config_bool(Config::SentboxWatch, true).await?;
-
-        t.set_config_bool(Config::OnlyFetchMvbox, true).await?;
-        assert_eq!(t.get_config_bool(Config::SentboxWatch).await?, false);
-        assert_eq!(t.get_config_bool(Config::OnlyFetchMvbox).await?, true);
-
-        t.set_config_bool(Config::MvboxMove, false).await?;
-        assert_eq!(t.get_config_bool(Config::MvboxMove).await?, false);
-        assert_eq!(t.get_config_bool(Config::OnlyFetchMvbox).await?, false);
-
-        t.set_config_bool(Config::SentboxWatch, true).await?;
-        assert_eq!(t.get_config_bool(Config::SentboxWatch).await?, true);
-
-        t.set_config_bool(Config::OnlyFetchMvbox, true).await?;
-        assert_eq!(t.get_config_bool(Config::SentboxWatch).await?, false);
-        assert_eq!(t.get_config_bool(Config::MvboxMove).await?, true);
-        assert_eq!(t.get_config_bool(Config::OnlyFetchMvbox).await?, true);
-
-        t.set_config_bool(Config::SentboxWatch, true).await?;
-        assert_eq!(t.get_config_bool(Config::SentboxWatch).await?, true);
-        assert_eq!(t.get_config_bool(Config::OnlyFetchMvbox).await?, false);
 
         Ok(())
     }

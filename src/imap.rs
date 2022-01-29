@@ -2082,11 +2082,12 @@ pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result
 }
 
 async fn should_ignore_folder(context: &Context, folder: &str) -> Result<bool> {
-    Ok(context.get_config_bool(Config::OnlyFetchMvbox).await?
-            && context.is_mvbox(folder).await?
-            // Even if OnlyFetchMvbox is set, we have a look at the spam folder
-            // in case an answer to a known message was put into spam:
-            && context.is_spam_folder(folder).await?)
+    let ignore = if context.get_config_bool(Config::WatchMvboxOnly).await? {
+        context.is_mvbox(folder).await? || context.is_spam_folder(folder).await?
+    } else {
+        false
+    };
+    Ok(ignore)
 }
 
 /// Builds a list of sequence/uid sets. The returned sets have each no more than around 1000

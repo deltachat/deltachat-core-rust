@@ -118,5 +118,12 @@ pub(crate) async fn get_watched_folders(context: &Context) -> Result<Vec<String>
             }
         }
     }
+    if context.get_config_bool(Config::WatchMvboxOnly).await? {
+        if let Some(folder) = context.get_config(Config::ConfiguredMvboxFolder).await? {
+            if !res.contains(&folder) {
+                res.push(folder);
+            }
+        }
+    }
     Ok(res)
 }
