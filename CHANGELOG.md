@@ -6,6 +6,7 @@
 - don't watch Sent folder by default #3025
 - use webxdc app name in chatlist/quotes/replies etc. #3027
 - refactorings #3023
+- remove direct dependency on `byteorder` crate #3031
 
 
 ## 1.72.0

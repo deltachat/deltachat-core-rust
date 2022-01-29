@@ -1077,7 +1077,6 @@ dependencies = [
  "backtrace",
  "base64 0.13.0",
  "bitflags",
- "byteorder",
  "chrono",
  "criterion",
  "deltachat_derive",
