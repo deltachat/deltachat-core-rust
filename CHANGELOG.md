@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+- don't watch Sent folder by default #3025
+
+
 ## 1.72.0
 
 ### Changes
@@ -7,9 +13,6 @@
 
 ### Fixes
 - run migrations on backup import #3006
-
-### Changes
-- don't watch Sent folder by default #3025
 
 
 ## 1.71.0
