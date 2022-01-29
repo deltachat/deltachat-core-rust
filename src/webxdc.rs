@@ -488,6 +488,7 @@ mod tests {
         add_contact_to_chat, create_group_chat, forward_msgs, send_msg, send_text_msg, ChatId,
         ProtectionStatus,
     };
+    use crate::chatlist::Chatlist;
     use crate::contact::Contact;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
@@ -1511,6 +1512,26 @@ sth_for_the = "future""#
             .unwrap();
         let update_msg = Message::load_from_db(&bob, update_msg_id).await?;
         assert!(!update_msg.get_showpadlock());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_webxdc_chatlist_summary() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
+        let mut instance = create_webxdc_instance(
+            &t,
+            "with-minimal-manifest.xdc",
+            include_bytes!("../test-data/webxdc/with-minimal-manifest.xdc"),
+        )
+        .await?;
+        send_msg(&t, chat_id, &mut instance).await?;
+
+        let chatlist = Chatlist::try_load(&t, 0, None, None).await?;
+        assert_eq!(chatlist.len(), 1);
+        let summary = chatlist.get_summary(&t, 0, None).await?;
+        assert_eq!(summary.text, "nice app!".to_string());
 
         Ok(())
     }

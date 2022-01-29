@@ -139,7 +139,10 @@ impl Message {
             }
             Viewtype::Webxdc => {
                 append_text = true;
-                "Webxdc".to_string()
+                self.get_webxdc_info(context)
+                    .await
+                    .map(|info| info.name)
+                    .unwrap_or_else(|_| "ErrWebxdcName".to_string())
             }
             Viewtype::Text | Viewtype::Unknown => {
                 if self.param.get_cmd() != SystemMessage::LocationOnly {
