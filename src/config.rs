@@ -65,7 +65,7 @@ pub enum Config {
     #[strum(props(default = "1"))]
     MdnsEnabled,
 
-    #[strum(props(default = "1"))]
+    #[strum(props(default = "0"))]
     SentboxWatch,
 
     #[strum(props(default = "1"))]

@@ -335,8 +335,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    1=send a copy of outgoing messages to self.
  *                    Sending messages to self is needed for a proper multi-account setup,
  *                    however, on the other hand, may lead to unwanted notifications in non-delta clients.
- * - `sentbox_watch`= 1=watch `Sent`-folder for changes (default),
- *                    0=do not watch the `Sent`-folder,
+ * - `sentbox_watch`= 1=watch `Sent`-folder for changes,
+ *                    0=do not watch the `Sent`-folder (default),
  *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
  * - `mvbox_move`   = 1=detect chat messages,
  *                    move them to the `DeltaChat` folder,
