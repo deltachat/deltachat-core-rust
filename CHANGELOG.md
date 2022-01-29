@@ -8,6 +8,9 @@
 - refactorings #3023
 - remove direct dependency on `byteorder` crate #3031
 
+### Fixes
+- fix splitting off text from webxdc messages #3032
+
 
 ## 1.72.0
 
