@@ -169,23 +169,40 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 warn!(ctx, "{:#}", err);
             }
 
-            // Scan other folders before fetching from watched folder. This may result in the
-            // messages being moved into the watched folder, for example from the Spam folder to
-            // the Inbox folder.
-            if folder == Config::ConfiguredInboxFolder {
-                // Only scan on the Inbox thread in order to prevent parallel scans, which might lead to duplicate messages
-                if let Err(err) = connection.scan_folders(ctx).await {
-                    // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
-                    // but maybe just one folder can't be selected or something
-                    warn!(ctx, "{}", err);
-                }
-            }
-
-            // fetch
+            // Fetch the watched folder.
             if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
                 connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
                 return InterruptInfo::new(false);
+            }
+
+            // Scan additional folders only after finishing fetching the watched folder.
+            //
+            // On iOS the application has strictly limited time to work in background, so we may not
+            // be able to scan all folders before time is up if there are many of them.
+            if folder == Config::ConfiguredInboxFolder {
+                // Only scan on the Inbox thread in order to prevent parallel scans, which might lead to duplicate messages
+                match connection.scan_folders(ctx).await {
+                    Err(err) => {
+                        // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
+                        // but maybe just one folder can't be selected or something
+                        warn!(ctx, "{}", err);
+                    }
+                    Ok(true) => {
+                        // Fetch the watched folder again in case scanning other folder moved messages
+                        // there.
+                        //
+                        // In most cases this will select the watched folder and return because there are
+                        // no new messages. We want to select the watched folder anyway before going IDLE
+                        // there, so this does not take additional protocol round-trip.
+                        if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
+                            connection.trigger_reconnect(ctx).await;
+                            warn!(ctx, "{:#}", err);
+                            return InterruptInfo::new(false);
+                        }
+                    }
+                    Ok(false) => {}
+                }
             }
 
             // Synchronize Seen flags.

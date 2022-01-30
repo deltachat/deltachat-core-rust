@@ -17,6 +17,8 @@
 - call slow `delete_expired_imap_messages()` less often #3037
 - make synchronization of Seen status more robust in case unsolicited FETCH
   result without UID is returned #3022
+- fetch Inbox before scanning folders to ensure iOS does
+  not kill the app before it gets to fetch the Inbox in background #3040
 
 
 ## 1.72.0
