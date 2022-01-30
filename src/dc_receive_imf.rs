@@ -2357,12 +2357,10 @@ fn dc_create_incoming_rfc724_mid(mime: &MimeMessage) -> String {
 
 #[cfg(test)]
 mod tests {
-    use chat::get_chat_contacts;
-
-    use mailparse::MailHeaderMap;
 
     use super::*;
 
+    use crate::chat::get_chat_contacts;
     use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
     use crate::chatlist::Chatlist;
     use crate::constants::{DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
@@ -4299,6 +4297,7 @@ YEAAAAAA!.
             t: &TestContext,
             raw: &[u8],
             server_folder: &str,
+            should_be_downloaded: bool,
             should_be_shown: bool,
         ) {
             let mail = mailparse::parse_mail(raw).unwrap();
@@ -4316,13 +4315,15 @@ YEAAAAAA!.
             .unwrap();
             assert_eq!(
                 is_downloaded,
-                should_be_shown,
+                should_be_downloaded,
                 "The message\n     {}\nin folder \"{}\" was downloaded: {}, but should be shown: {}",
                 std::str::from_utf8(raw).unwrap_or_default().replace("\n", "\n     "),
                 server_folder,
                 is_downloaded,
-                should_be_shown
+                should_be_downloaded
             );
+
+            let chats_before = Chatlist::try_load(t, 0, None, None).await.unwrap();
 
             // `prefetch_should_download()` has to return `true` if in doubt
             // and `dc_receive_imf()` must not show the message if it was dowloaded, anyway:
@@ -4337,6 +4338,16 @@ YEAAAAAA!.
                 is_shown,
                 should_be_shown
             );
+
+            let chats_after = Chatlist::try_load(t, 0, None, None).await.unwrap();
+
+            if !should_be_shown && chats_before.len() != chats_after.len() {
+                panic!(
+                    "For the message\n     {}\nin folder \"{}\", seems like an empty chat was created",
+                    std::str::from_utf8(raw).unwrap_or_default().replace("\n", "\n     "),
+                    server_folder
+                )
+            }
         }
 
         let t = TestContext::new_alice().await;
@@ -4347,50 +4358,70 @@ YEAAAAAA!.
 
         check_if_shown(
             &t,
-            b"Message-Id: abcd1@exmaple.com\n\
+            b"Message-Id: abcd1@example.com\n\
                 From: bob@example.org\n\
                 Chat-Version: 1.0\n",
             "Inbox",
             true,
+            true,
         )
         .await;
 
         check_if_shown(
             &t,
-            b"Message-Id: abcd2@exmaple.com\n\
+            b"Message-Id: abcd2@example.com\n\
                 From: bob@example.org\n",
             "Inbox",
             true,
-        )
-        .await;
-
-        check_if_shown(
-            &t,
-            b"Message-Id: abcd3@exmaple.com\n\
-                From: bob@example.org\n\
-                Chat-Version: 1.0\n",
-            "Spam",
             true,
-        )
-        .await;
-
-        // Note the `!`:
-        check_if_shown(
-            &t,
-            b"Message-Id: abcd4@exmaple.com\n\
-                From: bob@example.org\n",
-            "Spam",
-            false,
         )
         .await;
 
         Contact::create(&t, "", "bob@example.org").await.unwrap();
         check_if_shown(
             &t,
-            b"Message-Id: abcd5@exmaple.com\n\
+            b"Message-Id: abcdeeeeee@example.com\n\
+                From: bob@example.org\n\
+                Chat-Version: 1.0\n",
+            "Spam",
+            // This should not be shown because the reason it's in the Spam folder might be that
+            // the From: address was tampered with (even though we don't know how likely this is).
+            // But chat messages without In-Reply-To are rare, anyway.
+            false,
+            false,
+        )
+        .await;
+
+        check_if_shown(
+            &t,
+            b"Message-Id: abcd3@example.com\n\
+                From: bob@example.org\n\
+                In-Reply-To: abcd2@example.com\n\
+                Chat-Version: 1.0\n",
+            "Spam",
+            true,
+            true,
+        )
+        .await;
+
+        check_if_shown(
+            &t,
+            b"Message-Id: abcd4@example.com\n\
+                From: bob@example.org\n",
+            "Spam",
+            false,
+            false,
+        )
+        .await;
+
+        check_if_shown(
+            &t,
+            b"Message-Id: abcd4@example.com\n\
+                Secure-Join: vc-request
                 From: bob@example.org\n",
             "Spam",
             true,
+            false,
         )
         .await;
     }

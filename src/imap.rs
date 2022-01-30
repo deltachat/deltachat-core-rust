@@ -1940,7 +1940,8 @@ pub(crate) async fn prefetch_should_download(
         })
         .unwrap_or_default();
 
-    if !is_autocrypt_setup_message
+    // We don't know whether it's a SecureJoin message, so, always download if it's a chat message.
+    if !is_chat_message
         && (chat.is_none() || chat.unwrap().blocked == Blocked::Yes)
         && context.is_spam_folder(folder).await?
     {
