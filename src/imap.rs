@@ -2085,7 +2085,7 @@ pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result
     }
 }
 
-/// Whether to ignore fetching messages form a folder.
+/// Whether to ignore fetching messages from a folder.
 ///
 /// This caters for the [`Config::OnlyFetchMvbox`] setting which means mails from folders
 /// not explicitly watched should not be fetched.
