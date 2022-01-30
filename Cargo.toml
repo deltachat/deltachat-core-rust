@@ -38,6 +38,7 @@ escaper = "0.1"
 futures = "0.3"
 hex = "0.4.0"
 image = { version = "0.23.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
+imap-proto = "0.14.3"
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"

@@ -1090,6 +1090,7 @@ dependencies = [
  "hex",
  "humansize",
  "image",
+ "imap-proto",
  "kamadak-exif",
  "lettre_email",
  "libc",

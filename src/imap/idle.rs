@@ -3,6 +3,7 @@ use super::Imap;
 use anyhow::{bail, Context as _, Result};
 use async_imap::extensions::idle::IdleResponse;
 use async_std::prelude::*;
+use imap_proto::types::{AttributeValue, Response};
 use std::time::{Duration, SystemTime};
 
 use crate::{context::Context, scheduler::InterruptInfo};
@@ -71,6 +72,13 @@ impl Imap {
             match fut.await {
                 Ok(Event::IdleResponse(IdleResponse::NewData(x))) => {
                     info!(context, "Idle has NewData {:?}", x);
+                    if let Response::Fetch(_message, attrs) = x.parsed() {
+                        for attr in attrs {
+                            if let AttributeValue::ModSeq(modseq) = attr {
+                                self.update_modseq(*modseq);
+                            }
+                        }
+                    }
                 }
                 Ok(Event::IdleResponse(IdleResponse::Timeout)) => {
                     info!(context, "Idle-wait timeout or interruption");

@@ -1023,12 +1023,25 @@ impl Imap {
             .as_ref()
             .with_context(|| format!("No mailbox selected, folder: {}", folder))?;
 
-        // Check if the mailbox supports MODSEQ.
-        // We are not interested in actual value of HIGHESTMODSEQ.
-        if mailbox.highest_modseq.is_none() {
+        let remote_highest_modseq = if let Some(remote_highest_modseq) = mailbox.highest_modseq {
+            remote_highest_modseq
+        } else {
             info!(
                 context,
                 "Mailbox {} does not support mod-sequences, skipping flag synchronization.", folder
+            );
+            return Ok(());
+        };
+
+        let mut highest_modseq = get_modseq(context, folder)
+            .await
+            .with_context(|| format!("failed to get MODSEQ for folder {}", folder))?;
+        if highest_modseq >= remote_highest_modseq {
+            info!(
+                context,
+                "MODSEQ {} is already new, HIGHESTMODSEQ={}, skipping seen flag update",
+                highest_modseq,
+                remote_highest_modseq
             );
             return Ok(());
         }
@@ -1037,9 +1050,6 @@ impl Imap {
         let uid_validity = get_uidvalidity(context, folder)
             .await
             .with_context(|| format!("failed to get UID validity for folder {}", folder))?;
-        let mut highest_modseq = get_modseq(context, folder)
-            .await
-            .with_context(|| format!("failed to get MODSEQ for folder {}", folder))?;
         let mut list = session
             .uid_fetch("1:*", format!("(FLAGS) (CHANGEDSINCE {})", highest_modseq))
             .await
@@ -1074,6 +1084,10 @@ impl Imap {
             }
         }
 
+        if remote_highest_modseq > highest_modseq {
+            // We haven't seen the message with the highest MODSEQ, maybe it was deleted already.
+            highest_modseq = remote_highest_modseq;
+        }
         set_modseq(context, folder, highest_modseq)
             .await
             .with_context(|| format!("failed to set MODSEQ for folder {}", folder))?;
@@ -1568,6 +1582,23 @@ impl Imap {
 
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
+    }
+
+    /// Update HIGHESTMODSEQ on selected mailbox.
+    ///
+    /// Should be called when MODSEQ is seen on the response, such as IDLE response.
+    pub(crate) fn update_modseq(&mut self, modseq: u64) {
+        self.config.selected_mailbox =
+            self.config
+                .selected_mailbox
+                .as_ref()
+                .map(|mailbox| Mailbox {
+                    highest_modseq: Some(std::cmp::max(
+                        mailbox.highest_modseq.unwrap_or_default(),
+                        modseq,
+                    )),
+                    ..mailbox.clone()
+                });
     }
 
     /// Return whether the server sent an unsolicited EXISTS response.
