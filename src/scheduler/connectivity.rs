@@ -5,6 +5,7 @@ use async_std::sync::{Mutex, RwLockReadGuard};
 
 use crate::dc_tools::time;
 use crate::events::EventType;
+use crate::imap::scan_folders::get_watched_folder_configs;
 use crate::quota::{
     QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
 };
@@ -362,17 +363,14 @@ impl Context {
                 [
                     (
                         Config::ConfiguredInboxFolder,
-                        None,
                         inbox.state.connectivity.clone(),
                     ),
                     (
                         Config::ConfiguredMvboxFolder,
-                        Some(Config::MvboxMove),
                         mvbox.state.connectivity.clone(),
                     ),
                     (
                         Config::ConfiguredSentboxFolder,
-                        Some(Config::SentboxWatch),
                         sentbox.state.connectivity.clone(),
                     ),
                 ],
@@ -391,20 +389,12 @@ impl Context {
         //                               - "Sent": Connected
         // =============================================================================================
 
+        let watched_folders = get_watched_folder_configs(self).await?;
         ret += &format!("<h3>{}</h3><ul>", stock_str::incoming_messages(self).await);
-        for (folder, watch, state) in &folders_states {
-            let w = if let Some(watch_config) = *watch {
-                self.get_config(watch_config)
-                    .await
-                    .ok_or_log(self)
-                    .flatten()
-                    == Some("1".to_string())
-            } else {
-                true
-            };
-
+        for (folder, state) in &folders_states {
             let mut folder_added = false;
-            if w {
+
+            if watched_folders.contains(folder) {
                 let f = self.get_config(*folder).await.ok_or_log(self).flatten();
 
                 if let Some(foldername) = f {

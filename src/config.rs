@@ -232,6 +232,11 @@ impl Context {
         Ok(self.get_config_int(key).await? != 0)
     }
 
+    pub(crate) async fn should_watch_mvbox(&self) -> Result<bool> {
+        Ok(self.get_config_bool(Config::MvboxMove).await?
+            || self.get_config_bool(Config::WatchMvboxOnly).await?)
+    }
+
     /// Gets configured "delete_server_after" value.
     ///
     /// `None` means never delete the message, `Some(0)` means delete

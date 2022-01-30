@@ -1665,6 +1665,10 @@ async fn spam_target_folder(
 
     if needs_move_to_mvbox(context, headers).await? {
         Ok(Some(Config::ConfiguredMvboxFolder))
+    } else if context.get_config_bool(Config::WatchMvboxOnly).await? {
+        // We don't want to move the message to the inbox or sentbox where we wouldn't
+        // see it again.
+        Ok(Some(Config::ConfiguredMvboxFolder))
     } else if needs_move_to_sentbox(context, folder, headers).await? {
         Ok(Some(Config::ConfiguredSentboxFolder))
     } else {
