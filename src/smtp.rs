@@ -369,6 +369,19 @@ pub(crate) async fn send_msg_to_smtp(
         )
         .collect::<Vec<_>>();
 
+    // If there is a msg-id and it does not exist in the db, cancel sending. this happens if
+    // dc_delete_msgs() was called before the generated mime was sent out.
+    if !message::exists(context, msg_id)
+        .await
+        .with_context(|| format!("failed to check message {} existence", msg_id))?
+    {
+        info!(
+            context,
+            "Sending of message {} was cancelled by the user.", msg_id
+        );
+        return Ok(());
+    }
+
     let status = match smtp_send(
         context,
         &recipients_list,
