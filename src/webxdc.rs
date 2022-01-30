@@ -81,6 +81,17 @@ impl rusqlite::types::ToSql for StatusUpdateId {
     }
 }
 
+impl rusqlite::types::FromSql for StatusUpdateId {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        let val = i64::column_result(value)?;
+        if let Ok(id) = u32::try_from(val) {
+            Ok(StatusUpdateId::new(id))
+        } else {
+            Err(rusqlite::types::FromSqlError::OutOfRange(val))
+        }
+    }
+}
+
 // Array of update items as sent on the wire.
 #[derive(Debug, Deserialize)]
 struct StatusUpdates {
@@ -97,6 +108,9 @@ pub(crate) struct StatusUpdateItem {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     summary: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<StatusUpdateId>,
 }
 
 impl Context {
@@ -172,6 +186,7 @@ impl Context {
                         payload: item.payload,
                         info: None, // no info-messages in draft mode
                         summary: item.summary,
+                        id: None,
                     },
                     _ => item,
                 }
@@ -182,6 +197,7 @@ impl Context {
                     payload,
                     info: None,
                     summary: None,
+                    id: None,
                 }
             }
         };
@@ -351,21 +367,27 @@ impl Context {
         let json = self
             .sql
             .query_map(
-                "SELECT update_item FROM msgs_status_updates WHERE msg_id=? AND (1=? OR id=?)",
+                "SELECT id, update_item FROM msgs_status_updates WHERE msg_id=? AND (1=? OR id=?)",
                 paramsv![
                     instance_msg_id,
                     if status_update_id.is_some() { 0 } else { 1 },
                     status_update_id.unwrap_or(StatusUpdateId(0))
                 ],
-                |row| row.get::<_, String>(0),
+                |row| {
+                    let id: StatusUpdateId = row.get(0)?;
+                    let item: String = row.get(1)?;
+                    Ok((id, item))
+                },
                 |rows| {
                     let mut json = String::default();
                     for row in rows {
-                        let update_item = row?;
+                        let (id, item) = row?;
+                        let mut update_item: StatusUpdateItem = serde_json::from_str(&item)?;
+                        update_item.id = Some(id);
                         if !json.is_empty() {
                             json.push_str(",\n");
                         }
-                        json.push_str(&update_item);
+                        json.push_str(&serde_json::to_string(&update_item)?);
                     }
                     Ok(json)
                 },
