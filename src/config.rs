@@ -79,7 +79,7 @@ pub enum Config {
     /// This will not entirely disable other folders, e.g. the spam folder will also still
     /// be watched for new messages.
     #[strum(props(default = "0"))]
-    WatchMvboxOnly,
+    OnlyFetchMvbox,
 
     #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
     ShowEmails,
@@ -234,7 +234,7 @@ impl Context {
 
     pub(crate) async fn should_watch_mvbox(&self) -> Result<bool> {
         Ok(self.get_config_bool(Config::MvboxMove).await?
-            || self.get_config_bool(Config::WatchMvboxOnly).await?)
+            || self.get_config_bool(Config::OnlyFetchMvbox).await?)
     }
 
     /// Gets configured "delete_server_after" value.

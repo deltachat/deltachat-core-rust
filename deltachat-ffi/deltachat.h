@@ -344,7 +344,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    0=do not move chat-messages
  *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
 
- * - `watch_mvbox_only`
+ * - `only_fetch_mvbox`
  *                  = 1=Do not fetch messages from folders other than the
  *                      `DeltaChat` folder.  Messages will still be fetched from the,
  *                       spam folder and `sendbox_watch` will also still be respected

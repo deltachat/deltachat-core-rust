@@ -1665,7 +1665,7 @@ async fn spam_target_folder(
 
     if needs_move_to_mvbox(context, headers).await? {
         Ok(Some(Config::ConfiguredMvboxFolder))
-    } else if context.get_config_bool(Config::WatchMvboxOnly).await? {
+    } else if context.get_config_bool(Config::OnlyFetchMvbox).await? {
         // We don't want to move the message to the inbox or sentbox where we wouldn't
         // see it again.
         Ok(Some(Config::ConfiguredMvboxFolder))
@@ -2087,10 +2087,10 @@ pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result
 
 /// Whether to ignore fetching messages form a folder.
 ///
-/// This caters for the [`Config::WatchMvboxOnly`] setting which means mails from folders
+/// This caters for the [`Config::OnlyFetchMvbox`] setting which means mails from folders
 /// not explicitly watched should not be fetched.
 async fn should_ignore_folder(context: &Context, folder: &str) -> Result<bool> {
-    if !context.get_config_bool(Config::WatchMvboxOnly).await? {
+    if !context.get_config_bool(Config::OnlyFetchMvbox).await? {
         return Ok(false);
     }
     if context.is_sentbox(folder).await? {
