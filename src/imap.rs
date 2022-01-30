@@ -28,7 +28,6 @@ use crate::context::Context;
 use crate::dc_receive_imf::{
     dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
 };
-use crate::ephemeral::delete_expired_imap_messages;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
@@ -458,9 +457,6 @@ impl Imap {
         self.fetch_new_messages(context, watch_folder, false)
             .await
             .context("fetch_new_messages")?;
-
-        // Mark expired messages for deletion.
-        delete_expired_imap_messages(context).await?;
 
         self.move_messages(context, watch_folder)
             .await

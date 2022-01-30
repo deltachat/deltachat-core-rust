@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context as _, Result};
 use async_std::prelude::*;
 use async_std::{
     channel::{self, Receiver, Sender},
@@ -8,6 +8,7 @@ use async_std::{
 use crate::config::Config;
 use crate::context::Context;
 use crate::dc_tools::maybe_add_time_based_warnings;
+use crate::ephemeral::delete_expired_imap_messages;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
 use crate::smtp::{send_smtp_messages, Smtp};
@@ -158,6 +159,14 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             if let Err(err) = connection.prepare(ctx).await {
                 warn!(ctx, "imap connection failed: {}", err);
                 return connection.fake_idle(ctx, Some(watch_folder)).await;
+            }
+
+            // Mark expired messages for deletion.
+            if let Err(err) = delete_expired_imap_messages(ctx)
+                .await
+                .context("delete_expired_imap_messages failed")
+            {
+                warn!(ctx, "{:#}", err);
             }
 
             // Scan other folders before fetching from watched folder. This may result in the

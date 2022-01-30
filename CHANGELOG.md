@@ -12,6 +12,7 @@
 
 ### Fixes
 - fix splitting off text from webxdc messages #3032
+- call slow `delete_expired_imap_messages()` less often #3037
 
 
 ## 1.72.0
