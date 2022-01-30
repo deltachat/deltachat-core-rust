@@ -10,7 +10,8 @@ use async_std::prelude::*;
 use super::{get_folder_meaning, get_folder_meaning_by_name};
 
 impl Imap {
-    pub(crate) async fn scan_folders(&mut self, context: &Context) -> Result<()> {
+    /// Returns true if folders were scanned, false if scanning was postponed.
+    pub(crate) async fn scan_folders(&mut self, context: &Context) -> Result<bool> {
         // First of all, debounce to once per minute:
         let mut last_scan = context.last_full_folder_scan.lock().await;
         if let Some(last_scan) = *last_scan {
@@ -20,7 +21,7 @@ impl Imap {
                 .await?;
 
             if elapsed_secs < debounce_secs {
-                return Ok(());
+                return Ok(false);
             }
         }
         info!(context, "Starting full folder scan");
@@ -98,7 +99,7 @@ impl Imap {
         }
 
         last_scan.replace(Instant::now());
-        Ok(())
+        Ok(true)
     }
 }
 
