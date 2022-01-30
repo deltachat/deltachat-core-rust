@@ -464,9 +464,6 @@ impl Imap {
         self.delete_messages(context, watch_folder)
             .await
             .context("delete_messages")?;
-        self.sync_seen_flags(context, watch_folder)
-            .await
-            .context("sync_seen_flags")?;
 
         Ok(())
     }

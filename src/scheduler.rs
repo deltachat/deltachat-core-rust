@@ -188,6 +188,17 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 return InterruptInfo::new(false);
             }
 
+            // Synchronize Seen flags.
+            if let Err(err) = connection
+                .sync_seen_flags(ctx, &watch_folder)
+                .await
+                .context("sync_seen_flags")
+            {
+                connection.trigger_reconnect(ctx).await;
+                warn!(ctx, "{:#}", err);
+                return InterruptInfo::new(false);
+            }
+
             connection.connectivity.set_connected(ctx).await;
 
             // idle
