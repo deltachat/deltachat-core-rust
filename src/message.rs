@@ -180,7 +180,7 @@ impl rusqlite::types::ToSql for MsgId {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
         if self.0 <= DC_MSG_ID_LAST_SPECIAL {
             return Err(rusqlite::Error::ToSqlConversionFailure(
-                format_err!("Invalid MsgId").into(),
+                format_err!("Invalid MsgId {}", self.0).into(),
             ));
         }
         let val = rusqlite::types::Value::Integer(self.0 as i64);

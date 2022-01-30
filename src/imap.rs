@@ -1009,7 +1009,9 @@ impl Imap {
             return Ok(());
         }
 
-        self.select_folder(context, Some(folder)).await?;
+        self.select_folder(context, Some(folder))
+            .await
+            .context("failed to select folder")?;
         let session = self
             .session
             .as_mut()
@@ -1032,66 +1034,49 @@ impl Imap {
         }
 
         let mut updated_chat_ids = BTreeSet::new();
-        let uid_validity = get_uidvalidity(context, folder).await?;
-        let mut highest_modseq = get_modseq(context, folder).await?;
+        let uid_validity = get_uidvalidity(context, folder)
+            .await
+            .with_context(|| format!("failed to get UID validity for folder {}", folder))?;
+        let mut highest_modseq = get_modseq(context, folder)
+            .await
+            .with_context(|| format!("failed to get MODSEQ for folder {}", folder))?;
         let mut list = session
             .uid_fetch("1:*", format!("(FLAGS) (CHANGEDSINCE {})", highest_modseq))
             .await
             .context("failed to fetch flags")?;
 
         while let Some(fetch) = list.next().await {
-            let msg = fetch?;
-
-            let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
+            let fetch = fetch.context("failed to get FETCH result")?;
+            let uid = if let Some(uid) = fetch.uid {
+                uid
+            } else {
+                info!(context, "FETCH result contains no UID, skipping");
+                continue;
+            };
+            let is_seen = fetch.flags().any(|flag| flag == Flag::Seen);
             if is_seen {
-                if let Some((msg_id, chat_id)) = context
-                    .sql
-                    .query_row_optional(
-                        "SELECT id, chat_id FROM msgs
-                         WHERE rfc724_mid IN (
-                           SELECT rfc724_mid FROM imap
-                           WHERE folder=?1
-                           AND uidvalidity=?2
-                           AND uid=?3
-                           LIMIT 1
-                         )",
-                        paramsv![&folder, uid_validity, msg.uid],
-                        |row| {
-                            let msg_id: MsgId = row.get(0)?;
-                            let chat_id: ChatId = row.get(1)?;
-                            Ok((msg_id, chat_id))
-                        },
-                    )
-                    .await?
+                if let Some(chat_id) = mark_seen_by_uid(context, folder, uid_validity, uid)
+                    .await
+                    .with_context(|| {
+                        format!("failed to update seen status for msg {}/{}", folder, uid)
+                    })?
                 {
-                    let updated = context
-                        .sql
-                        .execute(
-                            "UPDATE msgs SET state=?1
-                             WHERE (state=?2 OR state=?3)
-                             AND id=?4",
-                            paramsv![
-                                MessageState::InSeen,
-                                MessageState::InFresh,
-                                MessageState::InNoticed,
-                                msg_id
-                            ],
-                        )
-                        .await?
-                        > 0;
-
-                    if updated {
-                        updated_chat_ids.insert(chat_id);
-                        let modseq = msg.modseq.unwrap_or_default();
-                        if modseq > highest_modseq {
-                            highest_modseq = modseq;
-                        }
-                    }
+                    updated_chat_ids.insert(chat_id);
                 }
+            }
+
+            if let Some(modseq) = fetch.modseq {
+                if modseq > highest_modseq {
+                    highest_modseq = modseq;
+                }
+            } else {
+                warn!(context, "FETCH result contains no MODSEQ");
             }
         }
 
-        set_modseq(context, folder, highest_modseq).await?;
+        set_modseq(context, folder, highest_modseq)
+            .await
+            .with_context(|| format!("failed to set MODSEQ for folder {}", folder))?;
         for updated_chat_id in updated_chat_ids {
             context.emit_event(EventType::MsgsNoticed(updated_chat_id));
         }
@@ -1974,6 +1959,70 @@ pub(crate) async fn prefetch_should_download(
 
 fn get_fallback_folder(delimiter: &str) -> String {
     format!("INBOX{}DeltaChat", delimiter)
+}
+
+/// Marks messages in `msgs` table as seen, searching for them by UID.
+///
+/// Returns updated chat ID if any message was marked as seen.
+async fn mark_seen_by_uid(
+    context: &Context,
+    folder: &str,
+    uid_validity: u32,
+    uid: u32,
+) -> Result<Option<ChatId>> {
+    if let Some((msg_id, chat_id)) = context
+        .sql
+        .query_row_optional(
+            "SELECT id, chat_id FROM msgs
+                 WHERE rfc724_mid IN (
+                   SELECT rfc724_mid FROM imap
+                   WHERE folder=?1
+                   AND uidvalidity=?2
+                   AND uid=?3
+                   LIMIT 1
+                 )",
+            paramsv![&folder, uid_validity, uid],
+            |row| {
+                let msg_id: MsgId = row.get(0)?;
+                let chat_id: ChatId = row.get(1)?;
+                Ok((msg_id, chat_id))
+            },
+        )
+        .await
+        .with_context(|| {
+            format!(
+                "failed to get msg and chat ID for IMAP message {}/{}",
+                folder, uid
+            )
+        })?
+    {
+        let updated = context
+            .sql
+            .execute(
+                "UPDATE msgs SET state=?1
+                     WHERE (state=?2 OR state=?3)
+                     AND id=?4",
+                paramsv![
+                    MessageState::InSeen,
+                    MessageState::InFresh,
+                    MessageState::InNoticed,
+                    msg_id
+                ],
+            )
+            .await
+            .with_context(|| format!("failed to update msg {} state", msg_id))?
+            > 0;
+
+        if updated {
+            Ok(Some(chat_id))
+        } else {
+            // Message state has not chnaged.
+            Ok(None)
+        }
+    } else {
+        // There is no message is `msgs` table matchng the given UID.
+        Ok(None)
+    }
 }
 
 /// uid_next is the next unique identifier value from the last time we fetched a folder

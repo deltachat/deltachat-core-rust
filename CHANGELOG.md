@@ -13,6 +13,8 @@
 ### Fixes
 - fix splitting off text from webxdc messages #3032
 - call slow `delete_expired_imap_messages()` less often #3037
+- make synchronization of Seen status more robust in case unsolicited FETCH
+  result without UID is returned #3022
 
 
 ## 1.72.0
