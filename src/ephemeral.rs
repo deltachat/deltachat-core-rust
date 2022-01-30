@@ -451,12 +451,11 @@ pub(crate) async fn delete_expired_imap_messages(context: &Context) -> Result<()
         .execute(
             "UPDATE imap
              SET target=''
-             WHERE EXISTS (
-               SELECT * FROM msgs
-               WHERE rfc724_mid=imap.rfc724_mid
-               AND ((download_state = 0 AND timestamp < ?) OR
-                    (download_state != 0 AND timestamp < ?) OR
-                    (ephemeral_timestamp != 0 AND ephemeral_timestamp <= ?))
+             WHERE rfc724_mid IN (
+               SELECT rfc724_mid FROM msgs
+               WHERE ((download_state = 0 AND timestamp < ?) OR
+                      (download_state != 0 AND timestamp < ?) OR
+                      (ephemeral_timestamp != 0 AND ephemeral_timestamp <= ?))
              )",
             paramsv![threshold_timestamp, threshold_timestamp_extended, now],
         )

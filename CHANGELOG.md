@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+- optimize `delete_expired_imap_messages()` #3047
+
+
 ## 1.74.0
 
 ### Fixes
