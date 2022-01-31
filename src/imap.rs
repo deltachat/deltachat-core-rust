@@ -1899,6 +1899,15 @@ pub(crate) async fn prefetch_should_download(
     // We do not know the Message-ID or the Message-ID is missing (in this case, we create one in
     // the further process).
 
+    // Never download messages directly from the spam folder.
+    // If the sender is known, the message will be moved to the Inbox or Mvbox
+    // and then we download the message from there.
+    // Also see `spam_target_folder()`.
+    if context.is_spam_folder(folder).await? {
+        info!(context, "Ignoring message in spam folder");
+        return Ok(false);
+    }
+
     let chat = prefetch_get_chat(context, headers).await?;
     if let Some(chat) = &chat {
         if chat.typ == Chattype::Group && !chat.id.is_special() {
@@ -1939,15 +1948,6 @@ pub(crate) async fn prefetch_should_download(
             MessengerMessage::Yes | MessengerMessage::Reply => true,
         })
         .unwrap_or_default();
-
-    // We don't know whether it's a SecureJoin message, so, always download if it's a chat message.
-    if !is_chat_message
-        && (chat.is_none() || chat.unwrap().blocked == Blocked::Yes)
-        && context.is_spam_folder(folder).await?
-    {
-        info!(context, "Ignoring spam message");
-        return Ok(false);
-    }
 
     let show = is_autocrypt_setup_message
         || match show_emails {

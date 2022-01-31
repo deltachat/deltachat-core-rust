@@ -531,16 +531,6 @@ async fn add_parts(
         }
 
         if chat_id.is_none() {
-            let is_spam = mime_parser.get_header(HeaderDef::SecureJoin).is_none()
-                && (parent.is_none() || parent.as_ref().unwrap().chat_blocked == Blocked::Yes)
-                && context.is_spam_folder(server_folder).await?;
-            if is_spam {
-                chat_id = Some(DC_CHAT_ID_TRASH);
-                info!(context, "Message is probably spam (TRASH)");
-            }
-        }
-
-        if chat_id.is_none() {
             // try to create a group
 
             let create_blocked = match test_normal_chat {
