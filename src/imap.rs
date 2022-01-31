@@ -1600,38 +1600,51 @@ impl Imap {
 }
 
 /// Returns target folder for a message found in the Spam folder.
+/// If this returns None, the message will not be moved out of the
+/// Spam folder, and as `prefetch_should_download` returns `false` for
+/// all messages in the Spam folder, the message will be ignored.
 async fn spam_target_folder(
     context: &Context,
     folder: &str,
     headers: &[mailparse::MailHeader<'_>],
 ) -> Result<Option<Config>> {
-    if let Some(msg) = get_prefetch_parent_message(context, headers).await? {
-        if msg.chat_blocked != Blocked::Not {
-            // Blocked or contact request message in the spam folder, leave it there.
-            return Ok(None);
-        }
-    } else {
-        // No chat found.
-        let (from_id, blocked_contact, _origin) =
-            from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
-        if blocked_contact {
-            // Contact is blocked, leave the message in spam.
-            return Ok(None);
-        }
+    if headers.get_header_value(HeaderDef::ChatVersion).is_none() {
+        // If this is a chat message (i.e. has a ChatVersion header), then this might be
+        // a securejoin message. We can't find out at this point as we didn't prefetch
+        // the SecureJoin header. If we returned None then, the message would not be
+        // downloaded (`prefetch_should_download()` returns `false` for all messages
+        // in the Spam folder) and the message would be ignored.
 
-        if let Some(chat_id_blocked) = ChatIdBlocked::lookup_by_contact(context, from_id).await? {
-            if chat_id_blocked.blocked != Blocked::Not {
+        if let Some(msg) = get_prefetch_parent_message(context, headers).await? {
+            if msg.chat_blocked != Blocked::Not {
+                // Blocked or contact request message in the spam folder, leave it there.
                 return Ok(None);
             }
-        } else if from_id != DC_CONTACT_ID_SELF {
-            // No chat with this contact found.
-            return Ok(None);
+        } else {
+            // No chat found.
+            let (from_id, blocked_contact, _origin) =
+                from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
+            if blocked_contact {
+                // Contact is blocked, leave the message in spam.
+                return Ok(None);
+            }
+
+            if let Some(chat_id_blocked) =
+                ChatIdBlocked::lookup_by_contact(context, from_id).await?
+            {
+                if chat_id_blocked.blocked != Blocked::Not {
+                    return Ok(None);
+                }
+            } else if from_id != DC_CONTACT_ID_SELF {
+                // No chat with this contact found.
+                return Ok(None);
+            }
         }
     }
 
     if needs_move_to_mvbox(context, headers).await?
-        // We don't want to move the message to the inbox or sentbox where we wouldn't
-        // fetch it again:
+        // If OnlyFetchMvbox is set, we don't want to move the message to
+        // the inbox or sentbox where we wouldn't fetch it again:
         || context.get_config_bool(Config::OnlyFetchMvbox).await?
     {
         Ok(Some(Config::ConfiguredMvboxFolder))
