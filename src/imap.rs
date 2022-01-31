@@ -1605,8 +1605,8 @@ async fn spam_target_folder(
     folder: &str,
     headers: &[mailparse::MailHeader<'_>],
 ) -> Result<Option<Config>> {
-    if let Some(chat) = prefetch_get_chat(context, headers).await? {
-        if chat.blocked != Blocked::Not {
+    if let Some(msg) = get_prefetch_parent_message(context, headers).await? {
+        if msg.chat_blocked != Blocked::Not {
             // Blocked or contact request message in the spam folder, leave it there.
             return Ok(None);
         }
