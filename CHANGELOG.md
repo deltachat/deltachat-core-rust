@@ -14,6 +14,7 @@
   folder scanning #3041
 - remove direct dependency on `byteorder` crate #3031
 - refactorings #3023 #3013
+- update provider database #3043
 - improve documentation #3017 #3018 #3021
 
 ### Fixes
