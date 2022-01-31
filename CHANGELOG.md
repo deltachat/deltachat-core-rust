@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.74.0
 
 ### Fixes
 - avoid reconnection loop when message without Message-ID is marked as seen #3044
