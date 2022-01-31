@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### API changes
+- added `only_fetch_mvbox` config #3028
+
 ### Changes
 - don't watch Sent folder by default #3025
 - use webxdc app name in chatlist/quotes/replies etc. #3027

@@ -664,6 +664,11 @@ impl Imap {
         folder: &str,
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
+        if should_ignore_folder(context, folder).await? {
+            info!(context, "Not fetching from {}", folder);
+            return Ok(false);
+        }
+
         let new_emails = self.select_with_uidvalidity(context, folder).await?;
 
         if !new_emails && !fetch_existing_msgs {
@@ -1636,7 +1641,11 @@ async fn spam_target_folder(
         }
     }
 
-    if needs_move_to_mvbox(context, headers).await? {
+    if needs_move_to_mvbox(context, headers).await?
+        // We don't want to move the message to the inbox or sentbox where we wouldn't
+        // fetch it again:
+        || context.get_config_bool(Config::OnlyFetchMvbox).await?
+    {
         Ok(Some(Config::ConfiguredMvboxFolder))
     } else if needs_move_to_sentbox(context, folder, headers).await? {
         Ok(Some(Config::ConfiguredSentboxFolder))
@@ -2116,6 +2125,21 @@ pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result
     } else {
         Ok((0, 0))
     }
+}
+
+/// Whether to ignore fetching messages from a folder.
+///
+/// This caters for the [`Config::OnlyFetchMvbox`] setting which means mails from folders
+/// not explicitly watched should not be fetched.
+async fn should_ignore_folder(context: &Context, folder: &str) -> Result<bool> {
+    if !context.get_config_bool(Config::OnlyFetchMvbox).await? {
+        return Ok(false);
+    }
+    if context.is_sentbox(folder).await? {
+        // Still respect the SentboxWatch setting.
+        return Ok(!context.get_config_bool(Config::SentboxWatch).await?);
+    }
+    Ok(!(context.is_mvbox(folder).await? || context.is_spam_folder(folder).await?))
 }
 
 /// Builds a list of sequence/uid sets. The returned sets have each no more than around 1000

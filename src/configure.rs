@@ -443,7 +443,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 900);
 
-    let create_mvbox = ctx.get_config_bool(Config::MvboxMove).await?;
+    let create_mvbox = ctx.should_watch_mvbox().await?;
 
     imap.configure_folders(ctx, create_mvbox).await?;
 

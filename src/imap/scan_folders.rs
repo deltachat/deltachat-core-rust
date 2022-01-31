@@ -103,20 +103,22 @@ impl Imap {
     }
 }
 
+pub(crate) async fn get_watched_folder_configs(context: &Context) -> Result<Vec<Config>> {
+    let mut res = vec![Config::ConfiguredInboxFolder];
+    if context.get_config_bool(Config::SentboxWatch).await? {
+        res.push(Config::ConfiguredSentboxFolder);
+    }
+    if context.should_watch_mvbox().await? {
+        res.push(Config::ConfiguredMvboxFolder);
+    }
+    Ok(res)
+}
+
 pub(crate) async fn get_watched_folders(context: &Context) -> Result<Vec<String>> {
     let mut res = Vec::new();
-    if let Some(inbox_folder) = context.get_config(Config::ConfiguredInboxFolder).await? {
-        res.push(inbox_folder);
-    }
-    let folder_watched_configured = &[
-        (Config::SentboxWatch, Config::ConfiguredSentboxFolder),
-        (Config::MvboxMove, Config::ConfiguredMvboxFolder),
-    ];
-    for (watched, configured) in folder_watched_configured {
-        if context.get_config_bool(*watched).await? {
-            if let Some(folder) = context.get_config(*configured).await? {
-                res.push(folder);
-            }
+    for folder_config in get_watched_folder_configs(context).await? {
+        if let Some(folder) = context.get_config(folder_config).await? {
+            res.push(folder);
         }
     }
     Ok(res)
