@@ -1611,9 +1611,10 @@ async fn spam_target_folder(
     if headers.get_header_value(HeaderDef::ChatVersion).is_none() {
         // If this is a chat message (i.e. has a ChatVersion header), then this might be
         // a securejoin message. We can't find out at this point as we didn't prefetch
-        // the SecureJoin header. If we returned None then, the message would not be
-        // downloaded (`prefetch_should_download()` returns `false` for all messages
-        // in the Spam folder) and the message would be ignored.
+        // the SecureJoin header. So, we always move chat messages out of Spam.
+        // If you want to change this, make `prefetch_should_download()` not return false
+        // for chat messages in the spam folder, and then let `dc_receive_imf()` check
+        // if it's a spam message again.
 
         if let Some(msg) = get_prefetch_parent_message(context, headers).await? {
             if msg.chat_blocked != Blocked::Not {
