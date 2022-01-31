@@ -348,6 +348,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    spam folder and `sendbox_watch` will also still be respected
  *                    if enabled.
  *                    0=watch all folders normally (default)
+ *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
  * - `show_emails`  = DC_SHOW_EMAILS_OFF (0)=
  *                    show direct replies to chats only (default),
  *                    DC_SHOW_EMAILS_ACCEPTED_CONTACTS (1)=
