@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.73.0
 
 ### API changes
 - added `only_fetch_mvbox` config #3028
@@ -8,12 +8,13 @@
 ### Changes
 - don't watch Sent folder by default #3025
 - use webxdc app name in chatlist/quotes/replies etc. #3027
-- refactorings #3023
-- remove direct dependency on `byteorder` crate #3031
 - make it possible to cancel message sending by removing the message #3034,
   this was previosuly removed in 1.71.0 #2939
 - synchronize Seen flags only on watched folders to speed up
   folder scanning #3041
+- remove direct dependency on `byteorder` crate #3031
+- refactorings #3023 #3013
+- improve documentation #3017 #3018 #3021
 
 ### Fixes
 - fix splitting off text from webxdc messages #3032
