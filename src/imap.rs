@@ -1980,7 +1980,7 @@ async fn mark_seen_by_uid(
         .sql
         .query_row_optional(
             "SELECT id, chat_id FROM msgs
-                 WHERE rfc724_mid IN (
+                 WHERE id > 9 AND rfc724_mid IN (
                    SELECT rfc724_mid FROM imap
                    WHERE folder=?1
                    AND uidvalidity=?2

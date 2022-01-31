@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- avoid reconnection loop when message without Message-ID is marked as seen #3044
+
+
 ## 1.73.0
 
 ### API changes

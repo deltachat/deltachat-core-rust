@@ -11,6 +11,7 @@ use crate::dc_tools::maybe_add_time_based_warnings;
 use crate::ephemeral::delete_expired_imap_messages;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
+use crate::log::LogExt;
 use crate::smtp::{send_smtp_messages, Smtp};
 
 use self::connectivity::ConnectivityStore;
@@ -206,15 +207,11 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             }
 
             // Synchronize Seen flags.
-            if let Err(err) = connection
+            connection
                 .sync_seen_flags(ctx, &watch_folder)
                 .await
                 .context("sync_seen_flags")
-            {
-                connection.trigger_reconnect(ctx).await;
-                warn!(ctx, "{:#}", err);
-                return InterruptInfo::new(false);
-            }
+                .ok_or_log(ctx);
 
             connection.connectivity.set_connected(ctx).await;
 
