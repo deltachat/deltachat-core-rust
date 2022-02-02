@@ -2,11 +2,11 @@
 
 ## Webxdc File Format
 
-- a **Webxdc app** is a **ZIP-file** with the extension `.xdc`
+- a **Webxdc extension** is a **ZIP-file** with the suffix `.xdc`
 - the ZIP-file must use the default compression methods as of RFC 1950,
   this is "Deflate" or "Store"
 - the ZIP-file must contain at least the file `index.html`
-- if the Webxdc app is started, `index.html` is opened in a restricted webview
+- if the Webxdc extension is tapped, `index.html` is opened in a restricted webview
   that allow accessing resources only from the ZIP-file
 
 
@@ -26,7 +26,7 @@ no need to add `webxdc.js` to your ZIP-file):
 window.webxdc.sendUpdate(update, descr);
 ```
 
-Webxdc apps are usually shared in a chat and run independently on each peer.
+Webxdc extensions are usually shared in a chat and run independently on each peer.
 To get a shared state, the peers use `sendUpdate()` to send updates to each other.
 
 - `update`: an object with the following fields:  
@@ -35,7 +35,7 @@ To get a shared state, the peers use `sendUpdate()` to send updates to each othe
        eg. "Alice voted" or "Bob scored 123 in MyGame";
        usually only one line of text is shown,
        use this option sparingly to not spam the chat.
-    - `update.summary`: optional, short text, shown beside app icon;
+    - `update.summary`: optional, short text, shown beside extension icon;
        it is recommended to use some aggregated value,  eg. "8 votes", "Highscore: 123"
 
 - `descr`: short, human-readable description what this update is about.
@@ -72,9 +72,9 @@ The callback is called for updates sent by you or other peers.
 updates = await window.webxdc.getAllUpdates();
 ```
 
-In case your Webxdc was just started,
+In case your Webxdc extension was just opened,
 you may want to reconstruct the state from the last run -
-and also incorporate updates that may have arrived while the app was not running.
+and also incorporate updates that may have arrived while the extension was not running.
 
 - `updates`: All previous updates in an array, 
   eg. `[{payload: "foo"},{payload: "bar"}]`
@@ -120,17 +120,17 @@ some basic information are read and used from there.
 the `manifest.toml` has the following format
 
 ```toml
-name = "My App Name"
+name = "My Extension Name"
 ```
 
-- **name** - The name of the app.
-  If no name is set or if there is no manifest, the filename is used as the app name.
+- **name** - The name of the extension.
+  If no name is set or if there is no manifest, the filename is used as the extension name.
 
 
-## App Icon
+## Extension Icon
 
 If the ZIP-root contains an `icon.png` or `icon.jpg`,
-these files are used as the icon for the app.
+these files are used as the icon for the extension.
 The icon should be a square at reasonable width/height;
 round corners etc. will be added by the implementations as needed.
 If no icon is set, a default icon will be used.
@@ -172,7 +172,7 @@ The following example shows an input field and  every input is show on all peers
 
 [Webxdc Development Tool](https://github.com/deltachat/webxdc-dev)
 offers an **Webxdc Simulator** that can be used in many browsers without any installation needed.
-You can also use that repository as a template for your own app -
+You can also use that repository as a template for your own extension -
 just clone and start adapting things to your need.
 
 

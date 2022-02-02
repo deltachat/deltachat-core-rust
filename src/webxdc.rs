@@ -1268,7 +1268,7 @@ sth_for_the = "future""#
         .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
-        assert_eq!(info.name, "nice app!");
+        assert_eq!(info.name, "nice extension!");
         assert_eq!(info.icon, WEBXDC_DEFAULT_ICON.to_string());
 
         let mut instance = create_webxdc_instance(
@@ -1531,7 +1531,7 @@ sth_for_the = "future""#
         let chatlist = Chatlist::try_load(&t, 0, None, None).await?;
         assert_eq!(chatlist.len(), 1);
         let summary = chatlist.get_summary(&t, 0, None).await?;
-        assert_eq!(summary.text, "nice app!".to_string());
+        assert_eq!(summary.text, "nice extension!".to_string());
 
         Ok(())
     }

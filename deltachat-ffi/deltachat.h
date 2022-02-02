@@ -3699,19 +3699,21 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
 
 
 /**
- * Get info from a webxdc message, in JSON format.
+ * Get info from a Webxdc extension, in JSON format.
+ * Messages are a Webxdx extensions if dc_msg_get_viewtype() returns @ref DC_MSG_WEBXDC.
+ *
  * The returned JSON string has the following key/values:
  *
- * - name: The name of the app.
+ * - name: The name of the Webxdc extension.
  *   Defaults to the filename if not set in the manifest.
- * - icon: App icon file name.
+ * - icon: Icon file name.
  *   Defaults to an standard icon if nothing is set in the manifest.
  *   To get the file, use dc_msg_get_webxdc_blob().
- *   App icons should should be square,
+ *   Webxdc extension icons should should be square,
  *   the implementations will add round corners etc. as needed.
- * - summary: short string describing the state of the app,
+ * - summary: Short string describing the state of the Webxdc extension,
  *   sth. as "2 votes", "Highscore: 123",
- *   can be changed by the apps and defaults to an empty string.
+ *   can be changed by the Webxdc extensions and defaults to an empty string.
  *
  * @memberof dc_msg_t
  * @param msg The webxdc instance.
@@ -3973,9 +3975,9 @@ int             dc_msg_is_forwarded           (const dc_msg_t* msg);
  * These messages are typically shown in the center of the chat view,
  * dc_msg_get_text() returns a descriptive text about what is going on.
  *
- * For informational messages created by Webxdc apps,
+ * For informational messages created by Webxdc extensions,
  * dc_msg_get_parent() usually returns the Webxdc instance;
- * UIs can use that to scroll to the Webxdc app when the info is tapped.
+ * UIs can use that to scroll to the Webxdc extension when the info is tapped.
  *
  * There is no need to perform any action when seeing such a message - this is already done by the core.
  *
@@ -5602,11 +5604,11 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * webxdc status update received.
+ * Webxdc status update received.
  * To get the received status update, use dc_get_webxdc_status_updates().
  * To send status updates, use dc_send_webxdc_status_update().
  *
- * Note, that you do not get events that arrive when the app is not running;
+ * Note, that you do not get events that arrive when the Webxdc extension is not running;
  * instead, you can use dc_get_webxdc_status_updates() to get all status updates
  * and catch up that way.
  *
