@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- avoid archived, fresh chats #3053
+
+
 ## 1.75.0
 
 ### Changes

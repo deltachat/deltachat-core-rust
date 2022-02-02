@@ -474,22 +474,21 @@ impl ChatId {
             self
         );
 
-        if visibility == ChatVisibility::Archived {
-            context
-                .sql
-                .execute(
-                    "UPDATE msgs SET state=? WHERE chat_id=? AND state=?;",
-                    paramsv![MessageState::InNoticed, self, MessageState::InFresh],
-                )
-                .await?;
-        }
-
         context
             .sql
-            .execute(
-                "UPDATE chats SET archived=? WHERE id=?;",
-                paramsv![visibility, self],
-            )
+            .transaction(move |transaction| {
+                if visibility == ChatVisibility::Archived {
+                    transaction.execute(
+                        "UPDATE msgs SET state=? WHERE chat_id=? AND state=?;",
+                        paramsv![MessageState::InNoticed, self, MessageState::InFresh],
+                    )?;
+                }
+                transaction.execute(
+                    "UPDATE chats SET archived=? WHERE id=?;",
+                    paramsv![visibility, self],
+                )?;
+                Ok(())
+            })
             .await?;
 
         context.emit_event(EventType::MsgsChanged {
