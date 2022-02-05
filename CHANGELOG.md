@@ -4,9 +4,11 @@
 
 ### Changes
 - refactorings #3026
+- move messages in batches #3058
 
 ### Fixes
 - avoid archived, fresh chats #3053
+- treat "NO" IMAP response to MOVE and COPY commands as an error #3058
 
 
 ## 1.75.0

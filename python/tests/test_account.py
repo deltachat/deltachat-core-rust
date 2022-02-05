@@ -892,10 +892,10 @@ class TestOnlineAccount:
 
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
+        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
         chat.send_text("message2")
+        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
         chat.send_text("message3")
-        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
-        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
         ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
     def test_forward_messages(self, acfactory, lp):
