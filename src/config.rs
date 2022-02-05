@@ -245,7 +245,7 @@ impl Context {
         match self.get_config_int(Config::DeleteServerAfter).await? {
             0 => Ok(None),
             1 => Ok(Some(0)),
-            x => Ok(Some(x as i64)),
+            x => Ok(Some(i64::from(x))),
         }
     }
 
@@ -267,7 +267,7 @@ impl Context {
     pub async fn get_config_delete_device_after(&self) -> Result<Option<i64>> {
         match self.get_config_int(Config::DeleteDeviceAfter).await? {
             0 => Ok(None),
-            x => Ok(Some(x as i64)),
+            x => Ok(Some(i64::from(x))),
         }
     }
 

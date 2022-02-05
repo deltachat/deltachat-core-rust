@@ -71,7 +71,7 @@ pub(crate) fn dc_gm2local_offset() -> i64 {
     /* returns the offset that must be _added_ to an UTC/GMT-time to create the localtime.
     the function may return negative values. */
     let lt = Local::now();
-    lt.offset().local_minus_utc() as i64
+    i64::from(lt.offset().local_minus_utc())
 }
 
 // timesmearing

@@ -960,7 +960,7 @@ impl std::fmt::Display for ChatId {
 /// well as query for a [ChatId].
 impl rusqlite::types::ToSql for ChatId {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let val = rusqlite::types::Value::Integer(self.0 as i64);
+        let val = rusqlite::types::Value::Integer(i64::from(self.0));
         let out = rusqlite::types::ToSqlOutput::Owned(val);
         Ok(out)
     }
@@ -970,7 +970,7 @@ impl rusqlite::types::ToSql for ChatId {
 impl rusqlite::types::FromSql for ChatId {
     fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
         i64::column_result(value).and_then(|val| {
-            if 0 <= val && val <= std::u32::MAX as i64 {
+            if 0 <= val && val <= i64::from(std::u32::MAX) {
                 Ok(ChatId::new(val as u32))
             } else {
                 Err(rusqlite::types::FromSqlError::OutOfRange(val))

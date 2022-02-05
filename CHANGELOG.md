@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changes
+- refactorings #3026
+
 ### Fixes
 - avoid archived, fresh chats #3053
 

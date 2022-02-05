@@ -253,7 +253,8 @@ impl LoginParam {
         sql.set_raw_config(key, Some(&self.imap.server)).await?;
 
         let key = format!("{}mail_port", prefix);
-        sql.set_raw_config_int(key, self.imap.port as i32).await?;
+        sql.set_raw_config_int(key, i32::from(self.imap.port))
+            .await?;
 
         let key = format!("{}mail_user", prefix);
         sql.set_raw_config(key, Some(&self.imap.user)).await?;
@@ -273,7 +274,8 @@ impl LoginParam {
         sql.set_raw_config(key, Some(&self.smtp.server)).await?;
 
         let key = format!("{}send_port", prefix);
-        sql.set_raw_config_int(key, self.smtp.port as i32).await?;
+        sql.set_raw_config_int(key, i32::from(self.smtp.port))
+            .await?;
 
         let key = format!("{}send_user", prefix);
         sql.set_raw_config(key, Some(&self.smtp.user)).await?;

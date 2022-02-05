@@ -197,7 +197,7 @@ impl Job {
                     "UPDATE jobs SET desired_timestamp=?, tries=?, param=? WHERE id=?;",
                     paramsv![
                         self.desired_timestamp,
-                        self.tries as i64,
+                        i64::from(self.tries),
                         self.param.to_string(),
                         self.job_id as i32,
                     ],
@@ -676,7 +676,7 @@ fn get_backoff_time_offset(tries: u32, action: Action) -> i64 {
             if seconds < 1 {
                 seconds = 1;
             }
-            seconds as i64
+            i64::from(seconds)
         }
     }
 }

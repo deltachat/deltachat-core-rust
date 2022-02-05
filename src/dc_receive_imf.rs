@@ -1156,8 +1156,8 @@ INSERT INTO msgs
         stmt.execute(paramsv![
             rfc724_mid,
             chat_id,
-            if trash { 0 } else { from_id as i32 },
-            if trash { 0 } else { to_id as i32 },
+            if trash { 0 } else { i64::from(from_id) },
+            if trash { 0 } else { i64::from(to_id) },
             sort_timestamp,
             sent_timestamp,
             rcvd_timestamp,

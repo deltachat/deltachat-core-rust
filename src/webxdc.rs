@@ -75,7 +75,7 @@ impl StatusUpdateId {
 
 impl rusqlite::types::ToSql for StatusUpdateId {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let val = rusqlite::types::Value::Integer(self.0 as i64);
+        let val = rusqlite::types::Value::Integer(i64::from(self.0));
         let out = rusqlite::types::ToSqlOutput::Owned(val);
         Ok(out)
     }
