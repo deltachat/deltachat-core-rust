@@ -120,7 +120,6 @@ impl From<SqlOpenError> for ContextError {
     }
 }
 
-
 impl Context {
     /// Creates new context and opens the database.
     pub async fn new(dbfile: PathBuf, id: u32) -> Result<Context, ContextError> {

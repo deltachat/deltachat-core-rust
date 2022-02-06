@@ -857,7 +857,9 @@ mod tests {
         assert_eq!(vec![account_id], encrypted_ids);
 
         for id in encrypted_ids {
-            let res = accounts.load_encrypted_account(id, "secret".to_string()).await;
+            let res = accounts
+                .load_encrypted_account(id, "secret".to_string())
+                .await;
             assert!(res.is_ok());
         }
 
