@@ -1315,7 +1315,8 @@ impl Imap {
                 let folder = folder.clone();
 
                 // safe, as we checked above that there is a body.
-                let body = body.unwrap();
+                let body = body
+                    .context("we checked that message has body right above, but it has vanished")?;
                 let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
 
                 match dc_receive_imf_inner(
@@ -1370,7 +1371,7 @@ impl Imap {
             bail!("Can't set flag, should reconnect");
         }
 
-        let session = self.session.as_mut().context("No session").unwrap();
+        let session = self.session.as_mut().context("No session")?;
         let query = format!("+FLAGS ({})", flag);
         let mut responses = session
             .uid_store(uid_set, &query)
