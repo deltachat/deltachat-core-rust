@@ -135,11 +135,6 @@ impl Context {
         Context::new_common(dbfile, id, Some(passphrase)).await
     }
 
-    /// Returns true if database is open.
-    pub async fn is_open(&self) -> bool {
-        self.sql.is_open().await
-    }
-
     async fn new_common(
         dbfile: PathBuf,
         id: u32,
