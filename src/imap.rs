@@ -9,7 +9,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
 };
 
-use anyhow::{anyhow, bail, format_err, Context as _, Result};
+use anyhow::{bail, format_err, Context as _, Result};
 use async_imap::types::{
     Fetch, Flag, Mailbox, Name, NameAttribute, Quota, QuotaRoot, UnsolicitedResponse,
 };
@@ -1631,16 +1631,13 @@ impl Imap {
         self.config.can_check_quota
     }
 
-    pub async fn get_quota_roots(
+    pub(crate) async fn get_quota_roots(
         &mut self,
         mailbox_name: &str,
     ) -> Result<(Vec<QuotaRoot>, Vec<Quota>)> {
-        if let Some(session) = self.session.as_mut() {
-            let quota_roots = session.get_quota_root(mailbox_name).await?;
-            Ok(quota_roots)
-        } else {
-            Err(anyhow!("Not connected to IMAP, no session"))
-        }
+        let session = self.session.as_mut().context("no session")?;
+        let quota_roots = session.get_quota_root(mailbox_name).await?;
+        Ok(quota_roots)
     }
 }
 
