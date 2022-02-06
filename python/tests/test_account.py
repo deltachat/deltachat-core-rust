@@ -2500,8 +2500,7 @@ class TestOnlineAccount:
         lp.sec("ac2: deleting all messages except third")
         assert len(to_delete) == len(texts) - 1
         ac2.delete_messages(to_delete)
-        for msg in to_delete:
-            ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+        ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
 
         ac2._evtracker.get_info_contains("close/expunge succeeded")
 

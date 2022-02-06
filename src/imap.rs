@@ -458,12 +458,9 @@ impl Imap {
             .await
             .context("fetch_new_messages")?;
 
-        self.move_messages(context, watch_folder)
+        self.move_delete_messages(context, watch_folder)
             .await
-            .context("move_messages")?;
-        self.delete_messages(context, watch_folder)
-            .await
-            .context("delete_messages")?;
+            .context("move_delete_messages")?;
 
         Ok(())
     }
@@ -827,6 +824,37 @@ impl Imap {
         Ok(read_cnt > 0)
     }
 
+    /// Deletes batch of messages identified by their UID from the currently
+    /// selected folder.
+    async fn delete_message_batch(
+        &mut self,
+        context: &Context,
+        uid_set: &str,
+        row_ids: Vec<i64>,
+    ) -> Result<()> {
+        // mark the message for deletion
+        self.add_flag_finalized_with_set(uid_set, "\\Deleted")
+            .await?;
+        context
+            .sql
+            .execute(
+                format!(
+                    "DELETE FROM imap WHERE id IN ({})",
+                    row_ids.iter().map(|_| "?").collect::<Vec<&str>>().join(",")
+                ),
+                rusqlite::params_from_iter(row_ids),
+            )
+            .await
+            .context("cannot remove deleted messages from imap table")?;
+
+        context.emit_event(EventType::ImapMessageDeleted(format!(
+            "IMAP messages {} marked as deleted",
+            uid_set
+        )));
+        self.config.selected_folder_needs_expunge = true;
+        Ok(())
+    }
+
     /// Moves batch of messages identified by their UID from the currently
     /// selected folder to the target folder.
     async fn move_message_batch(
@@ -907,17 +935,16 @@ impl Imap {
         }
     }
 
-    /// Moves messages.
+    /// Moves and deletes messages as planned in the `imap` table.
     ///
-    /// This is the only place where messages are moved on the IMAP server.
-    async fn move_messages(&mut self, context: &Context, folder: &str) -> Result<()> {
+    /// This is the only place where messages are moved or deleted on the IMAP server.
+    async fn move_delete_messages(&mut self, context: &Context, folder: &str) -> Result<()> {
         let mut rows = context
             .sql
             .query_map(
                 "SELECT id, uid, target FROM imap
         WHERE folder = ?
         AND target != folder
-        AND target != '' -- Not planned for deletion.
         ORDER BY target, uid",
                 paramsv![folder],
                 |row| {
@@ -970,57 +997,20 @@ impl Imap {
                 }
             }
 
-            // Execute request.
-            self.move_message_batch(context, &uid_set, rowid_set, &target)
-                .await
-                .with_context(|| {
-                    format!(
-                        "cannot move batch of messages {:?} to folder {:?}",
-                        &uid_set, target
-                    )
-                })?;
-        }
-
-        Ok(())
-    }
-
-    /// Deletes messages that are marked as planned for deletion in `imap` table.
-    ///
-    /// This is the only place where messages are deleted from the IMAP server.
-    async fn delete_messages(&mut self, context: &Context, folder: &str) -> Result<()> {
-        let rows = context
-            .sql
-            .query_map(
-                "SELECT id, uid FROM imap
-                WHERE folder=? AND target=''
-                ORDER BY uid ASC
-                LIMIT 50", // Do not try to delete too many messages at once.
-                paramsv![folder],
-                |row| {
-                    let rowid: i64 = row.get(0)?;
-                    let uid: u32 = row.get(1)?;
-                    Ok((rowid, uid))
-                },
-                |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-            )
-            .await?;
-
-        if rows.is_empty() {
-            return Ok(());
-        }
-
-        for (rowid, uid) in rows {
-            match self.delete_msg(context, folder, uid).await {
-                ImapActionResult::Failed | ImapActionResult::RetryLater => {
-                    warn!(context, "Deletion of message {}/{} failed", folder, uid);
-                    break;
-                }
-                ImapActionResult::Success => {
-                    context
-                        .sql
-                        .execute("DELETE FROM imap WHERE id=?", paramsv![rowid])
-                        .await?;
-                }
+            // Empty target folder name means messages should be deleted.
+            if target.is_empty() {
+                self.delete_message_batch(context, &uid_set, rowid_set)
+                    .await
+                    .with_context(|| format!("cannot delete batch of messages {:?}", &uid_set))?;
+            } else {
+                self.move_message_batch(context, &uid_set, rowid_set, &target)
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "cannot move batch of messages {:?} to folder {:?}",
+                            &uid_set, target
+                        )
+                    })?;
             }
         }
 
@@ -1445,39 +1435,6 @@ impl Imap {
             );
             ImapActionResult::Failed
         } else {
-            ImapActionResult::Success
-        }
-    }
-
-    pub async fn delete_msg(
-        &mut self,
-        context: &Context,
-        folder: &str,
-        uid: u32,
-    ) -> ImapActionResult {
-        if let Some(imapresult) = self
-            .prepare_imap_operation_on_msg(context, folder, uid)
-            .await
-        {
-            return imapresult;
-        }
-        // we are connected, and the folder is selected
-
-        let display_imap_id = format!("{}/{}", folder, uid);
-
-        // mark the message for deletion
-        if let Err(err) = self.add_flag_finalized(uid, "\\Deleted").await {
-            warn!(
-                context,
-                "Cannot mark message {} as \"Deleted\": {}.", display_imap_id, err
-            );
-            ImapActionResult::RetryLater
-        } else {
-            context.emit_event(EventType::ImapMessageDeleted(format!(
-                "IMAP Message {} marked as deleted",
-                display_imap_id
-            )));
-            self.config.selected_folder_needs_expunge = true;
             ImapActionResult::Success
         }
     }

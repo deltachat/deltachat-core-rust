@@ -5,6 +5,7 @@
 ### Changes
 - refactorings #3026
 - move messages in batches #3058
+- delete messages in batches #3060
 
 ### Fixes
 - avoid archived, fresh chats #3053
