@@ -93,7 +93,7 @@ impl Accounts {
     /// Get the currently selected account.
     ///
     /// If the selected account is encrypted and not yet loaded using
-    /// [`Accounts::load_encrypted`] `None` will be returned.
+    /// [`Accounts::load_encrypted_account`] `None` will be returned.
     pub async fn get_selected_account(&self) -> Option<Context> {
         let id = self.config.get_selected_account().await;
         self.accounts.get(&id).cloned()
@@ -259,7 +259,7 @@ impl Accounts {
     ///
     /// Note that we can't really distinguish between unreadable/corrupted accounts and
     /// encrypted accounts.  We consider all known accounts which failed to load encrypted,
-    /// they can be loaded using [`Accounts::load_encrypted`].
+    /// they can be loaded using [`Accounts::load_encrypted_account`].
     pub fn get_encrypted(&self) -> Vec<u32> {
         let configured_ids: BTreeSet<u32> = self
             .config
