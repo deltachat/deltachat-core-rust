@@ -179,10 +179,12 @@ typedef struct _dc_accounts_event_emitter dc_accounts_event_emitter_t;
 // create/open/config/information
 
 /**
- * Create a new context object and try to open it without passphrase. If
- * database is encrypted, the result is the same as using
- * dc_context_new_closed() and the database should be opened with
- * dc_context_open() before using.
+ * Create a new context object and try to open it without passphrase.
+ *
+ * If database is encrypted NULL is returned, encrypted databases should be
+ * opened using dc_context_new_encrypted().
+ *
+ * If the database does not yet exist a new one will be created.
  *
  * @memberof dc_context_t
  * @param os_name Deprecated, pass NULL or empty string here.
@@ -192,54 +194,34 @@ typedef struct _dc_accounts_event_emitter dc_accounts_event_emitter_t;
  * @return A context object with some public members.
  *     The object must be passed to the other context functions
  *     and must be freed using dc_context_unref() after usage.
+ *     On failure NULL is returned.
+ *
+ * If you want to use multiple context objects at the same time,
+ * this can be managed using dc_accounts_t.
  */
 dc_context_t*   dc_context_new               (const char* os_name, const char* dbfile, const char* blobdir);
 
 
 /**
- * Create a new context object.  After creation it is usually opened with
- * dc_context_open() and started with dc_start_io() so it is connected and
- * mails are fetched.
+ * Create a new context object and try to open it with a passphrase.
+ *
+ * If the database does not yet exist a new one will be created.  If the
+ * database is not encrypted this will fail.
  *
  * @memberof dc_context_t
  * @param dbfile The file to use to store the database,
  *     something like `~/file` won't work, use absolute paths.
+ * @param passphrase The passphrase to use.  This MUST be non-NULL and MUST be valid
+ *     UTF-8, if either of this is not true this fails and NULL is retruned.
  * @return A context object with some public members.
  *     The object must be passed to the other context functions
  *     and must be freed using dc_context_unref() after usage.
+ *     On failure NULL is returned.
  *
  * If you want to use multiple context objects at the same time,
  * this can be managed using dc_accounts_t.
  */
-dc_context_t*   dc_context_new_closed        (const char* dbfile);
-
-
-/**
- * Opens the database with the given passphrase. This can only be used on
- * closed context, such as created by dc_context_new_closed(). If the database
- * is new, this operation sets the database passphrase. For existing databases
- * the passphrase should be the one used to encrypt the database the first
- * time.
- *
- * @memberof dc_context_t
- * @param context The context object.
- * @param passphrase The passphrase to use with the database. Pass NULL or
- * empty string to use no passphrase and no encryption.
- * @return 1 if the database is opened with this passphrase, 0 if the
- * passphrase is incorrect and on error.
- */
-int             dc_context_open              (dc_context_t *context, const char* passphrase);
-
-
-/**
- * Returns 1 if database is open.
- *
- * @memberof dc_context_t
- * @param context The context object.
- * @return 1 if database is open, 0 if database is closed
- */
-int             dc_context_is_open           (dc_context_t *context);
-
+dc_context_t*   dc_context_new_encrypted   (const char* dbfile, const char* passphrase);
 
 /**
  * Free a context object.
@@ -2637,21 +2619,22 @@ void           dc_accounts_unref                (dc_accounts_t* accounts);
 uint32_t       dc_accounts_add_account          (dc_accounts_t* accounts);
 
 /**
- * Add a new closed account to the account manager.
- * Internally, dc_context_new_closed() is called using a unique database-name
- * in the directory specified at dc_accounts_new().
+ * Add a new account with a password to the account manager.
  *
- * If the function succeeds,
- * dc_accounts_get_all() will return one more account
- * and you can access the newly created account using dc_accounts_get_account().
- * Moreover, the newly created account will be the selected one.
+ * The account's database will be encrypted with this password and will need
+ * to be opened with the password to be usable.
+ *
+ * Password-protected accounts are not automatically opened when the account
+ * manager is created.  They need to be opened using dc_accounts_load_encrypted(),
+ * to find unloaded encrypted accounts use dc_accounts_get_encrypted().
  *
  * @memberof dc_accounts_t
  * @param accounts Account manager as created by dc_accounts_new().
- * @return Account-id, use dc_accounts_get_account() to get the context object.
+ * @return Account-id, use dc_accounts_get_encrypted_account() to get the
+ *     context object.
  *     On errors, 0 is returned.
  */
-uint32_t       dc_accounts_add_closed_account   (dc_accounts_t* accounts);
+uint32_t       dc_accounts_add_encrypted_account(dc_accounts_t* accounts, char* password);
 
 /**
  * Migrate independent accounts into accounts managed by the account manager.
@@ -2687,6 +2670,10 @@ int            dc_accounts_remove_account       (dc_accounts_t* accounts, uint32
 /**
  * List all accounts.
  *
+ * Only lists loaded accounts, some accounts might be encrypted and need to be
+ * explicitly loaded using dc_accounts_get_encrypted() and
+ * dc_accounts_load_encrypted().
+ *
  * @memberof dc_accounts_t
  * @param accounts Account manager as created by dc_accounts_new().
  * @return An array containing all account-ids,
@@ -2694,9 +2681,26 @@ int            dc_accounts_remove_account       (dc_accounts_t* accounts, uint32
  */
 dc_array_t*    dc_accounts_get_all              (dc_accounts_t* accounts);
 
+/**
+ * Lists encrypted accounts.
+ *
+ * This returns all *locked* encrypted accounts which must be activated using
+ * dc_accounts_load_encrypted().  Once an encrypted account has been loaded it will
+ * show up in dc_accounts_get_all() and can be retrieved using
+ * dc_accounts_get_account().
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @return An array containing account-ids, use dc_array_get_id() to get the ids.
+ */
+dc_array_t*    dc_accounts_get_encrypted        (dc_accounts_t* accounts);
 
 /**
  * Get an account-context from an account-id.
+ *
+ * Only accounts returned by dc_accounts_get_all() can be retrieved with this
+ * function, encrypted accounts first need to be loaded using
+ * dc_accounts_load_encrypted().
  *
  * @memberof dc_accounts_t
  * @param accounts Account manager as created by dc_accounts_new().
@@ -2708,9 +2712,30 @@ dc_array_t*    dc_accounts_get_all              (dc_accounts_t* accounts);
  */
 dc_context_t*  dc_accounts_get_account          (dc_accounts_t* accounts, uint32_t account_id);
 
+/**
+ * Loads an encrypted account into the Account manager.
+ *
+ * Once the account has been loaded you can also access it using
+ * dc_accounts_get_account() like any other account.  Use *dc_accounts_get_encrypted()
+ * to find accounts which need to be loaded like this.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts Account manager as created by dc_accounts_new().
+ * @param account_id The account-id as returned e.g. by dc_accounts_get_encrypted(),
+ *     dc_accounts_add_encrypted_account().
+ * @param passphrase The passphrase to decrypt the account with.
+ * @return The account-context, this can be used most similar as a normal,
+ *     unmanaged account-context as created by dc_context_new().
+ *     Once you do no longer need the context-object, you have to call dc_context_unref() on it,
+ *     which, however, will not close the account but only decrease a reference counter.
+ *     On failure NULL is returned.
+ */
+dc_context_t*  dc_accounts_load_encrypted (dc_accounts_t* accounts, uint32_t account_id, char* passphrase);
+
 
 /**
  * Get the currently selected account.
+ *
  * If there is at least one account in the account-manager,
  * there is always a selected one.
  * To change the selected account, use dc_accounts_select_account();
@@ -2722,7 +2747,11 @@ dc_context_t*  dc_accounts_get_account          (dc_accounts_t* accounts, uint32
  *     unmanaged account-context as created by dc_context_new().
  *     Once you do no longer need the context-object, you have to call dc_context_unref() on it,
  *     which, however, will not close the account but only decrease a reference counter.
+ *
  *     If there is no selected account, NULL is returned.
+ *
+ *     If the selected account is encrypted and not yet loaded using
+ *     dc_accounts_load_encrypted(), NULL is returned.
  */
 dc_context_t*  dc_accounts_get_selected_account (dc_accounts_t* accounts);
 

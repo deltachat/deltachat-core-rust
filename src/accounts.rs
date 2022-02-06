@@ -1,6 +1,6 @@
 //! # Account manager module.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use async_std::channel::{self, Receiver, Sender};
 use async_std::fs;
@@ -9,10 +9,10 @@ use async_std::prelude::*;
 use async_std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
-use anyhow::{ensure, Context as _, Result};
+use anyhow::{anyhow, ensure, Context as _, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::context::Context;
+use crate::context::{Context, ContextError};
 use crate::events::{Event, EventType, Events};
 
 /// Account manager, that can handle multiple accounts in a single place.
@@ -50,7 +50,7 @@ impl Accounts {
 
     /// Opens an existing accounts structure. Will error if the folder doesn't exist,
     /// no account exists and no config exists.
-    pub async fn open(dir: PathBuf) -> Result<Self> {
+    async fn open(dir: PathBuf) -> Result<Self> {
         ensure!(dir.exists().await, "directory does not exist");
 
         let config_file = dir.join(CONFIG_NAME);
@@ -91,6 +91,9 @@ impl Accounts {
     }
 
     /// Get the currently selected account.
+    ///
+    /// If the selected account is encrypted and not yet loaded using
+    /// [`Accounts::load_encrypted`] `None` will be returned.
     pub async fn get_selected_account(&self) -> Option<Context> {
         let id = self.config.get_selected_account().await;
         self.accounts.get(&id).cloned()
@@ -124,15 +127,39 @@ impl Accounts {
         Ok(account_config.id)
     }
 
-    /// Adds a new closed account.
-    pub async fn add_closed_account(&mut self) -> Result<u32> {
+    /// Adds an new encrypted account and opens it.
+    ///
+    /// Creates a new account with encrypted database using the provided password.  Returns
+    /// the account ID of the opened account.
+    pub async fn add_encrypted_account(&mut self, passphrase: String) -> Result<u32> {
         let account_config = self.config.new_account(&self.dir).await?;
-
-        let ctx = Context::new_closed(account_config.dbfile().into(), account_config.id).await?;
+        let ctx = Context::new_encrypted(
+            account_config.dbfile().into(),
+            account_config.id,
+            passphrase,
+        )
+        .await?;
         self.emitter.add_account(&ctx).await?;
         self.accounts.insert(account_config.id, ctx);
-
         Ok(account_config.id)
+    }
+
+    /// Decrypts and open an existing account.
+    pub async fn load_encrypted_account(&mut self, id: u32, passphrase: String) -> Result<Context> {
+        let account_config = self
+            .config
+            .get_account(id)
+            .await
+            .ok_or_else(|| anyhow!("No such account with id {}", id))?;
+        let ctx = Context::new_encrypted(
+            account_config.dbfile().into(),
+            account_config.id,
+            passphrase,
+        )
+        .await?;
+        self.emitter.add_account(&ctx).await?;
+        self.accounts.insert(id, ctx.clone());
+        Ok(ctx)
     }
 
     /// Remove an account.
@@ -226,6 +253,21 @@ impl Accounts {
     /// Get a list of all account ids.
     pub async fn get_all(&self) -> Vec<u32> {
         self.accounts.keys().copied().collect()
+    }
+
+    /// Returns all encrypted accounts.
+    ///
+    /// Note that we can't really distinguish between unreadable/corrupted accounts and
+    /// encrypted accounts.  We consider all known accounts which failed to load encrypted,
+    /// they can be loaded using [`Accounts::load_encrypted`].
+    pub fn get_encrypted(&self) -> Vec<u32> {
+        let configured_ids: BTreeSet<u32> = self
+            .config
+            .all_configured_accounts()
+            .map(|cfg| cfg.id)
+            .collect();
+        let loaded_ids: BTreeSet<u32> = self.accounts.keys().copied().collect();
+        configured_ids.difference(&loaded_ids).copied().collect()
     }
 
     /// This is meant especially for iOS, because iOS needs to tell the system when its background work is done.
@@ -400,19 +442,29 @@ impl Config {
         Ok(Config { file, inner })
     }
 
+    /// Returns all account configurations.
+    fn all_configured_accounts(&self) -> impl Iterator<Item = &AccountConfig> {
+        self.inner.accounts.iter()
+    }
+
+    /// Loads all unencrypted accounts.
     pub async fn load_accounts(&self) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
         for account_config in &self.inner.accounts {
-            let ctx = Context::new(account_config.dbfile().into(), account_config.id)
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed to create context from file {:?}",
-                        account_config.dbfile()
-                    )
-                })?;
-
-            accounts.insert(account_config.id, ctx);
+            match Context::new(account_config.dbfile().into(), account_config.id).await {
+                Ok(ctx) => {
+                    accounts.insert(account_config.id, ctx);
+                }
+                Err(ContextError::WrongKey) => {
+                    continue;
+                }
+                Err(ContextError::Other(err)) => {
+                    return Err(err.context(format!(
+                        "failed to create context from file {}",
+                        account_config.dbfile().display()
+                    )));
+                }
+            }
         }
 
         Ok(accounts)
@@ -746,36 +798,71 @@ mod tests {
 
         assert_eq!(accounts.accounts.len(), 0);
         let account_id = accounts
-            .add_closed_account()
+            .add_encrypted_account("foobar".to_string())
             .await
-            .context("failed to add closed account")?;
+            .context("failed to add encrypted account")?;
         let account = accounts
             .get_selected_account()
             .await
             .context("failed to get account")?;
         assert_eq!(account.id, account_id);
-        let passphrase_set_success = account
-            .open("foobar".to_string())
-            .await
-            .context("failed to set passphrase")?;
-        assert!(passphrase_set_success);
         drop(accounts);
 
-        let accounts = Accounts::new(p.clone())
+        let mut accounts = Accounts::new(p.clone())
             .await
             .context("failed to create second accounts manager")?;
+        assert!(accounts.get_selected_account().await.is_none());
+        let id = accounts
+            .get_selected_account_id()
+            .await
+            .context("failed to get selected account id")?;
+
+        // Try wrong passphrase
+        assert!(accounts
+            .load_encrypted_account(id, "barfoo".to_string())
+            .await
+            .is_err());
+
+        let loaded_account = accounts
+            .load_encrypted_account(id, "foobar".to_string())
+            .await
+            .context("failed to load encrypted account")?;
+
         let account = accounts
             .get_selected_account()
             .await
             .context("failed to get account")?;
-        assert_eq!(account.is_open().await, false);
+        assert_eq!(loaded_account.id, account.id);
 
-        // Try wrong passphrase.
-        assert_eq!(account.open("barfoo".to_string()).await?, false);
-        assert_eq!(account.open("".to_string()).await?, false);
+        Ok(())
+    }
 
-        assert_eq!(account.open("foobar".to_string()).await?, true);
-        assert_eq!(account.is_open().await, true);
+    #[async_std::test]
+    async fn test_get_encrypted() -> Result<()> {
+        let dir = tempfile::tempdir().context("failed to create tempdir")?;
+        let p: PathBuf = dir.path().join("accounts").into();
+        let mut accounts = Accounts::new(p.clone())
+            .await
+            .context("failed to create accounts manager")?;
+        let account_id = accounts
+            .add_encrypted_account("secret".to_string())
+            .await
+            .context("failed to add encrypted account")?;
+        drop(accounts);
+
+        let mut accounts = Accounts::new(p.clone())
+            .await
+            .context("failed to create second accounts manager")?;
+        let encrypted_ids = accounts.get_encrypted();
+        assert_eq!(vec![account_id], encrypted_ids);
+
+        for id in encrypted_ids {
+            let res = accounts.load_encrypted_account(id, "secret".to_string()).await;
+            assert!(res.is_ok());
+        }
+
+        let encrypted_ids = accounts.get_encrypted();
+        assert!(encrypted_ids.is_empty());
 
         Ok(())
     }

@@ -16,6 +16,7 @@ extern crate serde_json;
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::ffi::CStr;
 use std::fmt::Write;
 use std::ops::Deref;
 use std::ptr;
@@ -94,54 +95,38 @@ pub unsafe extern "C" fn dc_context_new(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_context_new_closed(dbfile: *const libc::c_char) -> *mut dc_context_t {
+pub unsafe extern "C" fn dc_context_new_encrypted(
+    dbfile: *const libc::c_char,
+    passphrase: *const libc::c_char,
+) -> *mut dc_context_t {
     setup_panic!();
-
-    if dbfile.is_null() {
-        eprintln!("ignoring careless call to dc_context_new_closed()");
+    if dbfile.is_null() || passphrase.is_null() {
+        eprintln!("ignoring careless call to dc_context_new_encrypted()");
         return ptr::null_mut();
     }
-
+    // Generate random ID if dc_accounts_t is not used.
     let id = rand::thread_rng().gen();
-    match block_on(Context::new_closed(
-        as_path(dbfile).to_path_buf().into(),
+    let dbfile = as_path(dbfile).to_path_buf();
+    let cstr = CStr::from_ptr(passphrase);
+    let passphrase = match cstr.to_str() {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("passphrase was not UTF-8: {:#}", err);
+            return ptr::null_mut();
+        }
+    };
+    let ctx = block_on(Context::new_encrypted(
+        dbfile.into(),
         id,
-    )) {
-        Ok(context) => Box::into_raw(Box::new(context)),
+        passphrase.to_string(),
+    ));
+    match ctx {
+        Ok(ctx) => Box::into_raw(Box::new(ctx)),
         Err(err) => {
             eprintln!("failed to create context: {:#}", err);
             ptr::null_mut()
         }
     }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_context_open(
-    context: *mut dc_context_t,
-    passphrase: *const libc::c_char,
-) -> libc::c_int {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_context_open()");
-        return 0;
-    }
-
-    let ctx = &*context;
-    let passphrase = to_string_lossy(passphrase);
-    block_on(ctx.open(passphrase))
-        .log_err(ctx, "dc_context_open() failed")
-        .map(|b| b as libc::c_int)
-        .unwrap_or(0)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_context_is_open(context: *mut dc_context_t) -> libc::c_int {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_context_is_open()");
-        return 0;
-    }
-
-    let ctx = &*context;
-    block_on(ctx.is_open()) as libc::c_int
 }
 
 /// Release the context structure.
@@ -4148,17 +4133,29 @@ pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_accounts_add_closed_account(accounts: *mut dc_accounts_t) -> u32 {
-    if accounts.is_null() {
-        eprintln!("ignoring careless call to dc_accounts_add_closed_account()");
+pub unsafe extern "C" fn dc_accounts_add_encrypted_account(
+    accounts: *mut dc_accounts_t,
+    passphrase: *const libc::c_char,
+) -> u32 {
+    if accounts.is_null() || passphrase.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_add_with_password()");
         return 0;
     }
-
-    let accounts = &mut *accounts;
-
+    let accounts: &AccountsWrapper = &mut *accounts;
+    let cstr = CStr::from_ptr(passphrase);
     block_on(async move {
         let mut accounts = accounts.write().await;
-        match accounts.add_closed_account().await {
+        let passphrase = match cstr.to_str() {
+            Ok(s) => s,
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!(
+                    "Passphrase was not UTF-8: {:#}",
+                    err
+                )));
+                return 0;
+            }
+        };
+        match accounts.add_encrypted_account(passphrase.to_string()).await {
             Ok(id) => id,
             Err(err) => {
                 accounts.emit_event(EventType::Error(format!(
@@ -4241,6 +4238,60 @@ pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *m
     let array: dc_array_t = list.into();
 
     Box::into_raw(Box::new(array))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_encrypted(
+    accounts: *mut dc_accounts_t,
+) -> *mut dc_array_t {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_all()");
+        return ptr::null_mut();
+    }
+    let accounts: &AccountsWrapper = &*accounts;
+    let list = block_on(async move { accounts.read().await.get_encrypted() });
+    let array: dc_array_t = list.into();
+    Box::into_raw(Box::new(array))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_load_encrypted(
+    accounts: *mut dc_accounts_t,
+    account_id: u32,
+    passphrase: *const libc::c_char,
+) -> *mut dc_context_t {
+    if accounts.is_null() || passphrase.is_null() {
+        eprintln!("ignoring careless call to dc_context_new_encrypted()");
+        return ptr::null_mut();
+    }
+    let accounts: &AccountsWrapper = &*accounts;
+    let cstr = CStr::from_ptr(passphrase);
+    block_on(async move {
+        let mut accounts = accounts.write().await;
+        let passphrase = match cstr.to_str() {
+            Ok(s) => s,
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!(
+                    "Passphrase was not UTF-8: {:#}",
+                    err
+                )));
+                return ptr::null_mut();
+            }
+        };
+        match accounts
+            .load_encrypted_account(account_id, passphrase.to_string())
+            .await
+        {
+            Ok(ctx) => Box::into_raw(Box::new(ctx)),
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!(
+                    "Failed to load encrypted account: {:#}",
+                    err
+                )));
+                ptr::null_mut()
+            }
+        }
+    })
 }
 
 #[no_mangle]
