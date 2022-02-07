@@ -2734,7 +2734,7 @@ dc_context_t*  dc_accounts_load_encrypted (dc_accounts_t* accounts, uint32_t acc
 
 
 /**
- * Get the currently selected account.
+ * Get the currently selected account ID.
  *
  * If there is at least one account in the account-manager,
  * there is always a selected one.
@@ -2743,17 +2743,15 @@ dc_context_t*  dc_accounts_load_encrypted (dc_accounts_t* accounts, uint32_t acc
  *
  * @memberof dc_accounts_t
  * @param accounts Account manager as created by dc_accounts_new().
- * @return The account-context, this can be used most similar as a normal,
- *     unmanaged account-context as created by dc_context_new().
- *     Once you do no longer need the context-object, you have to call dc_context_unref() on it,
- *     which, however, will not close the account but only decrease a reference counter.
- *
- *     If there is no selected account, NULL is returned.
- *
- *     If the selected account is encrypted and not yet loaded using
- *     dc_accounts_load_encrypted(), NULL is returned.
+ * @return The account ID of the selected account.  The context of
+ *     the selected account can then be retrieved using dc_accounts_get_account().
+ *     Note that if the selected account is encrypted you may first have to
+ *     load it using dc_accounts_load_encrypted(), you can verify if this is needed
+ *     using dc_accounts_get_encrypted().
+ *     If no account is selected 0 is returned.  However this is only possible if
+ *     there is no single account in the account manager.
  */
-dc_context_t*  dc_accounts_get_selected_account (dc_accounts_t* accounts);
+uint32_t*  dc_accounts_get_selected_account_id (dc_accounts_t* accounts);
 
 
 /**

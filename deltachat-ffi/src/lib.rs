@@ -4068,18 +4068,17 @@ pub unsafe extern "C" fn dc_accounts_get_account(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_accounts_get_selected_account(
+pub unsafe extern "C" fn dc_accounts_get_selected_account_id(
     accounts: *mut dc_accounts_t,
-) -> *mut dc_context_t {
+) -> u32 {
     if accounts.is_null() {
         eprintln!("ignoring careless call to dc_accounts_get_selected_account()");
-        return ptr::null_mut();
+        return 0;
     }
 
     let accounts = &*accounts;
-    block_on(async move { accounts.read().await.get_selected_account().await })
-        .map(|ctx| Box::into_raw(Box::new(ctx)))
-        .unwrap_or_else(std::ptr::null_mut)
+    block_on(async move { accounts.read().await.get_selected_account_id().await })
+        .unwrap_or(0)
 }
 
 #[no_mangle]
