@@ -1004,7 +1004,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_reopen_unecrypted() {
+    async fn test_reopen_unencrypted() {
         let dir = tempfile::tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
 
