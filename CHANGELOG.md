@@ -9,6 +9,7 @@
 
 ### Fixes
 - avoid archived, fresh chats #3053
+- Also resync UIDs in folders that are not configured #2289
 - treat "NO" IMAP response to MOVE and COPY commands as an error #3058
 
 
