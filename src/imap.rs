@@ -748,13 +748,17 @@ impl Imap {
             // message, move it to the movebox and then download the second message before
             // downloading the first one, if downloading from inbox before moving is allowed.
             if folder == target
+                // Never download messages directly from the spam folder.
+                // If the sender is known, the message will be moved to the Inbox or Mvbox
+                // and then we download the message from there.
+                // Also see `spam_target_folder()`.
+                && !context.is_spam_folder(folder).await?
                 && prefetch_should_download(
                     context,
                     &headers,
                     &message_id,
                     fetch_response.flags(),
                     show_emails,
-                    folder,
                 )
                 .await?
             {
@@ -1601,8 +1605,8 @@ impl Imap {
 
 /// Returns target folder for a message found in the Spam folder.
 /// If this returns None, the message will not be moved out of the
-/// Spam folder, and as `prefetch_should_download` returns `false` for
-/// all messages in the Spam folder, the message will be ignored.
+/// Spam folder, and as `fetch_new_messages()` doesn't download
+/// messages from the Spam folder, the message will be ignored.
 async fn spam_target_folder(
     context: &Context,
     folder: &str,
@@ -1612,9 +1616,10 @@ async fn spam_target_folder(
         // If this is a chat message (i.e. has a ChatVersion header), then this might be
         // a securejoin message. We can't find out at this point as we didn't prefetch
         // the SecureJoin header. So, we always move chat messages out of Spam.
-        // If you want to change this, make `prefetch_should_download()` not return false
-        // for chat messages in the spam folder, and then let `dc_receive_imf()` check
-        // if it's a spam message again.
+        // One possibility to change this woudl be:,
+        // Remove the `&& !context.is_spam_folder(folder).await?` check from
+        // `fetch_new_messages()`, and then let `dc_receive_imf()` check
+        // if it's a spam message and should be hidden.
 
         if let Some(msg) = get_prefetch_parent_message(context, headers).await? {
             if msg.chat_blocked != Blocked::Not {
@@ -1866,7 +1871,7 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
     }
 }
 
-pub(crate) fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
+fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
     if let Some(message_id) = headers.get_header_value(HeaderDef::XMicrosoftOriginalMessageId) {
         Ok(crate::mimeparser::parse_message_id(&message_id)?)
     } else if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId) {
@@ -1898,7 +1903,6 @@ pub(crate) async fn prefetch_should_download(
     message_id: &str,
     mut flags: impl Iterator<Item = Flag<'_>>,
     show_emails: ShowEmails,
-    folder: &str,
 ) -> Result<bool> {
     if let Some(msg_id) = message::rfc724_mid_exists(context, message_id).await? {
         // We know the Message-ID already, it must be a Bcc: to self.
@@ -1912,15 +1916,6 @@ pub(crate) async fn prefetch_should_download(
 
     // We do not know the Message-ID or the Message-ID is missing (in this case, we create one in
     // the further process).
-
-    // Never download messages directly from the spam folder.
-    // If the sender is known, the message will be moved to the Inbox or Mvbox
-    // and then we download the message from there.
-    // Also see `spam_target_folder()`.
-    if context.is_spam_folder(folder).await? {
-        info!(context, "Ignoring message in spam folder");
-        return Ok(false);
-    }
 
     if let Some(chat) = prefetch_get_chat(context, headers).await? {
         if chat.typ == Chattype::Group && !chat.id.is_special() {

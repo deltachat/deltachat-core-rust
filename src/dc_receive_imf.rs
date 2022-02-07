@@ -2960,7 +2960,6 @@ mod tests {
             "some-other-message-id",
             std::iter::empty(),
             ShowEmails::Off,
-            "INBOX",
         )
         .await
         .unwrap());
