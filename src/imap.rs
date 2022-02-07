@@ -1603,6 +1603,48 @@ impl Imap {
     }
 }
 
+async fn should_move_out_of_spam(
+    context: &Context,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<bool> {
+    if headers.get_header_value(HeaderDef::ChatVersion).is_some() {
+        // If this is a chat message (i.e. has a ChatVersion header), then this might be
+        // a securejoin message. We can't find out at this point as we didn't prefetch
+        // the SecureJoin header. So, we always move chat messages out of Spam.
+        // One possibility to change this woudl be:
+        // Remove the `&& !context.is_spam_folder(folder).await?` check from
+        // `fetch_new_messages()`, and then let `dc_receive_imf()` check
+        // if it's a spam message and should be hidden.
+        return Ok(true);
+    }
+
+    if let Some(msg) = get_prefetch_parent_message(context, headers).await? {
+        if msg.chat_blocked != Blocked::Not {
+            // Blocked or contact request message in the spam folder, leave it there.
+            return Ok(false);
+        }
+    } else {
+        // No chat found.
+        let (from_id, blocked_contact, _origin) =
+            from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
+        if blocked_contact {
+            // Contact is blocked, leave the message in spam.
+            return Ok(false);
+        }
+
+        if let Some(chat_id_blocked) = ChatIdBlocked::lookup_by_contact(context, from_id).await? {
+            if chat_id_blocked.blocked != Blocked::Not {
+                return Ok(false);
+            }
+        } else if from_id != DC_CONTACT_ID_SELF {
+            // No chat with this contact found.
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
 /// Returns target folder for a message found in the Spam folder.
 /// If this returns None, the message will not be moved out of the
 /// Spam folder, and as `fetch_new_messages()` doesn't download
@@ -1612,40 +1654,8 @@ async fn spam_target_folder(
     folder: &str,
     headers: &[mailparse::MailHeader<'_>],
 ) -> Result<Option<Config>> {
-    if headers.get_header_value(HeaderDef::ChatVersion).is_none() {
-        // If this is a chat message (i.e. has a ChatVersion header), then this might be
-        // a securejoin message. We can't find out at this point as we didn't prefetch
-        // the SecureJoin header. So, we always move chat messages out of Spam.
-        // One possibility to change this woudl be:,
-        // Remove the `&& !context.is_spam_folder(folder).await?` check from
-        // `fetch_new_messages()`, and then let `dc_receive_imf()` check
-        // if it's a spam message and should be hidden.
-
-        if let Some(msg) = get_prefetch_parent_message(context, headers).await? {
-            if msg.chat_blocked != Blocked::Not {
-                // Blocked or contact request message in the spam folder, leave it there.
-                return Ok(None);
-            }
-        } else {
-            // No chat found.
-            let (from_id, blocked_contact, _origin) =
-                from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
-            if blocked_contact {
-                // Contact is blocked, leave the message in spam.
-                return Ok(None);
-            }
-
-            if let Some(chat_id_blocked) =
-                ChatIdBlocked::lookup_by_contact(context, from_id).await?
-            {
-                if chat_id_blocked.blocked != Blocked::Not {
-                    return Ok(None);
-                }
-            } else if from_id != DC_CONTACT_ID_SELF {
-                // No chat with this contact found.
-                return Ok(None);
-            }
-        }
+    if !should_move_out_of_spam(context, headers).await? {
+        return Ok(None);
     }
 
     if needs_move_to_mvbox(context, headers).await?
