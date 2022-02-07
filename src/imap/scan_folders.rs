@@ -8,6 +8,7 @@ use crate::{context::Context, imap::FolderMeaning};
 use async_std::prelude::*;
 
 use super::{get_folder_meaning, get_folder_meaning_by_name};
+// TODO unnecessary comment
 
 impl Imap {
     /// Returns true if folders were scanned, false if scanning was postponed.
