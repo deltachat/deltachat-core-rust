@@ -11,6 +11,7 @@
 - avoid archived, fresh chats #3053
 - treat "NO" IMAP response to MOVE and COPY commands as an error #3058
 - Fix a bug where messages in the Spam folder created contact requests #3015
+- Don't let spam messages create (empty) contact requests #3015
 
 
 ## 1.75.0
