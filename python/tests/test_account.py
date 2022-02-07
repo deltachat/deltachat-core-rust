@@ -652,6 +652,8 @@ class TestOnlineAccount:
             pre_generated_key=False,
             config={"key_gen_type": str(const.DC_KEY_GEN_ED25519)}
         )
+        # rsa key gen can be slow especially on CI, adjust timeout
+        ac1._evtracker.set_timeout(240)
         acfactory.wait_configure_and_start_io()
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
@@ -1832,6 +1834,7 @@ class TestOnlineAccount:
         lp.sec("trigger ac setup message and return setupcode")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
         setup_code = ac1.initiate_key_transfer()
+        ac2._evtracker.set_timeout(30)
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         msg = ac2.get_message_by_id(ev.data2)
         assert msg.is_setup_message()
@@ -1848,6 +1851,7 @@ class TestOnlineAccount:
     def test_ac_setup_message_twice(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.clone_online_account(ac1)
+        ac2._evtracker.set_timeout(30)
         acfactory.wait_configure_and_start_io()
 
         lp.sec("trigger ac setup message but ignore")
@@ -2021,7 +2025,7 @@ class TestOnlineAccount:
 
         lp.sec("ac1: send a message to group chat to promote the group")
         chat.send_text("afterwards promoted")
-        ev = in_list.get()
+        ev = in_list.get(timeout=10)
         assert ev.action == "chat-modified"
         assert chat.is_promoted()
         assert sorted(x.addr for x in chat.get_contacts()) == \
@@ -2031,29 +2035,29 @@ class TestOnlineAccount:
         # note that if the above create_chat() would not
         # happen we would not receive a proper member_added event
         contact2 = chat.add_contact("devnull@testrun.org")
-        ev = in_list.get()
+        ev = in_list.get(timeout=10)
         assert ev.action == "chat-modified"
-        ev = in_list.get()
+        ev = in_list.get(timeout=10)
         assert ev.action == "chat-modified"
-        ev = in_list.get()
+        ev = in_list.get(timeout=10)
         assert ev.action == "added"
         assert ev.message.get_sender_contact().addr == ac1_addr
         assert ev.contact.addr == "devnull@testrun.org"
 
         lp.sec("ac1: remove address2")
         chat.remove_contact(contact2)
-        ev = in_list.get()
+        ev = in_list.get(timeout=10)
         assert ev.action == "chat-modified"
-        ev = in_list.get()
+        ev = in_list.get(timeout=10)
         assert ev.action == "removed"
         assert ev.contact.addr == contact2.addr
         assert ev.message.get_sender_contact().addr == ac1_addr
 
         lp.sec("ac1: remove ac2 contact from chat")
         chat.remove_contact(ac2)
-        ev = in_list.get()
+        ev = in_list.get(timeout=10)
         assert ev.action == "chat-modified"
-        ev = in_list.get()
+        ev = in_list.get(timeout=10)
         assert ev.action == "removed"
         assert ev.message.get_sender_contact().addr == ac1_addr
 
@@ -2677,13 +2681,7 @@ class TestOnlineAccount:
         ac1.direct_imap.select_config_folder("inbox")
         ac1.direct_imap.idle_start()
         acfactory.get_accepted_chat(ac2, ac1).send_text("hello")
-        while True:
-            if len(ac1.direct_imap.idle_check(terminate=True)) > 1:
-                # If length is 1, it's [(b'OK', b'Still here')]
-                # Could happen on very slow network.
-                #
-                # More is usually [(1, b'EXISTS'), (1, b'RECENT')]
-                break
+        ac1.direct_imap.idle_check(terminate=True)
         ac1.direct_imap.conn.move(["*"], folder)  # "*" means "biggest UID in mailbox"
 
         lp.sec("Everything prepared, now see if DeltaChat finds the message (" + variant + ")")

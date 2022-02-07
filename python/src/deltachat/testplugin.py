@@ -241,6 +241,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
         def make_account(self, path, logid, quiet=False):
             ac = Account(path, logging=self._logging)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
+            ac._evtracker.set_timeout(30)
             ac.addr = ac.get_self_contact().addr
             ac.set_config("displayname", logid)
             if not quiet:
@@ -482,7 +483,7 @@ class BotProcess:
     def kill(self) -> None:
         self.popen.kill()
 
-    def wait(self, timeout=None) -> None:
+    def wait(self, timeout=30) -> None:
         self.popen.wait(timeout=timeout)
 
     def fnmatch_lines(self, pattern_lines):
@@ -491,7 +492,7 @@ class BotProcess:
             print("+++FNMATCH:", next_pattern)
             ignored = []
             while 1:
-                line = self.stdout_queue.get()
+                line = self.stdout_queue.get(timeout=15)
                 if line is None:
                     if ignored:
                         print("BOT stdout terminated after these lines")
