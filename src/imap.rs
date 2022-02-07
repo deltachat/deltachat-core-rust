@@ -2413,7 +2413,7 @@ mod tests {
         ("Spam", true, true, "DeltaChat"),
     ];
 
-    // These are the same as above, but all messages in Spam stay in Spam
+    // These are the same as above, but non-chat messages in Spam stay in Spam
     const COMBINATIONS_REQUEST: &[(&str, bool, bool, &str)] = &[
         ("INBOX", false, false, "INBOX"),
         ("INBOX", false, true, "INBOX"),
@@ -2424,9 +2424,9 @@ mod tests {
         ("Sent", true, false, "Sent"),
         ("Sent", true, true, "DeltaChat"),
         ("Spam", false, false, "Spam"),
-        ("Spam", false, true, "Spam"),
+        ("Spam", false, true, "INBOX"),
         ("Spam", true, false, "Spam"),
-        ("Spam", true, true, "Spam"),
+        ("Spam", true, true, "DeltaChat"),
     ];
 
     #[async_std::test]
