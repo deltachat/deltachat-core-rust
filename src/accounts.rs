@@ -9,7 +9,7 @@ use async_std::prelude::*;
 use async_std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
-use anyhow::{anyhow, ensure, Context as _, Result};
+use anyhow::{ensure, Context as _, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::context::{Context, ContextError};
@@ -150,7 +150,7 @@ impl Accounts {
             .config
             .get_account(id)
             .await
-            .ok_or_else(|| anyhow!("No such account with id {}", id))?;
+            .with_context(|| format!("No such account with id {}", id))?;
         let ctx = Context::new_encrypted(
             account_config.dbfile().into(),
             account_config.id,
