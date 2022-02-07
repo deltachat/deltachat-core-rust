@@ -6,7 +6,6 @@ use std::fmt;
 
 use anyhow::{bail, format_err, Context as _, Error, Result};
 use deltachat_derive::{FromSql, ToSql};
-use futures::StreamExt;
 use rand::{thread_rng, Rng};
 
 use crate::config::Config;
@@ -366,42 +365,28 @@ impl Job {
         Status::Finished(Ok(()))
     }
 
-    /// Synchronizes UIDs for sentbox, inbox and mvbox.
+    /// Synchronizes UIDs for all folders.
     async fn resync_folders(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }
 
-        let configured_folders: Vec<_> = async_std::stream::from_iter(&[
-            Config::ConfiguredSentboxFolder,
-            Config::ConfiguredInboxFolder,
-            Config::ConfiguredMvboxFolder,
-        ])
-        .filter_map(|c| async move { context.get_config(*c).await.ok_or_log(context).flatten() })
-        .collect()
-        .await;
-
-        let all_except_configured =
-            match imap.list_folders_except(context, &configured_folders).await {
-                Ok(v) => v,
-                Err(e) => {
-                    warn!(context, "Listing folders for resync failed: {:#}", e);
-                    return Status::RetryLater;
-                }
-            };
+        let all_folders = match imap.list_folders(context).await {
+            Ok(v) => v,
+            Err(e) => {
+                warn!(context, "Listing folders for resync failed: {:#}", e);
+                return Status::RetryLater;
+            }
+        };
 
         let mut any_failed = false;
 
-        for folder in all_except_configured {
-            if let Err(e) = imap.resync_folder_uids(context, folder).await {
-                warn!(context, "{:#}", e);
-                any_failed = true;
-            }
-        }
-
-        for folder in configured_folders {
-            if let Err(e) = imap.resync_folder_uids(context, folder).await {
+        for folder in all_folders {
+            if let Err(e) = imap
+                .resync_folder_uids(context, folder.name().to_string())
+                .await
+            {
                 warn!(context, "{:#}", e);
                 any_failed = true;
             }
