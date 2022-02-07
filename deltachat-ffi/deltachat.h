@@ -2619,12 +2619,12 @@ void           dc_accounts_unref                (dc_accounts_t* accounts);
 uint32_t       dc_accounts_add_account          (dc_accounts_t* accounts);
 
 /**
- * Add a new account with a password to the account manager.
+ * Add a new account to the account manager, encrypted with a passphrase.
  *
- * The account's database will be encrypted with this password and will need
- * to be opened with the password to be usable.
+ * The account's database will be encrypted with a key derived from the
+ * passphrase and will need to be opened with the passphrase to be usable.
  *
- * Password-protected accounts are not automatically opened when the account
+ * Encrypted accounts are not automatically opened when the account
  * manager is created.  They need to be opened using dc_accounts_load_encrypted(),
  * to find unloaded encrypted accounts use dc_accounts_get_encrypted().
  *
@@ -2634,7 +2634,7 @@ uint32_t       dc_accounts_add_account          (dc_accounts_t* accounts);
  *     context object.
  *     On errors, 0 is returned.
  */
-uint32_t       dc_accounts_add_encrypted_account(dc_accounts_t* accounts, char* password);
+uint32_t       dc_accounts_add_encrypted_account(dc_accounts_t* accounts, char* passphrase);
 
 /**
  * Migrate independent accounts into accounts managed by the account manager.
