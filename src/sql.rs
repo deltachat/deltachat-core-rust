@@ -787,7 +787,7 @@ async fn maybe_add_from_param(
 async fn prune_tombstones(sql: &Sql) -> Result<()> {
     sql.execute(
         "DELETE FROM msgs
-         WHERE (chat_id=? OR hidden)
+         WHERE chat_id=?
          AND NOT EXISTS (
          SELECT * FROM imap WHERE msgs.rfc724_mid=rfc724_mid AND target!=''
          )",
@@ -904,6 +904,23 @@ mod tests {
                 _ => {}
             }
         }
+    }
+
+    /// Regression test for a bug where housekeeping deleted drafts since their
+    /// `hidden` flag is set.
+    #[async_std::test]
+    async fn test_housekeeping_dont_delete_drafts() {
+        let t = TestContext::new_alice().await;
+
+        let chat = t.create_chat_with_contact("bob", "bob@example.com").await;
+        let mut new_draft = Message::new(Viewtype::Text);
+        new_draft.set_text(Some("This is my draft".to_string()));
+        chat.id.set_draft(&t, Some(&mut new_draft)).await.unwrap();
+
+        housekeeping(&t).await.unwrap();
+
+        let loaded_draft = chat.id.get_draft(&t).await.unwrap();
+        assert_eq!(loaded_draft.unwrap().text.unwrap(), "This is my draft");
     }
 
     /// Regression test.
