@@ -1611,10 +1611,13 @@ async fn should_move_out_of_spam(
         // If this is a chat message (i.e. has a ChatVersion header), then this might be
         // a securejoin message. We can't find out at this point as we didn't prefetch
         // the SecureJoin header. So, we always move chat messages out of Spam.
-        // One possibility to change this woudl be:
-        // Remove the `&& !context.is_spam_folder(folder).await?` check from
+        // Two possibilities to change this would be:
+        // 1. Remove the `&& !context.is_spam_folder(folder).await?` check from
         // `fetch_new_messages()`, and then let `dc_receive_imf()` check
         // if it's a spam message and should be hidden.
+        // 2. Or add a flag to the ChatVersion header that this is a securejoin
+        // request, and return `true` here only if the message has this flag.
+        // `dc_receive_imf()` can then check if the securejoin request is valid.
         return Ok(true);
     }
 
