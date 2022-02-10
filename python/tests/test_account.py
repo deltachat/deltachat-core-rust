@@ -1398,11 +1398,13 @@ class TestOnlineAccount:
         assert not device_chat.can_send()
         assert device_chat.get_draft() is None
 
-    def test_dont_show_emails_in_draft_folder(self, acfactory, lp):
+    def test_dont_show_emails(self, acfactory, lp):
         """Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them.
         So: If it's outgoing AND there is no Received header AND it's not in the sentbox, then ignore the email.
 
-        If the draft email is sent out later (i.e. moved to "Sent"), it must be shown."""
+        If the draft email is sent out later (i.e. moved to "Sent"), it must be shown.
+
+        Also, test that unknown emails in the Spam folder are not shown."""
         ac1 = acfactory.get_online_configuring_account()
         ac1.set_config("show_emails", "2")
         ac1.create_contact("alice@example.org").create_chat()
@@ -1410,6 +1412,7 @@ class TestOnlineAccount:
         acfactory.wait_configure(ac1)
         ac1.direct_imap.create_folder("Drafts")
         ac1.direct_imap.create_folder("Sent")
+        ac1.direct_imap.create_folder("Spam")
 
         acfactory.wait_configure_and_start_io()
         # Wait until each folder was selected once and we are IDLEing again:
@@ -1434,6 +1437,15 @@ class TestOnlineAccount:
 
             message in Sent
         """.format(ac1.get_config("configured_addr")))
+        ac1.direct_imap.append("Spam", """
+            From: unknown.address@junk.org
+            Subject: subj
+            To: {}
+            Message-ID: <spam.message@junk.org>
+            Content-Type: text/plain; charset=utf-8
+
+            Unknown message in Spam
+        """.format(ac1.get_config("configured_addr")))
 
         ac1.set_config("scan_all_folders_debounce_secs", "0")
         lp.sec("All prepared, now let DC find the message")
@@ -1446,6 +1458,10 @@ class TestOnlineAccount:
 
         assert msg.text == "subj – message in Sent"
         assert len(msg.chat.get_messages()) == 1
+
+        assert not any("unknown.address" in c.get_name() for c in ac1.get_chats())
+        ac1.direct_imap.select_folder("Spam")
+        assert ac1.direct_imap.get_uid_by_message_id("spam.message@junk.org")
 
         ac1.stop_io()
         lp.sec("'Send out' the draft, i.e. move it to the Sent folder, and wait for DC to display it this time")

@@ -193,7 +193,6 @@ pub(crate) async fn dc_receive_imf_inner(
         &mut mime_parser,
         imf_raw,
         incoming,
-        incoming_origin,
         server_folder,
         &to_ids,
         &rfc724_mid,
@@ -415,7 +414,6 @@ async fn add_parts(
     mime_parser: &mut MimeMessage,
     imf_raw: &[u8],
     incoming: bool,
-    incoming_origin: Origin,
     server_folder: &str,
     to_ids: &[u32],
     rfc724_mid: &str,
@@ -432,7 +430,6 @@ async fn add_parts(
 ) -> Result<ReceivedMsg> {
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
-    let mut incoming_origin = incoming_origin;
 
     let parent = get_parent_message(context, mime_parser).await?;
 
@@ -676,7 +673,6 @@ async fn add_parts(
                 if chat_id_blocked != Blocked::Not {
                     if chat_id_blocked != create_blocked {
                         chat_id.set_blocked(context, create_blocked).await?;
-                        chat_id_blocked = create_blocked;
                     }
                     if create_blocked == Blocked::Request && parent.is_some() {
                         // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
@@ -687,9 +683,6 @@ async fn add_parts(
                             context,
                             "Message is a reply to a known message, mark sender as known.",
                         );
-                        if !incoming_origin.is_known() {
-                            incoming_origin = Origin::IncomingReplyTo;
-                        }
                     }
                 }
             }
@@ -701,15 +694,6 @@ async fn add_parts(
             } else {
                 MessageState::InFresh
             };
-
-        let is_spam = (chat_id_blocked == Blocked::Request)
-            && !incoming_origin.is_known()
-            && (is_dc_message == MessengerMessage::No)
-            && context.is_spam_folder(server_folder).await?;
-        if is_spam {
-            chat_id = Some(DC_CHAT_ID_TRASH);
-            info!(context, "Message is probably spam (TRASH)");
-        }
     } else {
         // Outgoing
 
@@ -2363,12 +2347,10 @@ fn dc_create_incoming_rfc724_mid(mime: &MimeMessage) -> String {
 
 #[cfg(test)]
 mod tests {
-    use chat::get_chat_contacts;
-
-    use mailparse::MailHeaderMap;
 
     use super::*;
 
+    use crate::chat::get_chat_contacts;
     use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
     use crate::chatlist::Chatlist;
     use crate::constants::{DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
@@ -2977,7 +2959,7 @@ mod tests {
             &headers,
             "some-other-message-id",
             std::iter::empty(),
-            ShowEmails::Off
+            ShowEmails::Off,
         )
         .await
         .unwrap());
@@ -4296,76 +4278,6 @@ YEAAAAAA!.
         let msg = t.get_last_msg().await;
         assert!(!msg.chat_id.is_special()); // Esp. check that the chat_id is not TRASH
         assert_eq!(msg.text.unwrap(), "Reply");
-    }
-
-    #[async_std::test]
-    async fn test_dont_show_spam() {
-        async fn is_shown(t: &TestContext, raw: &[u8], server_folder: &str) -> bool {
-            let mail = mailparse::parse_mail(raw).unwrap();
-            dc_receive_imf(t, raw, server_folder, false).await.unwrap();
-            t.get_last_msg().await.rfc724_mid
-                == mail.get_headers().get_first_value("Message-Id").unwrap()
-        }
-
-        let t = TestContext::new_alice().await;
-        t.set_config(Config::ConfiguredSpamFolder, Some("Spam"))
-            .await
-            .unwrap();
-        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
-
-        assert!(
-            is_shown(
-                &t,
-                b"Message-Id: abcd1@exmaple.com\n\
-                From: bob@example.org\n\
-                Chat-Version: 1.0\n",
-                "Inbox",
-            )
-            .await,
-        );
-
-        assert!(
-            is_shown(
-                &t,
-                b"Message-Id: abcd2@exmaple.com\n\
-                From: bob@example.org\n",
-                "Inbox",
-            )
-            .await,
-        );
-
-        assert!(
-            is_shown(
-                &t,
-                b"Message-Id: abcd3@exmaple.com\n\
-                From: bob@example.org\n\
-                Chat-Version: 1.0\n",
-                "Spam",
-            )
-            .await,
-        );
-
-        assert!(
-            // Note the `!`:
-            !is_shown(
-                &t,
-                b"Message-Id: abcd4@exmaple.com\n\
-                From: bob@example.org\n",
-                "Spam",
-            )
-            .await,
-        );
-
-        Contact::create(&t, "", "bob@example.org").await.unwrap();
-        assert!(
-            is_shown(
-                &t,
-                b"Message-Id: abcd5@exmaple.com\n\
-                From: bob@example.org\n",
-                "Spam",
-            )
-            .await,
-        );
     }
 
     #[async_std::test]

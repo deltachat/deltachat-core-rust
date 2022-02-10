@@ -748,6 +748,11 @@ impl Imap {
             // message, move it to the movebox and then download the second message before
             // downloading the first one, if downloading from inbox before moving is allowed.
             if folder == target
+                // Never download messages directly from the spam folder.
+                // If the sender is known, the message will be moved to the Inbox or Mvbox
+                // and then we download the message from there.
+                // Also see `spam_target_folder()`.
+                && !context.is_spam_folder(folder).await?
                 && prefetch_should_download(
                     context,
                     &headers,
@@ -1598,16 +1603,28 @@ impl Imap {
     }
 }
 
-/// Returns target folder for a message found in the Spam folder.
-async fn spam_target_folder(
+async fn should_move_out_of_spam(
     context: &Context,
-    folder: &str,
     headers: &[mailparse::MailHeader<'_>],
-) -> Result<Option<Config>> {
-    if let Some(chat) = prefetch_get_chat(context, headers).await? {
-        if chat.blocked != Blocked::Not {
+) -> Result<bool> {
+    if headers.get_header_value(HeaderDef::ChatVersion).is_some() {
+        // If this is a chat message (i.e. has a ChatVersion header), then this might be
+        // a securejoin message. We can't find out at this point as we didn't prefetch
+        // the SecureJoin header. So, we always move chat messages out of Spam.
+        // Two possibilities to change this would be:
+        // 1. Remove the `&& !context.is_spam_folder(folder).await?` check from
+        // `fetch_new_messages()`, and then let `dc_receive_imf()` check
+        // if it's a spam message and should be hidden.
+        // 2. Or add a flag to the ChatVersion header that this is a securejoin
+        // request, and return `true` here only if the message has this flag.
+        // `dc_receive_imf()` can then check if the securejoin request is valid.
+        return Ok(true);
+    }
+
+    if let Some(msg) = get_prefetch_parent_message(context, headers).await? {
+        if msg.chat_blocked != Blocked::Not {
             // Blocked or contact request message in the spam folder, leave it there.
-            return Ok(None);
+            return Ok(false);
         }
     } else {
         // No chat found.
@@ -1615,22 +1632,38 @@ async fn spam_target_folder(
             from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
         if blocked_contact {
             // Contact is blocked, leave the message in spam.
-            return Ok(None);
+            return Ok(false);
         }
 
         if let Some(chat_id_blocked) = ChatIdBlocked::lookup_by_contact(context, from_id).await? {
             if chat_id_blocked.blocked != Blocked::Not {
-                return Ok(None);
+                return Ok(false);
             }
         } else if from_id != DC_CONTACT_ID_SELF {
             // No chat with this contact found.
-            return Ok(None);
+            return Ok(false);
         }
     }
 
+    Ok(true)
+}
+
+/// Returns target folder for a message found in the Spam folder.
+/// If this returns None, the message will not be moved out of the
+/// Spam folder, and as `fetch_new_messages()` doesn't download
+/// messages from the Spam folder, the message will be ignored.
+async fn spam_target_folder(
+    context: &Context,
+    folder: &str,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<Option<Config>> {
+    if !should_move_out_of_spam(context, headers).await? {
+        return Ok(None);
+    }
+
     if needs_move_to_mvbox(context, headers).await?
-        // We don't want to move the message to the inbox or sentbox where we wouldn't
-        // fetch it again:
+        // If OnlyFetchMvbox is set, we don't want to move the message to
+        // the inbox or sentbox where we wouldn't fetch it again:
         || context.get_config_bool(Config::OnlyFetchMvbox).await?
     {
         Ok(Some(Config::ConfiguredMvboxFolder))
@@ -2383,7 +2416,7 @@ mod tests {
         ("Spam", true, true, "DeltaChat"),
     ];
 
-    // These are the same as above, but all messages in Spam stay in Spam
+    // These are the same as above, but non-chat messages in Spam stay in Spam
     const COMBINATIONS_REQUEST: &[(&str, bool, bool, &str)] = &[
         ("INBOX", false, false, "INBOX"),
         ("INBOX", false, true, "INBOX"),
@@ -2394,9 +2427,9 @@ mod tests {
         ("Sent", true, false, "Sent"),
         ("Sent", true, true, "DeltaChat"),
         ("Spam", false, false, "Spam"),
-        ("Spam", false, true, "Spam"),
+        ("Spam", false, true, "INBOX"),
         ("Spam", true, false, "Spam"),
-        ("Spam", true, true, "Spam"),
+        ("Spam", true, true, "DeltaChat"),
     ];
 
     #[async_std::test]
