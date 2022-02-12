@@ -343,7 +343,7 @@ pub(crate) async fn send_msg_to_smtp(
         return Err(err);
     }
 
-    // Increse retry count as soon as we have an SMTP connection. This ensures that the message is
+    // Increase retry count as soon as we have an SMTP connection. This ensures that the message is
     // eventually removed from the queue by exceeding retry limit even in case of an error that
     // keeps happening early in the message sending code, e.g. failure to read the message from the
     // database.
