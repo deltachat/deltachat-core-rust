@@ -343,6 +343,19 @@ pub(crate) async fn send_msg_to_smtp(
         return Err(err);
     }
 
+    // Increse retry count as soon as we have an SMTP connection. This ensures that the message is
+    // eventually removed from the queue by exceeding retry limit even in case of an error that
+    // keeps happening early in the message sending code, e.g. failure to read the message from the
+    // database.
+    context
+        .sql
+        .execute(
+            "UPDATE smtp SET retries=retries+1 WHERE id=?",
+            paramsv![rowid],
+        )
+        .await
+        .context("failed to update retries count")?;
+
     let (body, recipients, msg_id) = context
         .sql
         .query_row(
@@ -421,27 +434,16 @@ pub(crate) async fn send_msg_to_smtp(
     };
     match status {
         Status::Finished(res) => {
+            context
+                .sql
+                .execute("DELETE FROM smtp WHERE id=?", paramsv![rowid])
+                .await?;
             if res.is_ok() {
                 msg_id.set_delivered(context).await?;
-
-                context
-                    .sql
-                    .execute("DELETE FROM smtp WHERE id=?", paramsv![rowid])
-                    .await?;
             }
             res
         }
-        Status::RetryNow | Status::RetryLater => {
-            context
-                .sql
-                .execute(
-                    "UPDATE smtp SET retries=retries+1 WHERE id=?",
-                    paramsv![rowid],
-                )
-                .await
-                .context("failed to update retries count")?;
-            Err(format_err!("Retry"))
-        }
+        Status::RetryNow | Status::RetryLater => Err(format_err!("Retry")),
     }
 }
 

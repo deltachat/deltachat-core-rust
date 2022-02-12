@@ -12,6 +12,7 @@
 - treat "NO" IMAP response to MOVE and COPY commands as an error #3058
 - Fix a bug where messages in the Spam folder created contact requests #3015
 - Fix a bug where drafts disappeared after some days #3067
+- do not retry message sending infinitely in case of permanent SMTP failure #3070
 
 
 ## 1.75.0
