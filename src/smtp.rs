@@ -356,19 +356,35 @@ pub(crate) async fn send_msg_to_smtp(
         .await
         .context("failed to update retries count")?;
 
-    let (body, recipients, msg_id) = context
+    let (body, recipients, msg_id, retries) = context
         .sql
         .query_row(
-            "SELECT mime, recipients, msg_id FROM smtp WHERE id=?",
+            "SELECT mime, recipients, msg_id, retries FROM smtp WHERE id=?",
             paramsv![rowid],
             |row| {
                 let mime: String = row.get(0)?;
                 let recipients: String = row.get(1)?;
                 let msg_id: MsgId = row.get(2)?;
-                Ok((mime, recipients, msg_id))
+                let retries: i64 = row.get(3)?;
+                Ok((mime, recipients, msg_id, retries))
             },
         )
         .await?;
+    if retries > 6 {
+        message::set_msg_failed(
+            context,
+            msg_id,
+            Some("Number of retries exceeded the limit."),
+        )
+        .await;
+        context
+            .sql
+            .execute("DELETE FROM smtp WHERE id=?", paramsv![rowid])
+            .await
+            .context("failed to remove message with exceeded retry limit from smtp table")?;
+        bail!("Number of retries exceeded the limit");
+    }
+
     let recipients_list = recipients
         .split(' ')
         .filter_map(
@@ -456,10 +472,6 @@ pub(crate) async fn send_smtp_messages(
     connection: &mut Smtp,
 ) -> anyhow::Result<()> {
     context.send_sync_msg().await?; // Add sync message to the end of the queue if needed.
-    context
-        .sql
-        .execute("DELETE FROM smtp WHERE retries > 5", paramsv![])
-        .await?;
     let rowids = context
         .sql
         .query_map(

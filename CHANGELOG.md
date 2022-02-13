@@ -13,6 +13,7 @@
 - Fix a bug where messages in the Spam folder created contact requests #3015
 - Fix a bug where drafts disappeared after some days #3067
 - do not retry message sending infinitely in case of permanent SMTP failure #3070
+- set message state to failed when retry limit is exceeded #3072
 
 
 ## 1.75.0
