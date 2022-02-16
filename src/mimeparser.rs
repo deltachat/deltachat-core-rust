@@ -1203,6 +1203,9 @@ impl MimeMessage {
         if let Some(_disposition) = report_fields.get_header_value(HeaderDef::Disposition) {
             let original_message_id = report_fields
                 .get_header_value(HeaderDef::OriginalMessageId)
+                // MS Exchange doesn't add an Original-Message-Id header. Instead, they put
+                // the original message id into the In-Reply-To header:
+                .or_else(|| report.headers.get_header_value(HeaderDef::InReplyTo))
                 .and_then(|v| parse_message_id(&v).ok());
             let additional_message_ids = report_fields
                 .get_header_value(HeaderDef::AdditionalMessageIds)
@@ -1480,8 +1483,8 @@ async fn update_gossip_peerstates(
 pub(crate) struct Report {
     /// Original-Message-ID header
     ///
-    /// It MUST be present if the original message has a Message-ID according to RFC 8098, but MS
-    /// Exchange does not add it nevertheless, in which case it is `None`.
+    /// It MUST be present if the original message has a Message-ID according to RFC 8098.
+    /// In case we can't find it (shouldn't happen), this is None.
     original_message_id: Option<String>,
     /// Additional-Message-IDs
     additional_message_ids: Vec<String>,
@@ -3183,10 +3186,32 @@ Message.
     #[async_std::test]
     async fn test_ms_exchange_mdn() -> Result<()> {
         let t = TestContext::new_alice().await;
-        let raw =
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        let original =
+            include_bytes!("../test-data/message/ms_exchange_report_original_message.eml");
+        dc_receive_imf(&t, original, "INBOX", false).await?;
+        let original_msg_id = t.get_last_msg().await.id;
+
+        // 1. Test mimeparser directly
+        let mdn =
             include_bytes!("../test-data/message/ms_exchange_report_disposition_notification.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await?;
-        assert!(!mimeparser.mdn_reports.is_empty());
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, mdn).await?;
+        assert_eq!(mimeparser.mdn_reports.len(), 1);
+        assert_eq!(
+            mimeparser.mdn_reports[0].original_message_id.as_deref(),
+            Some("d5904dc344eeb5deaf9bb44603f0c716@posteo.de")
+        );
+        assert!(mimeparser.mdn_reports[0].additional_message_ids.is_empty());
+
+        // 2. Test that marking the original msg as read works
+        dc_receive_imf(&t, mdn, "INBOX", false).await?;
+
+        assert_eq!(
+            original_msg_id.get_state(&t).await?,
+            MessageState::OutMdnRcvd
+        );
+
         Ok(())
     }
 }
