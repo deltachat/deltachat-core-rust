@@ -2,7 +2,6 @@
 //!
 //! This private module is only compiled for test runs.
 
-use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::panic;
@@ -44,7 +43,7 @@ static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
 pub struct AcManager {
     log_tx: Sender<Event>,
     _log_sink: LogSink,
-    accounts: RefCell<Vec<Rc<TestContext>>>,
+    accounts: Vec<Rc<TestContext>>,
 }
 
 impl AcManager {
@@ -53,11 +52,11 @@ impl AcManager {
         Self {
             log_tx,
             _log_sink,
-            accounts: RefCell::new(vec![]),
+            accounts: vec![],
         }
     }
 
-    pub async fn ac_alice(&self) -> Rc<TestContext> {
+    pub async fn ac_alice(&mut self) -> Rc<TestContext> {
         let ac = Rc::new(
             TestContext::builder()
                 .configure_alice()
@@ -65,12 +64,11 @@ impl AcManager {
                 .build()
                 .await,
         );
-        let mut accounts = self.accounts.borrow_mut();
-        accounts.push(ac);
-        accounts.last().unwrap().clone()
+        self.accounts.push(ac);
+        self.accounts.last().unwrap().clone()
     }
 
-    pub async fn ac_bob(&self) -> Rc<TestContext> {
+    pub async fn ac_bob(&mut self) -> Rc<TestContext> {
         let ac = Rc::new(
             TestContext::builder()
                 .configure_bob()
@@ -78,9 +76,8 @@ impl AcManager {
                 .build()
                 .await,
         );
-        let mut accounts = self.accounts.borrow_mut();
-        accounts.push(ac);
-        accounts.last().unwrap().clone()
+        self.accounts.push(ac);
+        self.accounts.last().unwrap().clone()
     }
 }
 
@@ -894,7 +891,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_with_both() {
-        let acm = AcManager::new().await;
+        let mut acm = AcManager::new().await;
         let alice = acm.ac_alice().await;
         let bob = acm.ac_bob().await;
 

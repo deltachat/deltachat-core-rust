@@ -946,7 +946,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_setup_contact() -> Result<()> {
-        let acm = AcManager::new().await;
+        let mut acm = AcManager::new().await;
         let alice = acm.ac_alice().await;
         let bob = acm.ac_bob().await;
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
@@ -1135,7 +1135,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_setup_contact_bob_knows_alice() -> Result<()> {
-        let acm = AcManager::new().await;
+        let mut acm = AcManager::new().await;
         let alice = acm.ac_alice().await;
         let bob = acm.ac_bob().await;
 
@@ -1260,7 +1260,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_setup_contact_concurrent_calls() -> Result<()> {
-        let acm = AcManager::new().await;
+        let mut acm = AcManager::new().await;
         let alice = acm.ac_alice().await;
         let bob = acm.ac_bob().await;
 
@@ -1291,7 +1291,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_secure_join() -> Result<()> {
-        let acm = AcManager::new().await;
+        let mut acm = AcManager::new().await;
         let alice = acm.ac_alice().await;
         let bob = acm.ac_bob().await;
 
