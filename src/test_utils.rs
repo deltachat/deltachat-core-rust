@@ -40,13 +40,13 @@ pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avata
 static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
 
-pub struct AcManager {
+pub struct TestContextManager {
     log_tx: Sender<Event>,
     _log_sink: LogSink,
     accounts: Vec<Rc<TestContext>>,
 }
 
-impl AcManager {
+impl TestContextManager {
     pub async fn new() -> Self {
         let (log_tx, _log_sink) = LogSink::create();
         Self {
@@ -56,7 +56,7 @@ impl AcManager {
         }
     }
 
-    pub async fn ac_alice(&mut self) -> Rc<TestContext> {
+    pub async fn alice(&mut self) -> Rc<TestContext> {
         let ac = Rc::new(
             TestContext::builder()
                 .configure_alice()
@@ -68,7 +68,7 @@ impl AcManager {
         self.accounts.last().unwrap().clone()
     }
 
-    pub async fn ac_bob(&mut self) -> Rc<TestContext> {
+    pub async fn bob(&mut self) -> Rc<TestContext> {
         let ac = Rc::new(
             TestContext::builder()
                 .configure_bob()
@@ -891,9 +891,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_with_both() {
-        let mut acm = AcManager::new().await;
-        let alice = acm.ac_alice().await;
-        let bob = acm.ac_bob().await;
+        let mut acm = TestContextManager::new().await;
+        let alice = acm.alice().await;
+        let bob = acm.bob().await;
 
         alice.ctx.emit_event(EventType::Info("hello".into()));
         bob.ctx.emit_event(EventType::Info("there".into()));

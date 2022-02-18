@@ -942,13 +942,13 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::peerstate::Peerstate;
-    use crate::test_utils::{AcManager, TestContext};
+    use crate::test_utils::{TestContext, TestContextManager};
 
     #[async_std::test]
     async fn test_setup_contact() -> Result<()> {
-        let mut acm = AcManager::new().await;
-        let alice = acm.ac_alice().await;
-        let bob = acm.ac_bob().await;
+        let mut acm = TestContextManager::new().await;
+        let alice = acm.alice().await;
+        let bob = acm.bob().await;
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
 
@@ -1135,9 +1135,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_setup_contact_bob_knows_alice() -> Result<()> {
-        let mut acm = AcManager::new().await;
-        let alice = acm.ac_alice().await;
-        let bob = acm.ac_bob().await;
+        let mut acm = TestContextManager::new().await;
+        let alice = acm.alice().await;
+        let bob = acm.bob().await;
 
         // Ensure Bob knows Alice_FP
         let alice_pubkey = SignedPublicKey::load_self(&alice.ctx).await?;
@@ -1260,9 +1260,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_setup_contact_concurrent_calls() -> Result<()> {
-        let mut acm = AcManager::new().await;
-        let alice = acm.ac_alice().await;
-        let bob = acm.ac_bob().await;
+        let mut acm = TestContextManager::new().await;
+        let alice = acm.alice().await;
+        let bob = acm.bob().await;
 
         // do a scan that is not working as claire is never responding
         let qr_stale = "OPENPGP4FPR:1234567890123456789012345678901234567890#a=claire%40foo.de&n=&i=12345678901&s=23456789012";
@@ -1291,9 +1291,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_secure_join() -> Result<()> {
-        let mut acm = AcManager::new().await;
-        let alice = acm.ac_alice().await;
-        let bob = acm.ac_bob().await;
+        let mut acm = TestContextManager::new().await;
+        let alice = acm.alice().await;
+        let bob = acm.bob().await;
 
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
