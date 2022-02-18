@@ -7,6 +7,7 @@
   and remove update-id from `DC_EVENT_WEBXDC_STATUS_UPDATE` #3081
 
 ### Fixes
+- Hopefully fix a bug where outgoing messages appear twice with Amazon SES #3077
 - do not delete messages without Message-IDs as duplicates #3095
 - Assign replies from a different email address to the correct chat #3119
 
