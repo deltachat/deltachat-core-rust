@@ -4,6 +4,7 @@
 
 ### Changes
 - add more SMTP logging #3093
+- place common headers like `From:` before the large `Autocrypt:` header #3079
 
 
 ## 1.76.0

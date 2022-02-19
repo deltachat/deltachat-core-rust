@@ -503,33 +503,65 @@ impl<'a> MimeFactory<'a> {
             }
         }
 
+        // Start with Internet Message Format headers in the order of the standard example
+        // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
         headers
             .unprotected
-            .push(Header::new("MIME-Version".into(), "1.0".into()));
+            .push(Header::new_with_value("From".into(), vec![from]).unwrap());
+        if let Some(sender_displayname) = &self.sender_displayname {
+            let sender =
+                Address::new_mailbox_with_name(sender_displayname.clone(), self.from_addr.clone());
+            headers
+                .unprotected
+                .push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
+        }
+        headers
+            .unprotected
+            .push(Header::new_with_value("To".into(), to).unwrap());
 
+        let subject_str = self.subject_str(context).await?;
+        let encoded_subject = if subject_str
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == ' ')
+        // We do not use needs_encoding() here because needs_encoding() returns true if the string contains a space
+        // but we do not want to encode all subjects just because they contain a space.
+        {
+            subject_str.clone()
+        } else {
+            encode_words(&subject_str)
+        };
+        headers
+            .protected
+            .push(Header::new("Subject".into(), encoded_subject));
+
+        let date = chrono::Utc
+            .from_local_datetime(&chrono::NaiveDateTime::from_timestamp(self.timestamp, 0))
+            .unwrap()
+            .to_rfc2822();
+        headers.unprotected.push(Header::new("Date".into(), date));
+
+        let rfc724_mid = match self.loaded {
+            Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
+            Loaded::Mdn { .. } => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
+        };
+        headers.unprotected.push(Header::new(
+            "Message-ID".into(),
+            render_rfc724_mid(&rfc724_mid),
+        ));
+
+        // Reply headers as in <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.2>.
+        if !self.in_reply_to.is_empty() {
+            headers
+                .unprotected
+                .push(Header::new("In-Reply-To".into(), self.in_reply_to.clone()));
+        }
         if !self.references.is_empty() {
             headers
                 .unprotected
                 .push(Header::new("References".into(), self.references.clone()));
         }
 
-        if !self.in_reply_to.is_empty() {
-            headers
-                .unprotected
-                .push(Header::new("In-Reply-To".into(), self.in_reply_to.clone()));
-        }
-
-        let date = chrono::Utc
-            .from_local_datetime(&chrono::NaiveDateTime::from_timestamp(self.timestamp, 0))
-            .unwrap()
-            .to_rfc2822();
-
-        headers.unprotected.push(Header::new("Date".into(), date));
-
-        headers
-            .unprotected
-            .push(Header::new("Chat-Version".to_string(), "1.0".to_string()));
-
+        // Automatic Response headers <https://www.rfc-editor.org/rfc/rfc3834>
         if let Loaded::Mdn { .. } = self.loaded {
             headers.unprotected.push(Header::new(
                 "Auto-Submitted".to_string(),
@@ -541,6 +573,11 @@ impl<'a> MimeFactory<'a> {
                 "auto-generated".to_string(),
             ));
         }
+
+        // Non-standard headers.
+        headers
+            .unprotected
+            .push(Header::new("Chat-Version".to_string(), "1.0".to_string()));
 
         if self.req_mdn {
             // we use "Chat-Disposition-Notification-To"
@@ -556,20 +593,8 @@ impl<'a> MimeFactory<'a> {
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
         let skip_autocrypt = self.should_skip_autocrypt();
-        let subject_str = self.subject_str(context).await?;
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(context).await?;
-
-        let encoded_subject = if subject_str
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == ' ')
-        // We do not use needs_encoding() here because needs_encoding() returns true if the string contains a space
-        // but we do not want to encode all subjects just because they contain a space.
-        {
-            subject_str.clone()
-        } else {
-            encode_words(&subject_str)
-        };
 
         if !skip_autocrypt {
             // unless determined otherwise we add the Autocrypt header
@@ -579,15 +604,6 @@ impl<'a> MimeFactory<'a> {
                 .push(Header::new("Autocrypt".into(), aheader));
         }
 
-        headers
-            .protected
-            .push(Header::new("Subject".into(), encoded_subject));
-
-        let rfc724_mid = match self.loaded {
-            Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
-            Loaded::Mdn { .. } => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
-        };
-
         let ephemeral_timer = self.msg.chat_id.get_ephemeral_timer(context).await?;
         if let EphemeralTimer::Enabled { duration } = ephemeral_timer {
             headers.protected.push(Header::new(
@@ -596,25 +612,11 @@ impl<'a> MimeFactory<'a> {
             ));
         }
 
-        headers.unprotected.push(Header::new(
-            "Message-ID".into(),
-            render_rfc724_mid(&rfc724_mid),
-        ));
-
+        // MIME header <https://datatracker.ietf.org/doc/html/rfc2045>.
+        // Content-Type
         headers
             .unprotected
-            .push(Header::new_with_value("To".into(), to).unwrap());
-
-        headers
-            .unprotected
-            .push(Header::new_with_value("From".into(), vec![from]).unwrap());
-        if let Some(sender_displayname) = &self.sender_displayname {
-            let sender =
-                Address::new_mailbox_with_name(sender_displayname.clone(), self.from_addr.clone());
-            headers
-                .unprotected
-                .push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
-        }
+            .push(Header::new("MIME-Version".into(), "1.0".into()));
 
         let mut is_gossiped = false;
 
@@ -2081,6 +2083,29 @@ mod tests {
             .extract_single_info()
             .context("to: field does not contain exactly one address")?;
         assert_eq!(mailbox.addr, "bob@example.net");
+
+        Ok(())
+    }
+
+    /// Tests that standard IMF header "From:" comes before non-standard "Autocrypt:" header.
+    #[async_std::test]
+    async fn test_from_before_autocrypt() -> Result<()> {
+        // create chat with bob
+        let t = TestContext::new_alice().await;
+        let chat = t.create_chat_with_contact("bob", "bob@example.org").await;
+
+        // send message to bob: that should get multipart/mixed because of the avatar moved to inner header;
+        // make sure, `Subject:` stays in the outer header (imf header)
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("this is the text!".to_string()));
+
+        let sent_msg = t.send_msg(chat.id, &mut msg).await;
+        let payload = sent_msg.payload();
+
+        assert_eq!(payload.match_indices("Autocrypt:").count(), 1);
+        assert_eq!(payload.match_indices("From:").count(), 1);
+
+        assert!(payload.match_indices("From:").next() < payload.match_indices("Autocrypt:").next());
 
         Ok(())
     }
