@@ -100,7 +100,7 @@ impl Imap {
         context: &Context,
     ) -> Result<Vec<async_imap::types::Name>> {
         let session = self.session.as_mut();
-        let session = session.context("list_folders() IMAP No Connection established")?;
+        let session = session.context("No IMAP connection.")?;
         let list = session
             .list(Some(""), Some("*"))
             .await?
