@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.76.0
 
 ### Changes
-- refactorings #3026
 - move messages in batches #3058
 - delete messages in batches #3060
+- python: remove arbitrary timeouts from tests #3059
+- refactorings #3026
 
 ### Fixes
 - avoid archived, fresh chats #3053
