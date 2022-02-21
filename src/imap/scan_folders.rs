@@ -94,7 +94,7 @@ impl Imap {
         Ok(true)
     }
 
-    /// Returns the names of all folders on the IMAP server that are not in `exclude`.
+    /// Returns the names of all folders on the IMAP server.
     pub async fn list_folders(
         self: &mut Imap,
         context: &Context,
