@@ -1037,14 +1037,18 @@ int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const 
  * @memberof dc_context_t
  * @param context The context object
  * @param msg_id id of the message with the webxdc instance
- * @param status_update_id Can be used to filter out only a concrete status update.
- *     When set to 0, all known status updates are returned.
- * @return JSON-array containing the requested updates,
- *     each element was created by dc_send_webxdc_status_update()
- *     on this or other devices.
- *     If there are no updates, an empty JSON-array is returned.
+ * @param serial The last known serial. Pass 0 if there are no known serials to receive all updates.
+ * @return JSON-array containing the requested updates.
+ *     Each `update` comes with the following properties:
+ *     - `update.payload`: equals the payload given to dc_send_webxdc_status_update()
+ *     - `update.serial`: the serial number of this update. The first update will have the serial `1`.
+ *     - `update.max_serial`: the maximum serial currently known.
+ *        If `max_serial` equals `serial` this update is the last update (until new network messages arrive).
+ *     - `update.info`: optional, short, informational message.
+ *     - `update.summary`: optional, short text, shown beside app icon.
+ *        If there are no updates, an empty JSON-array is returned.
  */
-char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint32_t status_update_id);
+char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint32_t serial);
 
 /**
  * Save a draft for a chat in the database.
@@ -5603,15 +5607,12 @@ void dc_event_unref(dc_event_t* event);
 
 /**
  * webxdc status update received.
- * To get the received status update, use dc_get_webxdc_status_updates().
+ * To get the received status update, use dc_get_webxdc_status_updates() with
+ * `serial` set to the last known update.
  * To send status updates, use dc_send_webxdc_status_update().
  *
- * Note, that you do not get events that arrive when the app is not running;
- * instead, you can use dc_get_webxdc_status_updates() to get all status updates
- * and catch up that way.
- *
  * @param data1 (int) msg_id
- * @param data2 (int) status_update_id
+ * @param data2 (int) 0
  */
 #define DC_EVENT_WEBXDC_STATUS_UPDATE                2120
 

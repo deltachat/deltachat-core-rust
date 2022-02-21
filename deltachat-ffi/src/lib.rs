@@ -903,7 +903,7 @@ pub unsafe extern "C" fn dc_send_webxdc_status_update(
 pub unsafe extern "C" fn dc_get_webxdc_status_updates(
     context: *mut dc_context_t,
     msg_id: u32,
-    status_update_id: u32,
+    last_known_serial: u32,
 ) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_webxdc_status_updates()");
@@ -911,14 +911,9 @@ pub unsafe extern "C" fn dc_get_webxdc_status_updates(
     }
     let ctx = &*context;
 
-    block_on(ctx.get_webxdc_status_updates(
-        MsgId::new(msg_id),
-        if status_update_id == 0 {
-            None
-        } else {
-            Some(StatusUpdateId::new(status_update_id))
-        },
-    ))
+    block_on(
+        ctx.get_webxdc_status_updates(MsgId::new(msg_id), StatusUpdateId::new(last_known_serial)),
+    )
     .unwrap_or_else(|_| "".to_string())
     .strdup()
 }
