@@ -1041,7 +1041,7 @@ int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const 
  * @return JSON-array containing the requested updates.
  *     Each `update` comes with the following properties:
  *     - `update.payload`: equals the payload given to dc_send_webxdc_status_update()
- *     - `update.serial`: the serial number of this update. The first update will have the serial `1`.
+ *     - `update.serial`: the serial number of this update. Serials are larger `0` and newer serials have higher numbers.
  *     - `update.max_serial`: the maximum serial currently known.
  *        If `max_serial` equals `serial` this update is the last update (until new network messages arrive).
  *     - `update.info`: optional, short, informational message.

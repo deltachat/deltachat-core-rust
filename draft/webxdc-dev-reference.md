@@ -65,8 +65,10 @@ Each `update` which is passed to the callback comes with the following propertie
 
 - `update.payload`: equals the payload given to `sendUpdate()`
 
-- `update.serial`: the serial number of this update. The first update
-  will have the serial `1`.
+- `update.serial`: the serial number of this update.
+  Serials are larger `0` and newer serials have higher numbers.
+  There may be gaps in the serials
+  and it is not guaranteed that the next serial is exactly incremented by one.
 
 - `update.max_serial`: the maximum serial currently known.
   If `max_serial` equals `serial` this update is the last update (until new network messages arrive).
