@@ -363,14 +363,6 @@ impl Context {
         instance_msg_id: MsgId,
         last_known_serial: StatusUpdateSerial,
     ) -> Result<String> {
-        let max_serial: StatusUpdateSerial = self
-            .sql
-            .query_get_value(
-                "SELECT MAX(id) FROM msgs_status_updates WHERE msg_id=?",
-                paramsv![instance_msg_id],
-            )
-            .await?
-            .unwrap_or_default();
         let json = self
             .sql
             .query_map(
@@ -382,9 +374,19 @@ impl Context {
                     Ok((update_item_str, serial))
                 },
                 |rows| {
-                    let mut json = String::default();
+                    let mut rows_copy : Vec<(String, StatusUpdateSerial)> = Vec::new(); // `rows_copy` needed as `rows` cannot be iterated twice.
+                    let mut max_serial = StatusUpdateSerial(0);
                     for row in rows {
-                        let (update_item_str, serial) = row?;
+                        let row = row?;
+                        if row.1 > max_serial {
+                            max_serial = row.1;
+                        }
+                        rows_copy.push(row);
+                    }
+
+                    let mut json = String::default();
+                    for row in rows_copy {
+                        let (update_item_str, serial) = row;
                         let update_item = StatusUpdateItemAndSerial
                         {
                             item: serde_json::from_str(&*update_item_str)?,
