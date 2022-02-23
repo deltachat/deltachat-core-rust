@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### API changes
+- change semantics of `dc_get_webxdc_status_updates()` second parameter
+  and remove update-id from `DC_EVENT_WEBXDC_STATUS_UPDATE` #3081
+
 ### Changes
 - add more SMTP logging #3093
 - place common headers like `From:` before the large `Autocrypt:` header #3079
