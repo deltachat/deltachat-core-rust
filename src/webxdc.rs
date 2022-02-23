@@ -176,13 +176,7 @@ impl Context {
                     _ => item,
                 }
             } else {
-                // TODO: this fallback (legacy `PAYLOAD`) should be deleted soon, together with the test below
-                let payload: Value = serde_json::from_str(update_str)?; // checks if input data are valid json
-                StatusUpdateItem {
-                    payload,
-                    info: None,
-                    summary: None,
-                }
+                bail!("create_status_update_record: no valid update item.");
             }
         };
 
@@ -859,7 +853,7 @@ mod tests {
 {"payload":true}]"#
         );
 
-        let update_id3 = t
+        let _update_id3 = t
             .create_status_update_record(
                 &mut instance,
                 r#"{"payload" : 1, "sender": "that is not used"}"#,
@@ -870,15 +864,6 @@ mod tests {
             t.get_webxdc_status_updates(instance.id, update_id2).await?,
             r#"[{"payload":true},
 {"payload":1}]"#
-        );
-
-        // TODO: legacy `PAYLOAD` support should be deleted soon
-        let _update_id4 = t
-            .create_status_update_record(&mut instance, r#"{"foo" : 1}"#, 1640178619)
-            .await?;
-        assert_eq!(
-            t.get_webxdc_status_updates(instance.id, update_id3).await?,
-            r#"[{"payload":{"foo":1}}]"#
         );
 
         Ok(())
