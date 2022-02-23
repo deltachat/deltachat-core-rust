@@ -5,7 +5,6 @@
 use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::panic;
-use std::rc::Rc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -43,41 +42,28 @@ static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
 pub struct TestContextManager {
     log_tx: Sender<Event>,
     _log_sink: LogSink,
-    accounts: Vec<Rc<TestContext>>,
 }
 
 impl TestContextManager {
     pub async fn new() -> Self {
         let (log_tx, _log_sink) = LogSink::create();
-        Self {
-            log_tx,
-            _log_sink,
-            accounts: vec![],
-        }
+        Self { log_tx, _log_sink }
     }
 
-    pub async fn alice(&mut self) -> Rc<TestContext> {
-        let ac = Rc::new(
-            TestContext::builder()
-                .configure_alice()
-                .with_log_sink(self.log_tx.clone())
-                .build()
-                .await,
-        );
-        self.accounts.push(ac);
-        self.accounts.last().unwrap().clone()
+    pub async fn alice(&mut self) -> TestContext {
+        TestContext::builder()
+            .configure_alice()
+            .with_log_sink(self.log_tx.clone())
+            .build()
+            .await
     }
 
-    pub async fn bob(&mut self) -> Rc<TestContext> {
-        let ac = Rc::new(
-            TestContext::builder()
-                .configure_bob()
-                .with_log_sink(self.log_tx.clone())
-                .build()
-                .await,
-        );
-        self.accounts.push(ac);
-        self.accounts.last().unwrap().clone()
+    pub async fn bob(&mut self) -> TestContext {
+        TestContext::builder()
+            .configure_bob()
+            .with_log_sink(self.log_tx.clone())
+            .build()
+            .await
     }
 }
 
