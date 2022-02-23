@@ -10,6 +10,7 @@ use crate::param::Param;
 use crate::{chat, EventType};
 use anyhow::{bail, ensure, format_err, Result};
 use async_std::path::PathBuf;
+use deltachat_derive::FromSql;
 use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
@@ -56,7 +57,19 @@ pub struct WebxdcInfo {
 
 /// Status Update ID.
 #[derive(
-    Debug, Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+    Debug,
+    Copy,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    FromSql,
+    FromPrimitive,
 )]
 pub struct StatusUpdateSerial(u32);
 
@@ -97,6 +110,16 @@ pub(crate) struct StatusUpdateItem {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     summary: Option<String>,
+}
+
+/// Update items as passed to the UIs.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct StatusUpdateItemAndSerial {
+    #[serde(flatten)]
+    item: StatusUpdateItem,
+
+    serial: StatusUpdateSerial,
+    max_serial: StatusUpdateSerial,
 }
 
 impl Context {
@@ -340,21 +363,39 @@ impl Context {
         instance_msg_id: MsgId,
         last_known_serial: StatusUpdateSerial,
     ) -> Result<String> {
+        let max_serial: StatusUpdateSerial = self
+            .sql
+            .query_get_value(
+                "SELECT MAX(id) FROM msgs_status_updates WHERE msg_id=?",
+                paramsv![instance_msg_id],
+            )
+            .await?
+            .unwrap_or_default();
         let json = self
             .sql
             .query_map(
                 "SELECT update_item, id FROM msgs_status_updates WHERE msg_id=? AND id>? ORDER BY id",
                 paramsv![instance_msg_id, last_known_serial],
-                |row| row.get::<_, String>(0),
+                |row| {
+                    let update_item_str = row.get::<_, String>(0)?;
+                    let serial = row.get::<_, StatusUpdateSerial>(1)?;
+                    Ok((update_item_str, serial))
+                },
                 |rows| {
                     let mut json = String::default();
                     for row in rows {
-                        // TODO: add serial and max_serial
-                        let update_item = row?;
+                        let (update_item_str, serial) = row?;
+                        let update_item = StatusUpdateItemAndSerial
+                        {
+                            item: serde_json::from_str(&*update_item_str)?,
+                            serial,
+                            max_serial,
+                        };
+
                         if !json.is_empty() {
                             json.push_str(",\n");
                         }
-                        json.push_str(&update_item);
+                        json.push_str(&*serde_json::to_string(&update_item)?);
                     }
                     Ok(json)
                 },
@@ -650,7 +691,7 @@ mod tests {
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":42,"info":"foo","summary":"bar"}]"#
+            r#"[{"payload":42,"info":"foo","summary":"bar","serial":1,"max_serial":1}]"#
         );
         assert_eq!(chat_id.get_msg_cnt(&t).await?, 2); // instance and info
         let info = Message::load_from_db(&t, instance.id)
@@ -744,7 +785,7 @@ mod tests {
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":42}]"#
+            r#"[{"payload":42,"serial":1,"max_serial":1}]"#
         );
 
         Ok(())
@@ -768,7 +809,7 @@ mod tests {
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":42}]"#.to_string()
+            r#"[{"payload":42,"serial":1,"max_serial":1}]"#.to_string()
         );
 
         // set_draft(None) deletes the message without the need to simulate network
@@ -810,7 +851,7 @@ mod tests {
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}}]"#
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":1}]"#
         );
 
         assert!(t
@@ -824,12 +865,7 @@ mod tests {
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}}]"#
-        );
-        assert_eq!(
-            t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
-                .await?,
-            r#"[{"payload":{"foo":"bar"}}]"#
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":1}]"#
         );
 
         let update_id2 = t
@@ -841,16 +877,16 @@ mod tests {
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, update_id1).await?,
-            r#"[{"payload":{"foo2":"bar2"}}]"#
+            r#"[{"payload":{"foo2":"bar2"},"serial":2,"max_serial":2}]"#
         );
         t.create_status_update_record(&mut instance, r#"{"payload":true}"#, 1640178619)
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}},
-{"payload":{"foo2":"bar2"}},
-{"payload":true}]"#
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":3},
+{"payload":{"foo2":"bar2"},"serial":2,"max_serial":3},
+{"payload":true,"serial":3,"max_serial":3}]"#
         );
 
         let _update_id3 = t
@@ -862,8 +898,8 @@ mod tests {
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, update_id2).await?,
-            r#"[{"payload":true},
-{"payload":1}]"#
+            r#"[{"payload":true,"serial":3,"max_serial":4},
+{"payload":1,"serial":4,"max_serial":4}]"#
         );
 
         Ok(())
@@ -897,7 +933,7 @@ mod tests {
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}}]"#
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":1}]"#
         );
 
         t.receive_status_update(
@@ -908,9 +944,9 @@ mod tests {
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}},
-{"payload":42},
-{"payload":23}]"#
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":3},
+{"payload":42,"serial":2,"max_serial":3},
+{"payload":23,"serial":3,"max_serial":3}]"#
         );
 
         t.receive_status_update(
@@ -921,10 +957,10 @@ mod tests {
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}},
-{"payload":42},
-{"payload":23},
-{"payload":"ok"}]"#
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":4},
+{"payload":42,"serial":2,"max_serial":4},
+{"payload":23,"serial":3,"max_serial":4},
+{"payload":"ok","serial":4,"max_serial":4}]"#
         );
 
         Ok(())
@@ -983,7 +1019,7 @@ mod tests {
             alice
                 .get_webxdc_status_updates(alice_instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}}]"#
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":1}]"#
         );
 
         alice
@@ -998,8 +1034,8 @@ mod tests {
             alice
                 .get_webxdc_status_updates(alice_instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}},
-{"payload":{"snipp":"snapp"}}]"#
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":2},
+{"payload":{"snipp":"snapp"},"serial":2,"max_serial":2}]"#
         );
 
         // Bob receives all messages
@@ -1017,7 +1053,7 @@ mod tests {
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}}]"#
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":1}]"#
         );
 
         // Alice has a second device and also receives messages there
@@ -1111,8 +1147,8 @@ mod tests {
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":{"foo":"bar"}},
-{"payload":42}]"# // 'info: "i"' ignored as sent in draft mode
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":2},
+{"payload":42,"serial":2,"max_serial":2}]"# // 'info: "i"' ignored as sent in draft mode
         );
 
         Ok(())
@@ -1432,7 +1468,7 @@ sth_for_the = "future""#
             alice
                 .get_webxdc_status_updates(alice_instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":"sth. else","info":"this appears in-chat"}]"#
+            r#"[{"payload":"sth. else","info":"this appears in-chat","serial":1,"max_serial":1}]"#
         );
 
         // Bob receives all messages
@@ -1452,7 +1488,7 @@ sth_for_the = "future""#
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":"sth. else","info":"this appears in-chat"}]"#
+            r#"[{"payload":"sth. else","info":"this appears in-chat","serial":1,"max_serial":1}]"#
         );
 
         // Alice has a second device and also receives the info message there
@@ -1477,7 +1513,7 @@ sth_for_the = "future""#
             alice2
                 .get_webxdc_status_updates(alice2_instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":"sth. else","info":"this appears in-chat"}]"#
+            r#"[{"payload":"sth. else","info":"this appears in-chat","serial":1,"max_serial":1}]"#
         );
 
         Ok(())
