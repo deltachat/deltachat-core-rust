@@ -877,9 +877,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_with_both() {
-        let mut acm = TestContextManager::new().await;
-        let alice = acm.alice().await;
-        let bob = acm.bob().await;
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
 
         alice.ctx.emit_event(EventType::Info("hello".into()));
         bob.ctx.emit_event(EventType::Info("there".into()));
