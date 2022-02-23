@@ -221,10 +221,7 @@ impl Context {
             .await?;
         let status_update_id = StatusUpdateId(u32::try_from(rowid)?);
 
-        self.emit_event(EventType::WebxdcStatusUpdate {
-            msg_id: instance.id,
-            status_update_id,
-        });
+        self.emit_event(EventType::WebxdcStatusUpdate(instance.id));
 
         Ok(status_update_id)
     }
@@ -954,10 +951,7 @@ mod tests {
             .get_matching(|evt| matches!(evt, EventType::WebxdcStatusUpdate { .. }))
             .await;
         match event {
-            EventType::WebxdcStatusUpdate {
-                msg_id,
-                status_update_id: _,
-            } => {
+            EventType::WebxdcStatusUpdate(msg_id) => {
                 assert_eq!(msg_id, instance_id);
             }
             _ => unreachable!(),
