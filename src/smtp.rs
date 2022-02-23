@@ -225,7 +225,7 @@ pub(crate) async fn smtp_send(
     let status = match send_result {
         Err(crate::smtp::send::Error::SmtpSend(err)) => {
             // Remote error, retry later.
-            warn!(context, "SMTP failed to send: {:?}", &err);
+            info!(context, "SMTP failed to send: {:?}", &err);
 
             let res = match err {
                 async_smtp::smtp::error::Error::Permanent(ref response) => {
@@ -252,8 +252,10 @@ pub(crate) async fn smtp_send(
                     };
 
                     if maybe_transient {
+                        info!(context, "Permanent error that is likely to actually be transient, postponing retry for later");
                         Status::RetryLater
                     } else {
+                        info!(context, "Permanent error, message sending failed");
                         // If we do not retry, add an info message to the chat.
                         // Yandex error "554 5.7.1 [2] Message rejected under suspicion of SPAM; https://ya.cc/..."
                         // should definitely go here, because user has to open the link to
@@ -277,23 +279,38 @@ pub(crate) async fn smtp_send(
                             info!(context, "Received extended status code {} for a transient error. This looks like a misconfigured smtp server, let's fail immediatly", first_word);
                             Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
                         } else {
+                            info!(
+                                context,
+                                "Transient error with status code {}, postponing retry for later",
+                                first_word
+                            );
                             Status::RetryLater
                         }
                     } else {
+                        info!(
+                            context,
+                            "Transient error without status code, postponing retry for later"
+                        );
                         Status::RetryLater
                     }
                 }
                 _ => {
+                    info!(
+                        context,
+                        "Message sending failed without error returned by the server"
+                    );
                     if smtp.has_maybe_stale_connection().await {
-                        info!(context, "stale connection? immediately reconnecting");
+                        info!(context, "Connection is probably stale, retry immediately");
                         Status::RetryNow
                     } else {
+                        info!(context, "Connection is not stale, retry later");
                         Status::RetryLater
                     }
                 }
             };
 
             // this clears last_success info
+            info!(context, "Failed to send message over SMTP, disconnecting");
             smtp.disconnect().await;
 
             res
@@ -384,6 +401,10 @@ pub(crate) async fn send_msg_to_smtp(
             .context("failed to remove message with exceeded retry limit from smtp table")?;
         bail!("Number of retries exceeded the limit");
     }
+    info!(
+        context,
+        "Retry number {} to send message {} over SMTP", retries, msg_id
+    );
 
     let recipients_list = recipients
         .split(' ')

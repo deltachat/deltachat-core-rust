@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+- add more SMTP logging #3093
+
+
 ## 1.76.0
 
 ### Changes
