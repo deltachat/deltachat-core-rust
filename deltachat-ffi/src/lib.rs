@@ -37,7 +37,7 @@ use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
 use deltachat::stock_str::StockMessage;
-use deltachat::webxdc::StatusUpdateId;
+use deltachat::webxdc::StatusUpdateSerial;
 use deltachat::*;
 use deltachat::{accounts::Accounts, log::LogExt};
 
@@ -909,9 +909,10 @@ pub unsafe extern "C" fn dc_get_webxdc_status_updates(
     }
     let ctx = &*context;
 
-    block_on(
-        ctx.get_webxdc_status_updates(MsgId::new(msg_id), StatusUpdateId::new(last_known_serial)),
-    )
+    block_on(ctx.get_webxdc_status_updates(
+        MsgId::new(msg_id),
+        StatusUpdateSerial::new(last_known_serial),
+    ))
     .unwrap_or_else(|_| "".to_string())
     .strdup()
 }
