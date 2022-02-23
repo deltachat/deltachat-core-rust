@@ -39,6 +39,34 @@ pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avata
 static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
 
+pub struct TestContextManager {
+    log_tx: Sender<Event>,
+    _log_sink: LogSink,
+}
+
+impl TestContextManager {
+    pub async fn new() -> Self {
+        let (log_tx, _log_sink) = LogSink::create();
+        Self { log_tx, _log_sink }
+    }
+
+    pub async fn alice(&mut self) -> TestContext {
+        TestContext::builder()
+            .configure_alice()
+            .with_log_sink(self.log_tx.clone())
+            .build()
+            .await
+    }
+
+    pub async fn bob(&mut self) -> TestContext {
+        TestContext::builder()
+            .configure_bob()
+            .with_log_sink(self.log_tx.clone())
+            .build()
+            .await
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct TestContextBuilder {
     key_pair: Option<KeyPair>,
@@ -849,17 +877,10 @@ mod tests {
 
     #[async_std::test]
     async fn test_with_both() {
-        let (log_sender, _log_sink) = LogSink::create();
-        let alice = TestContext::builder()
-            .configure_alice()
-            .with_log_sink(log_sender.clone())
-            .build()
-            .await;
-        let bob = TestContext::builder()
-            .configure_bob()
-            .with_log_sink(log_sender)
-            .build()
-            .await;
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
         alice.ctx.emit_event(EventType::Info("hello".into()));
         bob.ctx.emit_event(EventType::Info("there".into()));
         // panic!("Both fail");

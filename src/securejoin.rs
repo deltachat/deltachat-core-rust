@@ -942,21 +942,13 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::peerstate::Peerstate;
-    use crate::test_utils::{LogSink, TestContext};
+    use crate::test_utils::{TestContext, TestContextManager};
 
     #[async_std::test]
     async fn test_setup_contact() -> Result<()> {
-        let (log_tx, _log_sink) = LogSink::create();
-        let alice = TestContext::builder()
-            .configure_alice()
-            .with_log_sink(log_tx.clone())
-            .build()
-            .await;
-        let bob = TestContext::builder()
-            .configure_bob()
-            .with_log_sink(log_tx)
-            .build()
-            .await;
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
 
@@ -1143,17 +1135,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_setup_contact_bob_knows_alice() -> Result<()> {
-        let (log_tx, _log_sink) = LogSink::create();
-        let alice = TestContext::builder()
-            .configure_alice()
-            .with_log_sink(log_tx.clone())
-            .build()
-            .await;
-        let bob = TestContext::builder()
-            .configure_bob()
-            .with_log_sink(log_tx)
-            .build()
-            .await;
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
 
         // Ensure Bob knows Alice_FP
         let alice_pubkey = SignedPublicKey::load_self(&alice.ctx).await?;
@@ -1276,17 +1260,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_setup_contact_concurrent_calls() -> Result<()> {
-        let (log_tx, _log_sink) = LogSink::create();
-        let alice = TestContext::builder()
-            .configure_alice()
-            .with_log_sink(log_tx.clone())
-            .build()
-            .await;
-        let bob = TestContext::builder()
-            .configure_bob()
-            .with_log_sink(log_tx)
-            .build()
-            .await;
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
 
         // do a scan that is not working as claire is never responding
         let qr_stale = "OPENPGP4FPR:1234567890123456789012345678901234567890#a=claire%40foo.de&n=&i=12345678901&s=23456789012";
@@ -1315,17 +1291,10 @@ mod tests {
 
     #[async_std::test]
     async fn test_secure_join() -> Result<()> {
-        let (log_tx, _log_sink) = LogSink::create();
-        let alice = TestContext::builder()
-            .configure_alice()
-            .with_log_sink(log_tx.clone())
-            .build()
-            .await;
-        let bob = TestContext::builder()
-            .configure_bob()
-            .with_log_sink(log_tx)
-            .build()
-            .await;
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
 
