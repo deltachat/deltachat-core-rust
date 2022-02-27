@@ -28,6 +28,7 @@ use crate::context::Context;
 use crate::dc_receive_imf::{
     dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
 };
+use crate::dc_tools::dc_create_id;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
@@ -69,6 +70,7 @@ pub enum ImapActionResult {
 ///   not necessarily sent by Delta Chat.
 const PREFETCH_FLAGS: &str = "(UID RFC822.SIZE BODY.PEEK[HEADER.FIELDS (\
                               MESSAGE-ID \
+                              X-MICROSOFT-ORIGINAL-MESSAGE-ID \
                               FROM \
                               IN-REPLY-TO REFERENCES \
                               CHAT-VERSION \
@@ -494,9 +496,8 @@ impl Imap {
             let msg = fetch?;
 
             // Get Message-ID
-            let message_id = get_fetch_headers(&msg)
-                .and_then(|headers| prefetch_get_message_id(&headers))
-                .ok();
+            let message_id =
+                get_fetch_headers(&msg).map_or(None, |headers| prefetch_get_message_id(&headers));
 
             if let (Some(uid), Some(rfc724_mid)) = (msg.uid, message_id) {
                 msg_ids.insert(uid, rfc724_mid);
@@ -688,6 +689,7 @@ impl Imap {
         let download_limit = context.download_limit().await?;
         let mut uids_fetch_fully = Vec::with_capacity(msgs.len());
         let mut uids_fetch_partially = Vec::with_capacity(msgs.len());
+        let mut uid_message_ids = BTreeMap::new();
         let mut largest_uid_skipped = None;
 
         // Store the info about IMAP messages in the database.
@@ -700,7 +702,8 @@ impl Imap {
                 }
             };
 
-            let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
+            // Get the Message-ID or generate a fake one to identify the message in the database.
+            let message_id = prefetch_get_message_id(&headers).unwrap_or_else(dc_create_id);
 
             let target = match target_folder(context, folder, &headers).await? {
                 Some(config) => match context.get_config(config).await? {
@@ -772,6 +775,7 @@ impl Imap {
                     }
                     None => uids_fetch_fully.push(uid),
                 }
+                uid_message_ids.insert(uid, message_id);
             } else {
                 largest_uid_skipped = Some(uid);
             }
@@ -787,6 +791,7 @@ impl Imap {
                 context,
                 folder,
                 uids_fetch_fully,
+                &uid_message_ids,
                 false,
                 fetch_existing_msgs,
             )
@@ -797,6 +802,7 @@ impl Imap {
                 context,
                 folder,
                 uids_fetch_partially,
+                &uid_message_ids,
                 true,
                 fetch_existing_msgs,
             )
@@ -1232,6 +1238,7 @@ impl Imap {
         context: &Context,
         folder: &str,
         server_uids: Vec<u32>,
+        uid_message_ids: &BTreeMap<u32, String>,
         fetch_partially: bool,
         fetching_existing_messages: bool,
     ) -> Result<(Option<u32>, Vec<ReceivedMsg>)> {
@@ -1314,8 +1321,19 @@ impl Imap {
                     .context("we checked that message has body right above, but it has vanished")?;
                 let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
 
+                let rfc724_mid = if let Some(rfc724_mid) = &uid_message_ids.get(&server_uid) {
+                    rfc724_mid
+                } else {
+                    warn!(
+                        context,
+                        "No Message-ID corresponding to UID {} passed in uid_messsage_ids",
+                        server_uid
+                    );
+                    ""
+                };
                 match dc_receive_imf_inner(
                     &context,
+                    rfc724_mid,
                     body,
                     &folder,
                     is_seen,
@@ -1841,13 +1859,13 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
     }
 }
 
-fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
+fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Option<String> {
     if let Some(message_id) = headers.get_header_value(HeaderDef::XMicrosoftOriginalMessageId) {
-        Ok(crate::mimeparser::parse_message_id(&message_id)?)
+        crate::mimeparser::parse_message_id(&message_id).ok()
     } else if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId) {
-        Ok(crate::mimeparser::parse_message_id(&message_id)?)
+        crate::mimeparser::parse_message_id(&message_id).ok()
     } else {
-        bail!("prefetch: No message ID found");
+        None
     }
 }
 

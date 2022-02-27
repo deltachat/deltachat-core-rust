@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use std::convert::TryFrom;
 
 use anyhow::{bail, ensure, Context as _, Result};
-use mailparse::SingleInfo;
+use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -21,7 +21,7 @@ use crate::contact::{
     addr_cmp, may_be_valid_addr, normalize_name, Contact, Origin, VerifiedStatus,
 };
 use crate::context::Context;
-use crate::dc_tools::{dc_extract_grpid_from_rfc724_mid, dc_smeared_time};
+use crate::dc_tools::{dc_create_id, dc_extract_grpid_from_rfc724_mid, dc_smeared_time};
 use crate::download::DownloadState;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -30,7 +30,7 @@ use crate::job::{self, Action};
 use crate::log::LogExt;
 use crate::message::{self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::{
-    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
+    parse_message_id, parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
@@ -56,6 +56,34 @@ pub struct ReceivedMsg {
     // Feel free to add more fields here
 }
 
+/// Emulates reception of a message from the network.
+///
+/// This method returns errors on a failure to parse the mail or extract Message-ID. It's only used
+/// for tests and REPL tool, not actual message reception pipeline.
+pub async fn dc_receive_imf(
+    context: &Context,
+    imf_raw: &[u8],
+    server_folder: &str,
+    seen: bool,
+) -> Result<Option<ReceivedMsg>> {
+    let mail = parse_mail(imf_raw).context("can't parse mail")?;
+    let rfc724_mid = mail
+        .headers
+        .get_header_value(HeaderDef::MessageId)
+        .and_then(|msgid| parse_message_id(&msgid).ok())
+        .unwrap_or_else(dc_create_id);
+    dc_receive_imf_inner(
+        context,
+        &rfc724_mid,
+        imf_raw,
+        server_folder,
+        seen,
+        None,
+        false,
+    )
+    .await
+}
+
 /// Receive a message and add it to the database.
 ///
 /// Returns an error on recoverable errors, e.g. database errors. In this case,
@@ -67,19 +95,12 @@ pub struct ReceivedMsg {
 ///   downloaded again, sets `chat_id=DC_CHAT_ID_TRASH` and returns `Ok(Some(…))`
 /// - If the message is so wrong that we didn't even create a database entry,
 ///   returns `Ok(None)`
-pub async fn dc_receive_imf(
-    context: &Context,
-    imf_raw: &[u8],
-    server_folder: &str,
-    seen: bool,
-) -> Result<Option<ReceivedMsg>> {
-    dc_receive_imf_inner(context, imf_raw, server_folder, seen, None, false).await
-}
-
+///
 /// If `is_partial_download` is set, it contains the full message size in bytes.
 /// Do not confuse that with `replace_partial_download` that will be set when the full message is loaded later.
 pub(crate) async fn dc_receive_imf_inner(
     context: &Context,
+    rfc724_mid: &str,
     imf_raw: &[u8],
     server_folder: &str,
     seen: bool,
@@ -111,17 +132,12 @@ pub(crate) async fn dc_receive_imf_inner(
         return Ok(None);
     }
 
-    let rfc724_mid = mime_parser.get_rfc724_mid().unwrap_or_else(||
-        // missing Message-IDs may come if the mail was set from this account with another
-        // client that relies in the SMTP server to generate one.
-        // true eg. for the Webmailer used in all-inkl-KAS
-        dc_create_incoming_rfc724_mid(&mime_parser));
     info!(context, "received message has Message-Id: {}", rfc724_mid);
 
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
     let replace_partial_download =
-        if let Some(old_msg_id) = message::rfc724_mid_exists(context, &rfc724_mid).await? {
+        if let Some(old_msg_id) = message::rfc724_mid_exists(context, rfc724_mid).await? {
             let msg = Message::load_from_db(context, old_msg_id).await?;
             if msg.download_state() != DownloadState::Done && is_partial_download.is_none() {
                 // the mesage was partially downloaded before and is fully downloaded now.
@@ -195,7 +211,7 @@ pub(crate) async fn dc_receive_imf_inner(
         incoming,
         server_folder,
         &to_ids,
-        &rfc724_mid,
+        rfc724_mid,
         sent_timestamp,
         rcvd_timestamp,
         from_id,
@@ -2323,28 +2339,6 @@ async fn add_or_lookup_contact_by_addr(
     Ok(row_id)
 }
 
-/// Creates fake Message-ID to identify the message in the database for
-/// messages which does not have one.
-///
-/// Concatenates Date:, From: and To: fields, then hashes them.
-fn dc_create_incoming_rfc724_mid(mime: &MimeMessage) -> String {
-    format!(
-        "{}@stub",
-        hex_hash(&format!(
-            "{}-{}-{}",
-            mime.get_header(HeaderDef::Date)
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-            mime.get_header(HeaderDef::From_)
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-            mime.get_header(HeaderDef::To)
-                .map(|s| s.to_string())
-                .unwrap_or_default()
-        ))
-    )
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -2399,23 +2393,6 @@ mod tests {
         let grpid = Some("HcxyMARjyJy");
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
-    }
-
-    #[async_std::test]
-    async fn test_dc_create_incoming_rfc724_mid() {
-        let context = TestContext::new().await;
-        let raw = b"From: Alice <alice@example.org>\n\
-                    To: Bob <bob@example.org>\n\
-                    Subject: Some subject\n\
-                    hello\n";
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
-            .await
-            .unwrap();
-
-        assert_eq!(
-            dc_create_incoming_rfc724_mid(&mimeparser),
-            "ca971a2eefd651f6@stub"
-        );
     }
 
     static MSGRMSG: &[u8] =

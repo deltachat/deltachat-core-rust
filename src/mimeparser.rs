@@ -1138,7 +1138,7 @@ impl MimeMessage {
         }
     }
 
-    pub fn get_rfc724_mid(&self) -> Option<String> {
+    pub(crate) fn get_rfc724_mid(&self) -> Option<String> {
         self.get_header(HeaderDef::XMicrosoftOriginalMessageId)
             .or_else(|| self.get_header(HeaderDef::MessageId))
             .and_then(|msgid| parse_message_id(msgid).ok())
