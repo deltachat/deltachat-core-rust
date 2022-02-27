@@ -12,9 +12,6 @@ debug = 0
 [profile.release]
 lto = true
 
-[patch.crates-io]
-rusqlite = { git = "https://github.com/rusqlite/rusqlite", branch="master" }
-
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
 
@@ -53,10 +50,10 @@ pgp = { version = "0.7", default-features = false }
 pretty_env_logger = { version = "0.4", optional = true }
 quick-xml = "0.22"
 r2d2 = "0.8"
-r2d2_sqlite = "0.19"
+r2d2_sqlite = "0.20"
 rand = "0.7"
 regex = "1.5"
-rusqlite = { version = "0.26", features = ["sqlcipher"] }
+rusqlite = { version = "0.27", features = ["sqlcipher"] }
 rust-hsluv = "0.1"
 rustyline = { version = "9", optional = true }
 sanitize-filename = "0.3"
