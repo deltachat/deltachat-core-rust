@@ -240,7 +240,7 @@ fn render_message(lines: &[&str], is_cut_at_end: bool) -> String {
         ret += " [...]";
     }
     // redo escaping done by escape_message_footer_marks()
-    ret.replace("\u{200B}", "")
+    ret.replace('\u{200B}', "")
 }
 
 /// Returns true if the line contains only whitespace.

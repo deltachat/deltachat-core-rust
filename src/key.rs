@@ -297,8 +297,8 @@ pub async fn store_self_keypair(
             .context("failed to clear default")?;
     }
     let is_default = match default {
-        KeyPairUse::Default => true as i32,
-        KeyPairUse::ReadOnly => false as i32,
+        KeyPairUse::Default => i32::from(true),
+        KeyPairUse::ReadOnly => i32::from(false),
     };
 
     let addr = keypair.addr.to_string();

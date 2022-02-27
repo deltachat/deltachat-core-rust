@@ -1372,7 +1372,7 @@ async fn is_probably_private_reply(
     // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
     // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
 
-    let private_message = to_ids == [DC_CONTACT_ID_SELF].iter().copied().collect::<Vec<u32>>();
+    let private_message = to_ids == [DC_CONTACT_ID_SELF];
     if !private_message {
         return Ok(false);
     }
@@ -1406,7 +1406,7 @@ async fn create_or_lookup_group(
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
     } else if allow_creation {
-        let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
+        let mut member_ids: Vec<u32> = to_ids.to_vec();
         if !member_ids.contains(&(from_id as u32)) {
             member_ids.push(from_id as u32);
         }

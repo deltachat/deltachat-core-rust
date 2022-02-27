@@ -41,7 +41,7 @@ impl PlainText {
             // as <http://example.org> cannot be handled correctly
             // (they would become &lt;http://example.org&gt; where the trailing &gt; would become a valid url part).
             // to avoid double encoding, we escape our html-entities by \r that must not be used in the string elsewhere.
-            let line = line.to_string().replace("\r", "");
+            let line = line.to_string().replace('\r', "");
 
             let mut line = LINKIFY_MAIL_RE
                 .replace_all(&*line, "\rLTa href=\rQUOTmailto:$1\rQUOT\rGT$1\rLT/a\rGT")

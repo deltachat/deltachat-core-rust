@@ -1160,7 +1160,7 @@ impl Chat {
     /// deltachat, and the data returned is still subject to change.
     pub async fn get_info(&self, context: &Context) -> Result<ChatInfo> {
         let draft = match self.id.get_draft(context).await? {
-            Some(message) => message.text.unwrap_or_else(String::new),
+            Some(message) => message.text.unwrap_or_default(),
             _ => String::new(),
         };
         Ok(ChatInfo {

@@ -165,7 +165,6 @@ pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
 }
 
 async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
-    let mut msg: Message;
     let setup_code = create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
     let setup_file_content = render_setup_file(context, &setup_code).await?;
@@ -178,8 +177,10 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     .await?;
 
     let chat_id = ChatId::create_for_contact(context, DC_CONTACT_ID_SELF).await?;
-    msg = Message::default();
-    msg.viewtype = Viewtype::File;
+    let mut msg = Message {
+        viewtype: Viewtype::File,
+        ..Default::default()
+    };
     msg.param.set(Param::File, setup_file_blob.as_name());
     msg.subject = stock_str::ac_setup_msg_subject(context).await;
     msg.param
@@ -236,7 +237,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
 
     let msg_subj = stock_str::ac_setup_msg_subject(context).await;
     let msg_body = stock_str::ac_setup_msg_body(context).await;
-    let msg_body_html = msg_body.replace("\r", "").replace("\n", "<br>");
+    let msg_body_html = msg_body.replace('\r', "").replace('\n', "<br>");
     Ok(format!(
         concat!(
             "<!DOCTYPE html>\r\n",

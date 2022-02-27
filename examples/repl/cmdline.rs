@@ -269,7 +269,6 @@ async fn log_msglist(context: &Context, msglist: &[MsgId]) -> Result<()> {
 
 async fn log_contactlist(context: &Context, contacts: &[u32]) -> Result<()> {
     for contact_id in contacts {
-        let line;
         let mut line2 = "".to_string();
         let contact = Contact::get_by_id(context, *contact_id).await?;
         let name = contact.get_display_name();
@@ -284,21 +283,17 @@ async fn log_contactlist(context: &Context, contacts: &[u32]) -> Result<()> {
         } else {
             ""
         };
-        line = format!(
+        let line = format!(
             "{}{} <{}>",
             if !name.is_empty() {
-                &name
+                name
             } else {
                 "<name unset>"
             },
             verified_str,
-            if !addr.is_empty() {
-                &addr
-            } else {
-                "addr unset"
-            }
+            if !addr.is_empty() { addr } else { "addr unset" }
         );
-        let peerstate = Peerstate::from_addr(context, &addr)
+        let peerstate = Peerstate::from_addr(context, addr)
             .await
             .expect("peerstate error");
         if peerstate.is_some() && *contact_id != 1 {
@@ -771,7 +766,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             chat::set_chat_name(
                 &context,
                 sel_chat.as_ref().unwrap().get_id(),
-                &format!("{} {}", arg1, arg2).trim(),
+                format!("{} {}", arg1, arg2).trim(),
             )
             .await?;
 

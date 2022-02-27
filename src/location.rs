@@ -101,10 +101,10 @@ impl Kml {
             let val = event.unescape_and_decode(reader).unwrap_or_default();
 
             let val = val
-                .replace("\n", "")
-                .replace("\r", "")
-                .replace("\t", "")
-                .replace(" ", "");
+                .replace('\n', "")
+                .replace('\r', "")
+                .replace('\t', "")
+                .replace(' ', "");
 
             if self.tag.contains(KmlTag::WHEN) && val.len() >= 19 {
                 // YYYY-MM-DDTHH:MM:SSZ

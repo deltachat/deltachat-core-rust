@@ -292,7 +292,7 @@ impl<'a> BlobObject<'a> {
 
     /// Returns the filename of the blob.
     pub fn as_file_name(&self) -> &str {
-        self.name.rsplitn(2, '/').next().unwrap()
+        self.name.rsplit('/').next().unwrap()
     }
 
     /// The path relative in the blob directory.
@@ -305,7 +305,7 @@ impl<'a> BlobObject<'a> {
     /// If a blob's filename has an extension, it is always guaranteed
     /// to be lowercase.
     pub fn suffix(&self) -> Option<&str> {
-        let ext = self.name.rsplitn(2, '.').next();
+        let ext = self.name.rsplit('.').next();
         if ext == Some(&self.name) {
             None
         } else {

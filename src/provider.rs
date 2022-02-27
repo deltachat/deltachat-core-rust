@@ -113,7 +113,7 @@ pub async fn get_provider_info(
     domain: &str,
     skip_mx: bool,
 ) -> Option<&'static Provider> {
-    let domain = domain.rsplitn(2, '@').next()?;
+    let domain = domain.rsplit('@').next()?;
 
     if let Some(provider) = get_provider_by_domain(domain) {
         return Some(provider);

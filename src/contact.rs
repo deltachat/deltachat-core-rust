@@ -1179,7 +1179,7 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
             .sql
             .execute(
                 "UPDATE contacts SET blocked=? WHERE id=?;",
-                paramsv![new_blocking as i32, contact_id as i32],
+                paramsv![i32::from(new_blocking), contact_id as i32],
             )
             .await?;
 

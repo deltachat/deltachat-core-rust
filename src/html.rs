@@ -365,7 +365,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         // however, rust multiline-strings use just `\n`;
         // therefore, we just remove `\r` before comparison.
         assert_eq!(
-            parser.html.replace("\r", ""),
+            parser.html.replace('\r', ""),
             r##"
 <html>
   <p>mime-modified <b>set</b>; simplify is always regarded as lossy.</p>
@@ -379,7 +379,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         let raw = include_bytes!("../test-data/message/text_alt_html.eml");
         let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
         assert_eq!(
-            parser.html.replace("\r", ""), // see comment in test_htmlparse_html()
+            parser.html.replace('\r', ""), // see comment in test_htmlparse_html()
             r##"<html>
   <p>mime-modified <b>set</b>; simplify is always regarded as lossy.</p>
 </html>
@@ -394,7 +394,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
         let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
         assert_eq!(
-            parser.html.replace("\r", ""), // see comment in test_htmlparse_html()
+            parser.html.replace('\r', ""), // see comment in test_htmlparse_html()
             r##"<html>
   <p>
     this is <b>html</b>

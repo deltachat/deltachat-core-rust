@@ -534,8 +534,8 @@ impl rusqlite::types::ToSql for EmailAddress {
 /// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
 pub(crate) fn improve_single_line_input(input: &str) -> String {
     input
-        .replace("\n", " ")
-        .replace("\r", " ")
+        .replace('\n', " ")
+        .replace('\r', " ")
         .trim()
         .to_string()
 }

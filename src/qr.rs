@@ -173,7 +173,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
     };
 
     let name = if let Some(encoded_name) = param.get("n") {
-        let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
+        let encoded_name = encoded_name.replace('+', "%20"); // sometimes spaces are encoded as `+`
         match percent_decode_str(&encoded_name).decode_utf8() {
             Ok(name) => name.to_string(),
             Err(err) => bail!("Invalid name: {}", err),
@@ -188,7 +188,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
 
     let grpname = if grpid.is_some() {
         if let Some(encoded_name) = param.get("g") {
-            let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
+            let encoded_name = encoded_name.replace('+', "%20"); // sometimes spaces are encoded as `+`
             match percent_decode_str(&encoded_name).decode_utf8() {
                 Ok(name) => Some(name.to_string()),
                 Err(err) => bail!("Invalid group name: {}", err),

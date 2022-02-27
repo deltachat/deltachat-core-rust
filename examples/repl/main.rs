@@ -416,7 +416,7 @@ async fn handle_cmd(
         }
         "getqr" | "getbadqr" => {
             ctx.start_io().await;
-            let group = arg1.parse::<u32>().ok().map(|id| ChatId::new(id));
+            let group = arg1.parse::<u32>().ok().map(ChatId::new);
             let mut qr = dc_get_securejoin_qr(&ctx, group).await?;
             if !qr.is_empty() {
                 if arg0 == "getbadqr" && qr.len() > 40 {
@@ -433,7 +433,7 @@ async fn handle_cmd(
         }
         "getqrsvg" => {
             ctx.start_io().await;
-            let group = arg1.parse::<u32>().ok().map(|id| ChatId::new(id));
+            let group = arg1.parse::<u32>().ok().map(ChatId::new);
             let file = dirs::home_dir().unwrap_or_default().join("qr.svg");
             match get_securejoin_qr_svg(&ctx, group).await {
                 Ok(svg) => {
