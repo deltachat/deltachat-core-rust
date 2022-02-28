@@ -345,9 +345,9 @@ impl<'a> BlobObject<'a> {
         };
 
         let clean = sanitize_filename::sanitize_with_options(name, opts);
-        let mut iter = clean.splitn(2, '.');
-        let stem: String = iter.next().unwrap_or_default().chars().take(64).collect();
+        let mut iter = clean.rsplitn(2, '.');
         let ext: String = iter.next().unwrap_or_default().chars().take(32).collect();
+        let stem: String = iter.next().unwrap_or_default().chars().take(64).collect();
         if ext.is_empty() {
             (stem, "".to_string())
         } else {

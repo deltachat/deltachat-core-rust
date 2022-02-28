@@ -18,6 +18,8 @@
 - keep track of securejoin joiner status in database to survive restarts #2920
 - remove never used `SentboxMove` option #3111
 
+### Fixes
+- Fix a bug where sometimes the file extension of a long filename containing a dot was cropped #3098
 
 ## 1.76.0
 
