@@ -9,7 +9,7 @@ use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
 use crate::config::Config;
-use crate::contact::{normalize_name, Contact, Modifier, Origin};
+use crate::contact::{normalize_name, Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::events::EventType;
@@ -224,7 +224,7 @@ impl Job {
     async fn get_additional_mdn_jobs(
         &self,
         context: &Context,
-        contact_id: u32,
+        contact_id: ContactId,
     ) -> Result<(Vec<u32>, Vec<String>)> {
         // Extract message IDs from job parameters
         let res: Vec<(u32, MsgId)> = context
@@ -271,7 +271,7 @@ impl Job {
             return Status::Finished(Err(format_err!("MDNs are disabled")));
         }
 
-        let contact_id = self.foreign_id;
+        let contact_id = ContactId::new(self.foreign_id);
         let contact = job_try!(Contact::load_from_db(context, contact_id).await);
         if contact.is_blocked() {
             return Status::Finished(Err(format_err!("Contact is blocked")));
@@ -685,7 +685,11 @@ async fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
     let mut param = Params::new();
     param.set(Param::MsgId, msg.id.to_u32().to_string());
 
-    add(context, Job::new(Action::SendMdn, msg.from_id, param, 0)).await?;
+    add(
+        context,
+        Job::new(Action::SendMdn, msg.from_id.to_u32(), param, 0),
+    )
+    .await?;
 
     Ok(())
 }

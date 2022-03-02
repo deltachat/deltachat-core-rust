@@ -1,7 +1,6 @@
 //! # Messages and their identifiers.
 
 use std::collections::BTreeSet;
-use std::convert::TryInto;
 
 use anyhow::{ensure, format_err, Context as _, Result};
 use async_std::path::{Path, PathBuf};
@@ -14,7 +13,7 @@ use crate::constants::{
     Blocked, Chattype, VideochatType, Viewtype, DC_CHAT_ID_TRASH, DC_CONTACT_ID_INFO,
     DC_CONTACT_ID_SELF, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
 };
-use crate::contact::{Contact, Origin};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::dc_tools::{
     dc_create_smeared_timestamp, dc_get_filebytes, dc_get_filemeta, dc_gm2local_offset,
@@ -240,8 +239,8 @@ impl Default for MessengerMessage {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Message {
     pub(crate) id: MsgId,
-    pub(crate) from_id: u32,
-    pub(crate) to_id: u32,
+    pub(crate) from_id: ContactId,
+    pub(crate) to_id: ContactId,
     pub(crate) chat_id: ChatId,
     pub(crate) viewtype: Viewtype,
     pub(crate) state: MessageState,
@@ -456,7 +455,7 @@ impl Message {
         self.id
     }
 
-    pub fn get_from_id(&self) -> u32 {
+    pub fn get_from_id(&self) -> ContactId {
         self.from_id
     }
 
@@ -1049,7 +1048,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
             "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
             paramsv![msg_id],
             |row| {
-                let contact_id: i32 = row.get(0)?;
+                let contact_id: ContactId = row.get(0)?;
                 let ts: i64 = row.get(1)?;
                 Ok((contact_id, ts))
             },
@@ -1061,7 +1060,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
             let fts = dc_timestamp_to_str(ts);
             ret += &format!("Read: {}", fts);
 
-            let name = Contact::load_from_db(context, contact_id.try_into()?)
+            let name = Contact::load_from_db(context, contact_id)
                 .await
                 .map(|contact| contact.get_name_n_addr())
                 .unwrap_or_default();
@@ -1426,7 +1425,7 @@ pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl
 /// returns Some if an event should be send
 pub async fn handle_mdn(
     context: &Context,
-    from_id: u32,
+    from_id: ContactId,
     rfc724_mid: &str,
     timestamp_sent: i64,
 ) -> Result<Option<(ChatId, MsgId)>> {
@@ -1479,7 +1478,7 @@ pub async fn handle_mdn(
         .sql
         .exists(
             "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=? AND contact_id=?;",
-            paramsv![msg_id, from_id as i32,],
+            paramsv![msg_id, from_id],
         )
         .await?
     {
@@ -1487,7 +1486,7 @@ pub async fn handle_mdn(
             .sql
             .execute(
                 "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?);",
-                paramsv![msg_id, from_id as i32, timestamp_sent],
+                paramsv![msg_id, from_id, timestamp_sent],
             )
             .await?;
     }

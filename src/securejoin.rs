@@ -9,7 +9,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_LAST_SPECIAL};
-use crate::contact::{Contact, Origin, VerifiedStatus};
+use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::e2ee::ensure_secret_key_exists;
@@ -205,7 +205,7 @@ pub struct SendMsgError(#[from] anyhow::Error);
 /// Bob's handshake messages are sent in `BobState::send_handshake_message()`.
 async fn send_alice_handshake_msg(
     context: &Context,
-    contact_id: u32,
+    contact_id: ContactId,
     step: &str,
     fingerprint: Option<Fingerprint>,
 ) -> Result<(), SendMsgError> {
@@ -233,7 +233,7 @@ async fn send_alice_handshake_msg(
 }
 
 /// Get an unblocked chat that can be used for info messages.
-async fn info_chat_id(context: &Context, contact_id: u32) -> Result<ChatId> {
+async fn info_chat_id(context: &Context, contact_id: ContactId) -> Result<ChatId> {
     let chat_id_blocked = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Not).await?;
     Ok(chat_id_blocked.id)
 }
@@ -241,7 +241,7 @@ async fn info_chat_id(context: &Context, contact_id: u32) -> Result<ChatId> {
 async fn fingerprint_equals_sender(
     context: &Context,
     fingerprint: &Fingerprint,
-    contact_id: u32,
+    contact_id: ContactId,
 ) -> Result<bool, Error> {
     let contact = Contact::load_from_db(context, contact_id).await?;
     let peerstate = match Peerstate::from_addr(context, contact.get_addr()).await {
@@ -308,7 +308,7 @@ pub(crate) enum HandshakeMessage {
 pub(crate) async fn handle_securejoin_handshake(
     context: &Context,
     mime_message: &MimeMessage,
-    contact_id: u32,
+    contact_id: ContactId,
 ) -> Result<HandshakeMessage> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return Err(Error::msg("Can not be called with special contact ID"));
@@ -571,7 +571,7 @@ pub(crate) async fn handle_securejoin_handshake(
 pub(crate) async fn observe_securejoin_on_other_device(
     context: &Context,
     mime_message: &MimeMessage,
-    contact_id: u32,
+    contact_id: ContactId,
 ) -> Result<HandshakeMessage> {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return Err(Error::msg("Can not be called with special contact ID"));
@@ -636,7 +636,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
 
 async fn secure_connection_established(
     context: &Context,
-    contact_id: u32,
+    contact_id: ContactId,
     chat_id: ChatId,
 ) -> Result<(), Error> {
     let contact = Contact::get_by_id(context, contact_id).await?;
@@ -648,7 +648,7 @@ async fn secure_connection_established(
 
 async fn could_not_establish_secure_connection(
     context: &Context,
-    contact_id: u32,
+    contact_id: ContactId,
     chat_id: ChatId,
     details: &str,
 ) -> Result<(), Error> {

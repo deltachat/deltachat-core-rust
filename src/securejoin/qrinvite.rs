@@ -8,6 +8,7 @@ use std::convert::TryFrom;
 
 use anyhow::{bail, Error, Result};
 
+use crate::contact::ContactId;
 use crate::key::Fingerprint;
 use crate::qr::Qr;
 
@@ -17,13 +18,13 @@ use crate::qr::Qr;
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum QrInvite {
     Contact {
-        contact_id: u32,
+        contact_id: ContactId,
         fingerprint: Fingerprint,
         invitenumber: String,
         authcode: String,
     },
     Group {
-        contact_id: u32,
+        contact_id: ContactId,
         fingerprint: Fingerprint,
         name: String,
         grpid: String,
@@ -37,7 +38,7 @@ impl QrInvite {
     ///
     /// The actual QR-code contains a URL-encoded email address, but upon scanning this is
     /// translated to a contact ID.
-    pub fn contact_id(&self) -> u32 {
+    pub fn contact_id(&self) -> ContactId {
         match self {
             Self::Contact { contact_id, .. } | Self::Group { contact_id, .. } => *contact_id,
         }

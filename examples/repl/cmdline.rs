@@ -209,7 +209,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         contact_id,
         msgtext.unwrap_or_default(),
         if msg.has_html() { "[HAS-HTML]️" } else { "" },
-        if msg.get_from_id() == 1 {
+        if msg.get_from_id() == DC_CONTACT_ID_SELF {
             ""
         } else if msg.get_state() == MessageState::InSeen {
             "[SEEN]"
@@ -267,7 +267,7 @@ async fn log_msglist(context: &Context, msglist: &[MsgId]) -> Result<()> {
     Ok(())
 }
 
-async fn log_contactlist(context: &Context, contacts: &[u32]) -> Result<()> {
+async fn log_contactlist(context: &Context, contacts: &[ContactId]) -> Result<()> {
     for contact_id in contacts {
         let mut line2 = "".to_string();
         let contact = Contact::get_by_id(context, *contact_id).await?;
@@ -296,7 +296,7 @@ async fn log_contactlist(context: &Context, contacts: &[u32]) -> Result<()> {
         let peerstate = Peerstate::from_addr(context, addr)
             .await
             .expect("peerstate error");
-        if peerstate.is_some() && *contact_id != 1 {
+        if peerstate.is_some() && *contact_id != DC_CONTACT_ID_SELF {
             line2 = format!(
                 ", prefer-encrypt={}",
                 peerstate.as_ref().unwrap().prefer_encrypt
@@ -714,7 +714,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "createchat" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            let contact_id: u32 = arg1.parse()?;
+            let contact_id = ContactId::new(arg1.parse()?);
             let chat_id = ChatId::create_for_contact(&context, contact_id).await?;
 
             println!("Single#{} created successfully.", chat_id,);
@@ -742,7 +742,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "No chat selected");
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
-            let contact_id_0: u32 = arg1.parse()?;
+            let contact_id_0 = ContactId::new(arg1.parse()?);
             chat::add_contact_to_chat(&context, sel_chat.as_ref().unwrap().get_id(), contact_id_0)
                 .await?;
             println!("Contact added to chat.");
@@ -750,7 +750,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "removemember" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            let contact_id_1: u32 = arg1.parse()?;
+            let contact_id_1 = ContactId::new(arg1.parse()?);
             chat::remove_contact_from_chat(
                 &context,
                 sel_chat.as_ref().unwrap().get_id(),
@@ -1134,7 +1134,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "contactinfo" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
-            let contact_id: u32 = arg1.parse()?;
+            let contact_id = ContactId::new(arg1.parse()?);
             let contact = Contact::get_by_id(&context, contact_id).await?;
             let name_n_addr = contact.get_name_n_addr();
 
@@ -1169,16 +1169,16 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "delcontact" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            Contact::delete(&context, arg1.parse()?).await?;
+            Contact::delete(&context, ContactId::new(arg1.parse()?)).await?;
         }
         "block" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            let contact_id = arg1.parse()?;
+            let contact_id = ContactId::new(arg1.parse()?);
             Contact::block(&context, contact_id).await?;
         }
         "unblock" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            let contact_id = arg1.parse()?;
+            let contact_id = ContactId::new(arg1.parse()?);
             Contact::unblock(&context, contact_id).await?;
         }
         "listblocked" => {

@@ -8,7 +8,7 @@ use crate::constants::{
     DC_CONTACT_ID_SELF, DC_CONTACT_ID_UNDEFINED, DC_GCL_ADD_ALLDONE_HINT, DC_GCL_ARCHIVED_ONLY,
     DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS,
 };
-use crate::contact::Contact;
+use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::ephemeral::delete_expired_messages;
 use crate::message::{Message, MessageState, MsgId};
@@ -85,7 +85,7 @@ impl Chatlist {
         context: &Context,
         listflags: usize,
         query: Option<&str>,
-        query_contact_id: Option<u32>,
+        query_contact_id: Option<ContactId>,
     ) -> Result<Self> {
         let flag_archived_only = 0 != listflags & DC_GCL_ARCHIVED_ONLY;
         let flag_for_forwarding = 0 != listflags & DC_GCL_FOR_FORWARDING;
@@ -147,7 +147,7 @@ impl Chatlist {
                    AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2)
                  GROUP BY c.id
                  ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                paramsv![MessageState::OutDraft, query_contact_id as i32, ChatVisibility::Pinned],
+                paramsv![MessageState::OutDraft, query_contact_id, ChatVisibility::Pinned],
                 process_row,
                 process_rows,
             ).await?

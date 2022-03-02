@@ -1,7 +1,7 @@
 //! # Functions to update timestamps.
 
 use crate::chat::{Chat, ChatId};
-use crate::contact::Contact;
+use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::param::{Param, Params};
 use anyhow::Result;
@@ -12,7 +12,7 @@ impl Context {
     /// (if we have a ContactId type at some point, the function should go there)
     pub(crate) async fn update_contacts_timestamp(
         &self,
-        contact_id: u32,
+        contact_id: ContactId,
         scope: Param,
         new_timestamp: i64,
     ) -> Result<bool> {

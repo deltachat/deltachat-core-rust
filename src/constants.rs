@@ -4,6 +4,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::ChatId;
+use crate::contact::ContactId;
 
 pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION").to_string());
 
@@ -179,11 +180,11 @@ pub const DC_ELLIPSIS: &str = "[...]";
 /// `char`s), not Unicode Grapheme Clusters.
 pub const DC_DESIRED_TEXT_LEN: usize = 5000;
 
-pub const DC_CONTACT_ID_UNDEFINED: u32 = 0;
-pub const DC_CONTACT_ID_SELF: u32 = 1;
-pub const DC_CONTACT_ID_INFO: u32 = 2;
-pub const DC_CONTACT_ID_DEVICE: u32 = 5;
-pub const DC_CONTACT_ID_LAST_SPECIAL: u32 = 9;
+pub const DC_CONTACT_ID_UNDEFINED: ContactId = ContactId::new(0);
+pub const DC_CONTACT_ID_SELF: ContactId = ContactId::new(1);
+pub const DC_CONTACT_ID_INFO: ContactId = ContactId::new(2);
+pub const DC_CONTACT_ID_DEVICE: ContactId = ContactId::new(5);
+pub const DC_CONTACT_ID_LAST_SPECIAL: ContactId = ContactId::new(9);
 
 // decorative address that is used for DC_CONTACT_ID_DEVICE
 // when an api that returns an email is called.

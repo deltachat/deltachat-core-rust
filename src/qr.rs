@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use crate::chat::{self, get_chat_id_by_grpid, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::Blocked;
-use crate::contact::{addr_normalize, may_be_valid_addr, Contact, Origin};
+use crate::contact::{addr_normalize, may_be_valid_addr, Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::key::Fingerprint;
@@ -30,7 +30,7 @@ const HTTPS_SCHEME: &str = "https://";
 #[derive(Debug, Clone, PartialEq)]
 pub enum Qr {
     AskVerifyContact {
-        contact_id: u32,
+        contact_id: ContactId,
         fingerprint: Fingerprint,
         invitenumber: String,
         authcode: String,
@@ -38,16 +38,16 @@ pub enum Qr {
     AskVerifyGroup {
         grpname: String,
         grpid: String,
-        contact_id: u32,
+        contact_id: ContactId,
         fingerprint: Fingerprint,
         invitenumber: String,
         authcode: String,
     },
     FprOk {
-        contact_id: u32,
+        contact_id: ContactId,
     },
     FprMismatch {
-        contact_id: Option<u32>,
+        contact_id: Option<ContactId>,
     },
     FprWithoutAddr {
         fingerprint: String,
@@ -60,7 +60,7 @@ pub enum Qr {
         instance_pattern: String,
     },
     Addr {
-        contact_id: u32,
+        contact_id: ContactId,
     },
     Url {
         url: String,
@@ -69,7 +69,7 @@ pub enum Qr {
         text: String,
     },
     WithdrawVerifyContact {
-        contact_id: u32,
+        contact_id: ContactId,
         fingerprint: Fingerprint,
         invitenumber: String,
         authcode: String,
@@ -77,13 +77,13 @@ pub enum Qr {
     WithdrawVerifyGroup {
         grpname: String,
         grpid: String,
-        contact_id: u32,
+        contact_id: ContactId,
         fingerprint: Fingerprint,
         invitenumber: String,
         authcode: String,
     },
     ReviveVerifyContact {
-        contact_id: u32,
+        contact_id: ContactId,
         fingerprint: Fingerprint,
         invitenumber: String,
         authcode: String,
@@ -91,7 +91,7 @@ pub enum Qr {
     ReviveVerifyGroup {
         grpname: String,
         grpid: String,
-        contact_id: u32,
+        contact_id: ContactId,
         fingerprint: Fingerprint,
         invitenumber: String,
         authcode: String,
@@ -711,7 +711,7 @@ mod tests {
             ..
         } = qr
         {
-            assert_ne!(contact_id, 0);
+            assert_ne!(contact_id, ContactId::new(0));
             assert_eq!(grpname, "test ? test !");
         } else {
             bail!("Wrong QR code type");
@@ -729,7 +729,7 @@ mod tests {
             ..
         } = qr
         {
-            assert_ne!(contact_id, 0);
+            assert_ne!(contact_id, ContactId::new(0));
             assert_eq!(grpname, "test ? test !");
 
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
@@ -751,7 +751,7 @@ mod tests {
         ).await?;
 
         if let Qr::AskVerifyContact { contact_id, .. } = qr {
-            assert_ne!(contact_id, 0);
+            assert_ne!(contact_id, ContactId::new(0));
         } else {
             bail!("Wrong QR code type");
         }
