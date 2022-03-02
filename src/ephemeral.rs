@@ -69,6 +69,7 @@ use crate::chat::{send_msg, ChatId};
 use crate::constants::{
     Viewtype, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF,
 };
+use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::download::MIN_DELETE_SERVER_AFTER;
@@ -212,7 +213,7 @@ impl ChatId {
 pub(crate) async fn stock_ephemeral_timer_changed(
     context: &Context,
     timer: Timer,
-    from_id: u32,
+    from_id: ContactId,
 ) -> String {
     match timer {
         Timer::Disabled => stock_str::msg_ephemeral_timer_disabled(context, from_id).await,
@@ -823,8 +824,8 @@ mod tests {
 
         // Check that if there is a message left, the text and metadata are gone
         if let Ok(msg) = Message::load_from_db(t, msg_id).await {
-            assert_eq!(msg.from_id, 0);
-            assert_eq!(msg.to_id, 0);
+            assert_eq!(msg.from_id, ContactId::new(0));
+            assert_eq!(msg.to_id, ContactId::new(0));
             assert!(msg.text.is_none_or_empty(), "{:?}", msg.text);
             let rawtxt: Option<String> = t
                 .sql

@@ -18,7 +18,7 @@ use crate::constants::{
     DC_CONTACT_ID_SELF,
 };
 use crate::contact::{
-    addr_cmp, may_be_valid_addr, normalize_name, Contact, Origin, VerifiedStatus,
+    addr_cmp, may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
 };
 use crate::context::Context;
 use crate::dc_tools::{dc_create_id, dc_extract_grpid_from_rfc724_mid, dc_smeared_time};
@@ -199,7 +199,7 @@ pub(crate) async fn dc_receive_imf_inner(
         .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp));
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
-        let better_msg = stock_str::msg_location_enabled_by(context, from_id as u32).await;
+        let better_msg = stock_str::msg_location_enabled_by(context, from_id).await;
         set_better_msg(&mut mime_parser, &better_msg);
     }
 
@@ -283,7 +283,7 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
-        if from_id != 0
+        if from_id != ContactId::new(0)
             && context
                 .update_contacts_timestamp(from_id, Param::AvatarTimestamp, sent_timestamp)
                 .await?
@@ -311,7 +311,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // Ignore MDNs though, as they never contain the signature even if user has set it.
     if mime_parser.mdn_reports.is_empty()
         && is_partial_download.is_none()
-        && from_id != 0
+        && from_id != ContactId::new(0)
         && context
             .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)
             .await?
@@ -387,7 +387,7 @@ pub async fn from_field_to_contact_id(
     context: &Context,
     from_address_list: &[SingleInfo],
     prevent_rename: bool,
-) -> Result<(u32, bool, Origin)> {
+) -> Result<(ContactId, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
         from_address_list,
@@ -420,7 +420,7 @@ pub async fn from_field_to_contact_id(
             "mail has an empty From header: {:?}", from_address_list
         );
 
-        Ok((0, false, Origin::Unknown))
+        Ok((ContactId::new(0), false, Origin::Unknown))
     }
 }
 
@@ -431,11 +431,11 @@ async fn add_parts(
     imf_raw: &[u8],
     incoming: bool,
     server_folder: &str,
-    to_ids: &[u32],
+    to_ids: &[ContactId],
     rfc724_mid: &str,
     sent_timestamp: i64,
     rcvd_timestamp: i64,
-    from_id: u32,
+    from_id: ContactId,
     seen: bool,
     is_partial_download: Option<u32>,
     needs_delete_job: &mut bool,
@@ -488,7 +488,7 @@ async fn add_parts(
     // - outgoing messages introduce a chat with the first to: address if they are sent by a messenger
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
     // (of course, the user can add other chats manually later)
-    let to_id: u32;
+    let to_id: ContactId;
 
     let state: MessageState;
     if incoming {
@@ -524,7 +524,7 @@ async fn add_parts(
             securejoin_seen = false;
         }
 
-        let test_normal_chat = if from_id == 0 {
+        let test_normal_chat = if from_id == ContactId::new(0) {
             Default::default()
         } else {
             ChatIdBlocked::lookup_by_contact(context, from_id).await?
@@ -583,7 +583,7 @@ async fn add_parts(
         // In lookup_chat_by_reply() and create_or_lookup_group(), it can happen that the message is put into a chat
         // but the From-address is not a member of this chat.
         if let Some(chat_id) = chat_id {
-            if !chat::is_contact_in_chat(context, chat_id, from_id as u32).await? {
+            if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
                 let chat = Chat::load_from_db(context, chat_id).await?;
                 if chat.is_protected() {
                     let s = stock_str::unknown_sender_for_chat(context).await;
@@ -1031,9 +1031,7 @@ async fn add_parts(
                     }
                     set_better_msg(
                         mime_parser,
-                        context
-                            .stock_protection_msg(new_status, from_id as u32)
-                            .await,
+                        context.stock_protection_msg(new_status, from_id).await,
                     );
                 }
             }
@@ -1156,8 +1154,8 @@ INSERT INTO msgs
         stmt.execute(paramsv![
             rfc724_mid,
             chat_id,
-            if trash { 0 } else { i64::from(from_id) },
-            if trash { 0 } else { i64::from(to_id) },
+            if trash { ContactId::new(0) } else { from_id },
+            if trash { ContactId::new(0) } else { to_id },
             sort_timestamp,
             sent_timestamp,
             rcvd_timestamp,
@@ -1256,7 +1254,7 @@ async fn save_locations(
     context: &Context,
     mime_parser: &MimeMessage,
     chat_id: ChatId,
-    from_id: u32,
+    from_id: ContactId,
     msg_id: MsgId,
 ) -> Result<()> {
     if chat_id.is_special() {
@@ -1335,8 +1333,8 @@ async fn lookup_chat_by_reply(
     context: &Context,
     mime_parser: &mut MimeMessage,
     parent: &Option<Message>,
-    from_id: u32,
-    to_ids: &[u32],
+    from_id: ContactId,
+    to_ids: &[ContactId],
 ) -> Result<Option<(ChatId, Blocked)>> {
     // Try to assign message to the same chat as the parent message.
 
@@ -1376,10 +1374,10 @@ async fn lookup_chat_by_reply(
 /// If it returns false, it shall be assigned to the parent chat.
 async fn is_probably_private_reply(
     context: &Context,
-    to_ids: &[u32],
+    to_ids: &[ContactId],
     mime_parser: &MimeMessage,
     parent_chat_id: ChatId,
-    from_id: u32,
+    from_id: ContactId,
 ) -> Result<bool> {
     // Usually we don't want to show private replies in the parent chat, but in the
     // 1:1 chat with the sender.
@@ -1416,18 +1414,18 @@ async fn create_or_lookup_group(
     mime_parser: &mut MimeMessage,
     allow_creation: bool,
     create_blocked: Blocked,
-    from_id: u32,
-    to_ids: &[u32],
+    from_id: ContactId,
+    to_ids: &[ContactId],
 ) -> Result<Option<(ChatId, Blocked)>> {
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
     } else if allow_creation {
-        let mut member_ids: Vec<u32> = to_ids.to_vec();
-        if !member_ids.contains(&(from_id as u32)) {
-            member_ids.push(from_id as u32);
+        let mut member_ids: Vec<ContactId> = to_ids.to_vec();
+        if !member_ids.contains(&(from_id)) {
+            member_ids.push(from_id);
         }
-        if !member_ids.contains(&(DC_CONTACT_ID_SELF as u32)) {
-            member_ids.push(DC_CONTACT_ID_SELF as u32);
+        if !member_ids.contains(&(DC_CONTACT_ID_SELF)) {
+            member_ids.push(DC_CONTACT_ID_SELF);
         }
 
         let res = create_adhoc_group(context, mime_parser, create_blocked, &member_ids)
@@ -1561,8 +1559,8 @@ async fn apply_group_changes(
     mime_parser: &mut MimeMessage,
     sent_timestamp: i64,
     chat_id: ChatId,
-    from_id: u32,
-    to_ids: &[u32],
+    from_id: ContactId,
+    to_ids: &[ContactId],
 ) -> Result<()> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     if chat.typ != Chattype::Group {
@@ -1626,8 +1624,7 @@ async fn apply_group_changes(
                     send_event_chat_modified = true;
                 }
 
-                let better_msg =
-                    stock_str::msg_grp_name(context, old_name, grpname, from_id as u32).await;
+                let better_msg = stock_str::msg_grp_name(context, old_name, grpname, from_id).await;
                 set_better_msg(mime_parser, &better_msg);
                 mime_parser.is_system_message = SystemMessage::GroupNameChanged;
             }
@@ -1953,7 +1950,7 @@ async fn create_adhoc_group(
     context: &Context,
     mime_parser: &MimeMessage,
     create_blocked: Blocked,
-    member_ids: &[u32],
+    member_ids: &[ContactId],
 ) -> Result<Option<ChatId>> {
     if mime_parser.is_mailinglist_message() {
         info!(
@@ -2023,7 +2020,7 @@ async fn create_adhoc_group(
 /// This ensures that different Delta Chat clients generate the same group ID unless some of them
 /// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
 /// so having the same ID prevents group split.
-async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> Result<String> {
+async fn create_adhoc_grp_id(context: &Context, member_ids: &[ContactId]) -> Result<String> {
     let member_ids_str = member_ids
         .iter()
         .map(|x| x.to_string())
@@ -2070,8 +2067,8 @@ fn hex_hash(s: &str) -> String {
 async fn check_verified_properties(
     context: &Context,
     mimeparser: &MimeMessage,
-    from_id: u32,
-    to_ids: &[u32],
+    from_id: ContactId,
+    to_ids: &[ContactId],
 ) -> Result<()> {
     let contact = Contact::load_from_db(context, from_id).await?;
 
@@ -2118,7 +2115,7 @@ async fn check_verified_properties(
         .iter()
         .copied()
         .filter(|id| *id != DC_CONTACT_ID_SELF)
-        .collect::<Vec<u32>>();
+        .collect::<Vec<ContactId>>();
 
     if to_ids.is_empty() {
         return Ok(());
@@ -2301,7 +2298,7 @@ async fn dc_add_or_lookup_contacts_by_address_list(
     address_list: &[SingleInfo],
     origin: Origin,
     prevent_rename: bool,
-) -> Result<Vec<u32>> {
+) -> Result<Vec<ContactId>> {
     let mut contact_ids = BTreeSet::new();
     for info in address_list.iter() {
         let addr = &info.addr;
@@ -2317,7 +2314,7 @@ async fn dc_add_or_lookup_contacts_by_address_list(
             .insert(add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?);
     }
 
-    Ok(contact_ids.into_iter().collect::<Vec<u32>>())
+    Ok(contact_ids.into_iter().collect::<Vec<ContactId>>())
 }
 
 /// Add contacts to database on receiving messages.
@@ -2326,7 +2323,7 @@ async fn add_or_lookup_contact_by_addr(
     display_name: Option<&str>,
     addr: &str,
     origin: Origin,
-) -> Result<u32> {
+) -> Result<ContactId> {
     if context.is_self_addr(addr).await? {
         return Ok(DC_CONTACT_ID_SELF);
     }
@@ -2334,8 +2331,6 @@ async fn add_or_lookup_contact_by_addr(
 
     let (row_id, _modified) =
         Contact::add_or_lookup(context, &display_name_normalized, addr, origin).await?;
-    ensure!(row_id > 0, "could not add contact: {:?}", addr);
-
     Ok(row_id)
 }
 

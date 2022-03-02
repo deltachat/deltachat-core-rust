@@ -13,7 +13,7 @@ use once_cell::sync::Lazy;
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
 use crate::constants::{Viewtype, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS};
-use crate::contact::addr_normalize;
+use crate::contact::{addr_normalize, ContactId};
 use crate::context::Context;
 use crate::dc_tools::{dc_get_filemeta, dc_truncate, parse_receive_headers};
 use crate::dehtml::dehtml;
@@ -1369,7 +1369,7 @@ impl MimeMessage {
     pub async fn handle_reports(
         &self,
         context: &Context,
-        from_id: u32,
+        from_id: ContactId,
         sent_timestamp: i64,
         parts: &[Part],
     ) {

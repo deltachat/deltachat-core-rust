@@ -7,6 +7,7 @@ use async_std::path::PathBuf;
 use strum::EnumProperty;
 
 use crate::chat::ChatId;
+use crate::contact::ContactId;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
 
@@ -252,7 +253,7 @@ pub enum EventType {
     ///
     /// @param data1 (int) If set, this is the contact_id of an added contact that should be selected.
     #[strum(props(id = "2030"))]
-    ContactsChanged(Option<u32>),
+    ContactsChanged(Option<ContactId>),
 
     /// Location of one or more contact has changed.
     ///
@@ -260,7 +261,7 @@ pub enum EventType {
     ///     If the locations of several contacts have been changed,
     ///     eg. after calling dc_delete_all_locations(), this parameter is set to `None`.
     #[strum(props(id = "2035"))]
-    LocationChanged(Option<u32>),
+    LocationChanged(Option<ContactId>),
 
     /// Inform about the configuration progress started by configure().
     #[strum(props(id = "2041"))]
@@ -304,7 +305,10 @@ pub enum EventType {
     ///     800=vg-member-added-received received, shown as "bob@addr securely joined GROUP", only sent for the verified-group-protocol.
     ///     1000=Protocol finished for this contact.
     #[strum(props(id = "2060"))]
-    SecurejoinInviterProgress { contact_id: u32, progress: usize },
+    SecurejoinInviterProgress {
+        contact_id: ContactId,
+        progress: usize,
+    },
 
     /// Progress information of a secure-join handshake from the view of the joiner
     /// (Bob, the person who scans the QR code).
@@ -315,7 +319,10 @@ pub enum EventType {
     ///     400=vg-/vc-request-with-auth sent, typically shown as "alice@addr verified, introducing myself."
     ///     (Bob has verified alice and waits until Alice does the same for him)
     #[strum(props(id = "2061"))]
-    SecurejoinJoinerProgress { contact_id: u32, progress: usize },
+    SecurejoinJoinerProgress {
+        contact_id: ContactId,
+        progress: usize,
+    },
 
     /// The connectivity to the server changed.
     /// This means that you should refresh the connectivity view

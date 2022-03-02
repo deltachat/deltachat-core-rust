@@ -851,7 +851,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         &contact_name,
         contact_id,
         msgtext.unwrap_or_default(),
-        if msg.get_from_id() == 1u32 {
+        if msg.get_from_id() == DC_CONTACT_ID_SELF {
             ""
         } else if msg.get_state() == MessageState::InSeen {
             "[SEEN]"
