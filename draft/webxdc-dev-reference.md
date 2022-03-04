@@ -29,7 +29,7 @@ window.webxdc.sendUpdate(update, descr);
 Webxdc apps are usually shared in a chat and run independently on each peer.
 To get a shared state, the peers use `sendUpdate()` to send updates to each other.
 
-- `update`: an object with the following fields:  
+- `update`: an object with the following properties:  
     - `update.payload`: any javascript primitive, array or object.
     - `update.info`: optional, short, informational message that will be added to the chat,
        eg. "Alice voted" or "Bob scored 123 in MyGame";
@@ -45,48 +45,37 @@ All peers, including the sending one,
 will receive the update by the callback given to `setUpdateListener()`.
 
 There are situations where the user cannot send messages to a chat,
-eg. contact requests or if the user has left a group.
+eg. if the webxdc instance comes as a contact request or if the user has left a group.
 In these cases, you can still call `sendUpdate()`,
 however, the update won't be sent to other peers
-and you won't get the update by `setUpdateListener()` nor by `getAllUpdates()`.
+and you won't get the update by `setUpdateListener()`.
 
 
 ### setUpdateListener()
 
 ```js
-window.webxdc.setUpdateListener((update) => {});
+window.webxdc.setUpdateListener((update) => {}, serial);
 ```
 
 With `setUpdateListener()` you define a callback that receives the updates
-sent by `sendUpdate()`.
+sent by `sendUpdate()`. The callback is called for updates sent by you or other peers.
+The `serial` specifies the last serial that you know about (defaults to 0). 
 
-- `update`: passed to the callback on updates with the following fields:  
-  `update.payload`: equals the payload given to `sendUpdate()`
+Each `update` which is passed to the callback comes with the following properties: 
 
-The callback is called for updates sent by you or other peers.
+- `update.payload`: equals the payload given to `sendUpdate()`
 
+- `update.serial`: the serial number of this update.
+  Serials are larger `0` and newer serials have higher numbers.
+  There may be gaps in the serials
+  and it is not guaranteed that the next serial is exactly incremented by one.
 
-### getAllUpdates()
+- `update.max_serial`: the maximum serial currently known.
+  If `max_serial` equals `serial` this update is the last update (until new network messages arrive).
 
-```js
-updates = await window.webxdc.getAllUpdates();
-```
+- `update.info`: optional, short, informational message (see `send_update`) 
 
-In case your Webxdc was just started,
-you may want to reconstruct the state from the last run -
-and also incorporate updates that may have arrived while the app was not running.
-
-- `updates`: All previous updates in an array, 
-  eg. `[{payload: "foo"},{payload: "bar"}]`
-  if `webxdc.sendUpdate({payload: "foo"}); webxdc.sendUpdate({payload: "bar"};` was called on the last run.
-
-The updates are wrapped into a Promise that you can `await` for.
-If you are not in an async function and cannot use `await` therefore,
-you can get the updates with `then()`:
-
-```js
-window.webxdc.getAllUpdates().then(updates => {});
-```
+- `update.summary`: optional, short text, shown beside app icon (see `send_update`)
 
 
 ### selfAddr
@@ -162,9 +151,7 @@ The following example shows an input field and  every input is show on all peers
         document.getElementById('output').innerHTML += update.payload + "<br>";
       }
     
-      window.webxdc.setUpdateListener(receiveUpdate);
-      window.webxdc.getAllUpdates().then(updates => updates.forEach(receiveUpdate));
-
+      window.webxdc.setUpdateListener(receiveUpdate, 0);
     </script>
   </body>
 </html>
