@@ -22,6 +22,6 @@ jobs:
         USER: ${{ secrets.USERNAME }}
         KEY: ${{ secrets.KEY }}
         HOST: "delta.chat"
-        SOURCE: "target/doc/"
+        SOURCE: "target/doc"
         TARGET: "/var/www/html/rs/"
 
