@@ -3930,33 +3930,42 @@ pub type dc_provider_t = provider::Provider;
 pub unsafe extern "C" fn dc_provider_new_from_email(
     context: *const dc_context_t,
     addr: *const libc::c_char,
-) -> *const dc_provider_t {
+) {
     if context.is_null() || addr.is_null() {
         eprintln!("ignoring careless call to dc_provider_new_from_email()");
-        return ptr::null();
+        return;
     }
     let addr = to_string_lossy(addr);
 
-    let ctx = &*context;
-    let socks5_enabled = block_on(async move {
-        ctx.get_config_bool(config::Config::Socks5Enabled)
-            .await
-            .log_err(ctx, "Can't get config")
-    });
-
-    match socks5_enabled {
-        Ok(socks5_enabled) => {
-            match block_on(provider::get_provider_info(
-                ctx,
-                addr.as_str(),
-                socks5_enabled,
-            )) {
-                Some(provider) => provider,
-                None => ptr::null_mut(),
+    
+    async_std::task::spawn(async move {
+        let ctx = &*context;
+        let socks5_enabled = ctx.get_config_bool(config::Config::Socks5Enabled)
+                .await
+                .log_err(ctx, "Can't get config");
+        match socks5_enabled {
+            Ok(socks5_enabled) => {
+                match provider::get_provider_info(
+                    ctx,
+                    addr.as_str(),
+                    socks5_enabled,
+                ).await {
+                    Some(provider) => {
+                        // send event with provider info
+                    },
+                    None => {
+                        // send event with provider info null
+                    },
+                };
+            }
+            Err(err) => {
+                context.as_ref().unwrap().emit_event(EventType::Error(format!(
+                    "Failed to get provider info: {:#}",
+                    err
+                )));
             }
         }
-        Err(_) => ptr::null_mut(),
-    }
+    });
 }
 
 #[no_mangle]
