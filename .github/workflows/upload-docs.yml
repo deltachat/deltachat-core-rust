@@ -17,12 +17,11 @@ jobs:
       run: |
         cargo doc
     - name: Upload
-      uses: horochx/deploy-via-scp@v1.0.1
+      uses: up9cloud/action-rsync@v1.3
       with:
-        user: ${{ secrets.USERNAME }}
-        key: ${{ secrets.KEY }}
-        host: "delta.chat"
-        port: 22
-        local: "target/doc/"
-        remote: "/var/www/html/rs/"
+        USER: ${{ secrets.USERNAME }}
+        KEY: ${{ secrets.KEY }}
+        HOST: "delta.chat"
+        SOURCE: "target/doc/"
+        TARGET: "/var/www/html/rs/"
 
