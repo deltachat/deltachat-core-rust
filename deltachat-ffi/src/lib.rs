@@ -3928,18 +3928,18 @@ pub type dc_provider_t = provider::Provider;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_provider_new_from_email(
-    context: *const dc_context_t,
-    addr: *const libc::c_char,
+    context: *mut dc_context_t,
+    addr: *mut libc::c_char,
 ) {
     if context.is_null() || addr.is_null() {
         eprintln!("ignoring careless call to dc_provider_new_from_email()");
         return;
     }
-    let addr = to_string_lossy(addr);
 
+    let ctx = &*context;
+    let addr = to_string_lossy(addr);
     
-    async_std::task::spawn(async move {
-        let ctx = &*context;
+    spawn(async move {
         let socks5_enabled = ctx.get_config_bool(config::Config::Socks5Enabled)
                 .await
                 .log_err(ctx, "Can't get config");
@@ -3959,7 +3959,7 @@ pub unsafe extern "C" fn dc_provider_new_from_email(
                 };
             }
             Err(err) => {
-                context.as_ref().unwrap().emit_event(EventType::Error(format!(
+                ctx.emit_event(EventType::Error(format!(
                     "Failed to get provider info: {:#}",
                     err
                 )));

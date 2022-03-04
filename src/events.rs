@@ -333,4 +333,7 @@ pub enum EventType {
         msg_id: MsgId,
         status_update_id: StatusUpdateId,
     },
+
+    #[strum(props(id = "2201"))]
+    ProviderInfo(String),
 }
