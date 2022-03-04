@@ -18,7 +18,7 @@ jobs:
         cargo doc
     - name: Upload
       uses: up9cloud/action-rsync@v1.3
-      with:
+      env:
         USER: ${{ secrets.USERNAME }}
         KEY: ${{ secrets.KEY }}
         HOST: "delta.chat"
