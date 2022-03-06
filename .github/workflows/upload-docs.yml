@@ -15,7 +15,7 @@ jobs:
     - uses: actions/checkout@v1
     - name: Build the site in the jekyll/builder container
       run: |
-        cargo doc
+        cargo doc --package deltachat --no-deps
     - name: Upload
       uses: up9cloud/action-rsync@v1.3
       env:
