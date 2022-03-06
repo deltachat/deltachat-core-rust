@@ -10,13 +10,13 @@ use crate::{chat, EventType};
 use anyhow::{bail, ensure, format_err, Result};
 use async_std::path::PathBuf;
 use deltachat_derive::FromSql;
-use lettre_email::mime::{self};
+use lettre_email::mime;
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::convert::TryFrom;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 use zip::ZipArchive;
 
 pub const WEBXDC_SUFFIX: &str = "xdc";
@@ -32,12 +32,12 @@ const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 ///
 /// The limit is also an experiment to see how small we can go;
 /// it is planned to raise that limit as needed in subsequent versions.
-const WEBXDC_SENDING_LIMIT: usize = 655360;
+const WEBXDC_SENDING_LIMIT: u64 = 655360;
 
 /// Be more tolerant for .xdc sizes on receiving -
 /// might be, the senders version uses already a larger limit
 /// and not showing the .xdc on some devices would be even worse ux.
-const WEBXDC_RECEIVING_LIMIT: usize = 4194304;
+const WEBXDC_RECEIVING_LIMIT: u64 = 4194304;
 
 /// Raw information read from manifest.toml
 #[derive(Debug, Deserialize)]
@@ -123,46 +123,56 @@ pub(crate) struct StatusUpdateItemAndSerial {
 
 impl Context {
     /// check if a file is an acceptable webxdc for sending or receiving.
-    pub(crate) async fn is_webxdc_file(&self, filename: &str, buf: &[u8]) -> Result<bool> {
-        if filename.ends_with(WEBXDC_SUFFIX) {
-            let reader = std::io::Cursor::new(buf);
-            if let Ok(mut archive) = zip::ZipArchive::new(reader) {
-                if let Ok(_index_html) = archive.by_name("index.html") {
-                    if buf.len() <= WEBXDC_RECEIVING_LIMIT {
-                        return Ok(true);
-                    } else {
-                        info!(
-                            self,
-                            "{} exceeds receiving limit of {} bytes",
-                            &filename,
-                            WEBXDC_RECEIVING_LIMIT
-                        );
-                    }
-                } else {
-                    info!(self, "{} misses index.html", &filename);
-                }
-            } else {
-                info!(self, "{} cannot be opened as zip-file", &filename);
-            }
+    pub(crate) async fn is_webxdc_file<R>(&self, filename: &str, mut reader: R) -> Result<bool>
+    where
+        R: Read + Seek,
+    {
+        if !filename.ends_with(WEBXDC_SUFFIX) {
+            return Ok(false);
         }
-        Ok(false)
+
+        let size = reader.seek(SeekFrom::End(0))?;
+        if size > WEBXDC_RECEIVING_LIMIT {
+            info!(
+                self,
+                "{} exceeds receiving limit of {} bytes", &filename, WEBXDC_RECEIVING_LIMIT
+            );
+            return Ok(false);
+        }
+
+        reader.seek(SeekFrom::Start(0))?;
+        let mut archive = match zip::ZipArchive::new(reader) {
+            Ok(archive) => archive,
+            Err(_) => {
+                info!(self, "{} cannot be opened as zip-file", &filename);
+                return Ok(false);
+            }
+        };
+
+        if archive.by_name("index.html").is_err() {
+            info!(self, "{} misses index.html", &filename);
+            return Ok(false);
+        }
+
+        Ok(true)
     }
 
     /// ensure that a file is an acceptable webxdc for sending
     /// (sending has more strict size limits).
     pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &PathBuf) -> Result<()> {
         let mut file = std::fs::File::open(path)?;
-        let mut buf = Vec::new();
-        file.read_to_end(&mut buf)?;
         if !self
-            .is_webxdc_file(path.to_str().unwrap_or_default(), &buf)
+            .is_webxdc_file(path.to_str().unwrap_or_default(), &mut file)
             .await?
         {
             bail!(
                 "{} is not a valid webxdc file",
                 path.to_str().unwrap_or_default()
             );
-        } else if buf.len() > WEBXDC_SENDING_LIMIT {
+        }
+
+        let size = file.seek(SeekFrom::End(0))?;
+        if size > WEBXDC_SENDING_LIMIT {
             bail!(
                 "webxdc {} exceeds acceptable size of {} bytes",
                 path.to_str().unwrap_or_default(),
@@ -538,7 +548,11 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::io::Cursor;
+
+    use async_std::fs::File;
+    use async_std::io::WriteExt;
+
     use crate::chat::{
         add_contact_to_chat, create_group_chat, forward_msgs, send_msg, send_text_msg, ChatId,
         ProtectionStatus,
@@ -547,8 +561,8 @@ mod tests {
     use crate::contact::Contact;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
-    use async_std::fs::File;
-    use async_std::io::WriteExt;
+
+    use super::*;
 
     #[allow(clippy::assertions_on_constants)]
     #[async_std::test]
@@ -566,35 +580,35 @@ mod tests {
         assert!(
             !t.is_webxdc_file(
                 "bad-ext-no-zip.txt",
-                include_bytes!("../test-data/message/issue_523.txt")
+                Cursor::new(include_bytes!("../test-data/message/issue_523.txt"))
             )
             .await?
         );
         assert!(
             !t.is_webxdc_file(
                 "bad-ext-good-zip.txt",
-                include_bytes!("../test-data/webxdc/minimal.xdc")
+                Cursor::new(include_bytes!("../test-data/webxdc/minimal.xdc"))
             )
             .await?
         );
         assert!(
             !t.is_webxdc_file(
                 "good-ext-no-zip.xdc",
-                include_bytes!("../test-data/message/issue_523.txt")
+                Cursor::new(include_bytes!("../test-data/message/issue_523.txt"))
             )
             .await?
         );
         assert!(
             !t.is_webxdc_file(
                 "good-ext-no-index-html.xdc",
-                include_bytes!("../test-data/webxdc/no-index-html.xdc")
+                Cursor::new(include_bytes!("../test-data/webxdc/no-index-html.xdc"))
             )
             .await?
         );
         assert!(
             t.is_webxdc_file(
                 "good-ext-good-zip.xdc",
-                include_bytes!("../test-data/webxdc/minimal.xdc")
+                Cursor::new(include_bytes!("../test-data/webxdc/minimal.xdc"))
             )
             .await?
         );

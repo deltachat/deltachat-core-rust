@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
+use std::io::Cursor;
 use std::pin::Pin;
 
 use anyhow::{bail, Result};
@@ -1020,8 +1021,9 @@ impl MimeMessage {
         if decoded_data.is_empty() {
             return;
         }
+        let reader = Cursor::new(decoded_data);
         let msg_type = if context
-            .is_webxdc_file(filename, decoded_data)
+            .is_webxdc_file(filename, reader)
             .await
             .unwrap_or(false)
         {
