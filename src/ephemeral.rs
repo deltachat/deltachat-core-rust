@@ -67,14 +67,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::chat::{send_msg, ChatId};
 use crate::constants::{
-    Viewtype, DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF,
+    DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF,
 };
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
-use crate::message::{Message, MessageState, MsgId};
+use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::stock_str;
 use std::cmp::max;

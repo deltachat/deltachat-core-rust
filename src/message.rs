@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
 use crate::constants::{
-    Blocked, Chattype, VideochatType, Viewtype, DC_CHAT_ID_TRASH, DC_CONTACT_ID_INFO,
-    DC_CONTACT_ID_SELF, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
+    Blocked, Chattype, VideochatType, DC_CHAT_ID_TRASH, DC_CONTACT_ID_INFO, DC_CONTACT_ID_SELF,
+    DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
 };
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
@@ -386,7 +386,7 @@ impl Message {
     }
 
     pub async fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<()> {
-        if chat::msgtype_has_file(self.viewtype) {
+        if self.viewtype.has_file() {
             let file_param = self.param.get_path(Param::File, context)?;
             if let Some(path_and_filename) = file_param {
                 if (self.viewtype == Viewtype::Image || self.viewtype == Viewtype::Gif)
@@ -619,7 +619,7 @@ impl Message {
     /// copied to the blobdir.  Thus those attachments need to be
     /// created immediately in the blobdir with a valid filename.
     pub fn is_increation(&self) -> bool {
-        chat::msgtype_has_file(self.viewtype) && self.state == MessageState::OutPreparing
+        self.viewtype.has_file() && self.state == MessageState::OutPreparing
     }
 
     pub fn is_setupmessage(&self) -> bool {
@@ -1700,15 +1700,114 @@ pub(crate) async fn rfc724_mid_exists(
     Ok(res)
 }
 
+/// How a message is primarily displayed.
+#[derive(
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+    Serialize,
+    Deserialize,
+)]
+#[repr(u32)]
+pub enum Viewtype {
+    Unknown = 0,
+
+    /// Text message.
+    /// The text of the message is set using dc_msg_set_text()
+    /// and retrieved with dc_msg_get_text().
+    Text = 10,
+
+    /// Image message.
+    /// If the image is an animated GIF, the type DC_MSG_GIF should be used.
+    /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
+    /// and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
+    Image = 20,
+
+    /// Animated GIF message.
+    /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
+    Gif = 21,
+
+    /// Message containing a sticker, similar to image.
+    /// If possible, the ui should display the image without borders in a transparent way.
+    /// A click on a sticker will offer to install the sticker set in some future.
+    Sticker = 23,
+
+    /// Message containing an Audio file.
+    /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
+    Audio = 40,
+
+    /// A voice message that was directly recorded by the user.
+    /// For all other audio messages, the type #DC_MSG_AUDIO should be used.
+    /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_duration()
+    Voice = 41,
+
+    /// Video messages.
+    /// File, width, height and durarion
+    /// are set via dc_msg_set_file(), dc_msg_set_dimension(), dc_msg_set_duration()
+    /// and retrieved via
+    /// dc_msg_get_file(), dc_msg_get_width(),
+    /// dc_msg_get_height(), dc_msg_get_duration().
+    Video = 50,
+
+    /// Message containing any file, eg. a PDF.
+    /// The file is set via dc_msg_set_file()
+    /// and retrieved via dc_msg_get_file().
+    File = 60,
+
+    /// Message is an invitation to a videochat.
+    VideochatInvitation = 70,
+
+    /// Message is an webxdc instance.
+    Webxdc = 80,
+}
+
+impl Default for Viewtype {
+    fn default() -> Self {
+        Viewtype::Unknown
+    }
+}
+
+impl Viewtype {
+    /// Whether a message with this [`Viewtype`] should have a file attachment.
+    pub fn has_file(&self) -> bool {
+        match self {
+            Viewtype::Unknown => false,
+            Viewtype::Text => false,
+            Viewtype::Image => true,
+            Viewtype::Gif => true,
+            Viewtype::Sticker => true,
+            Viewtype::Audio => true,
+            Viewtype::Voice => true,
+            Viewtype::Video => true,
+            Viewtype::File => true,
+            Viewtype::VideochatInvitation => false,
+            Viewtype::Webxdc => true,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use num_traits::FromPrimitive;
+
     use crate::chat::{marknoticed_chat, ChatItem};
     use crate::chatlist::Chatlist;
     use crate::constants::DC_CONTACT_ID_DEVICE;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils as test;
     use crate::test_utils::TestContext;
+
+    use super::*;
 
     #[test]
     fn test_guess_msgtype_from_suffix() {
@@ -2153,5 +2252,30 @@ mod tests {
         assert!(!msg.is_bot());
 
         Ok(())
+    }
+
+    #[test]
+    fn test_viewtype_derive_display_works_as_expected() {
+        assert_eq!(format!("{}", Viewtype::Audio), "Audio");
+    }
+
+    #[test]
+    fn test_viewtype_values() {
+        // values may be written to disk and must not change
+        assert_eq!(Viewtype::Unknown, Viewtype::default());
+        assert_eq!(Viewtype::Unknown, Viewtype::from_i32(0).unwrap());
+        assert_eq!(Viewtype::Text, Viewtype::from_i32(10).unwrap());
+        assert_eq!(Viewtype::Image, Viewtype::from_i32(20).unwrap());
+        assert_eq!(Viewtype::Gif, Viewtype::from_i32(21).unwrap());
+        assert_eq!(Viewtype::Sticker, Viewtype::from_i32(23).unwrap());
+        assert_eq!(Viewtype::Audio, Viewtype::from_i32(40).unwrap());
+        assert_eq!(Viewtype::Voice, Viewtype::from_i32(41).unwrap());
+        assert_eq!(Viewtype::Video, Viewtype::from_i32(50).unwrap());
+        assert_eq!(Viewtype::File, Viewtype::from_i32(60).unwrap());
+        assert_eq!(
+            Viewtype::VideochatInvitation,
+            Viewtype::from_i32(70).unwrap()
+        );
+        assert_eq!(Viewtype::Webxdc, Viewtype::from_i32(80).unwrap());
     }
 }

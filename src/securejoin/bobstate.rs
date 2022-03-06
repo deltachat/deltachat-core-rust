@@ -11,13 +11,12 @@ use anyhow::{Error, Result};
 use rusqlite::Connection;
 
 use crate::chat::{self, ChatId};
-use crate::constants::Viewtype;
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
 use crate::key::{DcKey, SignedPublicKey};
-use crate::message::Message;
+use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
 use crate::sql::Sql;

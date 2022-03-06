@@ -670,10 +670,10 @@ mod tests {
     use crate::chat::{
         get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, ChatId, MuteDuration,
     };
-    use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
+    use crate::constants::DC_CONTACT_ID_SELF;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::dc_tools::dc_create_outgoing_rfc724_mid;
-    use crate::message::Message;
+    use crate::message::{Message, Viewtype};
     use crate::test_utils::TestContext;
     use anyhow::Context as _;
     use std::time::Duration;

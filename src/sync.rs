@@ -2,10 +2,10 @@
 
 use crate::chat::{Chat, ChatId};
 use crate::config::Config;
-use crate::constants::{Blocked, Viewtype, DC_CONTACT_ID_SELF};
+use crate::constants::{Blocked, DC_CONTACT_ID_SELF};
 use crate::context::Context;
 use crate::dc_tools::time;
-use crate::message::{Message, MsgId};
+use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::sync::SyncData::{AddQrToken, DeleteQrToken};

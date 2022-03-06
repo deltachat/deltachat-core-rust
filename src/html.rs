@@ -279,9 +279,9 @@ mod tests {
     use crate::chat;
     use crate::chat::forward_msgs;
     use crate::config::Config;
-    use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
+    use crate::constants::DC_CONTACT_ID_SELF;
     use crate::dc_receive_imf::dc_receive_imf;
-    use crate::message::MessengerMessage;
+    use crate::message::{MessengerMessage, Viewtype};
     use crate::test_utils::TestContext;
 
     #[async_std::test]

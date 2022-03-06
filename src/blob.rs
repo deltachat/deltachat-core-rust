@@ -19,13 +19,13 @@ use thiserror::Error;
 
 use crate::config::Config;
 use crate::constants::{
-    MediaQuality, Viewtype, BALANCED_AVATAR_SIZE, BALANCED_IMAGE_SIZE, WORSE_AVATAR_SIZE,
-    WORSE_IMAGE_SIZE,
+    MediaQuality, BALANCED_AVATAR_SIZE, BALANCED_IMAGE_SIZE, WORSE_AVATAR_SIZE, WORSE_IMAGE_SIZE,
 };
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
 use crate::message;
+use crate::message::Viewtype;
 
 /// Represents a file in the blob directory.
 ///

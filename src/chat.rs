@@ -15,10 +15,9 @@ use crate::blob::{BlobError, BlobObject};
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
-    Blocked, Chattype, Viewtype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
-    DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_INFO,
-    DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_GCM_ADDDAYMARKER, DC_GCM_INFO_ONLY,
-    DC_RESEND_USER_AVATAR_DAYS,
+    Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_LAST_SPECIAL,
+    DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_INFO, DC_CONTACT_ID_LAST_SPECIAL,
+    DC_CONTACT_ID_SELF, DC_GCM_ADDDAYMARKER, DC_GCM_INFO_ONLY, DC_RESEND_USER_AVATAR_DAYS,
 };
 use crate::contact::{addr_cmp, Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
@@ -33,7 +32,7 @@ use crate::events::EventType;
 use crate::html::new_html_mimepart;
 use crate::job::{self, Action};
 use crate::location;
-use crate::message::{self, Message, MessageState, MsgId};
+use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
@@ -1808,26 +1807,10 @@ pub async fn prepare_msg(context: &Context, chat_id: ChatId, msg: &mut Message) 
     Ok(msg_id)
 }
 
-pub(crate) fn msgtype_has_file(msgtype: Viewtype) -> bool {
-    match msgtype {
-        Viewtype::Unknown => false,
-        Viewtype::Text => false,
-        Viewtype::Image => true,
-        Viewtype::Gif => true,
-        Viewtype::Sticker => true,
-        Viewtype::Audio => true,
-        Viewtype::Voice => true,
-        Viewtype::Video => true,
-        Viewtype::File => true,
-        Viewtype::VideochatInvitation => false,
-        Viewtype::Webxdc => true,
-    }
-}
-
 async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
         // the caller should check if the message text is empty
-    } else if msgtype_has_file(msg.viewtype) {
+    } else if msg.viewtype.has_file() {
         let blob = msg
             .param
             .get_blob(Param::File, context, !msg.is_increation())

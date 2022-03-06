@@ -1,11 +1,11 @@
 //! # Message summary for chatlist.
 
 use crate::chat::Chat;
-use crate::constants::{Chattype, Viewtype, DC_CONTACT_ID_SELF};
+use crate::constants::{Chattype, DC_CONTACT_ID_SELF};
 use crate::contact::Contact;
 use crate::context::Context;
 use crate::dc_tools::dc_truncate;
-use crate::message::{Message, MessageState};
+use crate::message::{Message, MessageState, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::stock_str;

@@ -7,13 +7,13 @@ use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::chat::{self, ChatId};
 use crate::config::Config;
-use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
+use crate::constants::DC_CONTACT_ID_SELF;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::events::EventType;
 use crate::job::{self, Job};
-use crate::message::{Message, MsgId};
+use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Params;
 use crate::stock_str;

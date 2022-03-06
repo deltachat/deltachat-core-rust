@@ -1,10 +1,9 @@
 //! # Handle webxdc messages.
 
 use crate::chat::Chat;
-use crate::constants::Viewtype;
 use crate::context::Context;
 use crate::dc_tools::{dc_create_smeared_timestamp, dc_open_file_std};
-use crate::message::{Message, MessageState, MsgId};
+use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::{chat, EventType};

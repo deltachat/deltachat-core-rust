@@ -16,7 +16,7 @@ use rand::{thread_rng, Rng};
 use crate::blob::BlobObject;
 use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
 use crate::config::Config;
-use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
+use crate::constants::DC_CONTACT_ID_SELF;
 use crate::context::Context;
 use crate::dc_tools::{
     dc_create_folder, dc_delete_file, dc_delete_files_in_dir, dc_get_filesuffix_lc,
@@ -26,7 +26,7 @@ use crate::e2ee;
 use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::log::LogExt;
-use crate::message::{Message, MsgId};
+use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::pgp;

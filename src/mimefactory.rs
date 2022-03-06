@@ -7,9 +7,9 @@ use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 
 use crate::blob::BlobObject;
-use crate::chat::{self, Chat};
+use crate::chat::Chat;
 use crate::config::Config;
-use crate::constants::{Chattype, Viewtype, DC_FROM_HANDSHAKE};
+use crate::constants::{Chattype, DC_FROM_HANDSHAKE};
 use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
 use crate::dc_tools::IsNoneOrEmpty;
@@ -22,7 +22,7 @@ use crate::ephemeral::Timer as EphemeralTimer;
 use crate::format_flowed::{format_flowed, format_flowed_quote};
 use crate::html::new_html_mimepart;
 use crate::location;
-use crate::message::{self, Message, MsgId};
+use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
@@ -1140,7 +1140,7 @@ impl<'a> MimeFactory<'a> {
         }
 
         // add attachment part
-        if chat::msgtype_has_file(self.msg.viewtype) {
+        if self.msg.viewtype.has_file() {
             if !is_file_size_okay(context, self.msg).await? {
                 bail!(
                     "Message exceeds the recommended {} MB.",
@@ -1452,12 +1452,13 @@ fn maybe_encode_words(words: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use async_std::fs::File;
     use async_std::prelude::*;
+    use mailparse::{addrparse_header, MailHeaderMap};
 
     use crate::chat::ChatId;
     use crate::chat::{
-        add_contact_to_chat, create_group_chat, remove_contact_from_chat, send_text_msg,
+        self, add_contact_to_chat, create_group_chat, remove_contact_from_chat, send_text_msg,
         ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
@@ -1466,9 +1467,7 @@ mod tests {
     use crate::mimeparser::MimeMessage;
     use crate::test_utils::{get_chat_msg, TestContext};
 
-    use async_std::fs::File;
-    use mailparse::{addrparse_header, MailHeaderMap};
-
+    use super::*;
     #[test]
     fn test_render_email_address() {
         let display_name = "ä space";

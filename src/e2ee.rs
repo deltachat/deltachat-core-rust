@@ -400,14 +400,13 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use crate::chat;
-    use crate::constants::Viewtype;
-    use crate::message::Message;
+    use crate::message::{Message, Viewtype};
     use crate::param::Param;
     use crate::peerstate::ToSave;
     use crate::test_utils::{bob_keypair, TestContext};
+
+    use super::*;
 
     mod ensure_secret_key_exists {
         use super::*;

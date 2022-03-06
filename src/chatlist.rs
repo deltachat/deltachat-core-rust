@@ -375,8 +375,8 @@ mod tests {
     use super::*;
 
     use crate::chat::{create_group_chat, get_chat_contacts, ProtectionStatus};
-    use crate::constants::Viewtype;
     use crate::dc_receive_imf::dc_receive_imf;
+    use crate::message::Viewtype;
     use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;
 

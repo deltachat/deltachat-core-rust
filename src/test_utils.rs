@@ -22,14 +22,14 @@ use crate::chat::{self, Chat, ChatId};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
-use crate::constants::{Viewtype, DC_CONTACT_ID_SELF, DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
+use crate::constants::{DC_CONTACT_ID_SELF, DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
 use crate::contact::{Contact, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
 use crate::events::{Event, EventType};
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
-use crate::message::{update_msg_state, Message, MessageState, MsgId};
+use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::MimeMessage;
 
 #[allow(non_upper_case_globals)]
