@@ -17,11 +17,10 @@ use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
-use crate::chat;
-use crate::chat::ChatId;
-use crate::chat::ChatIdBlocked;
+use crate::chat::{self, ChatId, ChatIdBlocked};
+use crate::config::Config;
 use crate::constants::{
-    Blocked, Chattype, ShowEmails, Viewtype, DC_CONTACT_ID_SELF, DC_FETCH_EXISTING_MSGS_COUNT,
+    Blocked, Chattype, ShowEmails, DC_CONTACT_ID_SELF, DC_FETCH_EXISTING_MSGS_COUNT,
     DC_FOLDERS_CONFIGURED_VERSION, DC_LP_AUTH_OAUTH2,
 };
 use crate::context::Context;
@@ -32,16 +31,17 @@ use crate::dc_tools::dc_create_id;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
-use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
-use crate::login_param::{ServerAddress, Socks5Config};
-use crate::message::{self, Message, MessageState, MessengerMessage, MsgId};
+use crate::login_param::{
+    CertificateChecks, LoginParam, ServerAddress, ServerLoginParam, Socks5Config,
+};
+use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::provider::Socket;
+use crate::scheduler::connectivity::ConnectivityStore;
 use crate::scheduler::InterruptInfo;
 use crate::stock_str;
-use crate::{config::Config, scheduler::connectivity::ConnectivityStore};
 
 mod client;
 mod idle;

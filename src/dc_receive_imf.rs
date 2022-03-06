@@ -14,8 +14,7 @@ use sha2::{Digest, Sha256};
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{
-    Blocked, Chattype, ShowEmails, Viewtype, DC_CHAT_ID_TRASH, DC_CONTACT_ID_LAST_SPECIAL,
-    DC_CONTACT_ID_SELF,
+    Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF,
 };
 use crate::contact::{
     addr_cmp, may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
@@ -28,7 +27,9 @@ use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
 use crate::log::LogExt;
-use crate::message::{self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId};
+use crate::message::{
+    self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
+};
 use crate::mimeparser::{
     parse_message_id, parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
 };

@@ -11,21 +11,20 @@ use async_std::task;
 use job::Action;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
-use crate::dc_tools::EmailAddress;
+use crate::config::Config;
+use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
+use crate::context::Context;
+use crate::dc_tools::{time, EmailAddress};
 use crate::imap::Imap;
+use crate::job;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam, Socks5Config};
-use crate::message::Message;
+use crate::message::{Message, Viewtype};
 use crate::oauth2::dc_get_oauth2_addr;
+use crate::param::Params;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
 use crate::stock_str;
 use crate::{chat, e2ee, provider};
-use crate::{config::Config, dc_tools::time};
-use crate::{
-    constants::{Viewtype, DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2},
-    job,
-};
-use crate::{context::Context, param::Params};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;

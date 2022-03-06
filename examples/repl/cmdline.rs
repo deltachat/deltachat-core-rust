@@ -17,7 +17,7 @@ use deltachat::download::DownloadState;
 use deltachat::imex::*;
 use deltachat::location;
 use deltachat::log::LogExt;
-use deltachat::message::{self, Message, MessageState, MsgId};
+use deltachat::message::{self, Message, MessageState, MsgId, Viewtype};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;

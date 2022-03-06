@@ -6,13 +6,12 @@ use std::collections::BTreeMap;
 
 use crate::chat::add_device_msg_with_importance;
 use crate::config::Config;
-use crate::constants::Viewtype;
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::Imap;
 use crate::job::{Action, Status};
-use crate::message::Message;
+use crate::message::{Message, Viewtype};
 use crate::param::Params;
 use crate::{job, stock_str, EventType};
 
