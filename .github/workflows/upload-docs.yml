@@ -13,10 +13,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - name: Build the site in the jekyll/builder container
+    - uses: actions-rs/toolchain@v1
+    - name: Build the documentation with cargo
       run: |
         cargo doc --package deltachat --no-deps
-    - name: Upload
+    - name: Upload to rs.delta.chat
       uses: up9cloud/action-rsync@v1.3
       env:
         USER: ${{ secrets.USERNAME }}
