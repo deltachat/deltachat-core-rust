@@ -2732,7 +2732,6 @@ class TestOnlineAccount:
                 assert ac.get_config("configured_mvbox_folder")
 
         ac1 = acfactory.get_online_configuring_account(move=mvbox_move)
-        ac1.set_config("sentbox_move", "1")
         ac2 = acfactory.get_online_configuring_account()
 
         acfactory.wait_configure(ac1)
@@ -2752,7 +2751,7 @@ class TestOnlineAccount:
         if mvbox_move:
             ac1.direct_imap.select_config_folder("mvbox")
         else:
-            ac1.direct_imap.select_config_folder("sentbox")
+            ac1.direct_imap.select_folder("INBOX")
         ac1.direct_imap.idle_start()
 
         lp.sec("send out message with bcc to ourselves")
