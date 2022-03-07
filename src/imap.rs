@@ -1654,7 +1654,6 @@ async fn should_move_out_of_spam(
 /// messages from the Spam folder, the message will be ignored.
 async fn spam_target_folder(
     context: &Context,
-    folder: &str,
     headers: &[mailparse::MailHeader<'_>],
 ) -> Result<Option<Config>> {
     if !should_move_out_of_spam(context, headers).await? {
@@ -1667,8 +1666,6 @@ async fn spam_target_folder(
         || context.get_config_bool(Config::OnlyFetchMvbox).await?
     {
         Ok(Some(Config::ConfiguredMvboxFolder))
-    } else if needs_move_to_sentbox(context, folder, headers).await? {
-        Ok(Some(Config::ConfiguredSentboxFolder))
     } else {
         Ok(Some(Config::ConfiguredInboxFolder))
     }
@@ -1686,11 +1683,9 @@ pub async fn target_folder(
     }
 
     if context.is_spam_folder(folder).await? {
-        spam_target_folder(context, folder, headers).await
+        spam_target_folder(context, headers).await
     } else if needs_move_to_mvbox(context, headers).await? {
         Ok(Some(Config::ConfiguredMvboxFolder))
-    } else if needs_move_to_sentbox(context, folder, headers).await? {
-        Ok(Some(Config::ConfiguredSentboxFolder))
     } else {
         Ok(None)
     }
@@ -1723,44 +1718,6 @@ async fn needs_move_to_mvbox(
     } else {
         Ok(false)
     }
-}
-
-async fn prefetch_is_outgoing(
-    context: &Context,
-    headers: &[mailparse::MailHeader<'_>],
-) -> Result<bool> {
-    let from_address_list = &mimeparser::get_from(headers);
-
-    // Only looking at the first address in the `From:` field.
-    if let Some(info) = from_address_list.first() {
-        if context.is_self_addr(&info.addr).await? {
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    } else {
-        Ok(false)
-    }
-}
-
-async fn needs_move_to_sentbox(
-    context: &Context,
-    folder: &str,
-    headers: &[mailparse::MailHeader<'_>],
-) -> Result<bool> {
-    let needs_move = context.get_config_bool(Config::SentboxMove).await?
-        && context
-            .get_config(Config::ConfiguredSentboxFolder)
-            .await?
-            .is_some()
-        && context.is_inbox(folder).await?
-        && headers.get_header_value(HeaderDef::ChatVersion).is_some()
-        && headers
-            .get_header_value(HeaderDef::AutocryptSetupMessage)
-            .is_none()
-        && prefetch_is_outgoing(context, headers).await?;
-
-    Ok(needs_move)
 }
 
 /// Try to get the folder meaning by the name of the folder only used if the server does not support XLIST.
@@ -2330,7 +2287,6 @@ mod tests {
         accepted_chat: bool,
         outgoing: bool,
         setupmessage: bool,
-        sentbox_move: bool,
     ) -> Result<()> {
         println!("Testing: For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}",
                                folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage);
@@ -2349,9 +2305,6 @@ mod tests {
             .set_config(Config::MvboxMove, Some(if mvbox_move { "1" } else { "0" }))
             .await?;
         t.ctx.set_config(Config::ShowEmails, Some("2")).await?;
-        t.ctx
-            .set_config_bool(Config::SentboxMove, sentbox_move)
-            .await?;
 
         if accepted_chat {
             let contact_id = Contact::create(&t.ctx, "", "bob@example.net").await?;
@@ -2443,7 +2396,6 @@ mod tests {
                 true,
                 false,
                 false,
-                false,
             )
             .await?;
         }
@@ -2461,7 +2413,6 @@ mod tests {
                 false,
                 false,
                 false,
-                false,
             )
             .await?;
         }
@@ -2470,26 +2421,18 @@ mod tests {
 
     #[async_std::test]
     async fn test_target_folder_outgoing() -> Result<()> {
-        for sentbox_move in &[true, false] {
-            // Test outgoing emails
-            for (folder, mvbox_move, chat_msg, mut expected_destination) in
-                COMBINATIONS_ACCEPTED_CHAT
-            {
-                if *folder == "INBOX" && !mvbox_move && *chat_msg && *sentbox_move {
-                    expected_destination = "Sent"
-                }
-                check_target_folder_combination(
-                    folder,
-                    *mvbox_move,
-                    *chat_msg,
-                    expected_destination,
-                    true,
-                    true,
-                    false,
-                    *sentbox_move,
-                )
-                .await?;
-            }
+        // Test outgoing emails
+        for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
+            check_target_folder_combination(
+                folder,
+                *mvbox_move,
+                *chat_msg,
+                expected_destination,
+                true,
+                true,
+                false,
+            )
+            .await?;
         }
         Ok(())
     }
@@ -2506,7 +2449,6 @@ mod tests {
                 false,
                 true,
                 true,
-                false,
             )
             .await?;
         }
