@@ -71,9 +71,6 @@ pub enum Config {
     #[strum(props(default = "1"))]
     MvboxMove,
 
-    #[strum(props(default = "0"))]
-    SentboxMove, // If `MvboxMove` is true, this config is ignored. Currently only used in tests.
-
     /// Watch for new messages in the "Mvbox" (aka DeltaChat folder) only.
     ///
     /// This will not entirely disable other folders, e.g. the spam folder will also still

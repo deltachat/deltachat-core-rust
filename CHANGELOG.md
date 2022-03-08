@@ -10,6 +10,8 @@
 - add more SMTP logging #3093
 - place common headers like `From:` before the large `Autocrypt:` header #3079
 - keep track of securejoin joiner status in database to survive restarts #2920
+- remove never used `SentboxMove` option #3111
+
 
 ## 1.76.0
 
