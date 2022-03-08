@@ -1,0 +1,28 @@
+name: Build & Deploy Documentation on rs.delta.chat
+
+on:
+  push:
+    branches:
+      - master
+      - docs-gh-action
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1
+    - name: Build the documentation with cargo
+      run: |
+        cargo doc --package deltachat --no-deps
+    - name: Upload to rs.delta.chat
+      uses: up9cloud/action-rsync@v1.3
+      env:
+        USER: ${{ secrets.USERNAME }}
+        KEY: ${{ secrets.KEY }}
+        HOST: "delta.chat"
+        SOURCE: "target/doc"
+        TARGET: "/var/www/html/rs/"
+
