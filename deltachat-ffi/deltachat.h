@@ -1010,7 +1010,7 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @memberof dc_context_t
  * @param context The context object.
  * @param msg_id The ID of the message with the webxdc instance.
- * @param JSON program-readable data, the actual payload
+ * @param json program-readable data, the actual payload
  * @param descr The user-visible description of JSON data,
  *     in case of a chess game, e.g. the move.
  * @return 1=success, 0=error
