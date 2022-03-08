@@ -16,7 +16,7 @@ Seen status synchronization      | IMAP CONDSTORE extension ([RFC 7162](https://
 Authorization                    | OAuth2 ([RFC 6749](https://tools.ietf.org/html/rfc6749))
 End-to-end encryption            | [Autocrypt Level 1](https://autocrypt.org/level1.html), OpenPGP ([RFC 4880](https://tools.ietf.org/html/rfc4880)), Security Multiparts for MIME ([RFC 1847](https://tools.ietf.org/html/rfc1847)) and [“Mixed Up” Encryption repairing](https://tools.ietf.org/id/draft-dkg-openpgp-pgpmime-message-mangling-00.html)
 Header encryption                | [Protected Headers for Cryptographic E-mail](https://datatracker.ietf.org/doc/draft-autocrypt-lamps-protected-headers/)
-Configuration assistance         | [Autoconfigure](https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration) and [Autodiscover](https://technet.microsoft.com/library/bb124251(v=exchg.150).aspx)
+Configuration assistance         | [Autoconfigure](https://web.archive.org/web/20210402044801/https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration) and [Autodiscover](https://technet.microsoft.com/library/bb124251(v=exchg.150).aspx)
 Messenger functions              | [Chat-over-Email](https://github.com/deltachat/deltachat-core-rust/blob/master/spec.md#chat-mail-specification)
 Detect mailing list              | List-Id ([RFC 2919](https://tools.ietf.org/html/rfc2919)) and Precedence ([RFC 3834](https://tools.ietf.org/html/rfc3834))
 User and chat colors             | [XEP-0392](https://xmpp.org/extensions/xep-0392.html): Consistent Color Generation
