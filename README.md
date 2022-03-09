@@ -12,6 +12,8 @@ To download and install the official compiler for the Rust programming language,
 $ curl https://sh.rustup.rs -sSf | sh
 ```
 
+> On Windows, you may need to also install **Perl** to be able to compile deltachat-core.
+
 ## Using the CLI client
 
 Compile and run Delta Chat Core command line utility, using `cargo`:
