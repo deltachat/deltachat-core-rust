@@ -365,29 +365,38 @@ impl Job {
         Status::Finished(Ok(()))
     }
 
-    /// Synchronizes UIDs for sentbox, inbox and mvbox.
+    /// Synchronizes UIDs for all folders.
     async fn resync_folders(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {
             warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }
 
-        let sentbox_folder = job_try!(context.get_config(Config::ConfiguredSentboxFolder).await);
-        if let Some(sentbox_folder) = sentbox_folder {
-            job_try!(imap.resync_folder_uids(context, sentbox_folder).await);
+        let all_folders = match imap.list_folders(context).await {
+            Ok(v) => v,
+            Err(e) => {
+                warn!(context, "Listing folders for resync failed: {:#}", e);
+                return Status::RetryLater;
+            }
+        };
+
+        let mut any_failed = false;
+
+        for folder in all_folders {
+            if let Err(e) = imap
+                .resync_folder_uids(context, folder.name().to_string())
+                .await
+            {
+                warn!(context, "{:#}", e);
+                any_failed = true;
+            }
         }
 
-        let inbox_folder = job_try!(context.get_config(Config::ConfiguredInboxFolder).await);
-        if let Some(inbox_folder) = inbox_folder {
-            job_try!(imap.resync_folder_uids(context, inbox_folder).await);
+        if any_failed {
+            Status::RetryLater
+        } else {
+            Status::Finished(Ok(()))
         }
-
-        let mvbox_folder = job_try!(context.get_config(Config::ConfiguredMvboxFolder).await);
-        if let Some(mvbox_folder) = mvbox_folder {
-            job_try!(imap.resync_folder_uids(context, mvbox_folder).await);
-        }
-
-        Status::Finished(Ok(()))
     }
 
     async fn markseen_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {

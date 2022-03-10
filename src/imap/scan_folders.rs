@@ -2,10 +2,12 @@ use std::{collections::BTreeMap, time::Instant};
 
 use anyhow::{Context as _, Result};
 
+use crate::config::Config;
 use crate::imap::Imap;
-use crate::{config::Config, log::LogExt};
+use crate::log::LogExt;
 use crate::{context::Context, imap::FolderMeaning};
-use async_std::prelude::*;
+
+use async_std::stream::StreamExt;
 
 use super::{get_folder_meaning, get_folder_meaning_by_name};
 
@@ -27,22 +29,12 @@ impl Imap {
         info!(context, "Starting full folder scan");
 
         self.prepare(context).await?;
-        let session = self.session.as_mut();
-        let session = session.context("scan_folders(): IMAP No Connection established")?;
-        let folders: Vec<_> = session.list(Some(""), Some("*")).await?.collect().await;
+        let folders = self.list_folders(context).await?;
         let watched_folders = get_watched_folders(context).await?;
 
         let mut folder_configs = BTreeMap::new();
 
         for folder in folders {
-            let folder = match folder {
-                Ok(f) => f,
-                Err(e) => {
-                    warn!(context, "Can't get folder: {}", e);
-                    continue;
-                }
-            };
-
             // Gmail labels are not folders and should be skipped. For example,
             // emails appear in the inbox and under "All Mail" as soon as it is
             // received. The code used to wrongly conclude that the email had
@@ -100,6 +92,20 @@ impl Imap {
 
         last_scan.replace(Instant::now());
         Ok(true)
+    }
+
+    /// Returns the names of all folders on the IMAP server.
+    pub async fn list_folders(
+        self: &mut Imap,
+        context: &Context,
+    ) -> Result<Vec<async_imap::types::Name>> {
+        let session = self.session.as_mut();
+        let session = session.context("No IMAP connection")?;
+        let list = session
+            .list(Some(""), Some("*"))
+            .await?
+            .filter_map(|f| f.ok_or_log_msg(context, "list_folders() can't get folder"));
+        Ok(list.collect().await)
     }
 }
 
