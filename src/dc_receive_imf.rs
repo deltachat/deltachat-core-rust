@@ -539,7 +539,7 @@ async fn add_parts(
             // try to assign to a chat based on In-Reply-To/References:
 
             if let Some((new_chat_id, new_chat_id_blocked)) =
-                lookup_chat_by_reply(context, mime_parser, &parent, from_id, to_ids).await?
+                lookup_chat_by_reply(context, mime_parser, &parent, to_ids).await?
             {
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
@@ -772,7 +772,7 @@ async fn add_parts(
             // try to assign to a chat based on In-Reply-To/References:
 
             if let Some((new_chat_id, new_chat_id_blocked)) =
-                lookup_chat_by_reply(context, mime_parser, &parent, from_id, to_ids).await?
+                lookup_chat_by_reply(context, mime_parser, &parent, to_ids).await?
             {
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
@@ -1333,7 +1333,6 @@ async fn lookup_chat_by_reply(
     context: &Context,
     mime_parser: &mut MimeMessage,
     parent: &Option<Message>,
-    from_id: ContactId,
     to_ids: &[ContactId],
 ) -> Result<Option<(ChatId, Blocked)>> {
     // Try to assign message to the same chat as the parent message.
@@ -1356,7 +1355,7 @@ async fn lookup_chat_by_reply(
             return Ok(None);
         }
 
-        if is_probably_private_reply(context, to_ids, mime_parser, parent_chat.id, from_id).await? {
+        if is_probably_private_reply(context, to_ids, mime_parser, parent_chat.id).await? {
             return Ok(None);
         }
 
@@ -1377,7 +1376,6 @@ async fn is_probably_private_reply(
     to_ids: &[ContactId],
     mime_parser: &MimeMessage,
     parent_chat_id: ChatId,
-    from_id: ContactId,
 ) -> Result<bool> {
     // Usually we don't want to show private replies in the parent chat, but in the
     // 1:1 chat with the sender.
@@ -1393,10 +1391,7 @@ async fn is_probably_private_reply(
 
     if !mime_parser.has_chat_version() {
         let chat_contacts = chat::get_chat_contacts(context, parent_chat_id).await?;
-        if chat_contacts.len() == 2
-            && chat_contacts.contains(&DC_CONTACT_ID_SELF)
-            && chat_contacts.contains(&from_id)
-        {
+        if chat_contacts.len() == 2 && chat_contacts.contains(&DC_CONTACT_ID_SELF) {
             return Ok(false);
         }
     }
@@ -1452,7 +1447,7 @@ async fn create_or_lookup_group(
     // they belong to the group because of the Chat-Group-Id or Message-Id header
     if let Some(chat_id) = chat_id {
         if !mime_parser.has_chat_version()
-            && is_probably_private_reply(context, to_ids, mime_parser, chat_id, from_id).await?
+            && is_probably_private_reply(context, to_ids, mime_parser, chat_id).await?
         {
             return Ok(None);
         }
@@ -4902,6 +4897,73 @@ Message with references."#;
 
         // dc_receive_imf should not fail on this mail with invalid To: field
         dc_receive_imf(&alice, mime, "Inbox", false).await?;
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_reply_from_different_addr() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        // Alice creates a 2-person-group with Bob
+        dc_receive_imf(
+            &t,
+            br#"Subject: =?utf-8?q?Januar_13-19?=
+Chat-Group-ID: qetqsutor7a
+Chat-Group-Name: =?utf-8?q?Januar_13-19?=
+MIME-Version: 1.0
+References: <Gr.qetqsutor7a.Aresxresy-4@deltachat.de>
+Date: Mon, 20 Dec 2021 12:15:01 +0000
+Chat-Version: 1.0
+Message-ID: <Gr.qetqsutor7a.Aresxresy-4@deltachat.de>
+To: <bob@example.org>
+From: <alice@example.org>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+Hi, I created a group"#,
+            "INBOX",
+            false,
+        )
+        .await?;
+        let msg_out = t.get_last_msg().await;
+        assert_eq!(msg_out.from_id, DC_CONTACT_ID_SELF);
+        assert_eq!(msg_out.text.unwrap(), "Hi, I created a group");
+        assert_eq!(msg_out.in_reply_to, None);
+
+        // Bob replies from a different address
+        dc_receive_imf(
+            &t,
+            b"Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+From: <bob-alias@example.com>
+Mime-Version: 1.0 (1.0)
+Subject: Re: Januar 13-19
+Date: Mon, 20 Dec 2021 13:54:55 +0100
+Message-Id: <ERTSYSX-ERYSASQZS@example.com>
+References: <Gr.qetqsutor7a.Aresxresy-4@deltachat.de>
+In-Reply-To: <Gr.qetqsutor7a.Aresxresy-4@deltachat.de>
+To: holger <alice@example.org>
+
+Reply from different address
+",
+            "INBOX",
+            false,
+        )
+        .await?;
+        let msg_in = t.get_last_msg().await;
+        assert_eq!(msg_in.to_id, DC_CONTACT_ID_SELF);
+        assert_eq!(msg_in.text.unwrap(), "Reply from different address");
+        assert_eq!(
+            msg_in.in_reply_to.unwrap(),
+            "Gr.qetqsutor7a.Aresxresy-4@deltachat.de"
+        );
+        assert_eq!(
+            msg_in.param.get(Param::OverrideSenderDisplayname),
+            Some("bob-alias@example.com")
+        );
+
+        assert_eq!(msg_in.chat_id, msg_out.chat_id);
 
         Ok(())
     }
