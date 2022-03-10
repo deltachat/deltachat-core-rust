@@ -345,13 +345,30 @@ impl<'a> BlobObject<'a> {
         };
 
         let clean = sanitize_filename::sanitize_with_options(name, opts);
-        let mut iter = clean.rsplitn(2, '.');
-        let ext: String = iter.next().unwrap_or_default().chars().take(32).collect();
+        // Let's take the tricky filename
+        // "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz" as an example.
+        // Split it into "file" and "with_lots_of_characters_behind_point_and_double_ending.tar.gz":
+        let mut iter = clean.splitn(2, '.');
+
         let stem: String = iter.next().unwrap_or_default().chars().take(64).collect();
+        // stem == "file"
+
+        let ext_chars = iter.next().unwrap_or_default().chars();
+        let ext: String = ext_chars
+            .rev()
+            .take(32)
+            .collect::<Vec<_>>()
+            .iter()
+            .rev()
+            .collect();
+        // ext == "d_point_and_double_ending.tar.gz"
+
         if ext.is_empty() {
             (stem, "".to_string())
         } else {
             (stem, format!(".{}", ext).to_lowercase())
+            // Return ("file", ".d_point_and_double_ending.tar.gz")
+            // which is not perfect but acceptable.
         }
     }
 
