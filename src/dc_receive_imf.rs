@@ -4979,10 +4979,13 @@ Reply from different address
         let bob = tcm.bob().await;
 
         for filename_sent in &[
-            "foo.bar very long file name test baz.pdf",
-            "foobarabababababababbababababverylongfilenametestbaz.pdf",
-            "fooo...pdf",
-            "foo. .pdf",
+            "foo.bar very long file name test baz.tar.gz",
+            "foobarabababababababbababababverylongfilenametestbaz.tar.gz",
+            "fooo...tar.gz",
+            "foo. .tar.gz",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tar.gz",
+            "a.tar.gz",
+            "a.a..a.a.a.a.tar.gz",
         ] {
             let attachment = alice.blobdir.join(filename_sent);
             let content = format!("File content of {}", filename_sent);
@@ -5005,14 +5008,14 @@ Reply from different address
                 let resulting_filename = msg.get_filename().unwrap();
                 let path = msg.get_file(t).unwrap();
                 assert!(
-                    resulting_filename.ends_with(".pdf"),
-                    "{:?} doesn't end with .pdf, path: {:?}",
+                    resulting_filename.ends_with(".tar.gz"),
+                    "{:?} doesn't end with .tar.gz, path: {:?}",
                     resulting_filename,
                     path
                 );
                 assert!(
-                    path.to_str().unwrap().ends_with(".pdf"),
-                    "path {:?} doesn't end with .pdf",
+                    path.to_str().unwrap().ends_with(".tar.gz"),
+                    "path {:?} doesn't end with .tar.gz",
                     path
                 );
                 assert_eq!(fs::read_to_string(path).await.unwrap(), content);
