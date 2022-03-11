@@ -9,6 +9,7 @@
 ### Fixes
 - do not delete messages without Message-IDs as duplicates #3095
 - Assign replies from a different email address to the correct chat #3119
+- start ephemeral timer when seen status is synchronized via IMAP #3122
 
 ### Changes
 - add more SMTP logging #3093

@@ -1099,6 +1099,31 @@ class TestOnlineAccount:
         assert ev.data1 == ac1_clone_chat.id
         assert ac1_clone_message.is_in_seen
 
+        lp.sec("Send an ephemeral message from ac2 to ac1")
+        ac2_chat.set_ephemeral_timer(60)
+        ac1._evtracker.get_matching("DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED")
+        ac1._evtracker.wait_next_incoming_message()
+        ac1_clone._evtracker.get_matching("DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED")
+        ac1_clone._evtracker.wait_next_incoming_message()
+
+        ac2_chat.send_text("Foobar")
+        ac1_message = ac1._evtracker.wait_next_incoming_message()
+        ac1_clone_message = ac1_clone._evtracker.wait_next_incoming_message()
+        assert "Ephemeral timer: 60\n" in ac1_message.get_message_info()
+        assert "Expires: " not in ac1_clone_message.get_message_info()
+        assert "Ephemeral timer: 60\n" in ac1_message.get_message_info()
+        assert "Expires: " not in ac1_clone_message.get_message_info()
+
+        ac1.mark_seen_messages([ac1_message])
+        assert ac1_message.is_in_seen
+        assert "Expires: " in ac1_message.get_message_info()
+        ev = ac1_clone._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
+        assert ev.data1 == ac1_clone_chat.id
+        assert ac1_clone_message.is_in_seen
+        # Test that the timer is started on the second device after synchronizing the seen status.
+        assert "Expires: " in ac1_clone_message.get_message_info()
+
+
     def test_message_override_sender_name(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = acfactory.get_accepted_chat(ac1, ac2)

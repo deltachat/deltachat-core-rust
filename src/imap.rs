@@ -2015,6 +2015,12 @@ async fn mark_seen_by_uid(
             > 0;
 
         if updated {
+            msg_id
+                .start_ephemeral_timer(context)
+                .await
+                .with_context(|| {
+                    format!("failed to start ephemeral timer for message {}", msg_id)
+                })?;
             Ok(Some(chat_id))
         } else {
             // Message state has not chnaged.
