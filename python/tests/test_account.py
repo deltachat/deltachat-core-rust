@@ -1123,7 +1123,6 @@ class TestOnlineAccount:
         # Test that the timer is started on the second device after synchronizing the seen status.
         assert "Expires: " in ac1_clone_message.get_message_info()
 
-
     def test_message_override_sender_name(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = acfactory.get_accepted_chat(ac1, ac2)
