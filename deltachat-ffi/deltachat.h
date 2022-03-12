@@ -1803,7 +1803,7 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
 
 /**
  * Mark messages as presented to the user.
- * Typically, UIs call this function on scrolling through the chatlist,
+ * Typically, UIs call this function on scrolling through the message list,
  * when the messages are presented at least for a little moment.
  * The concrete action depends on the type of the chat and on the users settings
  * (dc_msgs_presented() may be a better name therefore, but well. :)
