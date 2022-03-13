@@ -8,7 +8,7 @@ set -e -x
 #
 # Avoid using rustup here as it depends on reading /proc/self/exe and
 # has problems running under QEMU.
-RUST_VERSION=1.54.0
+RUST_VERSION=1.59.0
 
 curl "https://static.rust-lang.org/dist/rust-${RUST_VERSION}-$(uname -m)-unknown-linux-gnu.tar.gz" | tar xz
 cd "rust-${RUST_VERSION}-$(uname -m)-unknown-linux-gnu"
