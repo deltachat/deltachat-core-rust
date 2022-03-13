@@ -64,7 +64,7 @@ sha2 = "0.10"
 smallvec = "1"
 stop-token = "0.7"
 strum = "0.23"
-strum_macros = "0.23"
+strum_macros = "0.24"
 surf = { version = "2.3", default-features = false, features = ["h1-client"] }
 thiserror = "1"
 toml = "0.5"
