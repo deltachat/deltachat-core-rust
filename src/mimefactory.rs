@@ -552,7 +552,7 @@ impl<'a> MimeFactory<'a> {
         // messages.
         // Amazon's servers do not add such a header, so we just add it ourselves.
         if let Some(server) = context.get_config(Config::ConfiguredSendServer).await? {
-            if server.ends_with("amazonaws.com") {
+            if server.ends_with(".amazonaws.com") {
                 headers.unprotected.push(Header::new(
                     "X-Microsoft-Original-Message-ID".into(),
                     rfc724_mid_headervalue.clone(),
