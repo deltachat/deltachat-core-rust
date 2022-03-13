@@ -546,11 +546,11 @@ impl<'a> MimeFactory<'a> {
         };
         let rfc724_mid_headervalue = render_rfc724_mid(&rfc724_mid);
 
-        // Amazon's SMTP server change the `Message-ID`, just as Outlook's SMTP server do.
-        // Outlook adds an `X-Microsoft-Original-Message-ID` header with the original `Message-ID`,
+        // Amazon's SMTP servers change the `Message-ID`, just as Outlook's SMTP servers do.
+        // Outlook's servers add an `X-Microsoft-Original-Message-ID` header with the original `Message-ID`,
         // and when downloading messages we look for this header in order to correctly identify
         // messages.
-        // Amazon does not add such a header, so we just add it ourselves.
+        // Amazon's servers do not add such a header, so we just add it ourselves.
         if let Some(server) = context.get_config(Config::ConfiguredSendServer).await? {
             if server.ends_with("amazonaws.com") {
                 headers.unprotected.push(Header::new(
