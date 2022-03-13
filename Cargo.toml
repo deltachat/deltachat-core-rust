@@ -20,7 +20,7 @@ anyhow = "1"
 async-imap = { git = "https://github.com/async-email/async-imap" }
 async-native-tls = { version = "0.3" }
 async-smtp = { git = "https://github.com/async-email/async-smtp", branch="master", features = ["socks5"] }
-async-std-resolver = "0.20"
+async-std-resolver = "0.21"
 async-std = { version = "1" }
 async-tar = { version = "0.4", default-features=false }
 async-trait = "0.1"
