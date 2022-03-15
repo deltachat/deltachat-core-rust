@@ -1,11 +1,16 @@
 use std::convert::TryInto;
 
-use async_std::task::block_on;
+use async_std::{path::PathBuf, task::block_on};
 use criterion::{
     async_executor::AsyncStdExecutor, black_box, criterion_group, criterion_main, BatchSize,
     Criterion,
 };
-use deltachat::{config::Config, context::Context, dc_receive_imf::dc_receive_imf};
+use deltachat::{
+    config::Config,
+    context::Context,
+    dc_receive_imf::dc_receive_imf,
+    imex::{imex, ImexMode},
+};
 use tempfile::tempdir;
 
 async fn recv_emails(context: Context, emails: &[&[u8]]) -> Context {
@@ -94,6 +99,18 @@ async fn create_context() -> Context {
     let context = Context::new("FakeOS".into(), dbfile.into(), id)
         .await
         .unwrap();
+
+    let backup: PathBuf = std::env::current_dir()
+        .unwrap()
+        .join("delta-chat-backup.tar")
+        .into();
+    if backup.exists().await {
+        println!("Importing backup");
+        imex(&context, ImexMode::ImportBackup, &backup)
+            .await
+            .unwrap();
+    }
+
     let addr = "alice@example.com";
     context.set_config(Config::Addr, Some(addr)).await.unwrap();
     context
