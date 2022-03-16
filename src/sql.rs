@@ -552,6 +552,10 @@ impl Sql {
             .await
             .context(format!("failed to fetch raw config: {}", key.as_ref()))?;
 
+        let mut lock = self.config_cache.write().await;
+        lock.insert(key.as_ref().to_string(), value.clone());
+        drop(lock);
+
         Ok(value)
     }
 
