@@ -526,6 +526,10 @@ impl Sql {
         })
         .await?;
 
+        let mut lock = self.config_cache.write().await;
+        lock.insert(VERSION_CFG.to_string(), format!("{}", version));
+        drop(lock);
+
         Ok(())
     }
 }

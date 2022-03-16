@@ -3,7 +3,7 @@
 use async_std::path::Path;
 use async_std::sync::RwLock;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::time::Duration;
 
@@ -39,12 +39,14 @@ mod migrations;
 #[derive(Debug)]
 pub struct Sql {
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
+    config_cache: RwLock<HashMap<String, String>>, // TODO should be <String, Option<String>> in order to save that an option is None?
 }
 
 impl Default for Sql {
     fn default() -> Self {
         Self {
             pool: RwLock::new(None),
+            config_cache: RwLock::new(HashMap::new()),
         }
     }
 }
@@ -387,6 +389,8 @@ impl Sql {
     /// will already have been logged.
     pub async fn set_raw_config(&self, key: impl AsRef<str>, value: Option<&str>) -> Result<()> {
         let key = key.as_ref();
+
+        // TODO could be on another thread
         if let Some(value) = value {
             let exists = self
                 .exists(
@@ -413,20 +417,36 @@ impl Sql {
                 .await?;
         }
 
+        let mut lock = self.config_cache.write().await;
+        if let Some(v) = value {
+            lock.insert(key.to_string(), v.to_string());
+        } else {
+            lock.remove(key);
+        }
+        drop(lock);
+
         Ok(())
     }
 
     /// Get configuration options from the database.
     pub async fn get_raw_config(&self, key: impl AsRef<str>) -> Result<Option<String>> {
-        let value = self
-            .query_get_value(
-                "SELECT value FROM config WHERE keyname=?;",
-                paramsv![key.as_ref()],
-            )
-            .await
-            .context(format!("failed to fetch raw config: {}", key.as_ref()))?;
+        let lock = self.config_cache.read().await;
+        let cached = lock.get(key.as_ref()).cloned();
+        drop(lock);
 
-        Ok(value)
+        if let Some(c) = cached {
+            Ok(Some(c))
+        } else {
+            let value = self
+                .query_get_value(
+                    "SELECT value FROM config WHERE keyname=?;",
+                    paramsv![key.as_ref()],
+                )
+                .await
+                .context(format!("failed to fetch raw config: {}", key.as_ref()))?;
+
+            Ok(value)
+        }
     }
 
     pub async fn set_raw_config_int(&self, key: impl AsRef<str>, value: i32) -> Result<()> {
