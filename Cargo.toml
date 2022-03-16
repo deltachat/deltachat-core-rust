@@ -74,7 +74,7 @@ fast-socks5 = "0.4"
 humansize = "1"
 qrcodegen = "1.7.0"
 tagger = "4.3.1"
-textwrap = "0.14.2"
+textwrap = "0.15.0"
 zip = { version = "0.5.13", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
