@@ -3,7 +3,7 @@
 use async_std::path::Path;
 use async_std::sync::RwLock;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::time::Duration;
 
@@ -47,6 +47,8 @@ pub struct Sql {
     /// None if the database is not open, true if it is open with passphrase and false if it is
     /// open without a passphrase.
     is_encrypted: RwLock<Option<bool>>,
+
+    config_cache: RwLock<HashMap<String, Option<String>>>,
 }
 
 impl Sql {
@@ -55,6 +57,7 @@ impl Sql {
             dbfile,
             pool: Default::default(),
             is_encrypted: Default::default(),
+            config_cache: Default::default(),
         }
     }
 
@@ -497,6 +500,7 @@ impl Sql {
     /// will already have been logged.
     pub async fn set_raw_config(&self, key: impl AsRef<str>, value: Option<&str>) -> Result<()> {
         let key = key.as_ref();
+
         if let Some(value) = value {
             let exists = self
                 .exists(
@@ -523,11 +527,23 @@ impl Sql {
                 .await?;
         }
 
+        let mut lock = self.config_cache.write().await;
+        lock.insert(key.to_string(), value.map(|s| s.to_string()));
+        drop(lock);
+
         Ok(())
     }
 
     /// Get configuration options from the database.
     pub async fn get_raw_config(&self, key: impl AsRef<str>) -> Result<Option<String>> {
+        let lock = self.config_cache.read().await;
+        let cached = lock.get(key.as_ref()).cloned();
+        drop(lock);
+
+        if let Some(c) = cached {
+            return Ok(c);
+        }
+
         let value = self
             .query_get_value(
                 "SELECT value FROM config WHERE keyname=?;",
@@ -572,6 +588,11 @@ impl Sql {
         self.get_raw_config(key)
             .await
             .map(|s| s.and_then(|r| r.parse().ok()))
+    }
+
+    #[cfg(feature = "internals")]
+    pub fn config_cache(&self) -> &RwLock<HashMap<String, Option<String>>> {
+        &self.config_cache
     }
 }
 
