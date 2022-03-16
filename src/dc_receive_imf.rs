@@ -16,6 +16,7 @@ use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF,
 };
+use crate::contact;
 use crate::contact::{
     addr_cmp, may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
 };
@@ -26,6 +27,7 @@ use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
+use crate::location;
 use crate::log::LogExt;
 use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
@@ -36,8 +38,8 @@ use crate::mimeparser::{
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
+use crate::sql;
 use crate::stock_str;
-use crate::{contact, location};
 
 #[derive(Debug, PartialEq, Eq)]
 enum CreateEvent {
@@ -2017,25 +2019,25 @@ async fn create_adhoc_group(
 /// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
 /// so having the same ID prevents group split.
 async fn create_adhoc_grp_id(context: &Context, member_ids: &[ContactId]) -> Result<String> {
-    let member_ids_str = member_ids
-        .iter()
-        .map(|x| x.to_string())
-        .collect::<Vec<String>>()
-        .join(",");
     let member_cs = context
         .get_config(Config::ConfiguredAddr)
         .await?
         .unwrap_or_else(|| "no-self".to_string())
         .to_lowercase();
 
+    let query = format!(
+        "SELECT addr FROM contacts WHERE id IN({}) AND id!=?",
+        sql::repeat_vars(member_ids.len())?
+    );
+    let mut params = Vec::new();
+    params.extend_from_slice(member_ids);
+    params.push(DC_CONTACT_ID_SELF);
+
     let members = context
         .sql
         .query_map(
-            format!(
-                "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
-                member_ids_str
-            ),
-            paramsv![],
+            query,
+            rusqlite::params_from_iter(params),
             |row| row.get::<_, String>(0),
             |rows| {
                 let mut addrs = rows.collect::<std::result::Result<Vec<_>, _>>()?;
