@@ -30,29 +30,37 @@ async fn recv_emails(context: Context, emails: &[&[u8]]) -> Context {
 
 async fn recv_all_emails(mut context: Context, needs_move_enabled: bool) -> Context {
     context.disable_needs_move = !needs_move_enabled;
-    let emails = [
-        include_bytes!("../test-data/message/allinkl-quote.eml").as_ref(),
-        include_bytes!("../test-data/message/apple_cid_jpg.eml").as_ref(),
-        include_bytes!("../test-data/message/attach_filename_encoded_words_windows1251.eml")
-            .as_ref(),
-        include_bytes!("../test-data/message/attach_filename_simple.eml").as_ref(),
-        include_bytes!("../test-data/message/AutocryptSetupMessage.eml").as_ref(),
-        include_bytes!("../test-data/message/blockquote-tag.eml").as_ref(),
-        include_bytes!("../test-data/message/cp1252-html.eml").as_ref(),
-        include_bytes!("../test-data/message/gmail_ndn.eml").as_ref(),
-        include_bytes!("../test-data/message/gmx-quote.eml").as_ref(),
-        include_bytes!("../test-data/message/mail_attach_txt.eml").as_ref(),
-        include_bytes!("../test-data/message/mailinglist_xt_local_spiegel.eml").as_ref(),
-        include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml").as_ref(),
-        include_bytes!("../test-data/message/pdf_filename_continuation.eml").as_ref(),
-        include_bytes!("../test-data/message/protonmail-repaired.eml").as_ref(),
-        include_bytes!("../test-data/message/subj_with_multimedia_msg.eml").as_ref(),
-        include_bytes!("../test-data/message/text_alt_plain_html.eml").as_ref(),
-        include_bytes!("../test-data/message/text_html.eml").as_ref(),
-        include_bytes!("../test-data/message/videochat_invitation.eml").as_ref(),
-        include_bytes!("../test-data/message/wrong-html.eml").as_ref(),
-    ];
-    recv_emails(context, &emails).await
+
+    for i in 0..100 {
+        let imf_raw = format!(
+            "Subject: Benchmark
+Message-ID: Mr.OssSYnOFkhR.{i}@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+To: alice@example.com
+From: sender@testrun.org
+Chat-Version: 1.0
+Chat-Disposition-Notification-To: sender@testrun.org
+Chat-User-Avatar: 0
+In-Reply-To: Mr.OssSYnOFkhR.{i_dec}@testrun.org
+MIME-Version: 1.0
+
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+Hello {i}",
+            i = i,
+            i_dec = i - 1,
+        );
+        dc_receive_imf(
+            &context,
+            imf_raw.as_bytes(),
+            "INBOX",
+            black_box(i.try_into().unwrap()),
+            false,
+        )
+        .await
+        .unwrap();
+    }
+    context
 }
 
 async fn create_context() -> Context {
