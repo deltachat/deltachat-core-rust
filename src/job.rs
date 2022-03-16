@@ -561,11 +561,16 @@ impl Job {
         }
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-        let server_folder = &job_try!(msg
+        let server_folder = job_try!(msg
             .server_folder
+            .as_ref()
             .context("Can't move message out of folder if we don't know the current folder"));
 
-        let move_res = msg.id.needs_move(context, server_folder).await;
+        let move_res = msg
+            .clone() // TODO avoid clone()?
+            .into_lazy()
+            .needs_move(context, &server_folder)
+            .await;
         let dest_folder = match move_res {
             Err(e) => {
                 warn!(context, "could not load dest folder: {}", e);
@@ -589,7 +594,7 @@ impl Job {
 
         if let Some(dest_folder) = dest_folder {
             match imap
-                .mv(context, server_folder, msg.server_uid, &dest_folder)
+                .mv(context, &server_folder, msg.server_uid, &dest_folder)
                 .await
             {
                 ImapActionResult::RetryLater => Status::RetryLater,

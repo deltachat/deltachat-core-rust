@@ -6,6 +6,7 @@ use std::convert::TryInto;
 use anyhow::{ensure, format_err, Context as _, Result};
 use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
+use once_cell::sync::OnceCell;
 use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
 
@@ -53,6 +54,13 @@ impl MsgId {
         MsgId(0)
     }
 
+    pub fn to_lazy(&self) -> LazyMsg {
+        LazyMsg {
+            id: *self,
+            message: OnceCell::new(),
+        }
+    }
+
     /// Whether the message ID signifies a special message.
     ///
     /// This kind of message ID can not be used for real messages.
@@ -81,65 +89,6 @@ impl MsgId {
             .await?
             .unwrap_or_default();
         Ok(result)
-    }
-
-    /// Returns Some if the message needs to be moved from `folder`.
-    /// If yes, returns `ConfiguredInboxFolder`, `ConfiguredMvboxFolder` or `ConfiguredSentboxFolder`,
-    /// depending on where the message should be moved
-    pub async fn needs_move(self, context: &Context, folder: &str) -> Result<Option<Config>> {
-        use Config::*;
-        if context.is_mvbox(folder).await? {
-            return Ok(None);
-        }
-
-        let msg = Message::load_from_db(context, self).await?;
-
-        if context.is_spam_folder(folder).await? {
-            let msg_unblocked = msg.chat_id != DC_CHAT_ID_TRASH && msg.chat_blocked == Blocked::Not;
-
-            return if msg_unblocked {
-                if self.needs_move_to_mvbox(context, &msg).await? {
-                    Ok(Some(ConfiguredMvboxFolder))
-                } else {
-                    Ok(Some(ConfiguredInboxFolder))
-                }
-            } else {
-                // Blocked or contact request message in the spam folder, leave it there
-                Ok(None)
-            };
-        }
-
-        if self.needs_move_to_mvbox(context, &msg).await? {
-            Ok(Some(ConfiguredMvboxFolder))
-        } else if msg.state.is_outgoing()
-                && msg.is_dc_message == MessengerMessage::Yes
-                && !msg.is_setupmessage()
-                && msg.to_id != DC_CONTACT_ID_SELF // Leave self-chat-messages in the inbox, not sure about this
-                && context.is_inbox(folder).await?
-                && context.get_config_bool(SentboxMove).await?
-                && context.get_config(ConfiguredSentboxFolder).await?.is_some()
-        {
-            Ok(Some(ConfiguredSentboxFolder))
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn needs_move_to_mvbox(self, context: &Context, msg: &Message) -> Result<bool> {
-        if !context.get_config_bool(Config::MvboxMove).await? {
-            return Ok(false);
-        }
-
-        if msg.is_setupmessage() {
-            // do not move setup messages;
-            // there may be a non-delta device that wants to handle it
-            return Ok(false);
-        }
-
-        match msg.is_dc_message {
-            MessengerMessage::No => Ok(false),
-            MessengerMessage::Yes | MessengerMessage::Reply => Ok(true),
-        }
     }
 
     /// Put message into trash chat and delete message text.
@@ -279,6 +228,90 @@ pub(crate) enum MessengerMessage {
 impl Default for MessengerMessage {
     fn default() -> Self {
         Self::No
+    }
+}
+
+#[derive(Debug)]
+pub struct LazyMsg {
+    id: MsgId,
+    message: OnceCell<Message>,
+}
+
+impl LazyMsg {
+    // TODO should get() require &mut self? Or lock a mutex during computation?
+    async fn get(&self, context: &Context) -> Result<&Message> {
+        if let Some(m) = self.message.get() {
+            Ok(m)
+        } else {
+            let m = Message::load_from_db(context, self.id).await?;
+            self.message.set(m).ok();
+            self.message.get().context("message.set() failed???")
+        }
+    }
+
+    /// Returns Some if the message needs to be moved from `folder`.
+    /// If yes, returns `ConfiguredInboxFolder`, `ConfiguredMvboxFolder` or `ConfiguredSentboxFolder`,
+    /// depending on where the message should be moved
+    pub async fn needs_move(&self, context: &Context, folder: &str) -> Result<Option<Config>> {
+        use Config::*;
+        if context.disable_needs_move {
+            return Ok(None);
+        }
+
+        if context.is_mvbox(folder).await? {
+            return Ok(None);
+        }
+
+        let msg = self.get(context).await?;
+
+        if context.is_spam_folder(folder).await? {
+            let msg_unblocked = msg.chat_id != DC_CHAT_ID_TRASH && msg.chat_blocked == Blocked::Not;
+
+            return if msg_unblocked {
+                if self.needs_move_to_mvbox(context).await? {
+                    Ok(Some(ConfiguredMvboxFolder))
+                } else {
+                    Ok(Some(ConfiguredInboxFolder))
+                }
+            } else {
+                // Blocked or contact request message in the spam folder, leave it there
+                Ok(None)
+            };
+        }
+
+        if self.needs_move_to_mvbox(context).await? {
+            Ok(Some(ConfiguredMvboxFolder))
+        } else if msg.state.is_outgoing()
+                && msg.is_dc_message == MessengerMessage::Yes
+                && !msg.is_setupmessage()
+                && msg.to_id != DC_CONTACT_ID_SELF // Leave self-chat-messages in the inbox, not sure about this
+                && context.is_inbox(folder).await?
+                && context.get_config_bool(SentboxMove).await?
+                && context.get_config(ConfiguredSentboxFolder).await?.is_some()
+        {
+            Ok(Some(ConfiguredSentboxFolder))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn needs_move_to_mvbox(&self, context: &Context) -> Result<bool> {
+        if !context.get_config_bool(Config::MvboxMove).await? {
+            return Ok(false);
+        }
+
+        let msg = self.get(context).await?;
+
+        if msg.is_setupmessage() {
+            // do not move setup messages;
+            // there may be a non-delta device that wants to handle it
+            return Ok(false);
+        }
+
+        match msg.is_dc_message {
+            MessengerMessage::No => Ok(false),
+            MessengerMessage::Yes | MessengerMessage::Reply => Ok(true),
+        }
     }
 }
 
@@ -424,6 +457,13 @@ impl Message {
             .await?;
 
         Ok(msg)
+    }
+
+    pub fn into_lazy(self) -> LazyMsg {
+        LazyMsg {
+            id: self.id,
+            message: self.into(),
+        }
     }
 
     pub fn get_filemime(&self) -> Option<String> {
@@ -1990,11 +2030,12 @@ mod tests {
         let exists = rfc724_mid_exists(&t, "abc@example.com").await.unwrap();
         let (folder_1, _, msg_id) = exists.unwrap();
         assert_eq!(folder, folder_1);
-        let actual = if let Some(config) = msg_id.needs_move(&t.ctx, folder).await.unwrap() {
-            t.ctx.get_config(config).await.unwrap()
-        } else {
-            None
-        };
+        let actual =
+            if let Some(config) = msg_id.to_lazy().needs_move(&t.ctx, folder).await.unwrap() {
+                t.ctx.get_config(config).await.unwrap()
+            } else {
+                None
+            };
         let expected = if expected_destination == folder {
             None
         } else {

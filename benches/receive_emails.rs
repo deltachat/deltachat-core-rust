@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use async_std::{path::PathBuf, task::block_on};
 use criterion::{
     async_executor::AsyncStdExecutor, black_box, criterion_group, criterion_main, BatchSize,
-    Criterion,
+    BenchmarkId, Criterion,
 };
 use deltachat::{
     config::Config,
@@ -28,7 +28,8 @@ async fn recv_emails(context: Context, emails: &[&[u8]]) -> Context {
     context
 }
 
-async fn recv_all_emails(context: Context) -> Context {
+async fn recv_all_emails(mut context: Context, needs_move_enabled: bool) -> Context {
+    context.disable_needs_move = !needs_move_enabled;
     let emails = [
         include_bytes!("../test-data/message/allinkl-quote.eml").as_ref(),
         include_bytes!("../test-data/message/apple_cid_jpg.eml").as_ref(),
@@ -125,13 +126,21 @@ async fn create_context() -> Context {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("Receive many messages", |b| {
-        b.to_async(AsyncStdExecutor).iter_batched(
-            || block_on(create_context()),
-            |context| recv_all_emails(black_box(context)),
-            BatchSize::LargeInput,
+    let mut group = c.benchmark_group("from_elem");
+    for needs_move_enabled in [false, true] {
+        group.bench_with_input(
+            BenchmarkId::new("Receive many messages", needs_move_enabled),
+            &needs_move_enabled,
+            |b, needs_move_enabled| {
+                b.to_async(AsyncStdExecutor).iter_batched(
+                    || block_on(create_context()),
+                    |context| recv_all_emails(black_box(context), *needs_move_enabled),
+                    BatchSize::LargeInput,
+                );
+            },
         );
-    });
+    }
+    group.finish();
 }
 
 criterion_group!(benches, criterion_benchmark);

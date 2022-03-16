@@ -193,7 +193,7 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     // Add parts
-    let chat_id = add_parts(
+    let (chat_id, msgs) = add_parts(
         context,
         &mut mime_parser,
         imf_raw,
@@ -323,7 +323,11 @@ pub(crate) async fn dc_receive_imf_inner(
                 )
                 .await?;
             }
-        } else if insert_msg_id
+        } else if msgs
+            .first()
+            .unwrap() // TODO unwrap() (should be safe though)
+            .clone() // TODO unnecessary clone
+            .into_lazy()
             .needs_move(context, server_folder.as_ref())
             .await
             .unwrap_or_default()
@@ -439,7 +443,7 @@ async fn add_parts(
     create_event_to_send: &mut Option<CreateEvent>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
-) -> Result<ChatId> {
+) -> Result<(ChatId, Vec<Message>)> {
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
     let mut incoming_origin = incoming_origin;
@@ -513,7 +517,7 @@ async fn add_parts(
                 }
                 Err(err) => {
                     warn!(context, "Error in Secure-Join message handling: {}", err);
-                    return Ok(DC_CHAT_ID_TRASH);
+                    return Ok((DC_CHAT_ID_TRASH, Vec::new()));
                 }
             }
         } else {
@@ -740,7 +744,7 @@ async fn add_parts(
                 }
                 Err(err) => {
                     warn!(context, "Error in Secure-Join watching: {}", err);
-                    return Ok(DC_CHAT_ID_TRASH);
+                    return Ok((DC_CHAT_ID_TRASH, Vec::new()));
                 }
             }
         } else if mime_parser.sync_items.is_some() && self_sent {
@@ -1005,7 +1009,7 @@ async fn add_parts(
                                 sort_timestamp,
                             )
                             .await?;
-                            return Ok(chat_id); // do not return an error as this would result in retrying the message
+                            return Ok((chat_id, Vec::new())); // do not return an error as this would result in retrying the message
                         }
                     }
                     set_better_msg(
@@ -1076,6 +1080,7 @@ async fn add_parts(
     let mut ids = Vec::with_capacity(parts.len());
 
     let conn = context.sql.get_conn().await?;
+    let mut msgs = Vec::new();
 
     for part in &mut parts {
         let mut txt_raw = "".to_string();
@@ -1132,6 +1137,53 @@ INSERT INTO msgs
         // If you change which information is skipped if the message is trashed,
         // also change `MsgId::trash()` and `delete_expired_messages()`
         let trash = chat_id.is_trash();
+
+        let msg = Message {
+            id: MsgId::new(0),
+            rfc724_mid: rfc724_mid.to_string(),
+            server_uid: server_uid,
+            chat_id,
+            from_id: if trash { 0 } else { from_id },
+            to_id: if trash { 0 } else { to_id },
+            timestamp_sort: sort_timestamp,
+            timestamp_sent: sent_timestamp,
+            timestamp_rcvd: rcvd_timestamp,
+            viewtype: part.typ,
+            state,
+            is_dc_message,
+            text: if trash {
+                None
+            } else {
+                Some(part.msg.to_string())
+            },
+            subject: if trash {
+                "".to_string()
+            } else {
+                subject.to_string()
+            },
+            param: if trash {
+                Params::new()
+            } else {
+                part.param.clone()
+            },
+            in_reply_to: Some(mime_in_reply_to.to_string()), // TODO be careful with Some("") and None
+            mime_modified,
+            error: part.error.clone(),
+            ephemeral_timer,
+            ephemeral_timestamp,
+            download_state: if is_partial_download.is_some() {
+                DownloadState::Available
+            } else {
+                DownloadState::Done
+            },
+            hidden: false,
+            chat_blocked: chat_id_blocked, // TODO not sure if correct
+            location_id: 0,
+            server_folder: Some(server_folder.to_string()),
+        };
+        // TODO mabye reuse some of the fields from above in the query below to avoid duplicate code
+
+        msgs.push(msg);
 
         stmt.execute(paramsv![
             rfc724_mid,
@@ -1223,7 +1275,7 @@ INSERT INTO msgs
         }
     }
 
-    Ok(chat_id)
+    Ok((chat_id, msgs))
 }
 
 /// Saves attached locations to the database.

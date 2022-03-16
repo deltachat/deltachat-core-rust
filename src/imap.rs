@@ -1598,6 +1598,7 @@ async fn precheck_imf(
 
             if delete_server_after != Some(0) {
                 if msg_id
+                    .to_lazy()
                     .needs_move(context, server_folder)
                     .await
                     .unwrap_or_default()

@@ -30,6 +30,7 @@ use crate::sql::Sql;
 #[derive(Clone, Debug)]
 pub struct Context {
     pub(crate) inner: Arc<InnerContext>,
+    pub disable_needs_move: bool, // TODO just added for some extra profiling info
 }
 
 impl Deref for Context {
@@ -157,6 +158,7 @@ impl Context {
 
         let ctx = Context {
             inner: Arc::new(inner),
+            disable_needs_move: false,
         };
         ctx.sql.open(&ctx, &ctx.dbfile, false).await?;
 
