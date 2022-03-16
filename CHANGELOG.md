@@ -17,9 +17,7 @@
 - place common headers like `From:` before the large `Autocrypt:` header #3079
 - keep track of securejoin joiner status in database to survive restarts #2920
 - remove never used `SentboxMove` option #3111
-
-### Improvements
-- Improve speed
+- improve speed by caching config values
 
 
 ## 1.76.0
