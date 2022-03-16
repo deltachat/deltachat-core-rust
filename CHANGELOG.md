@@ -18,6 +18,9 @@
 - keep track of securejoin joiner status in database to survive restarts #2920
 - remove never used `SentboxMove` option #3111
 
+### Improvements
+- Improve speed
+
 
 ## 1.76.0
 
