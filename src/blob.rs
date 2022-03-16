@@ -3,17 +3,14 @@
 use core::cmp::max;
 use std::ffi::OsStr;
 use std::fmt;
+use std::io::Cursor;
 
 use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use async_std::{fs, io};
 
-use anyhow::format_err;
-use anyhow::Context as _;
-use anyhow::Error;
-use image::DynamicImage;
-use image::GenericImageView;
-use image::ImageFormat;
+use anyhow::{format_err, Context as _, Error};
+use image::{DynamicImage, ImageFormat};
 use num_traits::FromPrimitive;
 use thiserror::Error;
 
@@ -449,7 +446,8 @@ impl<'a> BlobObject<'a> {
 
         fn encode_img(img: &DynamicImage, encoded: &mut Vec<u8>) -> anyhow::Result<()> {
             encoded.clear();
-            img.write_to(encoded, image::ImageFormat::Jpeg)?;
+            let mut buf = Cursor::new(encoded);
+            img.write_to(&mut buf, image::ImageFormat::Jpeg)?;
             Ok(())
         }
         fn encoded_img_exceeds_bytes(
@@ -619,16 +617,14 @@ pub enum BlobError {
 mod tests {
     use fs::File;
 
-    use super::*;
-
-    use crate::chat::{create_group_chat, ProtectionStatus};
-    use crate::{
-        chat,
-        message::Message,
-        test_utils::{self, TestContext},
-    };
     use anyhow::Result;
-    use image::Pixel;
+    use image::{GenericImageView, Pixel};
+
+    use crate::chat::{self, create_group_chat, ProtectionStatus};
+    use crate::message::Message;
+    use crate::test_utils::{self, TestContext};
+
+    use super::*;
 
     #[async_std::test]
     async fn test_create() {
@@ -960,10 +956,11 @@ mod tests {
         .unwrap();
         assert_correct_rotation(&img_rotated);
 
-        let mut bytes = vec![];
+        let mut buf = Cursor::new(vec![]);
         img_rotated
-            .write_to(&mut bytes, image::ImageFormat::Jpeg)
+            .write_to(&mut buf, image::ImageFormat::Jpeg)
             .unwrap();
+        let bytes = buf.into_inner();
         let img_rotated = send_image_check_mediaquality(
             Some("0"),
             &bytes,
