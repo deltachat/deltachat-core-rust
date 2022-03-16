@@ -2333,6 +2333,9 @@ async fn add_or_lookup_contact_by_addr(
 #[cfg(test)]
 mod tests {
 
+    use async_std::fs::{self, File};
+    use async_std::io::WriteExt;
+
     use super::*;
 
     use crate::chat::get_chat_contacts;
@@ -2340,7 +2343,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::{DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
     use crate::message::Message;
-    use crate::test_utils::{get_chat_msg, TestContext};
+    use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
     #[test]
     fn test_hex_hash() {
@@ -4965,6 +4968,61 @@ Reply from different address
         );
 
         assert_eq!(msg_in.chat_id, msg_out.chat_id);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_long_filenames() -> Result<()> {
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        for filename_sent in &[
+            "foo.bar very long file name test baz.tar.gz",
+            "foobarabababababababbababababverylongfilenametestbaz.tar.gz",
+            "fooo...tar.gz",
+            "foo. .tar.gz",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tar.gz",
+            "a.tar.gz",
+            "a.a..a.a.a.a.tar.gz",
+        ] {
+            let attachment = alice.blobdir.join(filename_sent);
+            let content = format!("File content of {}", filename_sent);
+            File::create(&attachment)
+                .await?
+                .write_all(content.as_bytes())
+                .await?;
+
+            let mut msg_alice = Message::new(Viewtype::File);
+            msg_alice.set_file(attachment.to_str().unwrap(), None);
+            let alice_chat = alice.create_chat(&bob).await;
+            let sent = alice.send_msg(alice_chat.id, &mut msg_alice).await;
+            println!("{}", sent.payload());
+
+            bob.recv_msg(&sent).await;
+            let msg_bob = bob.get_last_msg().await;
+
+            async fn check_message(msg: &Message, t: &TestContext, content: &str) {
+                assert_eq!(msg.get_viewtype(), Viewtype::File);
+                let resulting_filename = msg.get_filename().unwrap();
+                let path = msg.get_file(t).unwrap();
+                assert!(
+                    resulting_filename.ends_with(".tar.gz"),
+                    "{:?} doesn't end with .tar.gz, path: {:?}",
+                    resulting_filename,
+                    path
+                );
+                assert!(
+                    path.to_str().unwrap().ends_with(".tar.gz"),
+                    "path {:?} doesn't end with .tar.gz",
+                    path
+                );
+                assert_eq!(fs::read_to_string(path).await.unwrap(), content);
+            }
+            check_message(&msg_alice, &alice, &content).await;
+            check_message(&msg_bob, &bob, &content).await;
+        }
 
         Ok(())
     }
