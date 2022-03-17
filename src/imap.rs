@@ -17,6 +17,7 @@ use async_std::channel::Receiver;
 use async_std::prelude::*;
 use num_traits::FromPrimitive;
 
+use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, ShowEmails, DC_CONTACT_ID_SELF, DC_FETCH_EXISTING_MSGS_COUNT,
@@ -40,11 +41,8 @@ use crate::param::Params;
 use crate::provider::Socket;
 use crate::scheduler::connectivity::ConnectivityStore;
 use crate::scheduler::InterruptInfo;
+use crate::sql;
 use crate::stock_str;
-use crate::{
-    chat::{self, ChatId, ChatIdBlocked},
-    sql,
-};
 
 mod client;
 mod idle;
