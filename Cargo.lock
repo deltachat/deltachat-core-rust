@@ -3718,9 +3718,9 @@ dependencies = [
 
 [[package]]
 name = "tagger"
-version = "4.3.1"
+version = "4.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4851912a4b61b39f03bbb0fc26d8135b2f797ac23fccd19cc019da203bff4074"
+checksum = "77dd78fc7dd20ba3a13620ec231cef9e73ea5c7ba162f6c4e05b1d521e04b221"
 
 [[package]]
 name = "tap"
