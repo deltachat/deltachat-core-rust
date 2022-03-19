@@ -1236,7 +1236,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     for msg_id in msg_ids.iter() {
         let msg = Message::load_from_db(context, *msg_id).await?;
         if msg.location_id > 0 {
-            delete_poi_location(context, msg.location_id).await;
+            delete_poi_location(context, msg.location_id).await?;
         }
         msg_id
             .trash(context)
@@ -1269,15 +1269,15 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     Ok(())
 }
 
-async fn delete_poi_location(context: &Context, location_id: u32) -> bool {
+async fn delete_poi_location(context: &Context, location_id: u32) -> Result<()> {
     context
         .sql
         .execute(
             "DELETE FROM locations WHERE independent = 1 AND id=?;",
             paramsv![location_id as i32],
         )
-        .await
-        .is_ok()
+        .await?;
+    Ok(())
 }
 
 pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()> {
