@@ -713,19 +713,6 @@ impl Imap {
                 None => folder.to_string(),
             };
 
-            let duplicate = context
-                .sql
-                .count(
-                    "SELECT COUNT(*)
-                     FROM imap
-                     WHERE rfc724_mid=?
-                     AND folder=?
-                     AND uid<?",
-                    paramsv![message_id, &target, uid],
-                )
-                .await?
-                > 0;
-
             context
                 .sql
                 .execute(
@@ -734,13 +721,7 @@ impl Imap {
                        ON CONFLICT(folder, uid, uidvalidity)
                        DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
                                      target=excluded.target",
-                    paramsv![
-                        message_id,
-                        folder,
-                        uid,
-                        uid_validity,
-                        if duplicate { "" } else { &target }
-                    ],
+                    paramsv![message_id, folder, uid, uid_validity, &target],
                 )
                 .await?;
 
