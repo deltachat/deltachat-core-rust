@@ -76,6 +76,7 @@ use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
+use crate::sql;
 use crate::stock_str;
 use std::cmp::max;
 
@@ -296,6 +297,37 @@ impl MsgId {
         }
         Ok(())
     }
+}
+
+pub(crate) async fn start_ephemeral_timers_msgids(
+    context: &Context,
+    msg_ids: &[MsgId],
+) -> Result<()> {
+    let msg_ids: Vec<&dyn crate::ToSql> = msg_ids
+        .iter()
+        .map(|msg_id| msg_id as &dyn crate::ToSql)
+        .collect();
+    let now = time();
+    let count = context
+        .sql
+        .execute(
+            format!(
+                "UPDATE msgs SET ephemeral_timestamp = ? + ephemeral_timer
+         WHERE (ephemeral_timestamp == 0 OR ephemeral_timestamp > ? + ephemeral_timer) AND ephemeral_timer > 0
+         AND id IN ({})",
+                sql::repeat_vars(msg_ids.len())?
+            ),
+            rusqlite::params_from_iter(
+                std::iter::once(&now as &dyn crate::ToSql)
+                    .chain(std::iter::once(&now as &dyn crate::ToSql))
+                    .chain(msg_ids),
+            ),
+        )
+        .await?;
+    if count > 0 {
+        schedule_ephemeral_task(context).await;
+    }
+    Ok(())
 }
 
 /// Deletes messages which are expired according to

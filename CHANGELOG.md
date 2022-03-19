@@ -19,6 +19,7 @@
 - place common headers like `From:` before the large `Autocrypt:` header #3079
 - keep track of securejoin joiner status in database to survive restarts #2920
 - remove never used `SentboxMove` option #3111
+- optimize `markseen_msgs` #3141
 
 ### Fixes
 - Fix a bug where sometimes the file extension of a long filename containing a dot was cropped #3098
