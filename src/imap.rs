@@ -41,6 +41,7 @@ use crate::param::Params;
 use crate::provider::Socket;
 use crate::scheduler::connectivity::ConnectivityStore;
 use crate::scheduler::InterruptInfo;
+use crate::sql;
 use crate::stock_str;
 
 mod client;
@@ -832,7 +833,7 @@ impl Imap {
             .execute(
                 format!(
                     "DELETE FROM imap WHERE id IN ({})",
-                    row_ids.iter().map(|_| "?").collect::<Vec<&str>>().join(",")
+                    sql::repeat_vars(row_ids.len())?
                 ),
                 rusqlite::params_from_iter(row_ids),
             )
@@ -869,7 +870,7 @@ impl Imap {
                         .execute(
                             format!(
                                 "DELETE FROM imap WHERE id IN ({})",
-                                row_ids.iter().map(|_| "?").collect::<Vec<&str>>().join(",")
+                                sql::repeat_vars(row_ids.len())?
                             ),
                             rusqlite::params_from_iter(row_ids),
                         )
@@ -911,7 +912,7 @@ impl Imap {
                     .execute(
                         format!(
                             "UPDATE imap SET target='' WHERE id IN ({})",
-                            row_ids.iter().map(|_| "?").collect::<Vec<&str>>().join(",")
+                            sql::repeat_vars(row_ids.len())?
                         ),
                         rusqlite::params_from_iter(row_ids),
                     )
