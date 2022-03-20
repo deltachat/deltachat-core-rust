@@ -1294,6 +1294,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                     m.id AS id,
                     m.chat_id AS chat_id,
                     m.state AS state,
+                    m.ephemeral_timer AS ephemeral_timer,
                     c.blocked AS blocked
                  FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id
                  WHERE m.id IN ({}) AND m.chat_id>9",
@@ -1305,18 +1306,32 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                 let chat_id: ChatId = row.get("chat_id")?;
                 let state: MessageState = row.get("state")?;
                 let blocked: Option<Blocked> = row.get("blocked")?;
-                Ok((id, chat_id, state, blocked.unwrap_or_default()))
+                let ephemeral_timer: EphemeralTimer = row.get("ephemeral_timer")?;
+                Ok((
+                    id,
+                    chat_id,
+                    state,
+                    blocked.unwrap_or_default(),
+                    ephemeral_timer,
+                ))
             },
             |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
         .await?;
 
-    start_ephemeral_timers_msgids(context, &msg_ids)
-        .await
-        .context("failed to start ephemeral timers")?;
+    if msgs
+        .iter()
+        .any(|(_id, _chat_id, _state, _blocked, ephemeral_timer)| {
+            *ephemeral_timer != EphemeralTimer::Disabled
+        })
+    {
+        start_ephemeral_timers_msgids(context, &msg_ids)
+            .await
+            .context("failed to start ephemeral timers")?;
+    }
 
     let mut updated_chat_ids = BTreeSet::new();
-    for (id, curr_chat_id, curr_state, curr_blocked) in msgs.into_iter() {
+    for (id, curr_chat_id, curr_state, curr_blocked, _curr_ephemeral_timer) in msgs.into_iter() {
         if curr_blocked == Blocked::Not
             && (curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed)
         {
