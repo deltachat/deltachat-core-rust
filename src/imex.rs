@@ -441,13 +441,6 @@ async fn import_backup(
     backup_to_import: &Path,
     passphrase: String,
 ) -> Result<()> {
-    info!(
-        context,
-        "Import \"{}\" to \"{}\".",
-        backup_to_import.display(),
-        context.get_dbfile().display()
-    );
-
     ensure!(
         !context.is_configured().await?,
         "Cannot import backups to accounts in use."
@@ -459,6 +452,14 @@ async fn import_backup(
 
     let backup_file = File::open(backup_to_import).await?;
     let file_size = backup_file.metadata().await?.len();
+    info!(
+        context,
+        "Import \"{}\" ({} bytes) to \"{}\".",
+        backup_to_import.display(),
+        file_size,
+        context.get_dbfile().display()
+    );
+
     let archive = Archive::new(backup_file);
 
     let mut entries = archive.entries()?;
