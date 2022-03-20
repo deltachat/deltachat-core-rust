@@ -796,20 +796,10 @@ async fn add_parts(
                 {
                     chat_id = Some(new_chat_id);
                     chat_id_blocked = new_chat_id_blocked;
-                    // automatically unblock chat when the user sends a message
-                    if chat_id_blocked != Blocked::Not {
-                        new_chat_id.unblock(context).await?;
-                        chat_id_blocked = Blocked::Not;
-                    }
                 }
             }
             if chat_id.is_none() && allow_creation {
                 let to_contact = Contact::load_from_db(context, to_id).await?;
-                let create_blocked = if !to_contact.blocked {
-                    Blocked::Not
-                } else {
-                    Blocked::Request
-                };
                 if let Some(list_id) = to_contact.param.get(Param::ListId) {
                     if let Some((id, _, blocked)) =
                         chat::get_chat_id_by_grpid(context, list_id).await?
@@ -818,17 +808,18 @@ async fn add_parts(
                         chat_id_blocked = blocked;
                     }
                 } else if let Ok(chat) =
-                    ChatIdBlocked::get_for_contact(context, to_id, create_blocked).await
+                    ChatIdBlocked::get_for_contact(context, to_id, Blocked::Not).await
                 {
                     chat_id = Some(chat.id);
                     chat_id_blocked = chat.blocked;
                 }
+            }
 
+            // automatically unblock chat when the user sends a message
+            if chat_id_blocked != Blocked::Not {
                 if let Some(chat_id) = chat_id {
-                    if chat_id_blocked != Blocked::Not && chat_id_blocked != create_blocked {
-                        chat_id.set_blocked(context, create_blocked).await?;
-                        chat_id_blocked = create_blocked;
-                    }
+                    chat_id.unblock(context).await?;
+                    chat_id_blocked = Blocked::Not;
                 }
             }
         }
@@ -5025,6 +5016,54 @@ Reply from different address
             check_message(&msg_alice, &alice, &content).await;
             check_message(&msg_bob, &bob, &content).await;
         }
+
+        Ok(())
+    }
+
+    /// Tests that contact request is accepted automatically on outgoing message.
+    #[async_std::test]
+    async fn test_accept_outgoing() -> Result<()> {
+        let mut tcm = TestContextManager::new().await;
+        let alice1 = tcm.alice().await;
+        let alice2 = tcm.alice().await;
+        let bob1 = tcm.bob().await;
+        let bob2 = tcm.bob().await;
+
+        let bob1_chat = bob1.create_chat(&alice1).await;
+        let sent = bob1.send_text(bob1_chat.id, "Hello!").await;
+
+        alice1.recv_msg(&sent).await;
+        alice2.recv_msg(&sent).await;
+        bob2.recv_msg(&sent).await;
+
+        let alice1_msg = alice1.get_last_msg().await;
+        assert_eq!(alice1_msg.text.unwrap(), "Hello!");
+        let alice1_chat = chat::Chat::load_from_db(&alice1, alice1_msg.chat_id).await?;
+        assert!(alice1_chat.is_contact_request());
+
+        let alice2_msg = alice2.get_last_msg().await;
+        assert_eq!(alice2_msg.text.unwrap(), "Hello!");
+        let alice2_chat = chat::Chat::load_from_db(&alice2, alice2_msg.chat_id).await?;
+        assert!(alice2_chat.is_contact_request());
+
+        let bob1_msg = bob1.get_last_msg().await;
+        assert_eq!(bob1_msg.text.unwrap(), "Hello!");
+        let bob1_chat = chat::Chat::load_from_db(&bob1, bob1_msg.chat_id).await?;
+        assert!(!bob1_chat.is_contact_request());
+
+        let bob2_msg = bob2.get_last_msg().await;
+        assert_eq!(bob2_msg.text.unwrap(), "Hello!");
+        let bob2_chat = chat::Chat::load_from_db(&bob2, bob2_msg.chat_id).await?;
+        assert!(!bob2_chat.is_contact_request());
+
+        // Alice sends reply.
+        alice1_msg.chat_id.accept(&alice1).await.unwrap();
+        let sent = alice1.send_text(alice1_chat.id, "Hi!").await;
+        alice2.recv_msg(&sent).await;
+
+        // Second device automatically accepts the contact request.
+        let alice2_chat = chat::Chat::load_from_db(&alice2, alice2_msg.chat_id).await?;
+        assert!(!alice2_chat.is_contact_request());
 
         Ok(())
     }

@@ -21,6 +21,7 @@
 - remove never used `SentboxMove` option #3111
 - improve speed by caching config values
 - optimize `markseen_msgs` #3141
+- automatically accept chats with outgoing messages #3143
 
 
 ### Fixes
