@@ -622,6 +622,10 @@ impl Sql {
         .await
         .with_context(|| format!("execute_migration failed for version {}", version))?;
 
+        let mut lock = self.config_cache.write().await;
+        lock.insert(VERSION_CFG.to_string(), Some(format!("{}", version)));
+        drop(lock);
+
         Ok(())
     }
 }
