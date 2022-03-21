@@ -53,16 +53,15 @@ impl ContactId {
 impl fmt::Display for ContactId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
-        // TODO: Something like this
-        // if self == DC_CONTACT_ID_UNDEFINED {
+        // if *self == DC_CONTACT_ID_UNDEFINED {
         //     write!(f, "Contact#Undefined")
-        // } else if self == DC_CONTACT_ID_SELF {
+        // } else if *self == DC_CONTACT_ID_SELF {
         //     write!(f, "Contact#Self")
-        // } else if self == DC_CONTACT_ID_INFO {
+        // } else if *self == DC_CONTACT_ID_INFO {
         //     write!(f, "Contact#Info")
-        // } else if self == DC_CONTACT_ID_DEVICE {
+        // } else if *self == DC_CONTACT_ID_DEVICE {
         //     write!(f, "Contact#Device")
-        // } else if self <= DC_CONTACT_ID_LAST_SPECIAL {
+        // } else if *self <= DC_CONTACT_ID_LAST_SPECIAL {
         //     write!(f, "Contact#Special{}", self.0)
         // } else {
         //     write!(f, "Contact#{}", self.0)

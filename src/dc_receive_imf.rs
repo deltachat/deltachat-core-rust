@@ -16,6 +16,7 @@ use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH, DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF,
 };
+use crate::contact;
 use crate::contact::{
     addr_cmp, may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
 };
@@ -26,6 +27,7 @@ use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
+use crate::location;
 use crate::log::LogExt;
 use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
@@ -36,8 +38,8 @@ use crate::mimeparser::{
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
+use crate::sql;
 use crate::stock_str;
-use crate::{contact, location};
 
 #[derive(Debug, PartialEq, Eq)]
 enum CreateEvent {
@@ -2017,25 +2019,25 @@ async fn create_adhoc_group(
 /// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
 /// so having the same ID prevents group split.
 async fn create_adhoc_grp_id(context: &Context, member_ids: &[ContactId]) -> Result<String> {
-    let member_ids_str = member_ids
-        .iter()
-        .map(|x| x.to_string())
-        .collect::<Vec<String>>()
-        .join(",");
     let member_cs = context
         .get_config(Config::ConfiguredAddr)
         .await?
         .unwrap_or_else(|| "no-self".to_string())
         .to_lowercase();
 
+    let query = format!(
+        "SELECT addr FROM contacts WHERE id IN({}) AND id!=?",
+        sql::repeat_vars(member_ids.len())?
+    );
+    let mut params = Vec::new();
+    params.extend_from_slice(member_ids);
+    params.push(DC_CONTACT_ID_SELF);
+
     let members = context
         .sql
         .query_map(
-            format!(
-                "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
-                member_ids_str
-            ),
-            paramsv![],
+            query,
+            rusqlite::params_from_iter(params),
             |row| row.get::<_, String>(0),
             |rows| {
                 let mut addrs = rows.collect::<std::result::Result<Vec<_>, _>>()?;
@@ -2333,6 +2335,9 @@ async fn add_or_lookup_contact_by_addr(
 #[cfg(test)]
 mod tests {
 
+    use async_std::fs::{self, File};
+    use async_std::io::WriteExt;
+
     use super::*;
 
     use crate::chat::get_chat_contacts;
@@ -2340,7 +2345,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::{DC_CONTACT_ID_INFO, DC_GCL_NO_SPECIALS};
     use crate::message::Message;
-    use crate::test_utils::{get_chat_msg, TestContext};
+    use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
     #[test]
     fn test_hex_hash() {
@@ -4965,6 +4970,61 @@ Reply from different address
         );
 
         assert_eq!(msg_in.chat_id, msg_out.chat_id);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_long_filenames() -> Result<()> {
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        for filename_sent in &[
+            "foo.bar very long file name test baz.tar.gz",
+            "foobarabababababababbababababverylongfilenametestbaz.tar.gz",
+            "fooo...tar.gz",
+            "foo. .tar.gz",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tar.gz",
+            "a.tar.gz",
+            "a.a..a.a.a.a.tar.gz",
+        ] {
+            let attachment = alice.blobdir.join(filename_sent);
+            let content = format!("File content of {}", filename_sent);
+            File::create(&attachment)
+                .await?
+                .write_all(content.as_bytes())
+                .await?;
+
+            let mut msg_alice = Message::new(Viewtype::File);
+            msg_alice.set_file(attachment.to_str().unwrap(), None);
+            let alice_chat = alice.create_chat(&bob).await;
+            let sent = alice.send_msg(alice_chat.id, &mut msg_alice).await;
+            println!("{}", sent.payload());
+
+            bob.recv_msg(&sent).await;
+            let msg_bob = bob.get_last_msg().await;
+
+            async fn check_message(msg: &Message, t: &TestContext, content: &str) {
+                assert_eq!(msg.get_viewtype(), Viewtype::File);
+                let resulting_filename = msg.get_filename().unwrap();
+                let path = msg.get_file(t).unwrap();
+                assert!(
+                    resulting_filename.ends_with(".tar.gz"),
+                    "{:?} doesn't end with .tar.gz, path: {:?}",
+                    resulting_filename,
+                    path
+                );
+                assert!(
+                    path.to_str().unwrap().ends_with(".tar.gz"),
+                    "path {:?} doesn't end with .tar.gz",
+                    path
+                );
+                assert_eq!(fs::read_to_string(path).await.unwrap(), content);
+            }
+            check_message(&msg_alice, &alice, &content).await;
+            check_message(&msg_bob, &bob, &content).await;
+        }
 
         Ok(())
     }

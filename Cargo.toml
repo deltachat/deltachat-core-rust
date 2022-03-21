@@ -34,7 +34,7 @@ encoded-words = { git = "https://github.com/async-email/encoded-words", branch="
 escaper = "0.1"
 futures = "0.3"
 hex = "0.4.0"
-image = { version = "0.23.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
+image = { version = "0.24.1", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
@@ -73,14 +73,14 @@ uuid = { version = "0.8", features = ["serde", "v4"] }
 fast-socks5 = "0.4"
 humansize = "1"
 qrcodegen = "1.7.0"
-tagger = "4.3.1"
+tagger = "4.3.3"
 textwrap = "0.15.0"
 zip = { version = "0.5.13", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 ansi_term = "0.12.0"
 async-std = { version = "1", features = ["unstable", "attributes"] }
-criterion = "0.3"
+criterion = { version = "0.3.4", features = ["async_std"] }
 futures-lite = "1.12"
 log = "0.4"
 pretty_env_logger = "0.4"
@@ -114,6 +114,10 @@ harness = false
 
 [[bench]]
 name = "search_msgs"
+harness = false
+
+[[bench]]
+name = "receive_emails"
 harness = false
 
 [features]

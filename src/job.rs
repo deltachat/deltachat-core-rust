@@ -472,9 +472,12 @@ pub async fn kill_action(context: &Context, action: Action) -> Result<()> {
 
 /// Remove jobs with specified IDs.
 async fn kill_ids(context: &Context, job_ids: &[u32]) -> Result<()> {
+    if job_ids.is_empty() {
+        return Ok(());
+    }
     let q = format!(
         "DELETE FROM jobs WHERE id IN({})",
-        job_ids.iter().map(|_| "?").collect::<Vec<&str>>().join(",")
+        sql::repeat_vars(job_ids.len())?
     );
     context
         .sql

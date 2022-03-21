@@ -20,7 +20,7 @@ use crate::dc_tools::{
     dc_read_file, dc_timestamp_to_str, dc_truncate, time,
 };
 use crate::download::DownloadState;
-use crate::ephemeral::Timer as EphemeralTimer;
+use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::log::LogExt;
@@ -28,6 +28,7 @@ use crate::mimeparser::{parse_message_id, FailureReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
 use crate::scheduler::InterruptInfo;
+use crate::sql;
 use crate::stock_str;
 use crate::summary::Summary;
 
@@ -1236,7 +1237,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     for msg_id in msg_ids.iter() {
         let msg = Message::load_from_db(context, *msg_id).await?;
         if msg.location_id > 0 {
-            delete_poi_location(context, msg.location_id).await;
+            delete_poi_location(context, msg.location_id).await?;
         }
         msg_id
             .trash(context)
@@ -1269,15 +1270,15 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     Ok(())
 }
 
-async fn delete_poi_location(context: &Context, location_id: u32) -> bool {
+async fn delete_poi_location(context: &Context, location_id: u32) -> Result<()> {
     context
         .sql
         .execute(
             "DELETE FROM locations WHERE independent = 1 AND id=?;",
             paramsv![location_id as i32],
         )
-        .await
-        .is_ok()
+        .await?;
+    Ok(())
 }
 
 pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()> {
@@ -1285,50 +1286,52 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
         return Ok(());
     }
 
-    let conn = context.sql.get_conn().await?;
-    let msgs = async_std::task::spawn_blocking(move || -> Result<_> {
-        let mut stmt = conn.prepare_cached(concat!(
-            "SELECT",
-            "    m.chat_id AS chat_id,",
-            "    m.state AS state,",
-            "    c.blocked AS blocked",
-            " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-            " WHERE m.id=? AND m.chat_id>9"
-        ))?;
-
-        let mut msgs = Vec::with_capacity(msg_ids.len());
-        for id in msg_ids.into_iter() {
-            let query_res = stmt.query_row(paramsv![id], |row| {
+    let msgs = context
+        .sql
+        .query_map(
+            format!(
+                "SELECT
+                    m.id AS id,
+                    m.chat_id AS chat_id,
+                    m.state AS state,
+                    m.ephemeral_timer AS ephemeral_timer,
+                    c.blocked AS blocked
+                 FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id
+                 WHERE m.id IN ({}) AND m.chat_id>9",
+                sql::repeat_vars(msg_ids.len())?
+            ),
+            rusqlite::params_from_iter(&msg_ids),
+            |row| {
+                let id: MsgId = row.get("id")?;
+                let chat_id: ChatId = row.get("chat_id")?;
+                let state: MessageState = row.get("state")?;
+                let blocked: Option<Blocked> = row.get("blocked")?;
+                let ephemeral_timer: EphemeralTimer = row.get("ephemeral_timer")?;
                 Ok((
-                    row.get::<_, ChatId>("chat_id")?,
-                    row.get::<_, MessageState>("state")?,
-                    row.get::<_, Option<Blocked>>("blocked")?
-                        .unwrap_or_default(),
+                    id,
+                    chat_id,
+                    state,
+                    blocked.unwrap_or_default(),
+                    ephemeral_timer,
                 ))
-            });
-            if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
-                continue;
-            }
-            let (chat_id, state, blocked) = query_res.map_err(Into::<anyhow::Error>::into)?;
-            msgs.push((id, chat_id, state, blocked));
-        }
-        drop(stmt);
-        drop(conn);
-        Ok(msgs)
-    })
-    .await?;
+            },
+            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
+        .await?;
+
+    if msgs
+        .iter()
+        .any(|(_id, _chat_id, _state, _blocked, ephemeral_timer)| {
+            *ephemeral_timer != EphemeralTimer::Disabled
+        })
+    {
+        start_ephemeral_timers_msgids(context, &msg_ids)
+            .await
+            .context("failed to start ephemeral timers")?;
+    }
 
     let mut updated_chat_ids = BTreeSet::new();
-
-    for (id, curr_chat_id, curr_state, curr_blocked) in msgs.into_iter() {
-        if let Err(err) = id.start_ephemeral_timer(context).await {
-            error!(
-                context,
-                "Failed to start ephemeral timer for message {}: {}", id, err
-            );
-            continue;
-        }
-
+    for (id, curr_chat_id, curr_state, curr_blocked, _curr_ephemeral_timer) in msgs.into_iter() {
         if curr_blocked == Blocked::Not
             && (curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed)
         {

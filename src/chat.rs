@@ -31,7 +31,6 @@ use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer a
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
 use crate::job::{self, Action};
-use crate::location;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
@@ -41,6 +40,7 @@ use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
 use crate::webxdc::WEBXDC_SUFFIX;
+use crate::{location, sql};
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone)]
@@ -3103,7 +3103,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             .query_map(
                 format!(
                     "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                    msg_ids.iter().map(|_| "?").collect::<Vec<&str>>().join(",")
+                    sql::repeat_vars(msg_ids.len())?
                 ),
                 rusqlite::params_from_iter(msg_ids),
                 |row| row.get::<_, MsgId>(0),

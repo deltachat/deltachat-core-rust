@@ -11,6 +11,8 @@
 - do not delete messages without Message-IDs as duplicates #3095
 - Assign replies from a different email address to the correct chat #3119
 - start ephemeral timer when seen status is synchronized via IMAP #3122
+- do not delete duplicate messages on IMAP immediately to accidentally deleting
+  the last copy #3138
 
 ### Changes
 - add more SMTP logging #3093
@@ -18,7 +20,11 @@
 - keep track of securejoin joiner status in database to survive restarts #2920
 - remove never used `SentboxMove` option #3111
 - improve speed by caching config values
+- optimize `markseen_msgs` #3141
 
+
+### Fixes
+- Fix a bug where sometimes the file extension of a long filename containing a dot was cropped #3098
 
 ## 1.76.0
 
