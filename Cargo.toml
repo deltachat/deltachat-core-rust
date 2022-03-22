@@ -38,7 +38,7 @@ image = { version = "0.24.1", default-features=false, features = ["gif", "jpeg",
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
-log = {version = "0.4.8", optional = true }
+log = {version = "0.4.16", optional = true }
 mailparse = "0.13"
 native-tls = "0.2"
 num_cpus = "1.13"
