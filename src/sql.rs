@@ -48,7 +48,7 @@ pub struct Sql {
     /// open without a passphrase.
     is_encrypted: RwLock<Option<bool>>,
 
-    config_cache: RwLock<HashMap<String, Option<String>>>,
+    pub(crate) config_cache: RwLock<HashMap<String, Option<String>>>,
 }
 
 impl Sql {
