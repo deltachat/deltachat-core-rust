@@ -501,6 +501,7 @@ impl Sql {
     pub async fn set_raw_config(&self, key: impl AsRef<str>, value: Option<&str>) -> Result<()> {
         let key = key.as_ref();
 
+        let mut lock = self.config_cache.write().await;
         if let Some(value) = value {
             let exists = self
                 .exists(
@@ -526,8 +527,6 @@ impl Sql {
             self.execute("DELETE FROM config WHERE keyname=?;", paramsv![key])
                 .await?;
         }
-
-        let mut lock = self.config_cache.write().await;
         lock.insert(key.to_string(), value.map(|s| s.to_string()));
         drop(lock);
 
@@ -544,6 +543,7 @@ impl Sql {
             return Ok(c);
         }
 
+        let mut lock = self.config_cache.write().await;
         let value = self
             .query_get_value(
                 "SELECT value FROM config WHERE keyname=?;",
@@ -551,8 +551,6 @@ impl Sql {
             )
             .await
             .context(format!("failed to fetch raw config: {}", key.as_ref()))?;
-
-        let mut lock = self.config_cache.write().await;
         lock.insert(key.as_ref().to_string(), value.clone());
         drop(lock);
 
