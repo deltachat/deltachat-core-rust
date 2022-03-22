@@ -19,7 +19,7 @@
 - place common headers like `From:` before the large `Autocrypt:` header #3079
 - keep track of securejoin joiner status in database to survive restarts #2920
 - remove never used `SentboxMove` option #3111
-- improve speed by caching config values
+- improve speed by caching config values #3131 #3145
 - optimize `markseen_msgs` #3141
 - automatically accept chats with outgoing messages #3143
 

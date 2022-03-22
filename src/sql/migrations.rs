@@ -36,6 +36,13 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool
             Ok(())
         })
         .await?;
+
+        let mut lock = context.sql.config_cache.write().await;
+        lock.insert(
+            VERSION_CFG.to_string(),
+            Some(format!("{}", dbversion_before_update)),
+        );
+        drop(lock);
     } else {
         exists_before_update = true;
         dbversion_before_update = sql
