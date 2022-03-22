@@ -901,6 +901,54 @@ mod tests {
         }
     }
 
+    #[async_std::test]
+    async fn test_export_and_import_backup() -> Result<()> {
+        let backup_dir = tempfile::tempdir().unwrap();
+
+        let context1 = TestContext::new_alice().await;
+        assert!(context1.is_configured().await?);
+
+        let context2 = TestContext::new().await;
+        assert!(!context2.is_configured().await?);
+        assert!(has_backup(&context2, backup_dir.path().as_ref())
+            .await
+            .is_err());
+
+        // export from context1
+        assert!(imex(
+            &context1,
+            ImexMode::ExportBackup,
+            backup_dir.path().as_ref(),
+            None,
+        )
+        .await
+        .is_ok());
+        let _event = context1
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
+            .await;
+
+        // import to context2
+        let backup = has_backup(&context2, backup_dir.path().as_ref()).await?;
+        assert!(
+            imex(&context2, ImexMode::ImportBackup, backup.as_ref(), None)
+                .await
+                .is_ok()
+        );
+        let _event = context2
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
+            .await;
+
+        assert!(context2.is_configured().await?);
+        assert_eq!(
+            context2.get_config(Config::Addr).await?,
+            Some("alice@example.org".to_string())
+        );
+
+        Ok(())
+    }
+
     #[test]
     fn test_normalize_setup_code() {
         let norm = normalize_setup_code("123422343234423452346234723482349234");
