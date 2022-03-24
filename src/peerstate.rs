@@ -379,9 +379,10 @@ impl Peerstate {
     pub fn peek_key(&self, min_verified: PeerstateVerifiedStatus) -> Option<&SignedPublicKey> {
         match min_verified {
             PeerstateVerifiedStatus::BidirectVerified => self.verified_key.as_ref(),
-            PeerstateVerifiedStatus::Unverified => {
-                self.public_key.as_ref().or(self.gossip_key.as_ref())
-            }
+            PeerstateVerifiedStatus::Unverified => self
+                .public_key
+                .as_ref()
+                .or_else(|| self.gossip_key.as_ref()),
         }
     }
 
