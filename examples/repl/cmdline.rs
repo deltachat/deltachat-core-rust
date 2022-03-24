@@ -932,13 +932,24 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "listmsgs" => {
             ensure!(!arg1.is_empty(), "Argument <query> missing.");
 
+            let query = format!("{} {}", arg1, arg2).trim().to_string();
             let chat = sel_chat.as_ref().map(|sel_chat| sel_chat.get_id());
             let time_start = std::time::SystemTime::now();
-            let msglist = context.search_msgs(chat, arg1).await?;
+            let msglist = context.search_msgs(chat, &query).await?;
             let time_needed = time_start.elapsed().unwrap_or_default();
 
             log_msglist(&context, &msglist).await?;
-            println!("{} messages.", msglist.len());
+            println!(
+                "{}{} messages for {}search of \"{}\"",
+                msglist.len(),
+                if msglist.len() == 1000 { "+" } else { "" },
+                if chat.is_none() {
+                    "global "
+                } else {
+                    "in-chat-"
+                },
+                query,
+            );
             println!("{:?} to create this list", time_needed);
         }
         "draft" => {
