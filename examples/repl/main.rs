@@ -227,13 +227,12 @@ const CONTACT_COMMANDS: [&str; 9] = [
     "unblock",
     "listblocked",
 ];
-const MISC_COMMANDS: [&str; 12] = [
+const MISC_COMMANDS: [&str; 11] = [
     "getqr",
     "getqrsvg",
     "getbadqr",
     "checkqr",
     "joinqr",
-    "event",
     "fileinfo",
     "clear",
     "exit",
