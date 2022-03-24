@@ -484,7 +484,11 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         // (`ShowEmails=1` lets Alice actually receive non-delta messages for known contacts,
         // the contact is marked as known by creating a chat using `chat_with_contact()`)
         let alice = TestContext::new_alice().await;
-        alice.set_config(Config::ShowEmails, Some("1")).await.ok();
+        alice
+            .set_config(Config::ShowEmails, Some("1"))
+            .await
+            .unwrap();
+        alice.set_config(Config::BccSelf, Some("1")).await.unwrap();
         let chat = alice
             .create_chat_with_contact("", "sender@testrun.org")
             .await;

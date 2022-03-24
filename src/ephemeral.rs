@@ -820,6 +820,7 @@ mod tests {
     #[async_std::test]
     async fn test_ephemeral_delete_msgs() -> Result<()> {
         let t = TestContext::new_alice().await;
+        t.set_config(Config::BccSelf, Some("1")).await?;
         let chat = t.get_self_chat().await;
 
         t.send_text(chat.id, "Saved message, which we delete manually")

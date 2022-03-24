@@ -153,7 +153,9 @@ impl<'a> MimeFactory<'a> {
         let mut req_mdn = false;
 
         if chat.is_self_talk() {
-            recipients.push((from_displayname.to_string(), from_addr.to_string()));
+            // Don't push any recipients; if bcc_self is turned on,
+            // the self-address will be added later; if it's turned off, we
+            // don't want to send the message to the self address
         } else if chat.is_mailing_list() {
             let list_post = chat
                 .param

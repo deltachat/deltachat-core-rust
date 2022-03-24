@@ -3899,6 +3899,7 @@ mod tests {
     #[async_std::test]
     async fn test_self_talk() -> Result<()> {
         let t = TestContext::new_alice().await;
+        t.set_config(Config::BccSelf, Some("1")).await?;
         let chat = &t.get_self_chat().await;
         assert_eq!(DC_CONTACT_ID_SELF, ContactId::new(1));
         assert!(!chat.id.is_special());

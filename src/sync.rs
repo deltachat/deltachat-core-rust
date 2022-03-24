@@ -467,6 +467,7 @@ mod tests {
     #[async_std::test]
     async fn test_send_sync_msg() -> Result<()> {
         let alice = TestContext::new_alice().await;
+        alice.set_config(Config::BccSelf, Some("1")).await?;
         alice.set_config_bool(Config::SendSyncMsgs, true).await?;
         alice
             .add_sync_item(SyncData::AddQrToken(QrTokenData {
