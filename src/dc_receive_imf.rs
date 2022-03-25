@@ -41,12 +41,6 @@ use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on
 use crate::sql;
 use crate::stock_str;
 
-#[derive(Debug, PartialEq, Eq)]
-enum CreateEvent {
-    MsgsChanged,
-    IncomingMsg,
-}
-
 /// This is the struct that is returned after receiving one email (aka MIME message).
 ///
 /// One email with multiple attachments can end up as multiple chat messages, but they
@@ -57,6 +51,18 @@ pub struct ReceivedMsg {
     pub state: MessageState,
     pub sort_timestamp: i64,
     // Feel free to add more fields here
+}
+
+/// Information about added message parts.
+struct AddedParts {
+    /// Common info about received messages.
+    pub received_msg: ReceivedMsg,
+
+    /// IDs of inserted rows in messages table.
+    pub created_db_entries: Vec<MsgId>,
+
+    /// Whether IMAP messages should be immediately deleted.
+    pub needs_delete_job: bool,
 }
 
 /// Emulates reception of a message from the network.
@@ -160,11 +166,6 @@ pub(crate) async fn dc_receive_imf_inner(
         };
 
     // the function returns the number of created messages in the database
-    let mut needs_delete_job = false;
-
-    let mut created_db_entries = Vec::new();
-    let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
-
     let prevent_rename =
         mime_parser.is_mailinglist_message() || mime_parser.get_header(HeaderDef::Sender).is_some();
 
@@ -207,7 +208,7 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     // Add parts
-    let received_msg = add_parts(
+    let added_parts = add_parts(
         context,
         &mut mime_parser,
         imf_raw,
@@ -220,9 +221,6 @@ pub(crate) async fn dc_receive_imf_inner(
         from_id,
         seen || replace_partial_download,
         is_partial_download,
-        &mut needs_delete_job,
-        &mut created_db_entries,
-        &mut create_event_to_send,
         fetching_existing_messages,
         prevent_rename,
     )
@@ -236,7 +234,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // Update gossiped timestamp for the chat if someone else or our other device sent
     // Autocrypt-Gossip for all recipients in the chat to avoid sending Autocrypt-Gossip ourselves
     // and waste traffic.
-    let chat_id = received_msg.chat_id;
+    let chat_id = added_parts.received_msg.chat_id;
     if !chat_id.is_special()
         && mime_parser
             .recipients
@@ -254,7 +252,7 @@ pub(crate) async fn dc_receive_imf_inner(
         }
     }
 
-    let insert_msg_id = if let Some((_chat_id, msg_id)) = created_db_entries.last() {
+    let insert_msg_id = if let Some(msg_id) = added_parts.created_db_entries.last() {
         *msg_id
     } else {
         MsgId::new_unset()
@@ -335,8 +333,10 @@ pub(crate) async fn dc_receive_imf_inner(
     // Get user-configured server deletion
     let delete_server_after = context.get_config_delete_server_after().await?;
 
-    if !created_db_entries.is_empty() {
-        if needs_delete_job || (delete_server_after == Some(0) && is_partial_download.is_none()) {
+    if !added_parts.created_db_entries.is_empty() {
+        if added_parts.needs_delete_job
+            || (delete_server_after == Some(0) && is_partial_download.is_none())
+        {
             context
                 .sql
                 .execute(
@@ -364,11 +364,12 @@ pub(crate) async fn dc_receive_imf_inner(
             msg_id: MsgId::new(0),
             chat_id,
         });
-    } else if let Some(create_event_to_send) = create_event_to_send {
-        for (chat_id, msg_id) in created_db_entries {
-            let event = match create_event_to_send {
-                CreateEvent::MsgsChanged => EventType::MsgsChanged { msg_id, chat_id },
-                CreateEvent::IncomingMsg => EventType::IncomingMsg { msg_id, chat_id },
+    } else if !chat_id.is_trash() {
+        for msg_id in added_parts.created_db_entries {
+            let event = if incoming && added_parts.received_msg.state == MessageState::InFresh {
+                EventType::IncomingMsg { msg_id, chat_id }
+            } else {
+                EventType::MsgsChanged { msg_id, chat_id }
             };
             context.emit_event(event);
         }
@@ -378,7 +379,7 @@ pub(crate) async fn dc_receive_imf_inner(
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
         .await;
 
-    Ok(Some(received_msg))
+    Ok(Some(added_parts.received_msg))
 }
 
 /// Converts "From" field to contact id.
@@ -441,12 +442,9 @@ async fn add_parts(
     from_id: ContactId,
     seen: bool,
     is_partial_download: Option<u32>,
-    needs_delete_job: &mut bool,
-    created_db_entries: &mut Vec<(ChatId, MsgId)>,
-    create_event_to_send: &mut Option<CreateEvent>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
-) -> Result<ReceivedMsg> {
+) -> Result<AddedParts> {
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
 
@@ -494,6 +492,7 @@ async fn add_parts(
     let to_id: ContactId;
 
     let state: MessageState;
+    let mut needs_delete_job = false;
     if incoming {
         to_id = DC_CONTACT_ID_SELF;
 
@@ -506,7 +505,7 @@ async fn add_parts(
             match handle_securejoin_handshake(context, mime_parser, from_id).await {
                 Ok(securejoin::HandshakeMessage::Done) => {
                     chat_id = Some(DC_CHAT_ID_TRASH);
-                    *needs_delete_job = true;
+                    needs_delete_job = true;
                     securejoin_seen = true;
                 }
                 Ok(securejoin::HandshakeMessage::Ignore) => {
@@ -1086,7 +1085,7 @@ async fn add_parts(
         Vec::new()
     };
 
-    let mut ids = Vec::with_capacity(parts.len());
+    let mut created_db_entries = Vec::with_capacity(parts.len());
 
     let conn = context.sql.get_conn().await?;
 
@@ -1187,13 +1186,12 @@ INSERT INTO msgs
         let row_id = conn.last_insert_rowid();
 
         drop(stmt);
-        ids.push(MsgId::new(u32::try_from(row_id)?));
+        created_db_entries.push(MsgId::new(u32::try_from(row_id)?));
     }
     drop(conn);
 
     chat_id.unarchive(context).await?;
 
-    created_db_entries.extend(ids.iter().map(|id| (chat_id, *id)));
     mime_parser.parts = parts;
 
     info!(
@@ -1205,15 +1203,6 @@ INSERT INTO msgs
     if !incoming && !chat_id.is_special() {
         chat::marknoticed_chat_if_older_than(context, chat_id, sort_timestamp).await?;
     }
-
-    // check event to send
-    *create_event_to_send = if chat_id.is_trash() {
-        None
-    } else if incoming && state == MessageState::InFresh {
-        Some(CreateEvent::IncomingMsg)
-    } else {
-        Some(CreateEvent::MsgsChanged)
-    };
 
     if !is_mdn {
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -1234,10 +1223,16 @@ INSERT INTO msgs
         }
     }
 
-    Ok(ReceivedMsg {
+    let received_msg = ReceivedMsg {
         chat_id,
         state,
         sort_timestamp,
+    };
+
+    Ok(AddedParts {
+        received_msg,
+        created_db_entries,
+        needs_delete_job,
     })
 }
 
