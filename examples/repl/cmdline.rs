@@ -426,7 +426,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  joinqr <qr-content>\n\
                  setqr <qr-content>\n\
                  providerinfo <addr>\n\
-                 event <event-id to test>\n\
                  fileinfo <file>\n\
                  estimatedeletion <seconds>\n\
                  clear -- clear screen\n\
@@ -1220,17 +1219,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 }
             }
         }
-        // TODO: implement this again, unclear how to match this through though, without writing a parser.
-        // "event" => {
-        //     ensure!(!arg1.is_empty(), "Argument <id> missing.");
-        //     let event = arg1.parse()?;
-        //     let event = EventType::from_u32(event).ok_or(format_err!("EventType::from_u32({})", event))?;
-        //     let r = context.emit_event(event, 0 as libc::uintptr_t, 0 as libc::uintptr_t);
-        //     println!(
-        //         "Sending event {:?}({}), received value {}.",
-        //         event, event as usize, r,
-        //     );
-        // }
         "fileinfo" => {
             ensure!(!arg1.is_empty(), "Argument <file> missing.");
 
