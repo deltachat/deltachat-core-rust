@@ -599,6 +599,15 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 87 {
+        info!(context, "[migration] v87");
+        // the index is used to speed up delete_expired_messages()
+        sql.execute_migration(
+            "CREATE INDEX IF NOT EXISTS msgs_index8 ON msgs (ephemeral_timestamp);",
+            87,
+        )
+        .await?;
+    }
 
     Ok((
         recalc_fingerprints,
