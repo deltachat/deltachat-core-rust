@@ -120,6 +120,10 @@ harness = false
 name = "receive_emails"
 harness = false
 
+[[bench]]
+name = "get_chat_msgs"
+harness = false
+
 [features]
 default = ["vendored"]
 internals = []
