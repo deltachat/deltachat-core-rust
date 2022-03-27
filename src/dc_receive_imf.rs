@@ -600,7 +600,7 @@ async fn add_parts(
                 }
             }
 
-            better_msg = apply_group_changes(
+            better_msg = better_msg.or(apply_group_changes(
                 context,
                 mime_parser,
                 sent_timestamp,
@@ -608,7 +608,7 @@ async fn add_parts(
                 from_id,
                 to_ids,
             )
-            .await?;
+            .await?);
         }
 
         if chat_id.is_none() {
@@ -824,7 +824,7 @@ async fn add_parts(
         }
 
         if let Some(chat_id) = chat_id {
-            better_msg = apply_group_changes(
+            better_msg = better_msg.or(apply_group_changes(
                 context,
                 mime_parser,
                 sent_timestamp,
@@ -832,7 +832,7 @@ async fn add_parts(
                 from_id,
                 to_ids,
             )
-            .await?;
+            .await?);
         }
 
         if chat_id.is_none() && self_sent {
