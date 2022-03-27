@@ -202,11 +202,6 @@ pub(crate) async fn dc_receive_imf_inner(
         .and_then(|value| mailparse::dateparse(value).ok())
         .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp));
 
-    if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
-        let better_msg = stock_str::msg_location_enabled_by(context, from_id).await;
-        set_better_msg(&mut mime_parser, &better_msg);
-    }
-
     // Add parts
     let added_parts = add_parts(
         context,
@@ -448,6 +443,11 @@ async fn add_parts(
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
 
+    let mut better_msg = None;
+    if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
+        better_msg = Some(stock_str::msg_location_enabled_by(context, from_id).await);
+    }
+
     let parent = get_parent_message(context, mime_parser).await?;
 
     let is_dc_message = if mime_parser.has_chat_version() {
@@ -600,7 +600,7 @@ async fn add_parts(
                 }
             }
 
-            apply_group_changes(
+            better_msg = apply_group_changes(
                 context,
                 mime_parser,
                 sent_timestamp,
@@ -824,7 +824,7 @@ async fn add_parts(
         }
 
         if let Some(chat_id) = chat_id {
-            apply_group_changes(
+            better_msg = apply_group_changes(
                 context,
                 mime_parser,
                 sent_timestamp,
@@ -971,10 +971,7 @@ async fn add_parts(
     }
 
     if mime_parser.is_system_message == SystemMessage::EphemeralTimerChanged {
-        set_better_msg(
-            mime_parser,
-            stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
-        );
+        better_msg = Some(stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await);
 
         // Do not delete the system message itself.
         //
@@ -1022,10 +1019,7 @@ async fn add_parts(
                             // do not return an error as this would result in retrying the message
                         }
                     }
-                    set_better_msg(
-                        mime_parser,
-                        context.stock_protection_msg(new_status, from_id).await,
-                    );
+                    better_msg = Some(context.stock_protection_msg(new_status, from_id).await);
                 }
             }
         }
@@ -1065,7 +1059,6 @@ async fn add_parts(
 
     let subject = mime_parser.get_subject().unwrap_or_default();
 
-    let mut parts = std::mem::take(&mut mime_parser.parts);
     let is_system_message = mime_parser.is_system_message;
 
     // if indicated by the parser,
@@ -1085,11 +1078,11 @@ async fn add_parts(
         Vec::new()
     };
 
-    let mut created_db_entries = Vec::with_capacity(parts.len());
+    let mut created_db_entries = Vec::with_capacity(mime_parser.parts.len());
 
     let conn = context.sql.get_conn().await?;
 
-    for part in &mut parts {
+    for part in &mime_parser.parts {
         let mut txt_raw = "".to_string();
         let mut stmt = conn.prepare_cached(
             r#"
@@ -1114,6 +1107,12 @@ INSERT INTO msgs
 "#,
         )?;
 
+        let (msg, typ): (&str, Viewtype) = if let Some(better_msg) = &better_msg {
+            (better_msg, Viewtype::Text)
+        } else {
+            (&part.msg, part.typ)
+        };
+
         let part_is_empty = part.msg.is_empty() && part.param.get(Param::Quote).is_none();
         let mime_modified = save_mime_modified && !part_is_empty;
         if mime_modified {
@@ -1125,8 +1124,10 @@ INSERT INTO msgs
             let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
             txt_raw = format!("{}\n\n{}", subject, msg_raw);
         }
+
+        let mut param = part.param.clone();
         if is_system_message != SystemMessage::Unknown {
-            part.param.set_int(Param::Cmd, is_system_message as i32);
+            param.set_int(Param::Cmd, is_system_message as i32);
         }
 
         let ephemeral_timestamp = if in_fresh {
@@ -1152,17 +1153,17 @@ INSERT INTO msgs
             sort_timestamp,
             sent_timestamp,
             rcvd_timestamp,
-            part.typ,
+            typ,
             state,
             is_dc_message,
-            if trash { "" } else { &part.msg },
+            if trash { "" } else { msg },
             if trash { "" } else { &subject },
             // txt_raw might contain invalid utf8
             if trash { "" } else { &txt_raw },
             if trash {
                 "".to_string()
             } else {
-                part.param.to_string()
+                param.to_string()
             },
             part.bytes as isize,
             if (save_mime_headers || mime_modified) && !trash {
@@ -1173,7 +1174,7 @@ INSERT INTO msgs
             mime_in_reply_to,
             mime_references,
             mime_modified,
-            part.error.take().unwrap_or_default(),
+            part.error.as_deref().unwrap_or_default(),
             ephemeral_timer,
             ephemeral_timestamp,
             if is_partial_download.is_some() {
@@ -1191,8 +1192,6 @@ INSERT INTO msgs
     drop(conn);
 
     chat_id.unarchive(context).await?;
-
-    mime_parser.parts = parts;
 
     info!(
         context,
@@ -1320,7 +1319,7 @@ async fn calc_sort_timestamp(
 
 async fn lookup_chat_by_reply(
     context: &Context,
-    mime_parser: &mut MimeMessage,
+    mime_parser: &MimeMessage,
     parent: &Option<Message>,
     to_ids: &[ContactId],
 ) -> Result<Option<(ChatId, Blocked)>> {
@@ -1538,6 +1537,8 @@ async fn create_or_lookup_group(
 }
 
 /// Apply group member list, name, avatar and protection status changes from the MIME message.
+///
+/// Optionally returns better message to replace the original system message.
 async fn apply_group_changes(
     context: &Context,
     mime_parser: &mut MimeMessage,
@@ -1545,10 +1546,10 @@ async fn apply_group_changes(
     chat_id: ChatId,
     from_id: ContactId,
     to_ids: &[ContactId],
-) -> Result<()> {
+) -> Result<Option<String>> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     if chat.typ != Chattype::Group {
-        return Ok(());
+        return Ok(None);
     }
 
     let self_addr = context
@@ -1559,6 +1560,7 @@ async fn apply_group_changes(
     let mut recreate_member_list = false;
     let mut send_event_chat_modified = false;
 
+    let mut better_msg = None;
     let removed_id;
     if let Some(removed_addr) = mime_parser
         .get_header(HeaderDef::ChatGroupMemberRemoved)
@@ -1568,13 +1570,11 @@ async fn apply_group_changes(
         recreate_member_list = true;
         match removed_id {
             Some(contact_id) => {
-                mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
-                let better_msg = if contact_id == from_id {
-                    stock_str::msg_group_left(context, from_id).await
+                better_msg = if contact_id == from_id {
+                    Some(stock_str::msg_group_left(context, from_id).await)
                 } else {
-                    stock_str::msg_del_member(context, &removed_addr, from_id).await
+                    Some(stock_str::msg_del_member(context, &removed_addr, from_id).await)
                 };
-                set_better_msg(mime_parser, &better_msg);
             }
             None => warn!(context, "removed {:?} has no contact_id", removed_addr),
         }
@@ -1584,9 +1584,7 @@ async fn apply_group_changes(
             .get_header(HeaderDef::ChatGroupMemberAdded)
             .cloned()
         {
-            mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
-            let better_msg = stock_str::msg_add_member(context, &added_member, from_id).await;
-            set_better_msg(mime_parser, &better_msg);
+            better_msg = Some(stock_str::msg_add_member(context, &added_member, from_id).await);
             recreate_member_list = true;
         } else if let Some(old_name) = mime_parser.get_header(HeaderDef::ChatGroupNameChanged) {
             if let Some(grpname) = mime_parser
@@ -1608,25 +1606,22 @@ async fn apply_group_changes(
                     send_event_chat_modified = true;
                 }
 
-                let better_msg = stock_str::msg_grp_name(context, old_name, grpname, from_id).await;
-                set_better_msg(mime_parser, &better_msg);
-                mime_parser.is_system_message = SystemMessage::GroupNameChanged;
+                better_msg =
+                    Some(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
             }
         } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
             if value == "group-avatar-changed" {
                 if let Some(avatar_action) = &mime_parser.group_avatar {
                     // this is just an explicit message containing the group-avatar,
                     // apart from that, the group-avatar is send along with various other messages
-                    mime_parser.is_system_message = SystemMessage::GroupImageChanged;
-                    let better_msg = match avatar_action {
+                    better_msg = match avatar_action {
                         AvatarAction::Delete => {
-                            stock_str::msg_grp_img_deleted(context, from_id).await
+                            Some(stock_str::msg_grp_img_deleted(context, from_id).await)
                         }
                         AvatarAction::Change(_) => {
-                            stock_str::msg_grp_img_changed(context, from_id).await
+                            Some(stock_str::msg_grp_img_changed(context, from_id).await)
                         }
                     };
-                    set_better_msg(mime_parser, &better_msg);
                 }
             }
         }
@@ -1736,7 +1731,7 @@ async fn apply_group_changes(
     if send_event_chat_modified {
         context.emit_event(EventType::ChatModified(chat_id));
     }
-    Ok(())
+    Ok(better_msg)
 }
 
 /// Create or lookup a mailing list chat.
@@ -2174,17 +2169,6 @@ async fn check_verified_properties(
         }
     }
     Ok(())
-}
-
-fn set_better_msg(mime_parser: &mut MimeMessage, better_msg: impl AsRef<str>) {
-    let msg = better_msg.as_ref();
-    if !msg.is_empty() {
-        if let Some(part) = mime_parser.parts.get_mut(0) {
-            if part.typ == Viewtype::Text {
-                part.msg = msg.to_string();
-            }
-        }
-    }
 }
 
 /// Returns the last message referenced from `References` header if it is in the database.
