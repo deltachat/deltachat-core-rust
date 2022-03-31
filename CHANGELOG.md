@@ -13,6 +13,7 @@
 - start ephemeral timer when seen status is synchronized via IMAP #3122
 - do not delete duplicate messages on IMAP immediately to accidentally deleting
   the last copy #3138
+- speed up loading of chat messages #3171
 
 ### Changes
 - add more SMTP logging #3093
