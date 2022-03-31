@@ -462,6 +462,12 @@ impl Context {
                 .to_string(),
         );
         res.insert(
+            "last_housekeeping_full",
+            self.get_config_int(Config::LastHousekeepingFull)
+                .await?
+                .to_string(),
+        );
+        res.insert(
             "scan_all_folders_debounce_secs",
             self.get_config_int(Config::ScanAllFoldersDebounceSecs)
                 .await?

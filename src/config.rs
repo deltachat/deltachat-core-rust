@@ -160,8 +160,11 @@ pub enum Config {
     /// address to webrtc instance to use for videochats
     WebrtcInstance,
 
-    /// Timestamp of the last time housekeeping was run
+    /// Timestamp of the last time fast housekeeping was run
     LastHousekeeping,
+
+    /// Timestamp of the last time full housekeeping was run
+    LastHousekeepingFull,
 
     /// To how many seconds to debounce scan_all_folders. Used mainly in tests, to disable debouncing completely.
     #[strum(props(default = "60"))]

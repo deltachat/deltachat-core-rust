@@ -751,7 +751,7 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
 async fn load_housekeeping_job(context: &Context) -> Result<Option<Job>> {
     let last_time = context.get_config_i64(Config::LastHousekeeping).await?;
 
-    let next_time = last_time + 60;  // housekeeping every minute (for message expiry)
+    let next_time = last_time + 60;  // fast housekeeping every minute
     if next_time <= time() {
         kill_action(context, Action::Housekeeping).await?;
         Ok(Some(Job::new(Action::Housekeeping, 0, Params::new(), 0)))
