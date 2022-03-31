@@ -1,0 +1,133 @@
+name: Preview Builds
+
+on:
+  pull_request:
+    paths-ignore:
+      - '*.md'
+      - 'test-data/**'
+      - 'scripts/**'
+      - 'examples/**'
+      - 'draft/**'
+
+jobs:
+  preview_build:
+    name: Build Preview with Desktop Master
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Currently used Rust version, same as in `rust-toolchain` file.
+          - os: ubuntu-latest
+            rust: 1.59.0
+            python: 3.9
+            node: 14
+          - os: windows-latest
+            rust: 1.59.0
+            python: false # Python bindings compilation on Windows is not supported.
+            node: 14
+          # Minimum Supported Rust Version = 1.56.0
+          #
+          # Minimum Supported Python Version = 3.7
+          # This is the minimum version for which manylinux Python wheels are
+          # built.
+          - os: ubuntu-latest
+            rust: 1.56.0
+            python: 3.7
+            node: 14
+      fail-fast: false
+    steps:
+    # Preparation
+    - name: Install ${{ matrix.rust }}
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        override: true
+    - name: Cache rust cargo artifacts
+      uses: swatinem/rust-cache@v1
+    - name: Get Pullrequest ID
+      id: prepare
+      run: |
+        node -e "console.log('::set-output name=prid::' + '${{ github.ref }}'.split('/')[2])"
+    - name: Build deltachat-node with core PR
+      run: |
+        git clone https://github.com/deltachat/deltachat-node
+        cd deltachat-node/deltachat-rust-core
+        git submodule init
+        git submodule update
+        git checkout ${{ github.ref_name }}
+        cd ..
+        npm install
+        npm run build
+        cd ..
+    - name: Build deltachat-desktop
+      run: |
+        git clone https://github.com/deltachat/deltachat-desktop
+        cd deltachat-desktop
+        node ./bin/github-actions/devbuild.js
+        sed -i 's/"deltachat-node": ".*/"deltachat-node": "file:../deltachat-node",/' package.json
+        npm install
+        npm run build
+        npm run pack:generate_config
+    # Packaging and processing
+    - name: LINUX electron builder
+      if: runner.os == 'Linux'
+      run: npx electron-builder --publish never --linux AppImage
+    - name: LINUX renaming / upload Preperation
+      if: runner.os == 'Linux'
+      run: |
+        cd dist
+        mkdir preview
+        mv *.AppImage preview/deltachat-core-${{ steps.prepare.outputs.prid }}.AppImage
+        ls preview
+        cd ..
+    - name: MAC electron builder
+      if: runner.os == 'macOS'
+      run: |
+        echo "module.exports=()=>Promise.resolve()" > stub.js
+        export CSC_IDENTITY_AUTO_DISCOVERY=false
+        npx electron-builder --publish never --mac mas dmg -c.mac.identity=null --config.afterSign="stub.js" || true
+    - name: MAC renaming / upload Preperation
+      if: runner.os == 'macOS'
+      run: |
+        mkdir dist/preview
+        zip -r dist/preview/deltachat-core-mas-${{ steps.prepare.outputs.prid }}.zip dist/mas
+        cd dist
+        mv *.dmg preview/deltachat-core-${{ steps.prepare.outputs.prid }}.dmg || true
+        cd ..
+        ls dist/preview
+    - name: WINDOWS electron builder
+      if: runner.os == 'Windows'
+      run: npx electron-builder --win portable --config.artifactName="deltachat-core-${{ steps.prepare.outputs.prid }}.portable.exe"
+    - name: WINDOWS renaming / upload Preperation
+      if: runner.os == 'Windows'
+      run: |
+        cd dist
+        dir
+        mkdir preview
+        move deltachat-core-${{ steps.prepare.outputs.prid }}.portable.exe preview/deltachat-core-${{ steps.prepare.outputs.prid }}.portable.exe
+        dir preview
+        cd ..
+    # Upload Step
+    - name: upload folder
+      id: upload
+      shell: bash
+      run: |
+        echo -e "${{ secrets.KEY }}" >__TEMP_INPUT_KEY_FILE
+        chmod 600 __TEMP_INPUT_KEY_FILE
+        scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r dist/preview/* "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/core/preview/"
+      continue-on-error: true
+    # won't work with core PRs:
+    - name: "Post links to details"
+      if: steps.upload.outcome == 'success'
+      run: node ./bin/github-actions/postLinksToDetails.js
+      env:
+       PR_ID: ${{ steps.prepare.outputs.prid }}
+       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      continue-on-error: true
+    - name: Upload result to artifacts
+      if: steps.upload.outcome == 'failure'
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{ matrix.os }} output
+        path: dist/preview/
+
