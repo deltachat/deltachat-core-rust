@@ -603,6 +603,55 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         warn!(context, "Failed to delete expired messages: {}", err);
     }
 
+    if let Err(err) = remove_unused_files(context).await {
+        warn!(
+            context,
+            "Housekeeping: cannot remove unusued files: {}", err
+        );
+    }
+
+    if let Err(err) = start_ephemeral_timers(context).await {
+        warn!(
+            context,
+            "Housekeeping: cannot start ephemeral timers: {}", err
+        );
+    }
+
+    if let Err(err) = prune_tombstones(&context.sql).await {
+        warn!(
+            context,
+            "Housekeeping: Cannot prune message tombstones: {}", err
+        );
+    }
+
+    if let Err(err) = deduplicate_peerstates(&context.sql).await {
+        warn!(context, "Failed to deduplicate peerstates: {}", err)
+    }
+
+    context.schedule_quota_update().await?;
+
+    // Try to clear the freelist to free some space on the disk. This
+    // only works if auto_vacuum is enabled.
+    if let Err(err) = context
+        .sql
+        .execute("PRAGMA incremental_vacuum", paramsv![])
+        .await
+    {
+        warn!(context, "Failed to run incremental vacuum: {}", err);
+    }
+
+    if let Err(e) = context
+        .set_config(Config::LastHousekeeping, Some(&time().to_string()))
+        .await
+    {
+        warn!(context, "Can't set config: {}", e);
+    }
+
+    info!(context, "Housekeeping done.");
+    Ok(())
+}
+
+pub async fn remove_unused_files(context: &Context) -> Result<()> {
     let mut files_in_use = HashSet::new();
     let mut unreferenced_count = 0;
 
@@ -717,44 +766,6 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         }
     }
 
-    if let Err(err) = start_ephemeral_timers(context).await {
-        warn!(
-            context,
-            "Housekeeping: cannot start ephemeral timers: {}", err
-        );
-    }
-
-    if let Err(err) = prune_tombstones(&context.sql).await {
-        warn!(
-            context,
-            "Housekeeping: Cannot prune message tombstones: {}", err
-        );
-    }
-
-    if let Err(err) = deduplicate_peerstates(&context.sql).await {
-        warn!(context, "Failed to deduplicate peerstates: {}", err)
-    }
-
-    context.schedule_quota_update().await?;
-
-    // Try to clear the freelist to free some space on the disk. This
-    // only works if auto_vacuum is enabled.
-    if let Err(err) = context
-        .sql
-        .execute("PRAGMA incremental_vacuum", paramsv![])
-        .await
-    {
-        warn!(context, "Failed to run incremental vacuum: {}", err);
-    }
-
-    if let Err(e) = context
-        .set_config(Config::LastHousekeeping, Some(&time().to_string()))
-        .await
-    {
-        warn!(context, "Can't set config: {}", e);
-    }
-
-    info!(context, "Housekeeping done.");
     Ok(())
 }
 
