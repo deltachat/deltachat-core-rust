@@ -610,7 +610,9 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         );
     }
 
-    context.set_config_or_warn(Config::LastHousekeeping, Some(&time().to_string())).await;
+    context
+        .set_config_or_warn(Config::LastHousekeeping, Some(&time().to_string()))
+        .await;
 
     let last_time = context.get_config_i64(Config::LastHousekeepingFull).await?;
     let next_time = last_time + (60 * 60 * 24);
@@ -649,7 +651,9 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         warn!(context, "Failed to run incremental vacuum: {}", err);
     }
 
-    context.set_config_or_warn(Config::LastHousekeepingFull, Some(&time().to_string())).await;
+    context
+        .set_config_or_warn(Config::LastHousekeepingFull, Some(&time().to_string()))
+        .await;
 
     info!(context, "Full Housekeeping done.");
     Ok(())

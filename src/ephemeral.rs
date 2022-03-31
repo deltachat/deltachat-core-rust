@@ -344,8 +344,8 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool> {
             // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
             r#"
 UPDATE msgs
-SET 
-  chat_id=?, txt='', subject='', txt_raw='', 
+SET
+  chat_id=?, txt='', subject='', txt_raw='',
   mime_headers='', from_id=0, to_id=0, param=''
 WHERE
   ephemeral_timestamp != 0
@@ -397,6 +397,13 @@ WHERE
     }
 
     schedule_ephemeral_task(context).await;
+
+    if updated {
+        context.emit_event(EventType::MsgsChanged {
+            msg_id: MsgId::new(0),
+            chat_id: ChatId::new(0),
+        })
+    }
     Ok(updated)
 }
 
@@ -844,6 +851,7 @@ mod tests {
     }
 
     async fn check_msg_was_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
+        sql::housekeeping(&t).await.unwrap();
         let chat_items = chat::get_chat_msgs(t, chat.id, 0, None).await.unwrap();
         // Check that the chat is empty except for possibly info messages:
         for item in &chat_items {
