@@ -31,6 +31,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             b.to_async(AsyncStdExecutor)
                 .iter(|| get_chat_msgs_benchmark(black_box(&path.as_ref()), black_box(&chats)))
         });
+    } else {
+        println!("env var not set: DELTACHAT_BENCHMARK_DATABASE");
     }
 }
 

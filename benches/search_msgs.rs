@@ -20,6 +20,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         c.bench_function("search hello", |b| {
             b.iter(|| block_on(async { search_benchmark(black_box(&path)).await }))
         });
+    } else {
+        println!("env var not set: DELTACHAT_BENCHMARK_DATABASE");
     }
 }
 
