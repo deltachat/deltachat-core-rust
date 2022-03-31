@@ -71,42 +71,40 @@ jobs:
     # Packaging and processing
     - name: LINUX electron builder
       if: runner.os == 'Linux'
-      run: npx electron-builder --publish never --linux AppImage
+      run: cd deltachat-desktop && npx electron-builder --publish never --linux AppImage
     - name: LINUX renaming / upload Preperation
       if: runner.os == 'Linux'
       run: |
-        cd dist
+        cd deltachat-desktop/dist
         mkdir preview
         mv *.AppImage preview/deltachat-core-${{ steps.prepare.outputs.prid }}.AppImage
         ls preview
-        cd ..
     - name: MAC electron builder
       if: runner.os == 'macOS'
       run: |
+        cd deltachat-desktop
         echo "module.exports=()=>Promise.resolve()" > stub.js
         export CSC_IDENTITY_AUTO_DISCOVERY=false
         npx electron-builder --publish never --mac mas dmg -c.mac.identity=null --config.afterSign="stub.js" || true
     - name: MAC renaming / upload Preperation
       if: runner.os == 'macOS'
       run: |
+        cd deltachat-desktop
         mkdir dist/preview
         zip -r dist/preview/deltachat-core-mas-${{ steps.prepare.outputs.prid }}.zip dist/mas
         cd dist
         mv *.dmg preview/deltachat-core-${{ steps.prepare.outputs.prid }}.dmg || true
-        cd ..
-        ls dist/preview
     - name: WINDOWS electron builder
       if: runner.os == 'Windows'
       run: npx electron-builder --win portable --config.artifactName="deltachat-core-${{ steps.prepare.outputs.prid }}.portable.exe"
     - name: WINDOWS renaming / upload Preperation
       if: runner.os == 'Windows'
       run: |
-        cd dist
+        cd deltachat-desktop/dist
         dir
         mkdir preview
         move deltachat-core-${{ steps.prepare.outputs.prid }}.portable.exe preview/deltachat-core-${{ steps.prepare.outputs.prid }}.portable.exe
         dir preview
-        cd ..
     # Upload Step
     - name: upload folder
       id: upload
@@ -114,7 +112,7 @@ jobs:
       run: |
         echo -e "${{ secrets.KEY }}" >__TEMP_INPUT_KEY_FILE
         chmod 600 __TEMP_INPUT_KEY_FILE
-        scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r dist/preview/* "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/core/preview/"
+        scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r deltachat-desktop/dist/preview/* "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/core/preview/"
       continue-on-error: true
     # won't work with core PRs:
     - name: "Post links to details"
@@ -129,5 +127,5 @@ jobs:
       uses: actions/upload-artifact@master
       with:
         name: ${{ matrix.os }} output
-        path: dist/preview/
+        path: deltachat-desktop/dist/preview/
 
