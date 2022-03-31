@@ -640,12 +640,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         warn!(context, "Failed to run incremental vacuum: {}", err);
     }
 
-    if let Err(e) = context
-        .set_config(Config::LastHousekeeping, Some(&time().to_string()))
-        .await
-    {
-        warn!(context, "Can't set config: {}", e);
-    }
+    context.set_config_or_warn(Config::LastHousekeeping, Some(&time().to_string())).await;
 
     info!(context, "Housekeeping done.");
     Ok(())

@@ -362,9 +362,9 @@ impl Imap {
                     && err.to_string().to_lowercase().contains("authentication")
                     && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                 {
-                    if let Err(e) = context.set_config(Config::NotifyAboutWrongPw, None).await {
-                        warn!(context, "{}", e);
-                    }
+                    context
+                        .set_config_or_warn(Config::NotifyAboutWrongPw, None)
+                        .await;
                     drop(lock);
 
                     let mut msg = Message::new(Viewtype::Text);
@@ -574,7 +574,7 @@ impl Imap {
                 if uid_next < old_uid_next {
                     warn!(
                         context,
-                        "The server illegally decreased the uid_next of folder {} from {} to {} without changing validity ({}), resyncing UIDs...", 
+                        "The server illegally decreased the uid_next of folder {} from {} to {} without changing validity ({}), resyncing UIDs...",
                         folder, old_uid_next, uid_next, new_uid_validity,
                     );
                     set_uid_next(context, folder, uid_next).await?;

@@ -268,7 +268,15 @@ impl Context {
         }
     }
 
-    /// Set the given config key.
+    /// Set the given config key or emit a warning if it fails.
+    /// If `None` is passed as a value the value is cleared and set to the default if there is one.
+    pub async fn set_config_or_warn(&self, key: Config, value: Option<&str>) {
+        if let Err(err) = self.set_config(key, value).await {
+            warn!(self, "Can't set config: {}", err);
+        }
+    }
+
+    /// Set the given config key or emit a warning if it fails.
     /// If `None` is passed as a value the value is cleared and set to the default if there is one.
     pub async fn set_config(&self, key: Config, value: Option<&str>) -> Result<()> {
         match key {
