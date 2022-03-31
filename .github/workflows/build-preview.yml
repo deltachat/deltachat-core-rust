@@ -25,6 +25,11 @@ jobs:
             rust: 1.59.0
             python: false # Python bindings compilation on Windows is not supported.
             node: 14
+          - os: macos-latest
+            rust: 1.59.0
+            python: false # Python bindings compilation on Windows is not supported.
+            node: 14
+
           # Minimum Supported Rust Version = 1.56.0
           #
           # Minimum Supported Python Version = 3.7
@@ -96,7 +101,9 @@ jobs:
         mv *.dmg preview/deltachat-core-${{ steps.prepare.outputs.prid }}.dmg || true
     - name: WINDOWS electron builder
       if: runner.os == 'Windows'
-      run: npx electron-builder --win portable --config.artifactName="deltachat-core-${{ steps.prepare.outputs.prid }}.portable.exe"
+      run: |
+        cd deltachat-desktop
+        npx electron-builder --win portable --config.artifactName="deltachat-core-${{ steps.prepare.outputs.prid }}.portable.exe"
     - name: WINDOWS renaming / upload Preperation
       if: runner.os == 'Windows'
       run: |
