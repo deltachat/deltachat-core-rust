@@ -48,13 +48,14 @@ jobs:
       id: prepare
       run: |
         node -e "console.log('::set-output name=prid::' + '${{ github.ref }}'.split('/')[2])"
+        node -e "console.log('::set-output name=branch::${GITHUB_REF#refs/*/}')"
     - name: Build deltachat-node with core PR
       run: |
         git clone https://github.com/deltachat/deltachat-node
         cd deltachat-node/deltachat-core-rust
         git submodule init
         git submodule update
-        git checkout ${{ github.ref_name }}
+        git checkout ${{ steps.prepare.outputs.branch }}
         cd ..
         npm install
         npm run build
