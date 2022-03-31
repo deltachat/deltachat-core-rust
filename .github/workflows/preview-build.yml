@@ -64,7 +64,7 @@ jobs:
         git clone https://github.com/deltachat/deltachat-desktop
         cd deltachat-desktop
         node ./bin/github-actions/devbuild.js
-        sed -i 's/"deltachat-node": ".*/"deltachat-node": "file:../deltachat-node",/' package.json
+        sed -i 's/"deltachat-node": ".*/"deltachat-node": "file:..\/deltachat-node",/' package.json
         npm install
         npm run build
         npm run pack:generate_config
