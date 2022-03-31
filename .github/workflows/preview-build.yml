@@ -51,7 +51,7 @@ jobs:
     - name: Build deltachat-node with core PR
       run: |
         git clone https://github.com/deltachat/deltachat-node
-        cd deltachat-node/deltachat-rust-core
+        cd deltachat-node/deltachat-core-rust
         git submodule init
         git submodule update
         git checkout ${{ github.ref_name }}
