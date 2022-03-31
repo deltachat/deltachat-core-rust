@@ -2258,9 +2258,9 @@ pub async fn get_chat_msgs(
     let process_rows = |rows: rusqlite::MappedRows<_>| {
         // It is faster to sort here rather than
         // let sqlite execute an ORDER BY clause.
-        let mut sorted_rows = Vec::new();
+        let mut sorted_rows = Vec::<(i64, MsgId, bool)>::new();
         for row in rows {
-            let (ts, curr_id, exclude_message): (i64, MsgId, bool) = row?;
+            let (ts, curr_id, exclude_message) = row?;
             sorted_rows.push((ts, curr_id, exclude_message));
         }
         sorted_rows.sort_unstable();
@@ -2314,7 +2314,7 @@ pub async fn get_chat_msgs(
         context
             .sql
             .query_map(
-                "SELECT m.id as id, m.timestamp as timestamp
+                "SELECT m.id AS id, m.timestamp AS timestamp
                FROM msgs m
               WHERE m.chat_id=?
                 AND m.hidden=0;",
