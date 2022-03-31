@@ -2307,11 +2307,11 @@ pub async fn get_chat_msgs(
         context
             .sql
             .query_map(
-                "SELECT m.id AS id, m.timestamp AS timestamp
+                "SELECT (m.id+1) AS id, (m.timestamp+1) AS timestamp
                FROM msgs m
               WHERE m.chat_id=?
                 AND m.hidden=0
-              ORDER BY m.timestamp, m.id;",
+              ORDER BY timestamp, id;",
                 paramsv![chat_id],
                 process_row,
                 process_rows,
