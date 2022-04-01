@@ -2270,12 +2270,11 @@ pub async fn get_chat_msgs(
         let mut ret = Vec::new();
         let mut last_day = 0;
         let cnv_to_local = dc_gm2local_offset();
-        let markerbefore.unwrap_or_else(MsgId::not_set()
+        let marker1 = marker1before.unwrap_or_else(MsgId::new_unset);
+
         for (ts, curr_id) in sorted_rows {
-            if let Some(marker_id) = marker1before {
-                if curr_id == marker_id {
-                    ret.push(ChatItem::Marker1);
-                }
+            if curr_id == marker1 {
+                ret.push(ChatItem::Marker1);
             }
             if (flags & DC_GCM_ADDDAYMARKER) != 0 {
                 let curr_local_timestamp = ts + cnv_to_local;
