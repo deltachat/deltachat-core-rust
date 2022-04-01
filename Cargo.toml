@@ -75,7 +75,7 @@ humansize = "1"
 qrcodegen = "1.7.0"
 tagger = "4.3.3"
 textwrap = "0.15.0"
-zip = { version = "0.6.0", default-features = false, features = ["deflate"] }
+zip = { version = "0.6.1", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 ansi_term = "0.12.0"
