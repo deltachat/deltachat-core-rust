@@ -5057,7 +5057,7 @@ Reply from different address
         let alice2 = tcm.alice().await;
         let bob = tcm.bob().await;
 
-        // Bob creates a group
+        // =============== Bob creates a group ===============
         let group_id =
             chat::create_group_chat(&bob, ProtectionStatus::Unprotected, "Group").await?;
         chat::add_to_chat_contacts_table(
@@ -5072,22 +5072,77 @@ Reply from different address
             Contact::create(&bob, "", "charlie@example.org").await?,
         )
         .await?;
+
+        // =============== Bob sends the first message to the group ===============
         let sent = bob.send_text(group_id, "Hello all!").await;
         alice1.recv_msg(&sent).await;
         alice2.recv_msg(&sent).await;
 
-        // Alice answers privately with device 1
+        // =============== Alice answers privately with device 1 ===============
+        let received = alice1.get_last_msg().await;
+        let alice1_bob_contact = alice1.add_or_lookup_contact(&bob).await;
+        assert_eq!(received.from_id, alice1_bob_contact.id);
+        assert_eq!(received.to_id, DC_CONTACT_ID_SELF);
+        assert_eq!(received.viewtype, Viewtype::Text);
+        assert!(!received.state.is_outgoing());
+        assert!(!received.hidden);
+        assert_eq!(received.text, Some("Hello all!".to_string()));
+        assert_eq!(received.in_reply_to, None);
+        assert_eq!(received.is_dc_message, MessengerMessage::Yes);
+        assert_eq!(received.mime_modified, false);
+        assert_eq!(received.chat_blocked, Blocked::Request);
+        assert_eq!(received.error, None);
+        assert_eq!(received.param.get(Param::OverrideSenderDisplayname), None);
+        assert_eq!(received.param.get(Param::File), None);
+        assert_eq!(received.param.get(Param::Bot), None);
+
+        let received_group = Chat::load_from_db(&alice1, received.chat_id).await?;
+        assert_eq!(received_group.typ, Chattype::Group);
+        assert_eq!(received_group.name, "Group");
+        assert_eq!(received_group.visibility, ChatVisibility::Normal);
+        assert_eq!(received_group.can_send(&alice1).await?, false); // Can't send because it's Blocked::Request
+        assert_eq!(received_group.param.get(Param::ListPost), None);
+
         let mut msg_out = Message::new(Viewtype::Text);
         msg_out.set_text(Some("Private reply".to_string()));
-        let received = alice1.get_last_msg().await;
+
+        assert_eq!(received_group.blocked, Blocked::Request);
         msg_out.set_quote(&alice1, Some(&received)).await?;
         let alice1_bob_chat = alice1.create_chat(&bob).await;
         let sent2 = alice1.send_msg(alice1_bob_chat.id, &mut msg_out).await;
-
-        // Alice's second device receives the message
         alice2.recv_msg(&sent2).await;
-        let received2 = alice2.get_last_msg().await;
-        assert_eq!(received2.chat_id, alice2.create_chat(&bob).await.id);
+
+        // =============== Alice's second device receives the message ===============
+        let received = alice2.get_last_msg().await;
+
+        // That's a regression test for https://github.com/deltachat/deltachat-core-rust/issues/2949:
+        assert_eq!(received.chat_id, alice2.get_chat(&bob).await.unwrap().id);
+
+        let alice2_bob_contact = alice2.add_or_lookup_contact(&bob).await;
+        assert_eq!(received.from_id, DC_CONTACT_ID_SELF);
+        assert_eq!(received.to_id, alice2_bob_contact.id);
+        assert_eq!(received.viewtype, Viewtype::Text);
+        assert!(received.state.is_outgoing());
+        assert!(!received.hidden);
+        assert_eq!(received.text, Some("Private reply".to_string()));
+        assert_eq!(
+            received.parent(&alice2).await?.unwrap().text,
+            Some("Hello all!".to_string())
+        );
+        assert_eq!(received.is_dc_message, MessengerMessage::Yes);
+        assert_eq!(received.mime_modified, false);
+        assert_eq!(received.chat_blocked, Blocked::Not);
+        assert_eq!(received.error, None);
+        assert_eq!(received.param.get(Param::OverrideSenderDisplayname), None);
+        assert_eq!(received.param.get(Param::File), None);
+        assert_eq!(received.param.get(Param::Bot), None);
+
+        let received_chat = Chat::load_from_db(&alice2, received.chat_id).await?;
+        assert_eq!(received_chat.typ, Chattype::Single);
+        assert_eq!(received_chat.name, "bob@example.net");
+        assert_eq!(received_chat.visibility, ChatVisibility::Normal);
+        assert_eq!(received_chat.can_send(&alice2).await?, true);
+        assert_eq!(received_chat.param.get(Param::ListPost), None);
 
         Ok(())
     }
