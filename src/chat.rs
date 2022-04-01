@@ -2258,17 +2258,20 @@ pub async fn get_chat_msgs(
     let process_rows = |rows: rusqlite::MappedRows<_>| {
         // It is faster to sort here rather than
         // let sqlite execute an ORDER BY clause.
-        let mut sorted_rows = Vec::<(i64, MsgId, bool)>::new();
+        let mut sorted_rows = Vec::new();
         for row in rows {
-            let (ts, curr_id, exclude_message) = row?;
-            sorted_rows.push((ts, curr_id, exclude_message));
+            let (ts, curr_id, exclude_message): (i64, MsgId, bool) = row?;
+            if !exclude_message {
+                sorted_rows.push((ts, curr_id));
+            }
         }
         sorted_rows.sort_unstable();
 
         let mut ret = Vec::new();
         let mut last_day = 0;
         let cnv_to_local = dc_gm2local_offset();
-        for (ts, curr_id, exclude_message) in sorted_rows {
+        let markerbefore.unwrap_or_else(MsgId::not_set()
+        for (ts, curr_id) in sorted_rows {
             if let Some(marker_id) = marker1before {
                 if curr_id == marker_id {
                     ret.push(ChatItem::Marker1);
@@ -2284,9 +2287,7 @@ pub async fn get_chat_msgs(
                     last_day = curr_day;
                 }
             }
-            if !exclude_message {
-                ret.push(ChatItem::Message { msg_id: curr_id });
-            }
+            ret.push(ChatItem::Message { msg_id: curr_id });
         }
         Ok(ret)
     };
