@@ -4,7 +4,7 @@
 //! and job types.
 use std::fmt;
 
-use anyhow::{bail, format_err, Context as _, Error, Result};
+use anyhow::{bail, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
@@ -40,7 +40,7 @@ pub(crate) enum Thread {
 /// Job try result.
 #[derive(Debug, Display)]
 pub enum Status {
-    Finished(std::result::Result<(), Error>),
+    Finished(Result<()>),
     RetryNow,
     RetryLater,
 }
