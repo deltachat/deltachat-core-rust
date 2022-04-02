@@ -2099,11 +2099,6 @@ async fn check_verified_properties(
     if to_ids.is_empty() {
         return Ok(());
     }
-    let to_ids_str = to_ids
-        .iter()
-        .map(|x| x.to_string())
-        .collect::<Vec<String>>()
-        .join(",");
 
     let rows = context
         .sql
@@ -2111,9 +2106,9 @@ async fn check_verified_properties(
             format!(
                 "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-                to_ids_str
+                sql::repeat_vars(to_ids.len())?
             ),
-            paramsv![],
+            rusqlite::params_from_iter(to_ids),
             |row| {
                 let to_addr: String = row.get(0)?;
                 let is_verified: i32 = row.get(1).unwrap_or(0);

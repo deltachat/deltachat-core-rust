@@ -15,8 +15,9 @@ use crate::chat::ChatId;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
-    Blocked, Chattype, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_DEVICE_ADDR, DC_CONTACT_ID_LAST_SPECIAL,
-    DC_CONTACT_ID_SELF, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY,
+    Blocked, Chattype, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_DEVICE_ADDR, DC_CONTACT_ID_INFO,
+    DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_CONTACT_ID_UNDEFINED, DC_GCL_ADD_SELF,
+    DC_GCL_VERIFIED_ONLY,
 };
 use crate::context::Context;
 use crate::dc_tools::{dc_get_abs_path, improve_single_line_input, EmailAddress};
@@ -52,20 +53,19 @@ impl ContactId {
 
 impl fmt::Display for ContactId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-        // if *self == DC_CONTACT_ID_UNDEFINED {
-        //     write!(f, "Contact#Undefined")
-        // } else if *self == DC_CONTACT_ID_SELF {
-        //     write!(f, "Contact#Self")
-        // } else if *self == DC_CONTACT_ID_INFO {
-        //     write!(f, "Contact#Info")
-        // } else if *self == DC_CONTACT_ID_DEVICE {
-        //     write!(f, "Contact#Device")
-        // } else if *self <= DC_CONTACT_ID_LAST_SPECIAL {
-        //     write!(f, "Contact#Special{}", self.0)
-        // } else {
-        //     write!(f, "Contact#{}", self.0)
-        // }
+        if *self == DC_CONTACT_ID_UNDEFINED {
+            write!(f, "Contact#Undefined")
+        } else if *self == DC_CONTACT_ID_SELF {
+            write!(f, "Contact#Self")
+        } else if *self == DC_CONTACT_ID_INFO {
+            write!(f, "Contact#Info")
+        } else if *self == DC_CONTACT_ID_DEVICE {
+            write!(f, "Contact#Device")
+        } else if *self <= DC_CONTACT_ID_LAST_SPECIAL {
+            write!(f, "Contact#Special{}", self.0)
+        } else {
+            write!(f, "Contact#{}", self.0)
+        }
     }
 }
 
