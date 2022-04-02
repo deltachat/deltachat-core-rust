@@ -4232,6 +4232,74 @@ mod tests {
         assert_eq!(chatlist_len(&t, DC_GCL_ARCHIVED_ONLY).await, 1);
     }
 
+    #[async_std::test]
+    async fn test_unarchive_if_muted() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        async fn msg_from_bob(t: &TestContext, num: u32) -> Result<()> {
+            dc_receive_imf(
+                t,
+                format!(
+                    "From: bob@example.org\n\
+                     To: alice@example.org\n\
+                     Message-ID: <{}@example.org>\n\
+                     Chat-Version: 1.0\n\
+                     Date: Sun, 22 Mar 2022 19:37:57 +0000\n\
+                     \n\
+                     hello\n",
+                    num
+                )
+                .as_bytes(),
+                "INBOX",
+                false,
+            )
+            .await?;
+            Ok(())
+        }
+
+        msg_from_bob(&t, 1).await?;
+        let chat_id = t.get_last_msg().await.get_chat_id();
+        chat_id.accept(&t).await?;
+        chat_id.set_visibility(&t, ChatVisibility::Archived).await?;
+        assert_eq!(dc_get_archived_cnt(&t).await?, 1);
+
+        // not muted chat is unarchived on receiving a message
+        msg_from_bob(&t, 2).await?;
+        assert_eq!(dc_get_archived_cnt(&t).await?, 0);
+
+        // forever muted chat is not unarchived on receiving a message
+        chat_id.set_visibility(&t, ChatVisibility::Archived).await?;
+        set_muted(&t, chat_id, MuteDuration::Forever).await?;
+        msg_from_bob(&t, 3).await?;
+        assert_eq!(dc_get_archived_cnt(&t).await?, 1);
+
+        // otherwise muted chat is not unarchived on receiving a message
+        set_muted(
+            &t,
+            chat_id,
+            MuteDuration::Until(
+                SystemTime::now()
+                    .checked_add(Duration::from_secs(1000))
+                    .unwrap(),
+            ),
+        )
+        .await?;
+        msg_from_bob(&t, 4).await?;
+        assert_eq!(dc_get_archived_cnt(&t).await?, 1);
+
+        // no unarchiving on sending to muted chat or on adding info messages to muted chat
+        send_text_msg(&t, chat_id, "out".to_string()).await?;
+        add_info_msg(&t, chat_id, "info", time()).await?;
+        assert_eq!(dc_get_archived_cnt(&t).await?, 1);
+
+        // finally, unarchive on sending to not muted chat
+        set_muted(&t, chat_id, MuteDuration::NotMuted).await?;
+        send_text_msg(&t, chat_id, "out2".to_string()).await?;
+        assert_eq!(dc_get_archived_cnt(&t).await?, 0);
+
+        Ok(())
+    }
+
     async fn get_chats_from_chat_list(ctx: &Context, listflags: usize) -> Vec<ChatId> {
         let chatlist = Chatlist::try_load(ctx, listflags, None, None)
             .await
