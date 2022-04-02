@@ -5083,25 +5083,15 @@ Reply from different address
         let alice1_bob_contact = alice1.add_or_lookup_contact(&bob).await;
         assert_eq!(received.from_id, alice1_bob_contact.id);
         assert_eq!(received.to_id, DC_CONTACT_ID_SELF);
-        assert_eq!(received.viewtype, Viewtype::Text);
-        assert!(!received.state.is_outgoing());
         assert!(!received.hidden);
         assert_eq!(received.text, Some("Hello all!".to_string()));
         assert_eq!(received.in_reply_to, None);
-        assert_eq!(received.is_dc_message, MessengerMessage::Yes);
-        assert_eq!(received.mime_modified, false);
         assert_eq!(received.chat_blocked, Blocked::Request);
-        assert_eq!(received.error, None);
-        assert_eq!(received.param.get(Param::OverrideSenderDisplayname), None);
-        assert_eq!(received.param.get(Param::File), None);
-        assert_eq!(received.param.get(Param::Bot), None);
 
         let received_group = Chat::load_from_db(&alice1, received.chat_id).await?;
         assert_eq!(received_group.typ, Chattype::Group);
         assert_eq!(received_group.name, "Group");
-        assert_eq!(received_group.visibility, ChatVisibility::Normal);
         assert_eq!(received_group.can_send(&alice1).await?, false); // Can't send because it's Blocked::Request
-        assert_eq!(received_group.param.get(Param::ListPost), None);
 
         let mut msg_out = Message::new(Viewtype::Text);
         msg_out.set_text(Some("Private reply".to_string()));
@@ -5121,28 +5111,18 @@ Reply from different address
         let alice2_bob_contact = alice2.add_or_lookup_contact(&bob).await;
         assert_eq!(received.from_id, DC_CONTACT_ID_SELF);
         assert_eq!(received.to_id, alice2_bob_contact.id);
-        assert_eq!(received.viewtype, Viewtype::Text);
-        assert!(received.state.is_outgoing());
         assert!(!received.hidden);
         assert_eq!(received.text, Some("Private reply".to_string()));
         assert_eq!(
             received.parent(&alice2).await?.unwrap().text,
             Some("Hello all!".to_string())
         );
-        assert_eq!(received.is_dc_message, MessengerMessage::Yes);
-        assert_eq!(received.mime_modified, false);
         assert_eq!(received.chat_blocked, Blocked::Not);
-        assert_eq!(received.error, None);
-        assert_eq!(received.param.get(Param::OverrideSenderDisplayname), None);
-        assert_eq!(received.param.get(Param::File), None);
-        assert_eq!(received.param.get(Param::Bot), None);
 
         let received_chat = Chat::load_from_db(&alice2, received.chat_id).await?;
         assert_eq!(received_chat.typ, Chattype::Single);
         assert_eq!(received_chat.name, "bob@example.net");
-        assert_eq!(received_chat.visibility, ChatVisibility::Normal);
         assert_eq!(received_chat.can_send(&alice2).await?, true);
-        assert_eq!(received_chat.param.get(Param::ListPost), None);
 
         Ok(())
     }
