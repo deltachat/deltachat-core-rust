@@ -483,10 +483,9 @@ pub(crate) async fn send_msg_to_smtp(
 ///
 /// Logs and ignores SMTP errors to ensure that a single SMTP message constantly failing to be sent
 /// does not block other messages in the queue from being sent.
-pub(crate) async fn send_smtp_messages(
-    context: &Context,
-    connection: &mut Smtp,
-) -> anyhow::Result<()> {
+///
+/// Returns true if all messages were sent successfully, false otherwise.
+pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp) -> Result<bool> {
     context.send_sync_msg().await?; // Add sync message to the end of the queue if needed.
     let rowids = context
         .sql
@@ -504,10 +503,12 @@ pub(crate) async fn send_smtp_messages(
             },
         )
         .await?;
+    let mut success = true;
     for rowid in rowids {
         if let Err(err) = send_msg_to_smtp(context, connection, rowid).await {
             info!(context, "Failed to send message over SMTP: {:#}.", err);
+            success = false;
         }
     }
-    Ok(())
+    Ok(success)
 }
