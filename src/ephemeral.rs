@@ -378,7 +378,8 @@ WHERE
             .sql
             .execute(
                 "UPDATE msgs \
-             SET txt = 'DELETED', chat_id = ? \
+             SET chat_id = ?, txt = '', subject='', txt_raw='', \
+                 mime_headers='', from_id=0, to_id=0, param='' \
              WHERE timestamp < ? \
              AND chat_id > ? \
              AND chat_id != ? \

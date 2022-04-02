@@ -14,6 +14,7 @@
 - do not delete duplicate messages on IMAP immediately to accidentally deleting
   the last copy #3138
 - speed up loading of chat messages #3171
+- clear more columns when message expires due to `delete_device_after` setting #3181
 
 ### Changes
 - add more SMTP logging #3093
