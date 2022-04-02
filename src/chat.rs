@@ -4240,7 +4240,7 @@ mod tests {
             dc_receive_imf(
                 t,
                 format!(
-                    "From: bob@example.org\n\
+                    "From: bob@example.net\n\
                      To: alice@example.org\n\
                      Message-ID: <{}@example.org>\n\
                      Chat-Version: 1.0\n\
@@ -4287,7 +4287,23 @@ mod tests {
         msg_from_bob(&t, 4).await?;
         assert_eq!(dc_get_archived_cnt(&t).await?, 1);
 
+        // expired mute will unarchive the chat
+        set_muted(
+            &t,
+            chat_id,
+            MuteDuration::Until(
+                SystemTime::now()
+                    .checked_sub(Duration::from_secs(1000))
+                    .unwrap(),
+            ),
+        )
+        .await?;
+        msg_from_bob(&t, 5).await?;
+        assert_eq!(dc_get_archived_cnt(&t).await?, 0);
+
         // no unarchiving on sending to muted chat or on adding info messages to muted chat
+        chat_id.set_visibility(&t, ChatVisibility::Archived).await?;
+        set_muted(&t, chat_id, MuteDuration::Forever).await?;
         send_text_msg(&t, chat_id, "out".to_string()).await?;
         add_info_msg(&t, chat_id, "info", time()).await?;
         assert_eq!(dc_get_archived_cnt(&t).await?, 1);
