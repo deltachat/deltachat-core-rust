@@ -4,14 +4,14 @@ pub mod send;
 
 use std::time::{Duration, SystemTime};
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{bail, format_err, Context as _, Error, Result};
 use async_smtp::smtp::client::net::ClientTlsParameters;
 use async_smtp::smtp::response::{Category, Code, Detail};
 use async_smtp::{smtp, EmailAddress, ServerAddress};
+use async_std::task;
 
 use crate::constants::DC_LP_AUTH_OAUTH2;
 use crate::events::EventType;
-use crate::job::Status;
 use crate::login_param::{
     dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam, Socks5Config,
 };
@@ -50,7 +50,10 @@ impl Smtp {
     /// Disconnect the SMTP transport and drop it entirely.
     pub async fn disconnect(&mut self) {
         if let Some(mut transport) = self.transport.take() {
-            transport.close().await.ok();
+            // Closing connection with a QUIT command may take some time, especially if it's a
+            // stale connection and an attempt to send the command times out. Send a command in a
+            // separate task to avoid waiting for reply or timeout.
+            task::spawn(async move { transport.close().await });
         }
         self.last_success = None;
     }
@@ -196,12 +199,18 @@ impl Smtp {
     }
 }
 
+pub(crate) enum SendResult {
+    /// Message was sent successfully.
+    Success,
+
+    /// Permanent error, message sending has failed.
+    Failure(Error),
+
+    /// Temporary error, the message should be retried later.
+    Retry,
+}
+
 /// Tries to send a message.
-///
-/// Returns Status::Finished if sending the message should not be retried anymore,
-/// Status::RetryLater if sending should be postponed and Status::RetryNow if it is suspected that
-/// temporary failure is caused by stale connection, in which case a second attempt to send the
-/// same message may be done immediately.
 pub(crate) async fn smtp_send(
     context: &Context,
     recipients: &[async_smtp::EmailAddress],
@@ -209,13 +218,27 @@ pub(crate) async fn smtp_send(
     smtp: &mut Smtp,
     msg_id: MsgId,
     rowid: i64,
-) -> Status {
+) -> SendResult {
     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
         info!(context, "smtp-sending out mime message:");
         println!("{}", message);
     }
 
     smtp.connectivity.set_working(context).await;
+
+    if smtp.has_maybe_stale_connection().await {
+        info!(context, "Closing stale connection");
+        smtp.disconnect().await;
+
+        if let Err(err) = smtp
+            .connect_configured(context)
+            .await
+            .context("failed to reopen stale SMTP connection")
+        {
+            smtp.last_send_error = Some(format!("{:#}", err));
+            return SendResult::Retry;
+        }
+    }
 
     let send_result = smtp
         .send(context, recipients, message.as_bytes(), rowid)
@@ -253,14 +276,14 @@ pub(crate) async fn smtp_send(
 
                     if maybe_transient {
                         info!(context, "Permanent error that is likely to actually be transient, postponing retry for later");
-                        Status::RetryLater
+                        SendResult::Retry
                     } else {
                         info!(context, "Permanent error, message sending failed");
                         // If we do not retry, add an info message to the chat.
                         // Yandex error "554 5.7.1 [2] Message rejected under suspicion of SPAM; https://ya.cc/..."
                         // should definitely go here, because user has to open the link to
                         // resume message sending.
-                        Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                        SendResult::Failure(format_err!("Permanent SMTP error: {}", err))
                     }
                 }
                 async_smtp::smtp::error::Error::Transient(ref response) => {
@@ -277,35 +300,29 @@ pub(crate) async fn smtp_send(
                             // receive as a transient error are misconfigurations of the smtp server.
                             // See <https://tools.ietf.org/html/rfc3463#section-3.2>
                             info!(context, "Received extended status code {} for a transient error. This looks like a misconfigured smtp server, let's fail immediatly", first_word);
-                            Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                            SendResult::Failure(format_err!("Permanent SMTP error: {}", err))
                         } else {
                             info!(
                                 context,
                                 "Transient error with status code {}, postponing retry for later",
                                 first_word
                             );
-                            Status::RetryLater
+                            SendResult::Retry
                         }
                     } else {
                         info!(
                             context,
                             "Transient error without status code, postponing retry for later"
                         );
-                        Status::RetryLater
+                        SendResult::Retry
                     }
                 }
                 _ => {
                     info!(
                         context,
-                        "Message sending failed without error returned by the server"
+                        "Message sending failed without error returned by the server, retry later"
                     );
-                    if smtp.has_maybe_stale_connection().await {
-                        info!(context, "Connection is probably stale, retry immediately");
-                        Status::RetryNow
-                    } else {
-                        info!(context, "Connection is not stale, retry later");
-                        Status::RetryLater
-                    }
+                    SendResult::Retry
                 }
             };
 
@@ -319,24 +336,24 @@ pub(crate) async fn smtp_send(
             // Local error, job is invalid, do not retry.
             smtp.disconnect().await;
             warn!(context, "SMTP job is invalid: {}", err);
-            Status::Finished(Err(err.into()))
+            SendResult::Failure(err.into())
         }
         Err(crate::smtp::send::Error::NoTransport) => {
             // Should never happen.
             // It does not even make sense to disconnect here.
             error!(context, "SMTP job failed because SMTP has no transport");
-            Status::Finished(Err(format_err!("SMTP has not transport")))
+            SendResult::Failure(format_err!("SMTP has not transport"))
         }
         Err(crate::smtp::send::Error::Other(err)) => {
             // Local error, job is invalid, do not retry.
             smtp.disconnect().await;
             warn!(context, "unable to load job: {}", err);
-            Status::Finished(Err(err))
+            SendResult::Failure(err)
         }
-        Ok(()) => Status::Finished(Ok(())),
+        Ok(()) => SendResult::Success,
     };
 
-    if let Status::Finished(Err(err)) = &status {
+    if let SendResult::Failure(err) = &status {
         // We couldn't send the message, so mark it as failed
         message::set_msg_failed(context, msg_id, Some(err.to_string())).await;
     }
@@ -432,7 +449,7 @@ pub(crate) async fn send_msg_to_smtp(
         return Ok(());
     }
 
-    let status = match smtp_send(
+    let status = smtp_send(
         context,
         &recipients_list,
         body.as_str(),
@@ -440,47 +457,25 @@ pub(crate) async fn send_msg_to_smtp(
         msg_id,
         rowid,
     )
-    .await
-    {
-        Status::RetryNow => {
-            // Do a single retry immediately without increasing retry counter in case of stale
-            // connection.
-            info!(context, "Doing immediate retry to send message.");
+    .await;
 
-            // smtp_send just closed stale SMTP connection, reconnect and try again.
-            if let Err(err) = smtp
-                .connect_configured(context)
-                .await
-                .context("failed to reopen stale SMTP connection")
-            {
-                smtp.last_send_error = Some(format!("{:#}", err));
-                return Err(err);
-            }
-
-            smtp_send(
-                context,
-                &recipients_list,
-                body.as_str(),
-                smtp,
-                msg_id,
-                rowid,
-            )
-            .await
-        }
-        status => status,
-    };
     match status {
-        Status::Finished(res) => {
+        SendResult::Retry => {}
+        SendResult::Success | SendResult::Failure(_) => {
             context
                 .sql
                 .execute("DELETE FROM smtp WHERE id=?", paramsv![rowid])
                 .await?;
-            if res.is_ok() {
-                msg_id.set_delivered(context).await?;
-            }
-            res
         }
-        Status::RetryNow | Status::RetryLater => Err(format_err!("Retry")),
+    };
+
+    match status {
+        SendResult::Retry => Err(format_err!("Retry")),
+        SendResult::Success => {
+            msg_id.set_delivered(context).await?;
+            Ok(())
+        }
+        SendResult::Failure(err) => Err(format_err!("{}", err)),
     }
 }
 

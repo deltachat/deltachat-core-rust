@@ -20,7 +20,7 @@ use crate::message::{Message, MsgId};
 use crate::mimefactory::MimeFactory;
 use crate::param::{Param, Params};
 use crate::scheduler::InterruptInfo;
-use crate::smtp::{smtp_send, Smtp};
+use crate::smtp::{smtp_send, SendResult, Smtp};
 use crate::sql;
 
 // results in ~3 weeks for the last backoff timespan
@@ -318,13 +318,18 @@ impl Job {
             return Status::RetryLater;
         }
 
-        let status = smtp_send(context, &recipients, &body, smtp, msg_id, 0).await;
-        if matches!(status, Status::Finished(Ok(_))) {
-            // Remove additional SendMdn jobs we have aggregated into this one.
-            job_try!(kill_ids(context, &additional_job_ids).await);
+        match smtp_send(context, &recipients, &body, smtp, msg_id, 0).await {
+            SendResult::Success => {
+                // Remove additional SendMdn jobs we have aggregated into this one.
+                job_try!(kill_ids(context, &additional_job_ids).await);
+                Status::Finished(Ok(()))
+            }
+            SendResult::Retry => {
+                info!(context, "Temporary SMTP failure while sending an MDN");
+                Status::RetryLater
+            }
+            SendResult::Failure(err) => Status::Finished(Err(err)),
         }
-
-        status
     }
 
     /// Read the recipients from old emails sent by the user and add them as contacts.
