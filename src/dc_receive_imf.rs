@@ -1191,7 +1191,7 @@ INSERT INTO msgs
     }
     drop(conn);
 
-    chat_id.unarchive(context).await?;
+    chat_id.unarchive_if_not_muted(context).await?;
 
     info!(
         context,

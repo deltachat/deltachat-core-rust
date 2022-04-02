@@ -501,14 +501,15 @@ impl ChatId {
         Ok(())
     }
 
-    // note that unarchive() is not the same as set_visibility(Normal) -
-    // eg. unarchive() does not modify pinned chats and does not send events.
-    pub async fn unarchive(self, context: &Context) -> Result<()> {
+    // Unarchives a chat that is archived and not muted.
+    // Needed when a message is added to a chat so that the chat gets a normal visibility again.
+    // Sending an appropriate event is up to the caller.
+    pub async fn unarchive_if_not_muted(self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
-                "UPDATE chats SET archived=0 WHERE id=? and archived=1",
-                paramsv![self],
+                "UPDATE chats SET archived=0 WHERE id=? AND archived=1 AND NOT(muted_until=-1 OR muted_until>?)",
+                paramsv![self, time()],
             )
             .await?;
         Ok(())
@@ -1895,7 +1896,7 @@ async fn prepare_msg_common(
     msg.state = change_state_to;
 
     prepare_msg_blob(context, msg).await?;
-    chat_id.unarchive(context).await?;
+    chat_id.unarchive_if_not_muted(context).await?;
     msg.id = chat
         .prepare_msg_raw(
             context,
@@ -3100,7 +3101,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     let mut created_msgs: Vec<MsgId> = Vec::new();
     let mut curr_timestamp: i64;
 
-    chat_id.unarchive(context).await?;
+    chat_id.unarchive_if_not_muted(context).await?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
         ensure!(chat.can_send(context).await?, "cannot send to {}", chat_id);
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len()).await;
@@ -3258,7 +3259,7 @@ pub async fn add_device_msg_with_importance(
         let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
         msg.try_calc_and_set_dimensions(context).await.ok();
         prepare_msg_blob(context, msg).await?;
-        chat_id.unarchive(context).await?;
+        chat_id.unarchive_if_not_muted(context).await?;
 
         let timestamp_sent = dc_create_smeared_timestamp(context).await;
 
