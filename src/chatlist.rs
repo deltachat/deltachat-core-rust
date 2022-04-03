@@ -4,9 +4,8 @@ use anyhow::{ensure, Context as _, Result};
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
-    Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CONTACT_ID_DEVICE,
-    DC_CONTACT_ID_SELF, DC_CONTACT_ID_UNDEFINED, DC_GCL_ADD_ALLDONE_HINT, DC_GCL_ARCHIVED_ONLY,
-    DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS,
+    Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_GCL_ADD_ALLDONE_HINT,
+    DC_GCL_ARCHIVED_ONLY, DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS,
 };
 use crate::contact::{Contact, ContactId};
 use crate::context::Context;
@@ -112,7 +111,7 @@ impl Chatlist {
         };
 
         let skip_id = if flag_for_forwarding {
-            ChatId::lookup_by_contact(context, DC_CONTACT_ID_DEVICE)
+            ChatId::lookup_by_contact(context, ContactId::DEVICE)
                 .await?
                 .unwrap_or_default()
         } else {
@@ -216,7 +215,7 @@ impl Chatlist {
         } else {
             //  show normal chatlist
             let sort_id_up = if flag_for_forwarding {
-                ChatId::lookup_by_contact(context, DC_CONTACT_ID_SELF)
+                ChatId::lookup_by_contact(context, ContactId::SELF)
                     .await?
                     .unwrap_or_default()
             } else {
@@ -326,7 +325,7 @@ impl Chatlist {
 
         let (lastmsg, lastcontact) = if let Some(lastmsg_id) = lastmsg_id {
             let lastmsg = Message::load_from_db(context, lastmsg_id).await?;
-            if lastmsg.from_id == DC_CONTACT_ID_SELF {
+            if lastmsg.from_id == ContactId::SELF {
                 (Some(lastmsg), None)
             } else {
                 match chat.typ {
@@ -343,7 +342,7 @@ impl Chatlist {
 
         if chat.id.is_archived_link() {
             Ok(Default::default())
-        } else if let Some(lastmsg) = lastmsg.filter(|msg| msg.from_id != DC_CONTACT_ID_UNDEFINED) {
+        } else if let Some(lastmsg) = lastmsg.filter(|msg| msg.from_id != ContactId::UNDEFINED) {
             Ok(Summary::new(context, &lastmsg, chat, lastcontact.as_ref()).await)
         } else {
             Ok(Summary {

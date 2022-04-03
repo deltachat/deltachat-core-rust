@@ -22,8 +22,8 @@ use crate::chat::{self, Chat, ChatId};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
-use crate::constants::{DC_CONTACT_ID_SELF, DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
-use crate::contact::{Contact, Modifier, Origin};
+use crate::constants::{DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
+use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
@@ -466,7 +466,7 @@ impl TestContext {
 
     /// Retrieves the "self" chat.
     pub async fn get_self_chat(&self) -> Chat {
-        let chat_id = ChatId::create_for_contact(self, DC_CONTACT_ID_SELF)
+        let chat_id = ChatId::create_for_contact(self, ContactId::SELF)
             .await
             .unwrap();
         Chat::load_from_db(self, chat_id).await.unwrap()
@@ -851,7 +851,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         &contact_name,
         contact_id,
         msgtext.unwrap_or_default(),
-        if msg.get_from_id() == DC_CONTACT_ID_SELF {
+        if msg.get_from_id() == ContactId::SELF {
             ""
         } else if msg.get_state() == MessageState::InSeen {
             "[SEEN]"

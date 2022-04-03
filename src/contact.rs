@@ -14,11 +14,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
 use crate::color::str_to_color;
 use crate::config::Config;
-use crate::constants::{
-    Blocked, Chattype, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_DEVICE_ADDR, DC_CONTACT_ID_INFO,
-    DC_CONTACT_ID_LAST_SPECIAL, DC_CONTACT_ID_SELF, DC_CONTACT_ID_UNDEFINED, DC_GCL_ADD_SELF,
-    DC_GCL_VERIFIED_ONLY,
-};
+use crate::constants::{Blocked, Chattype, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
 use crate::context::Context;
 use crate::dc_tools::{dc_get_abs_path, improve_single_line_input, EmailAddress};
 use crate::events::EventType;
@@ -40,12 +36,30 @@ use crate::{chat, stock_str};
 pub struct ContactId(u32);
 
 impl ContactId {
+    pub const UNDEFINED: ContactId = ContactId::new(0);
+    /// The owner of the account.
+    ///
+    /// The email-address is set by `dc_set_config` using "addr".
+    pub const SELF: ContactId = ContactId::new(1);
+    pub const INFO: ContactId = ContactId::new(2);
+    pub const DEVICE: ContactId = ContactId::new(5);
+    pub const LAST_SPECIAL: ContactId = ContactId::new(9);
+
+    /// Address to go with [`ContactId::Device`].
+    ///
+    /// This is used by APIs which need to return an email address for this contact.
+    pub const DEVICE_ADDR: &'static str = "device@localhost";
+
     /// Creates a new [`ContactId`].
     pub const fn new(id: u32) -> ContactId {
         ContactId(id)
     }
 
-    /// Bad evil escape hatch, do not use.
+    /// Numerical representation of the [`ContactId`].
+    ///
+    /// Each contact ID has a unique numerical representation which is used in the database
+    /// (via [`rusqlite::ToSql`]) and also for FFI purposes.  In Rust code you should never
+    /// need to use this directly.
     pub const fn to_u32(&self) -> u32 {
         self.0
     }
@@ -53,15 +67,15 @@ impl ContactId {
 
 impl fmt::Display for ContactId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if *self == DC_CONTACT_ID_UNDEFINED {
+        if *self == ContactId::UNDEFINED {
             write!(f, "Contact#Undefined")
-        } else if *self == DC_CONTACT_ID_SELF {
+        } else if *self == ContactId::SELF {
             write!(f, "Contact#Self")
-        } else if *self == DC_CONTACT_ID_INFO {
+        } else if *self == ContactId::INFO {
             write!(f, "Contact#Info")
-        } else if *self == DC_CONTACT_ID_DEVICE {
+        } else if *self == ContactId::DEVICE {
             write!(f, "Contact#Device")
-        } else if *self <= DC_CONTACT_ID_LAST_SPECIAL {
+        } else if *self <= ContactId::LAST_SPECIAL {
             write!(f, "Contact#Special{}", self.0)
         } else {
             write!(f, "Contact#{}", self.0)
@@ -104,12 +118,6 @@ impl rusqlite::types::FromSql for ContactId {
 #[derive(Debug)]
 pub struct Contact {
     /// The contact ID.
-    ///
-    /// Special message IDs:
-    /// - DC_CONTACT_ID_SELF (1) - this is the owner of the account with the email-address set by
-    ///   `dc_set_config` using "addr".
-    ///
-    /// Normal contact IDs are larger than these special ones (larger than DC_CONTACT_ID_LAST_SPECIAL).
     pub id: ContactId,
 
     /// Contact name. It is recommended to use `Contact::get_name`,
@@ -278,7 +286,7 @@ impl Contact {
                 },
             )
             .await?;
-        if contact_id == DC_CONTACT_ID_SELF {
+        if contact_id == ContactId::SELF {
             contact.name = stock_str::self_msg(context).await;
             contact.addr = context
                 .get_config(Config::ConfiguredAddr)
@@ -288,9 +296,9 @@ impl Contact {
                 .get_config(Config::Selfstatus)
                 .await?
                 .unwrap_or_default();
-        } else if contact_id == DC_CONTACT_ID_DEVICE {
+        } else if contact_id == ContactId::DEVICE {
             contact.name = stock_str::device_messages(context).await;
-            contact.addr = DC_CONTACT_ID_DEVICE_ADDR.to_string();
+            contact.addr = ContactId::DEVICE_ADDR.to_string();
             contact.status = stock_str::device_messages_hint(context).await;
         }
         Ok(contact)
@@ -384,7 +392,7 @@ impl Contact {
 
         if let Some(addr_self) = context.get_config(Config::ConfiguredAddr).await? {
             if addr_cmp(addr_normalized, &addr_self) {
-                return Ok(Some(DC_CONTACT_ID_SELF));
+                return Ok(Some(ContactId::SELF));
             }
         }
         let id = context
@@ -393,11 +401,7 @@ impl Contact {
                 "SELECT id FROM contacts \
             WHERE addr=?1 COLLATE NOCASE \
             AND id>?2 AND origin>=?3 AND blocked=0;",
-                paramsv![
-                    addr_normalized,
-                    DC_CONTACT_ID_LAST_SPECIAL,
-                    min_origin as u32,
-                ],
+                paramsv![addr_normalized, ContactId::LAST_SPECIAL, min_origin as u32,],
             )
             .await?;
         Ok(id)
@@ -446,7 +450,7 @@ impl Contact {
             .unwrap_or_default();
 
         if addr_cmp(&addr, &addr_self) {
-            return Ok((DC_CONTACT_ID_SELF, sth_modified));
+            return Ok((ContactId::SELF, sth_modified));
         }
 
         if !may_be_valid_addr(&addr) {
@@ -706,7 +710,7 @@ impl Contact {
                  ORDER BY LOWER(iif(c.name='',c.authname,c.name)||c.addr),c.id;",
                     paramsv![
                         self_addr,
-                        DC_CONTACT_ID_LAST_SPECIAL,
+                        ContactId::LAST_SPECIAL,
                         Origin::IncomingReplyTo,
                         s3str_like_cmd,
                         s3str_like_cmd,
@@ -750,11 +754,7 @@ impl Contact {
                  AND origin>=?3
                  AND blocked=0
                  ORDER BY LOWER(iif(name='',authname,name)||addr),id;",
-                    paramsv![
-                        self_addr,
-                        DC_CONTACT_ID_LAST_SPECIAL,
-                        Origin::IncomingReplyTo
-                    ],
+                    paramsv![self_addr, ContactId::LAST_SPECIAL, Origin::IncomingReplyTo],
                     |row| row.get::<_, ContactId>(0),
                     |ids| {
                         for id in ids {
@@ -767,7 +767,7 @@ impl Contact {
         }
 
         if flag_add_self && add_self {
-            ret.push(DC_CONTACT_ID_SELF);
+            ret.push(ContactId::SELF);
         }
 
         Ok(ret)
@@ -822,7 +822,7 @@ impl Contact {
             .sql
             .count(
                 "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
-                paramsv![DC_CONTACT_ID_LAST_SPECIAL],
+                paramsv![ContactId::LAST_SPECIAL],
             )
             .await?;
         Ok(count as usize)
@@ -838,7 +838,7 @@ impl Contact {
             .sql
             .query_map(
                 "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(iif(name='',authname,name)||addr),id;",
-                paramsv![DC_CONTACT_ID_LAST_SPECIAL],
+                paramsv![ContactId::LAST_SPECIAL],
                 |row| row.get::<_, ContactId>(0),
                 |ids| {
                     ids.collect::<std::result::Result<Vec<_>, _>>()
@@ -856,7 +856,7 @@ impl Contact {
     /// fingerprints of the keys involved.
     pub async fn get_encrinfo(context: &Context, contact_id: ContactId) -> Result<String> {
         ensure!(
-            contact_id > DC_CONTACT_ID_LAST_SPECIAL,
+            contact_id > ContactId::LAST_SPECIAL,
             "Can not provide encryption info for special contact"
         );
 
@@ -925,7 +925,7 @@ impl Contact {
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
     pub async fn delete(context: &Context, contact_id: ContactId) -> Result<()> {
         ensure!(
-            contact_id > DC_CONTACT_ID_LAST_SPECIAL,
+            contact_id > ContactId::LAST_SPECIAL,
             "Can not delete special contact"
         );
 
@@ -963,7 +963,7 @@ impl Contact {
 
     /// Get a single contact object.  For a list, see eg. dc_get_contacts().
     ///
-    /// For contact DC_CONTACT_ID_SELF (1), the function returns sth.
+    /// For contact ContactId::SELF (1), the function returns sth.
     /// like "Me" in the selected language and the email address
     /// defined by dc_set_config().
     pub async fn get_by_id(context: &Context, contact_id: ContactId) -> Result<Contact> {
@@ -1056,7 +1056,7 @@ impl Contact {
     /// This is the image set by each remote user on their own
     /// using dc_set_config(context, "selfavatar", image).
     pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
-        if self.id == DC_CONTACT_ID_SELF {
+        if self.id == ContactId::SELF {
             if let Some(p) = context.get_config(Config::Selfavatar).await? {
                 return Ok(Some(PathBuf::from(p)));
             }
@@ -1102,7 +1102,7 @@ impl Contact {
     ) -> Result<VerifiedStatus> {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
-        if self.id == DC_CONTACT_ID_SELF {
+        if self.id == ContactId::SELF {
             return Ok(VerifiedStatus::BidirectVerified);
         }
 
@@ -1150,14 +1150,14 @@ impl Contact {
             .sql
             .count(
                 "SELECT COUNT(*) FROM contacts WHERE id>?;",
-                paramsv![DC_CONTACT_ID_LAST_SPECIAL],
+                paramsv![ContactId::LAST_SPECIAL],
             )
             .await?;
         Ok(count)
     }
 
     pub async fn real_exists_by_id(context: &Context, contact_id: ContactId) -> Result<bool> {
-        if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
+        if contact_id <= ContactId::LAST_SPECIAL {
             return Ok(false);
         }
 
@@ -1230,7 +1230,7 @@ async fn set_block_contact(
     new_blocking: bool,
 ) -> Result<()> {
     ensure!(
-        contact_id > DC_CONTACT_ID_LAST_SPECIAL,
+        contact_id > ContactId::LAST_SPECIAL,
         "Can't block special contact {}",
         contact_id
     );
@@ -1300,7 +1300,7 @@ pub(crate) async fn set_profile_image(
     let mut contact = Contact::load_from_db(context, contact_id).await?;
     let changed = match profile_image {
         AvatarAction::Change(profile_image) => {
-            if contact_id == DC_CONTACT_ID_SELF {
+            if contact_id == ContactId::SELF {
                 if was_encrypted {
                     context
                         .set_config(Config::Selfavatar, Some(profile_image))
@@ -1314,7 +1314,7 @@ pub(crate) async fn set_profile_image(
             true
         }
         AvatarAction::Delete => {
-            if contact_id == DC_CONTACT_ID_SELF {
+            if contact_id == ContactId::SELF {
                 if was_encrypted {
                     context.set_config(Config::Selfavatar, None).await?;
                 } else {
@@ -1345,7 +1345,7 @@ pub(crate) async fn set_status(
     encrypted: bool,
     has_chat_version: bool,
 ) -> Result<()> {
-    if contact_id == DC_CONTACT_ID_SELF {
+    if contact_id == ContactId::SELF {
         if encrypted && has_chat_version {
             context
                 .set_config(Config::Selfstatus, Some(&status))
@@ -1370,7 +1370,7 @@ pub(crate) async fn update_last_seen(
     timestamp: i64,
 ) -> Result<()> {
     ensure!(
-        contact_id > DC_CONTACT_ID_LAST_SPECIAL,
+        contact_id > ContactId::LAST_SPECIAL,
         "Can not update special contact last seen timestamp"
     );
 
@@ -1615,7 +1615,7 @@ mod tests {
             Contact::add_or_lookup(&t, "bla foo", "one@eins.org", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
-        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert!(contact_id > ContactId::LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Modified);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_id(), contact_id);
@@ -1642,7 +1642,7 @@ mod tests {
             Contact::add_or_lookup(&t, "", "three@drei.sam", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
-        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert!(contact_id > ContactId::LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::None);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "");
@@ -1682,7 +1682,7 @@ mod tests {
             Contact::add_or_lookup(&t, "", "alice@w.de", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
-        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert!(contact_id > ContactId::LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::None);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Wonderland, Alice");
@@ -1691,8 +1691,8 @@ mod tests {
         assert_eq!(contact.get_name_n_addr(), "Wonderland, Alice (alice@w.de)");
 
         // check SELF
-        let contact = Contact::load_from_db(&t, DC_CONTACT_ID_SELF).await.unwrap();
-        assert_eq!(DC_CONTACT_ID_SELF, ContactId::new(1));
+        let contact = Contact::load_from_db(&t, ContactId::SELF).await.unwrap();
+        assert_eq!(ContactId::SELF, ContactId::new(1));
         assert_eq!(contact.get_name(), stock_str::self_msg(&t).await);
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
@@ -1702,7 +1702,7 @@ mod tests {
     async fn test_delete() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
-        assert!(Contact::delete(&alice, DC_CONTACT_ID_SELF).await.is_err());
+        assert!(Contact::delete(&alice, ContactId::SELF).await.is_err());
 
         // Create Bob contact
         let (contact_id, _) =
@@ -1735,7 +1735,7 @@ mod tests {
             Contact::add_or_lookup(&t, "bob1", "bob@example.org", Origin::IncomingUnknownFrom)
                 .await
                 .unwrap();
-        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert!(contact_id > ContactId::LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Created);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob1");
@@ -1747,7 +1747,7 @@ mod tests {
             Contact::add_or_lookup(&t, "bob2", "bob@example.org", Origin::IncomingUnknownFrom)
                 .await
                 .unwrap();
-        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert!(contact_id > ContactId::LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Modified);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
@@ -1758,7 +1758,7 @@ mod tests {
         let contact_id = Contact::create(&t, "bob3", "bob@example.org")
             .await
             .unwrap();
-        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert!(contact_id > ContactId::LAST_SPECIAL);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "bob3");
@@ -1769,7 +1769,7 @@ mod tests {
             Contact::add_or_lookup(&t, "bob4", "bob@example.org", Origin::IncomingUnknownFrom)
                 .await
                 .unwrap();
-        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert!(contact_id > ContactId::LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Modified);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob4");
@@ -1783,7 +1783,7 @@ mod tests {
 
         // manually create "claire@example.org" without a given name
         let contact_id = Contact::create(&t, "", "claire@example.org").await.unwrap();
-        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert!(contact_id > ContactId::LAST_SPECIAL);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "");
         assert_eq!(contact.get_name(), "");
@@ -1957,7 +1957,7 @@ mod tests {
         let id = Contact::lookup_id_by_addr(&alice.ctx, "alice@example.org", Origin::Unknown)
             .await
             .unwrap();
-        assert_eq!(id, Some(DC_CONTACT_ID_SELF));
+        assert_eq!(id, Some(ContactId::SELF));
     }
 
     #[async_std::test]
@@ -1965,9 +1965,9 @@ mod tests {
         let alice = TestContext::new_alice().await;
 
         // Return error for special IDs
-        let encrinfo = Contact::get_encrinfo(&alice, DC_CONTACT_ID_SELF).await;
+        let encrinfo = Contact::get_encrinfo(&alice, ContactId::SELF).await;
         assert!(encrinfo.is_err());
-        let encrinfo = Contact::get_encrinfo(&alice, DC_CONTACT_ID_DEVICE).await;
+        let encrinfo = Contact::get_encrinfo(&alice, ContactId::DEVICE).await;
         assert!(encrinfo.is_err());
 
         let (contact_bob_id, _modified) =

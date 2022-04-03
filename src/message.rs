@@ -10,8 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
 use crate::constants::{
-    Blocked, Chattype, VideochatType, DC_CHAT_ID_TRASH, DC_CONTACT_ID_INFO, DC_CONTACT_ID_SELF,
-    DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
+    Blocked, Chattype, VideochatType, DC_CHAT_ID_TRASH, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
 };
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
@@ -431,7 +430,7 @@ impl Message {
     /// this is done by dc_set_location() and dc_send_locations_to_chat().
     ///
     /// Typically results in the event #DC_EVENT_LOCATION_CHANGED with
-    /// contact_id set to DC_CONTACT_ID_SELF.
+    /// contact_id set to ContactId::SELF.
     ///
     /// @param latitude North-south position of the location.
     /// @param longitude East-west position of the location.
@@ -544,7 +543,7 @@ impl Message {
             &chat_loaded
         };
 
-        let contact = if self.from_id != DC_CONTACT_ID_SELF {
+        let contact = if self.from_id != ContactId::SELF {
             match chat.typ {
                 Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
                     Some(Contact::get_by_id(context, self.from_id).await?)
@@ -597,8 +596,8 @@ impl Message {
 
     pub fn is_info(&self) -> bool {
         let cmd = self.param.get_cmd();
-        self.from_id == DC_CONTACT_ID_INFO
-            || self.to_id == DC_CONTACT_ID_INFO
+        self.from_id == ContactId::INFO
+            || self.to_id == ContactId::INFO
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
     }
 
@@ -1017,7 +1016,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     ret += &format!(" by {}", name);
     ret += "\n";
 
-    if msg.from_id != DC_CONTACT_ID_SELF {
+    if msg.from_id != ContactId::SELF {
         let s = dc_timestamp_to_str(if 0 != msg.timestamp_rcvd {
             msg.timestamp_rcvd
         } else {
@@ -1038,7 +1037,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
         );
     }
 
-    if msg.from_id == DC_CONTACT_ID_INFO || msg.to_id == DC_CONTACT_ID_INFO {
+    if msg.from_id == ContactId::INFO || msg.to_id == ContactId::INFO {
         // device-internal message, no further details needed
         return Ok(ret);
     }
@@ -1432,7 +1431,7 @@ pub async fn handle_mdn(
     rfc724_mid: &str,
     timestamp_sent: i64,
 ) -> Result<Option<(ChatId, MsgId)>> {
-    if from_id == DC_CONTACT_ID_SELF {
+    if from_id == ContactId::SELF {
         warn!(
             context,
             "ignoring MDN sent to self, this is a bug on the sender device"
@@ -1637,7 +1636,7 @@ pub async fn estimate_deletion_cnt(
     from_server: bool,
     seconds: i64,
 ) -> Result<usize> {
-    let self_chat_id = ChatId::lookup_by_contact(context, DC_CONTACT_ID_SELF)
+    let self_chat_id = ChatId::lookup_by_contact(context, ContactId::SELF)
         .await?
         .unwrap_or_default();
     let threshold_timestamp = time() - seconds;
@@ -1805,7 +1804,6 @@ mod tests {
 
     use crate::chat::{marknoticed_chat, ChatItem};
     use crate::chatlist::Chatlist;
-    use crate::constants::DC_CONTACT_ID_DEVICE;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils as test;
     use crate::test_utils::TestContext;
@@ -1945,7 +1943,7 @@ mod tests {
         // test that get_width() and get_height() are returning some dimensions for images;
         // (as the device-chat contains a welcome-images, we check that)
         t.update_device_chats().await.ok();
-        let device_chat_id = ChatId::get_for_contact(&t, DC_CONTACT_ID_DEVICE)
+        let device_chat_id = ChatId::get_for_contact(&t, ContactId::DEVICE)
             .await
             .unwrap();
 

@@ -7,7 +7,6 @@ use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::chat::{self, ChatId};
 use crate::config::Config;
-use crate::constants::DC_CONTACT_ID_SELF;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::time;
@@ -315,7 +314,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
                         accuracy,
                         time(),
                         chat_id,
-                        DC_CONTACT_ID_SELF,
+                        ContactId::SELF,
                     ]
             ).await {
                 warn!(context, "failed to store location {:?}", err);
@@ -324,7 +323,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
             }
         }
         if continue_streaming {
-            context.emit_event(EventType::LocationChanged(Some(DC_CONTACT_ID_SELF)));
+            context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
         };
         schedule_maybe_send_locations(context, false).await.ok();
     }
@@ -463,10 +462,10 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
              GROUP BY timestamp \
              ORDER BY timestamp;",
                 paramsv![
-                    DC_CONTACT_ID_SELF,
+                    ContactId::SELF,
                     locations_send_begin,
                     locations_last_sent,
-                    DC_CONTACT_ID_SELF
+                    ContactId::SELF
                 ],
                 |row| {
                     let location_id: i32 = row.get(0)?;
@@ -667,7 +666,7 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
             for (chat_id, locations_send_begin, locations_last_sent) in &rows {
                 if !stmt_locations
                     .exists(paramsv![
-                        DC_CONTACT_ID_SELF,
+                        ContactId::SELF,
                         *locations_send_begin,
                         *locations_last_sent,
                     ])
