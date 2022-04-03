@@ -1,8 +1,8 @@
 //! # Message summary for chatlist.
 
 use crate::chat::Chat;
-use crate::constants::{Chattype, DC_CONTACT_ID_SELF};
-use crate::contact::Contact;
+use crate::constants::Chattype;
+use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::dc_tools::dc_truncate;
 use crate::message::{Message, MessageState, Viewtype};
@@ -60,7 +60,7 @@ impl Summary {
     ) -> Self {
         let prefix = if msg.state == MessageState::OutDraft {
             Some(SummaryPrefix::Draft(stock_str::draft(context).await))
-        } else if msg.from_id == DC_CONTACT_ID_SELF {
+        } else if msg.from_id == ContactId::SELF {
             if msg.is_info() || chat.is_self_talk() {
                 None
             } else {

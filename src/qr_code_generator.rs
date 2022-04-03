@@ -6,8 +6,7 @@ use crate::{
     chat::{Chat, ChatId},
     color::color_int_to_hex_string,
     config::Config,
-    constants::DC_CONTACT_ID_SELF,
-    contact::Contact,
+    contact::{Contact, ContactId},
     context::Context,
     securejoin, stock_str,
 };
@@ -41,7 +40,7 @@ async fn generate_join_group_qr_code(context: &Context, chat_id: ChatId) -> Resu
 }
 
 async fn generate_verification_qr(context: &Context) -> Result<String> {
-    let contact = Contact::get_by_id(context, DC_CONTACT_ID_SELF).await?;
+    let contact = Contact::get_by_id(context, ContactId::SELF).await?;
 
     let avatar = match contact.get_profile_image(context).await? {
         Some(path) => {

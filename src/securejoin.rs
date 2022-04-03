@@ -8,7 +8,7 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked};
 use crate::config::Config;
-use crate::constants::{Blocked, DC_CONTACT_ID_LAST_SPECIAL};
+use crate::constants::Blocked;
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::dc_tools::time;
@@ -310,7 +310,7 @@ pub(crate) async fn handle_securejoin_handshake(
     mime_message: &MimeMessage,
     contact_id: ContactId,
 ) -> Result<HandshakeMessage> {
-    if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
+    if contact_id <= ContactId::LAST_SPECIAL {
         return Err(Error::msg("Can not be called with special contact ID"));
     }
     let step = mime_message
@@ -573,7 +573,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
     mime_message: &MimeMessage,
     contact_id: ContactId,
 ) -> Result<HandshakeMessage> {
-    if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
+    if contact_id <= ContactId::LAST_SPECIAL {
         return Err(Error::msg("Can not be called with special contact ID"));
     }
     let step = mime_message

@@ -66,9 +66,7 @@ use async_std::task;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{send_msg, ChatId};
-use crate::constants::{
-    DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_CONTACT_ID_DEVICE, DC_CONTACT_ID_SELF,
-};
+use crate::constants::{DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH};
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::time;
@@ -198,7 +196,7 @@ impl ChatId {
         }
         self.inner_set_ephemeral_timer(context, timer).await?;
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(stock_ephemeral_timer_changed(context, timer, DC_CONTACT_ID_SELF).await);
+        msg.text = Some(stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await);
         msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
         if let Err(err) = send_msg(context, self, &mut msg).await {
             error!(
@@ -361,10 +359,10 @@ WHERE
         > 0;
 
     if let Some(delete_device_after) = context.get_config_delete_device_after().await? {
-        let self_chat_id = ChatId::lookup_by_contact(context, DC_CONTACT_ID_SELF)
+        let self_chat_id = ChatId::lookup_by_contact(context, ContactId::SELF)
             .await?
             .unwrap_or_default();
-        let device_chat_id = ChatId::lookup_by_contact(context, DC_CONTACT_ID_DEVICE)
+        let device_chat_id = ChatId::lookup_by_contact(context, ContactId::DEVICE)
             .await?
             .unwrap_or_default();
 
@@ -545,7 +543,7 @@ mod tests {
         let context = TestContext::new().await;
 
         assert_eq!(
-            stock_ephemeral_timer_changed(&context, Timer::Disabled, DC_CONTACT_ID_SELF).await,
+            stock_ephemeral_timer_changed(&context, Timer::Disabled, ContactId::SELF).await,
             "Message deletion timer is disabled by me."
         );
 
@@ -553,7 +551,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 1 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 1 s by me."
@@ -562,7 +560,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 30 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 30 s by me."
@@ -571,7 +569,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 60 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 1 minute by me."
@@ -580,7 +578,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 90 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 1.5 minutes by me."
@@ -589,7 +587,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 30 * 60 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 30 minutes by me."
@@ -598,7 +596,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 60 * 60 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 1 hour by me."
@@ -607,7 +605,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 5400 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 1.5 hours by me."
@@ -618,7 +616,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 2 * 60 * 60
                 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 2 hours by me."
@@ -629,7 +627,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 24 * 60 * 60
                 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 1 day by me."
@@ -640,7 +638,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 2 * 24 * 60 * 60
                 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 2 days by me."
@@ -651,7 +649,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 7 * 24 * 60 * 60
                 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 1 week by me."
@@ -662,7 +660,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 4 * 7 * 24 * 60 * 60
                 },
-                DC_CONTACT_ID_SELF
+                ContactId::SELF
             )
             .await,
             "Message deletion timer is set to 4 weeks by me."

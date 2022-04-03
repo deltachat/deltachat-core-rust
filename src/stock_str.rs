@@ -10,7 +10,6 @@ use strum_macros::EnumProperty;
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
-use crate::constants::DC_CONTACT_ID_SELF;
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::dc_tools::dc_timestamp_to_str;
@@ -397,7 +396,7 @@ trait StockStringMods: AsRef<str> + Sized {
         Box::pin(async move {
             let message = self.as_ref().trim_end_matches('.');
             match contact_id {
-                DC_CONTACT_ID_SELF => msg_action_by_me(context, message).await,
+                ContactId::SELF => msg_action_by_me(context, message).await,
                 _ => {
                     let displayname = Contact::get_by_id(context, contact_id)
                         .await
@@ -1129,7 +1128,7 @@ impl Context {
             self.sql
                 .set_raw_config_bool("self-chat-added", true)
                 .await?;
-            ChatId::create_for_contact(self, DC_CONTACT_ID_SELF).await?;
+            ChatId::create_for_contact(self, ContactId::SELF).await?;
         }
 
         // add welcome-messages. by the label, this is done only once,
@@ -1149,14 +1148,13 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test_utils::TestContext;
-
-    use crate::constants::DC_CONTACT_ID_SELF;
+    use num_traits::ToPrimitive;
 
     use crate::chat::Chat;
     use crate::chatlist::Chatlist;
-    use num_traits::ToPrimitive;
+    use crate::test_utils::TestContext;
+
+    use super::*;
 
     #[test]
     fn test_enum_mapping() {
@@ -1233,7 +1231,7 @@ mod tests {
     async fn test_stock_system_msg_add_member_by_me() {
         let t = TestContext::new().await;
         assert_eq!(
-            msg_add_member(&t, "alice@example.org", DC_CONTACT_ID_SELF).await,
+            msg_add_member(&t, "alice@example.org", ContactId::SELF).await,
             "Member alice@example.org added by me."
         )
     }
@@ -1245,7 +1243,7 @@ mod tests {
             .await
             .expect("failed to create contact");
         assert_eq!(
-            msg_add_member(&t, "alice@example.org", DC_CONTACT_ID_SELF).await,
+            msg_add_member(&t, "alice@example.org", ContactId::SELF).await,
             "Member Alice (alice@example.org) added by me."
         );
     }

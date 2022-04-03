@@ -2,7 +2,8 @@
 
 use crate::chat::{Chat, ChatId};
 use crate::config::Config;
-use crate::constants::{Blocked, DC_CONTACT_ID_SELF};
+use crate::constants::Blocked;
+use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::message::{Message, MsgId, Viewtype};
@@ -126,7 +127,7 @@ impl Context {
     pub async fn send_sync_msg(&self) -> Result<Option<MsgId>> {
         if let Some((json, ids)) = self.build_sync_json().await? {
             let chat_id =
-                ChatId::create_for_contact_with_blocked(self, DC_CONTACT_ID_SELF, Blocked::Yes)
+                ChatId::create_for_contact_with_blocked(self, ContactId::SELF, Blocked::Yes)
                     .await?;
             let mut msg = Message {
                 chat_id,
@@ -483,7 +484,7 @@ mod tests {
         // check that the used self-talk is not visible to the user
         // but that creation will still work (in this case, the chat is empty)
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
-        let chat_id = ChatId::create_for_contact(&alice, DC_CONTACT_ID_SELF).await?;
+        let chat_id = ChatId::create_for_contact(&alice, ContactId::SELF).await?;
         let chat = Chat::load_from_db(&alice, chat_id).await?;
         assert!(chat.is_self_talk());
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);

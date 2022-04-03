@@ -20,9 +20,10 @@ use num_traits::FromPrimitive;
 use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::{
-    Blocked, Chattype, ShowEmails, DC_CONTACT_ID_SELF, DC_FETCH_EXISTING_MSGS_COUNT,
-    DC_FOLDERS_CONFIGURED_VERSION, DC_LP_AUTH_OAUTH2,
+    Blocked, Chattype, ShowEmails, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
+    DC_LP_AUTH_OAUTH2,
 };
+use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_receive_imf::{
     dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
@@ -1639,7 +1640,7 @@ async fn should_move_out_of_spam(
             if chat_id_blocked.blocked != Blocked::Not {
                 return Ok(false);
             }
-        } else if from_id != DC_CONTACT_ID_SELF {
+        } else if from_id != ContactId::SELF {
             // No chat with this contact found.
             return Ok(false);
         }

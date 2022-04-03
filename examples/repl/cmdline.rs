@@ -210,7 +210,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         contact_id,
         msgtext.unwrap_or_default(),
         if msg.has_html() { "[HAS-HTML]️" } else { "" },
-        if msg.get_from_id() == DC_CONTACT_ID_SELF {
+        if msg.get_from_id() == ContactId::SELF {
             ""
         } else if msg.get_state() == MessageState::InSeen {
             "[SEEN]"
@@ -297,7 +297,7 @@ async fn log_contactlist(context: &Context, contacts: &[ContactId]) -> Result<()
         let peerstate = Peerstate::from_addr(context, addr)
             .await
             .expect("peerstate error");
-        if peerstate.is_some() && *contact_id != DC_CONTACT_ID_SELF {
+        if peerstate.is_some() && *contact_id != ContactId::SELF {
             line2 = format!(
                 ", prefer-encrypt={}",
                 peerstate.as_ref().unwrap().prefer_encrypt

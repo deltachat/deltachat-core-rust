@@ -16,7 +16,7 @@ use rand::{thread_rng, Rng};
 use crate::blob::BlobObject;
 use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
 use crate::config::Config;
-use crate::constants::DC_CONTACT_ID_SELF;
+use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::{
     dc_create_folder, dc_delete_file, dc_delete_files_in_dir, dc_get_filesuffix_lc,
@@ -176,7 +176,7 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     )
     .await?;
 
-    let chat_id = ChatId::create_for_contact(context, DC_CONTACT_ID_SELF).await?;
+    let chat_id = ChatId::create_for_contact(context, ContactId::SELF).await?;
     let mut msg = Message {
         viewtype: Viewtype::File,
         ..Default::default()

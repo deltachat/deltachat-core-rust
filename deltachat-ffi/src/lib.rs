@@ -1949,7 +1949,7 @@ pub unsafe extern "C" fn dc_block_contact(
     contact_id: u32,
     block: libc::c_int,
 ) {
-    if context.is_null() || contact_id <= constants::DC_CONTACT_ID_LAST_SPECIAL.to_u32() {
+    if context.is_null() || contact_id <= ContactId::LAST_SPECIAL.to_u32() {
         eprintln!("ignoring careless call to dc_block_contact()");
         return;
     }
@@ -1994,7 +1994,7 @@ pub unsafe extern "C" fn dc_delete_contact(
     context: *mut dc_context_t,
     contact_id: u32,
 ) -> libc::c_int {
-    if context.is_null() || contact_id <= constants::DC_CONTACT_ID_LAST_SPECIAL.to_u32() {
+    if context.is_null() || contact_id <= ContactId::LAST_SPECIAL.to_u32() {
         eprintln!("ignoring careless call to dc_delete_contact()");
         return 0;
     }
