@@ -1949,18 +1949,19 @@ pub unsafe extern "C" fn dc_block_contact(
     contact_id: u32,
     block: libc::c_int,
 ) {
-    if context.is_null() || contact_id <= ContactId::LAST_SPECIAL.to_u32() {
+    let contact_id = ContactId::new(contact_id);
+    if context.is_null() || contact_id.is_special() {
         eprintln!("ignoring careless call to dc_block_contact()");
         return;
     }
     let ctx = &*context;
     block_on(async move {
         if block == 0 {
-            Contact::unblock(ctx, ContactId::new(contact_id))
+            Contact::unblock(ctx, contact_id)
                 .await
                 .ok_or_log_msg(ctx, "Can't unblock contact");
         } else {
-            Contact::block(ctx, ContactId::new(contact_id))
+            Contact::block(ctx, contact_id)
                 .await
                 .ok_or_log_msg(ctx, "Can't block contact");
         }
@@ -1994,14 +1995,15 @@ pub unsafe extern "C" fn dc_delete_contact(
     context: *mut dc_context_t,
     contact_id: u32,
 ) -> libc::c_int {
-    if context.is_null() || contact_id <= ContactId::LAST_SPECIAL.to_u32() {
+    let contact_id = ContactId::new(contact_id);
+    if context.is_null() || contact_id.is_special() {
         eprintln!("ignoring careless call to dc_delete_contact()");
         return 0;
     }
     let ctx = &*context;
 
     block_on(async move {
-        match Contact::delete(ctx, ContactId::new(contact_id)).await {
+        match Contact::delete(ctx, contact_id).await {
             Ok(_) => 1,
             Err(_) => 0,
         }
