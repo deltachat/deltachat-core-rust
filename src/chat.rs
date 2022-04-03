@@ -3904,7 +3904,6 @@ mod tests {
     async fn test_self_talk() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat = &t.get_self_chat().await;
-        assert_eq!(ContactId::SELF, ContactId::new(1));
         assert!(!chat.id.is_special());
         assert!(chat.is_self_talk());
         assert!(chat.visibility == ChatVisibility::Normal);
@@ -4321,7 +4320,7 @@ mod tests {
         let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de")
             .await
             .unwrap();
-        assert_ne!(contact1, ContactId::new(0));
+        assert_ne!(contact1, ContactId::UNDEFINED);
 
         let chat_id = ChatId::create_for_contact(&context.ctx, contact1)
             .await
@@ -4526,7 +4525,7 @@ mod tests {
 
         // create contact, then unblocked chat
         let contact_id = Contact::create(&ctx, "", "bob@foo.de").await.unwrap();
-        assert_ne!(contact_id, ContactId::new(0));
+        assert_ne!(contact_id, ContactId::UNDEFINED);
         let found = ChatId::lookup_by_contact(&ctx, contact_id).await.unwrap();
         assert!(found.is_none());
 

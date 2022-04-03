@@ -1542,7 +1542,7 @@ mod tests {
             Origin::IncomingReplyTo,
         )
         .await?;
-        assert_ne!(id, ContactId::new(0));
+        assert_ne!(id, ContactId::UNDEFINED);
 
         let contact = Contact::load_from_db(&context.ctx, id).await.unwrap();
         assert_eq!(contact.get_name(), "");
@@ -1697,7 +1697,6 @@ mod tests {
 
         // check SELF
         let contact = Contact::load_from_db(&t, ContactId::SELF).await.unwrap();
-        assert_eq!(ContactId::SELF, ContactId::new(1));
         assert_eq!(contact.get_name(), stock_str::self_msg(&t).await);
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());

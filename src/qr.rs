@@ -711,7 +711,7 @@ mod tests {
             ..
         } = qr
         {
-            assert_ne!(contact_id, ContactId::new(0));
+            assert_ne!(contact_id, ContactId::UNDEFINED);
             assert_eq!(grpname, "test ? test !");
         } else {
             bail!("Wrong QR code type");
@@ -729,7 +729,7 @@ mod tests {
             ..
         } = qr
         {
-            assert_ne!(contact_id, ContactId::new(0));
+            assert_ne!(contact_id, ContactId::UNDEFINED);
             assert_eq!(grpname, "test ? test !");
 
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
@@ -751,7 +751,7 @@ mod tests {
         ).await?;
 
         if let Qr::AskVerifyContact { contact_id, .. } = qr {
-            assert_ne!(contact_id, ContactId::new(0));
+            assert_ne!(contact_id, ContactId::UNDEFINED);
         } else {
             bail!("Wrong QR code type");
         }

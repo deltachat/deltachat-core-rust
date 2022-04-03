@@ -277,7 +277,7 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
-        if from_id != ContactId::new(0)
+        if from_id != ContactId::UNDEFINED
             && context
                 .update_contacts_timestamp(from_id, Param::AvatarTimestamp, sent_timestamp)
                 .await?
@@ -305,7 +305,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // Ignore MDNs though, as they never contain the signature even if user has set it.
     if mime_parser.mdn_reports.is_empty()
         && is_partial_download.is_none()
-        && from_id != ContactId::new(0)
+        && from_id != ContactId::UNDEFINED
         && context
             .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)
             .await?
@@ -417,7 +417,7 @@ pub async fn from_field_to_contact_id(
             "mail has an empty From header: {:?}", from_address_list
         );
 
-        Ok((ContactId::new(0), false, Origin::Unknown))
+        Ok((ContactId::UNDEFINED, false, Origin::Unknown))
     }
 }
 
@@ -524,7 +524,7 @@ async fn add_parts(
             securejoin_seen = false;
         }
 
-        let test_normal_chat = if from_id == ContactId::new(0) {
+        let test_normal_chat = if from_id == ContactId::UNDEFINED {
             Default::default()
         } else {
             ChatIdBlocked::lookup_by_contact(context, from_id).await?
@@ -1144,8 +1144,8 @@ INSERT INTO msgs
         stmt.execute(paramsv![
             rfc724_mid,
             chat_id,
-            if trash { ContactId::new(0) } else { from_id },
-            if trash { ContactId::new(0) } else { to_id },
+            if trash { ContactId::UNDEFINED } else { from_id },
+            if trash { ContactId::UNDEFINED } else { to_id },
             sort_timestamp,
             sent_timestamp,
             rcvd_timestamp,
