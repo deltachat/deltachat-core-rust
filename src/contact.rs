@@ -30,9 +30,7 @@ use crate::{chat, stock_str};
 ///
 /// Some contact IDs are reserved to identify special contacts.  This
 /// type can represent both the special as well as normal contacts.
-#[derive(
-    Debug, Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ContactId(u32);
 
 impl ContactId {
@@ -43,9 +41,9 @@ impl ContactId {
     pub const SELF: ContactId = ContactId::new(1);
     pub const INFO: ContactId = ContactId::new(2);
     pub const DEVICE: ContactId = ContactId::new(5);
-    pub const LAST_SPECIAL: ContactId = ContactId::new(9);
+    const LAST_SPECIAL: ContactId = ContactId::new(9);
 
-    /// Address to go with [`ContactId::Device`].
+    /// Address to go with [`ContactId::DEVICE`].
     ///
     /// This is used by APIs which need to return an email address for this contact.
     pub const DEVICE_ADDR: &'static str = "device@localhost";
@@ -53,6 +51,16 @@ impl ContactId {
     /// Creates a new [`ContactId`].
     pub const fn new(id: u32) -> ContactId {
         ContactId(id)
+    }
+
+    /// Whether this is a special [`ContactId`].
+    ///
+    /// Some [`ContactId`]s are reserved for special contacts like [`ContactId::SELF`],
+    /// [`ContactId::INFO`] and [`ContactId::DEVICE`].  This function indicates whether this
+    /// [`ContactId`] is any of the reserved special [`ContactId`]s (`true`) or whether it
+    /// is the [`ContactId`] of a real contact (`false`).
+    pub fn is_special(&self) -> bool {
+        self.0 <= Self::LAST_SPECIAL.0
     }
 
     /// Numerical representation of the [`ContactId`].
@@ -75,7 +83,7 @@ impl fmt::Display for ContactId {
             write!(f, "Contact#Info")
         } else if *self == ContactId::DEVICE {
             write!(f, "Contact#Device")
-        } else if *self <= ContactId::LAST_SPECIAL {
+        } else if self.is_special() {
             write!(f, "Contact#Special{}", self.0)
         } else {
             write!(f, "Contact#{}", self.0)
@@ -856,7 +864,7 @@ impl Contact {
     /// fingerprints of the keys involved.
     pub async fn get_encrinfo(context: &Context, contact_id: ContactId) -> Result<String> {
         ensure!(
-            contact_id > ContactId::LAST_SPECIAL,
+            !contact_id.is_special(),
             "Can not provide encryption info for special contact"
         );
 
@@ -924,10 +932,7 @@ impl Contact {
     ///
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
     pub async fn delete(context: &Context, contact_id: ContactId) -> Result<()> {
-        ensure!(
-            contact_id > ContactId::LAST_SPECIAL,
-            "Can not delete special contact"
-        );
+        ensure!(!contact_id.is_special(), "Can not delete special contact");
 
         let count_chats = context
             .sql
@@ -1157,7 +1162,7 @@ impl Contact {
     }
 
     pub async fn real_exists_by_id(context: &Context, contact_id: ContactId) -> Result<bool> {
-        if contact_id <= ContactId::LAST_SPECIAL {
+        if contact_id.is_special() {
             return Ok(false);
         }
 
@@ -1230,7 +1235,7 @@ async fn set_block_contact(
     new_blocking: bool,
 ) -> Result<()> {
     ensure!(
-        contact_id > ContactId::LAST_SPECIAL,
+        !contact_id.is_special(),
         "Can't block special contact {}",
         contact_id
     );
@@ -1370,7 +1375,7 @@ pub(crate) async fn update_last_seen(
     timestamp: i64,
 ) -> Result<()> {
     ensure!(
-        contact_id > ContactId::LAST_SPECIAL,
+        !contact_id.is_special(),
         "Can not update special contact last seen timestamp"
     );
 
@@ -1615,7 +1620,7 @@ mod tests {
             Contact::add_or_lookup(&t, "bla foo", "one@eins.org", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
-        assert!(contact_id > ContactId::LAST_SPECIAL);
+        assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::Modified);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_id(), contact_id);
@@ -1642,7 +1647,7 @@ mod tests {
             Contact::add_or_lookup(&t, "", "three@drei.sam", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
-        assert!(contact_id > ContactId::LAST_SPECIAL);
+        assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::None);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "");
@@ -1682,7 +1687,7 @@ mod tests {
             Contact::add_or_lookup(&t, "", "alice@w.de", Origin::IncomingUnknownTo)
                 .await
                 .unwrap();
-        assert!(contact_id > ContactId::LAST_SPECIAL);
+        assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::None);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Wonderland, Alice");
@@ -1735,7 +1740,7 @@ mod tests {
             Contact::add_or_lookup(&t, "bob1", "bob@example.org", Origin::IncomingUnknownFrom)
                 .await
                 .unwrap();
-        assert!(contact_id > ContactId::LAST_SPECIAL);
+        assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::Created);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob1");
@@ -1747,7 +1752,7 @@ mod tests {
             Contact::add_or_lookup(&t, "bob2", "bob@example.org", Origin::IncomingUnknownFrom)
                 .await
                 .unwrap();
-        assert!(contact_id > ContactId::LAST_SPECIAL);
+        assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::Modified);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
@@ -1758,7 +1763,7 @@ mod tests {
         let contact_id = Contact::create(&t, "bob3", "bob@example.org")
             .await
             .unwrap();
-        assert!(contact_id > ContactId::LAST_SPECIAL);
+        assert!(!contact_id.is_special());
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "bob3");
@@ -1769,7 +1774,7 @@ mod tests {
             Contact::add_or_lookup(&t, "bob4", "bob@example.org", Origin::IncomingUnknownFrom)
                 .await
                 .unwrap();
-        assert!(contact_id > ContactId::LAST_SPECIAL);
+        assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::Modified);
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob4");
@@ -1783,7 +1788,7 @@ mod tests {
 
         // manually create "claire@example.org" without a given name
         let contact_id = Contact::create(&t, "", "claire@example.org").await.unwrap();
-        assert!(contact_id > ContactId::LAST_SPECIAL);
+        assert!(!contact_id.is_special());
         let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "");
         assert_eq!(contact.get_name(), "");

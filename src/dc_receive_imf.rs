@@ -1,7 +1,7 @@
 //! Internet Message Format reception pipeline.
 
 use std::cmp::min;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::convert::TryFrom;
 
 use anyhow::{bail, ensure, Context as _, Result};
@@ -220,7 +220,7 @@ pub(crate) async fn dc_receive_imf_inner(
     .await
     .context("add_parts error")?;
 
-    if from_id > ContactId::LAST_SPECIAL {
+    if !from_id.is_special() {
         contact::update_last_seen(context, from_id, sent_timestamp).await?;
     }
 
@@ -1489,8 +1489,7 @@ async fn create_or_lookup_group(
 
         // Create initial member list.
         chat::add_to_chat_contacts_table(context, new_chat_id, ContactId::SELF).await?;
-        if from_id > ContactId::LAST_SPECIAL
-            && !chat::is_contact_in_chat(context, new_chat_id, from_id).await?
+        if !from_id.is_special() && !chat::is_contact_in_chat(context, new_chat_id, from_id).await?
         {
             chat::add_to_chat_contacts_table(context, new_chat_id, from_id).await?;
         }
@@ -1674,7 +1673,7 @@ async fn apply_group_changes(
                     chat::add_to_chat_contacts_table(context, chat_id, ContactId::SELF).await?;
                 }
             }
-            if from_id > ContactId::LAST_SPECIAL
+            if !from_id.is_special()
                 && !Contact::addr_equals_contact(context, &self_addr, from_id).await?
                 && !chat::is_contact_in_chat(context, chat_id, from_id).await?
                 && removed_id != Some(from_id)
@@ -2261,7 +2260,7 @@ async fn dc_add_or_lookup_contacts_by_address_list(
     origin: Origin,
     prevent_rename: bool,
 ) -> Result<Vec<ContactId>> {
-    let mut contact_ids = BTreeSet::new();
+    let mut contact_ids = HashSet::new();
     for info in address_list.iter() {
         let addr = &info.addr;
         if !may_be_valid_addr(addr) {

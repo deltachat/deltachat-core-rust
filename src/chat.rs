@@ -860,7 +860,7 @@ impl ChatId {
         for contact_id in get_chat_contacts(context, self)
             .await?
             .iter()
-            .filter(|&contact_id| *contact_id > ContactId::LAST_SPECIAL)
+            .filter(|&contact_id| !contact_id.is_special())
         {
             let contact = Contact::load_from_db(context, *contact_id).await?;
             let addr = contact.get_addr();
@@ -1686,7 +1686,7 @@ impl ChatIdBlocked {
     ) -> Result<Option<Self>> {
         ensure!(context.sql.is_open().await, "Database not available");
         ensure!(
-            contact_id > ContactId::new(0),
+            contact_id != ContactId::UNDEFINED,
             "Invalid contact id requested"
         );
 
@@ -1722,7 +1722,7 @@ impl ChatIdBlocked {
     ) -> Result<Self> {
         ensure!(context.sql.is_open().await, "Database not available");
         ensure!(
-            contact_id > ContactId::new(0),
+            contact_id != ContactId::UNDEFINED,
             "Invalid contact id requested"
         );
 
@@ -2888,7 +2888,7 @@ pub async fn remove_contact_from_chat(
         chat_id
     );
     ensure!(
-        contact_id > ContactId::LAST_SPECIAL || contact_id == ContactId::SELF,
+        !contact_id.is_special() || contact_id == ContactId::SELF,
         "Cannot remove special contact"
     );
 
