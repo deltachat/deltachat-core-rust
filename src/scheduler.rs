@@ -327,7 +327,7 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                     if let Err(err) = &res {
                         warn!(ctx, "send_smtp_messages failed: {:#}", err);
                     }
-                    let success = res.unwrap_or_default();
+                    let success = res.unwrap_or(false);
                     timeout = if success {
                         None
                     } else {
@@ -341,6 +341,10 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                         Some(err) => connection.connectivity.set_err(&ctx, err).await,
                     }
 
+                    // If send_smtp_messages() failed, we set a timeout for the fake-idle so that
+                    // sending is retried (at the latest) after the timeout. If sending fails
+                    // again, we increase the timeout exponentially, in order not to do lots of
+                    // unnecessary retries.
                     if let Some(timeout) = timeout {
                         info!(
                             ctx,
