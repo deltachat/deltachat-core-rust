@@ -855,8 +855,8 @@ mod tests {
 
         // Check that if there is a message left, the text and metadata are gone
         if let Ok(msg) = Message::load_from_db(t, msg_id).await {
-            assert_eq!(msg.from_id, ContactId::new(0));
-            assert_eq!(msg.to_id, ContactId::new(0));
+            assert_eq!(msg.from_id, ContactId::UNDEFINED);
+            assert_eq!(msg.to_id, ContactId::UNDEFINED);
             assert!(msg.text.is_none_or_empty(), "{:?}", msg.text);
             let rawtxt: Option<String> = t
                 .sql
