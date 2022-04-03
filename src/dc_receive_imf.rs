@@ -541,7 +541,7 @@ async fn add_parts(
             // try to assign to a chat based on In-Reply-To/References:
 
             if let Some((new_chat_id, new_chat_id_blocked)) =
-                lookup_chat_by_reply(context, mime_parser, &parent, to_ids).await?
+                lookup_chat_by_reply(context, mime_parser, &parent, to_ids, from_id).await?
             {
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
@@ -774,7 +774,7 @@ async fn add_parts(
             // try to assign to a chat based on In-Reply-To/References:
 
             if let Some((new_chat_id, new_chat_id_blocked)) =
-                lookup_chat_by_reply(context, mime_parser, &parent, to_ids).await?
+                lookup_chat_by_reply(context, mime_parser, &parent, to_ids, from_id).await?
             {
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
@@ -1322,6 +1322,7 @@ async fn lookup_chat_by_reply(
     mime_parser: &MimeMessage,
     parent: &Option<Message>,
     to_ids: &[ContactId],
+    from_id: ContactId,
 ) -> Result<Option<(ChatId, Blocked)>> {
     // Try to assign message to the same chat as the parent message.
 
@@ -1343,7 +1344,7 @@ async fn lookup_chat_by_reply(
             return Ok(None);
         }
 
-        if is_probably_private_reply(context, to_ids, mime_parser, parent_chat.id).await? {
+        if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
             return Ok(None);
         }
 
@@ -1362,6 +1363,7 @@ async fn lookup_chat_by_reply(
 async fn is_probably_private_reply(
     context: &Context,
     to_ids: &[ContactId],
+    from_id: ContactId,
     mime_parser: &MimeMessage,
     parent_chat_id: ChatId,
 ) -> Result<bool> {
@@ -1372,7 +1374,8 @@ async fn is_probably_private_reply(
     // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
     // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
 
-    let private_message = to_ids == [DC_CONTACT_ID_SELF];
+    let private_message =
+        (to_ids == [DC_CONTACT_ID_SELF]) || (from_id == DC_CONTACT_ID_SELF && to_ids.len() == 1);
     if !private_message {
         return Ok(false);
     }
@@ -1435,7 +1438,7 @@ async fn create_or_lookup_group(
     // they belong to the group because of the Chat-Group-Id or Message-Id header
     if let Some(chat_id) = chat_id {
         if !mime_parser.has_chat_version()
-            && is_probably_private_reply(context, to_ids, mime_parser, chat_id).await?
+            && is_probably_private_reply(context, to_ids, from_id, mime_parser, chat_id).await?
         {
             return Ok(None);
         }
@@ -5038,6 +5041,83 @@ Reply from different address
         // Second device automatically accepts the contact request.
         let alice2_chat = chat::Chat::load_from_db(&alice2, alice2_msg.chat_id).await?;
         assert!(!alice2_chat.is_contact_request());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_outgoing_private_reply_multidevice() -> Result<()> {
+        let mut tcm = TestContextManager::new().await;
+        let alice1 = tcm.alice().await;
+        let alice2 = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        // =============== Bob creates a group ===============
+        let group_id =
+            chat::create_group_chat(&bob, ProtectionStatus::Unprotected, "Group").await?;
+        chat::add_to_chat_contacts_table(
+            &bob,
+            group_id,
+            bob.add_or_lookup_contact(&alice1).await.id,
+        )
+        .await?;
+        chat::add_to_chat_contacts_table(
+            &bob,
+            group_id,
+            Contact::create(&bob, "", "charlie@example.org").await?,
+        )
+        .await?;
+
+        // =============== Bob sends the first message to the group ===============
+        let sent = bob.send_text(group_id, "Hello all!").await;
+        alice1.recv_msg(&sent).await;
+        alice2.recv_msg(&sent).await;
+
+        // =============== Alice answers privately with device 1 ===============
+        let received = alice1.get_last_msg().await;
+        let alice1_bob_contact = alice1.add_or_lookup_contact(&bob).await;
+        assert_eq!(received.from_id, alice1_bob_contact.id);
+        assert_eq!(received.to_id, DC_CONTACT_ID_SELF);
+        assert!(!received.hidden);
+        assert_eq!(received.text, Some("Hello all!".to_string()));
+        assert_eq!(received.in_reply_to, None);
+        assert_eq!(received.chat_blocked, Blocked::Request);
+
+        let received_group = Chat::load_from_db(&alice1, received.chat_id).await?;
+        assert_eq!(received_group.typ, Chattype::Group);
+        assert_eq!(received_group.name, "Group");
+        assert_eq!(received_group.can_send(&alice1).await?, false); // Can't send because it's Blocked::Request
+
+        let mut msg_out = Message::new(Viewtype::Text);
+        msg_out.set_text(Some("Private reply".to_string()));
+
+        assert_eq!(received_group.blocked, Blocked::Request);
+        msg_out.set_quote(&alice1, Some(&received)).await?;
+        let alice1_bob_chat = alice1.create_chat(&bob).await;
+        let sent2 = alice1.send_msg(alice1_bob_chat.id, &mut msg_out).await;
+        alice2.recv_msg(&sent2).await;
+
+        // =============== Alice's second device receives the message ===============
+        let received = alice2.get_last_msg().await;
+
+        // That's a regression test for https://github.com/deltachat/deltachat-core-rust/issues/2949:
+        assert_eq!(received.chat_id, alice2.get_chat(&bob).await.unwrap().id);
+
+        let alice2_bob_contact = alice2.add_or_lookup_contact(&bob).await;
+        assert_eq!(received.from_id, DC_CONTACT_ID_SELF);
+        assert_eq!(received.to_id, alice2_bob_contact.id);
+        assert!(!received.hidden);
+        assert_eq!(received.text, Some("Private reply".to_string()));
+        assert_eq!(
+            received.parent(&alice2).await?.unwrap().text,
+            Some("Hello all!".to_string())
+        );
+        assert_eq!(received.chat_blocked, Blocked::Not);
+
+        let received_chat = Chat::load_from_db(&alice2, received.chat_id).await?;
+        assert_eq!(received_chat.typ, Chattype::Single);
+        assert_eq!(received_chat.name, "bob@example.net");
+        assert_eq!(received_chat.can_send(&alice2).await?, true);
 
         Ok(())
     }
