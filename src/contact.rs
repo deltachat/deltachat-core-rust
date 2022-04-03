@@ -1480,6 +1480,17 @@ mod tests {
     use crate::test_utils::{self, TestContext};
 
     #[test]
+    fn test_contact_id_values() {
+        // Some FFI users need to have the values of these fixed, how naughty.  But let's
+        // make sure we don't modify them anyway.
+        assert_eq!(ContactId::UNDEFINED.to_u32(), 0);
+        assert_eq!(ContactId::SELF.to_u32(), 1);
+        assert_eq!(ContactId::INFO.to_u32(), 2);
+        assert_eq!(ContactId::DEVICE.to_u32(), 5);
+        assert_eq!(ContactId::LAST_SPECIAL.to_u32(), 9);
+    }
+
+    #[test]
     fn test_may_be_valid_addr() {
         assert_eq!(may_be_valid_addr(""), false);
         assert_eq!(may_be_valid_addr("user@domain.tld"), true);
