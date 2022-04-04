@@ -3385,9 +3385,9 @@ pub(crate) async fn add_info_msg_with_cmd(
     chat_id: ChatId,
     text: &str,
     cmd: SystemMessage,
-    timestamp: i64,
-    // Timestamp to show to the user, if different than `timestamp` (which is used for sorting):
-    uservisible_timestamp: Option<i64>,
+    timestamp_sort: i64,
+    // Timestamp to show to the user (if this is None, `timestamp_sort` will be shown to the user)
+    timestamp_sent_rcvd: Option<i64>,
     parent: Option<&Message>,
 ) -> Result<MsgId> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
@@ -3406,9 +3406,9 @@ pub(crate) async fn add_info_msg_with_cmd(
             chat_id,
             ContactId::INFO,
             ContactId::INFO,
-            timestamp,
-            uservisible_timestamp.unwrap_or(0),
-            uservisible_timestamp.unwrap_or(0),
+            timestamp_sort,
+            timestamp_sent_rcvd.unwrap_or(0),
+            timestamp_sent_rcvd.unwrap_or(0),
             Viewtype::Text,
             MessageState::InNoticed,
             text,
