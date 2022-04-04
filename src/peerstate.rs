@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::aheader::{Aheader, EncryptPreference};
-use crate::chat::{self, ChatIdBlocked};
-use crate::constants::Blocked;
+use crate::chat::{self};
+use crate::chatlist::Chatlist;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
@@ -271,14 +271,15 @@ impl Peerstate {
                 .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr])
                 .await?
             {
-                let chat_id = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
-                    .await?
-                    .id;
-
+                let chats = Chatlist::try_load(context, 0, None, contact_id)
+                    .await
+                    .unwrap();
                 let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
-
-                chat::add_info_msg(context, chat_id, &msg, timestamp).await?;
-                context.emit_event(EventType::ChatModified(chat_id));
+                for chat_index in 0..chats.len() {
+                    let chat_id = chats.get_chat_id(chat_index).unwrap();
+                    chat::add_info_msg(context, chat_id, &msg, timestamp).await?;
+                    context.emit_event(EventType::ChatModified(chat_id));
+                }
             } else {
                 bail!("contact with peerstate.addr {:?} not found", &self.addr);
             }
