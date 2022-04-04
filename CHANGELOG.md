@@ -29,6 +29,7 @@
 - automatically accept chats with outgoing messages #3143
 - `dc_receive_imf` refactorings #3154 #3156
 - add index to speedup deletion of expired ephemeral messages #3155
+- muted chats stay archived on new messages #3184
 
 
 ### Fixes
