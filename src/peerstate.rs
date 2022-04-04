@@ -278,20 +278,30 @@ impl Peerstate {
                     .unwrap();
                 let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
                 for (chat_id, msg_id) in chats.iter() {
-                    if let Some(msg_id) = msg_id {
+                    let timestamp_sort = if let Some(msg_id) = msg_id {
                         let lastmsg = Message::load_from_db(context, *msg_id).await?;
-                        chat::add_info_msg_with_cmd(
-                            context,
-                            *chat_id,
-                            &msg,
-                            SystemMessage::Unknown,
-                            lastmsg.timestamp_sort,
-                            Some(timestamp),
-                            None,
-                        )
-                        .await?;
-                        context.emit_event(EventType::ChatModified(*chat_id));
-                    }
+                        lastmsg.timestamp_sort
+                    } else {
+                        context
+                            .sql
+                            .query_get_value(
+                                "SELECT created_timestamp FROM chats WHERE id=?;",
+                                paramsv![chat_id],
+                            )
+                            .await?
+                            .unwrap_or(0)
+                    };
+                    chat::add_info_msg_with_cmd(
+                        context,
+                        *chat_id,
+                        &msg,
+                        SystemMessage::Unknown,
+                        timestamp_sort,
+                        Some(timestamp),
+                        None,
+                    )
+                    .await?;
+                    context.emit_event(EventType::ChatModified(*chat_id));
                 }
             } else {
                 bail!("contact with peerstate.addr {:?} not found", &self.addr);
