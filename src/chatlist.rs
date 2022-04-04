@@ -355,6 +355,10 @@ impl Chatlist {
     pub fn get_index_for_id(&self, id: ChatId) -> Option<usize> {
         self.ids.iter().position(|(chat_id, _)| chat_id == &id)
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &(ChatId, Option<MsgId>)> {
+        self.ids.iter()
+    }
 }
 
 /// Returns the number of archived chats

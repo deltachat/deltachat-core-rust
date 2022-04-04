@@ -445,6 +445,7 @@ impl ChatId {
                 cmd,
                 dc_create_smeared_timestamp(context).await,
                 None,
+                None,
             )
             .await?;
         }
@@ -3385,6 +3386,8 @@ pub(crate) async fn add_info_msg_with_cmd(
     text: &str,
     cmd: SystemMessage,
     timestamp: i64,
+    // Timestamp to show to the user, if different than `timestamp` (which is used for sorting):
+    uservisible_timestamp: Option<i64>,
     parent: Option<&Message>,
 ) -> Result<MsgId> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
@@ -3397,12 +3400,15 @@ pub(crate) async fn add_info_msg_with_cmd(
 
     let row_id =
     context.sql.insert(
-        "INSERT INTO msgs (chat_id,from_id,to_id,timestamp,type,state,txt,rfc724_mid,ephemeral_timer, param,mime_in_reply_to) VALUES (?,?,?, ?,?,?, ?,?,?, ?,?);",
+        "INSERT INTO msgs (chat_id,from_id,to_id,timestamp,timestamp_sent,timestamp_rcvd,type,state,txt,rfc724_mid,ephemeral_timer, param,mime_in_reply_to)
+        VALUES (?,?,?, ?,?,?,?,?, ?,?,?, ?,?);",
         paramsv![
             chat_id,
             ContactId::INFO,
             ContactId::INFO,
             timestamp,
+            uservisible_timestamp.unwrap_or(0),
+            uservisible_timestamp.unwrap_or(0),
             Viewtype::Text,
             MessageState::InNoticed,
             text,
@@ -3431,6 +3437,7 @@ pub(crate) async fn add_info_msg(
         text,
         SystemMessage::Unknown,
         timestamp,
+        None,
         None,
     )
     .await
@@ -4433,6 +4440,7 @@ mod tests {
             "foo bar info",
             SystemMessage::EphemeralTimerChanged,
             10000,
+            None,
             None,
         )
         .await?;
