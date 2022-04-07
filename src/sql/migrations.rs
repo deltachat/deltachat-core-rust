@@ -608,6 +608,11 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 88 {
+        info!(context, "[migration] v87");
+        sql.execute_migration("DROP TABLE IF EXISTS backup_blobs;", 88)
+            .await?;
+    }
 
     Ok((
         recalc_fingerprints,
