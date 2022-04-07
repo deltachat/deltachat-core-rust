@@ -16,7 +16,7 @@ use crate::smtp::{send_smtp_messages, Smtp};
 
 use self::connectivity::ConnectivityStore;
 
-pub(crate) mod connectivity;
+pub mod connectivity;
 
 pub(crate) struct StopToken;
 

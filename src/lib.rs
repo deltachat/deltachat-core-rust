@@ -62,7 +62,7 @@ mod e2ee;
 pub mod ephemeral;
 mod imap;
 pub mod imex;
-mod scheduler;
+pub mod scheduler;
 #[macro_use]
 mod job;
 mod format_flowed;

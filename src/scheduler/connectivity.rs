@@ -14,7 +14,7 @@ use crate::{context::Context, log::LogExt};
 use anyhow::{anyhow, Result};
 use humansize::{file_size_opts, FileSize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Connectivity {
     NotConnected = 1000,
     Connecting = 2000,
@@ -27,7 +27,7 @@ pub enum Connectivity {
 // the top) take priority. This means that e.g. if any folder has an error - usually
 // because there is no internet connection - the connectivity for the whole
 // account will be `Notconnected`.
-#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 enum DetailedConnectivity {
     Error(String),
     Uninitialized,

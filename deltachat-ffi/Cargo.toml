@@ -25,6 +25,9 @@ anyhow = "1"
 thiserror = "1"
 rand = "0.7"
 
+[build-dependencies]
+cbindgen = "0.21.0"
+
 [features]
 default = ["vendored"]
 vendored = ["deltachat/vendored"]

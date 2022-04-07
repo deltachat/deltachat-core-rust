@@ -32,4 +32,9 @@ fn main() {
         .unwrap()
         .write_all(pkg_config.as_bytes())
         .unwrap();
+
+    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    cbindgen::generate(crate_dir)
+        .expect("Unable to generate header file")
+        .write_to_file("bindings.h");
 }

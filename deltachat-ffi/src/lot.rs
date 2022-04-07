@@ -13,7 +13,7 @@ use std::borrow::Cow;
 ///
 /// *Lot* is used in the meaning *heap* here.
 #[derive(Debug)]
-pub enum Lot {
+pub enum dc_lot_t {
     Summary(Summary),
     Qr(Qr),
     Error(String),
@@ -34,7 +34,7 @@ impl Default for Meaning {
     }
 }
 
-impl Lot {
+impl dc_lot_t {
     pub fn get_text1(&self) -> Option<&str> {
         match self {
             Self::Summary(summary) => match &summary.prefix {
@@ -225,21 +225,21 @@ impl From<MessageState> for LotState {
     }
 }
 
-impl From<Summary> for Lot {
+impl From<Summary> for dc_lot_t {
     fn from(summary: Summary) -> Self {
-        Lot::Summary(summary)
+        dc_lot_t::Summary(summary)
     }
 }
 
-impl From<Qr> for Lot {
+impl From<Qr> for dc_lot_t {
     fn from(qr: Qr) -> Self {
-        Lot::Qr(qr)
+        dc_lot_t::Qr(qr)
     }
 }
 
 // Make it easy to convert errors into the final `Lot`.
-impl From<Error> for Lot {
+impl From<Error> for dc_lot_t {
     fn from(error: Error) -> Self {
-        Lot::Error(error.to_string())
+        dc_lot_t::Error(error.to_string())
     }
 }
