@@ -15,7 +15,7 @@
 - start ephemeral timer when seen status is synchronized via IMAP #3122
 - do not delete duplicate messages on IMAP immediately to accidentally deleting
   the last copy #3138
-- speed up loading of chat messages #3171
+- speed up loading of chat messages #3171 #3194
 - clear more columns when message expires due to `delete_device_after` setting #3181
 - do not try to use stale SMTP connections #3180
 - retry message sending automatically if loop is not interrupted #3183
