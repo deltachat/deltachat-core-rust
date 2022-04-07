@@ -26,7 +26,7 @@ use crate::dc_tools::{
     dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, improve_single_line_input,
     time, IsNoneOrEmpty,
 };
-use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
+use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
 use crate::job::{self, Action};
@@ -1427,7 +1427,6 @@ impl Chat {
                     ],
                 )
                 .await?;
-            schedule_ephemeral_task(context).await;
             msg.id = update_msg_id;
         } else {
             let raw_id = context
@@ -1477,7 +1476,7 @@ impl Chat {
                 .await?;
             msg.id = MsgId::new(u32::try_from(raw_id)?);
         }
-        schedule_ephemeral_task(context).await;
+        context.interrupt_ephemeral_task().await;
         Ok(msg.id)
     }
 }
@@ -2205,23 +2204,6 @@ pub async fn get_chat_msgs(
     flags: u32,
     marker1before: Option<MsgId>,
 ) -> Result<Vec<ChatItem>> {
-    match delete_expired_messages(context).await {
-        Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
-        Ok(messages_deleted) => {
-            if messages_deleted {
-                // Trigger reload of chatlist.
-                //
-                // On desktop chatlist is always shown on the side,
-                // and it is important to update the last message shown
-                // there.
-                context.emit_event(EventType::MsgsChanged {
-                    msg_id: MsgId::new(0),
-                    chat_id: ChatId::new(0),
-                })
-            }
-        }
-    }
-
     let process_row = if (flags & DC_GCM_INFO_ONLY) != 0 {
         |row: &rusqlite::Row| {
             // is_info logic taken from Message.is_info()

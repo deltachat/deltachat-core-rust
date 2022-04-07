@@ -8,7 +8,7 @@ use async_std::{
 use crate::config::Config;
 use crate::context::Context;
 use crate::dc_tools::maybe_add_time_based_warnings;
-use crate::ephemeral::delete_expired_imap_messages;
+use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::imap::Imap;
 use crate::job::{self, Thread};
 use crate::log::LogExt;
@@ -34,6 +34,8 @@ pub(crate) enum Scheduler {
         sentbox_handle: Option<task::JoinHandle<()>>,
         smtp: SmtpConnectionState,
         smtp_handle: Option<task::JoinHandle<()>>,
+        ephemeral_handle: Option<task::JoinHandle<()>>,
+        ephemeral_interrupt_send: Sender<()>,
     },
 }
 
@@ -58,6 +60,10 @@ impl Context {
 
     pub(crate) async fn interrupt_smtp(&self, info: InterruptInfo) {
         self.scheduler.read().await.interrupt_smtp(info).await;
+    }
+
+    pub(crate) async fn interrupt_ephemeral_task(&self) {
+        self.scheduler.read().await.interrupt_ephemeral_task().await;
     }
 }
 
@@ -395,6 +401,7 @@ impl Scheduler {
         let (sentbox_start_send, sentbox_start_recv) = channel::bounded(1);
         let mut sentbox_handle = None;
         let (smtp_start_send, smtp_start_recv) = channel::bounded(1);
+        let (ephemeral_interrupt_send, ephemeral_interrupt_recv) = channel::bounded(1);
 
         let inbox_handle = {
             let ctx = ctx.clone();
@@ -456,6 +463,13 @@ impl Scheduler {
             }))
         };
 
+        let ephemeral_handle = {
+            let ctx = ctx.clone();
+            Some(task::spawn(async move {
+                ephemeral::ephemeral_loop(&ctx, ephemeral_interrupt_recv).await;
+            }))
+        };
+
         *self = Scheduler::Running {
             inbox,
             mvbox,
@@ -465,6 +479,8 @@ impl Scheduler {
             mvbox_handle,
             sentbox_handle,
             smtp_handle,
+            ephemeral_handle,
+            ephemeral_interrupt_send,
         };
 
         // wait for all loops to be started
@@ -530,6 +546,16 @@ impl Scheduler {
         }
     }
 
+    async fn interrupt_ephemeral_task(&self) {
+        if let Scheduler::Running {
+            ref ephemeral_interrupt_send,
+            ..
+        } = self
+        {
+            ephemeral_interrupt_send.try_send(()).ok();
+        }
+    }
+
     /// Halts the scheduler, must be called first, and then `stop`.
     pub(crate) async fn pre_stop(&self) -> StopToken {
         match self {
@@ -576,6 +602,7 @@ impl Scheduler {
                 mvbox_handle,
                 sentbox_handle,
                 smtp_handle,
+                ephemeral_handle,
                 ..
             } => {
                 if let Some(handle) = inbox_handle.take() {
@@ -589,6 +616,9 @@ impl Scheduler {
                 }
                 if let Some(handle) = smtp_handle.take() {
                     handle.await;
+                }
+                if let Some(handle) = ephemeral_handle.take() {
+                    handle.cancel().await;
                 }
 
                 *self = Scheduler::Stopped;

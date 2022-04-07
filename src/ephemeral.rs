@@ -62,7 +62,8 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{ensure, Context as _, Result};
-use async_std::task;
+use async_std::channel::Receiver;
+use async_std::future::timeout;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{send_msg, ChatId};
@@ -72,6 +73,7 @@ use crate::context::Context;
 use crate::dc_tools::time;
 use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
+use crate::log::LogExt;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::sql;
@@ -291,7 +293,7 @@ impl MsgId {
                     paramsv![ephemeral_timestamp, ephemeral_timestamp, self],
                 )
                 .await?;
-            schedule_ephemeral_task(context).await;
+            context.interrupt_ephemeral_task().await;
         }
         Ok(())
     }
@@ -323,13 +325,13 @@ pub(crate) async fn start_ephemeral_timers_msgids(
         )
         .await?;
     if count > 0 {
-        schedule_ephemeral_task(context).await;
+        context.interrupt_ephemeral_task().await;
     }
     Ok(())
 }
 
-/// Deletes messages which are expired according to
 /// `delete_device_after` setting or `ephemeral_timestamp` column.
+/// Deletes messages which are expired according to
 ///
 /// Returns true if any message is deleted, so caller can emit
 /// MsgsChanged event. If nothing has been deleted, returns
@@ -396,72 +398,59 @@ WHERE
         updated |= rows_modified > 0;
     }
 
-    schedule_ephemeral_task(context).await;
+    if updated {
+        context.emit_event(EventType::MsgsChanged {
+            chat_id: ChatId::new(0),
+            msg_id: MsgId::new(0),
+        });
+    }
+
     Ok(updated)
 }
 
-/// Schedule a task to emit MsgsChanged event when the next local
-/// deletion happens. Existing task is cancelled to make sure at most
-/// one such task is scheduled at a time.
-///
-/// UI is expected to reload the chatlist or the chat in response to
-/// MsgsChanged event, this will trigger actual deletion.
-///
-/// This takes into account only per-chat timeouts, because global device
-/// timeouts are at least one hour long and deletion is triggered often enough
-/// by user actions.
-pub async fn schedule_ephemeral_task(context: &Context) {
-    let ephemeral_timestamp: Option<i64> = match context
-        .sql
-        .query_get_value(
-            r#"
-    SELECT ephemeral_timestamp
-    FROM msgs
-    WHERE ephemeral_timestamp != 0
-      AND chat_id != ?
-    ORDER BY ephemeral_timestamp ASC
-    LIMIT 1;
-    "#,
-            paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
-        )
-        .await
-    {
-        Err(err) => {
-            warn!(context, "Can't calculate next ephemeral timeout: {}", err);
-            return;
-        }
-        Ok(ephemeral_timestamp) => ephemeral_timestamp,
-    };
+pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiver<()>) {
+    loop {
+        let ephemeral_timestamp: Option<i64> = match context
+            .sql
+            .query_get_value(
+                r#"
+                SELECT ephemeral_timestamp
+                FROM msgs
+                WHERE ephemeral_timestamp != 0
+                  AND chat_id != ?
+                ORDER BY ephemeral_timestamp ASC
+                LIMIT 1;
+                "#,
+                paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
+            )
+            .await
+        {
+            Err(err) => {
+                warn!(context, "Can't calculate next ephemeral timeout: {}", err);
+                return;
+            }
+            Ok(ephemeral_timestamp) => ephemeral_timestamp,
+        };
 
-    // Cancel existing task, if any
-    if let Some(ephemeral_task) = context.ephemeral_task.write().await.take() {
-        ephemeral_task.cancel().await;
-    }
+        if let Some(ephemeral_timestamp) = ephemeral_timestamp {
+            let now = SystemTime::now();
+            let until = UNIX_EPOCH
+                + Duration::from_secs(ephemeral_timestamp.try_into().unwrap_or(u64::MAX))
+                + Duration::from_secs(1);
 
-    if let Some(ephemeral_timestamp) = ephemeral_timestamp {
-        let now = SystemTime::now();
-        let until = UNIX_EPOCH
-            + Duration::from_secs(ephemeral_timestamp.try_into().unwrap_or(u64::MAX))
-            + Duration::from_secs(1);
-
-        if let Ok(duration) = until.duration_since(now) {
-            // Schedule a task, ephemeral_timestamp is in the future
-            let context1 = context.clone();
-            let ephemeral_task = task::spawn(async move {
-                async_std::task::sleep(duration).await;
-                context1.emit_event(EventType::MsgsChanged {
-                    chat_id: ChatId::new(0),
-                    msg_id: MsgId::new(0),
-                });
-            });
-            *context.ephemeral_task.write().await = Some(ephemeral_task);
+            if let Ok(duration) = until.duration_since(now) {
+                let res = timeout(duration, interrupt_receiver.recv()).await;
+                if res.is_ok() {
+                    continue; // If interrupted, we need to re-compute ephemeral_timestamp
+                }
+            }
         } else {
-            // Emit event immediately
-            context.emit_event(EventType::MsgsChanged {
-                chat_id: ChatId::new(0),
-                msg_id: MsgId::new(0),
-            });
+            // No ephemeral messages, just wait for an interrupt
+            interrupt_receiver.recv().await.ok();
+            continue;
         }
+
+        delete_expired_messages(context).await.ok_or_log(context);
     }
 }
 
@@ -835,7 +824,7 @@ mod tests {
             .send_text(chat.id, "Saved message, disappearing after 1s")
             .await;
 
-        async_std::task::sleep(Duration::from_millis(1100)).await;
+        delete_expired_messages(&t).await?;
 
         // Check that the msg was deleted locally.
         check_msg_was_deleted(&t, &chat, msg.sender_msg_id).await;
