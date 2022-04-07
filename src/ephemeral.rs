@@ -338,7 +338,7 @@ pub(crate) async fn start_ephemeral_timers_msgids(
 /// false. This function does not emit the MsgsChanged event itself,
 /// because it is also called when chatlist is reloaded, and emitting
 /// MsgsChanged there will cause infinite reload loop.
-pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool> {
+pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Result<bool> {
     let mut updated = context
         .sql
         .execute(
@@ -354,7 +354,7 @@ WHERE
   AND ephemeral_timestamp <= ?
   AND chat_id != ?
 "#,
-            paramsv![DC_CHAT_ID_TRASH, time(), DC_CHAT_ID_TRASH],
+            paramsv![DC_CHAT_ID_TRASH, now, DC_CHAT_ID_TRASH],
         )
         .await
         .context("update failed")?
@@ -368,7 +368,7 @@ WHERE
             .await?
             .unwrap_or_default();
 
-        let threshold_timestamp = time() - delete_device_after;
+        let threshold_timestamp = now - delete_device_after;
 
         // Delete expired messages
         //
@@ -450,7 +450,9 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
             continue;
         }
 
-        delete_expired_messages(context).await.ok_or_log(context);
+        delete_expired_messages(context, time())
+            .await
+            .ok_or_log(context);
     }
 }
 
@@ -817,14 +819,27 @@ mod tests {
         check_msg_was_deleted(&t, &chat, msg.id).await;
 
         chat.id
-            .set_ephemeral_timer(&t, Timer::Enabled { duration: 1 })
+            .set_ephemeral_timer(&t, Timer::Enabled { duration: 60 })
             .await
             .unwrap();
+
+        let now = time();
         let msg = t
-            .send_text(chat.id, "Saved message, disappearing after 1s")
+            .send_text(chat.id, "Saved message, disappearing after 60s")
             .await;
 
-        delete_expired_messages(&t).await?;
+        delete_expired_messages(&t, now + 59).await?;
+        let loaded = Message::load_from_db(&t, msg.sender_msg_id).await?;
+        assert_eq!(
+            loaded.text.unwrap(),
+            "Saved message, disappearing after 60s"
+        );
+        assert_eq!(loaded.chat_id, chat.id);
+
+        delete_expired_messages(&t, time() + 61).await?;
+        let loaded = Message::load_from_db(&t, msg.sender_msg_id).await?;
+        assert_eq!(loaded.text.unwrap(), "");
+        assert_eq!(loaded.chat_id, DC_CHAT_ID_TRASH);
 
         // Check that the msg was deleted locally.
         check_msg_was_deleted(&t, &chat, msg.sender_msg_id).await;
