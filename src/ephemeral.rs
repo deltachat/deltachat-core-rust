@@ -62,7 +62,8 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{ensure, Context as _, Result};
-use async_std::task;
+use async_std::future::timeout;
+use async_std::{channel, task};
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{send_msg, ChatId};
@@ -72,6 +73,7 @@ use crate::context::Context;
 use crate::dc_tools::time;
 use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
+use crate::log::LogExt;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::sql;
@@ -344,8 +346,8 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool> {
             // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
             r#"
 UPDATE msgs
-SET 
-  chat_id=?, txt='', subject='', txt_raw='', 
+SET
+  chat_id=?, txt='', subject='', txt_raw='',
   mime_headers='', from_id=0, to_id=0, param=''
 WHERE
   ephemeral_timestamp != 0
@@ -397,6 +399,14 @@ WHERE
     }
 
     schedule_ephemeral_task(context).await;
+
+    if updated {
+        context.emit_event(EventType::MsgsChanged {
+            msg_id: MsgId::new(0),
+            chat_id: ChatId::new(0),
+        })
+    }
+
     Ok(updated)
 }
 
@@ -434,8 +444,9 @@ pub async fn schedule_ephemeral_task(context: &Context) {
     };
 
     // Cancel existing task, if any
-    if let Some(ephemeral_task) = context.ephemeral_task.write().await.take() {
-        ephemeral_task.cancel().await;
+    let old_task = context.ephemeral_task.write().await.take();
+    if let Some((_, stop_sender)) = old_task {
+        stop_sender.try_send(()).ok();
     }
 
     if let Some(ephemeral_timestamp) = ephemeral_timestamp {
@@ -444,26 +455,26 @@ pub async fn schedule_ephemeral_task(context: &Context) {
             + Duration::from_secs(ephemeral_timestamp.try_into().unwrap_or(u64::MAX))
             + Duration::from_secs(1);
 
-        if let Ok(duration) = until.duration_since(now) {
-            // Schedule a task, ephemeral_timestamp is in the future
-            let context1 = context.clone();
-            let ephemeral_task = task::spawn(async move {
-                async_std::task::sleep(duration).await;
-                context1.emit_event(EventType::MsgsChanged {
-                    chat_id: ChatId::new(0),
-                    msg_id: MsgId::new(0),
-                });
-            });
-            *context.ephemeral_task.write().await = Some(ephemeral_task);
-        } else {
-            // Emit event immediately
-            context.emit_event(EventType::MsgsChanged {
-                chat_id: ChatId::new(0),
-                msg_id: MsgId::new(0),
-            });
-        }
+        let (stop_sender, stop_receiver) = channel::bounded(1);
+
+        let context1 = context.clone();
+        let ephemeral_task = task::spawn(async move {
+            if let Some((join_handle, _)) = old_task {
+                join_handle.await; // First of all, join the old task.
+            }
+            if let Ok(duration) = until.duration_since(now) {
+                timeout(duration, stop_receiver.recv()).await;
+            } else {
+                stop_receiver.try_recv();
+            }
+            delete_expired_messages(&context).await.ok_or_log(&context);
+        });
+        // Schedule a task, ephemeral_timestamp is in the future
+        *context.ephemeral_task.write().await = Some((ephemeral_task, stop_sender));
     }
 }
+
+pub(crate) async fn ephemeral_deletion_loop(context: &Context) -> Result {}
 
 /// Schedules expired IMAP messages for deletion.
 pub(crate) async fn delete_expired_imap_messages(context: &Context) -> Result<()> {
@@ -844,6 +855,7 @@ mod tests {
     }
 
     async fn check_msg_was_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
+        // trigger deletion?
         let chat_items = chat::get_chat_msgs(t, chat.id, 0, None).await.unwrap();
         // Check that the chat is empty except for possibly info messages:
         for item in &chat_items {

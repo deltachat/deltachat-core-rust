@@ -398,9 +398,10 @@ impl Scheduler {
 
         let inbox_handle = {
             let ctx = ctx.clone();
-            Some(task::spawn(async move {
-                inbox_loop(ctx, inbox_start_send, inbox_handlers).await
-            }))
+            Some(
+                task::spawn(async move { inbox_loop(ctx, inbox_start_send, inbox_handlers).await })
+                    .cancel(),
+            )
         };
 
         if ctx.should_watch_mvbox().await? {

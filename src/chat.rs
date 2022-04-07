@@ -1427,7 +1427,6 @@ impl Chat {
                     ],
                 )
                 .await?;
-            schedule_ephemeral_task(context).await;
             msg.id = update_msg_id;
         } else {
             let raw_id = context
@@ -2205,23 +2204,6 @@ pub async fn get_chat_msgs(
     flags: u32,
     marker1before: Option<MsgId>,
 ) -> Result<Vec<ChatItem>> {
-    match delete_expired_messages(context).await {
-        Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
-        Ok(messages_deleted) => {
-            if messages_deleted {
-                // Trigger reload of chatlist.
-                //
-                // On desktop chatlist is always shown on the side,
-                // and it is important to update the last message shown
-                // there.
-                context.emit_event(EventType::MsgsChanged {
-                    msg_id: MsgId::new(0),
-                    chat_id: ChatId::new(0),
-                })
-            }
-        }
-    }
-
     let process_row = if (flags & DC_GCM_INFO_ONLY) != 0 {
         |row: &rusqlite::Row| {
             // is_info logic taken from Message.is_info()

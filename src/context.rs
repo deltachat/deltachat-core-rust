@@ -56,7 +56,7 @@ pub struct InnerContext {
     pub(crate) events: Events,
 
     pub(crate) scheduler: RwLock<Scheduler>,
-    pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
+    pub(crate) ephemeral_task: RwLock<Option<(task::JoinHandle<()>, Sender<()>)>>,
 
     /// Recently loaded quota information, if any.
     /// Set to `None` if quota was never tried to load.

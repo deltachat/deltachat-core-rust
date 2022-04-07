@@ -91,12 +91,6 @@ impl Chatlist {
         let flag_no_specials = 0 != listflags & DC_GCL_NO_SPECIALS;
         let flag_add_alldone_hint = 0 != listflags & DC_GCL_ADD_ALLDONE_HINT;
 
-        // Note that we do not emit DC_EVENT_MSGS_MODIFIED here even if some
-        // messages get deleted to avoid reloading the same chatlist.
-        if let Err(err) = delete_expired_messages(context).await {
-            warn!(context, "Failed to hide expired messages: {}", err);
-        }
-
         let mut add_archived_link_item = false;
 
         let process_row = |row: &rusqlite::Row| {
