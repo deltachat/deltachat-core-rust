@@ -338,7 +338,7 @@ pub(crate) async fn start_ephemeral_timers_msgids(
 /// false. This function does not emit the MsgsChanged event itself,
 /// because it is also called when chatlist is reloaded, and emitting
 /// MsgsChanged there will cause infinite reload loop.
-pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Result<bool> {
+pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Result<()> {
     let mut updated = context
         .sql
         .execute(
@@ -405,7 +405,7 @@ WHERE
         });
     }
 
-    Ok(updated)
+    Ok(())
 }
 
 pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiver<()>) {
