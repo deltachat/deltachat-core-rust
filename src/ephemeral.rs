@@ -414,12 +414,10 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
             .sql
             .query_get_value(
                 r#"
-                SELECT ephemeral_timestamp
+                SELECT min(ephemeral_timestamp)
                 FROM msgs
                 WHERE ephemeral_timestamp != 0
-                  AND chat_id != ?
-                ORDER BY ephemeral_timestamp ASC
-                LIMIT 1;
+                  AND chat_id != ?;
                 "#,
                 paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
             )
@@ -427,7 +425,7 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
         {
             Err(err) => {
                 warn!(context, "Can't calculate next ephemeral timeout: {}", err);
-                return;
+                None
             }
             Ok(ephemeral_timestamp) => ephemeral_timestamp,
         };
