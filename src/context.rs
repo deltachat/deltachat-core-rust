@@ -10,7 +10,6 @@ use async_std::{
     channel::{self, Receiver, Sender},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
-    task,
 };
 
 use crate::chat::{get_chat_cnt, ChatId};
