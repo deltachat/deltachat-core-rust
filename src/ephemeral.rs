@@ -48,9 +48,9 @@
 //!
 //! ## When messages are deleted
 //!
-//! Local deletion happens when the chatlist or chat is loaded. A
-//! `MsgsChanged` event is emitted when a message deletion is due, to
-//! make UI reload displayed messages and cause actual deletion.
+//! The `ephemeral_loop` task schedules the next due running of
+//! `delete_expired_messages` which in turn emits `MsgsChanged` events
+//! when deleting local messages to make UIs reload displayed messages.
 //!
 //! Server deletion happens by updating the `imap` table based on
 //! the database entries which are expired either according to their
@@ -368,7 +368,7 @@ WHERE
             .await?
             .unwrap_or_default();
 
-        let threshold_timestamp = now - delete_device_after;
+        let threshold_timestamp = now.saturating_sub(delete_device_after);
 
         // Delete expired messages
         //
@@ -441,7 +441,8 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
             if let Ok(duration) = until.duration_since(now) {
                 let res = timeout(duration, interrupt_receiver.recv()).await;
                 if res.is_ok() {
-                    continue; // If interrupted, we need to re-compute ephemeral_timestamp
+                    // received an interruption signal, recompute waiting time (if any)
+                    continue;
                 }
             }
         } else {
