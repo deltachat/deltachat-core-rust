@@ -432,23 +432,21 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
             Ok(ephemeral_timestamp) => ephemeral_timestamp,
         };
 
-        if let Some(ephemeral_timestamp) = ephemeral_timestamp {
-            let now = SystemTime::now();
-            let until = UNIX_EPOCH
+        let now = SystemTime::now();
+        let until = if let Some(ephemeral_timestamp) = ephemeral_timestamp {
+            UNIX_EPOCH
                 + Duration::from_secs(ephemeral_timestamp.try_into().unwrap_or(u64::MAX))
-                + Duration::from_secs(1);
-
-            if let Ok(duration) = until.duration_since(now) {
-                let res = timeout(duration, interrupt_receiver.recv()).await;
-                if res.is_ok() {
-                    // received an interruption signal, recompute waiting time (if any)
-                    continue;
-                }
-            }
+                + Duration::from_secs(1)
         } else {
-            // No ephemeral messages, just wait for an interrupt
-            interrupt_receiver.recv().await.ok();
-            continue;
+            // no messages to be deleted for now, wait long for one to occur
+            now + Duration::from_secs(86400)
+        };
+
+        if let Ok(duration) = until.duration_since(now) {
+            if timeout(duration, interrupt_receiver.recv()).await.is_ok() {
+                // received an interruption signal, recompute waiting time (if any)
+                continue;
+            }
         }
 
         delete_expired_messages(context, time())
