@@ -1340,6 +1340,25 @@ sth_for_the = "future""#
     }
 
     #[async_std::test]
+    async fn test_webxdc_min_api_too_large() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
+        let mut instance = create_webxdc_instance(
+            &t,
+            "with-min-api-1001.xdc",
+            include_bytes!("../test-data/webxdc/with-min-api-1001.xdc"),
+        )
+        .await?;
+        send_msg(&t, chat_id, &mut instance).await?;
+
+        let instance = t.get_last_msg().await;
+        let html = instance.get_webxdc_blob(&t, "index.html").await?;
+        assert!(String::from_utf8_lossy(&*html).contains("requires a newer Delta Chat version"));
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_get_webxdc_info() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
