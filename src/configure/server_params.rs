@@ -52,10 +52,8 @@ impl ServerParams {
     fn expand_hostnames(self, param_domain: &str) -> Vec<ServerParams> {
         if self.hostname.is_empty() {
             vec![
-                Self {
-                    hostname: param_domain.to_string(),
-                    ..self.clone()
-                },
+                // Try "imap.ex.org"/"smtp.ex.org" and "mail.ex.org" first because if a server exists
+                // under this address, it's likely the correct one.
                 Self {
                     hostname: match self.protocol {
                         Protocol::Imap => "imap.".to_string() + param_domain,
@@ -65,6 +63,12 @@ impl ServerParams {
                 },
                 Self {
                     hostname: "mail.".to_string() + param_domain,
+                    ..self.clone()
+                },
+                // Try "ex.org" last because if it's wrong and the server is configured to
+                // not answer at all, configuration may be stuck for several minutes.
+                Self {
+                    hostname: param_domain.to_string(),
                     ..self
                 },
             ]
