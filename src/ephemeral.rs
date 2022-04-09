@@ -70,7 +70,7 @@ use crate::chat::{send_msg, ChatId};
 use crate::constants::{DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH};
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::time;
+use crate::dc_tools::{duration_to_str, time};
 use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
 use crate::log::LogExt;
@@ -441,6 +441,11 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
         };
 
         if let Ok(duration) = until.duration_since(now) {
+            info!(
+                context,
+                "Ephemeral loop waiting for deletion in {} or interrupt",
+                duration_to_str(duration)
+            );
             if timeout(duration, interrupt_receiver.recv()).await.is_ok() {
                 // received an interruption signal, recompute waiting time (if any)
                 continue;
