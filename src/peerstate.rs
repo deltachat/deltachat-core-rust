@@ -273,8 +273,7 @@ impl Peerstate {
                 .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr])
                 .await?
             {
-                let chats = Chatlist::try_load(context, 0, None, contact_id)
-                    .await?;
+                let chats = Chatlist::try_load(context, 0, None, contact_id).await?;
                 let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
                 for (chat_id, msg_id) in chats.iter() {
                     let timestamp_sort = if let Some(msg_id) = msg_id {
