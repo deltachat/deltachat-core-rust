@@ -77,10 +77,10 @@ jobs:
         include:
           # Currently used Rust version, same as in `rust-toolchain` file.
           - os: ubuntu-latest
-            rust: 1.59.0
+            rust: 1.60.0
             python: 3.9
           - os: windows-latest
-            rust: 1.59.0
+            rust: 1.60.0
             python: false # Python bindings compilation on Windows is not supported.
 
           # Minimum Supported Rust Version = 1.56.0
