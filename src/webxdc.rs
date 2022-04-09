@@ -19,6 +19,12 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use zip::ZipArchive;
 
+/// The current API version.
+/// If `min_api` in manifest.toml is set to a larger value,
+/// the Webxdc's index.html is replaced by an error message.
+/// In the future, that may be useful to avoid new Webxdc being loaded on old Delta Chats.
+const WEBXDC_API_VERSION: u32 = 1;
+
 pub const WEBXDC_SUFFIX: &str = "xdc";
 const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 
@@ -44,6 +50,7 @@ const WEBXDC_RECEIVING_LIMIT: u64 = 4194304;
 #[non_exhaustive]
 struct WebxdcManifest {
     name: Option<String>,
+    min_api: Option<u32>,
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
@@ -510,10 +517,16 @@ impl Message {
             if let Ok(manifest) = parse_webxdc_manifest(&bytes).await {
                 manifest
             } else {
-                WebxdcManifest { name: None }
+                WebxdcManifest {
+                    name: None,
+                    min_api: None,
+                }
             }
         } else {
-            WebxdcManifest { name: None }
+            WebxdcManifest {
+                name: None,
+                min_api: None,
+            }
         };
 
         if let Some(ref name) = manifest.name {
@@ -1294,6 +1307,19 @@ sth_for_the = "future""#
         )
         .await?;
         assert_eq!(manifest.name, Some("foz".to_string()));
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_parse_webxdc_manifest_min_api() -> Result<()> {
+        let manifest = parse_webxdc_manifest(r#"min_api = 3"#.as_bytes()).await?;
+        assert_eq!(manifest.min_api, Some(3));
+
+        let result = parse_webxdc_manifest(r#"min_api = "1""#.as_bytes()).await;
+        assert!(result.is_err());
+
+        let result = parse_webxdc_manifest(r#"min_api = 1.2"#.as_bytes()).await;
+        assert!(result.is_err());
 
         Ok(())
     }
