@@ -4,11 +4,13 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::aheader::{Aheader, EncryptPreference};
-use crate::chat::{self, ChatIdBlocked};
-use crate::constants::Blocked;
+use crate::chat::{self};
+use crate::chatlist::Chatlist;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
+use crate::message::Message;
+use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
 use crate::stock_str;
 use anyhow::{bail, Result};
@@ -271,14 +273,34 @@ impl Peerstate {
                 .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr])
                 .await?
             {
-                let chat_id = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
-                    .await?
-                    .id;
-
+                let chats = Chatlist::try_load(context, 0, None, contact_id).await?;
                 let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
-
-                chat::add_info_msg(context, chat_id, &msg, timestamp).await?;
-                context.emit_event(EventType::ChatModified(chat_id));
+                for (chat_id, msg_id) in chats.iter() {
+                    let timestamp_sort = if let Some(msg_id) = msg_id {
+                        let lastmsg = Message::load_from_db(context, *msg_id).await?;
+                        lastmsg.timestamp_sort
+                    } else {
+                        context
+                            .sql
+                            .query_get_value(
+                                "SELECT created_timestamp FROM chats WHERE id=?;",
+                                paramsv![chat_id],
+                            )
+                            .await?
+                            .unwrap_or(0)
+                    };
+                    chat::add_info_msg_with_cmd(
+                        context,
+                        *chat_id,
+                        &msg,
+                        SystemMessage::Unknown,
+                        timestamp_sort,
+                        Some(timestamp),
+                        None,
+                    )
+                    .await?;
+                    context.emit_event(EventType::ChatModified(*chat_id));
+                }
             } else {
                 bail!("contact with peerstate.addr {:?} not found", &self.addr);
             }
