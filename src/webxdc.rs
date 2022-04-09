@@ -505,6 +505,21 @@ impl Message {
         };
 
         let mut archive = self.get_webxdc_archive(context).await?;
+
+        if name == "index.html" {
+            if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
+                if let Ok(manifest) = parse_webxdc_manifest(&bytes).await {
+                    if let Some(min_api) = manifest.min_api {
+                        if min_api > WEBXDC_API_VERSION {
+                            return Ok(Vec::from(
+                                "<!DOCTYPE html>This Webxdc requires a newer Delta Chat version.",
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
         get_blob(&mut archive, name).await
     }
 
