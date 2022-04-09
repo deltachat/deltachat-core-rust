@@ -330,8 +330,8 @@ pub(crate) async fn start_ephemeral_timers_msgids(
     Ok(())
 }
 
-/// `delete_device_after` setting or `ephemeral_timestamp` column.
 /// Deletes messages which are expired according to
+/// `delete_device_after` setting or `ephemeral_timestamp` column.
 ///
 /// Returns true if any message is deleted, so caller can emit
 /// MsgsChanged event. If nothing has been deleted, returns
