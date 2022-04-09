@@ -310,9 +310,6 @@ dependencies = [
  "nom 5.1.2",
  "pin-project",
  "pin-utils",
- "serde",
- "serde_derive",
- "serde_json",
  "thiserror",
 ]
 
