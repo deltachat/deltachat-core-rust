@@ -6,4 +6,4 @@ updates:
       interval: "monthly"
     commit-message:
       prefix: "cargo"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 50
