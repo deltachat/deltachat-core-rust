@@ -23,22 +23,22 @@
 - improve documentation #2983 #3112 #3103 #3118 #3120
 
 ### Fixes
-- Fix an issue where the app crashes when trying to export a backup #3195
-- Hopefully fix a bug where outgoing messages appear twice with Amazon SES #3077
+- speed up loading of chat messages by a factor of 20 #3171 #3194 #3173
+- fix an issue where the app crashes when trying to export a backup #3195
+- hopefully fix a bug where outgoing messages appear twice with Amazon SES #3077
 - do not delete messages without Message-IDs as duplicates #3095
-- Assign replies from a different email address to the correct chat #3119
-- Assing outgoing private replies to the correct chat #3177
+- assign replies from a different email address to the correct chat #3119
+- assing outgoing private replies to the correct chat #3177
 - start ephemeral timer when seen status is synchronized via IMAP #3122
-- Don't create empty contact requests with "setup changed" messages; instead, send a
-  "setup changed" message into all chats we share with the peer #3187
+- do not create empty contact requests with "setup changed" messages;
+  instead, send a "setup changed" message into all chats we share with the peer #3187
 - do not delete duplicate messages on IMAP immediately to accidentally deleting
   the last copy #3138
-- speed up loading of chat messages by a factor of 20 #3171 #3194 #3173
 - clear more columns when message expires due to `delete_device_after` setting #3181
 - do not try to use stale SMTP connections #3180
-- Slightly improve finding the correct server after logging in #3207
+- slightly improve finding the correct server after logging in #3207
 - retry message sending automatically if loop is not interrupted #3183
-- Fix a bug where sometimes the file extension of a long filename containing a dot was cropped #3098
+- fix a bug where sometimes the file extension of a long filename containing a dot was cropped #3098
 
 
 ## 1.76.0
