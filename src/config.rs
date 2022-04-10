@@ -5,12 +5,10 @@ use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
-use crate::chat::ChatId;
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::{dc_get_abs_path, improve_single_line_input};
 use crate::events::EventType;
-use crate::message::MsgId;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 
@@ -293,11 +291,8 @@ impl Context {
             }
             Config::DeleteDeviceAfter => {
                 let ret = self.sql.set_raw_config(key, value).await;
-                // Force chatlist reload to delete old messages immediately.
-                self.emit_event(EventType::MsgsChanged {
-                    msg_id: MsgId::new(0),
-                    chat_id: ChatId::new(0),
-                });
+                // Interrupt ephemeral loop to delete old messages immediately.
+                self.interrupt_ephemeral_task().await;
                 ret?
             }
             Config::Displayname => {
