@@ -20,6 +20,7 @@
 - speed up loading of chat messages #3171
 - clear more columns when message expires due to `delete_device_after` setting #3181
 - do not try to use stale SMTP connections #3180
+- Slightly improve finding the correct server after logging in #3207
 - retry message sending automatically if loop is not interrupted #3183
 
 ### Changes
