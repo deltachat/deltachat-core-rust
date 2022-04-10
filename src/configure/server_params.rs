@@ -300,5 +300,48 @@ mod tests {
                 strict_tls: Some(true)
             }],
         );
+
+        // Test that "example.net" is tried after "*.example.net".
+        let v = expand_param_vector(
+            vec![ServerParams {
+                protocol: Protocol::Imap,
+                hostname: "".to_string(),
+                port: 10480,
+                socket: Socket::Ssl,
+                username: "foobar".to_string(),
+                strict_tls: Some(true),
+            }],
+            "foobar@example.net",
+            "example.net",
+        );
+        assert_eq!(
+            v,
+            vec![
+                ServerParams {
+                    protocol: Protocol::Imap,
+                    hostname: "imap.example.net".to_string(),
+                    port: 10480,
+                    socket: Socket::Ssl,
+                    username: "foobar".to_string(),
+                    strict_tls: Some(true)
+                },
+                ServerParams {
+                    protocol: Protocol::Imap,
+                    hostname: "mail.example.net".to_string(),
+                    port: 10480,
+                    socket: Socket::Ssl,
+                    username: "foobar".to_string(),
+                    strict_tls: Some(true)
+                },
+                ServerParams {
+                    protocol: Protocol::Imap,
+                    hostname: "example.net".to_string(),
+                    port: 10480,
+                    socket: Socket::Ssl,
+                    username: "foobar".to_string(),
+                    strict_tls: Some(true)
+                }
+            ],
+        );
     }
 }
