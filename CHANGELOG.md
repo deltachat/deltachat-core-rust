@@ -33,7 +33,7 @@
   "setup changed" message into all chats we share with the peer #3187
 - do not delete duplicate messages on IMAP immediately to accidentally deleting
   the last copy #3138
-- speed up loading of chat messages #3171 #3194 #3173
+- speed up loading of chat messages by a factor of 20 #3171 #3194 #3173
 - clear more columns when message expires due to `delete_device_after` setting #3181
 - do not try to use stale SMTP connections #3180
 - Slightly improve finding the correct server after logging in #3207
