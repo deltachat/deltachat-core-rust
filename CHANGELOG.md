@@ -1,10 +1,26 @@
 # Changelog
 
-## Unreleased
+## 1.77.0
 
 ### API changes
 - change semantics of `dc_get_webxdc_status_updates()` second parameter
   and remove update-id from `DC_EVENT_WEBXDC_STATUS_UPDATE` #3081
+
+### Changes
+- add more SMTP logging #3093
+- place common headers like `From:` before the large `Autocrypt:` header #3079
+- keep track of securejoin joiner status in database to survive restarts #2920
+- remove never used `SentboxMove` option #3111
+- improve speed by caching config values #3131 #3145
+- optimize `markseen_msgs` #3141
+- automatically accept chats with outgoing messages #3143
+- `dc_receive_imf` refactorings #3154 #3156 #3159
+- add index to speedup deletion of expired ephemeral messages #3155
+- muted chats stay archived on new messages #3184
+- support `min_api` from Webxdc manifests #3206
+- do not read whole webxdc file into memory #3109
+- improve tests, refactorings #3073 #3096 #3102 #3108 #3139 #3128 #3133 #3142 #3153 #3151 #3174 #3170 #3148 #3179 #3185
+- improve documentation #2983 #3112 #3103 #3118 #3120
 
 ### Fixes
 - Fix an issue where the app crashes when trying to export a backup #3195
@@ -17,28 +33,13 @@
   "setup changed" message into all chats we share with the peer #3187
 - do not delete duplicate messages on IMAP immediately to accidentally deleting
   the last copy #3138
-- speed up loading of chat messages #3171 #3194
+- speed up loading of chat messages #3171 #3194 #3173
 - clear more columns when message expires due to `delete_device_after` setting #3181
 - do not try to use stale SMTP connections #3180
 - Slightly improve finding the correct server after logging in #3207
 - retry message sending automatically if loop is not interrupted #3183
-
-### Changes
-- add more SMTP logging #3093
-- place common headers like `From:` before the large `Autocrypt:` header #3079
-- keep track of securejoin joiner status in database to survive restarts #2920
-- remove never used `SentboxMove` option #3111
-- improve speed by caching config values #3131 #3145
-- optimize `markseen_msgs` #3141
-- automatically accept chats with outgoing messages #3143
-- `dc_receive_imf` refactorings #3154 #3156
-- add index to speedup deletion of expired ephemeral messages #3155
-- muted chats stay archived on new messages #3184
-- support `min_api` from Webxdc manifests #3206
-
-
-### Fixes
 - Fix a bug where sometimes the file extension of a long filename containing a dot was cropped #3098
+
 
 ## 1.76.0
 
