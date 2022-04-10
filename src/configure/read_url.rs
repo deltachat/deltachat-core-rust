@@ -33,7 +33,7 @@ pub async fn read_url_inner(context: &Context, mut url: &str) -> anyhow::Result<
             continue;
         }
 
-        return Ok(response.body_string().await.map_err(|e| e.into_inner())?);
+        return response.body_string().await.map_err(|e| e.into_inner());
     }
 
     Err(format_err!("Followed 10 redirections"))
