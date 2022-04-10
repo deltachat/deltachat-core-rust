@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- Further improve finding the correct server after logging in #3208
+
 ## 1.77.0
 
 ### API changes
