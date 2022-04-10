@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Take `delete_device_after` into account when calculating ephemeral loop timeout #3211
+
 ### Changes
 
 - Further improve finding the correct server after logging in #3208

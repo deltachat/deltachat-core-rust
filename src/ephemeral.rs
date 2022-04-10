@@ -408,27 +408,83 @@ WHERE
     Ok(())
 }
 
-pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiver<()>) {
-    loop {
-        let ephemeral_timestamp: Option<i64> = match context
+/// Calculates the next timestamp when a message will be deleted due to
+/// `delete_device_after` setting being set.
+async fn next_delete_device_after_timestamp(context: &Context) -> Result<Option<i64>> {
+    if let Some(delete_device_after) = context.get_config_delete_device_after().await? {
+        let self_chat_id = ChatId::lookup_by_contact(context, ContactId::SELF)
+            .await?
+            .unwrap_or_default();
+        let device_chat_id = ChatId::lookup_by_contact(context, ContactId::DEVICE)
+            .await?
+            .unwrap_or_default();
+
+        let oldest_message_timestamp: Option<i64> = context
             .sql
             .query_get_value(
                 r#"
-                SELECT min(ephemeral_timestamp)
+                SELECT min(timestamp)
                 FROM msgs
-                WHERE ephemeral_timestamp != 0
+                WHERE chat_id > ?
+                  AND chat_id != ?
                   AND chat_id != ?;
                 "#,
-                paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
+                paramsv![DC_CHAT_ID_TRASH, self_chat_id, device_chat_id],
             )
-            .await
-        {
+            .await?;
+
+        Ok(oldest_message_timestamp.map(|x| x.saturating_add(delete_device_after)))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Calculates next timestamp when expiration of some message will happen.
+///
+/// Expiration can happen either because user has set `delete_device_after` setting or because the
+/// message itself has an ephemeral timer.
+async fn next_expiration_timestamp(context: &Context) -> Option<i64> {
+    let ephemeral_timestamp: Option<i64> = match context
+        .sql
+        .query_get_value(
+            r#"
+            SELECT min(ephemeral_timestamp)
+            FROM msgs
+            WHERE ephemeral_timestamp != 0
+              AND chat_id != ?;
+            "#,
+            paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
+        )
+        .await
+    {
+        Err(err) => {
+            warn!(context, "Can't calculate next ephemeral timeout: {}", err);
+            None
+        }
+        Ok(ephemeral_timestamp) => ephemeral_timestamp,
+    };
+
+    let delete_device_after_timestamp: Option<i64> =
+        match next_delete_device_after_timestamp(context).await {
             Err(err) => {
-                warn!(context, "Can't calculate next ephemeral timeout: {}", err);
+                warn!(
+                    context,
+                    "Can't calculate timestamp of the next message expiration: {}", err
+                );
                 None
             }
-            Ok(ephemeral_timestamp) => ephemeral_timestamp,
+            Ok(timestamp) => timestamp,
         };
+
+    ephemeral_timestamp
+        .into_iter()
+        .chain(delete_device_after_timestamp.into_iter())
+        .min()
+}
+
+pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiver<()>) {
+    loop {
+        let ephemeral_timestamp = next_expiration_timestamp(context).await;
 
         let now = SystemTime::now();
         let until = if let Some(ephemeral_timestamp) = ephemeral_timestamp {
