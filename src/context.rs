@@ -10,7 +10,6 @@ use async_std::{
     channel::{self, Receiver, Sender},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
-    task,
 };
 
 use crate::chat::{get_chat_cnt, ChatId};
@@ -56,7 +55,6 @@ pub struct InnerContext {
     pub(crate) events: Events,
 
     pub(crate) scheduler: RwLock<Scheduler>,
-    pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
 
     /// Recently loaded quota information, if any.
     /// Set to `None` if quota was never tried to load.
@@ -176,7 +174,6 @@ impl Context {
             translated_stockstrings: RwLock::new(HashMap::new()),
             events: Events::default(),
             scheduler: RwLock::new(Scheduler::Stopped),
-            ephemeral_task: RwLock::new(None),
             quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
@@ -641,10 +638,6 @@ impl InnerContext {
                 let lock = &mut *self.scheduler.write().await;
                 lock.stop(token).await;
             }
-        }
-
-        if let Some(ephemeral_task) = self.ephemeral_task.write().await.take() {
-            ephemeral_task.cancel().await;
         }
     }
 }

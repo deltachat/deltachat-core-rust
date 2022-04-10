@@ -599,10 +599,6 @@ impl Sql {
 }
 
 pub async fn housekeeping(context: &Context) -> Result<()> {
-    if let Err(err) = crate::ephemeral::delete_expired_messages(context).await {
-        warn!(context, "Failed to delete expired messages: {}", err);
-    }
-
     if let Err(err) = remove_unused_files(context).await {
         warn!(
             context,
