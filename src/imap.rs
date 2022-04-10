@@ -458,9 +458,15 @@ impl Imap {
         }
         self.prepare(context).await?;
 
-        self.fetch_new_messages(context, watch_folder, false)
+        if self
+            .fetch_new_messages(context, watch_folder, false)
             .await
-            .context("fetch_new_messages")?;
+            .context("fetch_new_messages")?
+        {
+            // New messages were fetched, restart ephemeral loop in case these messages will expire
+            // later.
+            context.interrupt_ephemeral_task().await;
+        }
 
         self.move_delete_messages(context, watch_folder)
             .await
@@ -658,6 +664,9 @@ impl Imap {
         Ok(false)
     }
 
+    /// Fetches new messages.
+    ///
+    /// Returns true if at least one message was fetched.
     pub(crate) async fn fetch_new_messages(
         &mut self,
         context: &Context,
