@@ -580,6 +580,7 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::dc_receive_imf::dc_receive_imf;
+    use crate::dc_tools::MAX_SECONDS_TO_LEND_FROM_FUTURE;
     use crate::download::DownloadState;
     use crate::test_utils::TestContext;
     use crate::{
@@ -868,44 +869,106 @@ mod tests {
     #[async_std::test]
     async fn test_ephemeral_delete_msgs() -> Result<()> {
         let t = TestContext::new_alice().await;
-        let chat = t.get_self_chat().await;
+        let self_chat = t.get_self_chat().await;
 
-        t.send_text(chat.id, "Saved message, which we delete manually")
+        assert_eq!(next_expiration_timestamp(&t).await, None);
+
+        t.send_text(self_chat.id, "Saved message, which we delete manually")
             .await;
-        let msg = t.get_last_msg_in(chat.id).await;
+        let msg = t.get_last_msg_in(self_chat.id).await;
         msg.id.delete_from_db(&t).await?;
-        check_msg_was_deleted(&t, &chat, msg.id).await;
+        check_msg_is_deleted(&t, &self_chat, msg.id).await;
 
-        chat.id
-            .set_ephemeral_timer(&t, Timer::Enabled { duration: 60 })
+        self_chat
+            .id
+            .set_ephemeral_timer(&t, Timer::Enabled { duration: 3600 })
             .await
             .unwrap();
 
+        // Send a saved message which will be deleted after 3600s
         let now = time();
-        let msg = t
-            .send_text(chat.id, "Saved message, disappearing after 60s")
-            .await;
+        let msg = t.send_text(self_chat.id, "Message text").await;
 
-        delete_expired_messages(&t, now + 59).await?;
-        let loaded = Message::load_from_db(&t, msg.sender_msg_id).await?;
-        assert_eq!(
-            loaded.text.unwrap(),
-            "Saved message, disappearing after 60s"
-        );
-        assert_eq!(loaded.chat_id, chat.id);
+        check_msg_will_be_deleted(&t, msg.sender_msg_id, &self_chat, now + 3599, time() + 3601)
+            .await
+            .unwrap();
 
-        delete_expired_messages(&t, time() + 61).await?;
-        let loaded = Message::load_from_db(&t, msg.sender_msg_id).await?;
-        assert_eq!(loaded.text.unwrap(), "");
-        assert_eq!(loaded.chat_id, DC_CHAT_ID_TRASH);
+        // Set DeleteDeviceAfter to 1800s. Thend send a saved message which will
+        // still be deleted after 3600s because DeleteDeviceAfter doesn't apply to saved messages.
+        t.set_config(Config::DeleteDeviceAfter, Some("1800"))
+            .await?;
 
-        // Check that the msg was deleted locally.
-        check_msg_was_deleted(&t, &chat, msg.sender_msg_id).await;
+        let now = time();
+        let msg = t.send_text(self_chat.id, "Message text").await;
+
+        check_msg_will_be_deleted(&t, msg.sender_msg_id, &self_chat, now + 3559, time() + 3601)
+            .await
+            .unwrap();
+
+        // Send a message to Bob which will be deleted after 1800s because of DeleteDeviceAfter.
+        let bob_chat = t.create_chat_with_contact("", "bob@example.net").await;
+        let now = time();
+        let msg = t.send_text(bob_chat.id, "Message text").await;
+
+        check_msg_will_be_deleted(
+            &t,
+            msg.sender_msg_id,
+            &bob_chat,
+            now + 1799,
+            // The message may appear to be sent MAX_SECONDS_TO_LEND_FROM_FUTURE later and
+            // therefore be deleted MAX_SECONDS_TO_LEND_FROM_FUTURE later.
+            time() + 1801 + MAX_SECONDS_TO_LEND_FROM_FUTURE,
+        )
+        .await
+        .unwrap();
+
+        // Enable ephemeral messages with Bob -> message will be deleted after 60s.
+        // This tests that the message is deleted at min(ephemeral deletion time, DeleteDeviceAfter deletion time).
+        bob_chat
+            .id
+            .set_ephemeral_timer(&t, Timer::Enabled { duration: 60 })
+            .await?;
+
+        let now = time();
+        let msg = t.send_text(bob_chat.id, "Message text").await;
+
+        check_msg_will_be_deleted(&t, msg.sender_msg_id, &bob_chat, now + 59, time() + 61)
+            .await
+            .unwrap();
 
         Ok(())
     }
 
-    async fn check_msg_was_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
+    async fn check_msg_will_be_deleted(
+        t: &TestContext,
+        msg_id: MsgId,
+        chat: &Chat,
+        not_deleted_at: i64,
+        deleted_at: i64,
+    ) -> Result<()> {
+        let next_expiration = next_expiration_timestamp(&t).await.unwrap();
+
+        assert!(next_expiration > not_deleted_at);
+        delete_expired_messages(&t, not_deleted_at).await?;
+
+        let loaded = Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(loaded.text.unwrap(), "Message text");
+        assert_eq!(loaded.chat_id, chat.id);
+
+        assert!(next_expiration < deleted_at);
+        delete_expired_messages(&t, deleted_at).await?;
+
+        let loaded = Message::load_from_db(&t, msg_id).await?;
+        assert_eq!(loaded.text.unwrap(), "");
+        assert_eq!(loaded.chat_id, DC_CHAT_ID_TRASH);
+
+        // Check that the msg was deleted locally.
+        check_msg_is_deleted(&t, chat, msg_id).await;
+
+        Ok(())
+    }
+
+    async fn check_msg_is_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
         let chat_items = chat::get_chat_msgs(t, chat.id, 0, None).await.unwrap();
         // Check that the chat is empty except for possibly info messages:
         for item in &chat_items {

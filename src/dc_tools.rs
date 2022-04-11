@@ -86,7 +86,7 @@ pub(crate) fn dc_gm2local_offset() -> i64 {
 //   `last_smeared_timestamp` is again in sync with the normal time.
 // - however, we do not do all this for the far future,
 //   but at max `MAX_SECONDS_TO_LEND_FROM_FUTURE`
-const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 5;
+pub(crate) const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 5;
 
 /// Returns the current smeared timestamp,
 ///
