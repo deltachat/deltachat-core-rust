@@ -304,7 +304,7 @@ impl Context {
             <html>
             <head>
                 <meta charset="UTF-8" />
-                <meta name="viewport" content="initial-scale=1.0" />
+                <meta name="viewport" content="initial-scale=1.0; user-scalable=no" />
                 <style>
                     ul {
                         list-style-type: none;
