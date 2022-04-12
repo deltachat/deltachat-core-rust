@@ -176,6 +176,9 @@ just clone and start adapting things to your need.
 
 - older devices might not have the newest js features in their webview,
   you may want to transpile your code down to an older js version eg. with https://babeljs.io
+- viewport and scaling features are implementation specific,
+  if you want to have an explicit behavior, you can add eg.
+  `<meta name="viewport" content="initial-scale=1; user-scalable=no">` to your Webxdc
 - there are tons of ideas for enhancements of the API and the file format,
   eg. in the future, we will may define icon- and manifest-files,
   allow to aggregate the state or add metadata.
