@@ -5,6 +5,8 @@
 ### Changes
 
 - Further improve finding the correct server after logging in #3208
+- `get_connectivity_html()` returns HTML as non-scalable #3213
+
 
 ## 1.77.0
 
