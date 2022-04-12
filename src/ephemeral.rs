@@ -946,24 +946,24 @@ mod tests {
         not_deleted_at: i64,
         deleted_at: i64,
     ) -> Result<()> {
-        let next_expiration = next_expiration_timestamp(&t).await.unwrap();
+        let next_expiration = next_expiration_timestamp(t).await.unwrap();
 
         assert!(next_expiration > not_deleted_at);
-        delete_expired_messages(&t, not_deleted_at).await?;
+        delete_expired_messages(t, not_deleted_at).await?;
 
-        let loaded = Message::load_from_db(&t, msg_id).await?;
+        let loaded = Message::load_from_db(t, msg_id).await?;
         assert_eq!(loaded.text.unwrap(), "Message text");
         assert_eq!(loaded.chat_id, chat.id);
 
         assert!(next_expiration < deleted_at);
-        delete_expired_messages(&t, deleted_at).await?;
+        delete_expired_messages(t, deleted_at).await?;
 
-        let loaded = Message::load_from_db(&t, msg_id).await?;
+        let loaded = Message::load_from_db(t, msg_id).await?;
         assert_eq!(loaded.text.unwrap(), "");
         assert_eq!(loaded.chat_id, DC_CHAT_ID_TRASH);
 
         // Check that the msg was deleted locally.
-        check_msg_is_deleted(&t, chat, msg_id).await;
+        check_msg_is_deleted(t, chat, msg_id).await;
 
         Ok(())
     }
