@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{format_err, Context as _, Result};
 use mailparse::ParsedMail;
 use num_traits::FromPrimitive;
 
@@ -28,13 +28,7 @@ impl EncryptHelper {
         let prefer_encrypt =
             EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled).await?)
                 .unwrap_or_default();
-        let addr = match context.get_config(Config::ConfiguredAddr).await? {
-            None => {
-                bail!("addr not configured!");
-            }
-            Some(addr) => addr,
-        };
-
+        let addr = context.get_primary_addr().await?;
         let public_key = SignedPublicKey::load_self(context).await?;
 
         Ok(EncryptHelper {
@@ -387,13 +381,7 @@ fn contains_report(mail: &ParsedMail<'_>) -> bool {
 /// [Config::ConfiguredAddr] is configured, this address is returned.
 // TODO, remove this once deltachat::key::Key no longer exists.
 pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
-    let self_addr = context
-        .get_config(Config::ConfiguredAddr)
-        .await?
-        .context(concat!(
-            "Failed to get self address, ",
-            "cannot ensure secret key if not configured."
-        ))?;
+    let self_addr = context.get_primary_addr().await?;
     SignedPublicKey::load_self(context).await?;
     Ok(self_addr)
 }

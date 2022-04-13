@@ -6,7 +6,6 @@ use bitflags::bitflags;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::chat::{self, ChatId};
-use crate::config::Config;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::time;
@@ -424,10 +423,7 @@ pub async fn delete_all(context: &Context) -> Result<()> {
 pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)> {
     let mut last_added_location_id = 0;
 
-    let self_addr = context
-        .get_config(Config::ConfiguredAddr)
-        .await?
-        .unwrap_or_default();
+    let self_addr = context.get_primary_addr().await?;
 
     let (locations_send_begin, locations_send_until, locations_last_sent) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;",

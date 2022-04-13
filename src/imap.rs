@@ -1117,11 +1117,7 @@ impl Imap {
             .session
             .as_mut()
             .context("IMAP No Connection established")?;
-        let self_addr = context
-            .get_config(Config::ConfiguredAddr)
-            .await?
-            .context("not configured")?;
-
+        let self_addr = context.get_primary_addr().await?;
         let search_command = format!("FROM \"{}\"", self_addr);
         let uids = session
             .uid_search(search_command)

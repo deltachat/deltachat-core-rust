@@ -139,12 +139,12 @@ pub struct LoginParam {
 }
 
 impl LoginParam {
-    /// Load entered (candidate) account settings 
+    /// Load entered (candidate) account settings
     pub async fn load_candidate_params(context: &Context) -> Result<Self> {
         LoginParam::from_database(context, "").await
     }
 
-    /// Load configured (working) account settings 
+    /// Load configured (working) account settings
     pub async fn load_configured_params(context: &Context) -> Result<Self> {
         LoginParam::from_database(context, "configured_").await
     }

@@ -296,10 +296,7 @@ impl Contact {
             .await?;
         if contact_id == ContactId::SELF {
             contact.name = stock_str::self_msg(context).await;
-            contact.addr = context
-                .get_config(Config::ConfiguredAddr)
-                .await?
-                .unwrap_or_default();
+            contact.addr = context.get_primary_addr().await.unwrap_or_default();
             contact.status = context
                 .get_config(Config::Selfstatus)
                 .await?
@@ -398,10 +395,8 @@ impl Contact {
 
         let addr_normalized = addr_normalize(addr);
 
-        if let Some(addr_self) = context.get_config(Config::ConfiguredAddr).await? {
-            if addr_cmp(addr_normalized, &addr_self) {
-                return Ok(Some(ContactId::SELF));
-            }
+        if context.is_self_addr(addr_normalized).await? {
+            return Ok(Some(ContactId::SELF));
         }
         let id = context
             .sql
@@ -452,11 +447,10 @@ impl Contact {
         ensure!(origin != Origin::Unknown, "Missing valid origin");
 
         let addr = addr_normalize(addr).to_string();
-        let addr_self = context
-            .get_config(Config::ConfiguredAddr)
-            .await?
-            .unwrap_or_default();
 
+        // during configuration process some chats are added and addr
+        // might not be configured yet
+        let addr_self = context.get_primary_addr().await.unwrap_or_default();
         if addr_cmp(&addr, &addr_self) {
             return Ok((ContactId::SELF, sth_modified));
         }
@@ -692,11 +686,7 @@ impl Contact {
         listflags: u32,
         query: Option<impl AsRef<str>>,
     ) -> Result<Vec<ContactId>> {
-        let self_addr = context
-            .get_config(Config::ConfiguredAddr)
-            .await?
-            .unwrap_or_default();
-
+        let self_addr = context.get_primary_addr().await.unwrap_or_default();
         let mut add_self = false;
         let mut ret = Vec::new();
         let flag_verified_only = (listflags & DC_GCL_VERIFIED_ONLY) != 0;

@@ -227,6 +227,14 @@ impl Context {
         Ok(self.get_config_int(key).await? != 0)
     }
 
+    /// Returns the primary configured address for this account.
+    pub(crate) async fn get_primary_addr(&self) -> Result<String> {
+        use anyhow::Context;
+        self.get_config(Config::ConfiguredAddr)
+            .await?
+            .context("no address configured")
+    }
+
     pub(crate) async fn should_watch_mvbox(&self) -> Result<bool> {
         Ok(self.get_config_bool(Config::MvboxMove).await?
             || self.get_config_bool(Config::OnlyFetchMvbox).await?)

@@ -351,9 +351,8 @@ async fn set_self_key(
         }
     };
 
-    let self_addr = context.get_config(Config::ConfiguredAddr).await?;
-    ensure!(self_addr.is_some(), "Missing self addr");
-    let addr = EmailAddress::new(&self_addr.unwrap_or_default())?;
+    let self_addr = context.get_primary_addr().await?;
+    let addr = EmailAddress::new(&self_addr)?;
     let keypair = pgp::KeyPair {
         addr,
         public: public_key,
