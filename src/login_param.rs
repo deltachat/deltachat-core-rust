@@ -139,8 +139,18 @@ pub struct LoginParam {
 }
 
 impl LoginParam {
+    /// Load entered (candidate) account settings 
+    pub async fn load_candidate_params(context: &Context) -> Result<Self> {
+        LoginParam::from_database(context, "").await
+    }
+
+    /// Load configured (working) account settings 
+    pub async fn load_configured_params(context: &Context) -> Result<Self> {
+        LoginParam::from_database(context, "configured_").await
+    }
+
     /// Read the login parameters from the database.
-    pub async fn from_database(context: &Context, prefix: impl AsRef<str>) -> Result<Self> {
+    async fn from_database(context: &Context, prefix: impl AsRef<str>) -> Result<Self> {
         let prefix = prefix.as_ref();
         let sql = &context.sql;
 
@@ -242,8 +252,8 @@ impl LoginParam {
     }
 
     /// Save this loginparam to the database.
-    pub async fn save_to_database(&self, context: &Context, prefix: impl AsRef<str>) -> Result<()> {
-        let prefix = prefix.as_ref();
+    pub async fn save_as_configured_params(&self, context: &Context) -> Result<()> {
+        let prefix = "configured_";
         let sql = &context.sql;
 
         let key = format!("{}addr", prefix);
@@ -438,8 +448,8 @@ mod tests {
             socks5_config: None,
         };
 
-        param.save_to_database(&t, "foobar_").await?;
-        let loaded = LoginParam::from_database(&t, "foobar_").await?;
+        param.save_as_configured_params(&t).await?;
+        let loaded = LoginParam::load_configured_params(&t).await?;
 
         assert_eq!(param, loaded);
         Ok(())

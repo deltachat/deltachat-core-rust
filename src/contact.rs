@@ -870,7 +870,7 @@ impl Contact {
 
         let mut ret = String::new();
         if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-            let loginparam = LoginParam::from_database(context, "configured_").await?;
+            let loginparam = LoginParam::load_configured_params(context).await?;
             let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
 
             if let Some(peerstate) = peerstate.filter(|peerstate| {

@@ -224,7 +224,7 @@ impl Imap {
             bail!("IMAP Connect without configured params");
         }
 
-        let param = LoginParam::from_database(context, "configured_").await?;
+        let param = LoginParam::load_configured_params(context).await?;
         // the trailing underscore is correct
 
         let imap = Self::new(

@@ -87,7 +87,7 @@ impl Smtp {
         }
 
         self.connectivity.set_connecting(context).await;
-        let lp = LoginParam::from_database(context, "configured_").await?;
+        let lp = LoginParam::load_configured_params(context).await?;
         self.connect(
             context,
             &lp.smtp,
