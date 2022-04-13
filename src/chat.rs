@@ -18,7 +18,7 @@ use crate::constants::{
     Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_LAST_SPECIAL,
     DC_CHAT_ID_TRASH, DC_GCM_ADDDAYMARKER, DC_GCM_INFO_ONLY, DC_RESEND_USER_AVATAR_DAYS,
 };
-use crate::contact::{addr_cmp, Contact, ContactId, Origin, VerifiedStatus};
+use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::dc_receive_imf::ReceivedMsg;
 use crate::dc_tools::{
@@ -1243,7 +1243,7 @@ impl Chat {
             }
         }
 
-        let from = context.get_configured_addr().await?;
+        let from = context.get_primary_self_addr().await?;
         let new_rfc724_mid = {
             let grpid = match self.typ {
                 Chattype::Group => Some(self.grpid.as_str()),
@@ -2023,7 +2023,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
 
     let mut recipients = mimefactory.recipients();
 
-    let from = context.get_configured_addr().await?;
+    let from = context.get_primary_self_addr().await?;
     let lowercase_from = from.to_lowercase();
 
     // Send BCC to self if it is enabled and we are not going to
@@ -2690,8 +2690,8 @@ pub(crate) async fn add_contact_to_chat_ex(
         context.sync_qr_code_tokens(Some(chat_id)).await?;
         context.send_sync_msg().await?;
     }
-    let self_addr = context.get_configured_addr().await.unwrap_or_default();
-    if addr_cmp(contact.get_addr(), &self_addr) {
+
+    if context.is_self_addr(contact.get_addr()).await? {
         // ourself is added using ContactId::SELF, do not add this address explicitly.
         // if SELF is not in the group, members cannot be added at all.
         warn!(
@@ -3598,7 +3598,7 @@ mod tests {
     #[async_std::test]
     async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();

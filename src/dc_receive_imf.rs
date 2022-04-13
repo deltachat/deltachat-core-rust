@@ -16,7 +16,7 @@ use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact;
 use crate::contact::{
-    addr_cmp, may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
+    may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
 };
 use crate::context::Context;
 use crate::dc_tools::{dc_create_id, dc_extract_grpid_from_rfc724_mid, dc_smeared_time};
@@ -1415,7 +1415,17 @@ async fn create_or_lookup_group(
         ProtectionStatus::Unprotected
     };
 
-    let self_addr = context.get_configured_addr().await?;
+    async fn self_explicitly_added(
+        context: &Context,
+        mime_parser: &&mut MimeMessage,
+    ) -> Result<bool> {
+        let ret = match mime_parser.get_header(HeaderDef::ChatGroupMemberAdded) {
+            Some(member_addr) => context.is_self_addr(member_addr).await?,
+            None => false,
+        };
+        Ok(ret)
+    }
+
     if chat_id.is_none()
             && !mime_parser.is_mailinglist_message()
             && !grpid.is_empty()
@@ -1424,7 +1434,7 @@ async fn create_or_lookup_group(
             && mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved).is_none()
             // re-create explicitly left groups only if ourself is re-added
             && (!chat::is_group_explicitly_left(context, &grpid).await?
-                || mime_parser.get_header(HeaderDef::ChatGroupMemberAdded).map_or(false, |member_addr| addr_cmp(&self_addr, member_addr)))
+                || self_explicitly_added(context, &mime_parser).await?)
     {
         // Group does not exist but should be created.
         if !allow_creation {
@@ -1456,7 +1466,7 @@ async fn create_or_lookup_group(
         }
         for &to_id in to_ids.iter() {
             info!(context, "adding to={:?} to chat id={}", to_id, new_chat_id);
-            if !Contact::addr_equals_contact(context, &self_addr, to_id).await?
+            if to_id != ContactId::SELF
                 && !chat::is_contact_in_chat(context, new_chat_id, to_id).await?
             {
                 chat::add_to_chat_contacts_table(context, new_chat_id, to_id).await?;
@@ -1511,7 +1521,6 @@ async fn apply_group_changes(
         return Ok(None);
     }
 
-    let self_addr = context.get_configured_addr().await?;
     let mut recreate_member_list = false;
     let mut send_event_chat_modified = false;
 
@@ -1631,14 +1640,14 @@ async fn apply_group_changes(
                 }
             }
             if !from_id.is_special()
-                && !Contact::addr_equals_contact(context, &self_addr, from_id).await?
+                && from_id != ContactId::SELF
                 && !chat::is_contact_in_chat(context, chat_id, from_id).await?
                 && removed_id != Some(from_id)
             {
                 chat::add_to_chat_contacts_table(context, chat_id, from_id).await?;
             }
             for &to_id in to_ids.iter() {
-                if !Contact::addr_equals_contact(context, &self_addr, to_id).await?
+                if to_id != ContactId::SELF
                     && !chat::is_contact_in_chat(context, chat_id, to_id).await?
                     && removed_id != Some(to_id)
                 {
@@ -1955,7 +1964,7 @@ async fn create_adhoc_group(
 /// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
 /// so having the same ID prevents group split.
 async fn create_adhoc_grp_id(context: &Context, member_ids: &[ContactId]) -> Result<String> {
-    let member_cs = context.get_configured_addr().await?.to_lowercase();
+    let member_cs = context.get_primary_self_addr().await?.to_lowercase();
     let query = format!(
         "SELECT addr FROM contacts WHERE id IN({}) AND id!=?",
         sql::repeat_vars(member_ids.len())?

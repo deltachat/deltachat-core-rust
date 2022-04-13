@@ -1206,10 +1206,26 @@ impl Imap {
             .session
             .as_mut()
             .context("IMAP No Connection established")?;
-        let self_addr = context.get_configured_addr().await?;
-        let search_command = format!("FROM \"{}\"", self_addr);
+
+        // TODO probably requires a test if want to keep it as is:
+        let self_addrs = context
+            .get_all_self_addrs()
+            .await
+            .context("get_all_recipients() can't get self addrs")?;
+
+        if self_addrs.is_empty() {
+            bail!("get_all_recipients(): No self addresses");
+        }
+
+        let from_part = self_addrs
+            .iter()
+            .map(|a| format!(" FROM {}", a))
+            .collect::<String>();
+        let mut search_command = " OR".repeat(self_addrs.len() - 1);
+        search_command.push_str(&from_part);
+
         let uids = session
-            .uid_search(search_command)
+            .uid_search(search_command.trim())
             .await?
             .into_iter()
             .collect();

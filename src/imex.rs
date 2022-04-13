@@ -351,7 +351,7 @@ async fn set_self_key(
         }
     };
 
-    let self_addr = context.get_configured_addr().await?;
+    let self_addr = context.get_primary_self_addr().await?;
     let addr = EmailAddress::new(&self_addr)?;
     let keypair = pgp::KeyPair {
         addr,

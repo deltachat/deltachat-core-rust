@@ -407,7 +407,7 @@ impl TestContext {
             .await
             .unwrap_or_default()
             .unwrap_or_default();
-        let addr = other.ctx.get_configured_addr().await.unwrap();
+        let addr = other.ctx.get_primary_self_addr().await.unwrap();
         // MailinglistAddress is the lowest allowed origin, we'd prefer to not modify the
         // origin when creating this contact.
         let (contact_id, modified) =
