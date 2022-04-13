@@ -54,7 +54,7 @@ impl Accounts {
         ensure!(dir.exists().await, "directory does not exist");
 
         let config_file = dir.join(CONFIG_NAME);
-        ensure!(config_file.exists().await, "accounts.toml does not exist");
+        ensure!(config_file.exists().await, "{} does not exist", CONFIG_NAME);
 
         let config = Config::from_file(config_file)
             .await
