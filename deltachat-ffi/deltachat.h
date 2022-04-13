@@ -5606,11 +5606,16 @@ void dc_event_unref(dc_event_t* event);
 /**
  * webxdc status update received.
  * To get the received status update, use dc_get_webxdc_status_updates() with
- * `serial` set to the last known update.
+ * `serial` set to the last known update
+ * (in case of special bots, `status_update_serial` from `data2`
+ * may help to calculate the last known update for dc_get_webxdc_status_updates();
+ * UIs must not peek at this parameter to avoid races in the status replication
+ * eg. when events arrive while initial updates are played back).
+ *
  * To send status updates, use dc_send_webxdc_status_update().
  *
  * @param data1 (int) msg_id
- * @param data2 (int) 0
+ * @param data2 (int) status_update_serial - must not be used by UI implementations.
  */
 #define DC_EVENT_WEBXDC_STATUS_UPDATE                2120
 

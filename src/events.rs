@@ -10,6 +10,7 @@ use crate::chat::ChatId;
 use crate::contact::ContactId;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
+use crate::webxdc::StatusUpdateSerial;
 
 #[derive(Debug)]
 pub struct Events {
@@ -335,5 +336,8 @@ pub enum EventType {
     SelfavatarChanged,
 
     #[strum(props(id = "2120"))]
-    WebxdcStatusUpdate(MsgId),
+    WebxdcStatusUpdate {
+        msg_id: MsgId,
+        status_update_serial: StatusUpdateSerial,
+    },
 }
