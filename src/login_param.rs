@@ -256,8 +256,7 @@ impl LoginParam {
         let prefix = "configured_";
         let sql = &context.sql;
 
-        let key = format!("{}addr", prefix);
-        sql.set_raw_config(key, Some(&self.addr)).await?;
+        context.set_primary_self_addr(&self.addr).await?;
 
         let key = format!("{}mail_server", prefix);
         sql.set_raw_config(key, Some(&self.imap.server)).await?;

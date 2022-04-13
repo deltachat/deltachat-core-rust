@@ -449,7 +449,7 @@ impl Context {
         //                                [======67%=====       ]
         // =============================================================================================
 
-        let domain = dc_tools::EmailAddress::new(&self.get_configured_addr().await?)?.domain;
+        let domain = dc_tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
         ret += &format!(
             "<h3>{}</h3><ul>",
             stock_str::storage_on_domain(self, domain).await

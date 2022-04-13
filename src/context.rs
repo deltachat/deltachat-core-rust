@@ -336,6 +336,7 @@ impl Context {
         let unset = "0";
         let l = LoginParam::load_candidate_params(self).await?;
         let l2 = LoginParam::load_configured_params(self).await?;
+        let secondary_addrs = self.get_secondary_self_addrs().await?.join(", ");
         let displayname = self.get_config(Config::Displayname).await?;
         let chats = get_chat_cnt(self).await? as usize;
         let unblocked_msgs = message::get_unblocked_msg_cnt(self).await as usize;
@@ -420,6 +421,7 @@ impl Context {
         res.insert("socks5_enabled", socks5_enabled.to_string());
         res.insert("entered_account_settings", l.to_string());
         res.insert("used_account_settings", l2.to_string());
+        res.insert("secondary_addrs", secondary_addrs);
         res.insert(
             "fetch_existing_msgs",
             self.get_config_int(Config::FetchExistingMsgs)

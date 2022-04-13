@@ -28,7 +28,7 @@ impl EncryptHelper {
         let prefer_encrypt =
             EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled).await?)
                 .unwrap_or_default();
-        let addr = context.get_configured_addr().await?;
+        let addr = context.get_primary_self_addr().await?;
         let public_key = SignedPublicKey::load_self(context).await?;
 
         Ok(EncryptHelper {
@@ -381,7 +381,7 @@ fn contains_report(mail: &ParsedMail<'_>) -> bool {
 /// [Config::ConfiguredAddr] is configured, this address is returned.
 // TODO, remove this once deltachat::key::Key no longer exists.
 pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
-    let self_addr = context.get_configured_addr().await?;
+    let self_addr = context.get_primary_self_addr().await?;
     SignedPublicKey::load_self(context).await?;
     Ok(self_addr)
 }

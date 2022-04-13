@@ -6,6 +6,7 @@ use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
 use crate::constants::DC_VERSION_STR;
+use crate::contact::addr_normalize;
 use crate::context::Context;
 use crate::dc_tools::{dc_get_abs_path, improve_single_line_input};
 use crate::events::EventType;
@@ -111,6 +112,7 @@ pub enum Config {
     DeleteDeviceAfter,
 
     SaveMimeHeaders,
+    /// The primary email address. Also see `SecondaryAddrs`.
     ConfiguredAddr,
     ConfiguredMailServer,
     ConfiguredMailUser,
@@ -132,6 +134,10 @@ pub enum Config {
     ConfiguredTimestamp,
     ConfiguredProvider,
     Configured,
+
+    /// All secondary self addresses separated by spaces
+    /// (`addr1@example.org addr2@exapmle.org addr3@example.org`)
+    SecondaryAddrs,
 
     #[strum(serialize = "sys.version")]
     SysVersion,
@@ -224,12 +230,6 @@ impl Context {
 
     pub async fn get_config_bool(&self, key: Config) -> Result<bool> {
         Ok(self.get_config_int(key).await? != 0)
-    }
-
-    pub(crate) async fn get_configured_addr(&self) -> Result<String> {
-        self.get_config(Config::ConfiguredAddr)
-            .await?
-            .context("no address configured")
     }
 
     pub(crate) async fn should_watch_mvbox(&self) -> Result<bool> {
@@ -330,6 +330,70 @@ impl Context {
     pub async fn get_ui_config(&self, key: &str) -> Result<Option<String>> {
         ensure!(key.starts_with("ui."), "get_ui_config(): prefix missing.");
         self.sql.get_raw_config(key).await
+    }
+}
+
+// Separate impl block for self address handling
+impl Context {
+    /// determine whether the specified addr maps to the/a self addr
+    pub async fn is_self_addr(&self, addr: &str) -> Result<bool> {
+        let addr = addr_normalize(addr).to_lowercase();
+
+        // The addresses we get here are already normalized and lowercase TODO is this true?
+        Ok(
+            self.get_config(Config::ConfiguredAddr).await?.as_deref() == Some(&addr)
+                || self.get_secondary_self_addrs().await?.contains(&addr),
+        )
+    }
+
+    /// Sets `primary_new` as the new primary self address and saves the old
+    /// primary address (if exists) as a secondary address.
+    pub(crate) async fn set_primary_self_addr(&self, primary_new: &str) -> Result<()> {
+        let primary_new = addr_normalize(primary_new).to_lowercase(); // TODO check if this might make problems
+
+        // Get all self addrs, including the old primary addr:
+        let mut secondary_new = self.get_all_self_addrs().await?;
+        // Remove the new primary addr in case it was a secondary addr before:
+        secondary_new.retain(|a| a != &primary_new);
+        self.set_config(
+            Config::SecondaryAddrs,
+            Some(secondary_new.join(" ").as_str()),
+        )
+        .await?;
+
+        self.set_config(Config::ConfiguredAddr, Some(&primary_new))
+            .await?;
+
+        Ok(())
+    }
+
+    /// Returns all primary and secondary self addresses.
+    pub async fn get_all_self_addrs(&self) -> Result<Vec<String>> {
+        let mut ret = Vec::new();
+
+        ret.extend(self.get_config(Config::ConfiguredAddr).await?.into_iter());
+        ret.extend(self.get_secondary_self_addrs().await?.into_iter());
+
+        Ok(ret)
+    }
+
+    /// Returns all secondary self addresses.
+    pub async fn get_secondary_self_addrs(&self) -> Result<Vec<String>> {
+        let secondary_addrs = self
+            .get_config(Config::SecondaryAddrs)
+            .await?
+            .unwrap_or_default();
+        Ok(secondary_addrs
+            .split_ascii_whitespace()
+            .map(|s| s.to_string())
+            .collect())
+    }
+
+    /// Returns the primary self address.
+    pub async fn get_primary_self_addr(&self) -> Result<String> {
+        self.get_config(Config::ConfiguredAddr)
+            .await?
+            .context("No self addr configured")
     }
 }
 
