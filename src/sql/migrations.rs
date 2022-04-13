@@ -395,7 +395,7 @@ UPDATE chats SET protected=1, type=120 WHERE type=130;"#,
 
     if dbversion < 71 {
         info!(context, "[migration] v71");
-        if let Some(addr) = context.get_config(Config::ConfiguredAddr).await? {
+        if let Ok(addr) = context.get_configured_addr().await {
             if let Ok(domain) = addr.parse::<EmailAddress>().map(|email| email.domain) {
                 context
                     .set_config(

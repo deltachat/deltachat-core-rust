@@ -66,19 +66,7 @@ pub async fn dc_get_securejoin_qr(context: &Context, group: Option<ChatId>) -> R
         .is_none();
     let invitenumber = token::lookup_or_new(context, Namespace::InviteNumber, group).await;
     let auth = token::lookup_or_new(context, Namespace::Auth, group).await;
-    let self_addr = match context.get_config(Config::ConfiguredAddr).await {
-        Ok(Some(addr)) => addr,
-        Ok(None) => {
-            bail!("Not configured, cannot generate QR code.");
-        }
-        Err(err) => {
-            bail!(
-                "Unable to retrieve configuration, cannot generate QR code: {:?}",
-                err
-            );
-        }
-    };
-
+    let self_addr = context.get_configured_addr().await?;
     let self_name = context
         .get_config(Config::Displayname)
         .await?
