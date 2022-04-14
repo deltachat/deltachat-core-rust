@@ -669,7 +669,12 @@ async fn add_parts(
             let create_blocked = if from_id == ContactId::SELF {
                 Blocked::Not
             } else {
-                Blocked::Request
+                let contact = Contact::load_from_db(context, from_id).await?;
+                if contact.is_blocked() {
+                    Blocked::Yes
+                } else {
+                    Blocked::Request
+                }
             };
 
             if let Some(chat) = test_normal_chat {
@@ -1387,7 +1392,7 @@ async fn is_probably_private_reply(
 }
 
 /// This function tries to extract the group-id from the message and returns the corresponding
-/// chat_id. If the chat does not exist, it is created.  If there is no group-id and there are more
+/// chat_id. If the chat does not exist, it is created. If there is no group-id and there are more
 /// than two members, a new ad hoc group is created.
 ///
 /// On success the function returns the found/created (chat_id, chat_blocked) tuple.
@@ -5113,6 +5118,72 @@ Reply from different address
         assert_eq!(received_chat.typ, Chattype::Single);
         assert_eq!(received_chat.name, "bob@example.net");
         assert_eq!(received_chat.can_send(&alice2).await?, true);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_no_private_reply_to_blocked_account() -> Result<()> {
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        // =============== Bob creates a group ===============
+        let group_id =
+            chat::create_group_chat(&bob, ProtectionStatus::Unprotected, "Group").await?;
+        chat::add_to_chat_contacts_table(
+            &bob,
+            group_id,
+            bob.add_or_lookup_contact(&alice).await.id,
+        )
+        .await?;
+
+        // =============== Bob sends the first message to the group ===============
+        let sent = bob.send_text(group_id, "Hello all!").await;
+        alice.recv_msg(&sent).await;
+
+        let chats = Chatlist::try_load(&bob, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+
+        // =============== Bob blocks Alice ================
+        Contact::block(&bob, bob.add_or_lookup_contact(&alice).await.id).await?;
+
+        // =============== Alice replies private to Bob ==============
+        let received = alice.get_last_msg().await;
+        assert_eq!(received.text, Some("Hello all!".to_string()));
+
+        let received_group = Chat::load_from_db(&alice, received.chat_id).await?;
+        assert_eq!(received_group.typ, Chattype::Group);
+
+        let mut msg_out = Message::new(Viewtype::Text);
+        msg_out.set_text(Some("Private reply".to_string()));
+        msg_out.set_quote(&alice, Some(&received)).await?;
+
+        let alice_bob_chat = alice.create_chat(&bob).await;
+        let sent2 = alice.send_msg(alice_bob_chat.id, &mut msg_out).await;
+        bob.recv_msg(&sent2).await;
+
+        // ========= check that no contact request was created ============
+        let chats = Chatlist::try_load(&bob, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 1);
+        let chat_id = chats.get_chat_id(0).unwrap();
+        let chat = Chat::load_from_db(&bob, chat_id).await.unwrap();
+
+        // since only chat is a group, no new open chat has been created
+        assert_eq!(chat.typ, Chattype::Group);
+        let received = bob.get_last_msg().await;
+        assert_eq!(received.text, Some("Hello all!".to_string()));
+
+        // =============== Bob unblocks Alice ================
+        // test if the blocked chat is restored correctly
+        Contact::unblock(&bob, bob.add_or_lookup_contact(&alice).await.id).await?;
+        let chats = Chatlist::try_load(&bob, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 2);
+        let chat_id = chats.get_chat_id(0).unwrap();
+        let chat = Chat::load_from_db(&bob, chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Single);
+        let received = bob.get_last_msg().await;
+        assert_eq!(received.text, Some("Private reply".to_string()));
 
         Ok(())
     }
