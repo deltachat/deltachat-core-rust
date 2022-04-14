@@ -5163,7 +5163,7 @@ Reply from different address
         let sent2 = alice.send_msg(alice_bob_chat.id, &mut msg_out).await;
         bob.recv_msg(&sent2).await;
 
-        // =================== tests ===================
+        // ========= check that no contact request was created ============
         let chats = Chatlist::try_load(&bob, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let chat_id = chats.get_chat_id(0).unwrap();
