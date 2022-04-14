@@ -5142,17 +5142,14 @@ Reply from different address
         let sent = bob.send_text(group_id, "Hello all!").await;
         alice.recv_msg(&sent).await;
 
-        let chats = Chatlist::try_load(&bob, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(&bob, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
 
         // =============== Bob blocks Alice ================
-        //group_id.block(&bob).await?;
-        //let contact = Contact::load_from_db(context, from_id).await?;
         Contact::block(&bob, bob.add_or_lookup_contact(&alice).await.id).await?;
 
         // =============== Alice replies private to Bob ==============
         let received = alice.get_last_msg().await;
-        alice.add_or_lookup_contact(&bob).await;
         assert_eq!(received.text, Some("Hello all!".to_string()));
 
         let received_group = Chat::load_from_db(&alice, received.chat_id).await?;
@@ -5166,7 +5163,7 @@ Reply from different address
         let sent2 = alice.send_msg(alice_bob_chat.id, &mut msg_out).await;
         bob.recv_msg(&sent2).await;
 
-        // =================== tests ===================f
+        // =================== tests ===================d
         let chats = Chatlist::try_load(&bob, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let chat_id = chats.get_chat_id(0).unwrap();
