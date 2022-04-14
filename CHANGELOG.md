@@ -5,7 +5,7 @@
 ### Fixes
 
 - Take `delete_device_after` into account when calculating ephemeral loop timeout #3211
-
+- Fix a bug where a blocked contact could send a contact request #3218
 ### Changes
 
 - Further improve finding the correct server after logging in #3208
