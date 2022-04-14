@@ -254,9 +254,14 @@ impl Context {
             )
             .await?;
 
-        self.emit_event(EventType::WebxdcStatusUpdate(instance.id));
+        let status_update_serial = StatusUpdateSerial(u32::try_from(rowid)?);
 
-        Ok(StatusUpdateSerial(u32::try_from(rowid)?))
+        self.emit_event(EventType::WebxdcStatusUpdate {
+            msg_id: instance.id,
+            status_update_serial,
+        });
+
+        Ok(status_update_serial)
     }
 
     /// Sends a status update for an webxdc instance.
@@ -1016,7 +1021,10 @@ mod tests {
             .get_matching(|evt| matches!(evt, EventType::WebxdcStatusUpdate { .. }))
             .await;
         match event {
-            EventType::WebxdcStatusUpdate(msg_id) => {
+            EventType::WebxdcStatusUpdate {
+                msg_id,
+                status_update_serial: _,
+            } => {
                 assert_eq!(msg_id, instance_id);
             }
             _ => unreachable!(),
