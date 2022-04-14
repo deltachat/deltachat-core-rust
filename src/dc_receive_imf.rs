@@ -5163,7 +5163,7 @@ Reply from different address
         let sent2 = alice.send_msg(alice_bob_chat.id, &mut msg_out).await;
         bob.recv_msg(&sent2).await;
 
-        // =================== tests ===================d
+        // =================== tests ===================
         let chats = Chatlist::try_load(&bob, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let chat_id = chats.get_chat_id(0).unwrap();
@@ -5173,6 +5173,18 @@ Reply from different address
         assert_eq!(chat.typ, Chattype::Group);
         let received = bob.get_last_msg().await;
         assert_eq!(received.text, Some("Hello all!".to_string()));
+
+        // =============== Bob unblocks Alice ================
+        // test if the blocked chat is restored correctly
+        Contact::unblock(&bob, bob.add_or_lookup_contact(&alice).await.id).await?;
+        let chats = Chatlist::try_load(&bob, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 2);
+        let chat_id = chats.get_chat_id(0).unwrap();
+        let chat = Chat::load_from_db(&bob, chat_id).await.unwrap();
+        assert_eq!(chat.typ, Chattype::Single);
+        let received = bob.get_last_msg().await;
+        assert_eq!(received.text, Some("Private reply".to_string()));
+
         Ok(())
     }
 }
