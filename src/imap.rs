@@ -458,13 +458,15 @@ impl Imap {
         }
         self.prepare(context).await?;
 
-        if self
+        let msgs_fetched = self
             .fetch_new_messages(context, watch_folder, false)
             .await
-            .context("fetch_new_messages")?
-        {
-            // New messages were fetched, restart ephemeral loop in case these messages will expire
-            // later.
+            .context("fetch_new_messages")?;
+        if msgs_fetched && context.get_config_delete_device_after().await?.is_some() {
+            // New messages were fetched and shall be deleted later, restart ephemeral loop.
+            // Note that the `Config::DeleteDeviceAfter` timer starts as soon as the messages are
+            // fetched while the per-chat ephemeral timers start as soon as the messages are marked
+            // as noticed.
             context.interrupt_ephemeral_task().await;
         }
 
