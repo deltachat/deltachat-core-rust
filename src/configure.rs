@@ -85,7 +85,7 @@ impl Context {
     async fn inner_configure(&self) -> Result<()> {
         info!(self, "Configure ...");
 
-        let mut param = LoginParam::from_database(self, "").await?;
+        let mut param = LoginParam::load_candidate_params(self).await?;
         let success = configure(self, &mut param).await;
         self.set_config(Config::NotifyAboutWrongPw, None).await?;
 
@@ -454,7 +454,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 910);
     // the trailing underscore is correct
-    param.save_to_database(ctx, "configured_").await?;
+    param.save_as_configured_params(ctx).await?;
     ctx.set_config(Config::ConfiguredTimestamp, Some(&time().to_string()))
         .await?;
 

@@ -1,6 +1,6 @@
 //! # Key-value configuration management.
 
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
@@ -225,6 +225,12 @@ impl Context {
 
     pub async fn get_config_bool(&self, key: Config) -> Result<bool> {
         Ok(self.get_config_int(key).await? != 0)
+    }
+
+    pub(crate) async fn get_configured_addr(&self) -> Result<String> {
+        self.get_config(Config::ConfiguredAddr)
+            .await?
+            .context("no address configured")
     }
 
     pub(crate) async fn should_watch_mvbox(&self) -> Result<bool> {

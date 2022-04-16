@@ -1254,11 +1254,7 @@ impl Chat {
             }
         }
 
-        let from = context
-            .get_config(Config::ConfiguredAddr)
-            .await?
-            .context("Cannot prepare message for sending, address is not configured.")?;
-
+        let from = context.get_configured_addr().await?;
         let new_rfc724_mid = {
             let grpid = match self.typ {
                 Chattype::Group => Some(self.grpid.as_str()),
@@ -2047,10 +2043,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
 
     let mut recipients = mimefactory.recipients();
 
-    let from = context
-        .get_config(Config::ConfiguredAddr)
-        .await?
-        .unwrap_or_default();
+    let from = context.get_configured_addr().await?;
     let lowercase_from = from.to_lowercase();
 
     // Send BCC to self if it is enabled and we are not going to
@@ -2723,10 +2716,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         context.sync_qr_code_tokens(Some(chat_id)).await?;
         context.send_sync_msg().await?;
     }
-    let self_addr = context
-        .get_config(Config::ConfiguredAddr)
-        .await?
-        .unwrap_or_default();
+    let self_addr = context.get_configured_addr().await.unwrap_or_default();
     if addr_cmp(contact.get_addr(), &self_addr) {
         // ourself is added using ContactId::SELF, do not add this address explicitly.
         // if SELF is not in the group, members cannot be added at all.

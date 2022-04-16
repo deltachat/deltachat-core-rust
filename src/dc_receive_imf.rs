@@ -1456,10 +1456,7 @@ async fn create_or_lookup_group(
         ProtectionStatus::Unprotected
     };
 
-    let self_addr = context
-        .get_config(Config::ConfiguredAddr)
-        .await?
-        .context("no address configured")?;
+    let self_addr = context.get_configured_addr().await?;
     if chat_id.is_none()
             && !mime_parser.is_mailinglist_message()
             && !grpid.is_empty()
@@ -1555,11 +1552,7 @@ async fn apply_group_changes(
         return Ok(None);
     }
 
-    let self_addr = context
-        .get_config(Config::ConfiguredAddr)
-        .await?
-        .context("no address configured")?;
-
+    let self_addr = context.get_configured_addr().await?;
     let mut recreate_member_list = false;
     let mut send_event_chat_modified = false;
 
@@ -2003,12 +1996,7 @@ async fn create_adhoc_group(
 /// are hidden in BCC. This group ID is sent by DC in the messages sent to this chat,
 /// so having the same ID prevents group split.
 async fn create_adhoc_grp_id(context: &Context, member_ids: &[ContactId]) -> Result<String> {
-    let member_cs = context
-        .get_config(Config::ConfiguredAddr)
-        .await?
-        .unwrap_or_else(|| "no-self".to_string())
-        .to_lowercase();
-
+    let member_cs = context.get_configured_addr().await?.to_lowercase();
     let query = format!(
         "SELECT addr FROM contacts WHERE id IN({}) AND id!=?",
         sql::repeat_vars(member_ids.len())?

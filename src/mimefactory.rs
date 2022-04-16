@@ -133,11 +133,7 @@ impl<'a> MimeFactory<'a> {
     ) -> Result<MimeFactory<'a>> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
 
-        let from_addr = context
-            .get_config(Config::ConfiguredAddr)
-            .await?
-            .unwrap_or_default();
-
+        let from_addr = context.get_configured_addr().await?;
         let config_displayname = context
             .get_config(Config::Displayname)
             .await?
@@ -237,10 +233,7 @@ impl<'a> MimeFactory<'a> {
         ensure!(!msg.chat_id.is_special(), "Invalid chat id");
 
         let contact = Contact::load_from_db(context, msg.from_id).await?;
-        let from_addr = context
-            .get_config(Config::ConfiguredAddr)
-            .await?
-            .unwrap_or_default();
+        let from_addr = context.get_configured_addr().await?;
         let from_displayname = context
             .get_config(Config::Displayname)
             .await?
@@ -278,11 +271,7 @@ impl<'a> MimeFactory<'a> {
         &self,
         context: &Context,
     ) -> Result<Vec<(Option<Peerstate>, &str)>> {
-        let self_addr = context
-            .get_config(Config::ConfiguredAddr)
-            .await?
-            .context("not configured")?;
-
+        let self_addr = context.get_configured_addr().await?;
         let mut res = Vec::new();
         for (_, addr) in self
             .recipients

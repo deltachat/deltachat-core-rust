@@ -311,8 +311,8 @@ impl Context {
 
     pub async fn get_info(&self) -> Result<BTreeMap<&'static str, String>> {
         let unset = "0";
-        let l = LoginParam::from_database(self, "").await?;
-        let l2 = LoginParam::from_database(self, "configured_").await?;
+        let l = LoginParam::load_candidate_params(self).await?;
+        let l2 = LoginParam::load_configured_params(self).await?;
         let displayname = self.get_config(Config::Displayname).await?;
         let chats = get_chat_cnt(self).await? as usize;
         let unblocked_msgs = message::get_unblocked_msg_cnt(self).await as usize;
