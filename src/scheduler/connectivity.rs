@@ -538,7 +538,7 @@ impl Context {
                 self.schedule_quota_update().await?;
             }
         } else {
-            ret += &format!("<li>{}</li>", stock_str::one_moment(self).await);
+            ret += &format!("<li>{}</li>", stock_str::not_connected(self).await);
             self.schedule_quota_update().await?;
         }
         ret += "</ul>";
