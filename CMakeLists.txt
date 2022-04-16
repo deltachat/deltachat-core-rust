@@ -4,10 +4,18 @@ include(GNUInstallDirs)
 
 find_program(CARGO cargo)
 
+if(APPLE)
+       set(DYNAMIC_EXT "dylib")
+elseif(UNIX)
+       set(DYNAMIC_EXT "so")
+else()
+       set(DYNAMIC_EXT "dll")
+endif()
+
 add_custom_command(
 	OUTPUT
 	"target/release/libdeltachat.a"
-	"target/release/libdeltachat.so"
+	"target/release/libdeltachat.${DYNAMIC_EXT}"
 	"target/release/pkgconfig/deltachat.pc"
         COMMAND
         PREFIX=${CMAKE_INSTALL_PREFIX}
@@ -32,11 +40,11 @@ add_custom_target(
 	ALL
 	DEPENDS
 	"target/release/libdeltachat.a"
-	"target/release/libdeltachat.so"
+	"target/release/libdeltachat.${DYNAMIC_EXT}"
 	"target/release/pkgconfig/deltachat.pc"
 )
 
 install(FILES "deltachat-ffi/deltachat.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(FILES "target/release/libdeltachat.a" DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES "target/release/libdeltachat.so" DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES "target/release/libdeltachat.${DYNAMIC_EXT}" DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES "target/release/pkgconfig/deltachat.pc" DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)

@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     print("running:", " ".join(cmd))
     subprocess.check_call(cmd)
-    subprocess.check_call("rm -rf build/ src/deltachat/*.so" , shell=True)
+    subprocess.check_call("rm -rf build/ src/deltachat/*.so src/deltachat/*.dylib src/deltachat/*.dll" , shell=True)
 
     if len(sys.argv) <= 1 or sys.argv[1] != "onlybuild":
         subprocess.check_call([
