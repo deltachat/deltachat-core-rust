@@ -287,9 +287,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Storage on %1$s"))]
     StorageOnDomain = 105,
 
-    #[strum(props(fallback = "One moment…"))]
-    OneMoment = 106,
-
     #[strum(props(fallback = "Connected"))]
     Connected = 107,
 
@@ -332,6 +329,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Scan to join group %1$s"))]
     SecureJoinGroupQRDescription = 120,
+
+    #[strum(props(fallback = "Not connected"))]
+    NotConnected = 121,
 }
 
 impl StockMessage {
@@ -1009,9 +1009,9 @@ pub(crate) async fn storage_on_domain(context: &Context, domain: impl AsRef<str>
         .replace1(domain)
 }
 
-/// Stock string: `One moment…`.
-pub(crate) async fn one_moment(context: &Context) -> String {
-    translated(context, StockMessage::OneMoment).await
+/// Stock string: `Not connected`.
+pub(crate) async fn not_connected(context: &Context) -> String {
+    translated(context, StockMessage::NotConnected).await
 }
 
 /// Stock string: `Connected`.

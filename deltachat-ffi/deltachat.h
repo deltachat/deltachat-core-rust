@@ -6223,9 +6223,7 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced by the domain of the configured e-mail address.
 #define DC_STR_STORAGE_ON_DOMAIN          105
 
-/// "One moment…"
-///
-/// Used in the connectivity view when some information are not yet there.
+/// @deprecated Deprecated 2022-04-16, this string is no longer needed.
 #define DC_STR_ONE_MOMENT                 106
 
 /// "Connected"
@@ -6313,6 +6311,11 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// `%1$s` will be replaced with the group name.
 #define DC_STR_SECURE_JOIN_GROUP_QR_DESC  120
+
+/// "Not connected"
+///
+/// Used as status in the connectivity view.
+#define DC_STR_NOT_CONNECTED              121
 
 /**
  * @}
