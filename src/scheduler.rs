@@ -168,6 +168,16 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 return connection.fake_idle(ctx, Some(watch_folder)).await;
             }
 
+            if folder == Config::ConfiguredInboxFolder {
+                if let Err(err) = connection
+                    .store_seen_flags(ctx)
+                    .await
+                    .context("store_seen_flags failed")
+                {
+                    warn!(ctx, "{:#}", err);
+                }
+            }
+
             // Fetch the watched folder.
             if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
                 connection.trigger_reconnect(ctx).await;

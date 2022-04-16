@@ -13,7 +13,7 @@ use crate::contact::{normalize_name, Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::events::EventType;
-use crate::imap::{Imap, ImapActionResult};
+use crate::imap::Imap;
 use crate::location;
 use crate::log::LogExt;
 use crate::message::{Message, MsgId};
@@ -86,7 +86,6 @@ pub enum Action {
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
     FetchExistingMsgs = 110,
-    MarkseenMsgOnImap = 130,
 
     // this is user initiated so it should have a fairly high priority
     UpdateRecentQuota = 140,
@@ -123,7 +122,6 @@ impl From<Action> for Thread {
             Housekeeping => Thread::Imap,
             FetchExistingMsgs => Thread::Imap,
             ResyncFolders => Thread::Imap,
-            MarkseenMsgOnImap => Thread::Imap,
             UpdateRecentQuota => Thread::Imap,
             DownloadMsg => Thread::Imap,
 
@@ -403,67 +401,6 @@ impl Job {
             Status::Finished(Ok(()))
         }
     }
-
-    async fn markseen_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.prepare(context).await {
-            warn!(context, "could not connect: {:?}", err);
-            return Status::RetryLater;
-        }
-
-        let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-        let row = job_try!(
-            context
-                .sql
-                .query_row_optional(
-                    "SELECT uid, folder FROM imap
-                    WHERE rfc724_mid=? AND folder=target
-                    ORDER BY uid ASC
-                    LIMIT 1",
-                    paramsv![msg.rfc724_mid],
-                    |row| {
-                        let uid: u32 = row.get(0)?;
-                        let folder: String = row.get(1)?;
-                        Ok((uid, folder))
-                    }
-                )
-                .await
-        );
-        if let Some((server_uid, server_folder)) = row {
-            let result = imap.set_seen(context, &server_folder, server_uid).await;
-            match result {
-                ImapActionResult::RetryLater => return Status::RetryLater,
-                ImapActionResult::Success | ImapActionResult::Failed => {}
-            }
-        } else {
-            info!(
-                context,
-                "Can't mark the message {} as seen on IMAP because there is no known UID",
-                msg.rfc724_mid
-            );
-        }
-
-        // XXX we send MDN even in case of failure to mark the messages as seen, e.g. if it was
-        // already deleted on the server by another device. The job will not be retried so locally
-        // there is no risk of double-sending MDNs.
-        //
-        // Read receipts for system messages are never sent. These messages have no place to
-        // display received read receipt anyway.  And since their text is locally generated,
-        // quoting them is dangerous as it may contain contact names. E.g., for original message
-        // "Group left by me", a read receipt will quote "Group left by <name>", and the name can
-        // be a display name stored in address book rather than the name sent in the From field by
-        // the user.
-        if msg.param.get_bool(Param::WantsMdn).unwrap_or_default() && !msg.is_system_message() {
-            let mdns_enabled = job_try!(context.get_config_bool(Config::MdnsEnabled).await);
-            if mdns_enabled {
-                if let Err(err) = send_mdn(context, &msg).await {
-                    warn!(context, "could not send out mdn for {}: {}", msg.id, err);
-                    return Status::Finished(Err(err));
-                }
-            }
-        }
-
-        Status::Finished(Ok(()))
-    }
 }
 
 /// Delete all pending jobs with the given action.
@@ -660,7 +597,6 @@ async fn perform_job_action(
             location::job_maybe_send_locations_ended(context, job).await
         }
         Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
-        Action::MarkseenMsgOnImap => job.markseen_msg_on_imap(context, connection.inbox()).await,
         Action::FetchExistingMsgs => job.fetch_existing_msgs(context, connection.inbox()).await,
         Action::Housekeeping => {
             sql::housekeeping(context).await.ok_or_log(context);
@@ -698,13 +634,13 @@ fn get_backoff_time_offset(tries: u32, action: Action) -> i64 {
     }
 }
 
-async fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
+pub(crate) async fn send_mdn(context: &Context, msg_id: MsgId, from_id: ContactId) -> Result<()> {
     let mut param = Params::new();
-    param.set(Param::MsgId, msg.id.to_u32().to_string());
+    param.set(Param::MsgId, msg_id.to_u32().to_string());
 
     add(
         context,
-        Job::new(Action::SendMdn, msg.from_id.to_u32(), param, 0),
+        Job::new(Action::SendMdn, from_id.to_u32(), param, 0),
     )
     .await?;
 
@@ -732,7 +668,6 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
             Action::Unknown => unreachable!(),
             Action::Housekeeping
             | Action::ResyncFolders
-            | Action::MarkseenMsgOnImap
             | Action::FetchExistingMsgs
             | Action::UpdateRecentQuota
             | Action::DownloadMsg => {
