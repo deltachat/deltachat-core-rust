@@ -298,9 +298,6 @@ impl<'a> BlobObject<'a> {
     }
 
     /// Returns the extension of the blob.
-    ///
-    /// If a blob's filename has an extension, it is always guaranteed
-    /// to be lowercase.
     pub fn suffix(&self) -> Option<&str> {
         let ext = self.name.rsplit('.').next();
         if ext == Some(&self.name) {
@@ -322,8 +319,6 @@ impl<'a> BlobObject<'a> {
     /// being the stem or basename and the second being an extension,
     /// including the dot.  E.g. "foo.txt" is returned as `("foo",
     /// ".txt")` while "bar" is returned as `("bar", "")`.
-    ///
-    /// The extension part will always be lowercased.
     fn sanitise_name(name: &str) -> (String, String) {
         let mut name = name.to_string();
         for part in name.rsplit('/') {
@@ -366,7 +361,7 @@ impl<'a> BlobObject<'a> {
         if ext.is_empty() {
             (stem, "".to_string())
         } else {
-            (stem, format!(".{}", ext).to_lowercase())
+            (stem, format!(".{}", ext))
             // Return ("file", ".d_point_and_double_ending.tar.gz")
             // which is not perfect but acceptable.
         }
@@ -655,13 +650,6 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_lowercase_ext() {
-        let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo.TXT", b"hello").await.unwrap();
-        assert_eq!(blob.as_name(), "$BLOBDIR/foo.txt");
-    }
-
-    #[async_std::test]
     async fn test_as_file_name() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
@@ -837,6 +825,10 @@ mod tests {
         assert!(!stem.contains(':'));
         assert!(!stem.contains('*'));
         assert!(!stem.contains('?'));
+
+        let (stem, ext) = BlobObject::sanitise_name("Test.Rmd");
+        assert_eq!(stem, "Test");
+        assert_eq!(ext, ".Rmd");
     }
 
     #[async_std::test]
