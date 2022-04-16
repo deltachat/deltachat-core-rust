@@ -1,6 +1,6 @@
 //! # Key-value configuration management.
 
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
@@ -228,7 +228,6 @@ impl Context {
     }
 
     pub(crate) async fn get_configured_addr(&self) -> Result<String> {
-        use anyhow::Context;
         self.get_config(Config::ConfiguredAddr)
             .await?
             .context("no address configured")
