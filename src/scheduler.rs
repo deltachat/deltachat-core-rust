@@ -168,19 +168,19 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 return connection.fake_idle(ctx, Some(watch_folder)).await;
             }
 
+            // Fetch the watched folder.
+            if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
+                connection.trigger_reconnect(ctx).await;
+                warn!(ctx, "{:#}", err);
+                return InterruptInfo::new(false);
+            }
+
             // Mark expired messages for deletion.
             if let Err(err) = delete_expired_imap_messages(ctx)
                 .await
                 .context("delete_expired_imap_messages failed")
             {
                 warn!(ctx, "{:#}", err);
-            }
-
-            // Fetch the watched folder.
-            if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
-                connection.trigger_reconnect(ctx).await;
-                warn!(ctx, "{:#}", err);
-                return InterruptInfo::new(false);
             }
 
             // Scan additional folders only after finishing fetching the watched folder.

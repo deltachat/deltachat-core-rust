@@ -12,6 +12,7 @@
 - Further improve finding the correct server after logging in #3208
 - `get_connectivity_html()` returns HTML as non-scalable #3213
 - add update-serial to `DC_EVENT_WEBXDC_STATUS_UPDATE` #3215
+- Speed up message receiving via IMAP a bit #3225
 
 
 ## 1.77.0
