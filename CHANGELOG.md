@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### API-Changes
+
+- replaced stock string `DC_STR_ONE_MOMENT` by `DC_STR_NOT_CONNECTED` #3222
+
 ### Fixes
 
 - Take `delete_device_after` into account when calculating ephemeral loop timeout #3211
