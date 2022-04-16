@@ -720,10 +720,7 @@ impl Contact {
                 .await?;
 
             if let Some(query) = query {
-                let self_addr = context
-                    .get_config(Config::ConfiguredAddr)
-                    .await?
-                    .unwrap_or_default();
+                let self_addr = context.get_primary_self_addr().await.unwrap_or_default();
                 let self_name = context
                     .get_config(Config::Displayname)
                     .await?
@@ -2127,51 +2124,6 @@ Hi."#;
         assert!(timestamp > 0);
         let contact = Contact::load_from_db(&alice, contact_id).await?;
         assert_eq!(contact.last_seen(), timestamp);
-
-        Ok(())
-    }
-
-    #[async_std::test]
-    async fn test_self_addrs() -> Result<()> {
-        let alice = TestContext::new_alice().await;
-
-        assert!(alice.is_self_addr("alice@example.org").await?);
-        assert_eq!(alice.get_all_self_addrs().await?, vec!["alice@example.org"]);
-        assert!(!alice.is_self_addr("alice@alice.com").await?);
-
-        // Test adding a new (primary) self address
-        alice.set_primary_self_addr(" Alice@alice.com ").await?;
-        assert!(alice.is_self_addr("aliCe@example.org").await?);
-        assert!(alice.is_self_addr("alice@alice.com").await?);
-        assert_eq!(
-            alice.get_all_self_addrs().await?,
-            vec!["alice@alice.com", "alice@example.org"]
-        );
-
-        // Check that the entry is not duplicated
-        alice.set_primary_self_addr("alice@alice.com").await?;
-        assert_eq!(
-            alice.get_all_self_addrs().await?,
-            vec!["alice@alice.com", "alice@example.org"]
-        );
-
-        // Test switching back
-        alice.set_primary_self_addr("alice@example.org").await?;
-        assert_eq!(
-            alice.get_all_self_addrs().await?,
-            vec!["alice@example.org", "alice@alice.com"]
-        );
-
-        // Test setting a new primary self address, the previous self address
-        // should be kept as a secondary self address
-        alice.set_primary_self_addr("alice@alice.xyz").await?;
-        assert_eq!(
-            alice.get_all_self_addrs().await?,
-            vec!["alice@alice.xyz", "alice@example.org", "alice@alice.com"]
-        );
-        assert!(alice.is_self_addr("alice@example.org").await?);
-        assert!(alice.is_self_addr("alice@alice.com").await?);
-        assert!(alice.is_self_addr("Alice@alice.xyz").await?);
 
         Ok(())
     }
