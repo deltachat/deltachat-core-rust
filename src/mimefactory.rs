@@ -133,7 +133,7 @@ impl<'a> MimeFactory<'a> {
     ) -> Result<MimeFactory<'a>> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
 
-        let from_addr = context.get_configured_addr().await.unwrap_or_default();
+        let from_addr = context.get_configured_addr().await?;
         let config_displayname = context
             .get_config(Config::Displayname)
             .await?

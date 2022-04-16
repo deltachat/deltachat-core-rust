@@ -2043,7 +2043,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
 
     let mut recipients = mimefactory.recipients();
 
-    let from = context.get_configured_addr().await.unwrap_or_default();
+    let from = context.get_configured_addr().await?;
     let lowercase_from = from.to_lowercase();
 
     // Send BCC to self if it is enabled and we are not going to
