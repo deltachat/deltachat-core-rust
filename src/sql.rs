@@ -181,6 +181,7 @@ impl Sql {
                      PRAGMA secure_delete=on;
                      PRAGMA busy_timeout = {};
                      PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+                     PRAGMA foreign_keys=on;
                      ",
                     Duration::from_secs(10).as_millis()
                 ))?;

@@ -24,7 +24,7 @@ use crate::download::DownloadState;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::job::{self, Action};
+use crate::imap::markseen_on_imap_table;
 use crate::location;
 use crate::log::LogExt;
 use crate::message::{
@@ -339,16 +339,7 @@ pub(crate) async fn dc_receive_imf_inner(
                 .await?;
         } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
             // This is a Delta Chat MDN. Mark as read.
-            job::add(
-                context,
-                job::Job::new(
-                    Action::MarkseenMsgOnImap,
-                    insert_msg_id.to_u32(),
-                    Params::new(),
-                    0,
-                ),
-            )
-            .await?;
+            markseen_on_imap_table(context, rfc724_mid).await?;
         }
     }
 
@@ -2300,6 +2291,7 @@ mod tests {
     use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
     use crate::chatlist::Chatlist;
     use crate::constants::DC_GCL_NO_SPECIALS;
+    use crate::imap::prefetch_should_download;
     use crate::message::Message;
     use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
@@ -2883,7 +2875,7 @@ mod tests {
 
         // Check that the ndn would be downloaded:
         let headers = mailparse::parse_mail(raw_ndn).unwrap().headers;
-        assert!(crate::imap::prefetch_should_download(
+        assert!(prefetch_should_download(
             &t,
             &headers,
             "some-other-message-id",

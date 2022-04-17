@@ -613,6 +613,17 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         sql.execute_migration("DROP TABLE IF EXISTS backup_blobs;", 88)
             .await?;
     }
+    if dbversion < 89 {
+        info!(context, "[migration] v89");
+        sql.execute_migration(
+            r#"CREATE TABLE imap_markseen (
+              id INTEGER,
+              FOREIGN KEY(id) REFERENCES imap(id) ON DELETE CASCADE
+            );"#,
+            89,
+        )
+        .await?;
+    }
 
     Ok((
         recalc_fingerprints,
