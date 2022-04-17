@@ -11,6 +11,7 @@
 - Take `delete_device_after` into account when calculating ephemeral loop timeout #3211
 - Fix a bug where a blocked contact could send a contact request #3218
 - Make sure, videochat-room-names are always URL-safe #3231
+- Try removing account folder multiple times in case of failure #3229
 
 ### Changes
 
