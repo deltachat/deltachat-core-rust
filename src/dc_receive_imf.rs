@@ -70,7 +70,6 @@ struct AddedParts {
 pub async fn dc_receive_imf(
     context: &Context,
     imf_raw: &[u8],
-    server_folder: &str,
     seen: bool,
 ) -> Result<Option<ReceivedMsg>> {
     let mail = parse_mail(imf_raw).context("can't parse mail")?;
@@ -79,16 +78,7 @@ pub async fn dc_receive_imf(
         .get_header_value(HeaderDef::MessageId)
         .and_then(|msgid| parse_message_id(&msgid).ok())
         .unwrap_or_else(dc_create_id);
-    dc_receive_imf_inner(
-        context,
-        &rfc724_mid,
-        imf_raw,
-        server_folder,
-        seen,
-        None,
-        false,
-    )
-    .await
+    dc_receive_imf_inner(context, &rfc724_mid, imf_raw, seen, None, false).await
 }
 
 /// Receive a message and add it to the database.
@@ -109,15 +99,11 @@ pub(crate) async fn dc_receive_imf_inner(
     context: &Context,
     rfc724_mid: &str,
     imf_raw: &[u8],
-    server_folder: &str,
     seen: bool,
     is_partial_download: Option<u32>,
     fetching_existing_messages: bool,
 ) -> Result<Option<ReceivedMsg>> {
-    info!(
-        context,
-        "Receiving message, folder={}, seen={}...", server_folder, seen
-    );
+    info!(context, "Receiving message, seen={}...", seen);
 
     if std::env::var(crate::DCC_MIME_DEBUG).unwrap_or_default() == "2" {
         info!(context, "dc_receive_imf: incoming message mime-body:");
@@ -206,7 +192,6 @@ pub(crate) async fn dc_receive_imf_inner(
         &mut mime_parser,
         imf_raw,
         incoming,
-        server_folder,
         &to_ids,
         rfc724_mid,
         sent_timestamp,
@@ -418,7 +403,6 @@ async fn add_parts(
     mime_parser: &mut MimeMessage,
     imf_raw: &[u8],
     incoming: bool,
-    server_folder: &str,
     to_ids: &[ContactId],
     rfc724_mid: &str,
     sent_timestamp: i64,
@@ -737,25 +721,12 @@ async fn add_parts(
             chat_id = Some(DC_CHAT_ID_TRASH);
         }
 
-        // If the message is outgoing AND there is no Received header AND it's not in the sentbox,
-        // then ignore the email.
-        //
-        // We only apply this heuristic to classical emails, as it is not reliable (some servers
-        // such as systemli.org in June 2021 remove their own Received headers on incoming mails)
-        // and we know Delta Chat never stores drafts on IMAP servers.
-        let is_draft = !context.is_sentbox(server_folder).await?
-            && mime_parser.get_header(HeaderDef::Received).is_none()
-            && mime_parser.get_header(HeaderDef::ChatVersion).is_none();
         // Mozilla Thunderbird does not set \Draft flag on "Templates", but sets
         // X-Mozilla-Draft-Info header, which can be used to detect both drafts and templates
         // created by Thunderbird.
-        //
-        // This check is not necessary now, but may become useful if the `Received:` header check
-        // is removed completely later.
-        let is_draft = is_draft
-            || mime_parser
-                .get_header(HeaderDef::XMozillaDraftInfo)
-                .is_some();
+        let is_draft = mime_parser
+            .get_header(HeaderDef::XMozillaDraftInfo)
+            .is_some();
 
         if is_draft {
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
@@ -2378,17 +2349,17 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
-        dc_receive_imf(&t, MSGRMSG, "INBOX", false).await.unwrap();
+        dc_receive_imf(&t, MSGRMSG, false).await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
-        dc_receive_imf(&t, ONETOONE_NOREPLY_MAIL, "INBOX", false)
+        dc_receive_imf(&t, ONETOONE_NOREPLY_MAIL, false)
             .await
             .unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
 
-        dc_receive_imf(&t, GRP_MAIL, "INBOX", false).await.unwrap();
+        dc_receive_imf(&t, GRP_MAIL, false).await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
     }
@@ -2397,7 +2368,7 @@ mod tests {
     async fn test_adhoc_group_show_accepted_contact_unknown() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("1")).await.unwrap();
-        dc_receive_imf(&t, GRP_MAIL, "INBOX", false).await.unwrap();
+        dc_receive_imf(&t, GRP_MAIL, false).await.unwrap();
 
         // adhoc-group with unknown contacts with show_emails=accepted is ignored for unknown contacts
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
@@ -2409,7 +2380,7 @@ mod tests {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("1")).await.unwrap();
         Contact::create(&t, "Bob", "bob@example.com").await.unwrap();
-        dc_receive_imf(&t, GRP_MAIL, "INBOX", false).await.unwrap();
+        dc_receive_imf(&t, GRP_MAIL, false).await.unwrap();
 
         // adhoc-group with known contacts with show_emails=accepted is still ignored for known contacts
         // (and existent chat is required)
@@ -2423,7 +2394,7 @@ mod tests {
         t.set_config(Config::ShowEmails, Some("1")).await.unwrap();
 
         // accept Bob by accepting a delta-message from Bob
-        dc_receive_imf(&t, MSGRMSG, "INBOX", false).await.unwrap();
+        dc_receive_imf(&t, MSGRMSG, false).await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let chat_id = chats.get_chat_id(0).unwrap();
@@ -2444,7 +2415,7 @@ mod tests {
         );
 
         // receive a non-delta-message from Bob, shows up because of the show_emails setting
-        dc_receive_imf(&t, ONETOONE_NOREPLY_MAIL, "INBOX", false)
+        dc_receive_imf(&t, ONETOONE_NOREPLY_MAIL, false)
             .await
             .unwrap();
 
@@ -2457,7 +2428,7 @@ mod tests {
         );
 
         // let Bob create an adhoc-group by a non-delta-message, shows up because of the show_emails setting
-        dc_receive_imf(&t, GRP_MAIL, "INBOX", false).await.unwrap();
+        dc_receive_imf(&t, GRP_MAIL, false).await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
         let chat_id = chats.get_chat_id(0).unwrap();
@@ -2471,7 +2442,7 @@ mod tests {
     async fn test_adhoc_group_show_all() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
-        dc_receive_imf(&t, GRP_MAIL, "INBOX", false).await.unwrap();
+        dc_receive_imf(&t, GRP_MAIL, false).await.unwrap();
 
         // adhoc-group with unknown contacts with show_emails=all will show up in a single chat
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
@@ -2543,7 +2514,6 @@ mod tests {
                 group.grpid, group.grpid
             )
             .as_bytes(),
-            "INBOX",
             false,
         )
         .await?;
@@ -2588,7 +2558,6 @@ mod tests {
                 group.grpid
             )
             .as_bytes(),
-            "INBOX",
             false,
         )
         .await?;
@@ -2630,7 +2599,6 @@ mod tests {
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
-            "INBOX",
             false,
         )
         .await
@@ -2659,7 +2627,6 @@ mod tests {
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
-            "INBOX",
             false,
         ).await.unwrap();
         assert_eq!(
@@ -2700,7 +2667,6 @@ mod tests {
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
-            "INBOX",
             false,
         )
         .await
@@ -2744,7 +2710,6 @@ mod tests {
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
-            "INBOX",
             false,
         )
         .await
@@ -2864,7 +2829,6 @@ mod tests {
                 self_addr, foreign_addr, rfc724_mid_outgoing
             )
             .as_bytes(),
-            "INBOX",
             false,
         )
         .await
@@ -2885,7 +2849,7 @@ mod tests {
         .await
         .unwrap());
 
-        dc_receive_imf(&t, raw_ndn, "INBOX", false).await.unwrap();
+        dc_receive_imf(&t, raw_ndn, false).await.unwrap();
         let msg = Message::load_from_db(&t, msg_id).await.unwrap();
 
         assert_eq!(msg.state, MessageState::OutFailed);
@@ -2912,7 +2876,6 @@ mod tests {
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -2921,7 +2884,7 @@ mod tests {
         let msg_id = chats.get_msg_id(0)?.unwrap();
 
         let raw = include_bytes!("../test-data/message/gmail_ndn_group.eml");
-        dc_receive_imf(&t, raw, "INBOX", false).await?;
+        dc_receive_imf(&t, raw, false).await?;
 
         let msg = Message::load_from_db(&t, msg_id).await?;
 
@@ -2948,9 +2911,7 @@ mod tests {
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
-        dc_receive_imf(context, imf_raw, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(context, imf_raw, false).await.unwrap();
         let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
         let msg_id = chats.get_msg_id(0).unwrap().unwrap();
         Message::load_from_db(context, msg_id).await.unwrap()
@@ -2994,7 +2955,7 @@ mod tests {
         let t = TestContext::new_alice().await;
         t.ctx.set_config(Config::ShowEmails, Some("2")).await?;
 
-        dc_receive_imf(&t.ctx, GH_MAILINGLIST, "INBOX", false).await?;
+        dc_receive_imf(&t.ctx, GH_MAILINGLIST, false).await?;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
@@ -3008,7 +2969,7 @@ mod tests {
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await?.len(), 1);
 
-        dc_receive_imf(&t.ctx, GH_MAILINGLIST2.as_bytes(), "INBOX", false).await?;
+        dc_receive_imf(&t.ctx, GH_MAILINGLIST2.as_bytes(), false).await?;
 
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
         assert!(!chat.can_send(&t.ctx).await?);
@@ -3063,9 +3024,7 @@ mod tests {
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST, false).await.unwrap();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         let chat_id = chats.get_chat_id(0).unwrap();
         chat_id.accept(&t).await.unwrap();
@@ -3096,7 +3055,7 @@ mod tests {
 Hello mailinglist!\r\n"
         ));
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", false).await?;
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, false).await?;
 
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
         assert!(chat.can_send(&t.ctx).await?);
@@ -3108,9 +3067,7 @@ Hello mailinglist!\r\n"
     async fn test_other_device_writes_to_mailinglist() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await?;
-        dc_receive_imf(&t, DC_MAILINGLIST, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t, DC_MAILINGLIST, false).await.unwrap();
         let first_msg = t.get_last_msg().await;
         let first_chat = Chat::load_from_db(&t, first_msg.chat_id).await?;
         assert_eq!(
@@ -3144,7 +3101,6 @@ Hello mailinglist!\r\n"
             Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
             \n\
             body 4\n",
-            "INBOX",
             false,
         )
         .await
@@ -3165,9 +3121,7 @@ Hello mailinglist!\r\n"
             .await
             .unwrap();
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST, false).await.unwrap();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let chat_id = chats.get_chat_id(0).unwrap();
@@ -3180,7 +3134,7 @@ Hello mailinglist!\r\n"
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", false)
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, false)
             .await
             .unwrap();
 
@@ -3198,9 +3152,7 @@ Hello mailinglist!\r\n"
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
-        dc_receive_imf(&t, DC_MAILINGLIST, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t, DC_MAILINGLIST, false).await.unwrap();
         let blocked = Contact::get_all_blocked(&t).await.unwrap();
         assert_eq!(blocked.len(), 0);
 
@@ -3220,7 +3172,7 @@ Hello mailinglist!\r\n"
         let blocked = Contact::get_all_blocked(&t).await.unwrap();
         assert_eq!(blocked.len(), 0);
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", false)
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, false)
             .await
             .unwrap();
         let msg = t.get_last_msg().await;
@@ -3236,9 +3188,7 @@ Hello mailinglist!\r\n"
             .await
             .unwrap();
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST, false).await.unwrap();
 
         let msg = t.get_last_msg().await;
         let chat_id = msg.get_chat_id();
@@ -3251,7 +3201,7 @@ Hello mailinglist!\r\n"
         let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
         assert_eq!(msgs.len(), 1); // ...and contains 1 message
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", false)
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, false)
             .await
             .unwrap();
 
@@ -3271,9 +3221,7 @@ Hello mailinglist!\r\n"
             .await
             .unwrap();
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST, false).await.unwrap();
 
         let msg = t.get_last_msg().await;
         let chat_id = msg.get_chat_id();
@@ -3283,7 +3231,7 @@ Hello mailinglist!\r\n"
         assert_eq!(chats.len(), 1); // Test that the message is shown
         assert!(!chat_id.is_special());
 
-        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, "INBOX", false)
+        dc_receive_imf(&t.ctx, DC_MAILINGLIST2, false)
             .await
             .unwrap();
 
@@ -3310,7 +3258,6 @@ Hello mailinglist!\r\n"
     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
     \n\
     hello\n",
-            "INBOX",
             false,
         )
         .await
@@ -3342,7 +3289,6 @@ Hello mailinglist!\r\n"
     Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
     \n\
     hello\n",
-            "INBOX",
             false,
         )
         .await
@@ -3371,7 +3317,6 @@ Hello mailinglist!\r\n"
             Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
             \n\
             hello\n",
-            "INBOX",
             false,
         )
         .await
@@ -3395,7 +3340,6 @@ Hello mailinglist!\r\n"
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/mailinglist_dhl.eml"),
-            "INBOX",
             false,
         )
         .await
@@ -3421,7 +3365,6 @@ Hello mailinglist!\r\n"
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/mailinglist_dpd.eml"),
-            "INBOX",
             false,
         )
         .await
@@ -3447,7 +3390,6 @@ Hello mailinglist!\r\n"
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/mailinglist_xt_local_microsoft.eml"),
-            "INBOX",
             false,
         )
         .await?;
@@ -3459,7 +3401,6 @@ Hello mailinglist!\r\n"
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/mailinglist_xt_local_spiegel.eml"),
-            "INBOX",
             false,
         )
         .await?;
@@ -3479,7 +3420,6 @@ Hello mailinglist!\r\n"
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/mailinglist_xing.eml"),
-            "INBOX",
             false,
         )
         .await?;
@@ -3501,7 +3441,6 @@ Hello mailinglist!\r\n"
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/mailinglist_ttline.eml"),
-            "INBOX",
             false,
         )
         .await?;
@@ -3528,7 +3467,6 @@ Hello mailinglist!\r\n"
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/mailinglist_with_mimepart_footer.eml"),
-            "INBOX",
             false,
         )
         .await
@@ -3558,7 +3496,6 @@ Hello mailinglist!\r\n"
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/mailinglist_with_mimepart_footer_signed.eml"),
-            "INBOX",
             false,
         )
         .await
@@ -3584,9 +3521,7 @@ Hello mailinglist!\r\n"
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
-        dc_receive_imf(&t, GH_MAILINGLIST, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t, GH_MAILINGLIST, false).await.unwrap();
 
         let chat_id = t.get_last_msg().await.chat_id;
         chat_id.accept(&t).await.unwrap();
@@ -3594,9 +3529,7 @@ Hello mailinglist!\r\n"
         assert!(chat.can_send(&t).await.unwrap());
 
         let imf_raw = format!("In-Reply-To: 3333@example.org\n{}", GH_MAILINGLIST2);
-        dc_receive_imf(&t, imf_raw.as_bytes(), "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&t, imf_raw.as_bytes(), false).await.unwrap();
 
         assert_eq!(
             t.get_last_msg().await.in_reply_to.unwrap(),
@@ -3663,7 +3596,6 @@ YEAAAAAA!.
                 addr
             )
             .as_bytes(),
-            "Sent",
             false,
         )
         .await
@@ -3720,7 +3652,6 @@ YEAAAAAA!.
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/many_images_amazon_via_apple_mail.eml"),
-            "INBOX",
             false,
         )
         .await
@@ -3753,7 +3684,6 @@ YEAAAAAA!.
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello foo\n",
-            "INBOX",
             false,
         )
         .await
@@ -3771,7 +3701,6 @@ YEAAAAAA!.
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  reply foo\n",
-            "INBOX",
             false,
         )
         .await
@@ -3820,7 +3749,6 @@ YEAAAAAA!.
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello foo\n",
-            "INBOX",
             false,
         )
         .await
@@ -3839,7 +3767,6 @@ YEAAAAAA!.
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  classic reply\n",
-            "INBOX",
             false,
         )
         .await
@@ -3866,7 +3793,6 @@ YEAAAAAA!.
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  chat reply\n",
-            "INBOX",
             false,
         )
         .await
@@ -3894,7 +3820,6 @@ YEAAAAAA!.
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  private reply\n",
-            "INBOX",
             false,
         )
         .await
@@ -4009,7 +3934,7 @@ YEAAAAAA!.
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
-        dc_receive_imf(&alice, claire_request.as_bytes(), "INBOX", false)
+        dc_receive_imf(&alice, claire_request.as_bytes(), false)
             .await
             .unwrap();
 
@@ -4035,7 +3960,7 @@ YEAAAAAA!.
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
-        dc_receive_imf(&claire, claire_request.as_bytes(), "INBOX", false)
+        dc_receive_imf(&claire, claire_request.as_bytes(), false)
             .await
             .unwrap();
 
@@ -4071,7 +3996,7 @@ YEAAAAAA!.
 
         // Check that Alice gets the message in the same chat.
         let request = alice.get_last_msg().await;
-        dc_receive_imf(&alice, reply, "INBOX", false).await.unwrap();
+        dc_receive_imf(&alice, reply, false).await.unwrap();
         let answer = alice.get_last_msg().await;
         assert_eq!(answer.get_subject(), "Re: i have a question");
         assert!(answer.get_text().unwrap().contains("the version is 1.0"));
@@ -4094,9 +4019,7 @@ YEAAAAAA!.
 
         // Check that Claire also gets the message in the same chat.
         let request = claire.get_last_msg().await;
-        dc_receive_imf(&claire, reply, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&claire, reply, false).await.unwrap();
         let answer = claire.get_last_msg().await;
         assert_eq!(answer.get_subject(), "Re: i have a question");
         assert!(answer.get_text().unwrap().contains("the version is 1.0"));
@@ -4164,7 +4087,6 @@ YEAAAAAA!.
             Message-ID: <4444@example.org>\n\
             \n\
             hello\n",
-            "INBOX",
             false,
         )
         .await
@@ -4191,7 +4113,6 @@ YEAAAAAA!.
             In-Reply-To: <4444@example.org\n\
             \n\
             Reply\n",
-            "INBOX",
             false,
         )
         .await
@@ -4219,7 +4140,6 @@ To: <me@other.maildomain.com>
 From: <alice@example.org>
 
 Message content",
-            "Inbox",
             false,
         )
         .await
@@ -4249,7 +4169,6 @@ To: <bob@example.org>
 From: <alice@example.org>
 
 Message content",
-            "Sent",
             false,
         )
         .await
@@ -4298,18 +4217,18 @@ Message content
 -- 
 Second signature";
 
-        dc_receive_imf(&alice, first_message, "Inbox", false).await?;
+        dc_receive_imf(&alice, first_message, false).await?;
         let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
         assert_eq!(contact.get_status(), "First signature");
         assert_eq!(contact.get_display_name(), "Bob1");
 
-        dc_receive_imf(&alice, second_message, "Inbox", false).await?;
+        dc_receive_imf(&alice, second_message, false).await?;
         let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
         assert_eq!(contact.get_status(), "Second signature");
         assert_eq!(contact.get_display_name(), "Bob2");
 
         // Duplicate message, should be ignored
-        dc_receive_imf(&alice, first_message, "Inbox", false).await?;
+        dc_receive_imf(&alice, first_message, false).await?;
 
         // No change because last message is duplicate of the first.
         let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
@@ -4349,7 +4268,6 @@ Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>"
                     }
                 )
                 .as_bytes(),
-                "Inbox",
                 false,
             )
             .await
@@ -4391,7 +4309,6 @@ Private reply"#,
                     }
                 )
                 .as_bytes(),
-                "Inbox",
                 false,
             )
             .await
@@ -4442,7 +4359,6 @@ Message-ID: <Gr.iy1KCE2y65_.mH2TM52miv9@testrun.org>"
                     }
                 )
                 .as_bytes(),
-                "Inbox",
                 false,
             )
             .await
@@ -4489,7 +4405,6 @@ Sent with my Delta Chat Messenger: https://delta.chat
                     }
                 )
                 .as_bytes(),
-                "Inbox",
                 false,
             )
             .await
@@ -4532,7 +4447,6 @@ Message-ID: <Gr.eJ_llQIXf0K.buxmrnMmG0Y@gmx.de>"
                     }
                 )
                 .as_bytes(),
-                "Inbox",
                 false,
             )
             .await
@@ -4571,7 +4485,6 @@ Outgoing reply to all"#,
                     }
                 )
                 .as_bytes(),
-                "Inbox",
                 false,
             )
             .await
@@ -4595,7 +4508,6 @@ MIME-Version: 1.0
 In-Reply-To: <outgoing@testrun.org>
 
 Reply to all"#,
-                "Inbox",
                 false,
             )
             .await
@@ -4638,15 +4550,15 @@ Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Second thread."#;
 
         // Alice receives two classic emails from Claire.
-        dc_receive_imf(&alice, first_thread_mime, "Inbox", false).await?;
+        dc_receive_imf(&alice, first_thread_mime, false).await?;
         let alice_first_msg = alice.get_last_msg().await;
-        dc_receive_imf(&alice, second_thread_mime, "Inbox", false).await?;
+        dc_receive_imf(&alice, second_thread_mime, false).await?;
         let alice_second_msg = alice.get_last_msg().await;
 
         // Bob receives the same two emails.
-        dc_receive_imf(&bob, first_thread_mime, "Inbox", false).await?;
+        dc_receive_imf(&bob, first_thread_mime, false).await?;
         let bob_first_msg = bob.get_last_msg().await;
-        dc_receive_imf(&bob, second_thread_mime, "Inbox", false).await?;
+        dc_receive_imf(&bob, second_thread_mime, false).await?;
         let bob_second_msg = bob.get_last_msg().await;
 
         // Messages go to separate chats both for Alice and Bob.
@@ -4699,7 +4611,7 @@ Second thread."#;
         let mdn_body = rendered_mdn.message;
 
         // Alice receives the read receipt.
-        dc_receive_imf(&alice, mdn_body.as_bytes(), "INBOX", false).await?;
+        dc_receive_imf(&alice, mdn_body.as_bytes(), false).await?;
 
         // Chat should not pop up in the chatlist.
         let chats = Chatlist::try_load(&alice, 0, None, None).await?;
@@ -4716,7 +4628,6 @@ Second thread."#;
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/gmx-forward.eml"),
-            "INBOX",
             false,
         )
         .await?;
@@ -4733,7 +4644,7 @@ Second thread."#;
     async fn test_incoming_contact_request() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        dc_receive_imf(&t, MSGRMSG, "INBOX", false).await?;
+        dc_receive_imf(&t, MSGRMSG, false).await?;
         let msg = t.get_last_msg().await;
         let chat = chat::Chat::load_from_db(&t, msg.chat_id).await?;
         assert!(chat.is_contact_request());
@@ -4766,7 +4677,7 @@ From: Bob <bob@example.net>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
 First."#;
-        dc_receive_imf(&t, mime, "INBOX", false).await?;
+        dc_receive_imf(&t, mime, false).await?;
         let first = t.get_last_msg().await;
         let mime = br#"Subject: Second
 Message-ID: second@example.net
@@ -4775,7 +4686,7 @@ From: Bob <bob@example.net>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
 First."#;
-        dc_receive_imf(&t, mime, "INBOX", false).await?;
+        dc_receive_imf(&t, mime, false).await?;
         let second = t.get_last_msg().await;
         let mime = br#"Subject: Third
 Message-ID: third@example.net
@@ -4784,7 +4695,7 @@ From: Bob <bob@example.net>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
 First."#;
-        dc_receive_imf(&t, mime, "INBOX", false).await?;
+        dc_receive_imf(&t, mime, false).await?;
         let third = t.get_last_msg().await;
 
         let mime = br#"Subject: Message with references.
@@ -4835,7 +4746,7 @@ Message with references."#;
 
         // Alice sends a message to Bob using Thunderbird.
         let raw = include_bytes!("../test-data/message/rfc1847_encapsulation.eml");
-        dc_receive_imf(&bob, raw, "INBOX", false).await?;
+        dc_receive_imf(&bob, raw, false).await?;
 
         let msg = bob.get_last_msg().await;
         assert!(msg.get_showpadlock());
@@ -4850,7 +4761,7 @@ Message with references."#;
         let mime = include_bytes!("../test-data/message/invalid_email_to.eml");
 
         // dc_receive_imf should not fail on this mail with invalid To: field
-        dc_receive_imf(&alice, mime, "Inbox", false).await?;
+        dc_receive_imf(&alice, mime, false).await?;
 
         Ok(())
     }
@@ -4876,7 +4787,6 @@ From: <alice@example.org>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
 Hi, I created a group"#,
-            "INBOX",
             false,
         )
         .await?;
@@ -4901,7 +4811,6 @@ To: holger <alice@example.org>
 
 Reply from different address
 ",
-            "INBOX",
             false,
         )
         .await?;

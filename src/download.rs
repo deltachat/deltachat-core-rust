@@ -346,7 +346,6 @@ mod tests {
             &t,
             "Mr.12345678901@example.com",
             header.as_bytes(),
-            "INBOX",
             false,
             Some(100000),
             false,
@@ -364,7 +363,6 @@ mod tests {
             &t,
             "Mr.12345678901@example.com",
             format!("{}\n\n100k text...", header).as_bytes(),
-            "INBOX",
             false,
             None,
             false,
@@ -400,7 +398,6 @@ mod tests {
                     Message-ID: <first@example.org>\n\
                     Date: Sun, 14 Nov 2021 00:10:00 +0000\
                     Content-Type: text/plain",
-            "INBOX",
             false,
             Some(100000),
             false,

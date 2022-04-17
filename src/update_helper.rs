@@ -99,7 +99,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 23:37:57 +0000\n\
                  \n\
                  second message\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -113,7 +112,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 22:37:57 +0000\n\
                  \n\
                  first message\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -143,7 +141,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 01:00:00 +0000\n\
                  \n\
                  first message\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -163,7 +160,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 03:00:00 +0000\n\
                  \n\
                  third message\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -179,7 +175,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 02:00:00 +0000\n\
                  \n\
                  second message\n",
-            "INBOX",
             false,
         )
         .await?;

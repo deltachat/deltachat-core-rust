@@ -714,9 +714,7 @@ mod tests {
             dc_create_outgoing_rfc724_mid(None, contact.get_addr())
         );
         println!("{}", msg);
-        dc_receive_imf(t, msg.as_bytes(), "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(t, msg.as_bytes(), false).await.unwrap();
     }
 
     #[async_std::test]

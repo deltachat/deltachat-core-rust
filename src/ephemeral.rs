@@ -1118,7 +1118,6 @@ mod tests {
                     Date: Sun, 22 Mar 2020 00:10:00 +0000\n\
                     \n\
                     hello\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -1139,7 +1138,6 @@ mod tests {
                     Ephemeral-Timer: 60\n\
                     \n\
                     second message\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -1176,7 +1174,6 @@ mod tests {
                     In-Reply-To: <first@example.com>\n\
                     \n\
                     > hello\n",
-            "INBOX",
             false,
         )
         .await?;

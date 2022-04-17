@@ -2153,7 +2153,7 @@ Chat-Version: 1.0
 Date: Sun, 22 Mar 2020 22:37:55 +0000
 
 Hi."#;
-        dc_receive_imf(&alice, mime, "Inbox", false).await?;
+        dc_receive_imf(&alice, mime, false).await?;
         let msg = alice.get_last_msg().await;
 
         let timestamp = msg.get_timestamp();

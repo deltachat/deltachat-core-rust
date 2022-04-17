@@ -2050,7 +2050,6 @@ mod tests {
                     Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
                     \n\
                     hello\n",
-            "INBOX",
             false,
         )
         .await
@@ -2259,7 +2258,6 @@ mod tests {
                     Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
                     \n\
                     hello\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -2277,7 +2275,6 @@ mod tests {
                     Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
                     \n\
                     hello again\n",
-            "INBOX",
             false,
         )
         .await?;

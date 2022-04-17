@@ -774,7 +774,6 @@ mod tests {
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/webxdc_good_extension.eml"),
-            "INBOX",
             false,
         )
         .await?;
@@ -785,7 +784,6 @@ mod tests {
         dc_receive_imf(
             &t,
             include_bytes!("../test-data/message/webxdc_bad_extension.eml"),
-            "INBOX",
             false,
         )
         .await?;

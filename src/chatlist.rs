@@ -503,7 +503,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 22:37:57 +0000\n\
                  \n\
                  hello foo\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -564,7 +563,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 22:38:57 +0000\n\
                  \n\
                  hello foo\n",
-            "INBOX",
             false,
         )
         .await?;

@@ -18,6 +18,7 @@
 - add update-serial to `DC_EVENT_WEBXDC_STATUS_UPDATE` #3215
 - Speed up message receiving via IMAP a bit #3225
 - mark messages as seen on IMAP in batches #3223
+- remove Received: based draft detection heuristic #3230
 
 
 ## 1.77.0

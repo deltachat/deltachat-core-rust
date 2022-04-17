@@ -364,7 +364,7 @@ impl TestContext {
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n"
                 .to_owned()
                 + msg.payload();
-        dc_receive_imf(&self.ctx, received_msg.as_bytes(), "INBOX", false)
+        dc_receive_imf(&self.ctx, received_msg.as_bytes(), false)
             .await
             .unwrap();
     }

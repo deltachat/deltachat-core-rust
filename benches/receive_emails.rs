@@ -31,7 +31,7 @@ Hello {i}",
             i = i,
             i_dec = i - 1,
         );
-        dc_receive_imf(&context, black_box(imf_raw.as_bytes()), "INBOX", false)
+        dc_receive_imf(&context, black_box(imf_raw.as_bytes()), false)
             .await
             .unwrap();
     }

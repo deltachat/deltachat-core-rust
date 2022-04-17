@@ -700,7 +700,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
     async fn check_parse_receive_headers_integration(raw: &[u8], expected: &str) {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
-        dc_receive_imf(&t, raw, "INBOX", false).await.unwrap();
+        dc_receive_imf(&t, raw, false).await.unwrap();
         let msg = t.get_last_msg().await;
         let msg_info = get_msg_info(&t, msg.id).await.unwrap();
 

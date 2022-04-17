@@ -1661,7 +1661,6 @@ mod tests {
             Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
             \n\
             hello\n",
-            "INBOX",
             false,
         )
         .await
@@ -1754,7 +1753,6 @@ mod tests {
                 t.get_last_msg().await.rfc724_mid
             )
             .as_bytes(),
-            "INBOX",
             false,
         )
         .await?;
@@ -1865,7 +1863,6 @@ mod tests {
                     Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
                     \n\
                     Some other, completely unrelated content\n",
-                "INBOX",
                 false,
             )
             .await
@@ -1890,9 +1887,7 @@ mod tests {
             .await
             .unwrap();
 
-        dc_receive_imf(context, imf_raw, "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(context, imf_raw, false).await.unwrap();
 
         let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
 

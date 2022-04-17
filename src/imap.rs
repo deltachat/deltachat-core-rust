@@ -1350,8 +1350,6 @@ impl Imap {
                 }
             };
 
-            let folder = folder.to_string();
-
             while let Some(Ok(msg)) = msgs.next().await {
                 let server_uid = msg.uid.unwrap_or_default();
 
@@ -1385,7 +1383,6 @@ impl Imap {
 
                 // XXX put flags into a set and pass them to dc_receive_imf
                 let context = context.clone();
-                let folder = folder.clone();
 
                 // safe, as we checked above that there is a body.
                 let body = body
@@ -1406,7 +1403,6 @@ impl Imap {
                     &context,
                     rfc724_mid,
                     body,
-                    &folder,
                     is_seen,
                     partial,
                     fetching_existing_messages,

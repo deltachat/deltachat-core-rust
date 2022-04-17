@@ -4226,7 +4226,6 @@ mod tests {
                     num
                 )
                 .as_bytes(),
-                "INBOX",
                 false,
             )
             .await?;
@@ -4676,9 +4675,7 @@ mod tests {
         assert_eq!(msg.match_indices("Gr.").count(), 1);
 
         // Bob receives this message, he may detect group by `References:`- or `Chat-Group:`-header
-        dc_receive_imf(&bob, msg.as_bytes(), "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&bob, msg.as_bytes(), false).await.unwrap();
         let msg = bob.get_last_msg().await;
 
         let bob_chat = Chat::load_from_db(&bob, msg.chat_id).await?;
@@ -4697,9 +4694,7 @@ mod tests {
         assert_eq!(msg.match_indices("Chat-").count(), 0);
 
         // Alice receives this message - she can still detect the group by the `References:`-header
-        dc_receive_imf(&alice, msg.as_bytes(), "INBOX", false)
-            .await
-            .unwrap();
+        dc_receive_imf(&alice, msg.as_bytes(), false).await.unwrap();
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.chat_id, alice_chat_id);
         assert_eq!(msg.text, Some("ho!".to_string()));
@@ -4724,7 +4719,6 @@ mod tests {
                  Date: Fri, 23 Apr 2021 10:00:57 +0000\n\
                  \n\
                  hello\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -4772,7 +4766,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
                  \n\
                  hello\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -4820,7 +4813,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
                  \n\
                  hello\n",
-            "INBOX",
             false,
         )
         .await?;
@@ -4867,7 +4859,6 @@ mod tests {
                  Date: Sun, 22 Mar 2021 19:37:57 +0000\n\
                  \n\
                  hello\n",
-            "INBOX",
             false,
         )
         .await?;
