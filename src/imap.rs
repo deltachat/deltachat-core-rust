@@ -1054,7 +1054,7 @@ impl Imap {
     }
 
     /// Stores pending `\Seen` flags for messages in `imap_markseen` table.
-    pub(crate) async fn store_seen_flags(&mut self, context: &Context) -> Result<()> {
+    pub(crate) async fn store_seen_flags_on_imap(&mut self, context: &Context) -> Result<()> {
         self.prepare(context).await?;
 
         let rows = context

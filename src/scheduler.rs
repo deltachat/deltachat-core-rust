@@ -170,9 +170,9 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
 
             if folder == Config::ConfiguredInboxFolder {
                 if let Err(err) = connection
-                    .store_seen_flags(ctx)
+                    .store_seen_flags_on_imap(ctx)
                     .await
-                    .context("store_seen_flags failed")
+                    .context("store_seen_flags_on_imap failed")
                 {
                     warn!(ctx, "{:#}", err);
                 }
