@@ -24,7 +24,7 @@ use crate::download::DownloadState;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::imap::markseen_on_imap;
+use crate::imap::markseen_on_imap_table;
 use crate::location;
 use crate::log::LogExt;
 use crate::message::{
@@ -339,7 +339,7 @@ pub(crate) async fn dc_receive_imf_inner(
                 .await?;
         } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
             // This is a Delta Chat MDN. Mark as read.
-            markseen_on_imap(context, rfc724_mid).await?;
+            markseen_on_imap_table(context, rfc724_mid).await?;
         }
     }
 

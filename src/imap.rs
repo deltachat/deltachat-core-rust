@@ -1936,7 +1936,7 @@ pub(crate) async fn prefetch_should_download(
         .await?
         .is_some()
     {
-        markseen_on_imap(context, message_id).await?;
+        markseen_on_imap_table(context, message_id).await?;
         return Ok(false);
     }
 
@@ -2070,7 +2070,9 @@ async fn mark_seen_by_uid(
     }
 }
 
-pub(crate) async fn markseen_on_imap(context: &Context, message_id: &str) -> Result<()> {
+/// Schedule marking the message as Seen on IMAP by adding all known IMAP messages corresponding to
+/// the given Message-ID to `imap_markseen` table.
+pub(crate) async fn markseen_on_imap_table(context: &Context, message_id: &str) -> Result<()> {
     context
         .sql
         .execute(

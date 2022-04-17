@@ -22,7 +22,7 @@ use crate::dc_tools::{
 use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
-use crate::imap::markseen_on_imap;
+use crate::imap::markseen_on_imap_table;
 use crate::job::{self, Action};
 use crate::log::LogExt;
 use crate::mimeparser::{parse_message_id, FailureReport, SystemMessage};
@@ -1357,7 +1357,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
             update_msg_state(context, id, MessageState::InSeen).await?;
             info!(context, "Seen message {}.", id);
 
-            markseen_on_imap(context, &curr_rfc724_mid).await?;
+            markseen_on_imap_table(context, &curr_rfc724_mid).await?;
 
             // Read receipts for system messages are never sent. These messages have no place to
             // display received read receipt anyway.  And since their text is locally generated,
