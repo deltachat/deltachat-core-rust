@@ -175,7 +175,10 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                 return InterruptInfo::new(false);
             }
 
-            // Mark expired messages for deletion.
+            // Mark expired messages for deletion. Marked messages will be deleted from the server
+            // on the next iteration of `fetch_move_delete`. `delete_expired_imap_messages` is not
+            // called right before `fetch_move_delete` because it is not well optimized and would
+            // otherwise slow down message fetching.
             if let Err(err) = delete_expired_imap_messages(ctx)
                 .await
                 .context("delete_expired_imap_messages failed")
