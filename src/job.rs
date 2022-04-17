@@ -4,7 +4,7 @@
 //! and job types.
 use std::fmt;
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
@@ -31,7 +31,6 @@ const JOB_RETRIES: u32 = 17;
 )]
 #[repr(u32)]
 pub(crate) enum Thread {
-    Unknown = 0,
     Imap = 100,
     Smtp = 5000,
 }
@@ -59,12 +58,6 @@ macro_rules! job_try {
     };
 }
 
-impl Default for Thread {
-    fn default() -> Self {
-        Thread::Unknown
-    }
-}
-
 #[derive(
     Debug,
     Display,
@@ -80,8 +73,6 @@ impl Default for Thread {
 )]
 #[repr(u32)]
 pub enum Action {
-    Unknown = 0,
-
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     FetchExistingMsgs = 110,
 
@@ -104,19 +95,11 @@ pub enum Action {
     SendMdn = 5010,
 }
 
-impl Default for Action {
-    fn default() -> Self {
-        Action::Unknown
-    }
-}
-
 impl From<Action> for Thread {
     fn from(action: Action) -> Thread {
         use Action::*;
 
         match action {
-            Unknown => Thread::Unknown,
-
             FetchExistingMsgs => Thread::Imap,
             ResyncFolders => Thread::Imap,
             UpdateRecentQuota => Thread::Imap,
@@ -587,7 +570,6 @@ async fn perform_job_action(
     );
 
     let try_res = match job.action {
-        Action::Unknown => Status::Finished(Err(format_err!("Unknown job id found"))),
         Action::SendMdn => job.send_mdn(context, connection.smtp()).await,
         Action::MaybeSendLocations => location::job_maybe_send_locations(context, job).await,
         Action::MaybeSendLocationsEnded => {
@@ -658,7 +640,6 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
 
     if delay_seconds == 0 {
         match action {
-            Action::Unknown => unreachable!(),
             Action::ResyncFolders
             | Action::FetchExistingMsgs
             | Action::UpdateRecentQuota
@@ -718,7 +699,7 @@ LIMIT 1;
         params = paramsv![thread_i];
     };
 
-    let job = loop {
+    loop {
         let job_res = context
             .sql
             .query_row_optional(query, params.clone(), |row| {
@@ -737,7 +718,7 @@ LIMIT 1;
             .await;
 
         match job_res {
-            Ok(job) => break job,
+            Ok(job) => return Ok(job),
             Err(err) => {
                 // Remove invalid job from the DB
                 info!(context, "cleaning up job, because of {}", err);
@@ -755,13 +736,6 @@ LIMIT 1;
                     .with_context(|| format!("Failed to delete invalid job {}", id))?;
             }
         }
-    };
-
-    match thread {
-        Thread::Unknown => {
-            bail!("unknown thread for job")
-        }
-        Thread::Imap | Thread::Smtp => Ok(job),
     }
 }
 
