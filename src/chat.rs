@@ -29,7 +29,6 @@ use crate::dc_tools::{
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
-use crate::job::{self, Action};
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
@@ -556,9 +555,8 @@ impl ChatId {
             chat_id: ChatId::new(0),
         });
 
-        job::kill_action(context, Action::Housekeeping).await?;
-        let j = job::Job::new(Action::Housekeeping, 0, Params::new(), 10);
-        job::add(context, j).await?;
+        context.set_config(Config::LastHousekeeping, None).await?;
+        context.interrupt_inbox(InterruptInfo::new(false)).await;
 
         if chat.is_self_talk() {
             let mut msg = Message::new(Viewtype::Text);

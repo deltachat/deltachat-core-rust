@@ -23,7 +23,7 @@ use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::imap::markseen_on_imap_table;
-use crate::job::{self, Action};
+use crate::job;
 use crate::log::LogExt;
 use crate::mimeparser::{parse_message_id, FailureReport, SystemMessage};
 use crate::param::{Param, Params};
@@ -1258,15 +1258,12 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
-        job::kill_action(context, Action::Housekeeping).await?;
-        job::add(
-            context,
-            job::Job::new(Action::Housekeeping, 0, Params::new(), 10),
-        )
-        .await?;
+
+        // Run housekeeping to delete unused blobs.
+        context.set_config(Config::LastHousekeeping, None).await?;
     }
 
-    // Interrupt Inbox loop to start message deletion.
+    // Interrupt Inbox loop to start message deletion and run housekeeping.
     context.interrupt_inbox(InterruptInfo::new(false)).await;
     Ok(())
 }

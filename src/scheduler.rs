@@ -8,11 +8,13 @@ use async_std::{
 use crate::config::Config;
 use crate::context::Context;
 use crate::dc_tools::maybe_add_time_based_warnings;
+use crate::dc_tools::time;
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::imap::Imap;
 use crate::job::{self, Thread};
 use crate::log::LogExt;
 use crate::smtp::{send_smtp_messages, Smtp};
+use crate::sql;
 
 use self::connectivity::ConnectivityStore;
 
@@ -113,6 +115,19 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                     jobs_loaded = 0;
 
                     maybe_add_time_based_warnings(&ctx).await;
+
+                    match ctx.get_config_i64(Config::LastHousekeeping).await {
+                        Ok(last_housekeeping_time) => {
+                            let next_housekeeping_time =
+                                last_housekeeping_time.saturating_add(60 * 60 * 24);
+                            if next_housekeeping_time <= time() {
+                                sql::housekeeping(&ctx).await.ok_or_log(&ctx);
+                            }
+                        }
+                        Err(err) => {
+                            warn!(ctx, "Failed to get last housekeeping time: {}", err);
+                        }
+                    };
 
                     info = fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await;
                 }

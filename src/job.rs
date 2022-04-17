@@ -15,7 +15,6 @@ use crate::dc_tools::time;
 use crate::events::EventType;
 use crate::imap::Imap;
 use crate::location;
-use crate::log::LogExt;
 use crate::message::{Message, MsgId};
 use crate::mimefactory::MimeFactory;
 use crate::param::{Param, Params};
@@ -84,7 +83,6 @@ pub enum Action {
     Unknown = 0,
 
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
-    Housekeeping = 105, // low priority ...
     FetchExistingMsgs = 110,
 
     // this is user initiated so it should have a fairly high priority
@@ -119,7 +117,6 @@ impl From<Action> for Thread {
         match action {
             Unknown => Thread::Unknown,
 
-            Housekeeping => Thread::Imap,
             FetchExistingMsgs => Thread::Imap,
             ResyncFolders => Thread::Imap,
             UpdateRecentQuota => Thread::Imap,
@@ -598,10 +595,6 @@ async fn perform_job_action(
         }
         Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
         Action::FetchExistingMsgs => job.fetch_existing_msgs(context, connection.inbox()).await,
-        Action::Housekeeping => {
-            sql::housekeeping(context).await.ok_or_log(context);
-            Status::Finished(Ok(()))
-        }
         Action::UpdateRecentQuota => match context.update_recent_quota(connection.inbox()).await {
             Ok(status) => status,
             Err(err) => Status::Finished(Err(err)),
@@ -666,8 +659,7 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
     if delay_seconds == 0 {
         match action {
             Action::Unknown => unreachable!(),
-            Action::Housekeeping
-            | Action::ResyncFolders
+            Action::ResyncFolders
             | Action::FetchExistingMsgs
             | Action::UpdateRecentQuota
             | Action::DownloadMsg => {
@@ -681,18 +673,6 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
         }
     }
     Ok(())
-}
-
-async fn load_housekeeping_job(context: &Context) -> Result<Option<Job>> {
-    let last_time = context.get_config_i64(Config::LastHousekeeping).await?;
-
-    let next_time = last_time + (60 * 60 * 24);
-    if next_time <= time() {
-        kill_action(context, Action::Housekeeping).await?;
-        Ok(Some(Job::new(Action::Housekeeping, 0, Params::new(), 0)))
-    } else {
-        Ok(None)
-    }
 }
 
 /// Load jobs from the database.
@@ -781,14 +761,7 @@ LIMIT 1;
         Thread::Unknown => {
             bail!("unknown thread for job")
         }
-        Thread::Imap => {
-            if let Some(job) = job {
-                Ok(Some(job))
-            } else {
-                Ok(load_housekeeping_job(context).await?)
-            }
-        }
-        Thread::Smtp => Ok(job),
+        Thread::Imap | Thread::Smtp => Ok(job),
     }
 }
 
@@ -836,8 +809,7 @@ mod tests {
             &InterruptInfo::new(false),
         )
         .await?;
-        // The housekeeping job should be loaded as we didn't run housekeeping in the last day:
-        assert_eq!(jobs.unwrap().action, Action::Housekeeping);
+        assert!(jobs.is_none());
 
         insert_job(&t, 1, true).await;
         let jobs = load_next(
