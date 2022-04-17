@@ -10,6 +10,7 @@
 ### Fixes
 - deltachat-rpc-server: do not block stdin while processing the request. #4041
   deltachat-rpc-server now reads the next request as soon as previous request handler is spawned.
+- enable `auto_vacuum` on all SQL connections #2955
 
 ### API-Changes
 

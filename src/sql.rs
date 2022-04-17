@@ -213,6 +213,17 @@ impl Sql {
                     Duration::from_secs(10).as_millis()
                 ))?;
                 c.pragma_update(None, "key", passphrase.clone())?;
+                // Try to enable auto_vacuum. This will only be
+                // applied if the database is new or after successful
+                // VACUUM, which usually happens before backup export.
+                // When auto_vacuum is INCREMENTAL, it is possible to
+                // use PRAGMA incremental_vacuum to return unused
+                // database pages to the filesystem.
+                c.pragma_update(None, "auto_vacuum", "INCREMENTAL".to_string())?;
+
+                c.pragma_update(None, "journal_mode", "WAL".to_string())?;
+                // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
+                c.pragma_update(None, "synchronous", "NORMAL".to_string())?;
                 Ok(())
             });
 
@@ -227,26 +238,6 @@ impl Sql {
 
     async fn try_open(&self, context: &Context, dbfile: &Path, passphrase: String) -> Result<()> {
         *self.pool.write().await = Some(Self::new_pool(dbfile, passphrase.to_string())?);
-
-        {
-            let conn = self.get_conn().await?;
-            tokio::task::block_in_place(move || -> Result<()> {
-                // Try to enable auto_vacuum. This will only be
-                // applied if the database is new or after successful
-                // VACUUM, which usually happens before backup export.
-                // When auto_vacuum is INCREMENTAL, it is possible to
-                // use PRAGMA incremental_vacuum to return unused
-                // database pages to the filesystem.
-                conn.pragma_update(None, "auto_vacuum", "INCREMENTAL".to_string())?;
-
-                // journal_mode is persisted, it is sufficient to change it only for one handle.
-                conn.pragma_update(None, "journal_mode", "WAL".to_string())?;
-
-                // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
-                conn.pragma_update(None, "synchronous", "NORMAL".to_string())?;
-                Ok(())
-            })?;
-        }
 
         self.run_migrations(context).await?;
 
