@@ -763,6 +763,15 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
     }
 
     #[test]
+    fn test_dc_create_id_invalid_chars() {
+        for _ in 1..1000 {
+            let buf = dc_create_id();
+            assert!(!buf.contains('/')); // `/` must not be used to be URL-safe
+            assert!(!buf.contains('.')); // `.` is used as a delimiter when extracting grpid from Message-ID
+        }
+    }
+
+    #[test]
     fn test_dc_extract_grpid_from_rfc724_mid() {
         // Should return None if we pass invalid mid
         let mid = "foobar";
