@@ -54,7 +54,7 @@ and you won't get the update by `setUpdateListener()`.
 ### setUpdateListener()
 
 ```js
-window.webxdc.setUpdateListener((update) => {}, serial) -> Promise<void>;
+promise = window.webxdc.setUpdateListener((update) => {}, serial);
 ```
 
 With `setUpdateListener()` you define a callback that receives the updates
