@@ -339,9 +339,9 @@ impl Context {
     pub(crate) async fn is_self_addr(&self, addr: &str) -> Result<bool> {
         let addr = addr_normalize(addr).to_lowercase();
 
-        // The addresses we get here are already normalized and lowercase TODO is this true?
+        // The addresses we get here are already normalized and lowercase
         Ok(
-            self.get_config(Config::ConfiguredAddr).await?.as_deref() == Some(&addr)
+            self.get_primary_self_addr().await.ok().as_deref() == Some(&addr)
                 || self.get_secondary_self_addrs().await?.contains(&addr),
         )
     }
@@ -353,6 +353,11 @@ impl Context {
 
         // add old primary address (if exists) to secondary addresses
         let mut secondary_addrs = self.get_all_self_addrs().await?;
+
+        for a in secondary_addrs.iter_mut() {
+            *a = addr_normalize(a).to_lowercase();
+        }
+
         // never store a primary address also as a secondary
         secondary_addrs.retain(|a| a != &primary_new);
         self.set_config(
@@ -378,6 +383,8 @@ impl Context {
     }
 
     /// Returns all secondary self addresses.
+    ///
+    /// The addresses are already normalized and lowercased in the database.
     pub(crate) async fn get_secondary_self_addrs(&self) -> Result<Vec<String>> {
         let secondary_addrs = self
             .get_config(Config::SecondaryAddrs)
@@ -390,10 +397,16 @@ impl Context {
     }
 
     /// Returns the primary self address.
+    ///
+    /// Normalizes and lowercases the address since the ConfiguredAddr
+    /// may not be lowercased (to start lowercasing it now, we would
+    /// need a db migration - which we can do at some point in the future)
     pub async fn get_primary_self_addr(&self) -> Result<String> {
-        self.get_config(Config::ConfiguredAddr)
+        let ret = self
+            .get_config(Config::ConfiguredAddr)
             .await?
-            .context("No self addr configured")
+            .context("No self addr configured")?;
+        Ok(addr_normalize(&ret).to_lowercase())
     }
 }
 
