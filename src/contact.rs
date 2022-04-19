@@ -1509,6 +1509,8 @@ mod tests {
     async fn test_get_contacts() -> Result<()> {
         let context = TestContext::new().await;
 
+        assert!(context.get_all_self_addrs().await?.is_empty());
+
         // Bob is not in the contacts yet.
         let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).await?;
         assert_eq!(contacts.len(), 0);

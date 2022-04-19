@@ -844,9 +844,6 @@ async fn prune_tombstones(sql: &Sql) -> Result<()> {
 /// Use this together with [`rusqlite::ParamsFromIter`] to use dynamically generated
 /// parameter lists.
 pub fn repeat_vars(count: usize) -> Result<String> {
-    if count == 0 {
-        bail!("Must have at least one repeat variable");
-    }
     let mut s = "?,".repeat(count);
     s.pop(); // Remove trailing comma
     Ok(s)
