@@ -351,6 +351,13 @@ impl Context {
     pub(crate) async fn set_primary_self_addr(&self, primary_new: &str) -> Result<()> {
         let primary_new = addr_normalize(primary_new).to_lowercase();
 
+        if self.get_primary_self_addr().await.ok().as_deref() != Some(&primary_new) {
+            // Make sure that all server UIDs will be resynced
+            self.sql
+                .execute("DELETE FROM imap_sync;", paramsv![])
+                .await?;
+        }
+
         // add old primary address (if exists) to secondary addresses
         let mut secondary_addrs = self.get_all_self_addrs().await?;
 

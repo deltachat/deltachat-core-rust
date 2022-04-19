@@ -2170,7 +2170,7 @@ async fn get_modseq(context: &Context, folder: &str) -> Result<u64> {
 }
 
 /// Compute the imap search expression for all self-sent mails (for all self addresses)
-pub async fn get_imap_self_sent_search_command(context: &Context) -> Result<String> {
+pub(crate) async fn get_imap_self_sent_search_command(context: &Context) -> Result<String> {
     // See https://www.rfc-editor.org/rfc/rfc3501#section-6.4.4 for syntax of SEARCH and OR
     let mut search_command = format!("FROM {}", context.get_primary_self_addr().await?);
 
