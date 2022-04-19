@@ -34,6 +34,17 @@ macro_rules! paramsv {
     };
 }
 
+#[macro_export]
+macro_rules! params_iterv {
+    ($($param:expr),+ $(,)?) => {
+        vec![$(&$param as &dyn $crate::ToSql),+]
+    };
+}
+
+pub(crate) fn params_iter(iter: &[impl crate::ToSql]) -> impl Iterator<Item = &dyn crate::ToSql> {
+    iter.iter().map(|item| item as &dyn crate::ToSql)
+}
+
 mod migrations;
 
 /// A wrapper around the underlying Sqlite3 object.

@@ -24,6 +24,7 @@ use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::sql::{self, params_iter};
 use crate::{chat, stock_str};
 
 /// Contact ID, including reserved IDs.
@@ -684,6 +685,7 @@ impl Contact {
         listflags: u32,
         query: Option<impl AsRef<str>>,
     ) -> Result<Vec<ContactId>> {
+        let self_addrs = context.get_all_self_addrs().await?;
         let mut add_self = false;
         let mut ret = Vec::new();
         let flag_verified_only = (listflags & DC_GCL_VERIFIED_ONLY) != 0;
@@ -694,21 +696,25 @@ impl Contact {
             context
                 .sql
                 .query_map(
-                    "SELECT c.id FROM contacts c \
+                    format!(
+                        "SELECT c.id FROM contacts c \
                  LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
-                 WHERE c.id>?1 \
-                 AND c.origin>=?2 \
+                 WHERE c.addr NOT IN ({})
+                 AND c.id>? \
+                 AND c.origin>=? \
                  AND c.blocked=0 \
-                 AND (iif(c.name='',c.authname,c.name) LIKE ?3 OR c.addr LIKE ?4) \
-                 AND (1=?5 OR LENGTH(ps.verified_key_fingerprint)!=0)  \
+                 AND (iif(c.name='',c.authname,c.name) LIKE ? OR c.addr LIKE ?) \
+                 AND (1=? OR LENGTH(ps.verified_key_fingerprint)!=0)  \
                  ORDER BY LOWER(iif(c.name='',c.authname,c.name)||c.addr),c.id;",
-                    paramsv![
+                        sql::repeat_vars(self_addrs.len())?
+                    ),
+                    rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_iterv![
                         ContactId::LAST_SPECIAL,
                         Origin::IncomingReplyTo,
                         s3str_like_cmd,
                         s3str_like_cmd,
                         if flag_verified_only { 0i32 } else { 1i32 },
-                    ],
+                    ])),
                     |row| row.get::<_, ContactId>(0),
                     |ids| {
                         for id in ids {
@@ -742,12 +748,19 @@ impl Contact {
             context
                 .sql
                 .query_map(
-                    "SELECT id FROM contacts
-                 WHERE id>?1
-                 AND origin>=?2
+                    format!(
+                        "SELECT id FROM contacts
+                 WHERE addr NOT IN ({})
+                 AND id>?
+                 AND origin>=?
                  AND blocked=0
                  ORDER BY LOWER(iif(name='',authname,name)||addr),id;",
-                    paramsv![ContactId::LAST_SPECIAL, Origin::IncomingReplyTo],
+                        sql::repeat_vars(self_addrs.len())?
+                    ),
+                    rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_iterv![
+                        ContactId::LAST_SPECIAL,
+                        Origin::IncomingReplyTo
+                    ])),
                     |row| row.get::<_, ContactId>(0),
                     |ids| {
                         for id in ids {
