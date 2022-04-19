@@ -230,7 +230,15 @@ class DirectImap:
         self.account.log("imap-direct: idle_check returned {!r}".format(res))
         return res
 
-    def idle_wait_for_seen(self):
+    def idle_wait_for_new_message(self, terminate=False):
+        while 1:
+            for item in self.idle_check():
+                if item[1] in (b'EXISTS', b'RECENT'):
+                    if terminate:
+                        self.idle_done()
+                    return item
+
+    def idle_wait_for_seen(self, terminate=False):
         """ Return first message with SEEN flag
         from a running idle-stream REtiurn.
         """
@@ -239,6 +247,8 @@ class DirectImap:
                 if item[1] == FETCH:
                     if item[2][0] == FLAGS:
                         if SEEN in item[2][1]:
+                            if terminate:
+                                self.idle_done()
                             return item[0]
 
     def idle_done(self):

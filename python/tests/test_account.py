@@ -1013,7 +1013,7 @@ class TestOnlineAccount:
         assert ev.data1 == msg2.chat.id
         assert ev.data2 == 0
 
-        ac2.direct_imap.idle_check(terminate=True)
+        ac2.direct_imap.idle_wait_for_new_message(terminate=True)
         lp.step("1")
         for i in range(2):
             ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
@@ -1044,8 +1044,7 @@ class TestOnlineAccount:
 
         ac1.create_chat(ac2).send_text("Hello!")
 
-        # Wait for the message to arrive.
-        ac2.direct_imap.idle_check(terminate=True)
+        ac2.direct_imap.idle_wait_for_new_message(terminate=True)
 
         # Emulate moving of the message to DeltaChat folder by Sieve rule.
         # mailcow server contains this rule by default.
@@ -1059,8 +1058,7 @@ class TestOnlineAccount:
         # Accept the contact request.
         msg.chat.accept()
         ac2.mark_seen_messages([msg])
-        ac2.direct_imap.idle_wait_for_seen()
-        ac2.direct_imap.idle_done()
+        ac2.direct_imap.idle_wait_for_seen(terminate=True)
 
         fetch = list(ac2.direct_imap.conn.fetch("*", b'FLAGS').values())
         flags = fetch[-1][b'FLAGS']
@@ -2211,7 +2209,7 @@ class TestOnlineAccount:
         ac1.direct_imap.idle_start()
         ac2.create_chat(ac1).send_text("Hi")
 
-        ac1.direct_imap.idle_check(terminate=False)
+        ac1.direct_imap.idle_wait_for_new_message(terminate=False)
         ac1.maybe_network()
 
         ac1._evtracker.wait_for_all_work_done()
@@ -2223,7 +2221,7 @@ class TestOnlineAccount:
 
         ac2.create_chat(ac1).send_text("Hi 2")
 
-        ac1.direct_imap.idle_check(terminate=True)
+        ac1.direct_imap.idle_wait_for_new_message(terminate=True)
         ac1.maybe_network()
         ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTED, const.DC_CONNECTIVITY_WORKING)
         ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
@@ -2248,7 +2246,7 @@ class TestOnlineAccount:
         ac1.direct_imap.idle_start()
         ac2.create_chat(ac1).send_text("Hi")
 
-        ac1.direct_imap.idle_check(terminate=True)
+        ac1.direct_imap.idle_wait_for_new_message(terminate=True)
         ac1.maybe_network()
 
         while 1:
@@ -2446,7 +2444,7 @@ class TestOnlineAccount:
         ac2.create_chat(ac1)
 
         sent_msg = chat1.send_text("hello")
-        imap2.idle_check(terminate=False)
+        imap2.idle_wait_for_new_message(terminate=False)
 
         msg = ac2._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
@@ -2717,13 +2715,7 @@ class TestOnlineAccount:
         ac1.direct_imap.select_config_folder("inbox")
         ac1.direct_imap.idle_start()
         acfactory.get_accepted_chat(ac2, ac1).send_text("hello")
-        while True:
-            if len(ac1.direct_imap.idle_check(terminate=True)) > 1:
-                # If length is 1, it's [(b'OK', b'Still here')]
-                # Could happen on very slow network.
-                #
-                # More is usually [(1, b'EXISTS'), (1, b'RECENT')]
-                break
+        ac1.direct_imap.idle_wait_for_new_message(terminate=True)
         ac1.direct_imap.conn.move(["*"], folder)  # "*" means "biggest UID in mailbox"
 
         lp.sec("Everything prepared, now see if DeltaChat finds the message (" + variant + ")")
