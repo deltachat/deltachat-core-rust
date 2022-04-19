@@ -376,7 +376,7 @@ impl Context {
     pub(crate) async fn get_all_self_addrs(&self) -> Result<Vec<String>> {
         let mut ret = Vec::new();
 
-        ret.push(self.get_primary_self_addr().await.unwrap_or_default());
+        ret.extend(self.get_primary_self_addr().await.into_iter());
         ret.extend(self.get_secondary_self_addrs().await?.into_iter());
 
         Ok(ret)
