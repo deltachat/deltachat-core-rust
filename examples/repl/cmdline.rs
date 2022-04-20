@@ -399,6 +399,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  html <msg-id>\n\
                  listfresh\n\
                  forward <msg-id> <chat-id>\n\
+                 resend <msg-id>\n\
                  markseen <msg-id>\n\
                  delmsg <msg-id>\n\
                  ===========================Contact commands==\n\
@@ -1098,6 +1099,13 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let chat_id = ChatId::new(arg2.parse()?);
             msg_ids[0] = MsgId::new(arg1.parse()?);
             chat::forward_msgs(&context, &msg_ids, chat_id).await?;
+        }
+        "resend" => {
+            ensure!(!arg1.is_empty(), "Arguments <msg-id> expected");
+
+            let mut msg_ids = [MsgId::new(0); 1];
+            msg_ids[0] = MsgId::new(arg1.parse()?);
+            chat::resend_msgs(&context, &msg_ids).await?;
         }
         "markseen" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
