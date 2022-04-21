@@ -1,11 +1,14 @@
 use super::Imap;
 
 use anyhow::{bail, Context as _, Result};
-use async_imap::extensions::idle::IdleResponse;
+use async_imap::{
+    extensions::idle::IdleResponse,
+    imap_proto::{MailboxDatum, Response},
+};
 use async_std::prelude::*;
 use std::time::{Duration, SystemTime};
 
-use crate::{context::Context, scheduler::InterruptInfo};
+use crate::{config::Config, context::Context, scheduler::InterruptInfo};
 
 use super::session::Session;
 
@@ -14,6 +17,7 @@ impl Imap {
         self.config.can_idle
     }
 
+    //TODO rename to `idle_fetch()` and `fetch_idle()` to `fetch_idle_fetch()`?
     pub async fn idle(
         &mut self,
         context: &Context,
@@ -68,9 +72,13 @@ impl Imap {
                 Ok(Event::Interrupt(info.unwrap_or_default()))
             });
 
+            let mut needs_fetch = false;
             match fut.await {
                 Ok(Event::IdleResponse(IdleResponse::NewData(x))) => {
                     info!(context, "Idle has NewData {:?}", x);
+                    if let Response::MailboxData(MailboxDatum::Exists(_)) = x.parsed() {
+                        needs_fetch = true;
+                    }
                 }
                 Ok(Event::IdleResponse(IdleResponse::Timeout)) => {
                     info!(context, "Idle-wait timeout or interruption");
@@ -93,6 +101,24 @@ impl Imap {
                 .await?
                 .context("IMAP IDLE protocol timed out")?;
             self.session = Some(Session { inner: session });
+
+            if needs_fetch {
+                if let Some(folder) = &watch_folder {
+                    // There are new messages. Immediately fetch them for quick performance.
+                    if context.get_config_bool(Config::MvboxMove).await?
+                        && watch_folder == context.get_config(Config::ConfiguredInboxFolder).await?
+                    {
+                        // We may want to move the messages out of the Inbox folder, so call
+                        // `fetch_move_delete()` so that they are moved as quickly as possible
+                        // and the mvbox loop can fetch them.
+                        // TODO testing
+                        self.fetch_move_delete(context, folder).await?;
+                    } else {
+                        self.fetch_new_messages(context, folder, false).await?;
+                        // TODO .context() and interrupt_ephemeral_task() are missing
+                    }
+                }
+            }
         } else {
             warn!(context, "Attempted to idle without a session");
         }
