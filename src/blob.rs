@@ -940,7 +940,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_recode_image() {
+    async fn test_recode_image_1() {
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         // BALANCED_IMAGE_SIZE > 1000, the original image size, so the image is not scaled down:
         send_image_check_mediaquality(Some("0"), bytes, 1000, 1000, 0, 1000, 1000)
@@ -957,7 +957,10 @@ mod tests {
         )
         .await
         .unwrap();
+    }
 
+    #[async_std::test]
+    async fn test_recode_image_2() {
         // The "-rotated" files are rotated by 270 degrees using the Exif metadata
         let bytes = include_bytes!("../test-data/image/rectangle2000x1800-rotated.jpg");
         let img_rotated = send_image_check_mediaquality(
@@ -978,18 +981,24 @@ mod tests {
             .write_to(&mut buf, image::ImageFormat::Jpeg)
             .unwrap();
         let bytes = buf.into_inner();
-        let img_rotated = send_image_check_mediaquality(
-            Some("0"),
-            &bytes,
-            BALANCED_IMAGE_SIZE * 1800 / 2000,
-            BALANCED_IMAGE_SIZE,
-            0,
-            BALANCED_IMAGE_SIZE * 1800 / 2000,
-            BALANCED_IMAGE_SIZE,
-        )
-        .await
-        .unwrap();
-        assert_correct_rotation(&img_rotated);
+
+        // Do this in parallel to speed up the test a bit
+        // (it still takes very long though)
+        let bytes2 = bytes.clone();
+        let join_handle = async_std::task::spawn(async move {
+            let img_rotated = send_image_check_mediaquality(
+                Some("0"),
+                &bytes2,
+                BALANCED_IMAGE_SIZE * 1800 / 2000,
+                BALANCED_IMAGE_SIZE,
+                0,
+                BALANCED_IMAGE_SIZE * 1800 / 2000,
+                BALANCED_IMAGE_SIZE,
+            )
+            .await
+            .unwrap();
+            assert_correct_rotation(&img_rotated);
+        });
 
         let img_rotated = send_image_check_mediaquality(
             Some("1"),
@@ -1004,6 +1013,11 @@ mod tests {
         .unwrap();
         assert_correct_rotation(&img_rotated);
 
+        join_handle.await;
+    }
+
+    #[async_std::test]
+    async fn test_recode_image_3() {
         let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
         let img_rotated = send_image_check_mediaquality(Some("0"), bytes, 200, 180, 270, 180, 200)
             .await
