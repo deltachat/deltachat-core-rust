@@ -271,13 +271,13 @@ impl<'a> MimeFactory<'a> {
         &self,
         context: &Context,
     ) -> Result<Vec<(Option<Peerstate>, &str)>> {
-        let self_addrs = context.get_all_self_addrs().await?;
+        let self_addr = context.get_primary_self_addr().await?;
 
         let mut res = Vec::new();
         for (_, addr) in self
             .recipients
             .iter()
-            .filter(|(_, addr)| !self_addrs.contains(addr))
+            .filter(|(_, addr)| addr != &self_addr)
         {
             res.push((Peerstate::from_addr(context, addr).await?, addr.as_str()));
         }
