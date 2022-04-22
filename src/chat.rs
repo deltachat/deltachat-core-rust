@@ -3139,6 +3139,7 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         } else {
             chat_id = Some(msg.chat_id);
         }
+        ensure!(!msg.is_info(), "cannot resend info messages");
         ensure!(
             msg.state != MessageState::OutPreparing && msg.state != MessageState::OutDraft,
             "cannot resend unsent messages"
@@ -5226,6 +5227,30 @@ mod tests {
         let _sent3 = bob.pop_sent_msg().await;
         resend_msgs(&bob, &[sent2.sender_msg_id]).await?;
         let _sent4 = bob.pop_sent_msg().await;
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_resend_info_message_fails() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let alice_grp = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "bob@example.net").await?,
+        )
+        .await?;
+        alice.send_text(alice_grp, "alice->bob").await;
+
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "claire@example.org").await?,
+        )
+        .await?;
+        let sent2 = alice.pop_sent_msg().await;
+        assert!(resend_msgs(&alice, &[sent2.sender_msg_id]).await.is_err());
 
         Ok(())
     }
