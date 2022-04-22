@@ -381,12 +381,10 @@ impl Context {
 
     /// Returns all primary and secondary self addresses.
     pub(crate) async fn get_all_self_addrs(&self) -> Result<Vec<String>> {
-        let mut ret = Vec::new();
+        let primary_addrs = self.get_primary_self_addr().await.into_iter();
+        let secondary_addrs = self.get_secondary_self_addrs().await?.into_iter();
 
-        ret.extend(self.get_primary_self_addr().await.into_iter());
-        ret.extend(self.get_secondary_self_addrs().await?.into_iter());
-
-        Ok(ret)
+        Ok(primary_addrs.chain(secondary_addrs).collect())
     }
 
     /// Returns all secondary self addresses.
