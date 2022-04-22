@@ -29,7 +29,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         c.bench_function("chat::get_chat_msgs (load messages from 10 chats)", |b| {
             b.to_async(AsyncStdExecutor)
-                .iter(|| get_chat_msgs_benchmark(black_box(&path.as_ref()), black_box(&chats)))
+                .iter(|| get_chat_msgs_benchmark(black_box(path.as_ref()), black_box(&chats)))
         });
     } else {
         println!("env var not set: DELTACHAT_BENCHMARK_DATABASE");

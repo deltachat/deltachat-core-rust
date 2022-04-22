@@ -5,7 +5,7 @@ use deltachat::chatlist::Chatlist;
 use deltachat::context::Context;
 
 async fn get_chat_list_benchmark(context: &Context) {
-    Chatlist::try_load(&context, 0, None, None).await.unwrap();
+    Chatlist::try_load(context, 0, None, None).await.unwrap();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
