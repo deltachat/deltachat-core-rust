@@ -3139,6 +3139,10 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         } else {
             chat_id = Some(msg.chat_id);
         }
+        ensure!(
+            msg.from_id == ContactId::SELF,
+            "can resend only own messages"
+        );
         ensure!(!msg.is_info(), "cannot resend info messages");
         ensure!(
             msg.state != MessageState::OutPreparing && msg.state != MessageState::OutDraft,
@@ -5189,6 +5193,26 @@ mod tests {
         assert_eq!(get_chat_msgs(&claire, msg.chat_id, 0, None).await?.len(), 2);
         let msg_from = Contact::get_by_id(&claire, msg.get_from_id()).await?;
         assert_eq!(msg_from.get_addr(), "alice@example.org");
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_resend_foreign_message_fails() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let alice_grp = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "bob@example.net").await?,
+        )
+        .await?;
+        let sent1 = alice.send_text(alice_grp, "alice->bob").await;
+
+        let bob = TestContext::new_bob().await;
+        bob.recv_msg(&sent1).await;
+        let msg = bob.get_last_msg().await;
+        assert!(resend_msgs(&bob, &[msg.id]).await.is_err());
 
         Ok(())
     }
