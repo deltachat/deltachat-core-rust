@@ -453,6 +453,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     drop(imap);
 
     progress!(ctx, 910);
+
+    if ctx.get_primary_self_addr().await.ok().as_deref() != Some(&param.addr) {
+        // Switched account, all server UIDs we know are invalid
+        job::schedule_resync(ctx).await?;
+    }
+
     // the trailing underscore is correct
     param.save_as_configured_params(ctx).await?;
     ctx.set_config(Config::ConfiguredTimestamp, Some(&time().to_string()))
