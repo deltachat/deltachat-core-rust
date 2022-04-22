@@ -3049,7 +3049,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             .query_map(
                 format!(
                     "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                    sql::repeat_vars(msg_ids.len())?
+                    sql::repeat_vars(msg_ids.len())
                 ),
                 rusqlite::params_from_iter(msg_ids),
                 |row| row.get::<_, MsgId>(0),

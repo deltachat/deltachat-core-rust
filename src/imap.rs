@@ -912,7 +912,7 @@ impl Imap {
             .execute(
                 format!(
                     "DELETE FROM imap WHERE id IN ({})",
-                    sql::repeat_vars(row_ids.len())?
+                    sql::repeat_vars(row_ids.len())
                 ),
                 rusqlite::params_from_iter(row_ids),
             )
@@ -949,7 +949,7 @@ impl Imap {
                         .execute(
                             format!(
                                 "DELETE FROM imap WHERE id IN ({})",
-                                sql::repeat_vars(row_ids.len())?
+                                sql::repeat_vars(row_ids.len())
                             ),
                             rusqlite::params_from_iter(row_ids),
                         )
@@ -991,7 +991,7 @@ impl Imap {
                     .execute(
                         format!(
                             "UPDATE imap SET target='' WHERE id IN ({})",
-                            sql::repeat_vars(row_ids.len())?
+                            sql::repeat_vars(row_ids.len())
                         ),
                         rusqlite::params_from_iter(row_ids),
                     )
@@ -1103,7 +1103,7 @@ impl Imap {
                     .execute(
                         format!(
                             "DELETE FROM imap_markseen WHERE id IN ({})",
-                            sql::repeat_vars(rowid_set.len())?
+                            sql::repeat_vars(rowid_set.len())
                         ),
                         rusqlite::params_from_iter(rowid_set),
                     )

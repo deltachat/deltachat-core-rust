@@ -1296,7 +1296,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                     c.blocked AS blocked
                  FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id
                  WHERE m.id IN ({}) AND m.chat_id>9",
-                sql::repeat_vars(msg_ids.len())?
+                sql::repeat_vars(msg_ids.len())
             ),
             rusqlite::params_from_iter(&msg_ids),
             |row| {
