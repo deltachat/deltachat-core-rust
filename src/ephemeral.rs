@@ -315,7 +315,7 @@ pub(crate) async fn start_ephemeral_timers_msgids(
                 "UPDATE msgs SET ephemeral_timestamp = ? + ephemeral_timer
          WHERE (ephemeral_timestamp == 0 OR ephemeral_timestamp > ? + ephemeral_timer) AND ephemeral_timer > 0
          AND id IN ({})",
-                sql::repeat_vars(msg_ids.len())?
+                sql::repeat_vars(msg_ids.len())
             ),
             rusqlite::params_from_iter(
                 std::iter::once(&now as &dyn crate::ToSql)

@@ -1967,7 +1967,7 @@ async fn create_adhoc_grp_id(context: &Context, member_ids: &[ContactId]) -> Res
     let member_cs = context.get_primary_self_addr().await?.to_lowercase();
     let query = format!(
         "SELECT addr FROM contacts WHERE id IN({}) AND id!=?",
-        sql::repeat_vars(member_ids.len())?
+        sql::repeat_vars(member_ids.len())
     );
     let mut params = Vec::new();
     params.extend_from_slice(member_ids);
@@ -2065,7 +2065,7 @@ async fn check_verified_properties(
             format!(
                 "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-                sql::repeat_vars(to_ids.len())?
+                sql::repeat_vars(to_ids.len())
             ),
             rusqlite::params_from_iter(to_ids),
             |row| {

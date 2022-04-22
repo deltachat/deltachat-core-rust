@@ -399,7 +399,7 @@ async fn kill_ids(context: &Context, job_ids: &[u32]) -> Result<()> {
     }
     let q = format!(
         "DELETE FROM jobs WHERE id IN({})",
-        sql::repeat_vars(job_ids.len())?
+        sql::repeat_vars(job_ids.len())
     );
     context
         .sql

@@ -706,7 +706,7 @@ impl Contact {
                  AND (iif(c.name='',c.authname,c.name) LIKE ? OR c.addr LIKE ?) \
                  AND (1=? OR LENGTH(ps.verified_key_fingerprint)!=0)  \
                  ORDER BY LOWER(iif(c.name='',c.authname,c.name)||c.addr),c.id;",
-                        sql::repeat_vars(self_addrs.len())?
+                        sql::repeat_vars(self_addrs.len())
                     ),
                     rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_iterv![
                         ContactId::LAST_SPECIAL,
@@ -755,7 +755,7 @@ impl Contact {
                  AND origin>=?
                  AND blocked=0
                  ORDER BY LOWER(iif(name='',authname,name)||addr),id;",
-                        sql::repeat_vars(self_addrs.len())?
+                        sql::repeat_vars(self_addrs.len())
                     ),
                     rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_iterv![
                         ContactId::LAST_SPECIAL,
