@@ -6,7 +6,7 @@ use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
 use crate::constants::DC_VERSION_STR;
-use crate::contact::addr_normalize;
+use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::dc_tools::{dc_get_abs_path, improve_single_line_input};
 use crate::events::EventType;
@@ -337,36 +337,34 @@ impl Context {
 impl Context {
     /// determine whether the specified addr maps to the/a self addr
     pub(crate) async fn is_self_addr(&self, addr: &str) -> Result<bool> {
-        let addr = addr_normalize(addr).to_lowercase();
-
-        // The addresses we get here are already normalized and lowercase
-        Ok(
-            self.get_primary_self_addr().await.ok().as_deref() == Some(&addr)
-                || self.get_secondary_self_addrs().await?.contains(&addr),
-        )
+        Ok(self
+            .get_primary_self_addr()
+            .await
+            .iter()
+            .any(|a| addr_cmp(addr, a))
+            || self
+                .get_secondary_self_addrs()
+                .await?
+                .iter()
+                .any(|a| addr_cmp(addr, a)))
     }
 
     /// Sets `primary_new` as the new primary self address and saves the old
     /// primary address (if exists) as a secondary address.
+    ///
+    /// This should only be used by test code and during configure.
     pub(crate) async fn set_primary_self_addr(&self, primary_new: &str) -> Result<()> {
-        let primary_new = addr_normalize(primary_new).to_lowercase();
-
         // add old primary address (if exists) to secondary addresses
         let mut secondary_addrs = self.get_all_self_addrs().await?;
-
-        for a in secondary_addrs.iter_mut() {
-            *a = addr_normalize(a).to_lowercase();
-        }
-
         // never store a primary address also as a secondary
-        secondary_addrs.retain(|a| a != &primary_new);
+        secondary_addrs.retain(|a| !addr_cmp(a, primary_new));
         self.set_config(
             Config::SecondaryAddrs,
             Some(secondary_addrs.join(" ").as_str()),
         )
         .await?;
 
-        self.set_config(Config::ConfiguredAddr, Some(&primary_new))
+        self.set_config(Config::ConfiguredAddr, Some(primary_new))
             .await?;
 
         Ok(())
@@ -381,8 +379,6 @@ impl Context {
     }
 
     /// Returns all secondary self addresses.
-    ///
-    /// The addresses are already normalized and lowercased in the database.
     pub(crate) async fn get_secondary_self_addrs(&self) -> Result<Vec<String>> {
         let secondary_addrs = self
             .get_config(Config::SecondaryAddrs)
@@ -395,16 +391,10 @@ impl Context {
     }
 
     /// Returns the primary self address.
-    ///
-    /// Normalizes and lowercases the address since the ConfiguredAddr
-    /// may not be lowercased (to start lowercasing it now, we would
-    /// need a db migration - which we can do at some point in the future)
     pub async fn get_primary_self_addr(&self) -> Result<String> {
-        let ret = self
-            .get_config(Config::ConfiguredAddr)
+        self.get_config(Config::ConfiguredAddr)
             .await?
-            .context("No self addr configured")?;
-        Ok(addr_normalize(&ret).to_lowercase())
+            .context("No self addr configured")
     }
 }
 
@@ -504,22 +494,25 @@ mod tests {
         // Test adding the same primary address
         alice.set_primary_self_addr("alice@example.org").await?;
         alice.set_primary_self_addr("Alice@Example.Org").await?;
-        assert_eq!(alice.get_all_self_addrs().await?, vec!["alice@example.org"]);
+        assert_eq!(alice.get_all_self_addrs().await?, vec!["Alice@Example.Org"]);
 
         // Test adding a new (primary) self address
+        // The address is trimmed during by `LoginParam::from_database()`,
+        // so `set_primary_self_addr()` doesn't have to trim it.
         alice.set_primary_self_addr(" Alice@alice.com ").await?;
-        assert!(alice.is_self_addr("aliCe@example.org").await?);
+        assert!(alice.is_self_addr("    aliCe@example.org").await?);
         assert!(alice.is_self_addr("alice@alice.com").await?);
         assert_eq!(
             alice.get_all_self_addrs().await?,
-            vec!["alice@alice.com", "alice@example.org"]
+            vec![" Alice@alice.com ", "Alice@Example.Org"]
         );
 
         // Check that the entry is not duplicated
         alice.set_primary_self_addr("alice@alice.com").await?;
+        alice.set_primary_self_addr("alice@alice.com").await?;
         assert_eq!(
             alice.get_all_self_addrs().await?,
-            vec!["alice@alice.com", "alice@example.org"]
+            vec!["alice@alice.com", "Alice@Example.Org"]
         );
 
         // Test switching back
