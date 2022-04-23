@@ -11,7 +11,7 @@ use crate::dc_tools::maybe_add_time_based_warnings;
 use crate::dc_tools::time;
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::imap::Imap;
-use crate::job::{self, Thread};
+use crate::job;
 use crate::location;
 use crate::log::LogExt;
 use crate::smtp::{send_smtp_messages, Smtp};
@@ -93,7 +93,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 
         let mut info = InterruptInfo::default();
         loop {
-            let job = match job::load_next(&ctx, Thread::Imap, &info).await {
+            let job = match job::load_next(&ctx, &info).await {
                 Err(err) => {
                     error!(ctx, "Failed loading job from the database: {:#}.", err);
                     None
@@ -303,65 +303,46 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
         }
 
         let mut timeout = None;
-        let mut interrupt_info = Default::default();
         loop {
-            let job = match job::load_next(&ctx, Thread::Smtp, &interrupt_info).await {
-                Err(err) => {
-                    error!(ctx, "Failed loading job from the database: {:#}.", err);
-                    None
-                }
-                Ok(job) => job,
+            let res = send_smtp_messages(&ctx, &mut connection).await;
+            if let Err(err) = &res {
+                warn!(ctx, "send_smtp_messages failed: {:#}", err);
+            }
+            let success = res.unwrap_or(false);
+            timeout = if success {
+                None
+            } else {
+                Some(timeout.map_or(30, |timeout: u64| timeout.saturating_mul(3)))
             };
 
-            match job {
-                Some(job) => {
-                    info!(ctx, "executing smtp job");
-                    job::perform_job(&ctx, job::Connection::Smtp(&mut connection), job).await;
-                    interrupt_info = Default::default();
-                }
-                None => {
-                    let res = send_smtp_messages(&ctx, &mut connection).await;
-                    if let Err(err) = &res {
-                        warn!(ctx, "send_smtp_messages failed: {:#}", err);
-                    }
-                    let success = res.unwrap_or(false);
-                    timeout = if success {
-                        None
-                    } else {
-                        Some(timeout.map_or(30, |timeout: u64| timeout.saturating_mul(3)))
-                    };
-
-                    // Fake Idle
-                    info!(ctx, "smtp fake idle - started");
-                    match &connection.last_send_error {
-                        None => connection.connectivity.set_connected(&ctx).await,
-                        Some(err) => connection.connectivity.set_err(&ctx, err).await,
-                    }
-
-                    // If send_smtp_messages() failed, we set a timeout for the fake-idle so that
-                    // sending is retried (at the latest) after the timeout. If sending fails
-                    // again, we increase the timeout exponentially, in order not to do lots of
-                    // unnecessary retries.
-                    if let Some(timeout) = timeout {
-                        info!(
-                            ctx,
-                            "smtp has messages to retry, planning to retry {} seconds later",
-                            timeout
-                        );
-                        let duration = std::time::Duration::from_secs(timeout);
-                        interrupt_info = async_std::future::timeout(duration, async {
-                            idle_interrupt_receiver.recv().await.unwrap_or_default()
-                        })
-                        .await
-                        .unwrap_or_default();
-                    } else {
-                        info!(ctx, "smtp has no messages to retry, waiting for interrupt");
-                        interrupt_info = idle_interrupt_receiver.recv().await.unwrap_or_default();
-                    };
-
-                    info!(ctx, "smtp fake idle - interrupted")
-                }
+            // Fake Idle
+            info!(ctx, "smtp fake idle - started");
+            match &connection.last_send_error {
+                None => connection.connectivity.set_connected(&ctx).await,
+                Some(err) => connection.connectivity.set_err(&ctx, err).await,
             }
+
+            // If send_smtp_messages() failed, we set a timeout for the fake-idle so that
+            // sending is retried (at the latest) after the timeout. If sending fails
+            // again, we increase the timeout exponentially, in order not to do lots of
+            // unnecessary retries.
+            if let Some(timeout) = timeout {
+                info!(
+                    ctx,
+                    "smtp has messages to retry, planning to retry {} seconds later", timeout
+                );
+                let duration = std::time::Duration::from_secs(timeout);
+                async_std::future::timeout(duration, async {
+                    idle_interrupt_receiver.recv().await.unwrap_or_default()
+                })
+                .await
+                .unwrap_or_default();
+            } else {
+                info!(ctx, "smtp has no messages to retry, waiting for interrupt");
+                idle_interrupt_receiver.recv().await.unwrap_or_default();
+            };
+
+            info!(ctx, "smtp fake idle - interrupted")
         }
     };
 

@@ -10,14 +10,19 @@ use async_smtp::smtp::response::{Category, Code, Detail};
 use async_smtp::{smtp, EmailAddress, ServerAddress};
 use async_std::task;
 
+use crate::config::Config;
 use crate::constants::DC_LP_AUTH_OAUTH2;
+use crate::contact::{Contact, ContactId};
 use crate::events::EventType;
 use crate::login_param::{
     dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam, Socks5Config,
 };
+use crate::message::Message;
 use crate::message::{self, MsgId};
+use crate::mimefactory::MimeFactory;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::provider::Socket;
+use crate::sql;
 use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
 
 /// SMTP write and read timeout in seconds.
@@ -82,6 +87,11 @@ impl Smtp {
 
     /// Connect using configured parameters.
     pub async fn connect_configured(&mut self, context: &Context) -> Result<()> {
+        if self.has_maybe_stale_connection().await {
+            info!(context, "Closing stale connection");
+            self.disconnect().await;
+        }
+
         if self.is_connected().await {
             return Ok(());
         }
@@ -226,18 +236,13 @@ pub(crate) async fn smtp_send(
 
     smtp.connectivity.set_working(context).await;
 
-    if smtp.has_maybe_stale_connection().await {
-        info!(context, "Closing stale connection");
-        smtp.disconnect().await;
-
-        if let Err(err) = smtp
-            .connect_configured(context)
-            .await
-            .context("failed to reopen stale SMTP connection")
-        {
-            smtp.last_send_error = Some(format!("{:#}", err));
-            return SendResult::Retry;
-        }
+    if let Err(err) = smtp
+        .connect_configured(context)
+        .await
+        .context("Failed to open SMTP connection")
+    {
+        smtp.last_send_error = Some(format!("{:#}", err));
+        return SendResult::Retry;
     }
 
     let send_result = smtp
@@ -479,7 +484,7 @@ pub(crate) async fn send_msg_to_smtp(
     }
 }
 
-/// Tries to send all messages currently in `smtp` table.
+/// Tries to send all messages currently in `smtp` and `smtp_mdns` tables.
 ///
 /// Logs and ignores SMTP errors to ensure that a single SMTP message constantly failing to be sent
 /// does not block other messages in the queue from being sent.
@@ -510,5 +515,150 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
             success = false;
         }
     }
+
+    loop {
+        match send_mdn(context, connection).await {
+            Err(err) => {
+                info!(context, "Failed to send MDNs over SMTP: {:#}.", err);
+                success = false;
+                break;
+            }
+            Ok(false) => {
+                break;
+            }
+            Ok(true) => {}
+        }
+    }
     Ok(success)
+}
+
+/// Tries to send MDN for message `msg_id` to `contact_id`.
+///
+/// Attempts to aggregate additional MDNs for `contact_id` into sent MDN.
+///
+/// On failure returns an error without removing any `smtp_mdns` entries, the caller is responsible
+/// for removing the corresponding entry to prevent endless loop in case the entry is invalid, e.g.
+/// points to non-existent message or contact.
+async fn send_mdn_msg_id(
+    context: &Context,
+    msg_id: MsgId,
+    contact_id: ContactId,
+    smtp: &mut Smtp,
+) -> Result<()> {
+    let contact = Contact::load_from_db(context, contact_id).await?;
+    if contact.is_blocked() {
+        return Err(format_err!("Contact is blocked"));
+    }
+
+    // Try to aggregate additional MDNs into this MDN.
+    let (additional_msg_ids, additional_rfc724_mids): (Vec<MsgId>, Vec<String>) = context
+        .sql
+        .query_map(
+            "SELECT msg_id, rfc724_mid
+             FROM smtp_mdns
+             WHERE from_id=? AND msg_id!=?",
+            paramsv![contact_id, msg_id],
+            |row| {
+                let msg_id: MsgId = row.get(0)?;
+                let rfc724_mid: String = row.get(1)?;
+                Ok((msg_id, rfc724_mid))
+            },
+            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
+        .await?
+        .into_iter()
+        .unzip();
+
+    let msg = Message::load_from_db(context, msg_id).await?;
+    let mimefactory = MimeFactory::from_mdn(context, &msg, additional_rfc724_mids).await?;
+    let rendered_msg = mimefactory.render(context).await?;
+    let body = rendered_msg.message;
+
+    let addr = contact.get_addr();
+    let recipient = async_smtp::EmailAddress::new(addr.to_string())
+        .map_err(|err| format_err!("invalid recipient: {} {:?}", addr, err))?;
+    let recipients = vec![recipient];
+
+    match smtp_send(context, &recipients, &body, smtp, msg_id, 0).await {
+        SendResult::Success => {
+            info!(context, "Successfully sent MDN for {}", msg_id);
+            context
+                .sql
+                .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", paramsv![msg_id])
+                .await?;
+            if !additional_msg_ids.is_empty() {
+                let q = format!(
+                    "DELETE FROM smtp_mdns WHERE msg_id IN({})",
+                    sql::repeat_vars(additional_msg_ids.len())
+                );
+                context
+                    .sql
+                    .execute(q, rusqlite::params_from_iter(additional_msg_ids))
+                    .await?;
+            }
+            Ok(())
+        }
+        SendResult::Retry => {
+            info!(
+                context,
+                "Temporary SMTP failure while sending an MDN for {}", msg_id
+            );
+            Ok(())
+        }
+        SendResult::Failure(err) => Err(err),
+    }
+}
+
+/// Tries to send a single MDN. Returns false if there are no MDNs to send.
+async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
+    let mdns_enabled = context.get_config_bool(Config::MdnsEnabled).await?;
+    if !mdns_enabled {
+        // User has disabled MDNs.
+        context.sql.execute("DELETE FROM smtp_mdns", []).await?;
+        return Ok(false);
+    }
+    info!(context, "Sending MDNs");
+
+    context
+        .sql
+        .execute("DELETE FROM smtp_mdns WHERE retries > 6", [])
+        .await?;
+    let msg_row = match context
+        .sql
+        .query_row_optional(
+            "SELECT msg_id, from_id FROM smtp_mdns ORDER BY retries LIMIT 1",
+            [],
+            |row| {
+                let msg_id: MsgId = row.get(0)?;
+                let from_id: ContactId = row.get(1)?;
+                Ok((msg_id, from_id))
+            },
+        )
+        .await?
+    {
+        Some(msg_row) => msg_row,
+        None => return Ok(false),
+    };
+    let (msg_id, contact_id) = msg_row;
+
+    context
+        .sql
+        .execute(
+            "UPDATE smtp_mdns SET retries=retries+1 WHERE msg_id=?",
+            paramsv![msg_id],
+        )
+        .await
+        .context("failed to update MDN retries count")?;
+
+    if let Err(err) = send_mdn_msg_id(context, msg_id, contact_id, smtp).await {
+        // If there is an error, for example there is no message corresponding to the msg_id in the
+        // database, do not try to send this MDN again.
+        context
+            .sql
+            .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", paramsv![msg_id])
+            .await?;
+        Err(err)
+    } else {
+        Ok(true)
+    }
 }

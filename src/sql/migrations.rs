@@ -578,7 +578,7 @@ rfc724_mid TEXT NOT NULL,          -- Message-ID
 mime TEXT NOT NULL,                -- SMTP payload
 msg_id INTEGER NOT NULL,           -- ID of the message in `msgs` table
 recipients TEXT NOT NULL,          -- List of recipients separated by space
-retries INTEGER NOT NULL DEFAULT 0 -- Number of failed attempts to send the messsage
+retries INTEGER NOT NULL DEFAULT 0 -- Number of failed attempts to send the message
 );
 CREATE INDEX smtp_messageid ON imap(rfc724_mid);
 "#,
@@ -621,6 +621,19 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
               FOREIGN KEY(id) REFERENCES imap(id) ON DELETE CASCADE
             );"#,
             89,
+        )
+        .await?;
+    }
+    if dbversion < 90 {
+        info!(context, "[migration] v90");
+        sql.execute_migration(
+            r#"CREATE TABLE smtp_mdns (
+              msg_id INTEGER NOT NULL, -- id of the message in msgs table which requested MDN
+              from_id INTEGER NOT NULL, -- id of the contact that sent the message, MDN destination
+              rfc724_mid TEXT NOT NULL, -- Message-ID header
+              retries INTEGER NOT NULL DEFAULT 0 -- Number of failed attempts to send MDN
+            );"#,
+            90,
         )
         .await?;
     }

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+- send normal messages with higher priority than MDNs #3243
+
+
 ## 1.80.0
 
 ### Changes

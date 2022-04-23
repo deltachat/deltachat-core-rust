@@ -23,7 +23,6 @@ use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::imap::markseen_on_imap_table;
-use crate::job;
 use crate::log::LogExt;
 use crate::mimeparser::{parse_message_id, FailureReport, SystemMessage};
 use crate::param::{Param, Params};
@@ -1364,9 +1363,15 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
             {
                 let mdns_enabled = context.get_config_bool(Config::MdnsEnabled).await?;
                 if mdns_enabled {
-                    if let Err(err) = job::send_mdn(context, id, curr_from_id).await {
-                        warn!(context, "could not send out mdn for {}: {}", id, err);
-                    }
+                    context
+                        .sql
+                        .execute(
+                            "INSERT INTO smtp_mdns (msg_id, from_id, rfc724_mid) VALUES(?, ?, ?)",
+                            paramsv![id, curr_from_id, curr_rfc724_mid],
+                        )
+                        .await
+                        .context("failed to insert into smtp_mdns")?;
+                    context.interrupt_smtp(InterruptInfo::new(false)).await;
                 }
             }
             updated_chat_ids.insert(curr_chat_id);
