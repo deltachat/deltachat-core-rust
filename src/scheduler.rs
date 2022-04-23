@@ -157,7 +157,10 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
             }
 
             // fetch
-            if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
+            if let Err(err) = connection
+                .fetch_move_delete(ctx, &watch_folder, false)
+                .await
+            {
                 connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
             }
@@ -194,7 +197,10 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             }
 
             // Fetch the watched folder.
-            if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
+            if let Err(err) = connection
+                .fetch_move_delete(ctx, &watch_folder, false)
+                .await
+            {
                 connection.trigger_reconnect(ctx).await;
                 warn!(ctx, "{:#}", err);
                 return InterruptInfo::new(false);
@@ -230,7 +236,10 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                         // In most cases this will select the watched folder and return because there are
                         // no new messages. We want to select the watched folder anyway before going IDLE
                         // there, so this does not take additional protocol round-trip.
-                        if let Err(err) = connection.fetch_move_delete(ctx, &watch_folder).await {
+                        if let Err(err) = connection
+                            .fetch_move_delete(ctx, &watch_folder, false)
+                            .await
+                        {
                             connection.trigger_reconnect(ctx).await;
                             warn!(ctx, "{:#}", err);
                             return InterruptInfo::new(false);

@@ -608,11 +608,6 @@ impl Context {
         Ok(mvbox.as_deref() == Some(folder_name))
     }
 
-    pub async fn is_spam_folder(&self, folder_name: &str) -> Result<bool> {
-        let spam = self.get_config(Config::ConfiguredSpamFolder).await?;
-        Ok(spam.as_deref() == Some(folder_name))
-    }
-
     pub(crate) fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());

@@ -12,6 +12,7 @@
 - Fix a bug where a blocked contact could send a contact request #3218
 - Make sure, videochat-room-names are always URL-safe #3231
 - Try removing account folder multiple times in case of failure #3229
+- Ignore messages from all spam folders if there are many #3246
 
 ### Changes
 

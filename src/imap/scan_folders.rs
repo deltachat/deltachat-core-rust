@@ -60,6 +60,9 @@ impl Imap {
             let is_drafts = folder_meaning == FolderMeaning::Drafts
                 || (folder_meaning == FolderMeaning::Unknown
                     && folder_name_meaning == FolderMeaning::Drafts);
+            let is_spam_folder = folder_meaning == FolderMeaning::Spam
+                || (folder_meaning == FolderMeaning::Unknown
+                    && folder_name_meaning == FolderMeaning::Spam);
 
             // Don't scan folders that are watched anyway
             if !watched_folders.contains(&folder.name().to_string()) && !is_drafts {
@@ -67,7 +70,7 @@ impl Imap {
                 self.server_sent_unsolicited_exists(context)?;
 
                 loop {
-                    self.fetch_move_delete(context, folder.name())
+                    self.fetch_move_delete(context, folder.name(), is_spam_folder)
                         .await
                         .ok_or_log_msg(context, "Can't fetch new msgs in scanned folder");
 
@@ -79,16 +82,15 @@ impl Imap {
             }
         }
 
-        // We iterate over both folder meanings to make sure that if e.g. the "Sent" folder was deleted,
-        // `ConfiguredSentboxFolder` is set to `None`:
-        for config in &[
-            Config::ConfiguredSentboxFolder,
-            Config::ConfiguredSpamFolder,
-        ] {
-            context
-                .set_config(*config, folder_configs.get(config).map(|s| s.as_str()))
-                .await?;
-        }
+        // Set the `ConfiguredSentboxFolder` or set it to `None` if the folder was deleted.
+        context
+            .set_config(
+                Config::ConfiguredSentboxFolder,
+                folder_configs
+                    .get(&Config::ConfiguredSentboxFolder)
+                    .map(|s| s.as_str()),
+            )
+            .await?;
 
         last_scan.replace(Instant::now());
         Ok(true)

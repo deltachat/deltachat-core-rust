@@ -335,7 +335,7 @@ impl Job {
                 Config::ConfiguredSentboxFolder,
             ] {
                 if let Some(folder) = job_try!(context.get_config(*config).await) {
-                    if let Err(e) = imap.fetch_new_messages(context, &folder, true).await {
+                    if let Err(e) = imap.fetch_new_messages(context, &folder, false, true).await {
                         // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
                         warn!(context, "Could not fetch messages, retrying: {:#}", e);
                         return Status::RetryLater;

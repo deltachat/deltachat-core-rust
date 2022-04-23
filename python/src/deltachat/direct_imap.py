@@ -40,8 +40,6 @@ def dc_account_extra_configure(account):
                     # We just deleted the folder, so we have to make DC forget about it, too
                     if account.get_config("configured_sentbox_folder") == folder:
                         account.set_config("configured_sentbox_folder", None)
-                    if account.get_config("configured_spam_folder") == folder:
-                        account.set_config("configured_spam_folder", None)
 
             setattr(account, "direct_imap", imap)
 

@@ -131,7 +131,7 @@ impl FolderMeaning {
     fn to_config(self) -> Option<Config> {
         match self {
             FolderMeaning::Unknown => None,
-            FolderMeaning::Spam => Some(Config::ConfiguredSpamFolder),
+            FolderMeaning::Spam => None,
             FolderMeaning::Sent => Some(Config::ConfiguredSentboxFolder),
             FolderMeaning::Drafts => None,
             FolderMeaning::Other => None,
@@ -512,7 +512,12 @@ impl Imap {
     ///
     /// Prefetches headers and downloads new message from the folder, moves messages away from the
     /// folder and deletes messages in the folder.
-    pub async fn fetch_move_delete(&mut self, context: &Context, watch_folder: &str) -> Result<()> {
+    pub async fn fetch_move_delete(
+        &mut self,
+        context: &Context,
+        watch_folder: &str,
+        is_spam_folder: bool,
+    ) -> Result<()> {
         if !context.sql.is_open().await {
             // probably shutdown
             bail!("IMAP operation attempted while it is torn down");
@@ -520,7 +525,7 @@ impl Imap {
         self.prepare(context).await?;
 
         let msgs_fetched = self
-            .fetch_new_messages(context, watch_folder, false)
+            .fetch_new_messages(context, watch_folder, is_spam_folder, false)
             .await
             .context("fetch_new_messages")?;
         if msgs_fetched && context.get_config_delete_device_after().await?.is_some() {
@@ -734,9 +739,10 @@ impl Imap {
         &mut self,
         context: &Context,
         folder: &str,
+        is_spam_folder: bool,
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
-        if should_ignore_folder(context, folder).await? {
+        if should_ignore_folder(context, folder, is_spam_folder).await? {
             info!(context, "Not fetching from {}", folder);
             return Ok(false);
         }
@@ -779,7 +785,7 @@ impl Imap {
             // Get the Message-ID or generate a fake one to identify the message in the database.
             let message_id = prefetch_get_message_id(&headers).unwrap_or_else(dc_create_id);
 
-            let target = match target_folder(context, folder, &headers).await? {
+            let target = match target_folder(context, folder, is_spam_folder, &headers).await? {
                 Some(config) => match context.get_config(config).await? {
                     Some(target) => target,
                     None => folder.to_string(),
@@ -810,7 +816,7 @@ impl Imap {
                 // If the sender is known, the message will be moved to the Inbox or Mvbox
                 // and then we download the message from there.
                 // Also see `spam_target_folder()`.
-                && !context.is_spam_folder(folder).await?
+                && !is_spam_folder
                 && prefetch_should_download(
                     context,
                     &headers,
@@ -1730,13 +1736,14 @@ async fn spam_target_folder(
 pub async fn target_folder(
     context: &Context,
     folder: &str,
+    is_spam_folder: bool,
     headers: &[mailparse::MailHeader<'_>],
 ) -> Result<Option<Config>> {
     if context.is_mvbox(folder).await? {
         return Ok(None);
     }
 
-    if context.is_spam_folder(folder).await? {
+    if is_spam_folder {
         spam_target_folder(context, headers).await
     } else if needs_move_to_mvbox(context, headers).await? {
         Ok(Some(Config::ConfiguredMvboxFolder))
@@ -2182,7 +2189,11 @@ pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result
 ///
 /// This caters for the [`Config::OnlyFetchMvbox`] setting which means mails from folders
 /// not explicitly watched should not be fetched.
-async fn should_ignore_folder(context: &Context, folder: &str) -> Result<bool> {
+async fn should_ignore_folder(
+    context: &Context,
+    folder: &str,
+    is_spam_folder: bool,
+) -> Result<bool> {
     if !context.get_config_bool(Config::OnlyFetchMvbox).await? {
         return Ok(false);
     }
@@ -2190,7 +2201,7 @@ async fn should_ignore_folder(context: &Context, folder: &str) -> Result<bool> {
         // Still respect the SentboxWatch setting.
         return Ok(!context.get_config_bool(Config::SentboxWatch).await?);
     }
-    Ok(!(context.is_mvbox(folder).await? || context.is_spam_folder(folder).await?))
+    Ok(!(context.is_mvbox(folder).await? || is_spam_folder))
 }
 
 /// Builds a list of sequence/uid sets. The returned sets have each no more than around 1000
@@ -2367,9 +2378,6 @@ mod tests {
 
         let t = TestContext::new_alice().await;
         t.ctx
-            .set_config(Config::ConfiguredSpamFolder, Some("Spam"))
-            .await?;
-        t.ctx
             .set_config(Config::ConfiguredMvboxFolder, Some("DeltaChat"))
             .await?;
         t.ctx
@@ -2410,11 +2418,13 @@ mod tests {
 
         let (headers, _) = mailparse::parse_headers(bytes)?;
 
-        let actual = if let Some(config) = target_folder(&t, folder, &headers).await? {
-            t.get_config(config).await?
-        } else {
-            None
-        };
+        let is_spam_folder = folder == "Spam";
+        let actual =
+            if let Some(config) = target_folder(&t, folder, is_spam_folder, &headers).await? {
+                t.get_config(config).await?
+            } else {
+                None
+            };
 
         let expected = if expected_destination == folder {
             None

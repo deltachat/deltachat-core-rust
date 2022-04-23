@@ -1468,6 +1468,15 @@ class TestOnlineAccount:
 
             Unknown message in Spam
         """.format(ac1.get_config("configured_addr")))
+        ac1.direct_imap.append("Junk", """
+            From: unknown.address@junk.org
+            Subject: subj
+            To: {}
+            Message-ID: <spam.message@junk.org>
+            Content-Type: text/plain; charset=utf-8
+
+            Unknown message in Junk
+        """.format(ac1.get_config("configured_addr")))
 
         ac1.set_config("scan_all_folders_debounce_secs", "0")
         lp.sec("All prepared, now let DC find the message")
