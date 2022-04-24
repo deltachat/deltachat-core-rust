@@ -1435,6 +1435,7 @@ class TestOnlineAccount:
         ac1.direct_imap.create_folder("Drafts")
         ac1.direct_imap.create_folder("Sent")
         ac1.direct_imap.create_folder("Spam")
+        ac1.direct_imap.create_folder("Junk")
 
         acfactory.wait_configure_and_start_io()
         # Wait until each folder was selected once and we are IDLEing again:
