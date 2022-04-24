@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changes
+- Send locations in the background regardless of SMTP loop activity #3247
+
 ### Fixes
 
 - simplify `dc_stop_io()` and remove potential panics and race conditions #3273

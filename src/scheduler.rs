@@ -12,6 +12,7 @@ use crate::dc_tools::time;
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::imap::Imap;
 use crate::job::{self, Thread};
+use crate::location;
 use crate::log::LogExt;
 use crate::smtp::{send_smtp_messages, Smtp};
 use crate::sql;
@@ -36,6 +37,8 @@ pub(crate) enum Scheduler {
         smtp_handle: Option<task::JoinHandle<()>>,
         ephemeral_handle: Option<task::JoinHandle<()>>,
         ephemeral_interrupt_send: Sender<()>,
+        location_handle: Option<task::JoinHandle<()>>,
+        location_interrupt_send: Sender<()>,
     },
 }
 
@@ -64,6 +67,10 @@ impl Context {
 
     pub(crate) async fn interrupt_ephemeral_task(&self) {
         self.scheduler.read().await.interrupt_ephemeral_task().await;
+    }
+
+    pub(crate) async fn interrupt_location(&self) {
+        self.scheduler.read().await.interrupt_location().await;
     }
 }
 
@@ -386,6 +393,7 @@ impl Scheduler {
         let mut sentbox_handle = None;
         let (smtp_start_send, smtp_start_recv) = channel::bounded(1);
         let (ephemeral_interrupt_send, ephemeral_interrupt_recv) = channel::bounded(1);
+        let (location_interrupt_send, location_interrupt_recv) = channel::bounded(1);
 
         let inbox_handle = {
             let ctx = ctx.clone();
@@ -454,6 +462,13 @@ impl Scheduler {
             }))
         };
 
+        let location_handle = {
+            let ctx = ctx.clone();
+            Some(task::spawn(async move {
+                location::location_loop(&ctx, location_interrupt_recv).await;
+            }))
+        };
+
         *self = Scheduler::Running {
             inbox,
             mvbox,
@@ -465,6 +480,8 @@ impl Scheduler {
             smtp_handle,
             ephemeral_handle,
             ephemeral_interrupt_send,
+            location_handle,
+            location_interrupt_send,
         };
 
         // wait for all loops to be started
@@ -540,6 +557,16 @@ impl Scheduler {
         }
     }
 
+    async fn interrupt_location(&self) {
+        if let Scheduler::Running {
+            ref location_interrupt_send,
+            ..
+        } = self
+        {
+            location_interrupt_send.try_send(()).ok();
+        }
+    }
+
     /// Halt the scheduler.
     pub(crate) async fn stop(&mut self) -> Result<()> {
         match self {
@@ -556,6 +583,7 @@ impl Scheduler {
                 smtp,
                 smtp_handle,
                 ephemeral_handle,
+                location_handle,
                 ..
             } => {
                 if inbox_handle.is_some() {
@@ -584,6 +612,9 @@ impl Scheduler {
                     handle.await;
                 }
                 if let Some(handle) = ephemeral_handle.take() {
+                    handle.cancel().await;
+                }
+                if let Some(handle) = location_handle.take() {
                     handle.cancel().await;
                 }
 

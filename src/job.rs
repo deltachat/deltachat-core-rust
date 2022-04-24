@@ -14,7 +14,6 @@ use crate::context::Context;
 use crate::dc_tools::time;
 use crate::events::EventType;
 use crate::imap::Imap;
-use crate::location;
 use crate::message::{Message, MsgId};
 use crate::mimefactory::MimeFactory;
 use crate::param::{Param, Params};
@@ -90,8 +89,6 @@ pub enum Action {
     ResyncFolders = 300,
 
     // Jobs in the SMTP-thread, range from DC_SMTP_THREAD..DC_SMTP_THREAD+999
-    MaybeSendLocations = 5005, // low priority ...
-    MaybeSendLocationsEnded = 5007,
     SendMdn = 5010,
 }
 
@@ -105,8 +102,6 @@ impl From<Action> for Thread {
             UpdateRecentQuota => Thread::Imap,
             DownloadMsg => Thread::Imap,
 
-            MaybeSendLocations => Thread::Smtp,
-            MaybeSendLocationsEnded => Thread::Smtp,
             SendMdn => Thread::Smtp,
         }
     }
@@ -571,10 +566,6 @@ async fn perform_job_action(
 
     let try_res = match job.action {
         Action::SendMdn => job.send_mdn(context, connection.smtp()).await,
-        Action::MaybeSendLocations => location::job_maybe_send_locations(context, job).await,
-        Action::MaybeSendLocationsEnded => {
-            location::job_maybe_send_locations_ended(context, job).await
-        }
         Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
         Action::FetchExistingMsgs => job.fetch_existing_msgs(context, connection.inbox()).await,
         Action::UpdateRecentQuota => match context.update_recent_quota(connection.inbox()).await {
@@ -647,7 +638,7 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
                 info!(context, "interrupt: imap");
                 context.interrupt_inbox(InterruptInfo::new(false)).await;
             }
-            Action::MaybeSendLocations | Action::MaybeSendLocationsEnded | Action::SendMdn => {
+            Action::SendMdn => {
                 info!(context, "interrupt: smtp");
                 context.interrupt_smtp(InterruptInfo::new(false)).await;
             }
