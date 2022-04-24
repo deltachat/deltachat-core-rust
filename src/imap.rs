@@ -2172,10 +2172,10 @@ async fn get_modseq(context: &Context, folder: &str) -> Result<u64> {
 /// Compute the imap search expression for all self-sent mails (for all self addresses)
 pub(crate) async fn get_imap_self_sent_search_command(context: &Context) -> Result<String> {
     // See https://www.rfc-editor.org/rfc/rfc3501#section-6.4.4 for syntax of SEARCH and OR
-    let mut search_command = format!("FROM {}", context.get_primary_self_addr().await?);
+    let mut search_command = format!("FROM \"{}\"", context.get_primary_self_addr().await?);
 
     for item in context.get_secondary_self_addrs().await? {
-        search_command = format!("OR ({}) (FROM {})", search_command, item);
+        search_command = format!("OR ({}) (FROM \"{}\")", search_command, item);
     }
 
     Ok(search_command)
@@ -2555,19 +2555,19 @@ mod tests {
         let t = TestContext::new_alice().await;
         assert_eq!(
             get_imap_self_sent_search_command(&t.ctx).await?,
-            "FROM alice@example.org"
+            r#"FROM "alice@example.org""#
         );
 
         t.ctx.set_primary_self_addr("alice@another.com").await?;
         assert_eq!(
             get_imap_self_sent_search_command(&t.ctx).await?,
-            "OR (FROM alice@another.com) (FROM alice@example.org)"
+            r#"OR (FROM "alice@another.com") (FROM "alice@example.org")"#
         );
 
         t.ctx.set_primary_self_addr("alice@third.com").await?;
         assert_eq!(
             get_imap_self_sent_search_command(&t.ctx).await?,
-            "OR (OR (FROM alice@third.com) (FROM alice@another.com)) (FROM alice@example.org)"
+            r#"OR (OR (FROM "alice@third.com") (FROM "alice@another.com")) (FROM "alice@example.org")"#
         );
 
         Ok(())

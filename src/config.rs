@@ -335,7 +335,8 @@ impl Context {
 
 // Separate impl block for self address handling
 impl Context {
-    /// determine whether the specified addr maps to the/a self addr
+    /// Determine whether the specified addr maps to the/a self addr.
+    /// Returns `false` if no addresses are configured.
     pub(crate) async fn is_self_addr(&self, addr: &str) -> Result<bool> {
         Ok(self
             .get_config(Config::ConfiguredAddr)
