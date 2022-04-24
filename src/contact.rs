@@ -297,7 +297,10 @@ impl Contact {
             .await?;
         if contact_id == ContactId::SELF {
             contact.name = stock_str::self_msg(context).await;
-            contact.addr = context.get_primary_self_addr().await.unwrap_or_default();
+            contact.addr = context
+                .get_config(Config::ConfiguredAddr)
+                .await?
+                .unwrap_or_default();
             contact.status = context
                 .get_config(Config::Selfstatus)
                 .await?
@@ -726,7 +729,10 @@ impl Contact {
                 .await?;
 
             if let Some(query) = query {
-                let self_addr = context.get_primary_self_addr().await.unwrap_or_default();
+                let self_addr = context
+                    .get_config(Config::ConfiguredAddr)
+                    .await?
+                    .unwrap_or_default();
                 let self_name = context
                     .get_config(Config::Displayname)
                     .await?

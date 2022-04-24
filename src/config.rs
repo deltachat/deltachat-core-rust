@@ -338,8 +338,8 @@ impl Context {
     /// determine whether the specified addr maps to the/a self addr
     pub(crate) async fn is_self_addr(&self, addr: &str) -> Result<bool> {
         Ok(self
-            .get_primary_self_addr()
-            .await
+            .get_config(Config::ConfiguredAddr)
+            .await?
             .iter()
             .any(|a| addr_cmp(addr, a))
             || self
@@ -372,7 +372,7 @@ impl Context {
 
     /// Returns all primary and secondary self addresses.
     pub(crate) async fn get_all_self_addrs(&self) -> Result<Vec<String>> {
-        let primary_addrs = self.get_primary_self_addr().await.into_iter();
+        let primary_addrs = self.get_config(Config::ConfiguredAddr).await?.into_iter();
         let secondary_addrs = self.get_secondary_self_addrs().await?.into_iter();
 
         Ok(primary_addrs.chain(secondary_addrs).collect())
@@ -391,6 +391,7 @@ impl Context {
     }
 
     /// Returns the primary self address.
+    /// Returns an error if no self addr is configured.
     pub async fn get_primary_self_addr(&self) -> Result<String> {
         self.get_config(Config::ConfiguredAddr)
             .await?
