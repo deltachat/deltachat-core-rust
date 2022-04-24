@@ -5,7 +5,7 @@ import calendar
 import json
 from datetime import datetime, timezone
 import os
-from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
+from .cutil import as_dc_charpointer, from_dc_charpointer, from_optional_dc_charpointer, iter_array
 from .capi import lib, ffi
 from . import const
 from .message import Message
@@ -517,7 +517,7 @@ class Chat(object):
                     lib.dc_array_get_timestamp(dc_array, i),
                     timezone.utc
                 ),
-                marker=from_dc_charpointer(lib.dc_array_get_marker(dc_array, i)),
+                marker=from_optional_dc_charpointer(lib.dc_array_get_marker(dc_array, i)),
             )
             for i in range(lib.dc_array_get_cnt(dc_array))
         ]
