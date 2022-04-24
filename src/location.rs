@@ -755,6 +755,7 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
+    use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
 
     #[async_std::test]
@@ -814,5 +815,69 @@ mod tests {
         assert!(is_marker("🏠"));
         assert!(!is_marker(" "));
         assert!(!is_marker("\t"));
+    }
+
+    /// Tests that location.kml is hidden.
+    #[async_std::test]
+    async fn receive_location_kml() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        dc_receive_imf(
+            &alice,
+            br#"Subject: Hello
+Message-ID: hello@example.net
+To: Alice <alice@example.org>
+From: Bob <bob@example.net>
+Date: Mon, 20 Dec 2021 00:00:00 +0000
+Chat-Version: 1.0
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+Text message."#,
+            false,
+        )
+        .await?;
+        let received_msg = alice.get_last_msg().await;
+        assert_eq!(received_msg.text.unwrap(), "Text message.");
+
+        dc_receive_imf(
+            &alice,
+            br#"Subject: locations
+MIME-Version: 1.0
+To: <alice@example.org>
+From: <bob@example.net>
+Date: Tue, 21 Dec 2021 00:00:00 +0000
+Chat-Version: 1.0
+Message-ID: <foobar@example.net>
+Content-Type: multipart/mixed; boundary="U8BOG8qNXfB0GgLiQ3PKUjlvdIuLRF"
+
+
+--U8BOG8qNXfB0GgLiQ3PKUjlvdIuLRF
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+
+
+--U8BOG8qNXfB0GgLiQ3PKUjlvdIuLRF
+Content-Type: application/vnd.google-earth.kml+xml
+Content-Disposition: attachment; filename="location.kml"
+
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document addr="bob@example.net">
+<Placemark><Timestamp><when>2021-11-21T00:00:00Z</when></Timestamp><Point><coordinates accuracy="1.0000000000000000">10.00000000000000,20.00000000000000</coordinates></Point></Placemark>
+</Document>
+</kml>
+
+--U8BOG8qNXfB0GgLiQ3PKUjlvdIuLRF--"#,
+            false,
+        )
+        .await?;
+
+        // Received location message is not visible, last message stays the same.
+        let received_msg2 = alice.get_last_msg().await;
+        assert_eq!(received_msg2.id, received_msg.id);
+
+        let locations = get_range(&alice, None, None, 0, 0).await?;
+        assert_eq!(locations.len(), 1);
+        Ok(())
     }
 }

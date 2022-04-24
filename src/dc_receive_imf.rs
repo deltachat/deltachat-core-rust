@@ -1103,11 +1103,11 @@ INSERT INTO msgs
 
         // If you change which information is skipped if the message is trashed,
         // also change `MsgId::trash()` and `delete_expired_messages()`
-        let trash = chat_id.is_trash();
+        let trash = chat_id.is_trash() || (location_kml_is && msg.is_empty());
 
         stmt.execute(paramsv![
             rfc724_mid,
-            chat_id,
+            if trash { DC_CHAT_ID_TRASH } else { chat_id },
             if trash { ContactId::UNDEFINED } else { from_id },
             if trash { ContactId::UNDEFINED } else { to_id },
             sort_timestamp,
