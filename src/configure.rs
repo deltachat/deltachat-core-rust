@@ -454,7 +454,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 910);
 
-    if ctx.get_primary_self_addr().await.ok().as_deref() != Some(&param.addr) {
+    if ctx.get_config(Config::ConfiguredAddr).await?.as_deref() != Some(&param.addr) {
         // Switched account, all server UIDs we know are invalid
         job::schedule_resync(ctx).await?;
     }
