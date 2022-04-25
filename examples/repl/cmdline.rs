@@ -21,7 +21,6 @@ use deltachat::message::{self, Message, MessageState, MsgId, Viewtype};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
-use deltachat::EventType;
 use deltachat::{config, provider};
 use std::fs;
 use std::time::{Duration, SystemTime};
@@ -93,10 +92,7 @@ async fn reset_tables(context: &Context, bits: i32) {
         println!("(8) Rest but server config reset.");
     }
 
-    context.emit_event(EventType::MsgsChanged {
-        chat_id: ChatId::new(0),
-        msg_id: MsgId::new(0),
-    });
+    context.emit_msgs_changed_without_ids();
 }
 
 async fn poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<()> {
@@ -164,10 +160,7 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
     }
     println!("Import: {} items read from \"{}\".", read_cnt, &real_spec);
     if read_cnt > 0 {
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: ChatId::new(0),
-            msg_id: MsgId::new(0),
-        });
+        context.emit_msgs_changed_without_ids();
     }
     true
 }

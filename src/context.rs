@@ -241,6 +241,24 @@ impl Context {
         });
     }
 
+    /// Emits a generic MsgsChanged event (without chat or message id)
+    pub fn emit_msgs_changed_without_ids(&self) {
+        self.emit_event(EventType::MsgsChanged {
+            chat_id: ChatId::new(0),
+            msg_id: MsgId::new(0),
+        });
+    }
+
+    /// Emits a MsgsChanged event with specified chat and message ids
+    pub fn emit_msgs_changed(&self, chat_id: ChatId, msg_id: MsgId) {
+        self.emit_event(EventType::MsgsChanged { chat_id, msg_id });
+    }
+
+    /// Emits an IncomingMsg event with specified chat and message ids
+    pub fn emit_incoming_msg(&self, chat_id: ChatId, msg_id: MsgId) {
+        self.emit_event(EventType::IncomingMsg { chat_id, msg_id });
+    }
+
     /// Returns a receiver for emitted events.
     ///
     /// Multiple emitters can be created, but note that in this case each emitted event will
