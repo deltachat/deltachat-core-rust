@@ -214,10 +214,7 @@ impl ChatId {
                 }
             }
         };
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: ChatId::new(0),
-            msg_id: MsgId::new(0),
-        });
+        context.emit_msgs_changed_without_ids();
         Ok(chat_id)
     }
 
@@ -492,10 +489,7 @@ impl ChatId {
             })
             .await?;
 
-        context.emit_event(EventType::MsgsChanged {
-            msg_id: MsgId::new(0),
-            chat_id: ChatId::new(0),
-        });
+        context.emit_msgs_changed_without_ids();
 
         Ok(())
     }
@@ -550,10 +544,7 @@ impl ChatId {
             .execute("DELETE FROM chats WHERE id=?;", paramsv![self])
             .await?;
 
-        context.emit_event(EventType::MsgsChanged {
-            msg_id: MsgId::new(0),
-            chat_id: ChatId::new(0),
-        });
+        context.emit_msgs_changed_without_ids();
 
         context.set_config(Config::LastHousekeeping, None).await?;
         context.interrupt_inbox(InterruptInfo::new(false)).await;
@@ -581,9 +572,9 @@ impl ChatId {
         };
 
         if changed {
-            context.emit_event(EventType::MsgsChanged {
-                chat_id: self,
-                msg_id: if msg.is_some() {
+            context.emit_msgs_changed(
+                self,
+                if msg.is_some() {
                     match self.get_draft_msg_id(context).await? {
                         Some(msg_id) => msg_id,
                         None => MsgId::new(0),
@@ -591,7 +582,7 @@ impl ChatId {
                 } else {
                     MsgId::new(0)
                 },
-            });
+            );
         }
 
         Ok(())
@@ -1793,10 +1784,7 @@ pub async fn prepare_msg(context: &Context, chat_id: ChatId, msg: &mut Message) 
     );
 
     let msg_id = prepare_msg_common(context, chat_id, msg, MessageState::OutPreparing).await?;
-    context.emit_event(EventType::MsgsChanged {
-        chat_id: msg.chat_id,
-        msg_id: msg.id,
-    });
+    context.emit_msgs_changed(msg.chat_id, msg.id);
 
     Ok(msg_id)
 }
@@ -1964,20 +1952,14 @@ pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message
             .await
             .context("failed to send message, queued for later sending")?;
 
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: msg.chat_id,
-            msg_id: msg.id,
-        });
+        context.emit_msgs_changed(msg.chat_id, msg.id);
     }
     Ok(msg.id)
 }
 
 async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     if prepare_send_msg(context, chat_id, msg).await?.is_some() {
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: msg.chat_id,
-            msg_id: msg.id,
-        });
+        context.emit_msgs_changed(msg.chat_id, msg.id);
 
         if msg.param.exists(Param::SetLatitude) {
             context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
@@ -2565,10 +2547,7 @@ pub async fn create_group_chat(
         add_to_chat_contacts_table(context, chat_id, ContactId::SELF).await?;
     }
 
-    context.emit_event(EventType::MsgsChanged {
-        msg_id: MsgId::new(0),
-        chat_id: ChatId::new(0),
-    });
+    context.emit_msgs_changed_without_ids();
 
     if protect == ProtectionStatus::Protected {
         // this part is to stay compatible to verified groups,
@@ -2622,10 +2601,7 @@ pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
         .await?;
     let chat_id = ChatId::new(u32::try_from(row_id)?);
 
-    context.emit_event(EventType::MsgsChanged {
-        msg_id: MsgId::new(0),
-        chat_id: ChatId::new(0),
-    });
+    context.emit_msgs_changed_without_ids();
     Ok(chat_id)
 }
 
@@ -2988,10 +2964,7 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
                     msg.param.set(Param::Arg, &chat.name);
                 }
                 msg.id = send_msg(context, chat_id, &mut msg).await?;
-                context.emit_event(EventType::MsgsChanged {
-                    chat_id,
-                    msg_id: msg.id,
-                });
+                context.emit_msgs_changed(chat_id, msg.id);
             }
             context.emit_event(EventType::ChatModified(chat_id));
             success = true;
@@ -3053,10 +3026,7 @@ pub async fn set_chat_profile_image(
     chat.update_param(context).await?;
     if chat.is_promoted() && !chat.is_mailing_list() {
         msg.id = send_msg(context, chat_id, &mut msg).await?;
-        context.emit_event(EventType::MsgsChanged {
-            chat_id,
-            msg_id: msg.id,
-        });
+        context.emit_msgs_changed(chat_id, msg.id);
     }
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
@@ -3151,10 +3121,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         }
     }
     for (chat_id, msg_id) in created_chats.iter().zip(created_msgs.iter()) {
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: *chat_id,
-            msg_id: *msg_id,
-        });
+        context.emit_msgs_changed(*chat_id, *msg_id);
     }
     Ok(())
 }
@@ -3294,9 +3261,9 @@ pub async fn add_device_msg_with_importance(
 
     if !msg_id.is_unset() {
         if important {
-            context.emit_event(EventType::IncomingMsg { chat_id, msg_id });
+            context.emit_incoming_msg(chat_id, msg_id);
         } else {
-            context.emit_event(EventType::MsgsChanged { chat_id, msg_id });
+            context.emit_msgs_changed(chat_id, msg_id);
         }
     }
 
@@ -3391,7 +3358,8 @@ pub(crate) async fn add_info_msg_with_cmd(
     ).await?;
 
     let msg_id = MsgId::new(row_id.try_into()?);
-    context.emit_event(EventType::MsgsChanged { chat_id, msg_id });
+    context.emit_msgs_changed(chat_id, msg_id);
+
     Ok(msg_id)
 }
 

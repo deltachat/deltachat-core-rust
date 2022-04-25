@@ -329,18 +329,15 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     if replace_partial_download {
-        context.emit_event(EventType::MsgsChanged {
-            msg_id: MsgId::new(0),
-            chat_id,
-        });
+        context.emit_msgs_changed(chat_id, MsgId::new(0));
     } else if !chat_id.is_trash() {
+        let fresh = added_parts.received_msg.state == MessageState::InFresh;
         for msg_id in added_parts.created_db_entries {
-            let event = if incoming && added_parts.received_msg.state == MessageState::InFresh {
-                EventType::IncomingMsg { msg_id, chat_id }
+            if incoming && fresh {
+                context.emit_incoming_msg(chat_id, msg_id);
             } else {
-                EventType::MsgsChanged { msg_id, chat_id }
+                context.emit_msgs_changed(chat_id, msg_id);
             };
-            context.emit_event(event);
         }
     }
 

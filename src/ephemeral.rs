@@ -399,10 +399,7 @@ WHERE
     }
 
     if updated {
-        context.emit_event(EventType::MsgsChanged {
-            chat_id: ChatId::new(0),
-            msg_id: MsgId::new(0),
-        });
+        context.emit_msgs_changed_without_ids();
     }
 
     Ok(())

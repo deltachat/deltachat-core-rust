@@ -239,10 +239,7 @@ impl Context {
             {
                 instance.param.set(Param::WebxdcSummary, summary);
                 instance.update_param(self).await;
-                self.emit_event(EventType::MsgsChanged {
-                    chat_id: instance.chat_id,
-                    msg_id: instance.id,
-                });
+                self.emit_msgs_changed(instance.chat_id, instance.id);
             }
         }
 
