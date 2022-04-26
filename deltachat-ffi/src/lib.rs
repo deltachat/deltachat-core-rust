@@ -3974,6 +3974,25 @@ pub unsafe extern "C" fn dc_provider_new_from_email(
     let addr = to_string_lossy(addr);
 
     let ctx = &*context;
+
+    match block_on(provider::get_provider_info(ctx, addr.as_str(), true)) {
+        Some(provider) => provider,
+        None => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_provider_new_from_email_with_dns(
+    context: *const dc_context_t,
+    addr: *const libc::c_char,
+) -> *const dc_provider_t {
+    if context.is_null() || addr.is_null() {
+        eprintln!("ignoring careless call to dc_provider_new_from_email_with_dns()");
+        return ptr::null();
+    }
+    let addr = to_string_lossy(addr);
+
+    let ctx = &*context;
     let socks5_enabled = block_on(async move {
         ctx.get_config_bool(config::Config::Socks5Enabled)
             .await
