@@ -1752,6 +1752,27 @@ pub unsafe extern "C" fn dc_forward_msgs(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_resend_msgs(
+    context: *mut dc_context_t,
+    msg_ids: *const u32,
+    msg_cnt: libc::c_int,
+) -> libc::c_int {
+    if context.is_null() || msg_ids.is_null() || msg_cnt <= 0 {
+        eprintln!("ignoring careless call to dc_resend_msgs()");
+        return 0;
+    }
+    let ctx = &*context;
+    let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
+
+    if let Err(err) = block_on(chat::resend_msgs(ctx, &msg_ids)) {
+        error!(ctx, "Resending failed: {}", err);
+        0
+    } else {
+        1
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_markseen_msgs(
     context: *mut dc_context_t,
     msg_ids: *const u32,

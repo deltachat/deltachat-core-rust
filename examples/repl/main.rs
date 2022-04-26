@@ -207,11 +207,12 @@ const CHAT_COMMANDS: [&str; 36] = [
     "accept",
     "blockchat",
 ];
-const MESSAGE_COMMANDS: [&str; 7] = [
+const MESSAGE_COMMANDS: [&str; 8] = [
     "listmsgs",
     "msginfo",
     "listfresh",
     "forward",
+    "resend",
     "markseen",
     "delmsg",
     "download",

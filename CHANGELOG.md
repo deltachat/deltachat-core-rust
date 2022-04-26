@@ -5,6 +5,7 @@
 ### API-Changes
 
 - replaced stock string `DC_STR_ONE_MOMENT` by `DC_STR_NOT_CONNECTED` #3222
+- add `dc_resend_msgs()` #3238
 
 ### Fixes
 

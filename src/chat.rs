@@ -3126,6 +3126,52 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     Ok(())
 }
 
+pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
+    let mut chat_id = None;
+    let mut msgs: Vec<Message> = Vec::new();
+    for msg_id in msg_ids {
+        let msg = Message::load_from_db(context, *msg_id).await?;
+        if let Some(chat_id) = chat_id {
+            ensure!(
+                chat_id == msg.chat_id,
+                "messages to resend needs to be in the same chat"
+            );
+        } else {
+            chat_id = Some(msg.chat_id);
+        }
+        ensure!(
+            msg.from_id == ContactId::SELF,
+            "can resend only own messages"
+        );
+        ensure!(!msg.is_info(), "cannot resend info messages");
+        msgs.push(msg)
+    }
+
+    if let Some(chat_id) = chat_id {
+        let chat = Chat::load_from_db(context, chat_id).await?;
+        for mut msg in msgs {
+            if msg.get_showpadlock() && !chat.is_protected() {
+                msg.param.remove(Param::GuaranteeE2ee);
+                msg.update_param(context).await;
+            }
+            match msg.get_state() {
+                MessageState::OutFailed | MessageState::OutDelivered | MessageState::OutMdnRcvd => {
+                    message::update_msg_state(context, msg.id, MessageState::OutPending).await?
+                }
+                _ => bail!("unexpected message state"),
+            }
+            context.emit_event(EventType::MsgsChanged {
+                chat_id: msg.chat_id,
+                msg_id: msg.id,
+            });
+            if create_send_msg_job(context, msg.id).await?.is_some() {
+                context.interrupt_smtp(InterruptInfo::new(false)).await;
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
     if context.sql.is_open().await {
         // no database, no chats - this is no error (needed eg. for information)
@@ -5100,6 +5146,141 @@ mod tests {
             assert!(!sent_msg.payload().contains("secretname"));
             assert!(!sent_msg.payload().contains("alice"));
         }
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_resend_own_message() -> Result<()> {
+        // Alice creates group with Bob and sends an initial message
+        let alice = TestContext::new_alice().await;
+        let alice_grp = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "bob@example.net").await?,
+        )
+        .await?;
+        let sent1 = alice.send_text(alice_grp, "alice->bob").await;
+
+        // Alice adds Claire to group and resends her own initial message
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "claire@example.org").await?,
+        )
+        .await?;
+        let sent2 = alice.pop_sent_msg().await;
+        resend_msgs(&alice, &[sent1.sender_msg_id]).await?;
+        let sent3 = alice.pop_sent_msg().await;
+
+        // Bob receives all messages
+        let bob = TestContext::new_bob().await;
+        bob.recv_msg(&sent1).await;
+        let msg = bob.get_last_msg().await;
+        assert_eq!(msg.get_text().unwrap(), "alice->bob");
+        assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0, None).await?.len(), 1);
+        bob.recv_msg(&sent2).await;
+        assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 3);
+        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0, None).await?.len(), 2);
+        bob.recv_msg(&sent3).await;
+        assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 3);
+        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0, None).await?.len(), 2);
+
+        // Claire does not receive the first message, however, due to resending, she has a similar view as Alice and Bob
+        let claire = TestContext::new().await;
+        claire.configure_addr("claire@example.org").await;
+        claire.recv_msg(&sent2).await;
+        claire.recv_msg(&sent3).await;
+        let msg = claire.get_last_msg().await;
+        assert_eq!(msg.get_text().unwrap(), "alice->bob");
+        assert_eq!(get_chat_contacts(&claire, msg.chat_id).await?.len(), 3);
+        assert_eq!(get_chat_msgs(&claire, msg.chat_id, 0, None).await?.len(), 2);
+        let msg_from = Contact::get_by_id(&claire, msg.get_from_id()).await?;
+        assert_eq!(msg_from.get_addr(), "alice@example.org");
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_resend_foreign_message_fails() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let alice_grp = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "bob@example.net").await?,
+        )
+        .await?;
+        let sent1 = alice.send_text(alice_grp, "alice->bob").await;
+
+        let bob = TestContext::new_bob().await;
+        bob.recv_msg(&sent1).await;
+        let msg = bob.get_last_msg().await;
+        assert!(resend_msgs(&bob, &[msg.id]).await.is_err());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_resend_opportunistically_encryption() -> Result<()> {
+        // Alice creates group with Bob and sends an initial message
+        let alice = TestContext::new_alice().await;
+        let alice_grp = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "bob@example.net").await?,
+        )
+        .await?;
+        let sent1 = alice.send_text(alice_grp, "alice->bob").await;
+
+        // Bob now can send an encrypted message
+        let bob = TestContext::new_bob().await;
+        bob.recv_msg(&sent1).await;
+        let msg = bob.get_last_msg().await;
+        assert!(!msg.get_showpadlock());
+
+        msg.chat_id.accept(&bob).await?;
+        let sent2 = bob.send_text(msg.chat_id, "bob->alice").await;
+        let msg = bob.get_last_msg().await;
+        assert!(msg.get_showpadlock());
+
+        // Bob adds Claire and resends his last message: this will drop encryption in opportunistic chats
+        add_contact_to_chat(
+            &bob,
+            msg.chat_id,
+            Contact::create(&bob, "", "claire@example.org").await?,
+        )
+        .await?;
+        let _sent3 = bob.pop_sent_msg().await;
+        resend_msgs(&bob, &[sent2.sender_msg_id]).await?;
+        let _sent4 = bob.pop_sent_msg().await;
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_resend_info_message_fails() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let alice_grp = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "bob@example.net").await?,
+        )
+        .await?;
+        alice.send_text(alice_grp, "alice->bob").await;
+
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "claire@example.org").await?,
+        )
+        .await?;
+        let sent2 = alice.pop_sent_msg().await;
+        assert!(resend_msgs(&alice, &[sent2.sender_msg_id]).await.is_err());
 
         Ok(())
     }

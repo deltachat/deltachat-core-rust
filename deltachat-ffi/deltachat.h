@@ -1802,6 +1802,25 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
 
 
 /**
+ * Resend messages and make information available for newly added chat members.
+ * Resending sends out the original message, however, recipients and webxdc-status may differ.
+ * Clients that already have the original message can still ignore the resent message as
+ * they have tracked the state by dedicated updates.
+ *
+ * Some messages cannot be resent, eg. info-messages, drafts, already pending messages or messages that are not sent by SELF.
+ * In this case, the return value indicates an error and the error string from dc_get_last_error() should be shown to the user.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param msg_ids An array of uint32_t containing all message IDs that should be resend.
+ *     All messages must belong to the same chat.
+ * @param msg_cnt The number of messages IDs in the msg_ids array.
+ * @return 1=all messages are queued for resending, 0=error
+ */
+int             dc_resend_msgs               (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt);
+
+
+/**
  * Mark messages as presented to the user.
  * Typically, UIs call this function on scrolling through the message list,
  * when the messages are presented at least for a little moment.
