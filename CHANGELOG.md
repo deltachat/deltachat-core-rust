@@ -6,6 +6,8 @@
 
 - replaced stock string `DC_STR_ONE_MOMENT` by `DC_STR_NOT_CONNECTED` #3222
 - add `dc_resend_msgs()` #3238
+- `dc_provider_new_from_email()` does no longer do an DNS lookup for checking custom domains,
+  this is done by `dc_provider_new_from_email_with_dns()` now #3256
 
 ### Fixes
 

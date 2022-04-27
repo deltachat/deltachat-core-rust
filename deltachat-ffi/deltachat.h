@@ -4648,9 +4648,10 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
 
 
 /**
- * Create a provider struct for the given e-mail address.
+ * Create a provider struct for the given e-mail address by local lookup.
  *
- * The provider is extracted from the e-mail address and it's information is returned.
+ * Lookup is done from the local database by extracting the domain from the e-mail address.
+ * Therefore the provider for custom domains cannot be identified.
  *
  * @memberof dc_provider_t
  * @param context The context object.
@@ -4660,6 +4661,23 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
  *     returned.
  */
 dc_provider_t*  dc_provider_new_from_email            (const dc_context_t* context, const char* email);
+
+
+/**
+ * Create a provider struct for the given e-mail address by local and DNS lookup.
+ *
+ * First lookup is done from the local database as of dc_provider_new_from_email().
+ * If the first lookup fails, an additional DNS lookup is done,
+ * trying to figure out the provider belonging to custom domains.
+ *
+ * @memberof dc_provider_t
+ * @param context The context object.
+ * @param email The user's e-mail address to extract the provider info form.
+ * @return A dc_provider_t struct which can be used with the dc_provider_get_*
+ *     accessor functions. If no provider info is found, NULL will be
+ *     returned.
+ */
+dc_provider_t*  dc_provider_new_from_email_with_dns    (const dc_context_t* context, const char* email);
 
 
 /**
