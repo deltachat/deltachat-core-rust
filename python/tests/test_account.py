@@ -11,6 +11,7 @@ from deltachat.hookspec import account_hookimpl
 from deltachat.capi import ffi, lib
 from deltachat.cutil import iter_array
 from datetime import datetime, timedelta, timezone
+from imap_tools import AND, U
 
 
 @pytest.mark.parametrize("msgtext,res", [
@@ -1058,12 +1059,9 @@ class TestOnlineAccount:
         # Accept the contact request.
         msg.chat.accept()
         ac2.mark_seen_messages([msg])
-        ac2.direct_imap.idle_wait_for_seen(terminate=True)
+        uid = ac2.direct_imap.idle_wait_for_seen(terminate=True)
 
-        fetch = list(ac2.direct_imap.conn.fetch("*", b'FLAGS').values())
-        flags = fetch[-1][b'FLAGS']
-        is_seen = b'\\Seen' in flags
-        assert is_seen
+        assert len([a for a in ac2.direct_imap.conn.fetch(AND(seen=True, uid=U(uid, "*")))]) == 1
 
     def test_multidevice_sync_seen(self, acfactory, lp):
         """Test that message marked as seen on one device is marked as seen on another."""
@@ -2296,7 +2294,7 @@ class TestOnlineAccount:
         ac1.direct_imap.delete("1:*", expunge=False)
         ac1.start_io()
 
-        for ev in ac1._evtracker.iter_events():
+        for ev in ac1._evtracker.iter_events(timeout=60):
             if ev.name == "DC_EVENT_MSGS_CHANGED":
                 pytest.fail("A deleted message was shown to the user")
 
@@ -2552,7 +2550,9 @@ class TestOnlineAccount:
 
         lp.sec("imap2: test that only one message is left")
         imap2 = ac2.direct_imap
-
+        imap2.idle_start()
+        imap2.idle_wait_for_new_message(timeout=600)
+        imap2.idle_done()
         assert len(imap2.get_all_messages()) == 1
 
     def test_configure_error_msgs(self, acfactory):
@@ -2858,15 +2858,15 @@ class TestOnlineAccount:
         ac2 = acfactory.get_online_configuring_account()
         acfactory.wait_configure(ac1)
 
-        ac1.direct_imap.conn.delete_folder("DeltaChat")
-        assert len(ac1.direct_imap.conn.list_folders(pattern="DeltaChat")) == 0
+        ac1.direct_imap.conn.folder.delete("DeltaChat")
+        assert "DeltaChat" not in ac1.direct_imap.list_folders()
         acfactory.wait_configure_and_start_io()
 
         ac2.create_chat(ac1).send_text("hello")
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
 
-        assert len(ac1.direct_imap.conn.list_folders(pattern="DeltaChat")) == 1
+        assert "DeltaChat" in ac1.direct_imap.list_folders()
 
 
 class TestGroupStressTests:

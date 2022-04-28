@@ -4,25 +4,23 @@ and for cleaning up inbox/mvbox for each test function run.
 """
 
 import io
-import email
 import ssl
 import pathlib
-from imapclient import IMAPClient
-from imapclient.exceptions import IMAPClientError
+from imap_tools import MailBox, MailBoxTls, errors, AND, Header, MailMessageFlags, MailMessage
 import imaplib
 import deltachat
 from deltachat import const, Account
 
 
-SEEN = b'\\Seen'
-DELETED = b'\\Deleted'
+SEEN = MailMessageFlags.SEEN
+DELETED = MailMessageFlags.DELETED
 FLAGS = b'FLAGS'
 FETCH = b'FETCH'
 ALL = "1:*"
 
 
 @deltachat.global_hookimpl
-def dc_account_extra_configure(account):
+def dc_account_extra_configure(account: Account):
     """ Reset the account (we reuse accounts across tests)
     and make 'account.direct_imap' available for direct IMAP ops.
     """
@@ -36,7 +34,7 @@ def dc_account_extra_configure(account):
                     assert imap.select_folder(folder)
                     imap.delete(ALL, expunge=True)
                 else:
-                    imap.conn.delete_folder(folder)
+                    imap.conn.folder.delete(folder)
                     # We just deleted the folder, so we have to make DC forget about it, too
                     if account.get_config("configured_sentbox_folder") == folder:
                         account.set_config("configured_sentbox_folder", None)
@@ -86,37 +84,34 @@ class DirectImap:
             ssl_context.verify_mode = ssl.CERT_NONE
 
         if security == const.DC_SOCKET_STARTTLS:
-            self.conn = IMAPClient(host, port, ssl=False)
-            self.conn.starttls(ssl_context)
-        elif security == const.DC_SOCKET_PLAIN:
-            self.conn = IMAPClient(host, port, ssl=False)
-        elif security == const.DC_SOCKET_SSL:
-            self.conn = IMAPClient(host, port, ssl_context=ssl_context)
+            self.conn = MailBoxTls(host, port, ssl_context=ssl_context)
+        elif security == const.DC_SOCKET_PLAIN or security == const.DC_SOCKET_SSL:
+            self.conn = MailBox(host, port, ssl_context=ssl_context)
         self.conn.login(user, pw)
 
         self.select_folder("INBOX")
 
     def shutdown(self):
         try:
-            self.conn.idle_done()
-        except (OSError, IMAPClientError):
+            self.idle_done()
+        except (OSError, imaplib.IMAP4.abort):
             pass
         try:
             self.conn.logout()
-        except (OSError, IMAPClientError):
+        except (OSError, imaplib.IMAP4.abort):
             print("Could not logout direct_imap conn")
 
     def create_folder(self, foldername):
         try:
-            self.conn.create_folder(foldername)
-        except imaplib.IMAP4.error as e:
+            self.conn.folder.create(foldername)
+        except errors.MailboxFolderCreateError as e:
             print("Can't create", foldername, "probably it already exists:", str(e))
 
-    def select_folder(self, foldername):
+    def select_folder(self, foldername: str) -> tuple:
         assert not self._idling
-        return self.conn.select_folder(foldername)
+        return self.conn.folder.set(foldername)
 
-    def select_config_folder(self, config_name):
+    def select_config_folder(self, config_name: str):
         """ Return info about selected folder if it is
         configured, otherwise None. """
         if "_" not in config_name:
@@ -125,50 +120,36 @@ class DirectImap:
         if foldername:
             return self.select_folder(foldername)
 
-    def list_folders(self):
+    def list_folders(self) -> [str]:
         """ return list of all existing folder names"""
         assert not self._idling
-        folders = []
-        for meta, sep, foldername in self.conn.list_folders():
-            folders.append(foldername)
-        return folders
+        return [folder.name for folder in self.conn.folder.list()]
 
-    def delete(self, range, expunge=True):
+    def delete(self, uid_list: str, expunge=True):
         """ delete a range of messages (imap-syntax).
         If expunge is true, perform the expunge-operation
         to make sure the messages are really gone and not
         just flagged as deleted.
         """
-        self.conn.set_flags(range, [DELETED])
+        self.conn.client.uid('STORE', uid_list, '+FLAGS', r'(\Deleted)')
         if expunge:
             self.conn.expunge()
 
-    def get_all_messages(self):
+    def get_all_messages(self) -> [MailMessage]:
         assert not self._idling
+        return [mail for mail in self.conn.fetch()]
 
-        # Flush unsolicited responses. IMAPClient has problems
-        # dealing with them: https://github.com/mjs/imapclient/issues/334
-        # When this NOOP was introduced, next FETCH returned empty
-        # result instead of a single message, even though IMAP server
-        # can only return more untagged responses than required, not
-        # less.
-        self.conn.noop()
-
-        return self.conn.fetch(ALL, [FLAGS])
-
-    def get_unread_messages(self):
+    def get_unread_messages(self) -> [str]:
         assert not self._idling
-        res = self.conn.fetch(ALL, [FLAGS])
-        return [uid for uid in res
-                if SEEN not in res[uid][FLAGS]]
+        return [msg.uid for msg in self.conn.fetch(AND(seen=False))]
 
     def mark_all_read(self):
         messages = self.get_unread_messages()
         if messages:
-            res = self.conn.set_flags(messages, [SEEN])
+            res = self.conn.flag(messages, SEEN, True)
             print("marked seen:", messages, res)
 
-    def get_unread_cnt(self):
+    def get_unread_cnt(self) -> int:
         return len(self.get_unread_messages())
 
     def dump_imap_structures(self, dir, logfile):
@@ -191,20 +172,20 @@ class DirectImap:
             # get message content without auto-marking it as seen
             # fetching 'RFC822' would mark it as seen.
             requested = [b'BODY.PEEK[]', FLAGS]
-            for uid, data in self.conn.fetch(messages, requested).items():
-                body_bytes = data[b'BODY[]']
-                if not body_bytes:
-                    log("Message", uid, "has empty body")
+            for msg in self.conn.fetch(mark_seen=False):
+                body = getattr(msg.obj, "text", None)
+                if not body:
+                    body = getattr(msg.obj, "html", None)
+                if not body:
+                    log("Message", msg.uid, "has empty body")
                     continue
 
-                flags = data[FLAGS]
                 path = pathlib.Path(str(dir)).joinpath("IMAP", self.logid, imapfolder)
                 path.mkdir(parents=True, exist_ok=True)
-                fn = path.joinpath(str(uid))
-                fn.write_bytes(body_bytes)
-                log("Message", uid, fn)
-                email_message = email.message_from_bytes(body_bytes)
-                log("Message", uid, flags, "Message-Id:", email_message.get("Message-Id"))
+                fn = path.joinpath(str(msg.uid))
+                fn.write_bytes(body)
+                log("Message", msg.uid, fn)
+                log("Message", msg.uid, msg.flags, "Message-Id:", msg.obj.get("Message-Id"))
 
         if empty_folders:
             log("--------- EMPTY FOLDERS:", empty_folders)
@@ -214,59 +195,59 @@ class DirectImap:
     def idle_start(self):
         """ switch this connection to idle mode. non-blocking. """
         assert not self._idling
-        res = self.conn.idle()
+        res = self.conn.idle.start()
         self._idling = True
         return res
 
-    def idle_check(self, terminate=False):
+    def idle_check(self, terminate=False, timeout=60) -> [bytes]:
         """ (blocking) wait for next idle message from server. """
         assert self._idling
         self.account.log("imap-direct: calling idle_check")
-        res = self.conn.idle_check()
+        res = self.conn.idle.poll(timeout=timeout)
         if terminate:
             self.idle_done()
         self.account.log("imap-direct: idle_check returned {!r}".format(res))
         return res
 
-    def idle_wait_for_new_message(self, terminate=False):
+    def idle_wait_for_new_message(self, terminate=False, timeout=60) -> bytes:
         while 1:
-            for item in self.idle_check():
-                if item[1] in (b'EXISTS', b'RECENT'):
+            for item in self.idle_check(timeout=timeout):
+                if b'EXISTS' in item or b'RECENT' in item:
                     if terminate:
                         self.idle_done()
                     return item
 
-    def idle_wait_for_seen(self, terminate=False):
+    def idle_wait_for_seen(self, terminate=False, timeout=60) -> int:
         """ Return first message with SEEN flag
         from a running idle-stream REtiurn.
         """
         while 1:
-            for item in self.idle_check():
-                if item[1] == FETCH:
-                    if item[2][0] == FLAGS:
-                        if SEEN in item[2][1]:
-                            if terminate:
-                                self.idle_done()
-                            return item[0]
+            for item in self.idle_check(timeout=timeout):
+                if FETCH in item:
+                    self.account.log(str(item))
+                    if FLAGS in item and bytes(SEEN, encoding='ascii') in item:
+                        if terminate:
+                            self.idle_done()
+                        return int(item.split(b' ')[1])
 
     def idle_done(self):
         """ send idle-done to server if we are currently in idle mode. """
         if self._idling:
-            res = self.conn.idle_done()
+            res = self.conn.idle.stop()
             self._idling = False
             return res
 
-    def append(self, folder, msg):
+    def append(self, folder: str, msg: str):
         """Upload a message to *folder*.
         Trailing whitespace or a linebreak at the beginning will be removed automatically.
         """
         if msg.startswith("\n"):
             msg = msg[1:]
         msg = '\n'.join([s.lstrip() for s in msg.splitlines()])
-        self.conn.append(folder, msg)
+        self.conn.append(bytes(msg, encoding='ascii'), folder)
 
-    def get_uid_by_message_id(self, message_id):
-        msgs = self.conn.search(['HEADER', 'MESSAGE-ID', message_id])
+    def get_uid_by_message_id(self, message_id) -> str:
+        msgs = [msg.uid for msg in self.conn.fetch(AND(header=Header('MESSAGE-ID', message_id)))]
         if len(msgs) == 0:
             raise Exception("Did not find message " + message_id + ", maybe you forgot to select the correct folder?")
         return msgs[0]
