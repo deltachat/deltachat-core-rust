@@ -8,9 +8,11 @@ rust-version = "1.56"
 
 [profile.dev]
 debug = 0
+panic = 'abort'
 
 [profile.release]
 lto = true
+panic = 'abort'
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
