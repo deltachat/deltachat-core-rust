@@ -2769,10 +2769,7 @@ class TestOnlineAccount:
         acfactory.wait_configure_and_start_io()
         assert_folders_configured(ac1)
 
-        if mvbox_move:
-            ac1.direct_imap.select_config_folder("mvbox")
-        else:
-            ac1.direct_imap.select_folder("INBOX")
+        assert ac1.direct_imap.select_config_folder("mvbox" if mvbox_move else "inbox")
         ac1.direct_imap.idle_start()
 
         lp.sec("send out message with bcc to ourselves")
@@ -2781,22 +2778,24 @@ class TestOnlineAccount:
         chat.send_text("message text")
         assert_folders_configured(ac1)
 
-        # now wait until the bcc_self message arrives
-        # Also test that bcc_self messages moved to the mvbox are marked as read.
+        lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
         assert ac1.direct_imap.idle_wait_for_seen()
         assert_folders_configured(ac1)
 
+        lp.sec("create a cloned ac1 and fetch contact history during configure")
         ac1_clone = acfactory.clone_online_account(ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
         ac1_clone._configtracker.wait_finish()
         ac1_clone.start_io()
         assert_folders_configured(ac1_clone)
 
+        lp.sec("check that ac2 contact was fetchted during configure")
         ac1_clone._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
         ac2_addr = ac2.get_config("addr")
         assert any(c.addr == ac2_addr for c in ac1_clone.get_contacts())
         assert_folders_configured(ac1_clone)
 
+        lp.sec("check that messages changed events arrive for the correct message")
         msg = ac1_clone._evtracker.wait_next_messages_changed()
         assert msg.text == "message text"
         assert_folders_configured(ac1)
