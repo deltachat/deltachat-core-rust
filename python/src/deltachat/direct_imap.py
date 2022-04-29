@@ -12,8 +12,6 @@ import deltachat
 from deltachat import const, Account
 
 
-SEEN = MailMessageFlags.SEEN
-DELETED = MailMessageFlags.DELETED
 FLAGS = b'FLAGS'
 FETCH = b'FETCH'
 ALL = "1:*"
@@ -146,7 +144,7 @@ class DirectImap:
     def mark_all_read(self):
         messages = self.get_unread_messages()
         if messages:
-            res = self.conn.flag(messages, SEEN, True)
+            res = self.conn.flag(messages, MailMessageFlags.SEEN, True)
             print("marked seen:", messages, res)
 
     def get_unread_cnt(self) -> int:
@@ -171,7 +169,6 @@ class DirectImap:
             log("---------", imapfolder, len(messages), "messages ---------")
             # get message content without auto-marking it as seen
             # fetching 'RFC822' would mark it as seen.
-            requested = [b'BODY.PEEK[]', FLAGS]
             for msg in self.conn.fetch(mark_seen=False):
                 body = getattr(msg.obj, "text", None)
                 if not body:
@@ -218,14 +215,13 @@ class DirectImap:
                     return item
 
     def idle_wait_for_seen(self, terminate=False, timeout=60) -> int:
-        """ Return first message with SEEN flag
-        from a running idle-stream REtiurn.
+        """ Return first message with SEEN flag from a running idle-stream.
         """
         while 1:
             for item in self.idle_check(timeout=timeout):
                 if FETCH in item:
                     self.account.log(str(item))
-                    if FLAGS in item and bytes(SEEN, encoding='ascii') in item:
+                    if FLAGS in item and rb'\Seen' in item:
                         if terminate:
                             self.idle_done()
                         return int(item.split(b' ')[1])

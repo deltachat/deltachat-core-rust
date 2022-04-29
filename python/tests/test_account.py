@@ -2548,12 +2548,9 @@ class TestOnlineAccount:
 
         ac2._evtracker.get_info_contains("close/expunge succeeded")
 
-        lp.sec("imap2: test that only one message is left")
-        imap2 = ac2.direct_imap
-        imap2.idle_start()
-        imap2.idle_wait_for_new_message(timeout=600)
-        imap2.idle_done()
-        assert len(imap2.get_all_messages()) == 1
+        lp.sec("ac2: test that only one message is left")
+        ac2.direct_imap.select_config_folder("inbox")
+        assert len(ac2.direct_imap.get_all_messages()) == 1
 
     def test_configure_error_msgs(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
