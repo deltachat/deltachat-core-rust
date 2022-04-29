@@ -11,6 +11,7 @@ from deltachat.hookspec import account_hookimpl
 from deltachat.capi import ffi, lib
 from deltachat.cutil import iter_array
 from datetime import datetime, timedelta, timezone
+from imap_tools import AND, U
 
 
 @pytest.mark.parametrize("msgtext,res", [
@@ -1058,12 +1059,9 @@ class TestOnlineAccount:
         # Accept the contact request.
         msg.chat.accept()
         ac2.mark_seen_messages([msg])
-        ac2.direct_imap.idle_wait_for_seen(terminate=True)
+        uid = ac2.direct_imap.idle_wait_for_seen(terminate=True)
 
-        fetch = list(ac2.direct_imap.conn.fetch("*", b'FLAGS').values())
-        flags = fetch[-1][b'FLAGS']
-        is_seen = b'\\Seen' in flags
-        assert is_seen
+        assert len([a for a in ac2.direct_imap.conn.fetch(AND(seen=True, uid=U(uid, "*")))]) == 1
 
     def test_multidevice_sync_seen(self, acfactory, lp):
         """Test that message marked as seen on one device is marked as seen on another."""
@@ -2550,10 +2548,9 @@ class TestOnlineAccount:
 
         ac2._evtracker.get_info_contains("close/expunge succeeded")
 
-        lp.sec("imap2: test that only one message is left")
-        imap2 = ac2.direct_imap
-
-        assert len(imap2.get_all_messages()) == 1
+        lp.sec("ac2: test that only one message is left")
+        ac2.direct_imap.select_config_folder("inbox")
+        assert len(ac2.direct_imap.get_all_messages()) == 1
 
     def test_configure_error_msgs(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
@@ -2772,10 +2769,7 @@ class TestOnlineAccount:
         acfactory.wait_configure_and_start_io()
         assert_folders_configured(ac1)
 
-        if mvbox_move:
-            ac1.direct_imap.select_config_folder("mvbox")
-        else:
-            ac1.direct_imap.select_folder("INBOX")
+        assert ac1.direct_imap.select_config_folder("mvbox" if mvbox_move else "inbox")
         ac1.direct_imap.idle_start()
 
         lp.sec("send out message with bcc to ourselves")
@@ -2784,22 +2778,24 @@ class TestOnlineAccount:
         chat.send_text("message text")
         assert_folders_configured(ac1)
 
-        # now wait until the bcc_self message arrives
-        # Also test that bcc_self messages moved to the mvbox are marked as read.
+        lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
         assert ac1.direct_imap.idle_wait_for_seen()
         assert_folders_configured(ac1)
 
+        lp.sec("create a cloned ac1 and fetch contact history during configure")
         ac1_clone = acfactory.clone_online_account(ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
         ac1_clone._configtracker.wait_finish()
         ac1_clone.start_io()
         assert_folders_configured(ac1_clone)
 
+        lp.sec("check that ac2 contact was fetchted during configure")
         ac1_clone._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
         ac2_addr = ac2.get_config("addr")
         assert any(c.addr == ac2_addr for c in ac1_clone.get_contacts())
         assert_folders_configured(ac1_clone)
 
+        lp.sec("check that messages changed events arrive for the correct message")
         msg = ac1_clone._evtracker.wait_next_messages_changed()
         assert msg.text == "message text"
         assert_folders_configured(ac1)
@@ -2858,15 +2854,15 @@ class TestOnlineAccount:
         ac2 = acfactory.get_online_configuring_account()
         acfactory.wait_configure(ac1)
 
-        ac1.direct_imap.conn.delete_folder("DeltaChat")
-        assert len(ac1.direct_imap.conn.list_folders(pattern="DeltaChat")) == 0
+        ac1.direct_imap.conn.folder.delete("DeltaChat")
+        assert "DeltaChat" not in ac1.direct_imap.list_folders()
         acfactory.wait_configure_and_start_io()
 
         ac2.create_chat(ac1).send_text("hello")
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
 
-        assert len(ac1.direct_imap.conn.list_folders(pattern="DeltaChat")) == 1
+        assert "DeltaChat" in ac1.direct_imap.list_folders()
 
 
 class TestGroupStressTests:
