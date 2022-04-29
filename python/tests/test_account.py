@@ -2294,7 +2294,7 @@ class TestOnlineAccount:
         ac1.direct_imap.delete("1:*", expunge=False)
         ac1.start_io()
 
-        for ev in ac1._evtracker.iter_events(timeout=60):
+        for ev in ac1._evtracker.iter_events():
             if ev.name == "DC_EVENT_MSGS_CHANGED":
                 pytest.fail("A deleted message was shown to the user")
 
