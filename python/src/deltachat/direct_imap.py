@@ -197,7 +197,7 @@ class DirectImap:
         self._idling = True
         return res
 
-    def idle_check(self, terminate=False, timeout=60) -> List[bytes]:
+    def idle_check(self, terminate=False, timeout=None) -> List[bytes]:
         """ (blocking) wait for next idle message from server. """
         assert self._idling
         self.account.log("imap-direct: calling idle_check")
@@ -207,7 +207,7 @@ class DirectImap:
         self.account.log("imap-direct: idle_check returned {!r}".format(res))
         return res
 
-    def idle_wait_for_new_message(self, terminate=False, timeout=60) -> bytes:
+    def idle_wait_for_new_message(self, terminate=False, timeout=None) -> bytes:
         while 1:
             for item in self.idle_check(timeout=timeout):
                 if b'EXISTS' in item or b'RECENT' in item:
@@ -215,7 +215,7 @@ class DirectImap:
                         self.idle_done()
                     return item
 
-    def idle_wait_for_seen(self, terminate=False, timeout=60) -> int:
+    def idle_wait_for_seen(self, terminate=False, timeout=None) -> int:
         """ Return first message with SEEN flag from a running idle-stream.
         """
         while 1:
