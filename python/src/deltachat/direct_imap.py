@@ -10,6 +10,7 @@ from imap_tools import MailBox, MailBoxTls, errors, AND, Header, MailMessageFlag
 import imaplib
 import deltachat
 from deltachat import const, Account
+from typing import List
 
 
 FLAGS = b'FLAGS'
@@ -118,7 +119,7 @@ class DirectImap:
         if foldername:
             return self.select_folder(foldername)
 
-    def list_folders(self) -> [str]:
+    def list_folders(self) -> List[str]:
         """ return list of all existing folder names"""
         assert not self._idling
         return [folder.name for folder in self.conn.folder.list()]
@@ -133,11 +134,11 @@ class DirectImap:
         if expunge:
             self.conn.expunge()
 
-    def get_all_messages(self) -> [MailMessage]:
+    def get_all_messages(self) -> List[MailMessage]:
         assert not self._idling
         return [mail for mail in self.conn.fetch()]
 
-    def get_unread_messages(self) -> [str]:
+    def get_unread_messages(self) -> List[str]:
         assert not self._idling
         return [msg.uid for msg in self.conn.fetch(AND(seen=False))]
 
@@ -196,7 +197,7 @@ class DirectImap:
         self._idling = True
         return res
 
-    def idle_check(self, terminate=False, timeout=60) -> [bytes]:
+    def idle_check(self, terminate=False, timeout=60) -> List[bytes]:
         """ (blocking) wait for next idle message from server. """
         assert self._idling
         self.account.log("imap-direct: calling idle_check")
