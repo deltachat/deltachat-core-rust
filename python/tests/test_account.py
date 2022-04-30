@@ -1724,7 +1724,7 @@ class TestOnlineAccount:
         assert mime.get_all("From")
         assert mime.get_all("Received")
 
-    def test_send_mark_seen_clean_incoming_events(self, acfactory, lp, data):
+    def test_send_mark_seen_clean_incoming_events(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
