@@ -70,7 +70,7 @@ impl Accounts {
 
         let emitter = EventEmitter::new();
 
-        let events = Events::new(dir.join("account-errors")).unwrap();
+        let events = Events::new(None);
 
         emitter.sender.send(events.get_emitter()).await?;
 

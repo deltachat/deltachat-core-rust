@@ -614,22 +614,28 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     if let Err(err) = remove_unused_files(context).await {
         warn!(
             context,
-            "Housekeeping: cannot remove unusued files: {}", err
+            "Housekeeping: cannot remove unusued files: {:#}", err
         );
     }
 
     if let Err(err) = start_ephemeral_timers(context).await {
         warn!(
             context,
-            "Housekeeping: cannot start ephemeral timers: {}", err
+            "Housekeeping: cannot start ephemeral timers: {:#}", err
         );
     }
 
     if let Err(err) = prune_tombstones(&context.sql).await {
         warn!(
             context,
-            "Housekeeping: Cannot prune message tombstones: {}", err
+            "Housekeeping: Cannot prune message tombstones: {:#}", err
         );
+    }
+
+    if let Some(logger) = &context.events.logger {
+        if let Err(err) = logger.delete_old_logs() {
+            warn!(context, "Housekeeping: Cannot delete old logs: {:#}", err);
+        }
     }
 
     if let Err(err) = deduplicate_peerstates(&context.sql).await {

@@ -24,6 +24,7 @@ use crate::message::{self, MessageState, MsgId};
 use crate::quota::QuotaInfo;
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
+use crate::Logger;
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -163,17 +164,29 @@ impl Context {
             blobdir.display()
         );
 
+        let sql = Sql::new(dbfile.clone());
+        let keep_extra_logs_for = sql
+            .get_raw_config(Config::KeepExtraLogsFor)
+            .await?
+            .map(|s| s.parse())
+            .unwrap()
+            .unwrap(); // TODO unwrap
+        let logger = if keep_extra_logs_for == 0 {
+            None
+        } else {
+            Logger::new(dbfile, keep_extra_logs_for).ok() // Can't log errors for now
+        };
         let inner = InnerContext {
             id,
             blobdir,
             running_state: RwLock::new(Default::default()),
-            sql: Sql::new(dbfile.clone()),
+            sql,
             last_smeared_timestamp: RwLock::new(0),
             generating_key_mutex: Mutex::new(()),
             oauth2_mutex: Mutex::new(()),
             wrong_pw_warning_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
-            events: Events::new(dbfile).unwrap(), // TODO unwrap
+            events: Events::new(logger), // TODO unwrap
             scheduler: RwLock::new(Scheduler::Stopped),
             quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),

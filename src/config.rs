@@ -179,6 +179,12 @@ pub enum Config {
     /// In a future versions, this switch may be removed.
     #[strum(props(default = "0"))]
     SendSyncMsgs,
+
+    /// The core can create some extra logs.
+    /// This setting controls after how many hours these are deleted.
+    /// 0 = Delete instantly (default). TODO better docs (also in deltachat.h)
+    #[strum(props(default = "0"))]
+    KeepExtraLogsFor,
 }
 
 impl Context {

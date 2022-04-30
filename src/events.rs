@@ -2,9 +2,9 @@
 
 use std::ffi::OsString;
 use std::ops::Deref;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use async_std::channel::{self, Receiver, Sender, TrySendError};
 use async_std::path::PathBuf;
 use strum::EnumProperty;
@@ -17,16 +17,13 @@ use crate::sql;
 use crate::webxdc::StatusUpdateSerial;
 
 #[derive(Debug)]
-pub struct Events {
-    receiver: Receiver<Event>,
-    sender: Sender<Event>,
+pub struct Logger {
+    keep_logs_for: Duration,
     logs_db_pool: r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>,
 }
 
-impl Events {
-    pub fn new(dbfile: PathBuf) -> Result<Self> {
-        let (sender, receiver) = channel::bounded(1_000);
-
+impl Logger {
+    pub(crate) fn new(dbfile: PathBuf, keep_logs_for: u64) -> Result<Self> {
         let mut logsdb_fname = OsString::new();
         logsdb_fname.push(dbfile.file_name().unwrap_or_default());
         logsdb_fname.push("-log.db");
@@ -55,27 +52,66 @@ impl Events {
         }
 
         Ok(Self {
-            receiver,
-            sender,
+            keep_logs_for: Duration::from_secs(keep_logs_for * 3600),
             logs_db_pool,
         })
+    }
+
+    fn log(&self, event: &Event) {
+        let my_conn = self.logs_db_pool.get().unwrap(); // TODO unwrap
+        let time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64; // TODO panicking as
+                                 //async_std::task::spawn(async move {
+        my_conn
+            .execute(
+                "INSERT INTO logs (timestamp, event) VALUES(?,?)",
+                paramsv![time, format!("{:?}", event.typ)],
+            )
+            .unwrap(); // TODO unwrap
+                       //});
+    }
+
+    pub(crate) fn delete_old_logs(&self) -> Result<()> {
+        let delete_before = SystemTime::now()
+            .checked_sub(self.keep_logs_for)
+            .context("Can't compute starting time for deleting logs")?
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64; // TODO panicking as
+
+        self.logs_db_pool.get()?.execute(
+            "DELETE FROM logs WHERE timestamp<?",
+            paramsv![delete_before],
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Events {
+    receiver: Receiver<Event>,
+    sender: Sender<Event>,
+    pub(crate) logger: Option<Logger>,
+}
+
+impl Events {
+    pub fn new(logger: Option<Logger>) -> Self {
+        let (sender, receiver) = channel::bounded(1_000);
+
+        Self {
+            receiver,
+            sender,
+            logger,
+        }
     }
     pub fn emit(&self, event: Event) {
         match self.sender.try_send(event.clone()) {
             Ok(()) => {
-                let my_conn = self.logs_db_pool.get().unwrap(); // TODO unwrap
-                let time = SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as i64;
-                //async_std::task::spawn(async move {
-                my_conn
-                    .execute(
-                        "INSERT INTO logs (timestamp, event) VALUES(?,?)",
-                        paramsv![time, format!("{:?}", event.typ)],
-                    )
-                    .unwrap(); // TODO unwrap
-                               //});
+                if let Some(logger) = &self.logger {
+                    logger.log(&event);
+                }
             }
             Err(TrySendError::Full(event)) => {
                 // when we are full, we pop remove the oldest event and push on the new one
