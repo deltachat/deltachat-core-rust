@@ -240,15 +240,27 @@ class ACFactory:
             acc.disable_logging()
         deltachat.unregister_global_plugin(direct_imap)
 
-    def make_account(self, path, logid, quiet=False):
-        ac = Account(path, logging=self._logging)
+    def make_account(self, which):
+        if which == "offline":
+            self.offline_count += 1
+            path = self.tmpdir.join("off{}".format(self.offline_count))
+            logid = "ac{}".format(self.offline_count)
+        elif which == "live":
+            self.live_count += 1
+            path = self.tmpdir.join("live{}".format(self.live_count))
+            logid = "ac{}".format(self.live_count)
+        else:
+            raise ValueError("unknown account type: {}".format(type))
+
+        ac = Account(path.strpath, logging=self._logging)
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
         ac.addr = ac.get_self_contact().addr
         ac.set_config("displayname", logid)
-        if not quiet:
-            logger = FFIEventLogger(ac)
-            logger.init_time = self.init_time
-            ac.add_account_plugin(logger)
+
+        logger = FFIEventLogger(ac)
+        logger.init_time = self.init_time
+        ac.add_account_plugin(logger)
+
         self._accounts.append(ac)
         return ac
 
@@ -256,9 +268,7 @@ class ACFactory:
         self._logging = bool(logging)
 
     def get_unconfigured_account(self):
-        self.offline_count += 1
-        tmpdb = self.tmpdir.join("offlinedb%d" % self.offline_count)
-        return self.make_account(tmpdb.strpath, logid="ac{}".format(self.offline_count))
+        return self.make_account("offline")
 
     def remove_preconfigured_keys(self):
         self._preconfigured_keys = []
@@ -292,10 +302,12 @@ class ACFactory:
         return ac
 
     def get_online_config(self, quiet=False):
+        """ Base function to get functional online accounts where we can make
+        valid SMTP and IMAP connections with.
+        """
         if not self.session_liveconfig:
             pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig")
         configdict = self.session_liveconfig.get(self.live_count)
-        self.live_count += 1
         if "e2ee_enabled" not in configdict:
             configdict["e2ee_enabled"] = "1"
 
@@ -304,9 +316,8 @@ class ACFactory:
             configdict["imap_certificate_checks"] = str(const.DC_CERTCK_STRICT)
             configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
 
-        tmpdb = self.tmpdir.join("livedb%d" % self.live_count)
-        ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count), quiet=quiet)
-        self._preconfigure_key(ac, configdict['addr'])
+        ac = self.make_account("live")
+        self._preconfigure_key(ac, configdict["addr"])
         return ac, dict(configdict)
 
     def get_online_configuring_account(self, sentbox=False, move=False,
@@ -343,9 +354,7 @@ class ACFactory:
         direct_imap object of an online account. This simulates the user setting
         up a new device without importing a backup.
         """
-        self.live_count += 1
-        tmpdb = self.tmpdir.join("livedb%d" % self.live_count)
-        ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
+        ac = self.make_account("live")
         # XXX we might want to transfer the key from the old account for some tests
         self._preconfigure_key(ac, account.get_config("addr"))
         ac.update_config(dict(
