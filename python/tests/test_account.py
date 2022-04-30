@@ -960,6 +960,18 @@ class TestOnlineAccount:
         chat.send_text("hello")
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
+    def test_send_dot(self, acfactory, lp):
+        """Test that a single dot is properly escaped in SMTP protocol"""
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = acfactory.get_accepted_chat(ac1, ac2)
+
+        lp.sec("sending message")
+        msg_out = chat.send_text(".")
+
+        lp.sec("receiving message")
+        msg_in = ac2._evtracker.wait_next_incoming_message()
+        assert msg_in.text == msg_out.text
+
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
