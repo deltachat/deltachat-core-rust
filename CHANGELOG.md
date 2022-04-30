@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- simplify `dc_stop_io()` and remove potential panics and race conditions #3273
+
 ## 1.78.0
 
 ### API-Changes

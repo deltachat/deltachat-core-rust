@@ -189,22 +189,14 @@ impl Context {
 
     /// Starts the IO scheduler.
     pub async fn start_io(&self) {
-        info!(self, "starting IO");
-        if self.inner.is_io_running().await {
-            info!(self, "IO is already running");
-            return;
-        }
-
         if let Ok(false) = self.is_configured().await {
             warn!(self, "can not start io on a context that is not configured");
             return;
         }
 
-        {
-            let l = &mut *self.inner.scheduler.write().await;
-            if let Err(err) = l.start(self.clone()).await {
-                error!(self, "Failed to start IO: {}", err)
-            }
+        info!(self, "starting IO");
+        if let Err(err) = self.inner.scheduler.write().await.start(self.clone()).await {
+            error!(self, "Failed to start IO: {}", err)
         }
     }
 
@@ -212,7 +204,9 @@ impl Context {
     pub async fn stop_io(&self) {
         info!(self, "stopping IO");
 
-        self.inner.stop_io().await;
+        if let Err(err) = self.inner.stop_io().await {
+            warn!(self, "failed to stop IO: {}", err);
+        }
     }
 
     /// Returns a reference to the underlying SQL instance.
@@ -644,21 +638,9 @@ impl Context {
 }
 
 impl InnerContext {
-    async fn is_io_running(&self) -> bool {
-        self.scheduler.read().await.is_running()
-    }
-
-    async fn stop_io(&self) {
-        if self.is_io_running().await {
-            let token = {
-                let lock = &*self.scheduler.read().await;
-                lock.pre_stop().await
-            };
-            {
-                let lock = &mut *self.scheduler.write().await;
-                lock.stop(token).await;
-            }
-        }
+    async fn stop_io(&self) -> Result<()> {
+        self.scheduler.write().await.stop().await?;
+        Ok(())
     }
 }
 
