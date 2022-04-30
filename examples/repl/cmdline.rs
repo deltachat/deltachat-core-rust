@@ -639,14 +639,13 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             let time_start = std::time::SystemTime::now();
             let msglist =
-                chat::get_chat_msgs(&context, sel_chat.get_id(), DC_GCM_ADDDAYMARKER, None).await?;
+                chat::get_chat_msgs(&context, sel_chat.get_id(), DC_GCM_ADDDAYMARKER).await?;
             let time_needed = time_start.elapsed().unwrap_or_default();
 
             let msglist: Vec<MsgId> = msglist
                 .into_iter()
                 .map(|x| match x {
                     ChatItem::Message { msg_id } => msg_id,
-                    ChatItem::Marker1 => MsgId::new(DC_MSG_ID_MARKER1),
                     ChatItem::DayMarker { .. } => MsgId::new(DC_MSG_ID_DAYMARKER),
                 })
                 .collect();

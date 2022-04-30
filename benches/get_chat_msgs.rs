@@ -12,7 +12,7 @@ async fn get_chat_msgs_benchmark(dbfile: &Path, chats: &[ChatId]) {
     let context = Context::new(dbfile.into(), id).await.unwrap();
 
     for c in chats.iter().take(10) {
-        black_box(chat::get_chat_msgs(&context, *c, 0, None).await.ok());
+        black_box(chat::get_chat_msgs(&context, *c, 0).await.ok());
     }
 }
 

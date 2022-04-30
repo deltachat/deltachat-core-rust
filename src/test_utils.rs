@@ -22,7 +22,7 @@ use crate::chat::{self, Chat, ChatId};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
-use crate::constants::{DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
+use crate::constants::{DC_GCM_ADDDAYMARKER, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
@@ -387,9 +387,7 @@ impl TestContext {
     ///
     /// Panics on errors or if the most recent message is a marker.
     pub async fn get_last_msg_in(&self, chat_id: ChatId) -> Message {
-        let msgs = chat::get_chat_msgs(&self.ctx, chat_id, 0, None)
-            .await
-            .unwrap();
+        let msgs = chat::get_chat_msgs(&self.ctx, chat_id, 0).await.unwrap();
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
         } else {
@@ -511,12 +509,13 @@ impl TestContext {
     #[allow(dead_code)]
     #[allow(clippy::indexing_slicing)]
     pub async fn print_chat(&self, chat_id: ChatId) {
-        let msglist = chat::get_chat_msgs(self, chat_id, 0x1, None).await.unwrap();
+        let msglist = chat::get_chat_msgs(self, chat_id, DC_GCM_ADDDAYMARKER)
+            .await
+            .unwrap();
         let msglist: Vec<MsgId> = msglist
             .into_iter()
             .map(|x| match x {
                 ChatItem::Message { msg_id } => msg_id,
-                ChatItem::Marker1 => MsgId::new(DC_MSG_ID_MARKER1),
                 ChatItem::DayMarker { .. } => MsgId::new(DC_MSG_ID_DAYMARKER),
             })
             .collect();
@@ -773,7 +772,7 @@ pub(crate) async fn get_chat_msg(
     index: usize,
     asserted_msgs_count: usize,
 ) -> Message {
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
     assert_eq!(msgs.len(), asserted_msgs_count);
     let msg_id = if let ChatItem::Message { msg_id } = msgs[index] {
         msg_id

@@ -1,5 +1,5 @@
 use crate::chat::ChatItem;
-use crate::constants::{DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
+use crate::constants::DC_MSG_ID_DAYMARKER;
 use crate::location::Location;
 use crate::message::MsgId;
 
@@ -18,7 +18,6 @@ impl dc_array_t {
             Self::MsgIds(array) => array[index].to_u32(),
             Self::Chat(array) => match array[index] {
                 ChatItem::Message { msg_id } => msg_id.to_u32(),
-                ChatItem::Marker1 => DC_MSG_ID_MARKER1,
                 ChatItem::DayMarker { .. } => DC_MSG_ID_DAYMARKER,
             },
             Self::Locations(array) => array[index].location_id,
@@ -31,7 +30,6 @@ impl dc_array_t {
             Self::MsgIds(_) => None,
             Self::Chat(array) => array.get(index).and_then(|item| match item {
                 ChatItem::Message { .. } => None,
-                ChatItem::Marker1 { .. } => None,
                 ChatItem::DayMarker { timestamp } => Some(*timestamp),
             }),
             Self::Locations(array) => array.get(index).map(|location| location.timestamp),

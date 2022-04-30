@@ -162,7 +162,6 @@ impl Default for Chattype {
     }
 }
 
-pub const DC_MSG_ID_MARKER1: u32 = 1;
 pub const DC_MSG_ID_DAYMARKER: u32 = 9;
 pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 

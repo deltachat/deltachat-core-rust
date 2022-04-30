@@ -1042,9 +1042,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0).unwrap();
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
-            .await
-            .unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         // the message should be added only once a day - test that an hour later and nearly a day later
@@ -1054,9 +1052,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
             get_provider_update_timestamp(),
         )
         .await;
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
-            .await
-            .unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         maybe_warn_on_bad_time(
@@ -1065,9 +1061,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
             get_provider_update_timestamp(),
         )
         .await;
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
-            .await
-            .unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         // next day, there should be another device message
@@ -1080,9 +1074,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert_eq!(device_chat_id, chats.get_chat_id(0).unwrap());
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
-            .await
-            .unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 2);
     }
 
@@ -1112,9 +1104,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0).unwrap();
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
-            .await
-            .unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         // do not repeat the warning every day ...
@@ -1134,9 +1124,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0).unwrap();
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
-            .await
-            .unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
         let test_len = msgs.len();
         assert!(test_len == 1 || test_len == 2);
 
@@ -1151,9 +1139,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0).unwrap();
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0, None)
-            .await
-            .unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), test_len + 1);
     }
 }
