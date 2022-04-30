@@ -222,8 +222,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             self._finalizers = []
             self._accounts = []
             self.init_time = time.time()
-            self._generated_keys = ["alice", "bob", "charlie",
-                                    "dom", "elena", "fiona"]
+            self._preconfigured_keys = ["alice", "bob", "charlie",
+                                        "dom", "elena", "fiona"]
             self.set_logging_default(False)
             deltachat.register_global_plugin(direct_imap)
 
@@ -258,10 +258,16 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             tmpdb = tmpdir.join("offlinedb%d" % self.offline_count)
             return self.make_account(tmpdb.strpath, logid="ac{}".format(self.offline_count))
 
+        def remove_preconfigured_keys(self):
+            self._preconfigured_keys = []
+
         def _preconfigure_key(self, account, addr):
-            # Only set a key if we haven't used it yet for another account.
-            if self._generated_keys:
-                keyname = self._generated_keys.pop(0)
+            # Only set a preconfigured key if we haven't used it yet for another account.
+            try:
+                keyname = self._preconfigured_keys.pop(0)
+            except IndexError:
+                pass
+            else:
                 fname_pub = data.read_path("key/{name}-public.asc".format(name=keyname))
                 fname_sec = data.read_path("key/{name}-secret.asc".format(name=keyname))
                 if fname_pub and fname_sec:
@@ -283,7 +289,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             lib.dc_set_config(ac._dc_context, b"configured", b"1")
             return ac
 
-        def get_online_config(self, pre_generated_key=True, quiet=False):
+        def get_online_config(self, quiet=False):
             if not session_liveconfig:
                 pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig")
             configdict = session_liveconfig.get(self.live_count)
@@ -298,14 +304,12 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
 
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count), quiet=quiet)
-            if pre_generated_key:
-                self._preconfigure_key(ac, configdict['addr'])
+            self._preconfigure_key(ac, configdict['addr'])
             return ac, dict(configdict)
 
         def get_online_configuring_account(self, sentbox=False, move=False,
-                                           pre_generated_key=True, quiet=False, config={}):
-            ac, configdict = self.get_online_config(
-                pre_generated_key=pre_generated_key, quiet=quiet)
+                                           quiet=False, config={}):
+            ac, configdict = self.get_online_config(quiet=quiet)
             configdict.update(config)
             configdict["mvbox_move"] = str(int(move))
             configdict["sentbox_watch"] = str(int(sentbox))
@@ -313,9 +317,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac._configtracker = ac.configure()
             return ac
 
-        def get_one_online_account(self, pre_generated_key=True, move=False):
-            ac1 = self.get_online_configuring_account(
-                pre_generated_key=pre_generated_key, move=move)
+        def get_one_online_account(self, move=False):
+            ac1 = self.get_online_configuring_account(move=move)
             self.wait_configure_and_start_io([ac1])
             return ac1
 
@@ -333,19 +336,16 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 acc.add_account_plugin(FFIEventLogger(acc))
             return accounts
 
-        def clone_online_account(self, account, pre_generated_key=True):
+        def clone_online_account(self, account):
             """ Clones addr, mail_pw, mvbox_move, sentbox_watch and the
             direct_imap object of an online account. This simulates the user setting
             up a new device without importing a backup.
-
-            `pre_generated_key` only means that a key from python/tests/data/key is
-            used in order to speed things up.
             """
             self.live_count += 1
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
-            if pre_generated_key:
-                self._preconfigure_key(ac, account.get_config("addr"))
+            # XXX we might want to transfer the key from the old account for some tests
+            self._preconfigure_key(ac, account.get_config("addr"))
             ac.update_config(dict(
                 addr=account.get_config("addr"),
                 mail_pw=account.get_config("mail_pw"),
