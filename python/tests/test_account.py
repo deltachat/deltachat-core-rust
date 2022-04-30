@@ -1049,7 +1049,7 @@ class TestOnlineAccount:
         """Test that message already moved to DeltaChat folder is marked as seen."""
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(move=True)
-        acfactory.wait_configure_and_start_io([ac1, ac2])
+        acfactory.wait_configure_and_start_io()
 
         ac2.stop_io()
         ac2.direct_imap.idle_start()
@@ -1447,8 +1447,6 @@ class TestOnlineAccount:
         ac1.direct_imap.create_folder("Junk")
 
         acfactory.wait_configure_and_start_io()
-        # Wait until each folder was selected once and we are IDLEing again:
-        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
         ac1.stop_io()
 
         ac1.direct_imap.append("Drafts", """
@@ -1495,7 +1493,7 @@ class TestOnlineAccount:
         msg = ac1._evtracker.wait_next_messages_changed()
 
         # Wait until each folder was scanned, this is necessary for this test to test what it should test:
-        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
+        ac1._evtracker.wait_idle_inbox_ready()
 
         assert msg.text == "subj – message in Sent"
         assert len(msg.chat.get_messages()) == 1
@@ -2394,7 +2392,7 @@ class TestOnlineAccount:
         chat41 = ac4.create_chat(ac1)
         chat42 = ac4.create_chat(ac2)
         ac4.start_io()
-        ac4._evtracker.wait_all_initial_fetches()
+        ac4._evtracker.wait_idle_inbox_ready()
 
         lp.sec("ac1: creating group chat with 2 other members")
         chat = ac1.create_group_chat("title", contacts=[ac2, ac3])
@@ -2723,7 +2721,6 @@ class TestOnlineAccount:
 
         acfactory.wait_configure_and_start_io()
         # Wait until each folder was selected once and we are IDLEing:
-        ac1._evtracker.get_info_contains("INBOX: Idle entering wait-on-remote state")
         ac1.stop_io()
 
         # Send a message to ac1 and move it to the mvbox:
@@ -2843,7 +2840,7 @@ class TestOnlineAccount:
         ac1_clone._configtracker.wait_finish()
 
         ac1_clone.start_io()
-        ac1_clone._evtracker.wait_all_initial_fetches()
+        ac1_clone._evtracker.wait_idle_inbox_ready()
         chats = ac1_clone.get_chats()
         assert len(chats) == 4  # two newly created chats + self-chat + device-chat
         group_chat = [c for c in chats if c.get_name() == "group name"][0]

@@ -332,19 +332,21 @@ class ACFactory:
 
     def get_one_online_account(self, move=False):
         ac1 = self.get_online_configuring_account(move=move)
-        self.wait_configure_and_start_io([ac1])
+        self.wait_configure_and_start_io()
         return ac1
 
     def get_two_online_accounts(self, move=False, quiet=False):
         ac1 = self.get_online_configuring_account(move=move, quiet=quiet)
         ac2 = self.get_online_configuring_account(quiet=quiet)
-        self.wait_configure_and_start_io([ac1, ac2])
+        self.wait_configure_and_start_io()
         return ac1, ac2
 
     def get_many_online_accounts(self, num, move=True):
         accounts = [self.get_online_configuring_account(move=move, quiet=True)
                     for i in range(num)]
-        self.wait_configure_and_start_io(accounts)
+        self.wait_configure_and_start_io()
+        # to reduce logging for higher level tests, logging only starts
+        # after initial successful configuration
         for acc in accounts:
             acc.add_account_plugin(FFIEventLogger(acc))
         return accounts
@@ -370,21 +372,16 @@ class ACFactory:
         ac._configtracker = ac.configure()
         return ac
 
-    def wait_configure_and_start_io(self, accounts=None):
-        if accounts is None:
-            accounts = self._accounts[:]
-        started_accounts = []
-        for acc in accounts:
-            if acc not in started_accounts:
-                self.wait_configure(acc)
-                acc.set_config("bcc_self", "0")
-                if acc.is_configured():
-                    acc.start_io()
-                    started_accounts.append(acc)
-                print("{}: {} account was started".format(
-                    acc.get_config("displayname"), acc.get_config("addr")))
-        for acc in started_accounts:
-            acc._evtracker.wait_all_initial_fetches()
+    def wait_configure_and_start_io(self):
+        for acc in self._accounts:
+            self.wait_configure(acc)
+            acc.set_config("bcc_self", "0")
+            acc.start_io()
+            print("{}: {} waiting for inbox idle to become ready".format(
+                acc.get_config("displayname"), acc.get_config("addr")))
+            acc._evtracker.wait_idle_inbox_ready()
+            print("{}: {} account IMAP IO ready to receive".format(
+                acc.get_config("displayname"), acc.get_config("addr")))
 
     def wait_configure(self, acc):
         if hasattr(acc, "_configtracker"):

@@ -156,14 +156,14 @@ class FFIEventTracker:
                 print("** SECUREJOINT-INVITER PROGRESS {}".format(target), self.account)
                 break
 
-    def wait_all_initial_fetches(self):
+    def wait_idle_inbox_ready(self):
         """Has to be called after start_io() to wait for fetch_existing_msgs to run
         so that new messages are not mistaken for old ones:
         - ac1 and ac2 are created
         - ac1 sends a message to ac2
         - ac2 is still running FetchExsistingMsgs job and thinks it's an existing, old message
         - therefore no DC_EVENT_INCOMING_MSG is sent"""
-        self.get_info_contains("Done fetching existing messages")
+        self.get_info_contains("INBOX: Idle entering")
 
     def wait_next_incoming_message(self):
         """ wait for and return next incoming message. """
