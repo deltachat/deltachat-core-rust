@@ -108,6 +108,7 @@ impl Context {
         if context.check_passphrase("".to_string()).await? {
             context.sql.open(&context, "".to_string()).await?;
         }
+
         Ok(context)
     }
 
@@ -166,13 +167,13 @@ impl Context {
             id,
             blobdir,
             running_state: RwLock::new(Default::default()),
-            sql: Sql::new(dbfile),
+            sql: Sql::new(dbfile.clone()),
             last_smeared_timestamp: RwLock::new(0),
             generating_key_mutex: Mutex::new(()),
             oauth2_mutex: Mutex::new(()),
             wrong_pw_warning_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
-            events: Events::default(),
+            events: Events::new(dbfile).unwrap(),
             scheduler: RwLock::new(Scheduler::Stopped),
             quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),

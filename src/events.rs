@@ -1,13 +1,17 @@
 //! # Events specification.
 
+use std::ffi::OsString;
 use std::ops::Deref;
+use std::time::SystemTime;
 
+use anyhow::Result;
 use async_std::channel::{self, Receiver, Sender, TrySendError};
 use async_std::path::PathBuf;
 use strum::EnumProperty;
 
 use crate::chat::ChatId;
 use crate::contact::ContactId;
+use crate::dc_tools::time;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
 use crate::webxdc::StatusUpdateSerial;
@@ -16,20 +20,52 @@ use crate::webxdc::StatusUpdateSerial;
 pub struct Events {
     receiver: Receiver<Event>,
     sender: Sender<Event>,
-}
-
-impl Default for Events {
-    fn default() -> Self {
-        let (sender, receiver) = channel::bounded(1_000);
-
-        Self { receiver, sender }
-    }
+    logs_db_pool: r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>,
 }
 
 impl Events {
+    pub fn new(dbfile: PathBuf) -> Result<Self> {
+        let (sender, receiver) = channel::bounded(1_000);
+
+        let mut logsdb_fname = OsString::new();
+        logsdb_fname.push(dbfile.file_name().unwrap_or_default());
+        logsdb_fname.push("-log.db");
+        let logsdb = dbfile.with_file_name(logsdb_fname);
+        let logs_db_pool = crate::sql::Sql::new_pool(logsdb.as_path(), "".to_string())?;
+        logs_db_pool
+            .get()
+            .unwrap()
+            .execute(
+                "CREATE TABLE IF NOT EXISTS logs(timestamp INTEGER, event TEXT)",
+                paramsv![],
+            )
+            .unwrap();
+
+        Ok(Self {
+            receiver,
+            sender,
+            logs_db_pool,
+        })
+    }
     pub fn emit(&self, event: Event) {
-        match self.sender.try_send(event) {
-            Ok(()) => {}
+        match self.sender.try_send(event.clone()) {
+            Ok(()) => {
+                let my_conn = self.logs_db_pool.get().unwrap();
+                let time = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as i64;
+                async_std::task::spawn(async move {
+                    my_conn
+                        .execute(
+                            "INSERT INTO logs (timestamp, event)
+                                VALUES(?,?)
+                                ",
+                            paramsv![time, format!("{:?}", event.typ)],
+                        )
+                        .unwrap();
+                });
+            }
             Err(TrySendError::Full(event)) => {
                 // when we are full, we pop remove the oldest event and push on the new one
                 let _ = self.receiver.try_recv();

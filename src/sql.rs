@@ -173,7 +173,7 @@ impl Sql {
         Ok(())
     }
 
-    fn new_pool(
+    pub(crate) fn new_pool(
         dbfile: &Path,
         passphrase: String,
     ) -> Result<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>> {
