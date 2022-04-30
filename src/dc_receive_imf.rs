@@ -2350,26 +2350,14 @@ mod tests {
         assert_eq!(chat.typ, Chattype::Single);
         assert_eq!(chat.name, "Bob");
         assert_eq!(chat::get_chat_contacts(&t, chat_id).await.unwrap().len(), 1);
-        assert_eq!(
-            chat::get_chat_msgs(&t, chat_id, 0, None)
-                .await
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_eq!(chat::get_chat_msgs(&t, chat_id, 0).await.unwrap().len(), 1);
 
         // receive a non-delta-message from Bob, shows up because of the show_emails setting
         dc_receive_imf(&t, ONETOONE_NOREPLY_MAIL, false)
             .await
             .unwrap();
 
-        assert_eq!(
-            chat::get_chat_msgs(&t, chat_id, 0, None)
-                .await
-                .unwrap()
-                .len(),
-            2
-        );
+        assert_eq!(chat::get_chat_msgs(&t, chat_id, 0).await.unwrap().len(), 2);
 
         // let Bob create an adhoc-group by a non-delta-message, shows up because of the show_emails setting
         dc_receive_imf(&t, GRP_MAIL, false).await.unwrap();
@@ -2418,13 +2406,7 @@ mod tests {
         // create a group with bob, archive group
         let group_id = chat::create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
         chat::add_contact_to_chat(&t, group_id, bob_id).await?;
-        assert_eq!(
-            chat::get_chat_msgs(&t, group_id, 0, None)
-                .await
-                .unwrap()
-                .len(),
-            0
-        );
+        assert_eq!(chat::get_chat_msgs(&t, group_id, 0).await.unwrap().len(), 0);
         group_id
             .set_visibility(&t, ChatVisibility::Archived)
             .await?;
@@ -2505,7 +2487,7 @@ mod tests {
             false,
         )
         .await?;
-        assert_eq!(chat::get_chat_msgs(&t, group_id, 0, None).await?.len(), 1);
+        assert_eq!(chat::get_chat_msgs(&t, group_id, 0).await?.len(), 1);
         let msg = message::Message::load_from_db(&t, msg.id).await?;
         assert_eq!(msg.state, MessageState::OutMdnRcvd);
 
@@ -2834,7 +2816,7 @@ mod tests {
 
         assert_eq!(msg.state, MessageState::OutFailed);
 
-        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await?;
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0).await?;
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
         } else {
@@ -3087,7 +3069,7 @@ Hello mailinglist!\r\n"
         assert_eq!(chats.len(), 0); // Test that the message is not shown
 
         // Both messages are in the same blocked chat.
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 2);
     }
 
@@ -3120,7 +3102,7 @@ Hello mailinglist!\r\n"
             .await
             .unwrap();
         let msg = t.get_last_msg().await;
-        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 2);
     }
 
@@ -3142,7 +3124,7 @@ Hello mailinglist!\r\n"
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1); // Test that chat is still in the chatlist
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 1); // ...and contains 1 message
 
         dc_receive_imf(&t.ctx, DC_MAILINGLIST2, false)
@@ -3151,7 +3133,7 @@ Hello mailinglist!\r\n"
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1); // Test that the new mailing list message got into the same chat
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 2);
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert!(chat.is_contact_request());
@@ -3179,7 +3161,7 @@ Hello mailinglist!\r\n"
             .await
             .unwrap();
 
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 2);
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert!(chat.can_send(&t.ctx).await.unwrap());
@@ -3212,13 +3194,7 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "mylist@bar.org");
         assert_eq!(chat.name, "ola");
-        assert_eq!(
-            chat::get_chat_msgs(&t, chat.id, 0, None)
-                .await
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_eq!(chat::get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 1);
 
         // receive another message with no sender name but the same address,
         // make sure this lands in the same chat
@@ -3237,13 +3213,7 @@ Hello mailinglist!\r\n"
         )
         .await
         .unwrap();
-        assert_eq!(
-            chat::get_chat_msgs(&t, chat.id, 0, None)
-                .await
-                .unwrap()
-                .len(),
-            2
-        );
+        assert_eq!(chat::get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 2);
     }
 
     #[async_std::test]
@@ -3422,10 +3392,7 @@ Hello mailinglist!\r\n"
         );
         assert!(msg.has_html());
         let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
-        assert_eq!(
-            get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap().len(),
-            1
-        );
+        assert_eq!(get_chat_msgs(&t, msg.chat_id, 0).await.unwrap().len(), 1);
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "intern.lists.abc.de");
@@ -3445,10 +3412,7 @@ Hello mailinglist!\r\n"
         .await
         .unwrap();
         let msg = t.get_last_msg().await;
-        assert_eq!(
-            get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap().len(),
-            1
-        );
+        assert_eq!(get_chat_msgs(&t, msg.chat_id, 0).await.unwrap().len(), 1);
         let text = msg.text.clone().unwrap();
         assert!(text.contains("content text"));
         assert!(!text.contains("footer text"));
@@ -3604,7 +3568,7 @@ YEAAAAAA!.
         assert_eq!(msg.viewtype, Viewtype::Image);
         assert!(msg.has_html());
         let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
-        assert_eq!(get_chat_msgs(&t, chat.id, 0, None).await.unwrap().len(), 1);
+        assert_eq!(get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 1);
     }
 
     /// Test that classical MUA messages are assigned to group chats based on the `In-Reply-To`
@@ -3654,7 +3618,7 @@ YEAAAAAA!.
         assert_eq!(msg.get_text().unwrap(), "reply foo");
 
         // Load the first message from the same chat.
-        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0, None).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0).await.unwrap();
         let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
             msg_id
         } else {
@@ -3887,10 +3851,7 @@ YEAAAAAA!.
         assert!(msg.get_text().unwrap().contains("hi support!"));
         let chat = Chat::load_from_db(&alice, msg.chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Group);
-        assert_eq!(
-            get_chat_msgs(&alice, chat.id, 0, None).await.unwrap().len(),
-            1
-        );
+        assert_eq!(get_chat_msgs(&alice, chat.id, 0).await.unwrap().len(), 1);
         if group_request {
             assert_eq!(get_chat_contacts(&alice, chat.id).await.unwrap().len(), 4);
         } else {
@@ -3923,13 +3884,7 @@ YEAAAAAA!.
         } else {
             assert_eq!(chat.typ, Chattype::Single);
         }
-        assert_eq!(
-            get_chat_msgs(&claire, chat.id, 0, None)
-                .await
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_eq!(get_chat_msgs(&claire, chat.id, 0).await.unwrap().len(), 1);
         assert_eq!(msg.get_override_sender_name(), None);
 
         (claire, alice)
@@ -4044,7 +3999,7 @@ YEAAAAAA!.
         println!("\n========= Delete the message ==========");
         msg.id.trash(&t).await.unwrap();
 
-        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 0);
 
         println!("\n========= Receive a message that is a reply to the deleted message ==========");

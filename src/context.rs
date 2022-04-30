@@ -726,23 +726,20 @@ mod tests {
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 0);
 
         receive_msg(&t, &bob).await;
-        assert_eq!(get_chat_msgs(&t, bob.id, 0, None).await.unwrap().len(), 1);
+        assert_eq!(get_chat_msgs(&t, bob.id, 0).await.unwrap().len(), 1);
         assert_eq!(bob.id.get_fresh_msg_cnt(&t).await.unwrap(), 1);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
 
         receive_msg(&t, &claire).await;
         receive_msg(&t, &claire).await;
-        assert_eq!(
-            get_chat_msgs(&t, claire.id, 0, None).await.unwrap().len(),
-            2
-        );
+        assert_eq!(get_chat_msgs(&t, claire.id, 0).await.unwrap().len(), 2);
         assert_eq!(claire.id.get_fresh_msg_cnt(&t).await.unwrap(), 2);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 3);
 
         receive_msg(&t, &dave).await;
         receive_msg(&t, &dave).await;
         receive_msg(&t, &dave).await;
-        assert_eq!(get_chat_msgs(&t, dave.id, 0, None).await.unwrap().len(), 3);
+        assert_eq!(get_chat_msgs(&t, dave.id, 0).await.unwrap().len(), 3);
         assert_eq!(dave.id.get_fresh_msg_cnt(&t).await.unwrap(), 3);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 6);
 
@@ -757,10 +754,7 @@ mod tests {
         receive_msg(&t, &bob).await;
         receive_msg(&t, &claire).await;
         receive_msg(&t, &dave).await;
-        assert_eq!(
-            get_chat_msgs(&t, claire.id, 0, None).await.unwrap().len(),
-            3
-        );
+        assert_eq!(get_chat_msgs(&t, claire.id, 0).await.unwrap().len(), 3);
         assert_eq!(claire.id.get_fresh_msg_cnt(&t).await.unwrap(), 3);
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 6); // muted claire is not counted
 
@@ -777,7 +771,7 @@ mod tests {
         let t = TestContext::new_alice().await;
         let bob = t.create_chat_with_contact("", "bob@g.it").await;
         receive_msg(&t, &bob).await;
-        assert_eq!(get_chat_msgs(&t, bob.id, 0, None).await.unwrap().len(), 1);
+        assert_eq!(get_chat_msgs(&t, bob.id, 0).await.unwrap().len(), 1);
 
         // chat is unmuted by default, here and in the following assert(),
         // we check mainly that the SQL-statements in is_muted() and get_fresh_msgs()

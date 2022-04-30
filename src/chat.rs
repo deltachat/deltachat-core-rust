@@ -47,10 +47,6 @@ pub enum ChatItem {
         msg_id: MsgId,
     },
 
-    /// A marker without inherent meaning. It is inserted before user
-    /// supplied MsgId.
-    Marker1,
-
     /// Day marker, separating messages that correspond to different
     /// days according to local time.
     DayMarker {
@@ -2176,7 +2172,6 @@ pub async fn get_chat_msgs(
     context: &Context,
     chat_id: ChatId,
     flags: u32,
-    marker1before: Option<MsgId>,
 ) -> Result<Vec<ChatItem>> {
     let process_row = if (flags & DC_GCM_INFO_ONLY) != 0 {
         |row: &rusqlite::Row| {
@@ -2226,12 +2221,8 @@ pub async fn get_chat_msgs(
         let mut ret = Vec::new();
         let mut last_day = 0;
         let cnv_to_local = dc_gm2local_offset();
-        let marker1 = marker1before.unwrap_or_else(MsgId::new_unset);
 
         for (ts, curr_id) in sorted_rows {
-            if curr_id == marker1 {
-                ret.push(ChatItem::Marker1);
-            }
             if (flags & DC_GCM_ADDDAYMARKER) != 0 {
                 let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = curr_local_timestamp / 86400;
@@ -4547,7 +4538,7 @@ mod tests {
         assert!(chat.is_protected());
         assert!(chat.is_unpromoted());
 
-        let msgs = get_chat_msgs(&t, chat_id, 0, None).await.unwrap();
+        let msgs = get_chat_msgs(&t, chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         let msg = t.get_last_msg_in(chat_id).await;
@@ -4577,7 +4568,7 @@ mod tests {
         assert!(!chat.is_protected());
         assert!(!chat.is_unpromoted());
 
-        let msgs = get_chat_msgs(&t, chat_id, 0, None).await.unwrap();
+        let msgs = get_chat_msgs(&t, chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), 3);
 
         // enable protection on promoted chat, the info-message is sent via send_msg() this time
@@ -4674,10 +4665,7 @@ mod tests {
         add_contact_to_chat(&alice, alice_chat_id, contact_id).await?;
         assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
         send_text_msg(&alice, alice_chat_id, "hi!".to_string()).await?;
-        assert_eq!(
-            get_chat_msgs(&alice, alice_chat_id, 0, None).await?.len(),
-            1
-        );
+        assert_eq!(get_chat_msgs(&alice, alice_chat_id, 0).await?.len(), 1);
 
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
         let sent_msg = alice.pop_sent_msg().await;
@@ -4710,10 +4698,7 @@ mod tests {
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.chat_id, alice_chat_id);
         assert_eq!(msg.text, Some("ho!".to_string()));
-        assert_eq!(
-            get_chat_msgs(&alice, alice_chat_id, 0, None).await?.len(),
-            2
-        );
+        assert_eq!(get_chat_msgs(&alice, alice_chat_id, 0).await?.len(), 2);
         Ok(())
     }
 
@@ -4741,7 +4726,7 @@ mod tests {
         assert_eq!(chat.id.get_fresh_msg_cnt(&t).await?, 1);
         assert_eq!(t.get_fresh_msgs().await?.len(), 1);
 
-        let msgs = get_chat_msgs(&t, chat.id, 0, None).await?;
+        let msgs = get_chat_msgs(&t, chat.id, 0).await?;
         assert_eq!(msgs.len(), 1);
         let msg_id = match msgs.first().unwrap() {
             ChatItem::Message { msg_id } => *msg_id,
@@ -4791,7 +4776,7 @@ mod tests {
             .is_contact_request());
         assert_eq!(chat_id.get_msg_cnt(&t).await?, 1);
         assert_eq!(chat_id.get_fresh_msg_cnt(&t).await?, 1);
-        let msgs = get_chat_msgs(&t, chat_id, 0, None).await?;
+        let msgs = get_chat_msgs(&t, chat_id, 0).await?;
         assert_eq!(msgs.len(), 1);
         let msg_id = match msgs.first().unwrap() {
             ChatItem::Message { msg_id } => *msg_id,
@@ -4879,7 +4864,7 @@ mod tests {
         let chat_id = msg.chat_id;
         assert_eq!(chat_id.get_fresh_msg_cnt(&alice).await?, 1);
 
-        let msgs = get_chat_msgs(&alice, chat_id, 0, None).await?;
+        let msgs = get_chat_msgs(&alice, chat_id, 0).await?;
         assert_eq!(msgs.len(), 1);
 
         // Alice disables receiving classic emails.
@@ -4891,7 +4876,7 @@ mod tests {
         // Already received classic email should still be in the chat.
         assert_eq!(chat_id.get_fresh_msg_cnt(&alice).await?, 1);
 
-        let msgs = get_chat_msgs(&alice, chat_id, 0, None).await?;
+        let msgs = get_chat_msgs(&alice, chat_id, 0).await?;
         assert_eq!(msgs.len(), 1);
 
         Ok(())
@@ -5180,13 +5165,13 @@ mod tests {
         let msg = bob.get_last_msg().await;
         assert_eq!(msg.get_text().unwrap(), "alice->bob");
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 2);
-        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0, None).await?.len(), 1);
+        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0).await?.len(), 1);
         bob.recv_msg(&sent2).await;
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 3);
-        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0, None).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0).await?.len(), 2);
         bob.recv_msg(&sent3).await;
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 3);
-        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0, None).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0).await?.len(), 2);
 
         // Claire does not receive the first message, however, due to resending, she has a similar view as Alice and Bob
         let claire = TestContext::new().await;
@@ -5196,7 +5181,7 @@ mod tests {
         let msg = claire.get_last_msg().await;
         assert_eq!(msg.get_text().unwrap(), "alice->bob");
         assert_eq!(get_chat_contacts(&claire, msg.chat_id).await?.len(), 3);
-        assert_eq!(get_chat_msgs(&claire, msg.chat_id, 0, None).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&claire, msg.chat_id, 0).await?.len(), 2);
         let msg_from = Contact::get_by_id(&claire, msg.get_from_id()).await?;
         assert_eq!(msg_from.get_addr(), "alice@example.org");
 

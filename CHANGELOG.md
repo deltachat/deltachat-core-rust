@@ -6,6 +6,10 @@
 - send normal messages with higher priority than MDNs #3243
 - make Scheduler stateless #3302
 
+### API-Changes
+- deprecate unused `marker1before` argument of `dc_get_chat_msgs`
+  and remove `DC_MSG_ID_MARKER1` constant #3274
+
 
 ## 1.80.0
 
