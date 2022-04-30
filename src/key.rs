@@ -91,16 +91,17 @@ impl DcKey for SignedPublicKey {
     type KeyType = SignedPublicKey;
 
     async fn load_self(context: &Context) -> Result<Self::KeyType> {
+        let addr = context.get_primary_self_addr().await?;
         match context
             .sql
             .query_row_optional(
                 r#"
             SELECT public_key
               FROM keypairs
-             WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
+             WHERE addr=?
                AND is_default=1;
             "#,
-                paramsv![],
+                paramsv![addr],
                 |row| {
                     let bytes: Vec<u8> = row.get(0)?;
                     Ok(bytes)
