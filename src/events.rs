@@ -11,9 +11,9 @@ use strum::EnumProperty;
 
 use crate::chat::ChatId;
 use crate::contact::ContactId;
-use crate::dc_tools::time;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
+use crate::sql;
 use crate::webxdc::StatusUpdateSerial;
 
 #[derive(Debug)]
@@ -31,15 +31,28 @@ impl Events {
         logsdb_fname.push(dbfile.file_name().unwrap_or_default());
         logsdb_fname.push("-log.db");
         let logsdb = dbfile.with_file_name(logsdb_fname);
-        let logs_db_pool = crate::sql::Sql::new_pool(logsdb.as_path(), "".to_string())?;
-        logs_db_pool
-            .get()
-            .unwrap()
-            .execute(
+        let logs_db_pool = sql::Sql::new_pool(logsdb.as_path(), "".to_string())?;
+
+        {
+            let conn = logs_db_pool.get().unwrap(); // TODO unwrap
+
+            // When auto_vacuum is INCREMENTAL, it is possible to
+            // use PRAGMA incremental_vacuum to return unused
+            // database pages to the filesystem.
+            conn.pragma_update(None, "auto_vacuum", &"INCREMENTAL".to_string())?;
+
+            // Enable WAL in the hope that it's faster
+            conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
+
+            // synchronous=OFF since we care for speed, not whether the db might get corrupted if the OS crashes
+            conn.pragma_update(None, "synchronous", &"OFF".to_string())?;
+
+            conn.execute(
                 "CREATE TABLE IF NOT EXISTS logs(timestamp INTEGER, event TEXT)",
                 paramsv![],
             )
-            .unwrap();
+            .ok();
+        }
 
         Ok(Self {
             receiver,
@@ -50,21 +63,19 @@ impl Events {
     pub fn emit(&self, event: Event) {
         match self.sender.try_send(event.clone()) {
             Ok(()) => {
-                let my_conn = self.logs_db_pool.get().unwrap();
+                let my_conn = self.logs_db_pool.get().unwrap(); // TODO unwrap
                 let time = SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_millis() as i64;
-                async_std::task::spawn(async move {
-                    my_conn
-                        .execute(
-                            "INSERT INTO logs (timestamp, event)
-                                VALUES(?,?)
-                                ",
-                            paramsv![time, format!("{:?}", event.typ)],
-                        )
-                        .unwrap();
-                });
+                //async_std::task::spawn(async move {
+                my_conn
+                    .execute(
+                        "INSERT INTO logs (timestamp, event) VALUES(?,?)",
+                        paramsv![time, format!("{:?}", event.typ)],
+                    )
+                    .unwrap(); // TODO unwrap
+                               //});
             }
             Err(TrySendError::Full(event)) => {
                 // when we are full, we pop remove the oldest event and push on the new one

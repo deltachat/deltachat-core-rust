@@ -173,7 +173,7 @@ impl Context {
             oauth2_mutex: Mutex::new(()),
             wrong_pw_warning_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
-            events: Events::new(dbfile).unwrap(),
+            events: Events::new(dbfile).unwrap(), // TODO unwrap
             scheduler: RwLock::new(Scheduler::Stopped),
             quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
