@@ -2229,7 +2229,7 @@ class TestOnlineAccount:
         ac1.direct_imap.idle_start()
         ac2.create_chat(ac1).send_text("Hi")
 
-        ac1.direct_imap.idle_wait_for_new_message(terminate=False)
+        ac1.direct_imap.idle_wait_for_new_message(terminate=True)
         ac1.maybe_network()
 
         ac1._evtracker.wait_for_all_work_done()
@@ -2241,8 +2241,6 @@ class TestOnlineAccount:
 
         ac2.create_chat(ac1).send_text("Hi 2")
 
-        ac1.direct_imap.idle_wait_for_new_message(terminate=True)
-        ac1.maybe_network()
         ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTED, const.DC_CONNECTIVITY_WORKING)
         ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
 
