@@ -645,12 +645,11 @@ class TestOnlineAccount:
     @pytest.mark.ignored
     def test_configure_generate_key(self, acfactory, lp):
         # A slow test which will generate new keys.
+        acfactory.remove_preconfigured_keys()
         ac1 = acfactory.get_online_configuring_account(
-            pre_generated_key=False,
             config={"key_gen_type": str(const.DC_KEY_GEN_RSA2048)}
         )
         ac2 = acfactory.get_online_configuring_account(
-            pre_generated_key=False,
             config={"key_gen_type": str(const.DC_KEY_GEN_ED25519)}
         )
         acfactory.wait_configure_and_start_io()
@@ -2388,7 +2387,8 @@ class TestOnlineAccount:
 
         lp.sec("ac3 reinstalls DC and generates a new key")
         ac3.stop_io()
-        ac4 = acfactory.clone_online_account(ac3, pre_generated_key=False)
+        acfactory.remove_preconfigured_keys()
+        ac4 = acfactory.clone_online_account(ac3)
         ac4._configtracker.wait_finish()
         # Create contacts to make sure incoming messages are not treated as contact requests
         chat41 = ac4.create_chat(ac1)
