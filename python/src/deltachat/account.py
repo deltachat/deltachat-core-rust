@@ -129,6 +129,8 @@ class Account(object):
         namebytes = name.encode("utf8")
         if namebytes == b"addr" and self.is_configured():
             raise ValueError("can not change 'addr' after account is configured.")
+        if isinstance(value, (int, bool)):
+            value = str(int(value))
         if value is not None:
             valuebytes = value.encode("utf8")
         else:
@@ -169,7 +171,7 @@ class Account(object):
         :returns: None
         """
         for key, value in kwargs.items():
-            self.set_config(key, str(value))
+            self.set_config(key, value)
 
     def is_configured(self) -> bool:
         """ determine if the account is configured already; an initial connection
