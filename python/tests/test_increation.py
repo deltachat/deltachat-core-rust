@@ -33,7 +33,7 @@ def wait_msgs_changed(account, msgs_list):
 
 class TestOnlineInCreation:
     def test_increation_not_blobdir(self, tmpdir, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1, ac2 = acfactory.get_online_accounts(2)
         chat = ac1.create_chat(ac2)
 
         lp.sec("Creating in-creation file outside of blobdir")
@@ -43,7 +43,7 @@ class TestOnlineInCreation:
             chat.prepare_message_file(src.strpath)
 
     def test_no_increation_copies_to_blobdir(self, tmpdir, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1, ac2 = acfactory.get_online_accounts(2)
         chat = ac1.create_chat(ac2)
 
         lp.sec("Creating file outside of blobdir")
@@ -56,7 +56,7 @@ class TestOnlineInCreation:
         assert os.path.exists(blob_src), "file.txt not copied to blobdir"
 
     def test_forward_increation(self, acfactory, data, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1, ac2 = acfactory.get_online_accounts(2)
 
         chat = ac1.create_chat(ac2)
         wait_msgs_changed(ac1, [(0, 0)])  # why no chat id?
