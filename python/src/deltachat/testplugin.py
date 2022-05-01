@@ -17,7 +17,6 @@ import requests
 from . import Account, const
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
-from deltachat.direct_imap import DirectImap
 
 import deltachat
 
@@ -126,47 +125,49 @@ def pytest_report_header(config, startdir):
 
 
 @pytest.fixture(scope="session")
-def session_liveconfig_producer(request):
-    """ provide live account configs, cached on a per-test-process scope so that test functions
-    can re-use already known live configs. Depending on the --liveconfig option this comes from
-    a HTTP provider or a file with a line specifying each accounts config.
-    """
-    liveconfig_opt = request.config.option.liveconfig
-    if not liveconfig_opt:
-        def skip_producer():
-            pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig to provide live accounts for testing")
-        return skip_producer
+def testprocess(request):
+    return TestProcess(request.config.option.liveconfig)
 
-    configlist = []
-    if not liveconfig_opt.startswith("http"):
-        for line in open(liveconfig_opt):
-            if line.strip() and not line.strip().startswith('#'):
-                d = {}
-                for part in line.split():
-                    name, value = part.split("=")
-                    d[name] = value
-                configlist.append(d)
 
-        def from_file_producer():
-            return iter(configlist)
+class TestProcess:
+    def __init__(self, liveconfig_opt):
+        self.liveconfig_opt = liveconfig_opt
 
-        return from_file_producer
+    def get_liveconfig_producer(self):
+        """ provide live account configs, cached on a per-test-process scope
+        so that test functions can re-use already known live configs.
+        Depending on the --liveconfig option this comes from
+        a HTTP provider or a file with a line specifying each accounts config.
+        """
+        liveconfig_opt = self.liveconfig_opt
+        if not liveconfig_opt:
+            pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig to provide live accounts")
 
-    def caching_producer_from_url():
-        for index in range(10):
-            try:
-                yield configlist[index]
-            except IndexError:
-                res = requests.post(liveconfig_opt)
-                if res.status_code != 200:
-                    pytest.fail("creating newtmpuser failed with code {}: '{}'".format(res.status_code, res.text))
-                d = res.json()
-                config = dict(addr=d["email"], mail_pw=d["password"])
-                configlist.append(config)
-                yield config
-        pytest.fail("more than 10 live accounts requested. Is a test running wild?")
+        configlist = []
+        if not liveconfig_opt.startswith("http"):
+            for line in open(liveconfig_opt):
+                if line.strip() and not line.strip().startswith('#'):
+                    d = {}
+                    for part in line.split():
+                        name, value = part.split("=")
+                        d[name] = value
+                    configlist.append(d)
 
-    return caching_producer_from_url
+            yield from iter(configlist)
+        else:
+            for index in range(10):
+                try:
+                    yield configlist[index]
+                except IndexError:
+                    res = requests.post(liveconfig_opt)
+                    if res.status_code != 200:
+                        pytest.fail("creat newtmpuser failed {}: '{}'".format(
+                                    res.status_code, res.text))
+                    d = res.json()
+                    config = dict(addr=d["email"], mail_pw=d["password"])
+                    configlist.append(config)
+                    yield config
+            pytest.fail("more than 10 live accounts requested. Is a test running wild?")
 
 
 @pytest.fixture
@@ -203,10 +204,10 @@ class ACFactory:
     _finalizers: List[Callable[[], None]]
     _accounts: List[Account]
 
-    def __init__(self, strict_tls, tmpdir, session_liveconfig_producer, data) -> None:
+    def __init__(self, strict_tls, tmpdir, testprocess, data) -> None:
         self.strict_tls = strict_tls
         self.tmpdir = tmpdir
-        self._liveconfig_producer = session_liveconfig_producer()
+        self._liveconfig_producer = testprocess.get_liveconfig_producer()
         self.data = data
 
         self._finalizers = []
@@ -389,6 +390,8 @@ class ACFactory:
         return bot
 
     def init_direct_imap(self, acc):
+        from deltachat.direct_imap import DirectImap
+
         if not hasattr(acc, "direct_imap"):
             acc.direct_imap = imap = DirectImap(acc)
             for folder in imap.list_folders():
@@ -428,9 +431,9 @@ class ACFactory:
 
 
 @pytest.fixture
-def acfactory(pytestconfig, tmpdir, request, session_liveconfig_producer, data):
+def acfactory(pytestconfig, tmpdir, request, testprocess, data):
     strict_tls = pytestconfig.getoption("--strict-tls")
-    am = ACFactory(strict_tls, tmpdir, session_liveconfig_producer, data)
+    am = ACFactory(strict_tls, tmpdir, testprocess, data)
     request.addfinalizer(am.finalize)
     yield am
     if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
