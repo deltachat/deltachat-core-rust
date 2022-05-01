@@ -210,8 +210,6 @@ class ACFactory:
         self._liveconfig_producer = session_liveconfig_producer()
         self.data = data
 
-        self.live_count = 0
-        self.offline_count = 0
         self._finalizers = []
         self._accounts = []
         self.init_time = time.time()
@@ -234,18 +232,9 @@ class ACFactory:
     def get_next_liveconfig(self):
         return next(self._liveconfig_producer)
 
-    def make_account(self, which):
-        if which == "offline":
-            self.offline_count += 1
-            path = self.tmpdir.join("off{}".format(self.offline_count))
-            logid = "ac{}".format(self.offline_count)
-        elif which == "live":
-            self.live_count += 1
-            path = self.tmpdir.join("live{}".format(self.live_count))
-            logid = "ac{}".format(self.live_count)
-        else:
-            raise ValueError("unknown account type: {}".format(type))
-
+    def make_account(self):
+        logid = "ac{}".format(len(self._accounts) + 1)
+        path = self.tmpdir.join(logid)
         ac = Account(path.strpath, logging=self._logging)
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
         ac.addr = ac.get_self_contact().addr
@@ -262,7 +251,7 @@ class ACFactory:
         self._logging = bool(logging)
 
     def get_unconfigured_account(self):
-        return self.make_account("offline")
+        return self.make_account()
 
     def remove_preconfigured_keys(self):
         self._preconfigured_keys = []
@@ -286,7 +275,7 @@ class ACFactory:
         ac = self.get_unconfigured_account()
 
         # do a pseudo-configured account
-        addr = "addr{}@offline.org".format(self.offline_count)
+        addr = "{}@offline.org".format(ac.get_config("displayname"))
         ac.set_config("addr", addr)
         self._preconfigure_key(ac, addr)
         lib.dc_set_config(ac._dc_context, b"configured_addr", addr.encode("ascii"))
@@ -308,7 +297,7 @@ class ACFactory:
             configdict["imap_certificate_checks"] = str(const.DC_CERTCK_STRICT)
             configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
 
-        ac = self.make_account("live")
+        ac = self.make_account()
         self._preconfigure_key(ac, configdict["addr"])
         return ac, dict(configdict)
 
@@ -348,7 +337,7 @@ class ACFactory:
         direct_imap object of an online account. This simulates the user setting
         up a new device without importing a backup.
         """
-        ac = self.make_account("live")
+        ac = self.make_account()
         # XXX we might want to transfer the key from the old account for some tests
         self._preconfigure_key(ac, account.get_config("addr"))
         ac.update_config(dict(
