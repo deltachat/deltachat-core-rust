@@ -273,10 +273,9 @@ class ACFactory:
             else:
                 print("WARN: could not use preconfigured keys for {!r}".format(addr))
 
-    def get_configured_offline_account(self):
-        ac = self.get_unconfigured_account()
-
+    def get_pseudo_configured_account(self):
         # do a pseudo-configured account
+        ac = self.get_unconfigured_account()
         acname = os.path.basename(ac.db_path)
         addr = "{}@offline.org".format(acname)
         ac.update_config(dict(

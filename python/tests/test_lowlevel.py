@@ -68,8 +68,7 @@ def test_sig():
 
 
 def test_markseen_invalid_message_ids(acfactory):
-    ac1 = acfactory.get_configured_offline_account()
-
+    ac1 = acfactory.get_pseudo_configured_account()
     contact1 = ac1.create_contact("some1@example.com", name="some1")
     chat = contact1.create_chat()
     chat.send_text("one messae")
@@ -80,7 +79,7 @@ def test_markseen_invalid_message_ids(acfactory):
 
 
 def test_get_special_message_id_returns_empty_message(acfactory):
-    ac1 = acfactory.get_configured_offline_account()
+    ac1 = acfactory.get_pseudo_configured_account()
     for i in range(1, 10):
         msg = ac1.get_message_by_id(i)
         assert msg.id == 0
