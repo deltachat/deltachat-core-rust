@@ -17,7 +17,7 @@ import requests
 from . import Account, const
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
-from deltachat import direct_imap
+from deltachat.direct_imap import DirectImap
 
 import deltachat
 
@@ -215,7 +215,6 @@ class ACFactory:
         self._preconfigured_keys = ["alice", "bob", "charlie",
                                     "dom", "elena", "fiona"]
         self.set_logging_default(False)
-        deltachat.register_global_plugin(direct_imap)
 
     def finalize(self):
         while self._finalizers:
@@ -224,9 +223,12 @@ class ACFactory:
 
         while self._accounts:
             acc = self._accounts.pop()
+            imap = getattr(acc, "direct_imap", None)
+            if imap is not None:
+                imap.shutdown()
+                del acc.direct_imap
             acc.shutdown()
             acc.disable_logging()
-        deltachat.unregister_global_plugin(direct_imap)
 
     def get_next_liveconfig(self):
         """ Base function to get functional online configurations
@@ -303,13 +305,7 @@ class ACFactory:
         self._preconfigure_key(ac, configdict["addr"])
         ac.update_config(configdict)
 
-    def get_online_accounts(self, num):
-        # to reduce number of log events logging starts after accounts can receive
-        accounts = [self.get_online_configuring_account() for i in range(num)]
-        self.wait_configure_and_start_io(logstart="after_inbox_idle_ready")
-        return accounts
-
-    def clone_online_account(self, account):
+    def get_cloned_configuring_account(self, account):
         """ Clones addr, mail_pw, mvbox_move, sentbox_watch and the
         direct_imap object of an online account. This simulates the user setting
         up a new device without importing a backup.
@@ -348,14 +344,21 @@ class ACFactory:
             acc._evtracker.consume_events()
             acc.get_device_chat().mark_noticed()
             del acc._configtracker
+            if not hasattr(acc, "direct_imap"):
+                self.init_direct_imap(acc)
+
+    def get_online_accounts(self, num):
+        # to reduce number of log events logging starts after accounts can receive
+        accounts = [self.get_online_configuring_account() for i in range(num)]
+        self.wait_configure_and_start_io(logstart="after_inbox_idle_ready")
+        return accounts
 
     def run_bot_process(self, module, ffi=True):
         fn = module.__file__
 
         bot_cfg = self.get_next_liveconfig()
         bot_ac = self.get_unconfigured_account()
-        bot_ac.update_config(bot_cfg)
-        self._preconfigure_key(bot_ac, bot_cfg["addr"])
+        self.prepare_account_with_liveconfig(bot_ac, bot_cfg)
 
         # Avoid starting ac so we don't interfere with the bot operating on
         # the same database.
@@ -384,6 +387,16 @@ class ACFactory:
         bot = BotProcess(popen, bot_cfg)
         self._finalizers.append(bot.kill)
         return bot
+
+    def init_direct_imap(self, acc):
+        if not hasattr(acc, "direct_imap"):
+            acc.direct_imap = imap = DirectImap(acc)
+            for folder in imap.list_folders():
+                if folder.lower() == "inbox" or folder.lower() == "deltachat":
+                    assert imap.select_folder(folder)
+                    imap.delete("1:*", expunge=True)
+                else:
+                    imap.conn.folder.delete(folder)
 
     def dump_imap_summary(self, logfile):
         for ac in self._accounts:

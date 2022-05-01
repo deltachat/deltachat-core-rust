@@ -8,7 +8,6 @@ import ssl
 import pathlib
 from imap_tools import MailBox, MailBoxTls, errors, AND, Header, MailMessageFlags, MailMessage
 import imaplib
-import deltachat
 from deltachat import const, Account
 from typing import List
 
@@ -16,44 +15,6 @@ from typing import List
 FLAGS = b'FLAGS'
 FETCH = b'FETCH'
 ALL = "1:*"
-
-
-@deltachat.global_hookimpl
-def dc_account_extra_configure(account: Account):
-    """ Reset the account (we reuse accounts across tests)
-    and make 'account.direct_imap' available for direct IMAP ops.
-    """
-    try:
-
-        if not hasattr(account, "direct_imap"):
-            imap = DirectImap(account)
-
-            for folder in imap.list_folders():
-                if folder.lower() == "inbox" or folder.lower() == "deltachat":
-                    assert imap.select_folder(folder)
-                    imap.delete(ALL, expunge=True)
-                else:
-                    imap.conn.folder.delete(folder)
-                    # We just deleted the folder, so we have to make DC forget about it, too
-                    if account.get_config("configured_sentbox_folder") == folder:
-                        account.set_config("configured_sentbox_folder", None)
-
-            setattr(account, "direct_imap", imap)
-
-    except Exception as e:
-        # Uncaught exceptions here would lead to a timeout without any note written to the log
-        # start with DC_EVENT_WARNING so that the line is printed in yellow and won't be overlooked when reading
-        account.log("DC_EVENT_WARNING =================== DIRECT_IMAP CAN'T RESET ACCOUNT: ===================")
-        account.log("DC_EVENT_WARNING =================== " + str(e) + " ===================")
-
-
-@deltachat.global_hookimpl
-def dc_account_after_shutdown(account):
-    """ shutdown the imap connection if there is one. """
-    imap = getattr(account, "direct_imap", None)
-    if imap is not None:
-        imap.shutdown()
-        del account.direct_imap
 
 
 class DirectImap:
