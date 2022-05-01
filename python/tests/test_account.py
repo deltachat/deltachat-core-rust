@@ -110,7 +110,7 @@ class TestOfflineAccountBasic:
         assert not ac1.get_self_contact().addr
 
     def test_selfcontact_configured(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         me = ac1.get_self_contact()
         assert me.display_name
         assert me.addr
@@ -121,14 +121,14 @@ class TestOfflineAccountBasic:
             ac1.get_config("123123")
 
     def test_empty_group_bcc_self_enabled(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         ac1.set_config("bcc_self", "1")
         chat = ac1.create_group_chat(name="group1")
         msg = chat.send_text("msg1")
         assert msg in chat.get_messages()
 
     def test_empty_group_bcc_self_disabled(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         ac1.set_config("bcc_self", "0")
         chat = ac1.create_group_chat(name="group1")
         msg = chat.send_text("msg1")
@@ -137,7 +137,7 @@ class TestOfflineAccountBasic:
 
 class TestOfflineContact:
     def test_contact_attr(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact("some1@example.org", name="some1")
         contact2 = ac1.create_contact("some1@example.org", name="some1")
         str(contact1)
@@ -150,7 +150,7 @@ class TestOfflineContact:
         assert not contact1.is_verified()
 
     def test_get_blocked(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact("some1@example.org", name="some1")
         contact2 = ac1.create_contact("some2@example.org", name="some2")
         ac1.create_contact("some3@example.org", name="some3")
@@ -164,12 +164,12 @@ class TestOfflineContact:
         assert ac1.get_blocked_contacts() == [contact1]
 
     def test_create_self_contact(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact(ac1.get_config("addr"))
         assert contact1.id == 1
 
     def test_get_contacts_and_delete(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact("some1@example.org", name="some1")
         contacts = ac1.get_contacts()
         assert len(contacts) == 1
@@ -184,15 +184,15 @@ class TestOfflineContact:
         assert contact1 not in ac1.get_contacts()
 
     def test_get_contacts_and_delete_fails(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact("some1@example.com", name="some1")
         msg = contact1.create_chat().send_text("one message")
         assert not ac1.delete_contact(contact1)
         assert not msg.filemime
 
     def test_create_chat_flexibility(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
-        ac2 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
+        ac2 = acfactory.get_pseudo_configured_account()
         chat1 = ac1.create_chat(ac2)
         chat2 = ac1.create_chat(ac2.get_self_contact().addr)
         assert chat1 == chat2
@@ -201,7 +201,7 @@ class TestOfflineContact:
             ac1.create_chat(ac3)
 
     def test_contact_rename(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         contact = ac1.create_contact("some1@example.com", name="some1")
         chat = ac1.create_chat(contact)
         assert chat.get_name() == "some1"
@@ -214,7 +214,7 @@ class TestOfflineContact:
 class TestOfflineChat:
     @pytest.fixture
     def ac1(self, acfactory):
-        return acfactory.get_configured_offline_account()
+        return acfactory.get_pseudo_configured_account()
 
     @pytest.fixture
     def chat1(self, ac1):
@@ -248,8 +248,8 @@ class TestOfflineChat:
             pytest.fail("could not find chat")
 
     def test_group_chat_add_second_account(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
-        ac2 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
+        ac2 = acfactory.get_pseudo_configured_account()
         chat = ac1.create_group_chat(name="title1")
         with pytest.raises(ValueError):
             chat.add_contact(ac2.get_self_contact())
@@ -302,7 +302,7 @@ class TestOfflineChat:
 
     @pytest.mark.parametrize("verified", [True, False])
     def test_group_chat_qr(self, acfactory, ac1, verified):
-        ac2 = acfactory.get_configured_offline_account()
+        ac2 = acfactory.get_pseudo_configured_account()
         chat = ac1.create_group_chat(name="title1", verified=verified)
         assert chat.is_group()
         qr = chat.get_join_qr()
@@ -448,7 +448,7 @@ class TestOfflineChat:
         assert msg2.filename != msg.filename
 
     def test_create_contact(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         email = "hello <hello@example.org>"
         contact1 = ac1.create_contact(email)
         assert contact1.addr == "hello@example.org"
@@ -459,7 +459,7 @@ class TestOfflineChat:
         assert contact2.name == "real"
 
     def test_create_chat_simple(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact("some1@example.org", name="some1")
         contact1.create_chat().send_text("hello")
 
@@ -481,7 +481,7 @@ class TestOfflineChat:
 
     def test_import_export_one_contact(self, acfactory, tmpdir):
         backupdir = tmpdir.mkdir("backup")
-        ac1 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
@@ -520,8 +520,8 @@ class TestOfflineChat:
         assert chat1.get_draft() is None
 
     def test_qr_setup_contact(self, acfactory, lp):
-        ac1 = acfactory.get_configured_offline_account()
-        ac2 = acfactory.get_configured_offline_account()
+        ac1 = acfactory.get_pseudo_configured_account()
+        ac2 = acfactory.get_pseudo_configured_account()
         qr = ac1.get_setup_contact_qr()
         assert qr.startswith("OPENPGP4FPR:")
         res = ac2.check_qr(qr)
