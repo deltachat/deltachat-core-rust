@@ -2562,7 +2562,7 @@ class TestOnlineAccount:
 
     def test_configure_error_msgs_wrong_pw(self, acfactory):
         configdict = acfactory.get_next_liveconfig()
-        ac1 = acfactory.make_account()
+        ac1 = acfactory.get_unconfigured_account()
         ac1.update_config(configdict)
         ac1.set_config("mail_pw", "abc")  # Wrong mail pw
         ac1.configure()
@@ -2574,7 +2574,7 @@ class TestOnlineAccount:
         assert "password" in ev.data2
 
     def test_configure_error_msgs_invalid_server(self, acfactory):
-        ac2 = acfactory.make_account()
+        ac2 = acfactory.get_unconfigured_account()
         ac2.set_config("addr", "abc@def.invalid")  # mail server can't be reached
         ac2.set_config("mail_pw", "123")
         ac2.configure()
@@ -2995,7 +2995,7 @@ class TestGroupStressTests:
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         configdict = acfactory.get_next_liveconfig()
-        ac1 = acfactory.make_account()
+        ac1 = acfactory.get_unconfigured_account()
         ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
@@ -3003,7 +3003,7 @@ class TestOnlineConfigureFails:
 
     def test_invalid_user(self, acfactory):
         configdict = acfactory.get_next_liveconfig()
-        ac1 = acfactory.make_account()
+        ac1 = acfactory.get_unconfigured_account()
         configdict["addr"] = "x" + configdict["addr"]
         ac1.update_config(configdict)
         configtracker = ac1.configure()
@@ -3012,7 +3012,7 @@ class TestOnlineConfigureFails:
 
     def test_invalid_domain(self, acfactory):
         configdict = acfactory.get_next_liveconfig()
-        ac1 = acfactory.make_account()
+        ac1 = acfactory.get_unconfigured_account()
         configdict["addr"] += "x"
         ac1.update_config(configdict)
         configtracker = ac1.configure()
