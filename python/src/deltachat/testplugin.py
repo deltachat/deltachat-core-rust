@@ -9,7 +9,7 @@ import fnmatch
 import time
 import weakref
 import tempfile
-from typing import List, Dict, Callable
+from typing import List, Callable
 
 import pytest
 import requests
@@ -126,57 +126,48 @@ def pytest_report_header(config, startdir):
     return summary
 
 
-class SessionLiveConfigFromFile:
-    def __init__(self, fn) -> None:
-        self.fn = fn
-        self.configlist = []
-        for line in open(fn):
+@pytest.fixture(scope="session")
+def session_liveconfig_producer(request):
+    """ provide live account configs, cached on a per-test-process scope so that test functions
+    can re-use already known live configs. Depending on the --liveconfig option this comes from
+    a HTTP provider or a file with a line specifying each accounts config.
+    """
+    liveconfig_opt = request.config.option.liveconfig
+    if not liveconfig_opt:
+        def skip_producer():
+            pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig to provide live accounts for testing")
+        return skip_producer
+
+    configlist = []
+    if not liveconfig_opt.startswith("http"):
+        for line in open(liveconfig_opt):
             if line.strip() and not line.strip().startswith('#'):
                 d = {}
                 for part in line.split():
                     name, value = part.split("=")
                     d[name] = value
-                self.configlist.append(d)
+                configlist.append(d)
 
-    def get(self, index: int):
-        return self.configlist[index]
+        def from_file_producer():
+            return iter(configlist)
 
-    def exists(self) -> bool:
-        return bool(self.configlist)
+        return from_file_producer
 
+    def caching_producer_from_url():
+        for index in range(10):
+            try:
+                yield configlist[index]
+            except IndexError:
+                res = requests.post(liveconfig_opt)
+                if res.status_code != 200:
+                    pytest.fail("creating newtmpuser failed with code {}: '{}'".format(res.status_code, res.text))
+                d = res.json()
+                config = dict(addr=d["email"], mail_pw=d["password"])
+                configlist.append(config)
+                yield config
+        pytest.fail("more than 10 live accounts requested. Is a test running wild?")
 
-class SessionLiveConfigFromURL:
-    configlist: List[Dict[str, str]]
-
-    def __init__(self, url: str) -> None:
-        self.configlist = []
-        self.url = url
-
-    def get(self, index: int):
-        try:
-            return self.configlist[index]
-        except IndexError:
-            assert index == len(self.configlist), index
-            res = requests.post(self.url)
-            if res.status_code != 200:
-                pytest.skip("creating newtmpuser failed with code {}: '{}'".format(res.status_code, res.text))
-            d = res.json()
-            config = dict(addr=d["email"], mail_pw=d["password"])
-            self.configlist.append(config)
-            return config
-
-    def exists(self) -> bool:
-        return bool(self.configlist)
-
-
-@pytest.fixture(scope="session")
-def session_liveconfig(request):
-    liveconfig_opt = request.config.option.liveconfig
-    if liveconfig_opt:
-        if liveconfig_opt.startswith("http"):
-            return SessionLiveConfigFromURL(liveconfig_opt)
-        else:
-            return SessionLiveConfigFromFile(liveconfig_opt)
+    return caching_producer_from_url
 
 
 @pytest.fixture
@@ -213,10 +204,10 @@ class ACFactory:
     _finalizers: List[Callable[[], None]]
     _accounts: List[Account]
 
-    def __init__(self, strict_tls, tmpdir, session_liveconfig, data) -> None:
+    def __init__(self, strict_tls, tmpdir, session_liveconfig_producer, data) -> None:
         self.strict_tls = strict_tls
         self.tmpdir = tmpdir
-        self.session_liveconfig = session_liveconfig
+        self._liveconfig_producer = session_liveconfig_producer()
         self.data = data
 
         self.live_count = 0
@@ -239,6 +230,9 @@ class ACFactory:
             acc.shutdown()
             acc.disable_logging()
         deltachat.unregister_global_plugin(direct_imap)
+
+    def get_next_liveconfig(self):
+        return next(self._liveconfig_producer)
 
     def make_account(self, which):
         if which == "offline":
@@ -305,9 +299,7 @@ class ACFactory:
         """ Base function to get functional online accounts where we can make
         valid SMTP and IMAP connections with.
         """
-        if not self.session_liveconfig:
-            pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig")
-        configdict = self.session_liveconfig.get(self.live_count)
+        configdict = self.get_next_liveconfig()
         if "e2ee_enabled" not in configdict:
             configdict["e2ee_enabled"] = "1"
 
@@ -453,9 +445,9 @@ class ACFactory:
 
 
 @pytest.fixture
-def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
+def acfactory(pytestconfig, tmpdir, request, session_liveconfig_producer, data):
     strict_tls = pytestconfig.getoption("--strict-tls")
-    am = ACFactory(strict_tls, tmpdir, session_liveconfig, data)
+    am = ACFactory(strict_tls, tmpdir, session_liveconfig_producer, data)
     request.addfinalizer(am.finalize)
     yield am
     if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
