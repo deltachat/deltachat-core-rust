@@ -229,17 +229,30 @@ class ACFactory:
         deltachat.unregister_global_plugin(direct_imap)
 
     def get_next_liveconfig(self):
-        return next(self._liveconfig_producer)
+        """ Base function to get functional online configurations
+        where we can make valid SMTP and IMAP connections with.
+        """
+        configdict = next(self._liveconfig_producer)
+        if "e2ee_enabled" not in configdict:
+            configdict["e2ee_enabled"] = "1"
 
-    def make_account(self):
+        if self.strict_tls:
+            # Enable strict certificate checks for online accounts
+            configdict["imap_certificate_checks"] = str(const.DC_CERTCK_STRICT)
+            configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
+
+        assert "addr" in configdict and "mail_pw" in configdict
+        return configdict
+
+    def make_account(self, quiet=False):
         logid = "ac{}".format(len(self._accounts) + 1)
         path = self.tmpdir.join(logid)
         ac = Account(path.strpath, logging=self._logging)
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
-        logger = FFIEventLogger(ac)
-        logger.init_time = self.init_time
-        ac.add_account_plugin(logger)
-
+        if not quiet:
+            logger = FFIEventLogger(ac)
+            logger.init_time = self.init_time
+            ac.add_account_plugin(logger)
         self._accounts.append(ac)
         return ac
 
@@ -281,27 +294,12 @@ class ACFactory:
         self._preconfigure_key(ac, addr)
         return ac
 
-    def get_online_config(self, quiet=False):
-        """ Base function to get functional online accounts where we can make
-        valid SMTP and IMAP connections with.
-        """
-        configdict = self.get_next_liveconfig()
-        if "e2ee_enabled" not in configdict:
-            configdict["e2ee_enabled"] = "1"
-
-        if self.strict_tls:
-            # Enable strict certificate checks for online accounts
-            configdict["imap_certificate_checks"] = str(const.DC_CERTCK_STRICT)
-            configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
-
-        ac = self.make_account()
-        configdict["displayname"] = os.path.basename(ac.db_path)
-        self._preconfigure_key(ac, configdict["addr"])
-        return ac, dict(configdict)
-
     def get_online_configuring_account(self, sentbox=False, move=False,
                                        quiet=False, config={}):
-        ac, configdict = self.get_online_config(quiet=quiet)
+        configdict = self.get_next_liveconfig()
+        ac = self.make_account(quiet=quiet)
+        configdict.setdefault("displayname", os.path.basename(ac.db_path))
+        self._preconfigure_key(ac, configdict["addr"])
         configdict.update(config)
         configdict["mvbox_move"] = str(int(move))
         configdict["sentbox_watch"] = str(int(sentbox))
@@ -372,7 +370,10 @@ class ACFactory:
     def run_bot_process(self, module, ffi=True):
         fn = module.__file__
 
-        bot_ac, bot_cfg = self.get_online_config()
+        bot_cfg = self.get_next_liveconfig()
+        bot_ac = self.make_account()
+        bot_ac.update_config(bot_cfg)
+        self._preconfigure_key(bot_ac, bot_cfg["addr"])
 
         # Avoid starting ac so we don't interfere with the bot operating on
         # the same database.
