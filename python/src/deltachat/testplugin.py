@@ -244,7 +244,7 @@ class ACFactory:
         assert "addr" in configdict and "mail_pw" in configdict
         return configdict
 
-    def make_account(self, quiet=False):
+    def get_unconfigured_account(self, quiet=False):
         logid = "ac{}".format(len(self._accounts) + 1)
         path = self.tmpdir.join(logid)
         ac = Account(path.strpath, logging=self._logging)
@@ -258,9 +258,6 @@ class ACFactory:
 
     def set_logging_default(self, logging):
         self._logging = bool(logging)
-
-    def get_unconfigured_account(self):
-        return self.make_account()
 
     def remove_preconfigured_keys(self):
         self._preconfigured_keys = []
@@ -297,7 +294,7 @@ class ACFactory:
     def get_online_configuring_account(self, sentbox=False, move=False,
                                        quiet=False, config={}):
         configdict = self.get_next_liveconfig()
-        ac = self.make_account(quiet=quiet)
+        ac = self.get_unconfigured_account(quiet=quiet)
         configdict.setdefault("displayname", os.path.basename(ac.db_path))
         self._preconfigure_key(ac, configdict["addr"])
         configdict.update(config)
@@ -333,7 +330,7 @@ class ACFactory:
         direct_imap object of an online account. This simulates the user setting
         up a new device without importing a backup.
         """
-        ac = self.make_account()
+        ac = self.get_unconfigured_account()
         # XXX we might want to transfer the key from the old account for some tests
         self._preconfigure_key(ac, account.get_config("addr"))
         ac.update_config(dict(
@@ -371,7 +368,7 @@ class ACFactory:
         fn = module.__file__
 
         bot_cfg = self.get_next_liveconfig()
-        bot_ac = self.make_account()
+        bot_ac = self.get_unconfigured_account()
         bot_ac.update_config(bot_cfg)
         self._preconfigure_key(bot_ac, bot_cfg["addr"])
 
