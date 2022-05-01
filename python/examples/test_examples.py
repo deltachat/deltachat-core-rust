@@ -42,7 +42,7 @@ def test_group_tracking_plugin(acfactory, lp):
     lp.sec("creating one group-tracking bot and two temp accounts")
     botproc = acfactory.run_bot_process(group_tracking, ffi=False)
 
-    ac1, ac2 = acfactory.get_two_online_accounts()
+    ac1, ac2 = acfactory.get_online_accounts(2)
 
     botproc.fnmatch_lines("""
         *ac_configure_completed*

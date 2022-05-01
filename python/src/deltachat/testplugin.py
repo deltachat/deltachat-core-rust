@@ -304,21 +304,9 @@ class ACFactory:
         self._preconfigure_key(ac, configdict["addr"])
         ac.update_config(configdict)
 
-    def get_one_online_account(self, mvbox_move=False):
-        ac1 = self.get_online_configuring_account(mvbox_move=mvbox_move)
-        self.wait_configure_and_start_io()
-        return ac1
-
-    def get_two_online_accounts(self, mvbox_move=False):
-        ac1 = self.get_online_configuring_account(mvbox_move=mvbox_move)
-        ac2 = self.get_online_configuring_account()
-        self.wait_configure_and_start_io()
-        return ac1, ac2
-
-    def get_many_online_accounts(self, num, **kwargs):
-        # to reduce number of log events for higher level tests
-        # logging only starts after initial successful configuration
-        accounts = [self.get_online_configuring_account(**kwargs) for i in range(num)]
+    def get_online_accounts(self, num):
+        # to reduce number of log events logging starts after accounts can receive
+        accounts = [self.get_online_configuring_account() for i in range(num)]
         self.wait_configure_and_start_io(logstart="after_inbox_idle_ready")
         return accounts
 
