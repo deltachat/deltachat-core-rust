@@ -80,6 +80,22 @@ class TestOfflineAccountBasic:
         with pytest.raises(KeyError):
             ac1.get_config("lqkwje")
 
+    def test_set_config_int_conversion(self, acfactory):
+        ac1 = acfactory.get_unconfigured_account()
+        ac1.set_config("mvbox_move", False)
+        assert ac1.get_config("mvbox_move") == "0"
+        ac1.set_config("mvbox_move", True)
+        assert ac1.get_config("mvbox_move") == "1"
+        ac1.set_config("mvbox_move", 0)
+        assert ac1.get_config("mvbox_move") == "0"
+        ac1.set_config("mvbox_move", 1)
+        assert ac1.get_config("mvbox_move") == "1"
+
+    def test_update_config(self, acfactory):
+        ac1 = acfactory.get_unconfigured_account()
+        ac1.update_config(dict(mvbox_move=False))
+        assert ac1.get_config("mvbox_move") == "0"
+
     def test_has_savemime(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
         assert "save_mime_headers" in ac1.get_config("sys.config_keys").split()
@@ -856,10 +872,10 @@ class TestOnlineAccount:
 
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
-        ac1 = acfactory.get_online_configuring_account(move=True, sentbox=True)
+        ac1 = acfactory.get_online_configuring_account(mvbox_move=True, sentbox_watch=True)
 
         lp.sec("ac2: start without mvbox/sentbox threads")
-        ac2 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account(mvbox_move=False, sentbox_watch=False)
 
         lp.sec("ac2 and ac1: waiting for configuration")
         acfactory.wait_configure_and_start_io()
@@ -870,7 +886,7 @@ class TestOnlineAccount:
 
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(move=True)
+        ac2 = acfactory.get_online_configuring_account(mvbox_move=True)
         acfactory.wait_configure_and_start_io()
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
@@ -883,7 +899,7 @@ class TestOnlineAccount:
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
 
     def test_move_works_on_self_sent(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account(move=True)
+        ac1 = acfactory.get_online_configuring_account(mvbox_move=True)
         ac2 = acfactory.get_online_configuring_account()
         acfactory.wait_configure_and_start_io()
         ac1.set_config("bcc_self", "1")
@@ -953,7 +969,7 @@ class TestOnlineAccount:
         assert msg_in.is_forwarded()
 
     def test_send_self_message(self, acfactory, lp):
-        ac1 = acfactory.get_one_online_account(move=True)
+        ac1 = acfactory.get_one_online_account(mvbox_move=True)
         lp.sec("ac1: create self chat")
         chat = ac1.get_self_contact().create_chat()
         chat.send_text("hello")
@@ -1048,7 +1064,7 @@ class TestOnlineAccount:
     def test_moved_markseen(self, acfactory, lp):
         """Test that message already moved to DeltaChat folder is marked as seen."""
         ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(move=True)
+        ac2 = acfactory.get_online_configuring_account(mvbox_move=True)
         acfactory.wait_configure_and_start_io()
 
         ac2.stop_io()
@@ -1059,7 +1075,6 @@ class TestOnlineAccount:
         ac2.direct_imap.idle_wait_for_new_message(terminate=True)
 
         # Emulate moving of the message to DeltaChat folder by Sieve rule.
-        # mailcow server contains this rule by default.
         ac2.direct_imap.conn.move(["*"], "DeltaChat")
 
         ac2.direct_imap.select_folder("DeltaChat")
@@ -1166,8 +1181,8 @@ class TestOnlineAccount:
     def test_markseen_message_and_mdn(self, acfactory, mvbox_move):
         # Please only change this test if you are very sure that it will still catch the issues it catches now.
         # We had so many problems with markseen, if in doubt, rather create another test, it can't harm.
-        ac1 = acfactory.get_online_configuring_account(move=mvbox_move)
-        ac2 = acfactory.get_online_configuring_account(move=mvbox_move)
+        ac1 = acfactory.get_online_configuring_account(mvbox_move=mvbox_move)
+        ac2 = acfactory.get_online_configuring_account(mvbox_move=mvbox_move)
 
         acfactory.wait_configure_and_start_io()
         # Do not send BCC to self, we only want to test MDN on ac1.
@@ -1214,7 +1229,7 @@ class TestOnlineAccount:
         assert msg_reply1.chat.id == private_chat1.id
 
     def test_mdn_asymmetric(self, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts(move=True)
+        ac1, ac2 = acfactory.get_two_online_accounts(mvbox_move=True)
 
         lp.sec("ac1: create chat with ac2")
         chat = ac1.create_chat(ac2)
@@ -2445,7 +2460,7 @@ class TestOnlineAccount:
 
     def test_immediate_autodelete(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(move=False, sentbox=False)
+        ac2 = acfactory.get_online_configuring_account()
 
         # "1" means delete immediately, while "0" means do not delete
         ac2.set_config("delete_server_after", "1")
@@ -2715,7 +2730,7 @@ class TestOnlineAccount:
         """Delta Chat periodically scans all folders for new messages to make sure we don't miss any."""
         variant = folder + "-" + str(move) + "-" + expected_destination
         lp.sec("Testing variant " + variant)
-        ac1 = acfactory.get_online_configuring_account(move=move)
+        ac1 = acfactory.get_online_configuring_account(mvbox_move=move)
         ac2 = acfactory.get_online_configuring_account()
 
         acfactory.wait_configure(ac1)
@@ -2761,7 +2776,7 @@ class TestOnlineAccount:
             if mvbox_move:
                 assert ac.get_config("configured_mvbox_folder")
 
-        ac1 = acfactory.get_online_configuring_account(move=mvbox_move)
+        ac1 = acfactory.get_online_configuring_account(mvbox_move=mvbox_move)
         ac2 = acfactory.get_online_configuring_account()
 
         acfactory.wait_configure(ac1)
@@ -2859,7 +2874,7 @@ class TestOnlineAccount:
 
     def test_delete_deltachat_folder(self, acfactory):
         """Test that DeltaChat folder is recreated if user deletes it manually."""
-        ac1 = acfactory.get_online_configuring_account(move=True)
+        ac1 = acfactory.get_online_configuring_account(mvbox_move=True)
         ac2 = acfactory.get_online_configuring_account()
         acfactory.wait_configure(ac1)
 

@@ -287,33 +287,38 @@ class ACFactory:
         self._preconfigure_key(ac, addr)
         return ac
 
-    def get_online_configuring_account(self, sentbox=False, move=False, config={}):
-        configdict = self.get_next_liveconfig()
+    def get_online_configuring_account(self, **kwargs):
         ac = self.get_unconfigured_account()
-        configdict.setdefault("displayname", os.path.basename(ac.db_path))
-        self._preconfigure_key(ac, configdict["addr"])
-        configdict.update(config)
-        configdict["mvbox_move"] = str(int(move))
-        configdict["sentbox_watch"] = str(int(sentbox))
-        ac.update_config(configdict)
+        configdict = self.get_next_liveconfig()
+        configdict.update(kwargs)
+        self.prepare_account_with_liveconfig(ac, configdict)
         ac._configtracker = ac.configure()
         return ac
 
-    def get_one_online_account(self, move=False):
-        ac1 = self.get_online_configuring_account(move=move)
+    def prepare_account_with_liveconfig(self, ac, configdict):
+        assert "addr" in configdict and "mail_pw" in configdict, configdict
+        configdict.setdefault("bcc_self", False)
+        configdict.setdefault("mvbox_move", False)
+        configdict.setdefault("sentbox_watch", False)
+        configdict.setdefault("displayname", os.path.basename(ac.db_path))
+        self._preconfigure_key(ac, configdict["addr"])
+        ac.update_config(configdict)
+
+    def get_one_online_account(self, mvbox_move=False):
+        ac1 = self.get_online_configuring_account(mvbox_move=mvbox_move)
         self.wait_configure_and_start_io()
         return ac1
 
-    def get_two_online_accounts(self, move=False):
-        ac1 = self.get_online_configuring_account(move=move)
+    def get_two_online_accounts(self, mvbox_move=False):
+        ac1 = self.get_online_configuring_account(mvbox_move=mvbox_move)
         ac2 = self.get_online_configuring_account()
         self.wait_configure_and_start_io()
         return ac1, ac2
 
-    def get_many_online_accounts(self, num, move=True):
+    def get_many_online_accounts(self, num, **kwargs):
         # to reduce number of log events for higher level tests
         # logging only starts after initial successful configuration
-        accounts = [self.get_online_configuring_account(move=move) for i in range(num)]
+        accounts = [self.get_online_configuring_account(**kwargs) for i in range(num)]
         self.wait_configure_and_start_io(logstart="after_inbox_idle_ready")
         return accounts
 
@@ -323,13 +328,10 @@ class ACFactory:
         up a new device without importing a backup.
         """
         ac = self.get_unconfigured_account()
-        # XXX we might want to transfer the key from the old account for some tests
-        self._preconfigure_key(ac, account.get_config("addr"))
-        ac.update_config(dict(
+        # XXX we might want to transfer the key to the new account
+        self.prepare_account_with_liveconfig(ac, dict(
             addr=account.get_config("addr"),
             mail_pw=account.get_config("mail_pw"),
-            mvbox_move=account.get_config("mvbox_move"),
-            sentbox_watch=account.get_config("sentbox_watch"),
         ))
         if hasattr(account, "direct_imap"):
             # Attach the existing direct_imap. If we did not do this, a new one would be created and
@@ -344,7 +346,6 @@ class ACFactory:
         for acc in self._accounts:
             logger = FFIEventLogger(acc, init_time=self.init_time)
             self.wait_configure(acc)
-            acc.set_config("bcc_self", "0")
             acc.start_io()
             print("{}: {} waiting for inbox idle to become ready".format(
                 acc.get_config("displayname"), acc.get_config("addr")))
