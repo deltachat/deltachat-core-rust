@@ -29,10 +29,12 @@ class FFIEventLogger:
     # to prevent garbled logging
     _loglock = threading.RLock()
 
-    def __init__(self, account) -> None:
+    def __init__(self, account, init_time=None) -> None:
         self.account = account
         self.logid = self.account.get_config("displayname")
-        self.init_time = time.time()
+        if init_time is None:
+            init_time = time.time()
+        self.init_time = init_time
 
     @account_hookimpl
     def ac_process_ffi_event(self, ffi_event: FFIEvent) -> None:

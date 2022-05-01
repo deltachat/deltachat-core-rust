@@ -244,15 +244,11 @@ class ACFactory:
         assert "addr" in configdict and "mail_pw" in configdict
         return configdict
 
-    def get_unconfigured_account(self, quiet=False):
+    def get_unconfigured_account(self):
         logid = "ac{}".format(len(self._accounts) + 1)
         path = self.tmpdir.join(logid)
         ac = Account(path.strpath, logging=self._logging)
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
-        if not quiet:
-            logger = FFIEventLogger(ac)
-            logger.init_time = self.init_time
-            ac.add_account_plugin(logger)
         self._accounts.append(ac)
         return ac
 
@@ -291,10 +287,9 @@ class ACFactory:
         self._preconfigure_key(ac, addr)
         return ac
 
-    def get_online_configuring_account(self, sentbox=False, move=False,
-                                       quiet=False, config={}):
+    def get_online_configuring_account(self, sentbox=False, move=False, config={}):
         configdict = self.get_next_liveconfig()
-        ac = self.get_unconfigured_account(quiet=quiet)
+        ac = self.get_unconfigured_account()
         configdict.setdefault("displayname", os.path.basename(ac.db_path))
         self._preconfigure_key(ac, configdict["addr"])
         configdict.update(config)
@@ -309,20 +304,17 @@ class ACFactory:
         self.wait_configure_and_start_io()
         return ac1
 
-    def get_two_online_accounts(self, move=False, quiet=False):
-        ac1 = self.get_online_configuring_account(move=move, quiet=quiet)
-        ac2 = self.get_online_configuring_account(quiet=quiet)
+    def get_two_online_accounts(self, move=False):
+        ac1 = self.get_online_configuring_account(move=move)
+        ac2 = self.get_online_configuring_account()
         self.wait_configure_and_start_io()
         return ac1, ac2
 
     def get_many_online_accounts(self, num, move=True):
-        accounts = [self.get_online_configuring_account(move=move, quiet=True)
-                    for i in range(num)]
-        self.wait_configure_and_start_io()
-        # to reduce logging for higher level tests, logging only starts
-        # after initial successful configuration
-        for acc in accounts:
-            acc.add_account_plugin(FFIEventLogger(acc))
+        # to reduce number of log events for higher level tests
+        # logging only starts after initial successful configuration
+        accounts = [self.get_online_configuring_account(move=move) for i in range(num)]
+        self.wait_configure_and_start_io(logstart="after_inbox_idle_ready")
         return accounts
 
     def clone_online_account(self, account):
@@ -346,8 +338,11 @@ class ACFactory:
         ac._configtracker = ac.configure()
         return ac
 
-    def wait_configure_and_start_io(self):
+    def wait_configure_and_start_io(self, logstart="after_inbox_idle_ready"):
+        assert logstart in ("after_inbox_idle_ready",), logstart
+
         for acc in self._accounts:
+            logger = FFIEventLogger(acc, init_time=self.init_time)
             self.wait_configure(acc)
             acc.set_config("bcc_self", "0")
             acc.start_io()
@@ -356,6 +351,8 @@ class ACFactory:
             acc._evtracker.wait_idle_inbox_ready()
             print("{}: {} account IMAP IO ready to receive".format(
                 acc.get_config("displayname"), acc.get_config("addr")))
+            if logstart == "after_inbox_idle_ready":
+                acc.add_account_plugin(logger)
 
     def wait_configure(self, acc):
         if hasattr(acc, "_configtracker"):
