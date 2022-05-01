@@ -15,7 +15,6 @@ import pytest
 import requests
 
 from . import Account, const
-from .capi import lib
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
 from deltachat import direct_imap
@@ -237,9 +236,6 @@ class ACFactory:
         path = self.tmpdir.join(logid)
         ac = Account(path.strpath, logging=self._logging)
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
-        ac.addr = ac.get_self_contact().addr
-        ac.set_config("displayname", logid)
-
         logger = FFIEventLogger(ac)
         logger.init_time = self.init_time
         ac.add_account_plugin(logger)
@@ -275,13 +271,14 @@ class ACFactory:
         ac = self.get_unconfigured_account()
 
         # do a pseudo-configured account
-        addr = "{}@offline.org".format(ac.get_config("displayname"))
-        ac.set_config("addr", addr)
+        acname = os.path.basename(ac.db_path)
+        addr = "{}@offline.org".format(acname)
+        ac.update_config(dict(
+            addr=addr, displayname=acname, mail_pw="123",
+            configured_addr=addr, configured_mail_pw="123",
+            configured="1",
+        ))
         self._preconfigure_key(ac, addr)
-        lib.dc_set_config(ac._dc_context, b"configured_addr", addr.encode("ascii"))
-        ac.set_config("mail_pw", "123")
-        lib.dc_set_config(ac._dc_context, b"configured_mail_pw", b"123")
-        lib.dc_set_config(ac._dc_context, b"configured", b"1")
         return ac
 
     def get_online_config(self, quiet=False):
@@ -298,6 +295,7 @@ class ACFactory:
             configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
 
         ac = self.make_account()
+        configdict["displayname"] = os.path.basename(ac.db_path)
         self._preconfigure_key(ac, configdict["addr"])
         return ac, dict(configdict)
 
