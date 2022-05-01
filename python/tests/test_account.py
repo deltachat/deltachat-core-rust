@@ -2560,8 +2560,9 @@ class TestOnlineAccount:
         ac2.direct_imap.select_config_folder("inbox")
         assert len(ac2.direct_imap.get_all_messages()) == 1
 
-    def test_configure_error_msgs(self, acfactory):
-        ac1, configdict = acfactory.get_online_config()
+    def test_configure_error_msgs_wrong_pw(self, acfactory):
+        configdict = acfactory.get_next_liveconfig()
+        ac1 = acfactory.make_account()
         ac1.update_config(configdict)
         ac1.set_config("mail_pw", "abc")  # Wrong mail pw
         ac1.configure()
@@ -2572,9 +2573,10 @@ class TestOnlineAccount:
         # Password is wrong so it definitely has to say something about "password"
         assert "password" in ev.data2
 
-        ac2, configdict = acfactory.get_online_config()
-        ac2.update_config(configdict)
+    def test_configure_error_msgs_invalid_server(self, acfactory):
+        ac2 = acfactory.make_account()
         ac2.set_config("addr", "abc@def.invalid")  # mail server can't be reached
+        ac2.set_config("mail_pw", "123")
         ac2.configure()
         while True:
             ev = ac2._evtracker.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
@@ -2992,22 +2994,27 @@ class TestGroupStressTests:
 
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
-        ac1, configdict = acfactory.get_online_config()
+        configdict = acfactory.get_next_liveconfig()
+        ac1 = acfactory.make_account()
         ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
 
     def test_invalid_user(self, acfactory):
-        ac1, configdict = acfactory.get_online_config()
-        ac1.update_config(dict(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"]))
+        configdict = acfactory.get_next_liveconfig()
+        ac1 = acfactory.make_account()
+        configdict["addr"] = "x" + configdict["addr"]
+        ac1.update_config(configdict)
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
 
     def test_invalid_domain(self, acfactory):
-        ac1, configdict = acfactory.get_online_config()
-        ac1.update_config((dict(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])))
+        configdict = acfactory.get_next_liveconfig()
+        ac1 = acfactory.make_account()
+        configdict["addr"] += "x"
+        ac1.update_config(configdict)
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)
