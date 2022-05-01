@@ -17,7 +17,7 @@ def test_db_busy_error(acfactory, tmpdir):
             print("%3.2f %s" % (time.time() - starttime, string))
 
     # make a number of accounts
-    accounts = acfactory.get_many_online_accounts(3, quiet=True)
+    accounts = acfactory.get_many_online_accounts(3)
     log("created %s accounts" % len(accounts))
 
     # put a bigfile into each account
