@@ -209,6 +209,7 @@ class ACFactory:
         self.tmpdir = tmpdir
         self._liveconfig_producer = testprocess.get_liveconfig_producer()
         self.data = data
+        self.testprocess = testprocess
 
         self._finalizers = []
         self._accounts = []
@@ -290,30 +291,30 @@ class ACFactory:
         return ac
 
     def get_online_configuring_account(self, **kwargs):
-        ac = self.get_unconfigured_account()
         configdict = self.get_next_liveconfig()
         configdict.update(kwargs)
-        self.prepare_account_with_liveconfig(ac, configdict)
+        ac = self.prepare_account_from_liveconfig(configdict)
         ac._configtracker = ac.configure()
         return ac
 
-    def prepare_account_with_liveconfig(self, ac, configdict):
+    def prepare_account_from_liveconfig(self, configdict):
+        ac = self.get_unconfigured_account()
         assert "addr" in configdict and "mail_pw" in configdict, configdict
         configdict.setdefault("bcc_self", False)
         configdict.setdefault("mvbox_move", False)
         configdict.setdefault("sentbox_watch", False)
         configdict.setdefault("displayname", os.path.basename(ac.db_path))
-        self._preconfigure_key(ac, configdict["addr"])
         ac.update_config(configdict)
+        self._preconfigure_key(ac, configdict["addr"])
+        return ac
 
     def get_cloned_configuring_account(self, account):
         """ Clones addr, mail_pw, mvbox_move, sentbox_watch and the
         direct_imap object of an online account. This simulates the user setting
         up a new device without importing a backup.
         """
-        ac = self.get_unconfigured_account()
         # XXX we might want to transfer the key to the new account
-        self.prepare_account_with_liveconfig(ac, dict(
+        ac = self.prepare_account_from_liveconfig(dict(
             addr=account.get_config("addr"),
             mail_pw=account.get_config("mail_pw"),
         ))
@@ -358,8 +359,7 @@ class ACFactory:
         fn = module.__file__
 
         bot_cfg = self.get_next_liveconfig()
-        bot_ac = self.get_unconfigured_account()
-        self.prepare_account_with_liveconfig(bot_ac, bot_cfg)
+        bot_ac = self.prepare_account_from_liveconfig(bot_cfg)
 
         # Avoid starting ac so we don't interfere with the bot operating on
         # the same database.
