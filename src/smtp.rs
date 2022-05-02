@@ -420,7 +420,7 @@ pub(crate) async fn send_msg_to_smtp(
     }
     info!(
         context,
-        "Retry number {} to send message {} over SMTP", retries, msg_id
+        "Try number {} to send message {} over SMTP", retries, msg_id
     );
 
     let recipients_list = recipients
