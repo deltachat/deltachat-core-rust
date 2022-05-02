@@ -1,13 +1,16 @@
 # Changelog
 
-## Unreleased
+## 1.79.0
 
 ### Changes
 - Send locations in the background regardless of SMTP loop activity #3247
+- refactorings #3268
+- improve tests and ci #3266 #3271
 
 ### Fixes
-
 - simplify `dc_stop_io()` and remove potential panics and race conditions #3273
+- fix correct message escaping consisting of a dot in SMTP protocol #3265
+
 
 ## 1.78.0
 
