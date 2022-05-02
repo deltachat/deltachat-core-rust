@@ -668,7 +668,7 @@ class TestOnlineAccount:
         ac2 = acfactory.get_online_configuring_account(
             config={"key_gen_type": str(const.DC_KEY_GEN_ED25519)}
         )
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
         lp.sec("ac1: send unencrypted message to ac2")
@@ -728,7 +728,7 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         ac1_clone = acfactory.get_cloned_configuring_account(ac1)
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         # test if sent messages are copied to it via BCC.
 
@@ -875,7 +875,7 @@ class TestOnlineAccount:
         ac2 = acfactory.get_online_configuring_account(mvbox_move=False, sentbox_watch=False)
 
         lp.sec("ac2 and ac1: waiting for configuration")
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         lp.sec("ac1: send message and wait for ac2 to receive it")
         acfactory.get_accepted_chat(ac1, ac2).send_text("message1")
@@ -884,7 +884,7 @@ class TestOnlineAccount:
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox_move=True)
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
 
@@ -898,7 +898,7 @@ class TestOnlineAccount:
     def test_move_works_on_self_sent(self, acfactory):
         ac1 = acfactory.get_online_configuring_account(mvbox_move=True)
         ac2 = acfactory.get_online_configuring_account()
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
         ac1.set_config("bcc_self", "1")
 
         chat = acfactory.get_accepted_chat(ac1, ac2)
@@ -967,7 +967,7 @@ class TestOnlineAccount:
 
     def test_send_self_message(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account(mvbox_move=True)
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
         lp.sec("ac1: create self chat")
         chat = ac1.get_self_contact().create_chat()
         chat.send_text("hello")
@@ -1063,7 +1063,7 @@ class TestOnlineAccount:
         """Test that message already moved to DeltaChat folder is marked as seen."""
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox_move=True)
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         ac2.stop_io()
         ac2.direct_imap.idle_start()
@@ -1092,7 +1092,7 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         ac1_clone = acfactory.get_cloned_configuring_account(ac1)
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         ac1.set_config("bcc_self", "1")
         ac1_clone.set_config("bcc_self", "1")
@@ -1182,8 +1182,7 @@ class TestOnlineAccount:
         # We had so many problems with markseen, if in doubt, rather create another test, it can't harm.
         ac1 = acfactory.get_online_configuring_account(mvbox_move=mvbox_move)
         ac2 = acfactory.get_online_configuring_account(mvbox_move=mvbox_move)
-
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
         # Do not send BCC to self, we only want to test MDN on ac1.
         ac1.set_config("bcc_self", "0")
 
@@ -1230,7 +1229,7 @@ class TestOnlineAccount:
     def test_mdn_asymmetric(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account(mvbox_move=True)
         ac2 = acfactory.get_online_configuring_account()
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         lp.sec("ac1: create chat with ac2")
         chat = ac1.create_chat(ac2)
@@ -1462,7 +1461,7 @@ class TestOnlineAccount:
         ac1.direct_imap.create_folder("Spam")
         ac1.direct_imap.create_folder("Junk")
 
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
         ac1.stop_io()
 
         ac1.direct_imap.append("Drafts", """
@@ -1534,7 +1533,7 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         ac1_clone = acfactory.get_cloned_configuring_account(ac1)
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         ac1.set_config("e2ee_enabled", "0")
         ac1_clone.set_config("e2ee_enabled", "0")
@@ -1898,7 +1897,7 @@ class TestOnlineAccount:
         # as of Jul2019
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_cloned_configuring_account(ac1)
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         lp.sec("trigger ac setup message and return setupcode")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -1919,7 +1918,7 @@ class TestOnlineAccount:
     def test_ac_setup_message_twice(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_cloned_configuring_account(ac1)
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         lp.sec("trigger ac setup message but ignore")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -2466,7 +2465,7 @@ class TestOnlineAccount:
         # "1" means delete immediately, while "0" means do not delete
         ac2.set_config("delete_server_after", "1")
 
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         lp.sec("ac1: create chat with ac2")
         chat1 = ac1.create_chat(ac2)
@@ -2737,7 +2736,7 @@ class TestOnlineAccount:
         acfactory.wait_configure(ac1)
         ac1.direct_imap.create_folder(folder)
 
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
         # Wait until each folder was selected once and we are IDLEing:
         ac1.stop_io()
 
@@ -2791,7 +2790,7 @@ class TestOnlineAccount:
         # The sentbox thread, started by `start_io()`, would have seen that there is no
         # ConfiguredSentboxFolder and do nothing.
         ac1._configtracker = ac1.configure(reconfigure=True)
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
         assert_folders_configured(ac1)
 
         assert ac1.direct_imap.select_config_folder("mvbox" if mvbox_move else "inbox")
@@ -2838,7 +2837,7 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
 
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         lp.sec("receive a message")
         ac2.create_group_chat("group name", contacts=[ac1]).send_text("incoming, unencrypted group message")
@@ -2883,7 +2882,7 @@ class TestOnlineAccount:
 
         ac1.direct_imap.conn.folder.delete("DeltaChat")
         assert "DeltaChat" not in ac1.direct_imap.list_folders()
-        acfactory.wait_configure_and_start_io()
+        acfactory.bring_accounts_online()
 
         ac2.create_chat(ac1).send_text("hello")
         msg = ac1._evtracker.wait_next_incoming_message()
