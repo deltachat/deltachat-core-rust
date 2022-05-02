@@ -1145,10 +1145,9 @@ class TestOnlineAccount:
 
     def test_message_override_sender_name(self, acfactory, lp):
         ac1, ac2 = acfactory.get_online_accounts(2)
+        ac1.set_config("displayname", "ac1-default-displayname")
         chat = acfactory.get_accepted_chat(ac1, ac2)
         overridden_name = "someone else"
-
-        ac1.set_config("displayname", "ac1")
 
         lp.sec("sending text message with overridden name from ac1 to ac2")
         msg1 = Message.new_empty(ac1, "text")
@@ -1160,7 +1159,9 @@ class TestOnlineAccount:
         lp.sec("wait for ac2 to receive message")
         msg2 = ac2._evtracker.wait_next_incoming_message()
         assert msg2.text == "message1"
-        assert msg2.get_sender_contact().name == ac1.get_config("displayname")
+        sender = msg2.get_sender_contact()
+        assert sender.addr == ac1.get_config("addr")
+        assert sender.name == ac1.get_config("displayname")
         assert msg2.override_sender_name == overridden_name
 
         lp.sec("sending normal text message from ac1 to ac2")
@@ -2846,7 +2847,8 @@ class TestOnlineAccount:
         lp.sec("send out message with bcc to ourselves")
         ac1.direct_imap.idle_start()
         ac1.set_config("bcc_self", "1")
-        ac1.create_chat(ac2).send_text("outgoing, encrypted direct message, creating a chat")
+        ac1_ac2_chat = ac1.create_chat(ac2)
+        ac1_ac2_chat.send_text("outgoing, encrypted direct message, creating a chat")
 
         # now wait until the bcc_self message arrives
         assert ac1.direct_imap.idle_wait_for_seen()
@@ -2858,11 +2860,12 @@ class TestOnlineAccount:
 
         ac1_clone.start_io()
         ac1_clone._evtracker.wait_idle_inbox_ready()
+
         chats = ac1_clone.get_chats()
         assert len(chats) == 4  # two newly created chats + self-chat + device-chat
         group_chat = [c for c in chats if c.get_name() == "group name"][0]
         assert group_chat.is_group()
-        private_chat = [c for c in chats if c.get_name() == "ac2"][0]
+        private_chat, = [c for c in chats if c.get_name() == ac1_ac2_chat.get_name()]
         assert not private_chat.is_group()
 
         group_messages = group_chat.get_messages()
