@@ -7,11 +7,6 @@ const run = (cmd) => {
   execSync(cmd, {stdio: 'inherit'})
 }
 
-if (!existsSync(join(__dirname, '..', 'deltachat-core-rust'))) {
-  console.log('[i] deltachat-node/deltachat-core-rust doesn\'t exist, fetching submodule. If this fails, make sure git is installed')
-  run('npm run submodule')
-}
-
 // Build bindings
 if (process.env.USE_SYSTEM_LIBDELTACHAT === 'true') {
   console.log('[i] USE_SYSTEM_LIBDELTACHAT is true, rebuilding c bindings and using pkg-config to retrieve lib paths and cflags of libdeltachat')

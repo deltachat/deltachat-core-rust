@@ -8,12 +8,12 @@
 [![dependencies](https://david-dm.org/deltachat/deltachat-node.svg)](https://david-dm.org/deltachat/deltachat-node)
 [![JavaScript Style Guide](https://img.shields.io/badge/code_style-prettier-brightgreen.svg)](https://prettier.io)
 
-**If you are upgrading:** please see [`UPGRADING.md`](UPGRADING.md).
-
 `deltachat-node` primarily aims to offer two things:
 
 - A high level JavaScript api with syntactic sugar
 - A low level c binding api around  [`deltachat-core-rust`][deltachat-core-rust]
+
+This code used to live at [`deltachat-node`][deltachat-node].
 
 ## Table of Contents
 
@@ -31,8 +31,9 @@
 ## Install
 
 By default the installation will build try to use the bundled prebuilds in the
-npm package. If this fails it falls back to compile the bundled
-`deltachat-core-rust` from the submodule using `scripts/rebuild-core.js`.
+npm package. If this fails it falls back to compile `deltachat-core-rust` from
+this repository, using `scripts/rebuild-core.js`.
+
 To install from npm use:
 
 ```
@@ -55,6 +56,42 @@ building from source or clone this repository and follow this steps:
 1. `git clone https://github.com/deltachat/deltachat-node.git`
 2. `cd deltachat-node`
 3. `npm i`
+4. `npm run build`
+
+### Use build-from-source in deltachat-desktop
+
+If you want to use the manually built node bindings in the desktop client (for
+example), you can follow these instructions:
+
+First clone the
+[deltachat-desktop](https://github.com/deltachat/deltachat-desktop) repository,
+e.g. with `git clone https://github.com/deltachat/deltachat-desktop`.
+
+Then you need to make sure that this directory is referenced correctly in
+deltachat-desktop's package.json. You need to change
+`deltachat-desktop/package.json` like this:
+
+```
+diff --git i/package.json w/package.json
+index d3fb3f23..b6ee6b7f 100644
+--- i/package.json
++++ w/package.json
+@@ -83,7 +83,7 @@
+     "application-config": "^1.0.1",
+     "classnames": "^2.3.1",
+     "debounce": "^1.2.0",
+-    "deltachat-node": "1.77.1",
++    "deltachat-node": "file:../deltachat-core-rust/node",
+     "emoji-js-clean": "^4.0.0",
+     "emoji-mart": "^3.0.1",
+     "emoji-regex": "^9.2.2",
+```
+
+Then, in the `deltachat-desktop` repository, run:
+
+1. `npm i`
+2. `npm run build`
+3. And `npm run start` to start the newly built client.
 
 ### Workaround to build for x86_64 on Apple's M1
 
@@ -173,7 +210,6 @@ We have the following scripts for building, testing and coverage:
 - `ǹpm run clean` Removes all built code
 - `npm run prebuildify` Builds prebuilt binary to `prebuilds/$PLATFORM-$ARCH`. Copies `deltachat.dll` from `deltachat-core-rust` for windows.
 - `npm run download-prebuilds` Downloads all prebuilt binaries from github before `npm publish`.
-- `npm run submodule` Updates the `deltachat-core-rust` submodule.
 - `npm test` Runs `standard` and then the tests in `test/index.js`.
 - `npm run test-integration` Runs the integration tests.
 - `npm run hallmark` Runs `hallmark` on all markdown files.
@@ -188,7 +224,7 @@ The following steps are needed to make a release:
 - Also adjust links to github prepare links at the end of the file
 
 2. Bump version number in package.json
-3. Commit the changed files, commit message should be similiar to `Prepare for v1.0.0-foo.number`
+3. Commit the changed files, commit message should be similiar to `Prepare node-bindings npm release`
 4. Tag the release with `git tag -a v1.0.0-foo.number`
 5. Push to github with `git push origin master --tags`
 6. Wait until `Make Package` github action is completed
@@ -212,8 +248,6 @@ Licensed under `GPL-3.0-or-later`, see [LICENSE](./LICENSE) file for details.
 >
 >    You should have received a copy of the GNU General Public License
 >    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-[deltachat-core-rust]: https://github.com/deltachat/deltachat-core-rust
 
 [appveyor-shield]: https://ci.appveyor.com/api/projects/status/t0narp672wpbl6pd?svg=true
 

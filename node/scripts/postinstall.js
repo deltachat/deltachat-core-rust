@@ -9,7 +9,7 @@ if (process.platform !== 'win32') {
 const from = path.resolve(
   __dirname,
   '..',
-  'deltachat-core-rust',
+  '..',
   'target',
   'release',
   'deltachat.dll'
