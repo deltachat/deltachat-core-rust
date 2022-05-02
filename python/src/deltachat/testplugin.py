@@ -327,19 +327,15 @@ class ACFactory:
         ac._configtracker = ac.configure()
         return ac
 
-    def wait_configure_and_start_io(self, logstart="after_inbox_idle_ready"):
-        assert logstart in ("after_inbox_idle_ready",), logstart
-
+    def bring_accounts_online(self):
         for acc in self._accounts:
-            logger = FFIEventLogger(acc, logid=acc._logid, init_time=self.init_time)
             self.wait_configure(acc)
             acc.start_io()
-            acc.log("waiting for inbox IDLE to become ready")
+            print("waiting for inbox IDLE to become ready")
             acc._evtracker.wait_idle_inbox_ready()
-            print("account IDLE: ready")
-            assert 0
-            if logstart == "after_inbox_idle_ready":
-                acc.add_account_plugin(logger)
+            logger = FFIEventLogger(acc, logid=acc._logid, init_time=self.init_time)
+            acc.add_account_plugin(logger)
+            acc.log("inbox IDLE ready!")
 
     def wait_configure(self, acc):
         if hasattr(acc, "_configtracker"):
@@ -353,7 +349,7 @@ class ACFactory:
     def get_online_accounts(self, num):
         # to reduce number of log events logging starts after accounts can receive
         accounts = [self.get_online_configuring_account() for i in range(num)]
-        self.wait_configure_and_start_io(logstart="after_inbox_idle_ready")
+        self.bring_accounts_online()
         return accounts
 
     def run_bot_process(self, module, ffi=True):
