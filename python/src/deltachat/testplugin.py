@@ -293,7 +293,7 @@ class ACFactory:
         self._preconfigure_key(ac, addr)
         return ac
 
-    def get_online_configuring_account(self, **kwargs):
+    def new_online_configuring_account(self, **kwargs):
         configdict = self.get_next_liveconfig()
         configdict.update(kwargs)
         ac = self.prepare_account_from_liveconfig(configdict)
@@ -310,7 +310,7 @@ class ACFactory:
         self._preconfigure_key(ac, configdict["addr"])
         return ac
 
-    def get_cloned_configuring_account(self, account):
+    def new_cloned_configuring_account(self, account):
         """ Clones addr, mail_pw, mvbox_move, sentbox_watch and the
         direct_imap object of an online account. This simulates the user setting
         up a new device without importing a backup.
@@ -348,7 +348,7 @@ class ACFactory:
 
     def get_online_accounts(self, num):
         # to reduce number of log events logging starts after accounts can receive
-        accounts = [self.get_online_configuring_account() for i in range(num)]
+        accounts = [self.new_online_configuring_account() for i in range(num)]
         self.bring_accounts_online()
         return accounts
 

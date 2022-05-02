@@ -662,10 +662,10 @@ class TestOnlineAccount:
     def test_configure_generate_key(self, acfactory, lp):
         # A slow test which will generate new keys.
         acfactory.remove_preconfigured_keys()
-        ac1 = acfactory.get_online_configuring_account(
+        ac1 = acfactory.new_online_configuring_account(
             config={"key_gen_type": str(const.DC_KEY_GEN_RSA2048)}
         )
-        ac2 = acfactory.get_online_configuring_account(
+        ac2 = acfactory.new_online_configuring_account(
             config={"key_gen_type": str(const.DC_KEY_GEN_ED25519)}
         )
         acfactory.bring_accounts_online()
@@ -696,7 +696,7 @@ class TestOnlineAccount:
         assert msg3_in.is_encrypted()
 
     def test_configure_canceled(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.new_online_configuring_account()
         ac1._configtracker.wait_progress()
         ac1.stop_ongoing()
         try:
@@ -725,9 +725,9 @@ class TestOnlineAccount:
         assert key_id2 == key_id
 
     def test_one_account_send_bcc_setting(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        ac1_clone = acfactory.get_cloned_configuring_account(ac1)
+        ac1 = acfactory.new_online_configuring_account()
+        ac2 = acfactory.new_online_configuring_account()
+        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
         acfactory.bring_accounts_online()
 
         # test if sent messages are copied to it via BCC.
@@ -869,10 +869,10 @@ class TestOnlineAccount:
 
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
-        ac1 = acfactory.get_online_configuring_account(mvbox_move=True, sentbox_watch=True)
+        ac1 = acfactory.new_online_configuring_account(mvbox_move=True, sentbox_watch=True)
 
         lp.sec("ac2: start without mvbox/sentbox threads")
-        ac2 = acfactory.get_online_configuring_account(mvbox_move=False, sentbox_watch=False)
+        ac2 = acfactory.new_online_configuring_account(mvbox_move=False, sentbox_watch=False)
 
         lp.sec("ac2 and ac1: waiting for configuration")
         acfactory.bring_accounts_online()
@@ -882,8 +882,8 @@ class TestOnlineAccount:
         assert ac2._evtracker.wait_next_incoming_message().text == "message1"
 
     def test_move_works(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(mvbox_move=True)
+        ac1 = acfactory.new_online_configuring_account()
+        ac2 = acfactory.new_online_configuring_account(mvbox_move=True)
         acfactory.bring_accounts_online()
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
@@ -896,8 +896,8 @@ class TestOnlineAccount:
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
 
     def test_move_works_on_self_sent(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account(mvbox_move=True)
-        ac2 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.new_online_configuring_account(mvbox_move=True)
+        ac2 = acfactory.new_online_configuring_account()
         acfactory.bring_accounts_online()
         ac1.set_config("bcc_self", "1")
 
@@ -966,7 +966,7 @@ class TestOnlineAccount:
         assert msg_in.is_forwarded()
 
     def test_send_self_message(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account(mvbox_move=True)
+        ac1 = acfactory.new_online_configuring_account(mvbox_move=True)
         acfactory.bring_accounts_online()
         lp.sec("ac1: create self chat")
         chat = ac1.get_self_contact().create_chat()
@@ -1061,8 +1061,8 @@ class TestOnlineAccount:
 
     def test_moved_markseen(self, acfactory, lp):
         """Test that message already moved to DeltaChat folder is marked as seen."""
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(mvbox_move=True)
+        ac1 = acfactory.new_online_configuring_account()
+        ac2 = acfactory.new_online_configuring_account(mvbox_move=True)
         acfactory.bring_accounts_online()
 
         ac2.stop_io()
@@ -1089,9 +1089,9 @@ class TestOnlineAccount:
 
     def test_multidevice_sync_seen(self, acfactory, lp):
         """Test that message marked as seen on one device is marked as seen on another."""
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        ac1_clone = acfactory.get_cloned_configuring_account(ac1)
+        ac1 = acfactory.new_online_configuring_account()
+        ac2 = acfactory.new_online_configuring_account()
+        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
         acfactory.bring_accounts_online()
 
         ac1.set_config("bcc_self", "1")
@@ -1180,8 +1180,8 @@ class TestOnlineAccount:
     def test_markseen_message_and_mdn(self, acfactory, mvbox_move):
         # Please only change this test if you are very sure that it will still catch the issues it catches now.
         # We had so many problems with markseen, if in doubt, rather create another test, it can't harm.
-        ac1 = acfactory.get_online_configuring_account(mvbox_move=mvbox_move)
-        ac2 = acfactory.get_online_configuring_account(mvbox_move=mvbox_move)
+        ac1 = acfactory.new_online_configuring_account(mvbox_move=mvbox_move)
+        ac2 = acfactory.new_online_configuring_account(mvbox_move=mvbox_move)
         acfactory.bring_accounts_online()
         # Do not send BCC to self, we only want to test MDN on ac1.
         ac1.set_config("bcc_self", "0")
@@ -1227,8 +1227,8 @@ class TestOnlineAccount:
         assert msg_reply1.chat.id == private_chat1.id
 
     def test_mdn_asymmetric(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account(mvbox_move=True)
-        ac2 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.new_online_configuring_account(mvbox_move=True)
+        ac2 = acfactory.new_online_configuring_account()
         acfactory.bring_accounts_online()
 
         lp.sec("ac1: create chat with ac2")
@@ -1451,7 +1451,7 @@ class TestOnlineAccount:
         If the draft email is sent out later (i.e. moved to "Sent"), it must be shown.
 
         Also, test that unknown emails in the Spam folder are not shown."""
-        ac1 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.new_online_configuring_account()
         ac1.set_config("show_emails", "2")
         ac1.create_contact("alice@example.org").create_chat()
 
@@ -1530,9 +1530,9 @@ class TestOnlineAccount:
         assert len(msg.chat.get_messages()) == 2
 
     def test_no_old_msg_is_fresh(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        ac1_clone = acfactory.get_cloned_configuring_account(ac1)
+        ac1 = acfactory.new_online_configuring_account()
+        ac2 = acfactory.new_online_configuring_account()
+        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
         acfactory.bring_accounts_online()
 
         ac1.set_config("e2ee_enabled", "0")
@@ -1895,8 +1895,8 @@ class TestOnlineAccount:
         # note that the receiving account needs to be configured and running
         # before ther setup message is send. DC does not read old messages
         # as of Jul2019
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_cloned_configuring_account(ac1)
+        ac1 = acfactory.new_online_configuring_account()
+        ac2 = acfactory.new_cloned_configuring_account(ac1)
         acfactory.bring_accounts_online()
 
         lp.sec("trigger ac setup message and return setupcode")
@@ -1916,8 +1916,8 @@ class TestOnlineAccount:
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
     def test_ac_setup_message_twice(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_cloned_configuring_account(ac1)
+        ac1 = acfactory.new_online_configuring_account()
+        ac2 = acfactory.new_cloned_configuring_account(ac1)
         acfactory.bring_accounts_online()
 
         lp.sec("trigger ac setup message but ignore")
@@ -2401,7 +2401,7 @@ class TestOnlineAccount:
         lp.sec("ac3 reinstalls DC and generates a new key")
         ac3.stop_io()
         acfactory.remove_preconfigured_keys()
-        ac4 = acfactory.get_cloned_configuring_account(ac3)
+        ac4 = acfactory.new_cloned_configuring_account(ac3)
         ac4._configtracker.wait_finish()
         # Create contacts to make sure incoming messages are not treated as contact requests
         chat41 = ac4.create_chat(ac1)
@@ -2459,8 +2459,8 @@ class TestOnlineAccount:
         assert msg.chat == ac2.create_chat(ac4)
 
     def test_immediate_autodelete(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.new_online_configuring_account()
+        ac2 = acfactory.new_online_configuring_account()
 
         # "1" means delete immediately, while "0" means do not delete
         ac2.set_config("delete_server_after", "1")
@@ -2730,8 +2730,8 @@ class TestOnlineAccount:
         """Delta Chat periodically scans all folders for new messages to make sure we don't miss any."""
         variant = folder + "-" + str(move) + "-" + expected_destination
         lp.sec("Testing variant " + variant)
-        ac1 = acfactory.get_online_configuring_account(mvbox_move=move)
-        ac2 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.new_online_configuring_account(mvbox_move=move)
+        ac2 = acfactory.new_online_configuring_account()
 
         acfactory.wait_configure(ac1)
         ac1.direct_imap.create_folder(folder)
@@ -2776,8 +2776,8 @@ class TestOnlineAccount:
             if mvbox_move:
                 assert ac.get_config("configured_mvbox_folder")
 
-        ac1 = acfactory.get_online_configuring_account(mvbox_move=mvbox_move)
-        ac2 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.new_online_configuring_account(mvbox_move=mvbox_move)
+        ac2 = acfactory.new_online_configuring_account()
 
         acfactory.wait_configure(ac1)
 
@@ -2807,7 +2807,7 @@ class TestOnlineAccount:
         assert_folders_configured(ac1)
 
         lp.sec("create a cloned ac1 and fetch contact history during configure")
-        ac1_clone = acfactory.get_cloned_configuring_account(ac1)
+        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
         ac1_clone._configtracker.wait_finish()
         ac1_clone.start_io()
@@ -2834,8 +2834,8 @@ class TestOnlineAccount:
         So, after fetch-existing-msgs you have one contact request and one chat with the same person.
 
         See https://github.com/deltachat/deltachat-core-rust/issues/2097"""
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.new_online_configuring_account()
+        ac2 = acfactory.new_online_configuring_account()
 
         acfactory.bring_accounts_online()
 
@@ -2853,7 +2853,7 @@ class TestOnlineAccount:
         assert ac1.direct_imap.idle_wait_for_seen()
 
         lp.sec("Clone online account and let it fetch the existing messages")
-        ac1_clone = acfactory.get_cloned_configuring_account(ac1)
+        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
         ac1_clone._configtracker.wait_finish()
 
@@ -2876,8 +2876,8 @@ class TestOnlineAccount:
 
     def test_delete_deltachat_folder(self, acfactory):
         """Test that DeltaChat folder is recreated if user deletes it manually."""
-        ac1 = acfactory.get_online_configuring_account(mvbox_move=True)
-        ac2 = acfactory.get_online_configuring_account()
+        ac1 = acfactory.new_online_configuring_account(mvbox_move=True)
+        ac2 = acfactory.new_online_configuring_account()
         acfactory.wait_configure(ac1)
 
         ac1.direct_imap.conn.folder.delete("DeltaChat")
