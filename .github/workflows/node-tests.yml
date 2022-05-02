@@ -1,5 +1,11 @@
-name: 'Build & Test'
-on: push
+name: 'Run node.js tests'
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - staging
+      - trying
 
 jobs:
   build-and-test:
@@ -22,9 +28,6 @@ jobs:
           npm --version
           node --version
 
-      - name: Pull submodule
-        run: npm run submodule
-
       - name: Cache node modules
         uses: actions/cache@v1
         with:
@@ -37,16 +40,26 @@ jobs:
           path: |
             ~/.cargo/registry/
             ~/.cargo/git
-            deltachat-core-rust/target
+            target
           key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-2
 
       - name: Install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: npm install --ignore-scripts --verbose
+        run: |
+          cd node
+          npm install --ignore-scripts --verbose
 
       - name: Build deltachat-core-rust & bindings
         if: steps.cache.outputs.cache-hit != 'true'
-        run: npm run build
+        run: |
+          cd node
+          npm run build
 
       - name: Test
-        run: npm run test
+        run: |
+          cd node
+          npm run lint-fix
+          git diff
+          npm run test
+        env:
+          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}

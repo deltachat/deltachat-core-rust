@@ -33,3 +33,10 @@ coverage/
 python/accounts.txt
 python/all-testaccounts.txt
 tmp/
+
+# from deltachat-node
+node/node_modules/
+node/build/
+node/dist/
+node/prebuilds/
+node/.nyc_output/

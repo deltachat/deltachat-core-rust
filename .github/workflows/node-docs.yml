@@ -1,9 +1,10 @@
-name: Generate & upload documentation
+name: Generate & upload node.js documentation
 
 on:
   push:
     branches:
       - master
+      - integrate-node-into-repo
 
 jobs:
   generate:
@@ -18,6 +19,7 @@ jobs:
 
     - name: npm install and generate documentation
       run: |
+        cd node
         npm i --ignore-scripts
         npx typedoc
         mv docs js
@@ -29,5 +31,5 @@ jobs:
         key: ${{ secrets.KEY }}
         host: "delta.chat"
         port: 22
-        local: "js"
+        local: "node/js"
         remote: "/var/www/html/"

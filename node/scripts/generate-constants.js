@@ -8,7 +8,7 @@ const data = []
 const regex = /^#define\s+(\w+)\s+(\w+)/i
 const header = path.resolve(
   __dirname,
-  '../deltachat-core-rust/deltachat-ffi/deltachat.h'
+  '../../deltachat-ffi/deltachat.h'
 )
 
 console.log('Generating constants...')
