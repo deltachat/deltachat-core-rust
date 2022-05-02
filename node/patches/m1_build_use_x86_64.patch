@@ -1,0 +1,13 @@
+diff --git a/binding.gyp b/binding.gyp
+index 199f4d3..15b47f8 100644
+--- a/binding.gyp
++++ b/binding.gyp
+@@ -42,7 +42,7 @@
+                 {
+                   "include_dirs": ["deltachat-core-rust/deltachat-ffi"],
+                   "libraries": [
+-                    "../deltachat-core-rust/target/release/libdeltachat.a",
++                    "../deltachat-core-rust/target/x86_64-apple-darwin/release/libdeltachat.a",
+                     "-ldl",
+                   ],
+                   "conditions": [],

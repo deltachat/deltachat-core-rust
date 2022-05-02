@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "outDir": "dist",
+        "rootDir": "./lib",
+        "sourceMap": true,
+        "module": "commonjs",
+        "target": "es5",
+        "esModuleInterop": true,
+        "declaration": true,
+        "declarationMap": true,
+        "strictNullChecks": true,
+        "strict": true
+    },
+    "exclude": ["node_modules", "deltachat-core-rust", "dist", "scripts"],
+    "typedocOptions": {
+        "mode": "file",
+        "out": "docs",
+        "excludeNotExported": true,
+        "defaultCategory": "index",
+        "includeVersion": true
+    }
+}
