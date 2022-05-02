@@ -397,7 +397,7 @@ class ACFactory:
         logger = FFIEventLogger(acc, logid=acc._logid, init_time=self.init_time)
         acc.add_account_plugin(logger, name=acc._logid)
 
-    def wait_configure(self, acc):
+    def wait_configured(self, acc):
         self._pending_configure.wait_one(acc)
         self.init_direct_imap_and_logging(acc)
         acc._evtracker.consume_events()
