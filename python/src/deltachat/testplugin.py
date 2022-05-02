@@ -254,6 +254,7 @@ class ACFactory:
         logid = "ac{}".format(len(self._accounts) + 1)
         path = self.tmpdir.join(logid)
         ac = Account(path.strpath, logging=self._logging)
+        ac._logid = logid  # later instantiated FFIEventLogger needs this
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
         self._accounts.append(ac)
         return ac
@@ -305,7 +306,6 @@ class ACFactory:
         configdict.setdefault("bcc_self", False)
         configdict.setdefault("mvbox_move", False)
         configdict.setdefault("sentbox_watch", False)
-        configdict.setdefault("displayname", os.path.basename(ac.db_path))
         ac.update_config(configdict)
         self._preconfigure_key(ac, configdict["addr"])
         return ac
@@ -331,14 +331,13 @@ class ACFactory:
         assert logstart in ("after_inbox_idle_ready",), logstart
 
         for acc in self._accounts:
-            logger = FFIEventLogger(acc, init_time=self.init_time)
+            logger = FFIEventLogger(acc, logid=acc._logid, init_time=self.init_time)
             self.wait_configure(acc)
             acc.start_io()
-            print("{}: {} waiting for inbox idle to become ready".format(
-                acc.get_config("displayname"), acc.get_config("addr")))
+            acc.log("waiting for inbox IDLE to become ready")
             acc._evtracker.wait_idle_inbox_ready()
-            print("{}: {} account IMAP IO ready to receive".format(
-                acc.get_config("displayname"), acc.get_config("addr")))
+            print("account IDLE: ready")
+            assert 0
             if logstart == "after_inbox_idle_ready":
                 acc.add_account_plugin(logger)
 
