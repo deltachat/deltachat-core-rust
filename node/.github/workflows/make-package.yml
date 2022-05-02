@@ -1,0 +1,124 @@
+name: 'Make Package'
+on: push
+
+jobs:
+  prebuild:
+    name: 'Prebuild'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+      - name: System info
+        run: |
+          rustc -vV
+          rustup -vV
+          cargo -vV
+          npm --version
+          node --version
+
+      - name: Pull submodule
+        run: npm run submodule
+
+      - name: Cache node modules
+        uses: actions/cache@v2
+        with:
+          path: |
+            ${{ env.APPDATA }}/npm-cache
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package.json') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git
+            deltachat-core-rust/target
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-2
+
+      - name: Install dependencies & build
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm install --verbose
+
+      - name: Build Prebuild
+        run: |
+          npm run prebuildify
+          tar -zcvf "${{ matrix.os }}.tar.gz" -C prebuilds .
+
+      - name: Upload Prebuild
+        uses: actions/upload-artifact@v1
+        with:
+          name: ${{ matrix.os }}
+          path: ${{ matrix.os }}.tar.gz
+
+  pack-module:
+    needs: prebuild
+    name: 'Package the node_module and upload as artifact for testing'
+    runs-on: ubuntu-18.04
+    steps:
+      - name: install tree
+        run: sudo apt install tree
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+      - name: System info
+        run: |
+          rustc -vV
+          rustup -vV
+          cargo -vV
+          npm --version
+          node --version
+      - name: npm run submodule
+        run: npm run submodule
+      - name: Download ubuntu prebuild
+        uses: actions/download-artifact@v1
+        with:
+          name: ubuntu-18.04
+      - name: Download macos prebuild
+        uses: actions/download-artifact@v1
+        with:
+          name: macos-latest
+      - name: Download windows prebuild
+        uses: actions/download-artifact@v1
+        with:
+          name: windows-latest
+      - shell: bash
+        run: |
+          ls -lah
+          mkdir prebuilds
+          tar -xvzf ubuntu-18.04/ubuntu-18.04.tar.gz -C prebuilds
+          tar -xvzf macos-latest/macos-latest.tar.gz -C prebuilds
+          tar -xvzf windows-latest/windows-latest.tar.gz -C prebuilds
+          tree prebuilds
+      - name: install dependencies without running scripts
+        run: npm install --ignore-scripts
+      - name: build typescript part
+        run: npm run build:bindings:ts
+      - name: package
+        shell: bash
+        run: |
+          npm pack .
+          ls -lah
+          mv $(find deltachat-node-*) deltachat-node.tgz
+      - name: Upload Prebuild
+        uses: actions/upload-artifact@v1
+        with:
+          name: deltachat-node.tgz
+          path: deltachat-node.tgz
+      - name: Upload to release
+        if: contains(github.ref, 'refs/tags/')
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: deltachat-node.tgz
+          asset_name: deltachat-node.tgz
+          tag: ${{ github.ref }}
+          overwrite: true

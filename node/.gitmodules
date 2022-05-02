@@ -1,0 +1,3 @@
+[submodule "deltachat-core-rust"]
+	path = deltachat-core-rust
+	url = ../deltachat-core-rust

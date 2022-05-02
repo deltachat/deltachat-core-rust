@@ -1,0 +1,52 @@
+name: 'Build & Test'
+on: push
+
+jobs:
+  build-and-test:
+    name: 'Build & Test'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+      - name: System info
+        run: |
+          rustc -vV
+          rustup -vV
+          cargo -vV
+          npm --version
+          node --version
+
+      - name: Pull submodule
+        run: npm run submodule
+
+      - name: Cache node modules
+        uses: actions/cache@v1
+        with:
+          path: ${{ env.APPDATA }}/npm-cache # npm cache files are stored in `~/.npm` on Linux/macOS
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package.json') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git
+            deltachat-core-rust/target
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-2
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm install --ignore-scripts --verbose
+
+      - name: Build deltachat-core-rust & bindings
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm run build
+
+      - name: Test
+        run: npm run test
