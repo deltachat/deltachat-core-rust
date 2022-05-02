@@ -699,7 +699,7 @@ class TestOnlineAccount:
         ac1 = acfactory.new_online_configuring_account()
         ac1.stop_ongoing()
         try:
-            acfactory._pending_configure.wait_one(ac1)
+            acfactory.wait_configured(ac1)
         except pytest.fail.Exception:
             pass
 
@@ -1454,7 +1454,7 @@ class TestOnlineAccount:
         ac1.set_config("show_emails", "2")
         ac1.create_contact("alice@example.org").create_chat()
 
-        acfactory.wait_configure(ac1)
+        acfactory.wait_configured(ac1)
         ac1.direct_imap.create_folder("Drafts")
         ac1.direct_imap.create_folder("Sent")
         ac1.direct_imap.create_folder("Spam")
@@ -2732,7 +2732,7 @@ class TestOnlineAccount:
         ac1 = acfactory.new_online_configuring_account(mvbox_move=move)
         ac2 = acfactory.new_online_configuring_account()
 
-        acfactory.wait_configure(ac1)
+        acfactory.wait_configured(ac1)
         ac1.direct_imap.create_folder(folder)
 
         # Wait until each folder was selected once and we are IDLEing:
@@ -2778,7 +2778,7 @@ class TestOnlineAccount:
 
         ac1 = acfactory.new_online_configuring_account(mvbox_move=mvbox_move)
         ac2 = acfactory.new_online_configuring_account()
-        acfactory.wait_configure(ac1)
+        acfactory.wait_configured(ac1)
         ac1.direct_imap.create_folder("Sent")
         ac1.set_config("sentbox_watch", "1")
 
@@ -2807,7 +2807,7 @@ class TestOnlineAccount:
         lp.sec("create a cloned ac1 and fetch contact history during configure")
         ac1_clone = acfactory.new_cloned_configuring_account(ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
-        acfactory.wait_configure(ac1_clone)
+        acfactory.wait_configured(ac1_clone)
         ac1_clone.start_io()
         assert_folders_configured(ac1_clone)
 
@@ -2853,7 +2853,7 @@ class TestOnlineAccount:
         lp.sec("Clone online account and let it fetch the existing messages")
         ac1_clone = acfactory.new_cloned_configuring_account(ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
-        acfactory.wait_configure(ac1_clone)
+        acfactory.wait_configured(ac1_clone)
 
         ac1_clone.start_io()
         ac1_clone._evtracker.wait_idle_inbox_ready()
@@ -2876,7 +2876,7 @@ class TestOnlineAccount:
         """Test that DeltaChat folder is recreated if user deletes it manually."""
         ac1 = acfactory.new_online_configuring_account(mvbox_move=True)
         ac2 = acfactory.new_online_configuring_account()
-        acfactory.wait_configure(ac1)
+        acfactory.wait_configured(ac1)
 
         ac1.direct_imap.conn.folder.delete("DeltaChat")
         assert "DeltaChat" not in ac1.direct_imap.list_folders()
