@@ -22,18 +22,23 @@ import deltachat
 
 
 def pytest_addoption(parser):
-    parser.addoption(
+    group = parser.getgroup("deltachat testplugin options")
+    group.addoption(
         "--liveconfig", action="store", default=None,
         help="a file with >=2 lines where each line "
              "contains NAME=VALUE config settings for one account"
     )
-    parser.addoption(
+    group.addoption(
         "--ignored", action="store_true",
         help="Also run tests marked with the ignored marker",
     )
-    parser.addoption(
+    group.addoption(
         "--strict-tls", action="store_true",
         help="Never accept invalid TLS certificates for test accounts",
+    )
+    group.addoption(
+        "--extra-info", action="store_true",
+        help="show more info on failures (imap server state, config)"
     )
 
 
@@ -89,9 +94,12 @@ def pytest_configure(config):
 
         @pytest.hookimpl(hookwrapper=True)
         def pytest_runtest_teardown(self, item):
-            self.enable_logging(item)
+            logging = item.config.getoption("--extra-info")
+            if logging:
+                self.enable_logging(item)
             yield
-            self.disable_logging(item)
+            if logging:
+                self.disable_logging(item)
 
     la = LoggingAspect()
     config.pluginmanager.register(la)
@@ -126,12 +134,12 @@ def pytest_report_header(config, startdir):
 
 @pytest.fixture(scope="session")
 def testprocess(request):
-    return TestProcess(request.config.option.liveconfig)
+    return TestProcess(pytestconfig=request.config)
 
 
 class TestProcess:
-    def __init__(self, liveconfig_opt):
-        self.liveconfig_opt = liveconfig_opt
+    def __init__(self, pytestconfig):
+        self.pytestconfig = pytestconfig
 
     def get_liveconfig_producer(self):
         """ provide live account configs, cached on a per-test-process scope
@@ -139,7 +147,7 @@ class TestProcess:
         Depending on the --liveconfig option this comes from
         a HTTP provider or a file with a line specifying each accounts config.
         """
-        liveconfig_opt = self.liveconfig_opt
+        liveconfig_opt = self.pytestconfig.getoption("--liveconfig")
         if not liveconfig_opt:
             pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig to provide live accounts")
 
@@ -206,19 +214,20 @@ class ACFactory:
     _finalizers: List[Callable[[], None]]
     _accounts: List[Account]
 
-    def __init__(self, strict_tls, tmpdir, testprocess, data) -> None:
-        self.strict_tls = strict_tls
+    def __init__(self, request, testprocess, tmpdir, data) -> None:
+        self.init_time = time.time()
         self.tmpdir = tmpdir
-        self._liveconfig_producer = testprocess.get_liveconfig_producer()
-        self.data = data
+        self.pytestconfig = request.config
         self.testprocess = testprocess
+        self.data = data
+        self._liveconfig_producer = testprocess.get_liveconfig_producer()
 
         self._finalizers = []
         self._accounts = []
-        self.init_time = time.time()
         self._preconfigured_keys = ["alice", "bob", "charlie",
                                     "dom", "elena", "fiona"]
         self.set_logging_default(False)
+        request.addfinalizer(self.finalize)
 
     def finalize(self):
         while self._finalizers:
@@ -242,7 +251,7 @@ class ACFactory:
         if "e2ee_enabled" not in configdict:
             configdict["e2ee_enabled"] = "1"
 
-        if self.strict_tls:
+        if self.testprocess.pytestconfig.getoption("--strict-tls"):
             # Enable strict certificate checks for online accounts
             configdict["imap_certificate_checks"] = str(const.DC_CERTCK_STRICT)
             configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
@@ -428,16 +437,15 @@ class ACFactory:
 
 
 @pytest.fixture
-def acfactory(pytestconfig, tmpdir, request, testprocess, data):
-    strict_tls = pytestconfig.getoption("--strict-tls")
-    am = ACFactory(strict_tls, tmpdir, testprocess, data)
-    request.addfinalizer(am.finalize)
+def acfactory(request, tmpdir, testprocess, data):
+    am = ACFactory(request=request, tmpdir=tmpdir, testprocess=testprocess, data=data)
     yield am
     if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
-        logfile = io.StringIO()
-        am.dump_imap_summary(logfile=logfile)
-        print(logfile.getvalue())
-        # request.node.add_report_section("call", "imap-server-state", s)
+        if testprocess.pytestconfig.getoption("--extra-info"):
+            logfile = io.StringIO()
+            am.dump_imap_summary(logfile=logfile)
+            print(logfile.getvalue())
+            # request.node.add_report_section("call", "imap-server-state", s)
 
 
 class BotProcess:

@@ -250,7 +250,7 @@ class EventThread(threading.Thread):
                     hook = getattr(self.account._pm.hook, name)
                     hook(**kwargs)
             except Exception:
-                if self.account._dc_context is not None:
+                if not self._marked_for_shutdown and self.account._dc_context is not None:
                     raise
 
     def _map_ffi_event(self, ffi_event: FFIEvent):
