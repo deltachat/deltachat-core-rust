@@ -155,19 +155,21 @@ class TestProcess:
 
             yield from iter(configlist)
         else:
-            for index in range(10):
+            MAX_LIVE_CREATED_ACCOUNTS = 10
+            for index in range(MAX_LIVE_CREATED_ACCOUNTS):
                 try:
                     yield configlist[index]
                 except IndexError:
                     res = requests.post(liveconfig_opt)
                     if res.status_code != 200:
-                        pytest.fail("creat newtmpuser failed {}: '{}'".format(
-                                    res.status_code, res.text))
+                        pytest.fail("newtmpuser count={} code={}: '{}'".format(
+                                    index, res.status_code, res.text))
                     d = res.json()
                     config = dict(addr=d["email"], mail_pw=d["password"])
+                    print("newtmpuser {}: addr={}".format(index, config["addr"]))
                     configlist.append(config)
                     yield config
-            pytest.fail("more than 10 live accounts requested. Is a test running wild?")
+            pytest.fail("more than {} live accounts requested.".format(MAX_LIVE_CREATED_ACCOUNTS))
 
 
 @pytest.fixture
