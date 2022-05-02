@@ -697,11 +697,10 @@ class TestOnlineAccount:
 
     def test_configure_canceled(self, acfactory):
         ac1 = acfactory.new_online_configuring_account()
-        ac1._configtracker.wait_progress()
         ac1.stop_ongoing()
         try:
-            ac1._configtracker.wait_finish()
-        except Exception:
+            acfactory._pending_configure.wait_one(ac1)
+        except pytest.fail.Exception:
             pass
 
     def test_export_import_self_keys(self, acfactory, tmpdir, lp):
@@ -2402,7 +2401,7 @@ class TestOnlineAccount:
         ac3.stop_io()
         acfactory.remove_preconfigured_keys()
         ac4 = acfactory.new_cloned_configuring_account(ac3)
-        ac4._configtracker.wait_finish()
+        acfactory._pending_configure.wait_one(ac4)
         # Create contacts to make sure incoming messages are not treated as contact requests
         chat41 = ac4.create_chat(ac1)
         chat42 = ac4.create_chat(ac2)
@@ -2736,18 +2735,19 @@ class TestOnlineAccount:
         acfactory.wait_configure(ac1)
         ac1.direct_imap.create_folder(folder)
 
-        acfactory.bring_accounts_online()
         # Wait until each folder was selected once and we are IDLEing:
+        acfactory.bring_accounts_online()
         ac1.stop_io()
+        assert folder in ac1.direct_imap.list_folders()
 
-        # Send a message to ac1 and move it to the mvbox:
+        lp.sec("Send a message to from ac2 to ac1 and manually move it to the mvbox")
         ac1.direct_imap.select_config_folder("inbox")
         ac1.direct_imap.idle_start()
         acfactory.get_accepted_chat(ac2, ac1).send_text("hello")
         ac1.direct_imap.idle_wait_for_new_message(terminate=True)
         ac1.direct_imap.conn.move(["*"], folder)  # "*" means "biggest UID in mailbox"
 
-        lp.sec("Everything prepared, now see if DeltaChat finds the message (" + variant + ")")
+        lp.sec("start_io() and see if DeltaChat finds the message (" + variant + ")")
         ac1.set_config("scan_all_folders_debounce_secs", "0")
         ac1.start_io()
         msg = ac1._evtracker.wait_next_incoming_message()
@@ -2778,9 +2778,7 @@ class TestOnlineAccount:
 
         ac1 = acfactory.new_online_configuring_account(mvbox_move=mvbox_move)
         ac2 = acfactory.new_online_configuring_account()
-
         acfactory.wait_configure(ac1)
-
         ac1.direct_imap.create_folder("Sent")
         ac1.set_config("sentbox_watch", "1")
 
@@ -2789,7 +2787,7 @@ class TestOnlineAccount:
         # would also find the "Sent" folder, but it would be too late:
         # The sentbox thread, started by `start_io()`, would have seen that there is no
         # ConfiguredSentboxFolder and do nothing.
-        ac1._configtracker = ac1.configure(reconfigure=True)
+        acfactory._pending_configure.add_account(ac1, reconfigure=True)
         acfactory.bring_accounts_online()
         assert_folders_configured(ac1)
 
@@ -2809,7 +2807,7 @@ class TestOnlineAccount:
         lp.sec("create a cloned ac1 and fetch contact history during configure")
         ac1_clone = acfactory.new_cloned_configuring_account(ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
-        ac1_clone._configtracker.wait_finish()
+        acfactory.wait_configure(ac1_clone)
         ac1_clone.start_io()
         assert_folders_configured(ac1_clone)
 
@@ -2855,7 +2853,7 @@ class TestOnlineAccount:
         lp.sec("Clone online account and let it fetch the existing messages")
         ac1_clone = acfactory.new_cloned_configuring_account(ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
-        ac1_clone._configtracker.wait_finish()
+        acfactory.wait_configure(ac1_clone)
 
         ac1_clone.start_io()
         ac1_clone._evtracker.wait_idle_inbox_ready()

@@ -67,6 +67,9 @@ class Account(object):
         """ re-enable logging. """
         self._logging = True
 
+    def __repr__(self):
+        return "<Account path={}>".format(self.db_path)
+
     # def __del__(self):
     #    self.shutdown()
 
@@ -571,6 +574,8 @@ class Account(object):
         """ add an account plugin which implements one or more of
         the :class:`deltachat.hookspec.PerAccount` hooks.
         """
+        if name and self._pm.has_plugin(name=name):
+            self._pm.unregister(name=name)
         self._pm.register(plugin, name=name)
         self._pm.check_pending()
         return plugin
