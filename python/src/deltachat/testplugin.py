@@ -8,14 +8,13 @@ import threading
 import fnmatch
 import time
 import weakref
-import tempfile
 from queue import Queue
 from typing import List, Callable
 
 import pytest
 import requests
 
-from . import Account, const, account_hookimpl
+from . import Account, const, account_hookimpl, get_core_info
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
 
@@ -108,20 +107,12 @@ def pytest_configure(config):
 
 
 def pytest_report_header(config, startdir):
-    summary = []
-
-    t = tempfile.mktemp()
-    try:
-        ac = Account(t)
-        info = ac.get_info()
-        ac.shutdown()
-    finally:
-        os.remove(t)
-    summary.extend(['Deltachat core={} sqlite={} journal_mode={}'.format(
-         info['deltachat_core_version'],
-         info['sqlite_version'],
-         info['journal_mode'],
-     )])
+    info = get_core_info()
+    summary = ['Deltachat core={} sqlite={} journal_mode={}'.format(
+        info['deltachat_core_version'],
+        info['sqlite_version'],
+        info['journal_mode'],
+    )]
 
     cfg = config.option.liveconfig
     if cfg:
