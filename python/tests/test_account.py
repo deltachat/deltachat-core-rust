@@ -726,7 +726,7 @@ class TestOnlineAccount:
     def test_one_account_send_bcc_setting(self, acfactory, lp):
         ac1 = acfactory.new_online_configuring_account()
         ac2 = acfactory.new_online_configuring_account()
-        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
+        ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
         acfactory.bring_accounts_online()
 
         # test if sent messages are copied to it via BCC.
@@ -1090,7 +1090,7 @@ class TestOnlineAccount:
         """Test that message marked as seen on one device is marked as seen on another."""
         ac1 = acfactory.new_online_configuring_account()
         ac2 = acfactory.new_online_configuring_account()
-        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
+        ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
         acfactory.bring_accounts_online()
 
         ac1.set_config("bcc_self", "1")
@@ -1531,7 +1531,7 @@ class TestOnlineAccount:
     def test_no_old_msg_is_fresh(self, acfactory, lp):
         ac1 = acfactory.new_online_configuring_account()
         ac2 = acfactory.new_online_configuring_account()
-        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
+        ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
         acfactory.bring_accounts_online()
 
         ac1.set_config("e2ee_enabled", "0")
@@ -1895,7 +1895,7 @@ class TestOnlineAccount:
         # before ther setup message is send. DC does not read old messages
         # as of Jul2019
         ac1 = acfactory.new_online_configuring_account()
-        ac2 = acfactory.new_cloned_configuring_account(ac1)
+        ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)
         acfactory.bring_accounts_online()
 
         lp.sec("trigger ac setup message and return setupcode")
@@ -1916,7 +1916,7 @@ class TestOnlineAccount:
 
     def test_ac_setup_message_twice(self, acfactory, lp):
         ac1 = acfactory.new_online_configuring_account()
-        ac2 = acfactory.new_cloned_configuring_account(ac1)
+        ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)
         acfactory.bring_accounts_online()
 
         lp.sec("trigger ac setup message but ignore")
@@ -2400,7 +2400,7 @@ class TestOnlineAccount:
         lp.sec("ac3 reinstalls DC and generates a new key")
         ac3.stop_io()
         acfactory.remove_preconfigured_keys()
-        ac4 = acfactory.new_cloned_configuring_account(ac3)
+        ac4 = acfactory.new_online_configuring_account(cloned_from=ac3)
         acfactory.wait_configured(ac4)
         # Create contacts to make sure incoming messages are not treated as contact requests
         chat41 = ac4.create_chat(ac1)
@@ -2787,7 +2787,7 @@ class TestOnlineAccount:
         # would also find the "Sent" folder, but it would be too late:
         # The sentbox thread, started by `start_io()`, would have seen that there is no
         # ConfiguredSentboxFolder and do nothing.
-        acfactory._pending_configure.add_account(ac1, reconfigure=True)
+        acfactory._acsetup.start_configure(ac1, reconfigure=True)
         acfactory.bring_accounts_online()
         assert_folders_configured(ac1)
 
@@ -2805,7 +2805,7 @@ class TestOnlineAccount:
         assert_folders_configured(ac1)
 
         lp.sec("create a cloned ac1 and fetch contact history during configure")
-        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
+        ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
         acfactory.wait_configured(ac1_clone)
         ac1_clone.start_io()
@@ -2851,7 +2851,7 @@ class TestOnlineAccount:
         assert ac1.direct_imap.idle_wait_for_seen()
 
         lp.sec("Clone online account and let it fetch the existing messages")
-        ac1_clone = acfactory.new_cloned_configuring_account(ac1)
+        ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
         ac1_clone.set_config("fetch_existing_msgs", "1")
         acfactory.wait_configured(ac1_clone)
 
