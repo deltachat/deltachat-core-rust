@@ -139,6 +139,8 @@ def testprocess(request):
 
 
 class TestProcess:
+    """ A pytest session-scoped instance to help with managing "live" account configurations.
+    """
     def __init__(self, pytestconfig):
         self.pytestconfig = pytestconfig
 
@@ -211,7 +213,11 @@ def data(request):
     return Data()
 
 
-class PendingConfigure:
+class ACSetup:
+    """ accounts setup helper to deal with multiple configure-process
+    and io & imap initialization phases. From tests, use the higher level
+    public ACFactory methods instead of its private helper class.
+    """
     CONFIGURING = "CONFIGURING"
     CONFIGURED = "CONFIGURED"
     IDLEREADY = "IDLEREADY"
@@ -222,18 +228,20 @@ class PendingConfigure:
         self._imap_cleaned = set()
         self.init_time = init_time
 
-    def add_account(self, acc, reconfigure=False):
+    def start_configure(self, account, reconfigure=False):
+        """ add an account and start its configure process. """
         class PendingTracker:
             @account_hookimpl
             def ac_configure_completed(this, success):
-                self._configured_events.put((acc, success))
+                self._configured_events.put((account, success))
 
-        acc.add_account_plugin(PendingTracker(), name="pending_tracker")
-        self._account2state[acc] = self.CONFIGURING
-        acc.configure(reconfigure=reconfigure)
-        print("started configure on pending", acc)
+        account.add_account_plugin(PendingTracker(), name="pending_tracker")
+        self._account2state[account] = self.CONFIGURING
+        account.configure(reconfigure=reconfigure)
+        print("started configure on pending", account)
 
     def wait_one_configured(self, account):
+        """ wait until this account has successfully configured. """
         if self._account2state[account] == self.CONFIGURING:
             while 1:
                 acc = self._pop_config_success()
@@ -243,7 +251,11 @@ class PendingConfigure:
             acc._evtracker.consume_events()
 
     def bring_online(self):
-        """ Wait for all accounts to finish configuration.
+        """ Wait for all accounts to become ready to receive messages.
+
+        This will initialize logging, start IO and the direct_imap attribute
+        for each account which either is CONFIGURED already or which is CONFIGURING
+        and successfully completing the configuration process.
         """
         print("wait_all_configured finds accounts=", self._account2state)
         for acc, state in self._account2state.items():
@@ -280,6 +292,7 @@ class PendingConfigure:
         acc.add_account_plugin(logger, name=acc._logid)
 
     def init_direct_imap(self, acc):
+        """ idempotent function for initializing direct_imap."""
         from deltachat.direct_imap import DirectImap
         if not hasattr(acc, "direct_imap"):
             acc.direct_imap = DirectImap(acc)
@@ -304,13 +317,12 @@ class ACFactory:
         self.init_time = time.time()
         self.tmpdir = tmpdir
         self.pytestconfig = request.config
-        self.testprocess = testprocess
         self.data = data
         self._liveconfig_producer = testprocess.get_liveconfig_producer()
 
         self._finalizers = []
         self._accounts = []
-        self._pending_configure = PendingConfigure(self.init_time)
+        self._acsetup = ACSetup(self.init_time)
         self._preconfigured_keys = ["alice", "bob", "charlie",
                                     "dom", "elena", "fiona"]
         self.set_logging_default(False)
@@ -338,7 +350,7 @@ class ACFactory:
         if "e2ee_enabled" not in configdict:
             configdict["e2ee_enabled"] = "1"
 
-        if self.testprocess.pytestconfig.getoption("--strict-tls"):
+        if self.pytestconfig.getoption("--strict-tls"):
             # Enable strict certificate checks for online accounts
             configdict["imap_certificate_checks"] = str(const.DC_CERTCK_STRICT)
             configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
@@ -400,7 +412,7 @@ class ACFactory:
             )
         configdict.update(kwargs)
         ac = self.prepare_account_from_liveconfig(configdict)
-        self._pending_configure.add_account(ac)
+        self._acsetup.start_configure(ac)
         return ac
 
     def prepare_account_from_liveconfig(self, configdict):
@@ -413,15 +425,13 @@ class ACFactory:
         self._preconfigure_key(ac, configdict["addr"])
         return ac
 
-    def new_cloned_configuring_account(self, account):
-        return self.new_online_configuring_account(cloned_from=account)
-
-    def wait_configured(self, acc):
-        self._pending_configure.wait_one_configured(acc)
+    def wait_configured(self, account):
+        """ Wait until the specified account has successfully completed configure. """
+        self._acsetup.wait_one_configured(account)
 
     def bring_accounts_online(self):
         print("bringing accounts online")
-        self._pending_configure.bring_online()
+        self._acsetup.bring_online()
         print("all accounts online")
 
     def get_online_accounts(self, num):
