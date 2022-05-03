@@ -12,21 +12,23 @@ from deltachat.testplugin import PendingConfigure
 
 class TestPendingConfigure:
     def test_basic_states(self, acfactory, monkeypatch):
-        pc = PendingConfigure()
+        pc = PendingConfigure(init_time=0.0)
         acc = acfactory.get_unconfigured_account()
         monkeypatch.setattr(acc, "configure", lambda **kwargs: None)
         pc.add_account(acc)
         assert pc._account2state[acc] == pc.CONFIGURING
         pc._configured_events.put((acc, True))
-        pc.wait_one(acc)
+        monkeypatch.setattr(pc, "init_direct_imap", lambda *args, **kwargs: None)
+        pc.wait_one_configured(acc)
         assert pc._account2state[acc] == pc.CONFIGURED
-        accounts = []
-        pc.wait_all(onconfigured=accounts.append)
-        assert pc._account2state[acc] == pc.POSTPROCESSED
-        assert accounts == [acc]
+        monkeypatch.setattr(pc, "_onconfigure_start_io", lambda *args, **kwargs: None)
+        pc.bring_online()
+        assert pc._account2state[acc] == pc.IDLEREADY
 
     def test_two_accounts_one_waited_all_started(self, monkeypatch, acfactory):
-        pc = PendingConfigure()
+        pc = PendingConfigure(init_time=0.0)
+        monkeypatch.setattr(pc, "init_direct_imap", lambda *args, **kwargs: None)
+        monkeypatch.setattr(pc, "_onconfigure_start_io", lambda *args, **kwargs: None)
         ac1 = acfactory.get_unconfigured_account()
         monkeypatch.setattr(ac1, "configure", lambda **kwargs: None)
         pc.add_account(ac1)
@@ -36,15 +38,13 @@ class TestPendingConfigure:
         assert pc._account2state[ac1] == pc.CONFIGURING
         assert pc._account2state[ac2] == pc.CONFIGURING
         pc._configured_events.put((ac1, True))
-        pc.wait_one(ac1)
+        pc.wait_one_configured(ac1)
         assert pc._account2state[ac1] == pc.CONFIGURED
         assert pc._account2state[ac2] == pc.CONFIGURING
-        accounts = []
         pc._configured_events.put((ac2, True))
-        pc.wait_all(onconfigured=accounts.append)
-        assert pc._account2state[ac1] == pc.POSTPROCESSED
-        assert pc._account2state[ac2] == pc.POSTPROCESSED
-        assert accounts == [ac1, ac2]
+        pc.bring_online()
+        assert pc._account2state[ac1] == pc.IDLEREADY
+        assert pc._account2state[ac2] == pc.IDLEREADY
 
 
 def test_empty_context():
