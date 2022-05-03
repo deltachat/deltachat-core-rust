@@ -221,6 +221,8 @@ class EventThread(threading.Thread):
             self._inner_run()
 
     def _inner_run(self):
+        if self._marked_for_shutdown or self.account._dc_context is None:
+            return
         event_emitter = ffi.gc(
             lib.dc_get_event_emitter(self.account._dc_context),
             lib.dc_event_emitter_unref,
