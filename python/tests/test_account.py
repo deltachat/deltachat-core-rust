@@ -644,11 +644,11 @@ def test_basic_imap_api(acfactory, tmpdir):
 
     imap2 = ac2.direct_imap
 
-    imap2.idle_start()
-    chat12.send_text("hello")
-    ac2._evtracker.wait_next_incoming_message()
+    with imap2.idle() as idle2:
+        chat12.send_text("hello")
+        ac2._evtracker.wait_next_incoming_message()
+        idle2.wait_for_new_message()
 
-    imap2.idle_check(terminate=True)
     assert imap2.get_unread_cnt() == 1
     imap2.mark_all_read()
     assert imap2.get_unread_cnt() == 0
@@ -745,17 +745,17 @@ class TestOnlineAccount:
         ac1.set_config("bcc_self", "1")
 
         lp.sec("send out message with bcc to ourselves")
-        ac1.direct_imap.idle_start()
-        msg_out = chat.send_text("message2")
+        with ac1.direct_imap.idle() as idle1:
+            msg_out = chat.send_text("message2")
 
-        # wait for send out (BCC)
-        ev = ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
-        assert ac1.get_config("bcc_self") == "1"
+            # wait for send out (BCC)
+            ev = ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+            assert ac1.get_config("bcc_self") == "1"
 
-        # now make sure we are sending message to ourselves too
-        assert self_addr in ev.data2
-        assert other_addr in ev.data2
-        assert ac1.direct_imap.idle_wait_for_seen()
+            # now make sure we are sending message to ourselves too
+            assert self_addr in ev.data2
+            assert other_addr in ev.data2
+            assert idle1.wait_for_seen()
 
         # Second client receives only second message, but not the first
         ev_msg = ac1_clone._evtracker.wait_next_messages_changed()
@@ -1026,23 +1026,22 @@ class TestOnlineAccount:
         msg4 = ac2._evtracker.wait_next_incoming_message()
 
         lp.sec("mark messages as seen on ac2, wait for changes on ac1")
-        ac2.direct_imap.idle_start()
-        ac1.direct_imap.idle_start()
+        with ac1.direct_imap.idle() as idle1:
+            with ac2.direct_imap.idle() as idle2:
+                ac2.mark_seen_messages([msg2, msg4])
+                ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
+                assert msg2.chat.id == msg4.chat.id
+                assert ev.data1 == msg2.chat.id
+                assert ev.data2 == 0
 
-        ac2.mark_seen_messages([msg2, msg4])
-        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
-        assert msg2.chat.id == msg4.chat.id
-        assert ev.data1 == msg2.chat.id
-        assert ev.data2 == 0
-
-        ac2.direct_imap.idle_wait_for_new_message(terminate=True)
-        lp.step("1")
-        for i in range(2):
-            ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
-            assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
-            assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
-        lp.step("2")
-        ac1.direct_imap.idle_wait_for_seen()  # Check that ac1 marks the read receipt as read
+                idle2.wait_for_new_message()
+            lp.step("1")
+            for i in range(2):
+                ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
+                assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
+                assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
+            lp.step("2")
+            idle1.wait_for_seen()  # Check that ac1 marks the read receipt as read
 
         assert msg1.is_out_mdn_received()
         assert msg3.is_out_mdn_received()
@@ -1062,24 +1061,22 @@ class TestOnlineAccount:
         acfactory.bring_accounts_online()
 
         ac2.stop_io()
-        ac2.direct_imap.idle_start()
-
-        ac1.create_chat(ac2).send_text("Hello!")
-
-        ac2.direct_imap.idle_wait_for_new_message(terminate=True)
+        with ac2.direct_imap.idle() as idle2:
+            ac1.create_chat(ac2).send_text("Hello!")
+            idle2.wait_for_new_message()
 
         # Emulate moving of the message to DeltaChat folder by Sieve rule.
         ac2.direct_imap.conn.move(["*"], "DeltaChat")
-
         ac2.direct_imap.select_folder("DeltaChat")
-        ac2.direct_imap.idle_start()
-        ac2.start_io()
-        msg = ac2._evtracker.wait_next_incoming_message()
 
-        # Accept the contact request.
-        msg.chat.accept()
-        ac2.mark_seen_messages([msg])
-        uid = ac2.direct_imap.idle_wait_for_seen(terminate=True)
+        with ac2.direct_imap.idle() as idle2:
+            ac2.start_io()
+            msg = ac2._evtracker.wait_next_incoming_message()
+
+            # Accept the contact request.
+            msg.chat.accept()
+            ac2.mark_seen_messages([msg])
+            uid = idle2.wait_for_seen()
 
         assert len([a for a in ac2.direct_imap.conn.fetch(AND(seen=True, uid=U(uid, "*")))]) == 1
 
@@ -1185,18 +1182,15 @@ class TestOnlineAccount:
         folder = "mvbox" if mvbox_move else "inbox"
         ac1.direct_imap.select_config_folder(folder)
         ac2.direct_imap.select_config_folder(folder)
-        ac1.direct_imap.idle_start()
-        ac2.direct_imap.idle_start()
+        with ac1.direct_imap.idle() as idle1:
+            with ac2.direct_imap.idle() as idle2:
+                acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
+                msg = ac2._evtracker.wait_next_incoming_message()
 
-        acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
-        msg = ac2._evtracker.wait_next_incoming_message()
+                ac2.mark_seen_messages([msg])
 
-        ac2.mark_seen_messages([msg])
-
-        ac1.direct_imap.idle_wait_for_seen()  # Check that the mdn is marked as seen
-        ac2.direct_imap.idle_wait_for_seen()  # Check that the original message is marked as seen
-        ac1.direct_imap.idle_done()
-        ac2.direct_imap.idle_done()
+                idle2.wait_for_seen()  # Check original message is marked as seen
+                idle1.wait_for_seen()  # Check that the mdn is marked as seen
 
     def test_reply_privately(self, acfactory):
         ac1, ac2 = acfactory.get_online_accounts(2)
@@ -1249,19 +1243,18 @@ class TestOnlineAccount:
         assert len(msg.chat.get_messages()) == 1
 
         ac1.direct_imap.select_config_folder("mvbox")
-        ac1.direct_imap.idle_start()
+        with ac1.direct_imap.idle() as idle1:
+            lp.sec("ac2: mark incoming message as seen")
+            ac2.mark_seen_messages([msg])
 
-        lp.sec("ac2: mark incoming message as seen")
-        ac2.mark_seen_messages([msg])
+            lp.sec("ac1: waiting for incoming activity")
+            # MDN should be moved even though MDNs are already disabled
+            ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
-        lp.sec("ac1: waiting for incoming activity")
-        # MDN should be moved even though MDNs are already disabled
-        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+            assert len(chat.get_messages()) == 1
 
-        assert len(chat.get_messages()) == 1
-
-        # Wait for the message to be marked as seen on IMAP.
-        assert ac1.direct_imap.idle_wait_for_seen()
+            # Wait for the message to be marked as seen on IMAP.
+            assert idle1.wait_for_seen()
 
         # MDN is received even though MDNs are already disabled
         assert msg_out.is_out_mdn_received()
@@ -2238,12 +2231,10 @@ class TestOnlineAccount:
                "all messages are fetched")
 
         ac1.direct_imap.select_config_folder("inbox")
-        ac1.direct_imap.idle_start()
-        ac2.create_chat(ac1).send_text("Hi")
-
-        ac1.direct_imap.idle_wait_for_new_message(terminate=True)
+        with ac1.direct_imap.idle() as idle1:
+            ac2.create_chat(ac1).send_text("Hi")
+            idle1.wait_for_new_message()
         ac1.maybe_network()
-
         ac1._evtracker.wait_for_all_work_done()
         msgs = ac1.create_chat(ac2).get_messages()
         assert len(msgs) == 1
@@ -2273,10 +2264,9 @@ class TestOnlineAccount:
         ac1.create_contact(ac2).block()
 
         ac1.direct_imap.select_config_folder("inbox")
-        ac1.direct_imap.idle_start()
-        ac2.create_chat(ac1).send_text("Hi")
-
-        ac1.direct_imap.idle_wait_for_new_message(terminate=True)
+        with ac1.direct_imap.idle() as idle1:
+            ac2.create_chat(ac1).send_text("Hi")
+            idle1.wait_for_new_message()
         ac1.maybe_network()
 
         while 1:
@@ -2743,9 +2733,9 @@ class TestOnlineAccount:
 
         lp.sec("Send a message to from ac2 to ac1 and manually move it to the mvbox")
         ac1.direct_imap.select_config_folder("inbox")
-        ac1.direct_imap.idle_start()
-        acfactory.get_accepted_chat(ac2, ac1).send_text("hello")
-        ac1.direct_imap.idle_wait_for_new_message(terminate=True)
+        with ac1.direct_imap.idle() as idle1:
+            acfactory.get_accepted_chat(ac2, ac1).send_text("hello")
+            idle1.wait_for_new_message()
         ac1.direct_imap.conn.move(["*"], folder)  # "*" means "biggest UID in mailbox"
 
         lp.sec("start_io() and see if DeltaChat finds the message (" + variant + ")")
@@ -2793,16 +2783,15 @@ class TestOnlineAccount:
         assert_folders_configured(ac1)
 
         assert ac1.direct_imap.select_config_folder("mvbox" if mvbox_move else "inbox")
-        ac1.direct_imap.idle_start()
+        with ac1.direct_imap.idle() as idle1:
+            lp.sec("send out message with bcc to ourselves")
+            ac1.set_config("bcc_self", "1")
+            chat = acfactory.get_accepted_chat(ac1, ac2)
+            chat.send_text("message text")
+            assert_folders_configured(ac1)
 
-        lp.sec("send out message with bcc to ourselves")
-        ac1.set_config("bcc_self", "1")
-        chat = acfactory.get_accepted_chat(ac1, ac2)
-        chat.send_text("message text")
-        assert_folders_configured(ac1)
-
-        lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
-        assert ac1.direct_imap.idle_wait_for_seen()
+            lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
+            assert idle1.wait_for_seen()
         assert_folders_configured(ac1)
 
         lp.sec("create a cloned ac1 and fetch contact history during configure")
@@ -2843,13 +2832,12 @@ class TestOnlineAccount:
         ac1._evtracker.wait_next_incoming_message()
 
         lp.sec("send out message with bcc to ourselves")
-        ac1.direct_imap.idle_start()
-        ac1.set_config("bcc_self", "1")
-        ac1_ac2_chat = ac1.create_chat(ac2)
-        ac1_ac2_chat.send_text("outgoing, encrypted direct message, creating a chat")
-
-        # now wait until the bcc_self message arrives
-        assert ac1.direct_imap.idle_wait_for_seen()
+        with ac1.direct_imap.idle() as idle1:
+            ac1.set_config("bcc_self", "1")
+            ac1_ac2_chat = ac1.create_chat(ac2)
+            ac1_ac2_chat.send_text("outgoing, encrypted direct message, creating a chat")
+            # wait until the bcc_self message arrives
+            assert idle1.wait_for_seen()
 
         lp.sec("Clone online account and let it fetch the existing messages")
         ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
