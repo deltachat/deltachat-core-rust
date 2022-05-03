@@ -390,6 +390,8 @@ class ACFactory:
             configured="1",
         ))
         self._preconfigure_key(ac, addr)
+        logger = FFIEventLogger(ac, logid=ac._logid, init_time=self.init_time)
+        ac.add_account_plugin(logger, name=ac._logid)
         return ac
 
     def new_online_configuring_account(self, cloned_from=None, **kwargs):
