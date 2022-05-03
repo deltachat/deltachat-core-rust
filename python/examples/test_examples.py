@@ -22,7 +22,7 @@ def test_echo_quit_plugin(acfactory, lp):
     botproc = acfactory.run_bot_process(echo_and_quit)
 
     lp.sec("creating a temp account to contact the bot")
-    ac1 = acfactory.get_one_online_account()
+    ac1, = acfactory.get_online_accounts(1)
 
     lp.sec("sending a message to the bot")
     bot_contact = ac1.create_contact(botproc.addr)
