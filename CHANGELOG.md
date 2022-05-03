@@ -1,9 +1,14 @@
 # Changelog
 
-## Unreleased
+## 1.80.0
 
-### Fixed
+### Changes
+- update provider database #3284
+- improve python bindings, tests and ci #3287 #3286 #3287 #3289 #3290 #3292
+
+### Fixes
 - fix escaping in generated QR-code-SVG #3295
+
 
 ## 1.79.0
 
