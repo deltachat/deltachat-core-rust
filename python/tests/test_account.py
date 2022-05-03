@@ -662,36 +662,29 @@ class TestOnlineAccount:
     def test_configure_generate_key(self, acfactory, lp):
         # A slow test which will generate new keys.
         acfactory.remove_preconfigured_keys()
-        ac1 = acfactory.new_online_configuring_account(
-            config={"key_gen_type": str(const.DC_KEY_GEN_RSA2048)}
-        )
-        ac2 = acfactory.new_online_configuring_account(
-            config={"key_gen_type": str(const.DC_KEY_GEN_ED25519)}
-        )
+        ac1 = acfactory.new_online_configuring_account(key_gen_type=str(const.DC_KEY_GEN_RSA2048))
+        ac2 = acfactory.new_online_configuring_account(key_gen_type=str(const.DC_KEY_GEN_ED25519))
         acfactory.bring_accounts_online()
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
         lp.sec("ac1: send unencrypted message to ac2")
         chat.send_text("message1")
         lp.sec("ac2: waiting for message from ac1")
-        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-        msg_in = ac2.get_message_by_id(ev.data2)
+        msg_in = ac2._evtracker.wait_next_incoming_message()
         assert msg_in.text == "message1"
         assert not msg_in.is_encrypted()
 
         lp.sec("ac2: send encrypted message to ac1")
         msg_in.chat.send_text("message2")
         lp.sec("ac1: waiting for message from ac2")
-        ev = ac1._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-        msg2_in = ac1.get_message_by_id(ev.data2)
+        msg2_in = ac1._evtracker.wait_next_incoming_message()
         assert msg2_in.text == "message2"
         assert msg2_in.is_encrypted()
 
         lp.sec("ac1: send encrypted message to ac2")
         msg2_in.chat.send_text("message3")
         lp.sec("ac2: waiting for message from ac1")
-        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-        msg3_in = ac1.get_message_by_id(ev.data2)
+        msg3_in = ac2._evtracker.wait_next_incoming_message()
         assert msg3_in.text == "message3"
         assert msg3_in.is_encrypted()
 
@@ -990,6 +983,10 @@ class TestOnlineAccount:
         # make DC's life harder wrt to encodings
         ac1.set_config("displayname", "ä name")
 
+        # clear any fresh device messages
+        ac1.get_device_chat().mark_noticed()
+        ac2.get_device_chat().mark_noticed()
+
         lp.sec("ac1: create chat with ac2")
         chat = ac1.create_chat(ac2)
 
@@ -1272,6 +1269,8 @@ class TestOnlineAccount:
     def test_send_and_receive_will_encrypt_decrypt(self, acfactory, lp):
         ac1, ac2 = acfactory.get_online_accounts(2)
 
+        ac1.get_device_chat().mark_noticed()
+
         lp.sec("ac1: create chat with ac2")
         chat = ac1.create_chat(ac2)
 
@@ -1542,6 +1541,8 @@ class TestOnlineAccount:
 
         ac1.create_chat(ac2)
         ac1_clone.create_chat(ac2)
+
+        ac1.get_device_chat().mark_noticed()
 
         lp.sec("Send a first message from ac2 to ac1 and check that it's 'fresh'")
         first_msg_id = ac2.create_chat(ac1).send_text("Hi")
