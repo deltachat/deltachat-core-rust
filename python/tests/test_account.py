@@ -2401,7 +2401,7 @@ class TestOnlineAccount:
         ac3.stop_io()
         acfactory.remove_preconfigured_keys()
         ac4 = acfactory.new_cloned_configuring_account(ac3)
-        acfactory._pending_configure.wait_one(ac4)
+        acfactory.wait_configured(ac4)
         # Create contacts to make sure incoming messages are not treated as contact requests
         chat41 = ac4.create_chat(ac1)
         chat42 = ac4.create_chat(ac2)

@@ -214,11 +214,13 @@ def data(request):
 class PendingConfigure:
     CONFIGURING = "CONFIGURING"
     CONFIGURED = "CONFIGURED"
-    POSTPROCESSED = "POSTPROCESSED"
+    IDLEREADY = "IDLEREADY"
 
-    def __init__(self):
+    def __init__(self, init_time):
         self._configured_events = Queue()
         self._account2state = {}
+        self._imap_cleaned = set()
+        self.init_time = init_time
 
     def add_account(self, acc, reconfigure=False):
         class PendingTracker:
@@ -231,34 +233,67 @@ class PendingConfigure:
         acc.configure(reconfigure=reconfigure)
         print("started configure on pending", acc)
 
-    def wait_all(self, onconfigured=lambda x: None):
-        """ Wait for all accounts to finish configuration.
-        """
-        print("wait_all finds accounts=", self._account2state)
-        for acc, state in self._account2state.items():
-            if state == self.CONFIGURED:
-                onconfigured(acc)
-                self._account2state[acc] = self.POSTPROCESSED
-
-        while self.CONFIGURING in self._account2state.values():
-            acc, success = self._pop_one()
-            onconfigured(acc)
-            self._account2state[acc] = self.POSTPROCESSED
-        print("finished, account2state", self._account2state)
-
-    def wait_one(self, account):
+    def wait_one_configured(self, account):
         if self._account2state[account] == self.CONFIGURING:
             while 1:
-                acc, success = self._pop_one()
+                acc = self._pop_config_success()
                 if acc == account:
                     break
+            self.init_direct_imap_and_logging(acc)
+            acc._evtracker.consume_events()
 
-    def _pop_one(self):
+    def bring_online(self):
+        """ Wait for all accounts to finish configuration.
+        """
+        print("wait_all_configured finds accounts=", self._account2state)
+        for acc, state in self._account2state.items():
+            if state == self.CONFIGURED:
+                self._onconfigure_start_io(acc)
+                self._account2state[acc] = self.IDLEREADY
+
+        while self.CONFIGURING in self._account2state.values():
+            acc = self._pop_config_success()
+            self._onconfigure_start_io(acc)
+            self._account2state[acc] = self.IDLEREADY
+        print("finished, account2state", self._account2state)
+
+    def _pop_config_success(self):
         acc, success = self._configured_events.get()
         if not success:
             pytest.fail("configuring online account failed: {}".format(acc))
         self._account2state[acc] = self.CONFIGURED
-        return (acc, success)
+        return acc
+
+    def _onconfigure_start_io(self, acc):
+        acc.start_io()
+        print(acc._logid, "waiting for inbox IDLE to become ready")
+        acc._evtracker.wait_idle_inbox_ready()
+        self.init_direct_imap_and_logging(acc)
+        acc.get_device_chat().mark_noticed()
+        acc._evtracker.consume_events()
+        acc.log("inbox IDLE ready")
+
+    def init_direct_imap_and_logging(self, acc):
+        """ idempotent function for initializing direct_imap and logging for an account. """
+        self.init_direct_imap(acc)
+        logger = FFIEventLogger(acc, logid=acc._logid, init_time=self.init_time)
+        acc.add_account_plugin(logger, name=acc._logid)
+
+    def init_direct_imap(self, acc):
+        from deltachat.direct_imap import DirectImap
+        if not hasattr(acc, "direct_imap"):
+            acc.direct_imap = DirectImap(acc)
+        addr = acc.get_config("addr")
+        if addr not in self._imap_cleaned:
+            imap = acc.direct_imap
+            for folder in imap.list_folders():
+                if folder.lower() == "inbox" or folder.lower() == "deltachat":
+                    assert imap.select_folder(folder)
+                    imap.delete("1:*", expunge=True)
+                else:
+                    imap.conn.folder.delete(folder)
+            acc.log("imap cleaned for addr {}".format(addr))
+            self._imap_cleaned.add(addr)
 
 
 class ACFactory:
@@ -275,8 +310,7 @@ class ACFactory:
 
         self._finalizers = []
         self._accounts = []
-        self._pending_configure = PendingConfigure()
-        self._imap_cleaned = set()
+        self._pending_configure = PendingConfigure(self.init_time)
         self._preconfigured_keys = ["alice", "bob", "charlie",
                                     "dom", "elena", "fiona"]
         self.set_logging_default(False)
@@ -382,29 +416,12 @@ class ACFactory:
     def new_cloned_configuring_account(self, account):
         return self.new_online_configuring_account(cloned_from=account)
 
-    def _onconfigure_start_io(self, acc):
-        acc.start_io()
-        print(acc._logid, "waiting for inbox IDLE to become ready")
-        acc._evtracker.wait_idle_inbox_ready()
-        self.init_direct_imap_and_logging(acc)
-        acc.get_device_chat().mark_noticed()
-        acc._evtracker.consume_events()
-        acc.log("inbox IDLE ready")
-
-    def init_direct_imap_and_logging(self, acc):
-        """ idempotent function for initializing direct_imap and logging for an account. """
-        self.init_direct_imap(acc)
-        logger = FFIEventLogger(acc, logid=acc._logid, init_time=self.init_time)
-        acc.add_account_plugin(logger, name=acc._logid)
-
     def wait_configured(self, acc):
-        self._pending_configure.wait_one(acc)
-        self.init_direct_imap_and_logging(acc)
-        acc._evtracker.consume_events()
+        self._pending_configure.wait_one_configured(acc)
 
     def bring_accounts_online(self):
         print("bringing accounts online")
-        self._pending_configure.wait_all(onconfigured=self._onconfigure_start_io)
+        self._pending_configure.bring_online()
         print("all accounts online")
 
     def get_online_accounts(self, num):
@@ -446,22 +463,6 @@ class ACFactory:
         bot = BotProcess(popen, bot_cfg)
         self._finalizers.append(bot.kill)
         return bot
-
-    def init_direct_imap(self, acc):
-        from deltachat.direct_imap import DirectImap
-        if not hasattr(acc, "direct_imap"):
-            acc.direct_imap = DirectImap(acc)
-        addr = acc.get_config("addr")
-        if addr not in self._imap_cleaned:
-            imap = acc.direct_imap
-            for folder in imap.list_folders():
-                if folder.lower() == "inbox" or folder.lower() == "deltachat":
-                    assert imap.select_folder(folder)
-                    imap.delete("1:*", expunge=True)
-                else:
-                    imap.conn.folder.delete(folder)
-            acc.log("imap cleaned for addr {}".format(addr))
-            self._imap_cleaned.add(addr)
 
     def dump_imap_summary(self, logfile):
         for ac in self._accounts:
