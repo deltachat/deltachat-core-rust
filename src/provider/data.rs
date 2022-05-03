@@ -44,7 +44,7 @@ static P_AKTIVIX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
             protocol: Smtp,
             socket: Starttls,
             hostname: "newyear.aktivix.org",
-            port: 25,
+            port: 587,
             username_pattern: Email,
         },
     ],
@@ -852,10 +852,6 @@ static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| Provider {
             value: "0",
         },
         ConfigDefault {
-            key: Config::E2eeEnabled,
-            value: "0",
-        },
-        ConfigDefault {
             key: Config::MediaQuality,
             value: "1",
         },
@@ -983,7 +979,7 @@ static P_QQ: Lazy<Provider> = Lazy::new(|| {
     overview_page: "https://providers.delta.chat/qq",
     server: vec![
         Server { protocol: Imap, socket: Ssl, hostname: "imap.qq.com", port: 993, username_pattern: Emaillocalpart },
-        Server { protocol: Smtp, socket: Starttls, hostname: "smtp.qq.com", port: 465, username_pattern: Email },
+        Server { protocol: Smtp, socket: Ssl, hostname: "smtp.qq.com", port: 465, username_pattern: Email },
     ],
     config_defaults: None,
     strict_tls: true,
@@ -1402,7 +1398,9 @@ static P_YGGMAIL: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Plain, hostname: "localhost", port: 1143, username_pattern: Email },
         Server { protocol: Smtp, socket: Plain, hostname: "localhost", port: 1025, username_pattern: Email },
     ],
-    config_defaults: None,
+    config_defaults: Some(vec![
+        ConfigDefault { key: Config::MvboxMove, value: "0" },
+    ]),
     strict_tls: true,
     max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
@@ -1853,4 +1851,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2022, 1, 31));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2022, 5, 3));
