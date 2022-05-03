@@ -40,6 +40,10 @@ def pytest_addoption(parser):
         "--extra-info", action="store_true",
         help="show more info on failures (imap server state, config)"
     )
+    group.addoption(
+        "--debug-setup", action="store_true",
+        help="show events during configure and start io phases of online accounts"
+    )
 
 
 def pytest_configure(config):
@@ -278,6 +282,9 @@ class ACSetup:
     def init_direct_imap_and_logging(self, acc):
         """ idempotent function for initializing direct_imap and logging for an account. """
         self.init_direct_imap(acc)
+        self.init_logging(acc)
+
+    def init_logging(self, acc):
         logger = FFIEventLogger(acc, logid=acc._logid, init_time=self.init_time)
         acc.add_account_plugin(logger, name=acc._logid)
 
@@ -355,6 +362,8 @@ class ACFactory:
         ac = Account(path.strpath, logging=self._logging)
         ac._logid = logid  # later instantiated FFIEventLogger needs this
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
+        if self.pytestconfig.getoption("--debug-setup"):
+            self._acsetup.init_logging(ac)
         self._accounts.append(ac)
         return ac
 
@@ -390,8 +399,7 @@ class ACFactory:
             configured="1",
         ))
         self._preconfigure_key(ac, addr)
-        logger = FFIEventLogger(ac, logid=ac._logid, init_time=self.init_time)
-        ac.add_account_plugin(logger, name=ac._logid)
+        self._acsetup.init_logging(ac)
         return ac
 
     def new_online_configuring_account(self, cloned_from=None, **kwargs):
