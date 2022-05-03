@@ -2,7 +2,7 @@ import sys
 
 from . import capi, const, hookspec # noqa
 from .capi import ffi  # noqa
-from .account import Account  # noqa
+from .account import Account, get_core_info  # noqa
 from .message import Message  # noqa
 from .contact import Contact  # noqa
 from .chat import Chat        # noqa
