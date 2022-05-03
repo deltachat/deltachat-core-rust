@@ -281,7 +281,6 @@ class ACSetup:
         print(acc._logid, "waiting for inbox IDLE to become ready")
         acc._evtracker.wait_idle_inbox_ready()
         self.init_direct_imap_and_logging(acc)
-        acc.get_device_chat().mark_noticed()
         acc._evtracker.consume_events()
         acc.log("inbox IDLE ready")
 
@@ -335,12 +334,13 @@ class ACFactory:
 
         while self._accounts:
             acc = self._accounts.pop()
-            imap = getattr(acc, "direct_imap", None)
-            if imap is not None:
-                imap.shutdown()
-                del acc.direct_imap
-            acc.shutdown()
-            acc.disable_logging()
+            if acc is not None:
+                imap = getattr(acc, "direct_imap", None)
+                if imap is not None:
+                    imap.shutdown()
+                    del acc.direct_imap
+                acc.shutdown()
+                acc.disable_logging()
 
     def get_next_liveconfig(self):
         """ Base function to get functional online configurations
@@ -446,9 +446,9 @@ class ACFactory:
         bot_cfg = self.get_next_liveconfig()
         bot_ac = self.prepare_account_from_liveconfig(bot_cfg)
 
-        # Avoid starting ac so we don't interfere with the bot operating on
-        # the same database.
-        self._accounts.remove(bot_ac)
+        # Forget ac as it will be opened by the bot subprocess
+        # but keep something in the list to not confuse account generation
+        self._accounts[self._accounts.index(bot_ac)] = None
 
         args = [
             sys.executable,
@@ -470,7 +470,7 @@ class ACFactory:
             close_fds=True,            # close all FDs other than 0/1/2
             universal_newlines=True    # give back text
         )
-        bot = BotProcess(popen, bot_cfg)
+        bot = BotProcess(popen, addr=bot_cfg["addr"])
         self._finalizers.append(bot.kill)
         return bot
 
@@ -518,9 +518,9 @@ def acfactory(request, tmpdir, testprocess, data):
 class BotProcess:
     stdout_queue: queue.Queue
 
-    def __init__(self, popen, bot_cfg) -> None:
+    def __init__(self, popen, addr) -> None:
         self.popen = popen
-        self.addr = bot_cfg["addr"]
+        self.addr = addr
 
         # we read stdout as quickly as we can in a thread and make
         # the (unicode) lines available for readers through a queue.
