@@ -196,7 +196,7 @@ class EventThread(threading.Thread):
         self.account = account
         super(EventThread, self).__init__(name="events")
         self.daemon = True
-        self._marked_for_shutdown = False
+        self._event_emitter = None
         self.start()
 
     @contextmanager
@@ -206,7 +206,7 @@ class EventThread(threading.Thread):
         self.account.log(message + " FINISHED")
 
     def mark_shutdown(self) -> None:
-        self._marked_for_shutdown = True
+        lib.dc_event_emitter_close(self._event_emitter)
 
     def wait(self, timeout=None) -> None:
         if self == threading.current_thread():
@@ -221,17 +221,15 @@ class EventThread(threading.Thread):
             self._inner_run()
 
     def _inner_run(self):
-        if self._marked_for_shutdown or self.account._dc_context is None:
+        if self.account._dc_context is None:
             return
-        event_emitter = ffi.gc(
+        self._event_emitter = ffi.gc(
             lib.dc_get_event_emitter(self.account._dc_context),
             lib.dc_event_emitter_unref,
         )
-        while not self._marked_for_shutdown:
-            event = lib.dc_get_next_event(event_emitter)
+        while True:
+            event = lib.dc_get_next_event(self._event_emitter)
             if event == ffi.NULL:
-                break
-            if self._marked_for_shutdown:
                 break
             evt = lib.dc_event_get_id(event)
             data1 = lib.dc_event_get_data1_int(event)
@@ -245,15 +243,11 @@ class EventThread(threading.Thread):
 
             lib.dc_event_unref(event)
             ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            try:
-                self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
-                for name, kwargs in self._map_ffi_event(ffi_event):
-                    self.account.log("calling hook name={} kwargs={}".format(name, kwargs))
-                    hook = getattr(self.account._pm.hook, name)
-                    hook(**kwargs)
-            except Exception:
-                if not self._marked_for_shutdown and self.account._dc_context is not None:
-                    raise
+            self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
+            for name, kwargs in self._map_ffi_event(ffi_event):
+                self.account.log("calling hook name={} kwargs={}".format(name, kwargs))
+                hook = getattr(self.account._pm.hook, name)
+                hook(**kwargs)
 
     def _map_ffi_event(self, ffi_event: FFIEvent):
         name = ffi_event.name
