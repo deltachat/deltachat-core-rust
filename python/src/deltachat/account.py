@@ -695,27 +695,23 @@ class Account(object):
         if self._dc_context is None:
             return
 
-        self.stop_io()
-
-        self.log("remove dc_context references")
-
-        # if _dc_context is unref'ed the event thread should quickly
-        # receive the termination signal. However, some python code might
-        # still hold a reference and so we use a secondary signal
-        # to make sure the even thread terminates if it receives any new
-        # event, indepedently from waiting for the core to send NULL to
-        # get_next_event().
+        # mark the event thread for shutdown (latest on next incoming event)
         self._event_thread.mark_shutdown()
-        self._dc_context = None
+
+        # stop_io also causes an info event that will terminate the event thread
+        self.stop_io()
 
         self.log("wait for event thread to finish")
         try:
-            self._event_thread.wait(timeout=2)
+            self._event_thread.wait(timeout=5)
         except RuntimeError as e:
             self.log("Waiting for event thread failed: {}".format(e))
 
         if self._event_thread.is_alive():
             self.log("WARN: event thread did not terminate yet, ignoring.")
+
+        self.log("remove dc_context references, making the Account unusuable")
+        self._dc_context = None
 
         self._shutdown_event.set()
 
