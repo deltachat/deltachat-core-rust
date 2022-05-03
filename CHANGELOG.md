@@ -2,6 +2,9 @@
 
 ## 1.79.0
 
+### API-Changes
+- add `dc_event_emitter_close()` to termitate event loops in a thread-safe way
+
 ### Changes
 - Send locations in the background regardless of SMTP loop activity #3247
 - refactorings #3268

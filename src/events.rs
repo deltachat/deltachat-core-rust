@@ -64,14 +64,19 @@ impl Events {
 pub struct EventEmitter(Receiver<Event>);
 
 impl EventEmitter {
-    /// Blocking recv of an event. Return `None` if the `Sender` has been droped.
+    /// Blocking recv of an event. Return `None` if the `Sender` has been dropped.
     pub fn recv_sync(&self) -> Option<Event> {
         async_std::task::block_on(self.recv())
     }
 
-    /// Async recv of an event. Return `None` if the `Sender` has been droped.
+    /// Async recv of an event. Return `None` if the `Sender` has been dropped.
     pub async fn recv(&self) -> Option<Event> {
         self.0.recv().await.ok()
+    }
+
+    /// Closes event emitter.
+    pub async fn close(&mut self) {
+        self.0.close();
     }
 }
 

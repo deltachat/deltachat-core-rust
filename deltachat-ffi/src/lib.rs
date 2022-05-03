@@ -641,6 +641,18 @@ pub unsafe extern "C" fn dc_event_emitter_unref(emitter: *mut dc_event_emitter_t
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_event_emitter_close(emitter: *mut dc_event_emitter_t) {
+    if emitter.is_null() {
+        eprintln!("ignoring careless call to dc_event_emitter_close()");
+        return;
+    }
+
+    let emitter = &mut *emitter;
+
+    block_on(emitter.close())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_next_event(events: *mut dc_event_emitter_t) -> *mut dc_event_t {
     if events.is_null() {
         eprintln!("ignoring careless call to dc_get_next_event()");

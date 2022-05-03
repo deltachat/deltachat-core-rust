@@ -5202,6 +5202,15 @@ void  dc_event_emitter_unref(dc_event_emitter_t* emitter);
 
 
 /**
+ * Closes event emitter object.
+ *
+ * @memberof dc_event_emitter_t
+ * @param emitter Event emitter object as returned from dc_get_event_emitter().
+ */
+void  dc_event_emitter_close(dc_event_emitter_t* emitter);
+
+
+/**
  * @class dc_accounts_event_emitter_t
  *
  * Opaque object that is used to get events from the dc_accounts_t account manager.
