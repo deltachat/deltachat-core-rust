@@ -152,3 +152,25 @@ def test_logged_hook_failure(acfactory):
     assert "some" in str(cap)
     assert "ZeroDivisionError" in str(cap)
     assert "Traceback" in str(cap)
+
+
+def test_logged_ac_process_ffi_failure(acfactory):
+    from deltachat import account_hookimpl
+
+    ac1 = acfactory.get_unconfigured_account()
+    acfactory._acsetup.init_logging(ac1)
+
+    class FailPlugin:
+        @account_hookimpl
+        def ac_process_ffi_event(ffi_event):
+            0/0
+
+    ac1.add_account_plugin(FailPlugin())
+    cap = []
+    ac1.log = cap.append
+    # cause any event eg contact added/changed
+    ac1.create_contact("something@example.org")
+    assert cap
+    assert "ac_process_ffi_event" in str(cap)
+    assert "ZeroDivisionError" in str(cap)
+    assert "Traceback" in str(cap)
