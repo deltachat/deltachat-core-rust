@@ -261,3 +261,21 @@ fn inner_generate_secure_join_qr_code(
 
     Ok(svg)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[async_std::test]
+    async fn test_svg_escaping() {
+        let svg = inner_generate_secure_join_qr_code(
+            "descr123 \" < > &",
+            "qr-code-content",
+            "#000000",
+            None,
+            'X',
+        )
+        .unwrap();
+        assert!(svg.contains("descr123 &quot; &lt; &gt; &amp;"))
+    }
+}
