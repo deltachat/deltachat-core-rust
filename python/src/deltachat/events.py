@@ -244,7 +244,8 @@ class EventThread(threading.Thread):
 
             lib.dc_event_unref(event)
             ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
+            with self.swallow_and_log_exception("ac_process_ffi_event {}".format(ffi_event)):
+                self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
             for name, kwargs in self._map_ffi_event(ffi_event):
                 hook = getattr(self.account._pm.hook, name)
                 info = "call {} kwargs={} failed".format(name, kwargs)
