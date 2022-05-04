@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- fix escaping in generated QR-code-SVG #3295
+
 ## 1.79.0
 
 ### Changes
