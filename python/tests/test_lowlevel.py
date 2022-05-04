@@ -140,3 +140,15 @@ def test_get_info_open(tmpdir):
     info = cutil.from_dc_charpointer(lib.dc_get_info(ctx))
     assert 'deltachat_core_version' in info
     assert 'database_dir' in info
+
+
+def test_logged_hook_failure(acfactory):
+    ac1 = acfactory.get_pseudo_configured_account()
+    cap = []
+    ac1.log = cap.append
+    with ac1._event_thread.swallow_and_log_exception("some"):
+        0/0
+    assert cap
+    assert "some" in str(cap)
+    assert "ZeroDivisionError" in str(cap)
+    assert "Traceback" in str(cap)
