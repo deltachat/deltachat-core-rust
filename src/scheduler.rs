@@ -378,7 +378,7 @@ impl Scheduler {
     /// Start the scheduler, returns error if it is already running.
     pub async fn start(&mut self, ctx: Context) -> Result<()> {
         if self.is_running() {
-            bail!("scheduler is already stopped");
+            bail!("scheduler is already started");
         }
 
         let (mvbox, mvbox_handlers) = ImapConnectionState::new(&ctx).await?;
