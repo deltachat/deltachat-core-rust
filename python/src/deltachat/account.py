@@ -710,7 +710,7 @@ class Account(object):
         if self._event_thread.is_alive():
             self.log("WARN: event thread did not terminate yet, ignoring.")
 
-        self.log("remove dc_context references, making the Account unusuable")
+        self.log("remove dc_context references, making the Account unusable")
         self._dc_context = None
 
         self._shutdown_event.set()
