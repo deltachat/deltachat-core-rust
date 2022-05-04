@@ -657,7 +657,7 @@ pub unsafe extern "C" fn dc_get_next_event(events: *mut dc_event_emitter_t) -> *
 #[no_mangle]
 pub unsafe extern "C" fn dc_stop_io(context: *mut dc_context_t) {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_shutdown()");
+        eprintln!("ignoring careless call to dc_stop_io()");
         return;
     }
     let ctx = &*context;

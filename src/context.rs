@@ -202,6 +202,11 @@ impl Context {
 
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
+        // Sending an event wakes up event pollers (get_next_event)
+        // so the caller of stop_io() can arrange for proper termination.
+        // For this, the caller needs to instruct the event poller
+        // to terminate on receiving the next event and then call stop_io()
+        // which will emit the below event(s)
         info!(self, "stopping IO");
 
         if let Err(err) = self.inner.stop_io().await {
