@@ -1,5 +1,8 @@
 import threading
+import sys
+import traceback
 import time
+import io
 import re
 import os
 from queue import Queue, Empty
@@ -221,17 +224,13 @@ class EventThread(threading.Thread):
             self._inner_run()
 
     def _inner_run(self):
-        if self._marked_for_shutdown or self.account._dc_context is None:
-            return
         event_emitter = ffi.gc(
             lib.dc_get_event_emitter(self.account._dc_context),
             lib.dc_event_emitter_unref,
         )
         while not self._marked_for_shutdown:
             event = lib.dc_get_next_event(event_emitter)
-            if event == ffi.NULL:
-                break
-            if self._marked_for_shutdown:
+            if event == ffi.NULL or self._marked_for_shutdown:
                 break
             evt = lib.dc_event_get_id(event)
             data1 = lib.dc_event_get_data1_int(event)
@@ -245,15 +244,22 @@ class EventThread(threading.Thread):
 
             lib.dc_event_unref(event)
             ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            try:
-                self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
-                for name, kwargs in self._map_ffi_event(ffi_event):
-                    self.account.log("calling hook name={} kwargs={}".format(name, kwargs))
-                    hook = getattr(self.account._pm.hook, name)
+            self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
+            for name, kwargs in self._map_ffi_event(ffi_event):
+                hook = getattr(self.account._pm.hook, name)
+                info = "call {} kwargs={} failed".format(name, kwargs)
+                with self.swallow_and_log_exception(info):
                     hook(**kwargs)
-            except Exception:
-                if not self._marked_for_shutdown and self.account._dc_context is not None:
-                    raise
+
+    @contextmanager
+    def swallow_and_log_exception(self, info):
+        try:
+            yield
+        except Exception as ex:
+            logfile = io.StringIO()
+            traceback.print_exception(*sys.exc_info(), file=logfile)
+            self.account.log("{}\nException {}\nTraceback:\n{}"
+                             .format(info, ex, logfile.getvalue()))
 
     def _map_ffi_event(self, ffi_event: FFIEvent):
         name = ffi_event.name

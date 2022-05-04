@@ -698,7 +698,8 @@ class Account(object):
         # mark the event thread for shutdown (latest on next incoming event)
         self._event_thread.mark_shutdown()
 
-        # stop_io also causes an info event that will terminate the event thread
+        # stop_io also causes an info event which will wake up
+        # the EventThread's inner loop and let it notice the shutdown marker.
         self.stop_io()
 
         self.log("wait for event thread to finish")
