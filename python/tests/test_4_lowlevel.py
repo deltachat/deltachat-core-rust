@@ -1,4 +1,5 @@
-from __future__ import print_function
+
+import os
 
 from queue import Queue
 from deltachat import capi, cutil, const
@@ -45,6 +46,17 @@ class TestACSetup:
         pc.bring_online()
         assert pc._account2state[ac1] == pc.IDLEREADY
         assert pc._account2state[ac2] == pc.IDLEREADY
+
+    def test_store_and_retrieve_configured_account_cache(self, acfactory, tmpdir):
+        ac1 = acfactory.get_pseudo_configured_account()
+        holder = acfactory._acsetup.testprocess
+        assert holder.cache_maybe_store_configured_db_files(ac1)
+        assert not holder.cache_maybe_store_configured_db_files(ac1)
+        acdir = tmpdir.mkdir("newaccount")
+        addr = ac1.get_config("addr")
+        target_db_path = acdir.join("db").strpath
+        assert holder.cache_maybe_retrieve_configured_db_files(addr, target_db_path)
+        assert len(os.listdir(acdir)) >= 2
 
 
 def test_liveconfig_caching(acfactory, monkeypatch):
