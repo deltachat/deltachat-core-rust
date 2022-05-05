@@ -7,7 +7,7 @@ use async_std::io::WriteExt;
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
-use crate::chat::ChatId;
+
 use crate::constants::DC_VERSION_STR;
 use crate::contact::addr_cmp;
 use crate::context::Context;
@@ -332,11 +332,7 @@ impl Context {
                     if let Some(webxdc_message_id) =
                         self.sql.get_raw_config_u32(Config::DebugLogging).await?
                     {
-                        // TODO possible recursion?
-                        //use futures::FutureExt; // for boxed()
-                        //message::delete_msgs(self, &[MsgId::new(webxdc_message_id)])
-                        //    .boxed() // Need boxed() because of recursion
-                        //    .await;
+                        message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await;
                     }
                 } else {
                     let data: &[u8] = include_bytes!("../test-data/webxdc/minimal.xdc");
