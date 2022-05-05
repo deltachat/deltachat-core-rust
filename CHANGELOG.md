@@ -11,6 +11,16 @@
 - deprecate unused `marker1before` argument of `dc_get_chat_msgs`
   and remove `DC_MSG_ID_MARKER1` constant #3274
 
+### Added
+- Now the node-bindings are also part of this repository 🎉
+
+### Fixes
+- node: throw error when getting context with an invalid account id
+- node: throw error when instanciating a wrapper class on `null` (Context, Message, Chat, ChatList and so on)
+
+### Removed
+- node: remove unmaintained coverage scripts
+
 
 ## 1.80.0
 

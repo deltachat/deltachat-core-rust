@@ -1,10 +1,14 @@
-name: 'Build node.js bindings from PR'
+name: 'node.js'
 on:
   pull_request:
+  push:
+    tags:
+    - '*'
+
 
 jobs:
   prebuild:
-    name: 'Prebuild'
+    name: 'Tests & Prebuild'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -29,7 +33,7 @@ jobs:
           path: |
             ${{ env.APPDATA }}/npm-cache
             ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package.json') }}
+          key: ${{ matrix.os }}-node-${{ hashFiles('**/package.json') }}
 
       - name: Cache cargo index
         uses: actions/cache@v2
@@ -38,7 +42,7 @@ jobs:
             ~/.cargo/registry/
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-2
+          key: ${{ matrix.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-2
 
       - name: Install dependencies & build
         if: steps.cache.outputs.cache-hit != 'true'
@@ -46,6 +50,20 @@ jobs:
           cd node
           npm install --verbose
 
+      - name: Test
+        if: runner.os != 'Windows'
+        run: |
+          cd node
+          npm run test
+        env:
+          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+      - name: Run tests on Windows, except lint
+        if: runner.os == 'Windows'
+        run: |
+          cd node
+          npm run test:mocha
+        env:
+          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
       - name: Build Prebuild
         run: |
           cd node
@@ -60,7 +78,7 @@ jobs:
 
   pack-module:
     needs: prebuild
-    name: 'Package the node_module and upload as artifact for testing'
+    name: 'Package deltachat-node and upload to download.delta.chat'
     runs-on: ubuntu-18.04
     steps:
       - name: install tree
@@ -70,10 +88,19 @@ jobs:
       - uses: actions/setup-node@v2
         with:
           node-version: '16'
+      - name: get tag
+        id: tag
+        uses: dawidd6/action-get-tag@v1
+        continue-on-error: true
       - name: Get Pullrequest ID
         id: prepare
         run: |
-          node -e "console.log('::set-output name=prid::' + '${{ github.ref }}'.split('/')[2])"
+          tag=${{ steps.tag.outputs.tag }}
+          if [ -z "$tag" ]; then
+            node -e "console.log('::set-output name=prid::' + '${{ github.ref }}'.split('/')[2])"
+          else
+            echo "No preview will be uploaded this time, but the $tag release"
+          fi
       - name: System info
         run: |
           rustc -vV
@@ -85,38 +112,30 @@ jobs:
         uses: actions/download-artifact@v1
         with:
           name: ubuntu-18.04
-          path: node/
       - name: Download macos prebuild
         uses: actions/download-artifact@v1
         with:
           name: macos-latest
-          path: node/
       - name: Download windows prebuild
         uses: actions/download-artifact@v1
         with:
           name: windows-latest
-          path: node/
       - shell: bash
         run: |
-          cd node
-          ls -lah
           mkdir prebuilds
-          tar -xvzf ubuntu-18.04.tar.gz -C prebuilds
-          tar -xvzf macos-latest.tar.gz -C prebuilds
-          tar -xvzf windows-latest.tar.gz -C prebuilds
+          tar -xvzf ubuntu-18.04/ubuntu-18.04.tar.gz -C prebuilds
+          tar -xvzf macos-latest/macos-latest.tar.gz -C prebuilds
+          tar -xvzf windows-latest/windows-latest.tar.gz -C prebuilds
           tree prebuilds
       - name: install dependencies without running scripts
         run: |
-          cd node
           npm install --ignore-scripts
       - name: build typescript part
         run: |
-          cd node
           npm run build:bindings:ts
       - name: package
         shell: bash
         run: |
-          cd node
           npm pack .
           ls -lah
           mv $(find deltachat-node-*) deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz
@@ -124,20 +143,28 @@ jobs:
         uses: actions/upload-artifact@v1
         with:
           name: deltachat-node.tgz
-          path: node/deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz
-      # Upload Step
-      - name: upload folder
+          path: deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz
+      # Upload to download.delta.chat/node/preview/
+      - name: Upload deltachat-node preview to download.delta.chat/node/preview/
+        id: upload-preview
+        shell: bash
+        run: |
+          echo -e "${{ secrets.SSH_KEY }}" >__TEMP_INPUT_KEY_FILE
+          chmod 600 __TEMP_INPUT_KEY_FILE
+          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/preview/"
+        continue-on-error: true
+      - name: "Post links to details"
+        if: steps.upload-preview.outcome == 'success'
+        run: node ./node/scripts/postLinksToDetails.js
+        env:
+         URL: preview/deltachat-node-${{ steps.prepare.outputs.prid }}
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Upload to download.delta.chat/node/
+      - name: Upload deltachat-node build to download.delta.chat/node/
+        if: ${{ steps.tag.outputs.tag }}
         id: upload
         shell: bash
         run: |
-          cd node
           echo -e "${{ secrets.SSH_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
           scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/"
-        continue-on-error: true
-      - name: "Post links to details"
-        if: steps.upload.outcome == 'success'
-        run: node ./node/scripts/postLinksToDetails.js
-        env:
-         PR_ID: ${{ steps.prepare.outputs.prid }}
-         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

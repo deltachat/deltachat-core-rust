@@ -12,6 +12,9 @@ interface NativeChatList {}
 export class ChatList {
   constructor(private dc_chatlist: NativeChatList) {
     debug('ChatList constructor')
+    if (dc_chatlist === null) {
+      throw new Error('native chat list can not be null')
+    }
   }
 
   getChatId(index: number): number {

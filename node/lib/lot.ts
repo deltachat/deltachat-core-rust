@@ -10,6 +10,9 @@ interface NativeLot {}
 export class Lot {
   constructor(public dc_lot: NativeLot) {
     debug('Lot constructor')
+    if (dc_lot === null) {
+      throw new Error('dc_lot can not be null')
+    }
   }
 
   toJson() {

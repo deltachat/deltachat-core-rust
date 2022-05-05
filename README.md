@@ -128,7 +128,7 @@ $ cargo test -- --ignored
 Language bindings are available for:
 
 - **C** \[[📂 source](./deltachat-ffi) | [📚 docs](https://c.delta.chat)\]
-- **Node.js** \[[📂 source](https://github.com/deltachat/deltachat-node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
+- **Node.js** \[[📂 source](./node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
 - **Python** \[[📂 source](./python) | [📦 pypi](https://pypi.org/project/deltachat) | [📚 docs](https://py.delta.chat)\]
 - **Go** \[[📂 source](https://github.com/deltachat/go-deltachat/)\]
 - **Free Pascal** \[[📂 source](https://github.com/deltachat/deltachat-fp/)\]

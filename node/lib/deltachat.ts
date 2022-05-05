@@ -57,6 +57,11 @@ export class AccountManager extends EventEmitter {
       this.dcn_accounts,
       account_id
     )
+    if (native_context === null) {
+      throw new Error(
+        `could not get context with id ${account_id}, does it even exist? please check your ids`
+      )
+    }
     return new Context(this, native_context, account_id)
   }
 

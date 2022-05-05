@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-import sys
+import json
 import re
 import pathlib
 import subprocess
@@ -41,6 +41,24 @@ def replace_toml_version(relpath, newversion):
     os.rename(tmp_path, str(p))
 
 
+def read_json_version(relpath):
+    p = pathlib.Path("package.json")
+    assert p.exists()
+    with open(p, "r") as f:
+        json_data = json.loads(f.read())
+    return json_data["version"]
+
+
+def update_package_json(newversion):
+    p = pathlib.Path("package.json")
+    assert p.exists()
+    with open(p, "r") as f:
+        json_data = json.loads(f.read())
+    json_data["version"] = newversion
+    with open(p, "w") as f:
+        f.write(json.dumps(json_data, sort_keys=True, indent=2))
+
+
 def main():
     parser = ArgumentParser(prog="set_core_version")
     parser.add_argument("newversion")
@@ -52,6 +70,7 @@ def main():
         print()
         for x in toml_list:
             print("{}: {}".format(x, read_toml_version(x)))
+        print("package.json:", str(read_json_version("package.json")))
         print()
         raise SystemExit("need argument: new version, example: 1.25.0")
 
@@ -74,6 +93,7 @@ def main():
 
     replace_toml_version("Cargo.toml", newversion)
     replace_toml_version("deltachat-ffi/Cargo.toml", newversion)
+    update_package_json(newversion)
 
     print("running cargo check")
     subprocess.call(["cargo", "check"])

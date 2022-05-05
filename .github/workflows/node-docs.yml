@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - integrate-node-into-repo
 
 jobs:
   generate:

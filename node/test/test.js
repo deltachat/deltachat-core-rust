@@ -738,8 +738,6 @@ describe('Integration tests', function () {
       'selfavatar correct'
     )
     strictEqual(context.getConfig('e2ee_enabled'), '1', 'e2ee_enabled correct')
-    strictEqual(context.getConfig('sentbox_watch'), '0', 'sentbox_watch')
-    strictEqual(context.getConfig('mvbox_move'), '0', 'mvbox_move')
     strictEqual(
       context.getConfig('save_mime_headers'),
       '',

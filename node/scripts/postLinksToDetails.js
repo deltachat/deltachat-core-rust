@@ -5,19 +5,19 @@ const sha = JSON.parse(
 ).pull_request.head.sha
 
 const base_url =
-  'https://download.delta.chat/node/deltachat-node-'
+  'https://download.delta.chat/node/'
 
 const GITHUB_API_URL =
   'https://api.github.com/repos/deltachat/deltachat-core-rust/statuses/' + sha
 
-const prId = process.env['PR_ID']
+const file_url = process.env['URL']
 const GITHUB_TOKEN = process.env['GITHUB_TOKEN']
 
 const STATUS_DATA = {
   state: 'success',
   description: '⏩ Click on "Details" to download →',
   context: 'Download the node-bindings.tar.gz',
-  target_url: base_url + prId + '.tar.gz',
+  target_url: base_url + file_url + '.tar.gz',
 }
 
 const http = require('https')

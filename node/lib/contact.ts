@@ -12,6 +12,9 @@ interface NativeContact {}
 export class Contact {
   constructor(public dc_contact: NativeContact) {
     debug('Contact constructor')
+    if (dc_contact === null) {
+      throw new Error('native contact can not be null')
+    }
   }
 
   toJson() {
