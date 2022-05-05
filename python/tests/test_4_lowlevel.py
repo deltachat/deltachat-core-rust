@@ -11,23 +11,23 @@ from deltachat.testplugin import ACSetup
 
 
 class TestACSetup:
-    def test_basic_states(self, acfactory, monkeypatch):
-        pc = ACSetup(init_time=0.0)
+    def test_basic_states(self, acfactory, monkeypatch, testprocess):
+        pc = ACSetup(init_time=0.0, testprocess=testprocess)
         acc = acfactory.get_unconfigured_account()
         monkeypatch.setattr(acc, "configure", lambda **kwargs: None)
         pc.start_configure(acc)
         assert pc._account2state[acc] == pc.CONFIGURING
         pc._configured_events.put((acc, True))
-        monkeypatch.setattr(pc, "init_direct_imap", lambda *args, **kwargs: None)
+        monkeypatch.setattr(pc, "init_imap", lambda *args, **kwargs: None)
         pc.wait_one_configured(acc)
         assert pc._account2state[acc] == pc.CONFIGURED
         monkeypatch.setattr(pc, "_onconfigure_start_io", lambda *args, **kwargs: None)
         pc.bring_online()
         assert pc._account2state[acc] == pc.IDLEREADY
 
-    def test_two_accounts_one_waited_all_started(self, monkeypatch, acfactory):
-        pc = ACSetup(init_time=0.0)
-        monkeypatch.setattr(pc, "init_direct_imap", lambda *args, **kwargs: None)
+    def test_two_accounts_one_waited_all_started(self, monkeypatch, acfactory, testprocess):
+        pc = ACSetup(init_time=0.0, testprocess=testprocess)
+        monkeypatch.setattr(pc, "init_imap", lambda *args, **kwargs: None)
         monkeypatch.setattr(pc, "_onconfigure_start_io", lambda *args, **kwargs: None)
         ac1 = acfactory.get_unconfigured_account()
         monkeypatch.setattr(ac1, "configure", lambda **kwargs: None)
@@ -45,6 +45,18 @@ class TestACSetup:
         pc.bring_online()
         assert pc._account2state[ac1] == pc.IDLEREADY
         assert pc._account2state[ac2] == pc.IDLEREADY
+
+
+def test_liveconfig_caching(acfactory, monkeypatch):
+    prod = [
+        {"addr": "1@example.org", "mail_pw": "123"},
+    ]
+    acfactory._liveconfig_producer = iter(prod)
+    d1 = acfactory.get_next_liveconfig()
+    d1["hello"] = "world"
+    acfactory._liveconfig_producer = iter(prod)
+    d2 = acfactory.get_next_liveconfig()
+    assert "hello" not in d2
 
 
 def test_empty_context():
