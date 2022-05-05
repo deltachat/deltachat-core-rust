@@ -441,14 +441,13 @@ impl Context {
         async_std::task::spawn(async move {
             // TODO synchronously is prob. better
             match context.get_config_int(Config::DebugLogging).await {
-                Err(e) => eprintln!("Can't get debug logging config: {:#}", e),
+                Err(_) => {} // Probably the database is simply closed (i.e. encrypted and no passphrase available yet)
                 Ok(0) => {}
                 Ok(debug_logging_webxdc) => {
                     let time = SystemTime::now()
                         .duration_since(SystemTime::UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_millis() as i64;
-                    // TODO
 
                     let webxdc_instance_id = MsgId::new(debug_logging_webxdc as u32);
 
