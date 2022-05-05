@@ -65,13 +65,12 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
 }
 
 fn inner_generate_secure_join_qr_code(
-    raw_qrcode_description: &str,
+    qrcode_description: &str,
     qrcode_content: &str,
     color: &str,
     avatar: Option<Vec<u8>>,
     avatar_letter: char,
 ) -> Result<String> {
-    let qrcode_description = &escaper::encode_minimal(raw_qrcode_description);
     // config
     let width = 515.0;
     let height = 630.0;
@@ -261,4 +260,22 @@ fn inner_generate_secure_join_qr_code(
     })?;
 
     Ok(svg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[async_std::test]
+    async fn test_svg_escaping() {
+        let svg = inner_generate_secure_join_qr_code(
+            "descr123 \" < > &",
+            "qr-code-content",
+            "#000000",
+            None,
+            'X',
+        )
+        .unwrap();
+        assert!(svg.contains("descr123 &quot; &lt; &gt; &amp;"))
+    }
 }
