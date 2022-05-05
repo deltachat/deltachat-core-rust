@@ -1281,6 +1281,13 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
                 paramsv![msg.rfc724_mid],
             )
             .await?;
+
+        if context.get_config(Config::DebugLogging).await? == Some(msg_id.to_string()) {
+            context
+                .sql
+                .set_raw_config(Config::DebugLogging, Some("0"))
+                .await?;
+        }
     }
 
     if !msg_ids.is_empty() {
