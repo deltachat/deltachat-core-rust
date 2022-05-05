@@ -65,7 +65,7 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
 }
 
 fn inner_generate_secure_join_qr_code(
-    raw_qrcode_description: &str,
+    qrcode_description: &str,
     qrcode_content: &str,
     color: &str,
     avatar: Option<Vec<u8>>,
@@ -141,12 +141,12 @@ fn inner_generate_secure_join_qr_code(
         // Text
         const BIG_TEXT_CHARS_PER_LINE: usize = 32;
         const SMALL_TEXT_CHARS_PER_LINE: usize = 38;
-        let chars_per_line = if raw_qrcode_description.len() > SMALL_TEXT_CHARS_PER_LINE * 2 {
+        let chars_per_line = if qrcode_description.len() > SMALL_TEXT_CHARS_PER_LINE * 2 {
             SMALL_TEXT_CHARS_PER_LINE
         } else {
             BIG_TEXT_CHARS_PER_LINE
         };
-        let lines = textwrap::fill(raw_qrcode_description, chars_per_line);
+        let lines = textwrap::fill(qrcode_description, chars_per_line);
         let (text_font_size, text_y_shift) = if lines.split('\n').count() <= 2 {
             (27.0, 0.0)
         } else {
