@@ -25,6 +25,7 @@ use crate::scheduler::Scheduler;
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::tools::{duration_to_str, time};
+use crate::webxdc::StatusUpdateItem;
 
 /// Builder for the [`Context`].
 ///
@@ -434,7 +435,7 @@ impl Context {
     pub fn emit_event(&self, event: EventType) {
         self.events.emit(Event {
             id: self.id,
-            typ: event,
+            typ: event.clone(),
         });
         let context = self.clone();
         async_std::task::spawn(async move {
@@ -448,6 +449,33 @@ impl Context {
                         .unwrap_or_default()
                         .as_millis() as i64;
                     // TODO
+
+                    let webxdc_instance_id = MsgId::new(debug_logging_webxdc as u32);
+
+                    match context
+                        .internal_write_status_update(
+                            &webxdc_instance_id,
+                            StatusUpdateItem {
+                                payload: event.to_json(Some(time)),
+                                info: None,
+                                summary: None,
+                            },
+                        )
+                        .await
+                    {
+                        Err(err) => {
+                            eprintln!("Can't log event to webxdc status update: {:#}", err);
+                        }
+                        Ok(serial) => {
+                            context.events.emit(Event {
+                                id: context.id,
+                                typ: EventType::WebxdcStatusUpdate {
+                                    msg_id: webxdc_instance_id,
+                                    status_update_serial: serial,
+                                },
+                            });
+                        }
+                    }
                 }
             }
         });

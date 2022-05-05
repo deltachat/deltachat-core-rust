@@ -323,13 +323,13 @@ pub enum EventType {
     },
 }
 
-impl Event {
-    pub fn to_json(&self) -> String {
+impl EventType {
+    pub fn to_json(&self, timestamp: Option<i64>) -> Value {
         let mut tree: serde_json::Map<String, Value> = serde_json::Map::new();
 
-        tree.insert("id".to_string(), Value::Number(self.as_id().into()));
+        tree.insert("event_type".to_string(), Value::Number(self.as_id().into()));
 
-        let (data1, data2) = match &self.typ {
+        let (data1, data2) = match &self {
             EventType::Info(data1)
             | EventType::Warning(data1)
             | EventType::Error(data1)
@@ -340,7 +340,9 @@ impl Event {
             | EventType::ImapMessageMoved(data1)
             | EventType::NewBlobFile(data1)
             | EventType::DeletedBlobFile(data1)
-            | EventType::ErrorSelfNotInGroup(data1) => (Value::String(data1.to_owned()), Value::Null),
+            | EventType::ErrorSelfNotInGroup(data1) => {
+                (Value::String(data1.to_owned()), Value::Null)
+            }
             EventType::MsgsChanged { chat_id, msg_id }
             | EventType::IncomingMsg { chat_id, msg_id }
             | EventType::MsgDelivered { chat_id, msg_id }
@@ -400,6 +402,11 @@ impl Event {
 
         tree.insert("data1".to_string(), data1);
         tree.insert("data2".to_string(), data2);
-        Value::Object(tree).to_string()
+
+        if let Some(ts) = timestamp {
+            tree.insert("ts".to_string(), Value::Number(ts.into()));
+        }
+
+        Value::Object(tree)
     }
 }

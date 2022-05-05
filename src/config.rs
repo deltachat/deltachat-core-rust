@@ -1,13 +1,13 @@
 //! # Key-value configuration management.
 
 use anyhow::{ensure, Context as _, Result};
-use strum::{EnumProperty as EnumPropertyTrait, IntoEnumIterator};
-use async_std::fs::File;
-use async_std::io::WriteExt;
+
+use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
 
+use crate::chat;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::addr_cmp;
 use crate::context::Context;
