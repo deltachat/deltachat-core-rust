@@ -335,7 +335,7 @@ impl Context {
                         message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await?;
                     }
                 } else {
-                    let data: &[u8] = include_bytes!("../test-data/webxdc/minimal.xdc");
+                    let data: &[u8] = include_bytes!("../assets/webxdc-dev.xdc");
 
                     let file = BlobObject::create(self, "webxdc_debug_logging.xdc", data).await?;
                     let mut instance = Message::new(Viewtype::Webxdc);
