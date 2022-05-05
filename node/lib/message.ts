@@ -108,6 +108,9 @@ interface NativeMessage {}
 export class Message {
   constructor(public dc_msg: NativeMessage) {
     debug('Message constructor')
+    if (dc_msg === null) {
+      throw new Error('dc_msg can not be null')
+    }
   }
 
   toJson() {

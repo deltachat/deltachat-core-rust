@@ -1,19 +1,17 @@
 # deltachat-node
 
-> node.js bindings for [`deltachat-core-rust`][deltachat-core-rust]
+> node.js bindings for [`deltachat-core-rust`](..)
 
 [![npm](https://img.shields.io/npm/v/deltachat-node.svg)](https://www.npmjs.com/package/deltachat-node)
 ![Node version](https://img.shields.io/node/v/deltachat-node.svg)
-[![Coverage Status](https://coveralls.io/repos/github/deltachat/deltachat-node/badge.svg)](https://coveralls.io/github/deltachat/deltachat-node)
-[![dependencies](https://david-dm.org/deltachat/deltachat-node.svg)](https://david-dm.org/deltachat/deltachat-node)
 [![JavaScript Style Guide](https://img.shields.io/badge/code_style-prettier-brightgreen.svg)](https://prettier.io)
 
 `deltachat-node` primarily aims to offer two things:
 
 - A high level JavaScript api with syntactic sugar
-- A low level c binding api around  [`deltachat-core-rust`][deltachat-core-rust]
+- A low level c binding api around  [`deltachat-core-rust`](..)
 
-This code used to live at [`deltachat-node`][deltachat-node].
+This code used to live at [`deltachat-node`](https://github.com/deltachat/deltachat-node)
 
 ## Table of Contents
 
@@ -31,13 +29,13 @@ This code used to live at [`deltachat-node`][deltachat-node].
 ## Install
 
 By default the installation will build try to use the bundled prebuilds in the
-npm package. If this fails it falls back to compile `deltachat-core-rust` from
+npm package. If this fails it falls back to compile `../deltachat-core-rust` from
 this repository, using `scripts/rebuild-core.js`.
 
 To install from npm use:
 
 ```
-npm install deltchat-node
+npm install deltachat-node
 ```
 
 ## Dependencies
@@ -53,10 +51,14 @@ If you want to build from source, make sure that you have `rustup` installed.
 You can either use `npm install deltachat-node --build-from-source` to force
 building from source or clone this repository and follow this steps:
 
-1. `git clone https://github.com/deltachat/deltachat-node.git`
-2. `cd deltachat-node`
+1. `git clone https://github.com/deltachat/deltachat-core-rust.git`
+2. `cd deltachat-core-rust`
 3. `npm i`
 4. `npm run build`
+
+> Our `package.json` file is located in the root directory of this repository,
+> not inside this folder. (We need this in order to include the rust source
+> code in the npm package.)
 
 ### Use build-from-source in deltachat-desktop
 
@@ -73,15 +75,15 @@ deltachat-desktop's package.json. You need to change
 
 ```
 diff --git i/package.json w/package.json
-index d3fb3f23..b6ee6b7f 100644
+index 45893894..5154512c 100644
 --- i/package.json
 +++ w/package.json
 @@ -83,7 +83,7 @@
      "application-config": "^1.0.1",
      "classnames": "^2.3.1",
      "debounce": "^1.2.0",
--    "deltachat-node": "1.77.1",
-+    "deltachat-node": "file:../deltachat-core-rust/node",
+-    "deltachat-node": "1.79.3",
++    "deltachat-node": "file:../deltachat-core-rust/",
      "emoji-js-clean": "^4.0.0",
      "emoji-mart": "^3.0.1",
      "emoji-regex": "^9.2.2",
@@ -218,17 +220,8 @@ We have the following scripts for building, testing and coverage:
 
 The following steps are needed to make a release:
 
-1. Update `CHANGELOG.md` (and run `npm run hallmark` to adjust markdown)
-
-- Add release changelog in top section
-- Also adjust links to github prepare links at the end of the file
-
-2. Bump version number in package.json
-3. Commit the changed files, commit message should be similiar to `Prepare node-bindings npm release`
-4. Tag the release with `git tag -a v1.0.0-foo.number`
-5. Push to github with `git push origin master --tags`
-6. Wait until `Make Package` github action is completed
-7. Download `deltachat-node.tgz` from the github release and run `npm publish deltachat-node.tgz` to publish it to npm. You probably need write rights to npm.
+1. Wait until `pack-module` github action is completed
+2. Run `npm publish https://download.delta.chat/node/deltachat-node-v1.x.x.tar.gz` to publish it to npm. You probably need write rights to npm.
 
 ## License
 

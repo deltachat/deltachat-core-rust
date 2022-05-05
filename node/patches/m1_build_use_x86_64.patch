@@ -1,13 +1,13 @@
-diff --git a/binding.gyp b/binding.gyp
-index 199f4d3..15b47f8 100644
---- a/binding.gyp
-+++ b/binding.gyp
-@@ -42,7 +42,7 @@
-                 {
-                   "include_dirs": ["deltachat-core-rust/deltachat-ffi"],
+diff --git i/node/binding.gyp w/node/binding.gyp
+index b0d92eae..c5e504fa 100644
+--- i/node/binding.gyp
++++ w/node/binding.gyp
+@@ -43,7 +43,7 @@
+                   "include_dirs": ["../deltachat-ffi"],
+                   "ldflags": ["-Wl,-Bsymbolic"], # Prevent sqlite3 from electron from overriding sqlcipher
                    "libraries": [
--                    "../deltachat-core-rust/target/release/libdeltachat.a",
-+                    "../deltachat-core-rust/target/x86_64-apple-darwin/release/libdeltachat.a",
+-                    "../../target/release/libdeltachat.a",
++                    "../../target/x86_64-apple-darwin/release/libdeltachat.a",
                      "-ldl",
                    ],
                    "conditions": [],

@@ -10,6 +10,9 @@ interface NativeLocations {}
 export class Locations {
   constructor(public dc_locations: NativeLocations) {
     debug('Locations constructor')
+    if (dc_locations === null) {
+      throw new Error('dc_locations can not be null')
+    }
   }
 
   locationToJson(index: number) {

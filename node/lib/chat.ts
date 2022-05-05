@@ -15,6 +15,9 @@ interface NativeChat {}
 export class Chat {
   constructor(public dc_chat: NativeChat) {
     debug('Chat constructor')
+    if (dc_chat === null) {
+      throw new Error('native chat can not be null')
+    }
   }
 
   getVisibility():

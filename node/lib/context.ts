@@ -31,6 +31,9 @@ export class Context extends EventEmitter {
   ) {
     super()
     debug('DeltaChat constructor')
+    if (inner_dcn_context === null) {
+      throw new Error('inner_dcn_context can not be null')
+    }
   }
 
   /** Opens a stanalone context (without an account manager)

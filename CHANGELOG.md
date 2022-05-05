@@ -5,6 +5,16 @@
 ### Changes
 - send normal messages with higher priority than MDNs #3243
 
+### Added
+- Now the node-bindings are also part of this repository 🎉
+
+### Fixes
+- node: throw error when getting context with an invalid account id
+- node: throw error when instanciating a wrapper class on `null` (Context, Message, Chat, ChatList and so on)
+
+### Removed
+- node: remove unmaintained coverage scripts
+
 
 ## 1.80.0
 
