@@ -340,7 +340,7 @@ impl Event {
             | EventType::ImapMessageMoved(data1)
             | EventType::NewBlobFile(data1)
             | EventType::DeletedBlobFile(data1)
-            | EventType::ErrorSelfNotInGroup(data1) => (Value::String(data1), Value::Null),
+            | EventType::ErrorSelfNotInGroup(data1) => (Value::String(data1.to_owned()), Value::Null),
             EventType::MsgsChanged { chat_id, msg_id }
             | EventType::IncomingMsg { chat_id, msg_id }
             | EventType::MsgDelivered { chat_id, msg_id }
@@ -366,14 +366,14 @@ impl Event {
                 Value::Null,
             ),
             EventType::ConfigureProgress { progress, comment } => (
-                Value::Number(progress.into()),
+                Value::Number((*progress).into()),
                 if let Some(comment) = comment {
-                    Value::String(comment)
+                    Value::String(comment.to_owned())
                 } else {
                     Value::Null
                 },
             ),
-            EventType::ImexProgress(progress) => (Value::Number(progress.into()), Value::Null),
+            EventType::ImexProgress(progress) => (Value::Number((*progress).into()), Value::Null),
             EventType::ImexFileWritten(path) => (Value::String(format!("{:?}", path)), Value::Null),
             EventType::SecurejoinInviterProgress {
                 contact_id,
@@ -384,7 +384,7 @@ impl Event {
                 progress,
             } => (
                 Value::Number(contact_id.to_u32().into()),
-                Value::Number(progress.into()),
+                Value::Number((*progress).into()),
             ),
             EventType::ConnectivityChanged | EventType::SelfavatarChanged => {
                 (Value::Null, Value::Null)
