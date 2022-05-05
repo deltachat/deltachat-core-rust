@@ -332,7 +332,7 @@ impl Context {
                     if let Some(webxdc_message_id) =
                         self.sql.get_raw_config_u32(Config::DebugLogging).await?
                     {
-                        message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await;
+                        message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await?;
                     }
                 } else {
                     let data: &[u8] = include_bytes!("../test-data/webxdc/minimal.xdc");
@@ -343,8 +343,10 @@ impl Context {
                         file.to_abs_path().to_str().context("Non-UTF-8 blob file")?,
                         None,
                     );
-                    let instance_msg_id =
-                        chat::add_device_msg(self, None, Some(&mut instance)).await?;
+                    let msg_id = chat::add_device_msg(self, None, Some(&mut instance)).await?;
+                    self.sql
+                        .set_raw_config(key, Some(&msg_id.to_u32().to_string()))
+                        .await?;
                 }
             }
             _ => {
