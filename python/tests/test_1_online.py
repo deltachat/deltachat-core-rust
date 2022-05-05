@@ -419,8 +419,8 @@ def test_send_and_receive_message_markseen(acfactory, lp):
             assert msg2.chat.id == msg4.chat.id
             assert ev.data1 == msg2.chat.id
             assert ev.data2 == 0
+            idle2.wait_for_seen()
 
-            idle2.wait_for_new_message()
         lp.step("1")
         for i in range(2):
             ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")

@@ -138,6 +138,8 @@ class TestProcess:
     """
     def __init__(self, pytestconfig):
         self.pytestconfig = pytestconfig
+        self._addr2files = {}
+        self._configlist = []
 
     def get_liveconfig_producer(self):
         """ provide live account configs, cached on a per-test-process scope
@@ -149,7 +151,6 @@ class TestProcess:
         if not liveconfig_opt:
             pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig to provide live accounts")
 
-        configlist = []
         if not liveconfig_opt.startswith("http"):
             for line in open(liveconfig_opt):
                 if line.strip() and not line.strip().startswith('#'):
@@ -157,14 +158,14 @@ class TestProcess:
                     for part in line.split():
                         name, value = part.split("=")
                         d[name] = value
-                    configlist.append(d)
+                    self._configlist.append(d)
 
-            yield from iter(configlist)
+            yield from iter(self._configlist)
         else:
             MAX_LIVE_CREATED_ACCOUNTS = 10
             for index in range(MAX_LIVE_CREATED_ACCOUNTS):
                 try:
-                    yield configlist[index]
+                    yield self._configlist[index]
                 except IndexError:
                     res = requests.post(liveconfig_opt)
                     if res.status_code != 200:
@@ -173,7 +174,7 @@ class TestProcess:
                     d = res.json()
                     config = dict(addr=d["email"], mail_pw=d["password"])
                     print("newtmpuser {}: addr={}".format(index, config["addr"]))
-                    configlist.append(config)
+                    self._configlist.append(config)
                     yield config
             pytest.fail("more than {} live accounts requested.".format(MAX_LIVE_CREATED_ACCOUNTS))
 
@@ -217,10 +218,11 @@ class ACSetup:
     CONFIGURED = "CONFIGURED"
     IDLEREADY = "IDLEREADY"
 
-    def __init__(self, init_time):
+    def __init__(self, testprocess, init_time):
         self._configured_events = Queue()
         self._account2state = {}
         self._imap_cleaned = set()
+        self.testprocess = testprocess
         self.init_time = init_time
 
     def start_configure(self, account, reconfigure=False):
@@ -242,7 +244,8 @@ class ACSetup:
                 acc = self._pop_config_success()
                 if acc == account:
                     break
-            self.init_direct_imap_and_logging(acc)
+            self.init_imap(acc)
+            self.init_logging(acc)
             acc._evtracker.consume_events()
 
     def bring_online(self):
@@ -272,25 +275,24 @@ class ACSetup:
         return acc
 
     def _onconfigure_start_io(self, acc):
+        self.init_imap(acc)
+        self.init_logging(acc)
         acc.start_io()
         print(acc._logid, "waiting for inbox IDLE to become ready")
         acc._evtracker.wait_idle_inbox_ready()
-        self.init_direct_imap_and_logging(acc)
         acc._evtracker.consume_events()
         acc.log("inbox IDLE ready")
 
-    def init_direct_imap_and_logging(self, acc):
-        """ idempotent function for initializing direct_imap and logging for an account. """
-        self.init_direct_imap(acc)
-        self.init_logging(acc)
-
     def init_logging(self, acc):
+        """ idempotent function for initializing logging (will replace existing logger). """
         logger = FFIEventLogger(acc, logid=acc._logid, init_time=self.init_time)
-        acc.add_account_plugin(logger, name=acc._logid)
+        acc.add_account_plugin(logger, name="logger-" + acc._logid)
 
-    def init_direct_imap(self, acc):
-        """ idempotent function for initializing direct_imap."""
+    def init_imap(self, acc):
+        """ initialize direct_imap and cleanup server state. """
         from deltachat.direct_imap import DirectImap
+
+        assert acc.is_configured()
         if not hasattr(acc, "direct_imap"):
             acc.direct_imap = DirectImap(acc)
         addr = acc.get_config("addr")
@@ -315,11 +317,12 @@ class ACFactory:
         self.tmpdir = tmpdir
         self.pytestconfig = request.config
         self.data = data
+        self.testprocess = testprocess
         self._liveconfig_producer = testprocess.get_liveconfig_producer()
 
         self._finalizers = []
         self._accounts = []
-        self._acsetup = ACSetup(self.init_time)
+        self._acsetup = ACSetup(testprocess, self.init_time)
         self._preconfigured_keys = ["alice", "bob", "charlie",
                                     "dom", "elena", "fiona"]
         self.set_logging_default(False)
@@ -344,7 +347,7 @@ class ACFactory:
         """ Base function to get functional online configurations
         where we can make valid SMTP and IMAP connections with.
         """
-        configdict = next(self._liveconfig_producer)
+        configdict = next(self._liveconfig_producer).copy()
         if "e2ee_enabled" not in configdict:
             configdict["e2ee_enabled"] = "1"
 
@@ -480,10 +483,6 @@ class ACFactory:
             ac.dump_account_info(logfile=logfile)
             imap = getattr(ac, "direct_imap", None)
             if imap is not None:
-                try:
-                    imap.idle_done()
-                except Exception:
-                    pass
                 imap.dump_imap_structures(self.tmpdir, logfile=logfile)
 
     def get_accepted_chat(self, ac1: Account, ac2: Account):
@@ -501,6 +500,7 @@ class ACFactory:
                     acc2.create_chat(acc).send_text("hi back")
                     to_wait.append(acc)
         for acc in to_wait:
+            acc.log("waiting for incoming message")
             acc._evtracker.wait_next_incoming_message()
 
 
