@@ -2,7 +2,10 @@
 
 use std::path::PathBuf;
 
-use async_channel::{self as channel, Receiver, Sender, TrySendError};
+use async_std::channel::{self, Receiver, Sender, TrySendError};
+use async_std::path::PathBuf;
+use serde_json::Value;
+use strum::EnumProperty;
 
 use crate::chat::ChatId;
 use crate::contact::ContactId;
@@ -318,4 +321,85 @@ pub enum EventType {
     WebxdcInstanceDeleted {
         msg_id: MsgId,
     },
+}
+
+impl Event {
+    pub fn to_json(&self) -> String {
+        let mut tree: serde_json::Map<String, Value> = serde_json::Map::new();
+
+        tree.insert("id".to_string(), Value::Number(self.as_id().into()));
+
+        let (data1, data2) = match self.typ {
+            EventType::Info(data1)
+            | EventType::Warning(data1)
+            | EventType::Error(data1)
+            | EventType::SmtpConnected(data1)
+            | EventType::ImapConnected(data1)
+            | EventType::SmtpMessageSent(data1)
+            | EventType::ImapMessageDeleted(data1)
+            | EventType::ImapMessageMoved(data1)
+            | EventType::NewBlobFile(data1)
+            | EventType::DeletedBlobFile(data1)
+            | EventType::ErrorSelfNotInGroup(data1) => (Value::String(data1), Value::Null),
+            EventType::MsgsChanged { chat_id, msg_id }
+            | EventType::IncomingMsg { chat_id, msg_id }
+            | EventType::MsgDelivered { chat_id, msg_id }
+            | EventType::MsgFailed { chat_id, msg_id }
+            | EventType::MsgRead { chat_id, msg_id } => (
+                Value::Number(chat_id.to_u32().into()),
+                Value::Number(msg_id.to_u32().into()),
+            ),
+            EventType::MsgsNoticed(chat_id) | EventType::ChatModified(chat_id) => {
+                (Value::Number(chat_id.to_u32().into()), Value::Null)
+            }
+            EventType::ChatEphemeralTimerModified { chat_id, timer } => (
+                Value::Number(chat_id.to_u32().into()),
+                Value::String(format!("{:?}", timer)),
+            ),
+            EventType::ContactsChanged(contact_id_option)
+            | EventType::LocationChanged(contact_id_option) => (
+                if let Some(id) = contact_id_option {
+                    Value::Number(id.to_u32().into())
+                } else {
+                    Value::Null
+                },
+                Value::Null,
+            ),
+            EventType::ConfigureProgress { progress, comment } => (
+                Value::Number(progress.into()),
+                if let Some(comment) = comment {
+                    Value::String(comment)
+                } else {
+                    Value::Null
+                },
+            ),
+            EventType::ImexProgress(progress) => (Value::Number(progress.into()), Value::Null),
+            EventType::ImexFileWritten(path) => (Value::String(format!("{:?}", path)), Value::Null),
+            EventType::SecurejoinInviterProgress {
+                contact_id,
+                progress,
+            }
+            | EventType::SecurejoinJoinerProgress {
+                contact_id,
+                progress,
+            } => (
+                Value::Number(contact_id.to_u32().into()),
+                Value::Number(progress.into()),
+            ),
+            EventType::ConnectivityChanged | EventType::SelfavatarChanged => {
+                (Value::Null, Value::Null)
+            }
+            EventType::WebxdcStatusUpdate {
+                msg_id,
+                status_update_serial,
+            } => (
+                Value::Number(msg_id.to_u32().into()),
+                Value::Number(status_update_serial.to_u32().into()),
+            ),
+        };
+
+        tree.insert("data1".to_string(), data1);
+        tree.insert("data2".to_string(), data2);
+        Value::Object(tree).to_string()
+    }
 }
