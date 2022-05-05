@@ -436,6 +436,21 @@ impl Context {
             id: self.id,
             typ: event,
         });
+        let context = self.clone();
+        async_std::task::spawn(async move {
+            // TODO synchronously is prob. better
+            match context.get_config_int(Config::DebugLogging).await {
+                Err(e) => eprintln!("Can't get debug logging config: {:#}", e),
+                Ok(0) => {}
+                Ok(debug_logging_webxdc) => {
+                    let time = SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as i64;
+                    // TODO
+                }
+            }
+        });
     }
 
     /// Emits a generic MsgsChanged event (without chat or message id)

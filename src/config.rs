@@ -2,16 +2,21 @@
 
 use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty as EnumPropertyTrait, IntoEnumIterator};
+use async_std::fs::File;
+use async_std::io::WriteExt;
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
+use crate::chat::ChatId;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::events::EventType;
+use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
+use crate::{chat, webxdc};
 
 /// The available configuration keys.
 #[derive(
@@ -190,6 +195,9 @@ pub enum Config {
     ///
     /// See `crate::authres::update_authservid_candidates`.
     AuthservIdCandidates,
+    // TODO docs, deltachat.h
+    #[strum(props(default = "0"))]
+    DebugLogging,
 }
 
 impl Context {
@@ -318,6 +326,24 @@ impl Context {
                 self.sql
                     .set_raw_config(key.as_ref(), value.as_deref())
                     .await?;
+            }
+            Config::DebugLogging => {
+                if value == Some("0") || value == Some("") || value == None {
+                    if let Some(webxdc_message_id) =
+                        self.sql.get_raw_config_int(Config::DebugLogging).await?
+                    {
+                        // TODO possible recursion?
+                        message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await?;
+                    }
+                } else {
+                    let data: &[u8] = include_bytes!("../test-data/webxdc/minimal.xdc");
+
+                    let file = BlobObject::create(self, "webxdc_debug_logging.xdc", data).await?;
+                    let mut instance = Message::new(Viewtype::Webxdc);
+                    instance.set_file(file.to_abs_path().to_str(), None);
+                    let instance_msg_id =
+                        chat::add_device_msg(self, None, Some(&mut instance)).await?;
+                }
             }
             _ => {
                 self.sql.set_raw_config(key.as_ref(), value).await?;
