@@ -2,6 +2,34 @@
 
 ## [Unreleased][unreleased]
 
+## [1.79.3] - 2022-05-03
+
+### Fixed
+- fix standalone context: configure promise would still not return (wrong account id)
+
+## [1.79.2] - 2022-05-02
+
+### Fixed
+- fix standalone context: configure promise would not return, ALL event did not contain event name
+
+## [1.79.1] - 2022-05-02
+
+### Fixed
+- don't ignore core sourcefiles, prevented npm installation on architectures with no prebuild
+
+## [1.79.0] - 2022-05-02
+
+### Changed
+- Upgrade to deltachat-core version `1.79.0`
+
+## [1.78.0] - 2022-05-02
+
+### Changed
+- Upgrade to deltachat-core version `1.78.0`
+
+### Fixed
+- fix standalone (without account manager) context events (remove accountid, and add `ALL` event)
+
 ## [1.77.1] - 2022-04-26
 
 ### BREAKING: we now use node 16
@@ -13,7 +41,7 @@ Please update if you use an older version! ([`nvm`](https://github.com/nvm-sh/nv
 - move `Context.getSystemInfo()` to `AccountManager.getSystemInfo()`
 
 ### Fixed
-- fix that context was not usable standalone without account managrer anymore.
+- fix that context was not usable standalone without account manager anymore.
 
 ## [1.77.0] - 2022-04-14
 
@@ -1432,9 +1460,19 @@ const { C } = require('deltachat-node')
 
 - Remove `dc_msg_has_deviating_timestamp` prototype [**@link2xt**](https://github.com/link2xt)
 
-[unreleased]: https://github.com/deltachat/deltachat-node/compare/v1.77.1...HEAD
+[unreleased]: https://github.com/deltachat/deltachat-node/compare/v1.79.3...HEAD
 
-[1.77.1]: https://github.com/deltachat/deltachat-node/compare/v1.76.0...v1.77.1
+[1.79.3]: https://github.com/deltachat/deltachat-node/compare/v1.79.2...v1.79.3
+
+[1.79.2]: https://github.com/deltachat/deltachat-node/compare/v1.79.1...v1.79.2
+
+[1.79.1]: https://github.com/deltachat/deltachat-node/compare/v1.79.0...v1.79.1
+
+[1.79.0]: https://github.com/deltachat/deltachat-node/compare/v1.78.0...v1.79.0
+
+[1.78.0]: https://github.com/deltachat/deltachat-node/compare/v1.77.1...v1.78.0
+
+[1.77.1]: https://github.com/deltachat/deltachat-node/compare/v1.77.0...v1.77.1
 
 [1.77.0]: https://github.com/deltachat/deltachat-node/compare/v1.76.0...v1.77.0
 
