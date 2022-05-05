@@ -329,7 +329,7 @@ impl Event {
 
         tree.insert("id".to_string(), Value::Number(self.as_id().into()));
 
-        let (data1, data2) = match self.typ {
+        let (data1, data2) = match &self.typ {
             EventType::Info(data1)
             | EventType::Warning(data1)
             | EventType::Error(data1)

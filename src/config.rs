@@ -330,17 +330,23 @@ impl Context {
             Config::DebugLogging => {
                 if value == Some("0") || value == Some("") || value == None {
                     if let Some(webxdc_message_id) =
-                        self.sql.get_raw_config_int(Config::DebugLogging).await?
+                        self.sql.get_raw_config_u32(Config::DebugLogging).await?
                     {
                         // TODO possible recursion?
-                        message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await?;
+                        //use futures::FutureExt; // for boxed()
+                        //message::delete_msgs(self, &[MsgId::new(webxdc_message_id)])
+                        //    .boxed() // Need boxed() because of recursion
+                        //    .await;
                     }
                 } else {
                     let data: &[u8] = include_bytes!("../test-data/webxdc/minimal.xdc");
 
                     let file = BlobObject::create(self, "webxdc_debug_logging.xdc", data).await?;
                     let mut instance = Message::new(Viewtype::Webxdc);
-                    instance.set_file(file.to_abs_path().to_str(), None);
+                    instance.set_file(
+                        file.to_abs_path().to_str().context("Non-UTF-8 blob file")?,
+                        None,
+                    );
                     let instance_msg_id =
                         chat::add_device_msg(self, None, Some(&mut instance)).await?;
                 }

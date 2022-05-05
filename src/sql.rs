@@ -593,6 +593,12 @@ impl Sql {
     }
 
     pub async fn get_raw_config_bool(&self, key: &str) -> Result<bool> {
+        self.get_raw_config(key)
+            .await
+            .map(|s| s.and_then(|s| s.parse().ok()))
+    }
+
+    pub async fn get_raw_config_bool(&self, key: impl AsRef<str>) -> Result<bool> {
         // Not the most obvious way to encode bool as string, but it is matter
         // of backward compatibility.
         let res = self.get_raw_config_int(key).await?;
