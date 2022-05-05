@@ -220,10 +220,7 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     assert_folders_configured(ac1)
 
     lp.sec("create a cloned ac1 and fetch contact history during configure")
-    ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
-    ac1_clone.set_config("fetch_existing_msgs", "1")
-    acfactory.wait_configured(ac1_clone)
-    ac1_clone.start_io()
+    ac1_clone = acfactory.get_online_second_device(fetch_existing_msgs=1)
     assert_folders_configured(ac1_clone)
 
     lp.sec("check that ac2 contact was fetchted during configure")
@@ -266,12 +263,7 @@ def test_fetch_existing_msgs_group_and_single(acfactory, lp):
         assert idle1.wait_for_seen()
 
     lp.sec("Clone online account and let it fetch the existing messages")
-    ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
-    ac1_clone.set_config("fetch_existing_msgs", "1")
-    acfactory.wait_configured(ac1_clone)
-
-    ac1_clone.start_io()
-    ac1_clone._evtracker.wait_idle_inbox_ready()
+    ac1_clone = acfactory.get_online_second_device(fetch_existing_msgs=1)
 
     chats = ac1_clone.get_chats()
     assert len(chats) == 4  # two newly created chats + self-chat + device-chat
@@ -307,13 +299,8 @@ def test_undecipherable_group(acfactory, lp):
     lp.sec("ac3 reinstalls DC and generates a new key")
     ac3.stop_io()
     acfactory.remove_preconfigured_keys()
-    ac4 = acfactory.new_online_configuring_account(cloned_from=ac3)
-    acfactory.wait_configured(ac4)
+    ac4 = acfactory.get_online_second_device(ac3)
     # Create contacts to make sure incoming messages are not treated as contact requests
-    chat41 = ac4.create_chat(ac1)
-    chat42 = ac4.create_chat(ac2)
-    ac4.start_io()
-    ac4._evtracker.wait_idle_inbox_ready()
 
     lp.sec("ac1: creating group chat with 2 other members")
     chat = ac1.create_group_chat("title", contacts=[ac2, ac3])
@@ -426,10 +413,7 @@ def test_ephemeral_timer(acfactory, lp):
 
 def test_multidevice_sync_seen(acfactory, lp):
     """Test that message marked as seen on one device is marked as seen on another."""
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account()
-    ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
-    acfactory.bring_accounts_online()
+    ac1, ac2 = acfactory.get_online_multidevice_setup()
 
     ac1.set_config("bcc_self", "1")
     ac1_clone.set_config("bcc_self", "1")

@@ -92,16 +92,13 @@ def test_export_import_self_keys(acfactory, tmpdir, lp):
 
 
 def test_one_account_send_bcc_setting(acfactory, lp):
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account()
-    ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
-    acfactory.bring_accounts_online()
+    ac1, ac1_clone = acfactory.get_online_multidevice_setup()
 
     # test if sent messages are copied to it via BCC.
 
     chat = acfactory.get_accepted_chat(ac1, ac2)
     self_addr = ac1.get_config("addr")
-    other_addr = ac2.get_config("addr")
+    other_addr = acfactory.get_online_devnull_email()
 
     lp.sec("send out message without bcc to ourselves")
     ac1.set_config("bcc_self", "0")
@@ -863,14 +860,12 @@ def test_dont_show_emails(acfactory, lp):
 
 
 def test_no_old_msg_is_fresh(acfactory, lp):
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account()
-    ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
-    acfactory.bring_accounts_online()
+    ac1, ac1_clone = acfactory.get_online_multidevice_setup()
+    ac2 = acfactory.get_online_accounts(1)
 
-    ac1.set_config("e2ee_enabled", "0")
-    ac1_clone.set_config("e2ee_enabled", "0")
-    ac2.set_config("e2ee_enabled", "0")
+    #ac1.set_config("e2ee_enabled", "0")
+    #ac1_clone.set_config("e2ee_enabled", "0")
+    #ac2.set_config("e2ee_enabled", "0")
 
     ac1_clone.set_config("bcc_self", "1")
 
@@ -1239,9 +1234,7 @@ def test_ac_setup_message(acfactory, lp):
     # note that the receiving account needs to be configured and running
     # before ther setup message is send. DC does not read old messages
     # as of Jul2019
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)
-    acfactory.bring_accounts_online()
+    ac1, ac2 = acfactory.get_online_multidevice_setup(copied=False)
 
     lp.sec("trigger ac setup message and return setupcode")
     assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -1261,9 +1254,7 @@ def test_ac_setup_message(acfactory, lp):
 
 
 def test_ac_setup_message_twice(acfactory, lp):
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)
-    acfactory.bring_accounts_online()
+    ac1, ac2 = acfactory.get_online_multidevice_setup(copied=False)
 
     lp.sec("trigger ac setup message but ignore")
     assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]

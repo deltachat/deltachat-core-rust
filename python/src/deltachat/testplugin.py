@@ -473,16 +473,30 @@ class ACFactory:
         self._acsetup.init_logging(ac)
         return ac
 
-    def new_online_configuring_account(self, cloned_from=None, cache=False, **kwargs):
-        if cloned_from is None:
-            configdict = self.get_next_liveconfig()
-        else:
-            # XXX we might want to transfer the key to the new account
-            configdict = dict(
-                addr=cloned_from.get_config("addr"),
-                mail_pw=cloned_from.get_config("mail_pw"),
-            )
+    def new_online_configuring_account(self, cache=False, **kwargs):
+        configdict = self.get_next_liveconfig()
         configdict.update(kwargs)
+        return self._setup_online_configuring_account(configdict)
+
+    def get_online_second_device(self, ac1):
+        ac1 = self._get_cached_account(addr=ac1.get_config("addr"))
+        self.bring_accounts_online()
+        return ac1
+
+    def get_online_multidevice_setup(self, copied=True):
+        ac1 = self.get_online_accounts(1)
+        if copied:
+            ac2 = self._get_cached_account(addr=ac1.get_config("addr"))
+        else:
+            configdict = dict(addr=ac1.get_config("addr"), mail_pw=ac1.get_config("mail_pw"))
+            ac2 = self._setup_online_configuring_account(configdict, cache=False)
+        self.bring_accounts_online()
+        return ac1, ac2
+
+    def get_online_devnull_email(self):
+        return self.get_next_liveconfig()["addr"]
+
+    def _setup_online_configuring_account(self, configdict, cache=False):
         ac = self._get_cached_account(addr=configdict["addr"]) if cache else None
         if ac is not None:
             # make sure we consume a preconfig key, as if we had created a fresh account
