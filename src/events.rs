@@ -109,7 +109,27 @@ pub struct Event {
     pub typ: EventType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl Deref for Event {
+    type Target = EventType;
+
+    fn deref(&self) -> &EventType {
+        &self.typ
+    }
+}
+
+impl EventType {
+    /// Returns the corresponding Event ID.
+    ///
+    /// These are the IDs used in the `DC_EVENT_*` constants in `deltachat.h`.
+    pub fn as_id(&self) -> i32 {
+        self.get_str("id")
+            .expect("missing id")
+            .parse()
+            .expect("invalid id")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, Display)]
 pub enum EventType {
     /// The library-user may write an informational string to the log.
     ///
@@ -327,7 +347,7 @@ impl EventType {
     pub fn to_json(&self, timestamp: Option<i64>) -> Value {
         let mut tree: serde_json::Map<String, Value> = serde_json::Map::new();
 
-        tree.insert("event_type".to_string(), Value::Number(self.as_id().into()));
+        tree.insert("event_type".to_string(), Value::String(self.to_string()));
 
         let (data1, data2) = match &self {
             EventType::Info(data1)
