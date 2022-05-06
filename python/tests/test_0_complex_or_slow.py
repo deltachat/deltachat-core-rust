@@ -192,9 +192,7 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
         if mvbox_move:
             assert ac.get_config("configured_mvbox_folder")
 
-    ac1 = acfactory.new_online_configuring_account(mvbox_move=mvbox_move)
-    ac2 = acfactory.new_online_configuring_account()
-    acfactory.wait_configured(ac1)
+    ac1, ac2 = acfactory.get_online_configured_accounts([dict(mvbox_move=mvbox_move), dict()])
     ac1.direct_imap.create_folder("Sent")
     ac1.set_config("sentbox_watch", "1")
 
@@ -203,8 +201,9 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     # would also find the "Sent" folder, but it would be too late:
     # The sentbox thread, started by `start_io()`, would have seen that there is no
     # ConfiguredSentboxFolder and do nothing.
-    acfactory._acsetup.start_configure(ac1, reconfigure=True)
+    acfactory.force_reconfigure(ac1)
     acfactory.bring_accounts_online()
+
     assert_folders_configured(ac1)
 
     assert ac1.direct_imap.select_config_folder("mvbox" if mvbox_move else "inbox")
@@ -220,7 +219,7 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     assert_folders_configured(ac1)
 
     lp.sec("create a cloned ac1 and fetch contact history during configure")
-    ac1_clone = acfactory.get_online_second_device(fetch_existing_msgs=1)
+    ac1_clone = acfactory.get_online_second_device(ac1, fetch_existing_msgs=1)
     assert_folders_configured(ac1_clone)
 
     lp.sec("check that ac2 contact was fetchted during configure")
@@ -245,10 +244,7 @@ def test_fetch_existing_msgs_group_and_single(acfactory, lp):
     So, after fetch-existing-msgs you have one contact request and one chat with the same person.
 
     See https://github.com/deltachat/deltachat-core-rust/issues/2097"""
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account()
-
-    acfactory.bring_accounts_online()
+    ac1, ac2 = acfactory.get_online_accounts(2)
 
     lp.sec("receive a message")
     ac2.create_group_chat("group name", contacts=[ac1]).send_text("incoming, unencrypted group message")
@@ -263,7 +259,7 @@ def test_fetch_existing_msgs_group_and_single(acfactory, lp):
         assert idle1.wait_for_seen()
 
     lp.sec("Clone online account and let it fetch the existing messages")
-    ac1_clone = acfactory.get_online_second_device(fetch_existing_msgs=1)
+    ac1_clone = acfactory.get_online_second_device(ac1, fetch_existing_msgs=1)
 
     chats = ac1_clone.get_chats()
     assert len(chats) == 4  # two newly created chats + self-chat + device-chat
@@ -276,8 +272,8 @@ def test_fetch_existing_msgs_group_and_single(acfactory, lp):
     assert len(group_messages) == 1
     assert group_messages[0].text == "incoming, unencrypted group message"
     private_messages = private_chat.get_messages()
-    # We can't decrypt the message in this chat, so the chat is empty:
-    assert len(private_messages) == 0
+    assert len(private_messages) == 1
+    assert private_messages[0].text.startswith("outgoing, encrypted")
 
 
 def test_undecipherable_group(acfactory, lp):
@@ -413,7 +409,8 @@ def test_ephemeral_timer(acfactory, lp):
 
 def test_multidevice_sync_seen(acfactory, lp):
     """Test that message marked as seen on one device is marked as seen on another."""
-    ac1, ac2 = acfactory.get_online_multidevice_setup()
+    ac1, ac1_clone = acfactory.get_online_multidevice_setup()
+    ac2, = acfactory.get_online_accounts(1)
 
     ac1.set_config("bcc_self", "1")
     ac1_clone.set_config("bcc_self", "1")

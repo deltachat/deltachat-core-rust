@@ -92,13 +92,13 @@ def test_export_import_self_keys(acfactory, tmpdir, lp):
 
 
 def test_one_account_send_bcc_setting(acfactory, lp):
-    ac1, ac1_clone = acfactory.get_online_multidevice_setup()
+    ac1, ac1_clone = acfactory.get_online_multidevice_setup(copied=False)
+    ac2, = acfactory.get_online_accounts(1)
 
     # test if sent messages are copied to it via BCC.
-
     chat = acfactory.get_accepted_chat(ac1, ac2)
     self_addr = ac1.get_config("addr")
-    other_addr = acfactory.get_online_devnull_email()
+    ac2_addr = ac2.get_config("addr")
 
     lp.sec("send out message without bcc to ourselves")
     ac1.set_config("bcc_self", "0")
@@ -109,9 +109,9 @@ def test_one_account_send_bcc_setting(acfactory, lp):
     ev = ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
     assert ac1.get_config("bcc_self") == "0"
 
-    # make sure we are not sending message to ourselves
+    # make sure we are NOT sending message to ourselves
     assert self_addr not in ev.data2
-    assert other_addr in ev.data2
+    assert ac2_addr in ev.data2
 
     lp.sec("ac1: setting bcc_self=1")
     ac1.set_config("bcc_self", "1")
@@ -126,7 +126,7 @@ def test_one_account_send_bcc_setting(acfactory, lp):
 
         # now make sure we are sending message to ourselves too
         assert self_addr in ev.data2
-        assert other_addr in ev.data2
+        assert ac2_addr in ev.data2
         assert idle1.wait_for_seen()
 
     # Second client receives only second message, but not the first
@@ -861,17 +861,11 @@ def test_dont_show_emails(acfactory, lp):
 
 def test_no_old_msg_is_fresh(acfactory, lp):
     ac1, ac1_clone = acfactory.get_online_multidevice_setup()
-    ac2 = acfactory.get_online_accounts(1)
-
-    #ac1.set_config("e2ee_enabled", "0")
-    #ac1_clone.set_config("e2ee_enabled", "0")
-    #ac2.set_config("e2ee_enabled", "0")
+    ac2, = acfactory.get_online_accounts(1)
 
     ac1_clone.set_config("bcc_self", "1")
-
     ac1.create_chat(ac2)
     ac1_clone.create_chat(ac2)
-
     ac1.get_device_chat().mark_noticed()
 
     lp.sec("Send a first message from ac2 to ac1 and check that it's 'fresh'")
@@ -883,7 +877,6 @@ def test_no_old_msg_is_fresh(acfactory, lp):
     lp.sec("Send a message from ac1_clone to ac2 and check that ac1 marks the first message as 'noticed'")
     ac1_clone.create_chat(ac2).send_text("Hi back")
     ev = ac1._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
-
     assert ev.data1 == first_msg_id.chat.id
     assert ac1.create_chat(ac2).count_fresh_messages() == 0
     assert len(list(ac1.get_fresh_messages())) == 0

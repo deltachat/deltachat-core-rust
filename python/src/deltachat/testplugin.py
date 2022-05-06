@@ -282,6 +282,10 @@ class ACSetup:
 
     def start_configure(self, account, reconfigure=False):
         """ add an account and start its configure process. """
+
+        if reconfigure:
+            assert account.is_configured()
+
         class PendingTracker:
             @account_hookimpl
             def ac_configure_completed(this, success):
@@ -290,7 +294,7 @@ class ACSetup:
         account.add_account_plugin(PendingTracker(), name="pending_tracker")
         self._account2state[account] = self.CONFIGURING
         account.configure(reconfigure=reconfigure)
-        self.log("started configure on", account)
+        self.log("started {}configure on".format("re-" if reconfigure else ""), account)
 
     def wait_one_configured(self, account):
         """ wait until this account has successfully configured. """
@@ -302,6 +306,11 @@ class ACSetup:
             self.init_imap(acc)
             self.init_logging(acc)
             acc._evtracker.consume_events()
+
+    def wait_all_configured(self):
+        """ Wait for all unconfigured accounts to become finished. """
+        while self.CONFIGURING in self._account2state.values():
+            self._pop_config_success()
 
     def bring_online(self):
         """ Wait for all accounts to become ready to receive messages.
@@ -417,7 +426,7 @@ class ACFactory:
         assert "addr" in configdict and "mail_pw" in configdict
         return configdict
 
-    def _get_cached_account(self, addr):
+    def _get_cached_account_copy(self, addr):
         if addr in self.testprocess._addr2files:
             return self._getaccount(addr)
 
@@ -426,6 +435,7 @@ class ACFactory:
 
     def _getaccount(self, try_cache_addr=None):
         logid = "ac{}".format(len(self._accounts) + 1)
+
         # we need to use fixed database basename for maybe_cache_* functions to work
         path = self.tmpdir.mkdir(logid).join("dc.db")
         if try_cache_addr:
@@ -473,23 +483,41 @@ class ACFactory:
         self._acsetup.init_logging(ac)
         return ac
 
+    # XXX deprecate the next function?
     def new_online_configuring_account(self, cache=False, **kwargs):
         configdict = self.get_next_liveconfig()
         configdict.update(kwargs)
-        return self._setup_online_configuring_account(configdict)
+        return self._setup_online_configuring_account(configdict, cache=cache)
 
-    def get_online_second_device(self, ac1):
-        ac1 = self._get_cached_account(addr=ac1.get_config("addr"))
+    def get_online_second_device(self, ac1, **kwargs):
+        ac2 = self._get_cached_account_copy(addr=ac1.get_config("addr"))
+        if ac2 is None:
+            # some tests setup the primary account without causing caching.
+            configdict = kwargs.copy()
+            configdict["addr"] = ac1.get_config("addr")
+            configdict["mail_pw"] = ac1.get_config("mail_pw")
+            ac2 = self._setup_online_configuring_account(configdict, cache=False)
+        elif kwargs:
+            ac2.update_config(kwargs)
+            self._acsetup.add_configured(ac2)
+
         self.bring_accounts_online()
-        return ac1
+        return ac2
 
     def get_online_multidevice_setup(self, copied=True):
-        ac1 = self.get_online_accounts(1)
+        """ Provide two accounts. The second uses the same credentials
+        and if copied is True, also the same database and blobs.
+        You can use copy=False to get a typical configuration where
+        a user unsuspectingly sets up a second device and expects it to
+        "just work" not knowing that an export/import is required.
+        """
+        ac1, = self.get_online_accounts(1)
         if copied:
-            ac2 = self._get_cached_account(addr=ac1.get_config("addr"))
+            ac2 = self._get_cached_account_copy(addr=ac1.get_config("addr"))
+            self._acsetup.add_configured(ac2)
         else:
-            configdict = dict(addr=ac1.get_config("addr"), mail_pw=ac1.get_config("mail_pw"))
-            ac2 = self._setup_online_configuring_account(configdict, cache=False)
+            config2 = dict(addr=ac1.get_config("addr"), mail_pw=ac1.get_config("mail_pw"))
+            ac2 = self._setup_online_configuring_account(config2, cache=False)
         self.bring_accounts_online()
         return ac1, ac2
 
@@ -497,7 +525,7 @@ class ACFactory:
         return self.get_next_liveconfig()["addr"]
 
     def _setup_online_configuring_account(self, configdict, cache=False):
-        ac = self._get_cached_account(addr=configdict["addr"]) if cache else None
+        ac = self._get_cached_account_copy(configdict["addr"]) if cache else None
         if ac is not None:
             # make sure we consume a preconfig key, as if we had created a fresh account
             self._preconfigured_keys.pop(0)
@@ -526,10 +554,26 @@ class ACFactory:
         self._acsetup.bring_online()
         print("all accounts online")
 
+    def get_online_configured_accounts(self, configlist):
+        accounts = [self.new_online_configuring_account(cache=True, **config)
+                    for config in configlist]
+        self._acsetup.wait_all_configured()
+        for acc in accounts:
+            self._acsetup.init_imap(acc)
+        return accounts
+
+    def force_reconfigure(self, account):
+        self._acsetup.start_configure(account, reconfigure=True)
+
     def get_online_accounts(self, num):
+        """ Return a list of configured and started Accounts.
+
+        This function creates plain online accounts and fill
+        a testprocess-scoped cache and re-use these plain accounts
+        on the next test function.
+        """
         accounts = [self.new_online_configuring_account(cache=True) for i in range(num)]
         self.bring_accounts_online()
-        # we cache fully configured and started accounts
         for acc in accounts:
             self.testprocess.cache_maybe_store_configured_db_files(acc)
         return accounts
@@ -575,7 +619,7 @@ class ACFactory:
             if imap is not None:
                 imap.dump_imap_structures(self.tmpdir, logfile=logfile)
 
-    def get_accepted_chat(self, ac1: Account, ac2: Account):
+    def get_accepted_chat(self, ac1: Account, ac2):
         ac2.create_chat(ac1)
         return ac1.create_chat(ac2)
 
