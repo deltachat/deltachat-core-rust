@@ -60,7 +60,7 @@ impl Context {
         use futures::future::FutureExt;
 
         ensure!(
-            !self.scheduler.read().await.is_running(),
+            self.scheduler.read().await.is_none(),
             "cannot configure, already running"
         );
         ensure!(

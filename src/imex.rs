@@ -445,8 +445,8 @@ async fn import_backup(
         "Cannot import backups to accounts in use."
     );
     ensure!(
-        !context.scheduler.read().await.is_running(),
-        "cannot import backup, IO already running"
+        context.scheduler.read().await.is_none(),
+        "cannot import backup, IO is running"
     );
 
     let backup_file = File::open(backup_to_import).await?;
@@ -563,8 +563,8 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
         .ok();
 
     ensure!(
-        !context.scheduler.read().await.is_running(),
-        "cannot export backup, IO already running"
+        context.scheduler.read().await.is_none(),
+        "cannot export backup, IO is running"
     );
 
     info!(

@@ -54,7 +54,7 @@ pub struct InnerContext {
     pub(crate) translated_stockstrings: RwLock<HashMap<usize, String>>,
     pub(crate) events: Events,
 
-    pub(crate) scheduler: RwLock<Scheduler>,
+    pub(crate) scheduler: RwLock<Option<Scheduler>>,
 
     /// Recently loaded quota information, if any.
     /// Set to `None` if quota was never tried to load.
@@ -173,7 +173,7 @@ impl Context {
             wrong_pw_warning_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
             events: Events::default(),
-            scheduler: RwLock::new(Scheduler::Stopped),
+            scheduler: RwLock::new(None),
             quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
@@ -195,8 +195,12 @@ impl Context {
         }
 
         info!(self, "starting IO");
-        if let Err(err) = self.inner.scheduler.write().await.start(self.clone()).await {
-            error!(self, "Failed to start IO: {}", err)
+        let mut lock = self.inner.scheduler.write().await;
+        if lock.is_none() {
+            match Scheduler::start(self.clone()).await {
+                Err(err) => error!(self, "Failed to start IO: {}", err),
+                Ok(scheduler) => *lock = Some(scheduler),
+            }
         }
     }
 
@@ -209,8 +213,8 @@ impl Context {
         // which will emit the below event(s)
         info!(self, "stopping IO");
 
-        if let Err(err) = self.inner.stop_io().await {
-            warn!(self, "failed to stop IO: {}", err);
+        if let Some(scheduler) = self.inner.scheduler.write().await.take() {
+            scheduler.stop(self).await;
         }
     }
 
@@ -639,13 +643,6 @@ impl Context {
         wal_fname.push(dbfile.file_name().unwrap_or_default());
         wal_fname.push("-wal");
         dbfile.with_file_name(wal_fname)
-    }
-}
-
-impl InnerContext {
-    async fn stop_io(&self) -> Result<()> {
-        self.scheduler.write().await.stop().await?;
-        Ok(())
     }
 }
 

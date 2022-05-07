@@ -161,19 +161,19 @@ impl ConnectivityStore {
 /// Set all folder states to InterruptingIdle in case they were `Connected` before.
 /// Called during `dc_maybe_network()` to make sure that `dc_accounts_all_work_done()`
 /// returns false immediately after `dc_maybe_network()`.
-pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Scheduler>) {
+pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Option<Scheduler>>) {
     let [inbox, mvbox, sentbox] = match &*scheduler {
-        Scheduler::Running {
+        Some(Scheduler {
             inbox,
             mvbox,
             sentbox,
             ..
-        } => [
+        }) => [
             inbox.state.connectivity.clone(),
             mvbox.state.connectivity.clone(),
             sentbox.state.connectivity.clone(),
         ],
-        Scheduler::Stopped => return,
+        None => return,
     };
     drop(scheduler);
 
@@ -205,20 +205,20 @@ pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Scheduler>) 
 /// after `maybe_network_lost()` was called.
 pub(crate) async fn maybe_network_lost(
     context: &Context,
-    scheduler: RwLockReadGuard<'_, Scheduler>,
+    scheduler: RwLockReadGuard<'_, Option<Scheduler>>,
 ) {
     let stores = match &*scheduler {
-        Scheduler::Running {
+        Some(Scheduler {
             inbox,
             mvbox,
             sentbox,
             ..
-        } => [
+        }) => [
             inbox.state.connectivity.clone(),
             mvbox.state.connectivity.clone(),
             sentbox.state.connectivity.clone(),
         ],
-        Scheduler::Stopped => return,
+        None => return,
     };
     drop(scheduler);
 
@@ -265,16 +265,16 @@ impl Context {
     pub async fn get_connectivity(&self) -> Connectivity {
         let lock = self.scheduler.read().await;
         let stores: Vec<_> = match &*lock {
-            Scheduler::Running {
+            Some(Scheduler {
                 inbox,
                 mvbox,
                 sentbox,
                 ..
-            } => [&inbox.state, &mvbox.state, &sentbox.state]
+            }) => [&inbox.state, &mvbox.state, &sentbox.state]
                 .iter()
                 .map(|state| state.connectivity.clone())
                 .collect(),
-            Scheduler::Stopped => return Connectivity::NotConnected,
+            None => return Connectivity::NotConnected,
         };
         drop(lock);
 
@@ -353,13 +353,13 @@ impl Context {
 
         let lock = self.scheduler.read().await;
         let (folders_states, smtp) = match &*lock {
-            Scheduler::Running {
+            Some(Scheduler {
                 inbox,
                 mvbox,
                 sentbox,
                 smtp,
                 ..
-            } => (
+            }) => (
                 [
                     (
                         Config::ConfiguredInboxFolder,
@@ -376,7 +376,7 @@ impl Context {
                 ],
                 smtp.state.connectivity.clone(),
             ),
-            Scheduler::Stopped => {
+            None => {
                 return Err(anyhow!("Not started"));
             }
         };
@@ -552,17 +552,17 @@ impl Context {
     pub async fn all_work_done(&self) -> bool {
         let lock = self.scheduler.read().await;
         let stores: Vec<_> = match &*lock {
-            Scheduler::Running {
+            Some(Scheduler {
                 inbox,
                 mvbox,
                 sentbox,
                 smtp,
                 ..
-            } => [&inbox.state, &mvbox.state, &sentbox.state, &smtp.state]
+            }) => [&inbox.state, &mvbox.state, &sentbox.state, &smtp.state]
                 .iter()
                 .map(|state| state.connectivity.clone())
                 .collect(),
-            Scheduler::Stopped => return false,
+            None => return false,
         };
         drop(lock);
 

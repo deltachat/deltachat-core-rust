@@ -2,7 +2,7 @@ use anyhow::{bail, Context as _, Result};
 use async_std::prelude::*;
 use async_std::{
     channel::{self, Receiver, Sender},
-    task,
+    future, task,
 };
 
 use crate::config::Config;
@@ -23,54 +23,62 @@ pub(crate) mod connectivity;
 
 /// Job and connection scheduler.
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-pub(crate) enum Scheduler {
-    Stopped,
-    Running {
-        inbox: ImapConnectionState,
-        inbox_handle: Option<task::JoinHandle<()>>,
-        mvbox: ImapConnectionState,
-        mvbox_handle: Option<task::JoinHandle<()>>,
-        sentbox: ImapConnectionState,
-        sentbox_handle: Option<task::JoinHandle<()>>,
-        smtp: SmtpConnectionState,
-        smtp_handle: Option<task::JoinHandle<()>>,
-        ephemeral_handle: Option<task::JoinHandle<()>>,
-        ephemeral_interrupt_send: Sender<()>,
-        location_handle: Option<task::JoinHandle<()>>,
-        location_interrupt_send: Sender<()>,
-    },
+pub(crate) struct Scheduler {
+    inbox: ImapConnectionState,
+    inbox_handle: task::JoinHandle<()>,
+    mvbox: ImapConnectionState,
+    mvbox_handle: Option<task::JoinHandle<()>>,
+    sentbox: ImapConnectionState,
+    sentbox_handle: Option<task::JoinHandle<()>>,
+    smtp: SmtpConnectionState,
+    smtp_handle: task::JoinHandle<()>,
+    ephemeral_handle: task::JoinHandle<()>,
+    ephemeral_interrupt_send: Sender<()>,
+    location_handle: task::JoinHandle<()>,
+    location_interrupt_send: Sender<()>,
 }
 
 impl Context {
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
         let lock = self.scheduler.read().await;
-        lock.maybe_network().await;
+        if let Some(scheduler) = &*lock {
+            scheduler.maybe_network().await;
+        }
         connectivity::idle_interrupted(lock).await;
     }
 
     /// Indicate that the network likely is lost.
     pub async fn maybe_network_lost(&self) {
         let lock = self.scheduler.read().await;
-        lock.maybe_network_lost().await;
+        if let Some(scheduler) = &*lock {
+            scheduler.maybe_network_lost().await;
+        }
         connectivity::maybe_network_lost(self, lock).await;
     }
 
     pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
-        self.scheduler.read().await.interrupt_inbox(info).await;
+        if let Some(scheduler) = &*self.scheduler.read().await {
+            scheduler.interrupt_inbox(info).await;
+        }
     }
 
     pub(crate) async fn interrupt_smtp(&self, info: InterruptInfo) {
-        self.scheduler.read().await.interrupt_smtp(info).await;
+        if let Some(scheduler) = &*self.scheduler.read().await {
+            scheduler.interrupt_smtp(info).await;
+        }
     }
 
     pub(crate) async fn interrupt_ephemeral_task(&self) {
-        self.scheduler.read().await.interrupt_ephemeral_task().await;
+        if let Some(scheduler) = &*self.scheduler.read().await {
+            scheduler.interrupt_ephemeral_task().await;
+        }
     }
 
     pub(crate) async fn interrupt_location(&self) {
-        self.scheduler.read().await.interrupt_location().await;
+        if let Some(scheduler) = &*self.scheduler.read().await {
+            scheduler.interrupt_location().await;
+        }
     }
 }
 
@@ -356,12 +364,8 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
 }
 
 impl Scheduler {
-    /// Start the scheduler, returns error if it is already running.
-    pub async fn start(&mut self, ctx: Context) -> Result<()> {
-        if self.is_running() {
-            bail!("scheduler is already started");
-        }
-
+    /// Start the scheduler.
+    pub async fn start(ctx: Context) -> Result<Self> {
         let (mvbox, mvbox_handlers) = ImapConnectionState::new(&ctx).await?;
         let (sentbox, sentbox_handlers) = ImapConnectionState::new(&ctx).await?;
         let (smtp, smtp_handlers) = SmtpConnectionState::new();
@@ -378,9 +382,7 @@ impl Scheduler {
 
         let inbox_handle = {
             let ctx = ctx.clone();
-            Some(task::spawn(async move {
-                inbox_loop(ctx, inbox_start_send, inbox_handlers).await
-            }))
+            task::spawn(async move { inbox_loop(ctx, inbox_start_send, inbox_handlers).await })
         };
 
         if ctx.should_watch_mvbox().await? {
@@ -431,26 +433,24 @@ impl Scheduler {
 
         let smtp_handle = {
             let ctx = ctx.clone();
-            Some(task::spawn(async move {
-                smtp_loop(ctx, smtp_start_send, smtp_handlers).await
-            }))
+            task::spawn(async move { smtp_loop(ctx, smtp_start_send, smtp_handlers).await })
         };
 
         let ephemeral_handle = {
             let ctx = ctx.clone();
-            Some(task::spawn(async move {
+            task::spawn(async move {
                 ephemeral::ephemeral_loop(&ctx, ephemeral_interrupt_recv).await;
-            }))
+            })
         };
 
         let location_handle = {
             let ctx = ctx.clone();
-            Some(task::spawn(async move {
+            task::spawn(async move {
                 location::location_loop(&ctx, location_interrupt_recv).await;
-            }))
+            })
         };
 
-        *self = Scheduler::Running {
+        let res = Self {
             inbox,
             mvbox,
             sentbox,
@@ -477,14 +477,10 @@ impl Scheduler {
         }
 
         info!(ctx, "scheduler is running");
-        Ok(())
+        Ok(res)
     }
 
     async fn maybe_network(&self) {
-        if !self.is_running() {
-            return;
-        }
-
         self.interrupt_inbox(InterruptInfo::new(true))
             .join(self.interrupt_mvbox(InterruptInfo::new(true)))
             .join(self.interrupt_sentbox(InterruptInfo::new(true)))
@@ -493,10 +489,6 @@ impl Scheduler {
     }
 
     async fn maybe_network_lost(&self) {
-        if !self.is_running() {
-            return;
-        }
-
         self.interrupt_inbox(InterruptInfo::new(false))
             .join(self.interrupt_mvbox(InterruptInfo::new(false)))
             .join(self.interrupt_sentbox(InterruptInfo::new(false)))
@@ -505,109 +497,64 @@ impl Scheduler {
     }
 
     async fn interrupt_inbox(&self, info: InterruptInfo) {
-        if let Scheduler::Running { ref inbox, .. } = self {
-            inbox.interrupt(info).await;
-        }
+        self.inbox.interrupt(info).await;
     }
 
     async fn interrupt_mvbox(&self, info: InterruptInfo) {
-        if let Scheduler::Running { ref mvbox, .. } = self {
-            mvbox.interrupt(info).await;
-        }
+        self.mvbox.interrupt(info).await;
     }
 
     async fn interrupt_sentbox(&self, info: InterruptInfo) {
-        if let Scheduler::Running { ref sentbox, .. } = self {
-            sentbox.interrupt(info).await;
-        }
+        self.sentbox.interrupt(info).await;
     }
 
     async fn interrupt_smtp(&self, info: InterruptInfo) {
-        if let Scheduler::Running { ref smtp, .. } = self {
-            smtp.interrupt(info).await;
-        }
+        self.smtp.interrupt(info).await;
     }
 
     async fn interrupt_ephemeral_task(&self) {
-        if let Scheduler::Running {
-            ref ephemeral_interrupt_send,
-            ..
-        } = self
-        {
-            ephemeral_interrupt_send.try_send(()).ok();
-        }
+        self.ephemeral_interrupt_send.try_send(()).ok();
     }
 
     async fn interrupt_location(&self) {
-        if let Scheduler::Running {
-            ref location_interrupt_send,
-            ..
-        } = self
-        {
-            location_interrupt_send.try_send(()).ok();
-        }
+        self.location_interrupt_send.try_send(()).ok();
     }
 
     /// Halt the scheduler.
-    pub(crate) async fn stop(&mut self) -> Result<()> {
-        match self {
-            Scheduler::Stopped => {
-                bail!("scheduler is already stopped");
-            }
-            Scheduler::Running {
-                inbox,
-                inbox_handle,
-                mvbox,
-                mvbox_handle,
-                sentbox,
-                sentbox_handle,
-                smtp,
-                smtp_handle,
-                ephemeral_handle,
-                location_handle,
-                ..
-            } => {
-                if inbox_handle.is_some() {
-                    inbox.stop().await?;
-                }
-                if mvbox_handle.is_some() {
-                    mvbox.stop().await?;
-                }
-                if sentbox_handle.is_some() {
-                    sentbox.stop().await?;
-                }
-                if smtp_handle.is_some() {
-                    smtp.stop().await?;
-                }
-
-                if let Some(handle) = inbox_handle.take() {
-                    handle.await;
-                }
-                if let Some(handle) = mvbox_handle.take() {
-                    handle.await;
-                }
-                if let Some(handle) = sentbox_handle.take() {
-                    handle.await;
-                }
-                if let Some(handle) = smtp_handle.take() {
-                    handle.await;
-                }
-                if let Some(handle) = ephemeral_handle.take() {
-                    handle.cancel().await;
-                }
-                if let Some(handle) = location_handle.take() {
-                    handle.cancel().await;
-                }
-
-                *self = Scheduler::Stopped;
-                Ok(())
-            }
+    ///
+    /// It consumes the scheduler and never fails to stop it. In the worst case, long-running tasks
+    /// are forcefully terminated if they cannot shutdown within the timeout.
+    pub(crate) async fn stop(mut self, context: &Context) {
+        // Send stop signals to tasks so they can shutdown cleanly.
+        self.inbox.stop().await.ok_or_log(context);
+        if self.mvbox_handle.is_some() {
+            self.mvbox.stop().await.ok_or_log(context);
         }
-    }
+        if self.sentbox_handle.is_some() {
+            self.sentbox.stop().await.ok_or_log(context);
+        }
+        self.smtp.stop().await.ok_or_log(context);
 
-    /// Check if the scheduler is running.
-    pub fn is_running(&self) -> bool {
-        matches!(self, Scheduler::Running { .. })
+        // Actually shutdown tasks.
+        let timeout_duration = std::time::Duration::from_secs(30);
+        future::timeout(timeout_duration, self.inbox_handle)
+            .await
+            .ok_or_log(context);
+        if let Some(mvbox_handle) = self.mvbox_handle.take() {
+            future::timeout(timeout_duration, mvbox_handle)
+                .await
+                .ok_or_log(context);
+        }
+        if let Some(sentbox_handle) = self.sentbox_handle.take() {
+            future::timeout(timeout_duration, sentbox_handle)
+                .await
+                .ok_or_log(context);
+        }
+        future::timeout(timeout_duration, self.smtp_handle)
+            .await
+            .ok_or_log(context);
+        self.ephemeral_handle.cancel().await;
+        self.location_handle.cancel().await;
     }
 }
 
