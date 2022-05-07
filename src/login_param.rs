@@ -150,8 +150,7 @@ impl LoginParam {
     }
 
     /// Read the login parameters from the database.
-    async fn from_database(context: &Context, prefix: impl AsRef<str>) -> Result<Self> {
-        let prefix = prefix.as_ref();
+    async fn from_database(context: &Context, prefix: &str) -> Result<Self> {
         let sql = &context.sql;
 
         let key = format!("{}addr", prefix);

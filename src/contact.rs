@@ -686,7 +686,7 @@ impl Contact {
     pub async fn get_all(
         context: &Context,
         listflags: u32,
-        query: Option<impl AsRef<str>>,
+        query: Option<&str>,
     ) -> Result<Vec<ContactId>> {
         let self_addrs = context.get_all_self_addrs().await?;
         let mut add_self = false;
@@ -695,7 +695,7 @@ impl Contact {
         let flag_add_self = (listflags & DC_GCL_ADD_SELF) != 0;
 
         if flag_verified_only || query.is_some() {
-            let s3str_like_cmd = format!("%{}%", query.as_ref().map(|s| s.as_ref()).unwrap_or(""));
+            let s3str_like_cmd = format!("%{}%", query.unwrap_or(""));
             context
                 .sql
                 .query_map(
@@ -739,9 +739,9 @@ impl Contact {
                     .unwrap_or_default();
                 let self_name2 = stock_str::self_msg(context);
 
-                if self_addr.contains(query.as_ref())
-                    || self_name.contains(query.as_ref())
-                    || self_name2.await.contains(query.as_ref())
+                if self_addr.contains(query)
+                    || self_name.contains(query)
+                    || self_name2.await.contains(query)
                 {
                     add_self = true;
                 }
@@ -1396,27 +1396,23 @@ pub fn normalize_name(full_name: &str) -> String {
 fn cat_fingerprint(
     ret: &mut String,
     addr: &str,
-    fingerprint_verified: impl AsRef<str>,
-    fingerprint_unverified: impl AsRef<str>,
+    fingerprint_verified: &str,
+    fingerprint_unverified: &str,
 ) {
     *ret += &format!(
         "\n\n{}:\n{}",
         addr,
-        if !fingerprint_verified.as_ref().is_empty() {
-            fingerprint_verified.as_ref()
+        if !fingerprint_verified.is_empty() {
+            fingerprint_verified
         } else {
-            fingerprint_unverified.as_ref()
+            fingerprint_unverified
         },
     );
-    if !fingerprint_verified.as_ref().is_empty()
-        && !fingerprint_unverified.as_ref().is_empty()
-        && fingerprint_verified.as_ref() != fingerprint_unverified.as_ref()
+    if !fingerprint_verified.is_empty()
+        && !fingerprint_unverified.is_empty()
+        && fingerprint_verified != fingerprint_unverified
     {
-        *ret += &format!(
-            "\n\n{} (alternative):\n{}",
-            addr,
-            fingerprint_unverified.as_ref()
-        );
+        *ret += &format!("\n\n{} (alternative):\n{}", addr, fingerprint_unverified);
     }
 }
 

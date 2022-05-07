@@ -2920,7 +2920,7 @@ mod tests {
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
-        let contacts = Contact::get_all(&t.ctx, 0, None as Option<String>).await?;
+        let contacts = Contact::get_all(&t.ctx, 0, None).await?;
         assert_eq!(contacts.len(), 0); // mailing list recipients and senders do not count as "known contacts"
 
         let msg1 = get_chat_msg(&t, chat_id, 0, 2).await;
