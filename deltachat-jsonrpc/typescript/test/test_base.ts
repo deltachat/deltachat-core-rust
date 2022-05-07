@@ -2,21 +2,40 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { mkdtemp, rm } from "fs/promises";
 import { existsSync } from "fs";
-import { spawn } from "child_process";
+import { spawn, exec } from "child_process";
 import { unwrapPromise } from "./ts_helpers.js";
 import fetch from "node-fetch";
 /* port is not configurable yet */
 
-import { dirname } from "path";
-import { fileURLToPath } from "url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+function getTargetDir(): Promise<string> {
+  return new Promise((res, rej) => {
+    exec(
+      "cargo metadata --no-deps --format-version 1",
+      (error, stdout, stderr) => {
+        if (error) {
+          console.log("error", error);
+          rej(error);
+        } else {
+          try {
+            const json = JSON.parse(stdout);
+            res(json.target_directory);
+          } catch (error) {
+            console.log("json error", error);
+            rej(error);
+          }
+        }
+      }
+    );
+  });
+}
 
 export const CMD_API_SERVER_PORT = 20808;
 export async function startCMD_API_Server(port: typeof CMD_API_SERVER_PORT) {
   const tmp_dir = await mkdtemp(join(tmpdir(), "test_prefix"));
 
-  const path_of_server = join(__dirname, "../../target/debug/webserver");
+  const path_of_server = join(await getTargetDir(), "debug/webserver");
+  console.log(path_of_server);
 
   if (!existsSync(path_of_server)) {
     throw new Error(
