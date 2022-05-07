@@ -57,7 +57,7 @@ impl CommandApi {
     //  Misc top level functions
     // ---------------------------------------------
 
-    // Check if an email address is valid.
+    /// Check if an email address is valid.
     async fn check_email_validity(&self, email: String) -> bool {
         may_be_valid_addr(&email)
     }

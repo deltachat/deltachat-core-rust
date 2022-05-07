@@ -31,10 +31,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Use Node.js 14.x
+      - name: Use Node.js 16.x
         uses: actions/setup-node@v1
         with:
-          node-version: 14.x
+          node-version: 16.x
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -42,18 +42,18 @@ jobs:
           override: true
       - name: Rust Cache
         uses: Swatinem/rust-cache@v1.3.0
-      - name: npm ci
+      - name: npm i
         run: |
           cd deltachat-jsonrpc/typescript
-          npm ci
-      - name: npm run generate_bindings
+          npm i
+      - name: npm run generate-bindings
         run: |
           cd deltachat-jsonrpc/typescript
-          npm run generate_bindings
-      - name: npm run check_ts
+          npm run generate-bindings
+      - name: npm run check ts
         run: |
           cd deltachat-jsonrpc/typescript
-          npm run check_ts
+          npx tsc --noEmit
       - name: run integration tests
         run: |
           cd deltachat-jsonrpc/typescript
