@@ -1,0 +1,66 @@
+name: JSON-RPC API Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.56.0
+          override: true
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1.3.0
+      - name: Build
+        run: cargo build --verbose --features webserver -p deltachat-jsonrpc
+      - name: Run tests
+        run: cargo test --verbose --features webserver -p deltachat-jsonrpc
+
+  ts_bindings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js 14.x
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14.x
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.56.0
+          override: true
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1.3.0
+      - name: npm ci
+        run: |
+          cd deltachat-jsonrpc/typescript
+          npm ci
+      - name: npm run generate_bindings
+        run: |
+          cd deltachat-jsonrpc/typescript
+          npm run generate_bindings
+      - name: npm run check_ts
+        run: |
+          cd deltachat-jsonrpc/typescript
+          npm run check_ts
+      - name: run integration tests
+        run: |
+          cd deltachat-jsonrpc/typescript
+          npm run build
+          cargo build --features webserver
+          npm run test:integration
+      - name: run prettier
+        run: |
+          cd deltachat-jsonrpc/typescript
+          npm run prettier:check

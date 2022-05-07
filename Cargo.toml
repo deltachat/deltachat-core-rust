@@ -91,6 +91,7 @@ tempfile = "3"
 members = [
   "deltachat-ffi",
   "deltachat_derive",
+  "deltachat-jsonrpc"
 ]
 
 [[example]]
