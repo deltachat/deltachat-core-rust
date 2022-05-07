@@ -153,13 +153,13 @@ impl CommandApi {
     /// Checks if the context is already configured.
     async fn is_configured(&self, account_id: u32) -> Result<bool> {
         let ctx = self.get_context(account_id).await?;
-        Ok(ctx.is_configured().await?)
+        ctx.is_configured().await
     }
 
     // Get system info for an account.
     async fn get_info(&self, account_id: u32) -> Result<BTreeMap<&'static str, String>> {
         let ctx = self.get_context(account_id).await?;
-        Ok(ctx.get_info().await?)
+        ctx.get_info().await
     }
 
     async fn set_config(&self, account_id: u32, key: String, value: Option<String>) -> Result<()> {
