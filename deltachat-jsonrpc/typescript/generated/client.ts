@@ -14,7 +14,9 @@ interface Transport {
 export class RawClient {
   constructor(private _transport: Transport) {}
 
-
+  /**
+   * Check if an email address is valid.
+   */
   public checkEmailValidity(email: string): Promise<boolean> {
     return (this._transport.request('check_email_validity', [email] as RPC.Params)) as Promise<boolean>;
   }
