@@ -183,7 +183,6 @@ class TestProcess:
         db_target_path = py.path.local(db_target_path)
         assert not db_target_path.exists()
 
-        print("checking cache for", cache_addr)
         try:
             filescache = self._addr2files[cache_addr]
         except KeyError:
@@ -278,7 +277,6 @@ class ACSetup:
         assert account.is_configured()
         self._account2state[account] = self.CONFIGURED
         self.log("added already configured account", account, account.get_config("addr"))
-        return
 
     def start_configure(self, account, reconfigure=False):
         """ add an account and start its configure process. """
