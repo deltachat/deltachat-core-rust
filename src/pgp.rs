@@ -190,7 +190,9 @@ pub(crate) fn create_keypair(
     let key = key_params
         .generate()
         .map_err(|err| PgpKeygenError::new("invalid params", err))?;
-    let private_key = key.sign(|| "".into()).expect("failed to sign secret key");
+    let private_key = key
+        .sign(|| "".into())
+        .map_err(|err| PgpKeygenError::new("failed to sign secret key", err))?;
 
     let public_key = private_key.public_key();
     let public_key = public_key
