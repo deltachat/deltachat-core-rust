@@ -13,7 +13,7 @@ from typing import List, Callable
 
 import pytest
 import requests
-import py
+import pathlib
 
 from . import Account, const, account_hookimpl, get_core_info
 from .events import FFIEventLogger, FFIEventTracker
@@ -180,7 +180,7 @@ class TestProcess:
             pytest.fail("more than {} live accounts requested.".format(MAX_LIVE_CREATED_ACCOUNTS))
 
     def cache_maybe_retrieve_configured_db_files(self, cache_addr, db_target_path):
-        db_target_path = py.path.local(db_target_path)
+        db_target_path = pathlib.Path(db_target_path)
         assert not db_target_path.exists()
 
         try:
@@ -190,7 +190,7 @@ class TestProcess:
             return False
         else:
             print("CACHE HIT for", cache_addr)
-            targetdir = db_target_path.dirpath()
+            targetdir = db_target_path.parent
             write_dict_to_dir(filescache, targetdir)
             return True
 
@@ -200,27 +200,26 @@ class TestProcess:
         # don't overwrite existing entries
         if addr not in self._addr2files:
             print("storing cache for", addr)
-            basedir = py.path.local(acc.get_blobdir()).dirpath()
+            basedir = pathlib.Path(acc.get_blobdir()).parent
             self._addr2files[addr] = create_dict_from_files_in_path(basedir)
             return True
 
 
-def create_dict_from_files_in_path(path):
-    base = py.path.local(path)
+def create_dict_from_files_in_path(base):
     cachedict = {}
-    for path in base.visit(fil=py.path.local.isfile):
-        cachedict[path.relto(base)] = path.read_binary()
+    for path in base.glob("**/*"):
+        if path.is_file():
+            cachedict[path.relative_to(base)] = path.read_bytes()
     return cachedict
 
 
 def write_dict_to_dir(dic, target_dir):
     assert dic
-    target_dir = py.path.local(target_dir)
     for relpath, content in dic.items():
-        path = target_dir.join(relpath)
-        if not path.dirpath().exists():
-            path.dirpath().ensure(dir=1)
-        path.write_binary(content)
+        path = target_dir.joinpath(relpath)
+        if not path.parent.exists():
+            os.makedirs(path.parent)
+        path.write_bytes(content)
 
 
 @pytest.fixture
