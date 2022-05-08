@@ -7,11 +7,27 @@ from deltachat import register_global_plugin
 from deltachat.hookspec import global_hookimpl
 from deltachat.capi import ffi
 from deltachat.capi import lib
-from deltachat.testplugin import ACSetup
+from deltachat.testplugin import ACSetup, create_dict_from_files_in_path, write_dict_to_dir
 # from deltachat.account import EventLogger
 
 
 class TestACSetup:
+
+    def test_cache_writing(self, tmp_path):
+        base = tmp_path.joinpath("hello")
+        base.mkdir()
+        d1 = base.joinpath("dir1")
+        d1.mkdir()
+        d1.joinpath("file1").write_bytes(b'content1')
+        d2 = d1.joinpath("dir2")
+        d2.mkdir()
+        d2.joinpath("file2").write_bytes(b"123")
+        d = create_dict_from_files_in_path(base)
+        newbase = tmp_path.joinpath("other")
+        write_dict_to_dir(d, newbase)
+        assert newbase.joinpath("dir1", "dir2", "file2").exists()
+        assert newbase.joinpath("dir1", "file1").exists()
+
     def test_basic_states(self, acfactory, monkeypatch, testprocess):
         pc = ACSetup(init_time=0.0, testprocess=testprocess)
         acc = acfactory.get_unconfigured_account()
