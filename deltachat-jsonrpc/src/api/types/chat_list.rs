@@ -51,7 +51,7 @@ pub enum ChatListItemFetchResult {
     },
 }
 
-pub(crate) async fn _get_chat_list_items_by_id(
+pub(crate) async fn get_chat_list_item_by_id(
     ctx: &deltachat::context::Context,
     entry: &ChatListEntry,
 ) -> Result<ChatListItemFetchResult> {
