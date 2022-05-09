@@ -1283,7 +1283,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             )
             .await?;
 
-        if context.get_config(Config::DebugLogging).await? == Some(msg_id.to_string()) {
+        if context.get_config(Config::DebugLogging).await? == Some(msg_id.to_u32().to_string()) {
             context
                 .sql
                 .set_raw_config(Config::DebugLogging, Some("0"))
