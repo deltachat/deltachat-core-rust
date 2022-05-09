@@ -76,9 +76,7 @@ export class RawClient {
   /**
    * Returns provider for the given domain.
    *
-   * This function looks up domain in offline database first. If not
-   * found, it queries MX record for the domain and looks up offline
-   * database for MX domains.
+   * This function looks up domain in offline database.
    *
    * For compatibility, email address can be passed to this function
    * instead of the domain.
@@ -94,7 +92,9 @@ export class RawClient {
     return (this._transport.request('is_configured', [accountId] as RPC.Params)) as Promise<boolean>;
   }
 
-
+  /**
+   * Get system info for an account.
+   */
   public getInfo(accountId: T.U32): Promise<Record<string,string>> {
     return (this._transport.request('get_info', [accountId] as RPC.Params)) as Promise<Record<string,string>>;
   }

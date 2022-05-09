@@ -128,9 +128,7 @@ impl CommandApi {
 
     /// Returns provider for the given domain.
     ///
-    /// This function looks up domain in offline database first. If not
-    /// found, it queries MX record for the domain and looks up offline
-    /// database for MX domains.
+    /// This function looks up domain in offline database.
     ///
     /// For compatibility, email address can be passed to this function
     /// instead of the domain.
@@ -156,7 +154,7 @@ impl CommandApi {
         ctx.is_configured().await
     }
 
-    // Get system info for an account.
+    /// Get system info for an account.
     async fn get_info(&self, account_id: u32) -> Result<BTreeMap<&'static str, String>> {
         let ctx = self.get_context(account_id).await?;
         ctx.get_info().await
