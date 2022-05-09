@@ -442,15 +442,22 @@ impl Context {
             typ: event.clone(),
         });
 
-        let context = self.clone();
-        let debug_logging = context.debug_logging.load(atomic::Ordering::Acquire);
+        // `task::spawn()` below is a bit slow, so make sure to only call it if
+        // debug logging is enabled; that's why we have the Context::debug_logging
+        // property. Using `spawn()` also has the disadvantage that the logs might
+        // get out of order.
+        // Both could be solved by using `task::block_on()` instead, but reportedly,
+        // this could lead to deadlocks. A better solution would be to make
+        // `emit_event()` async.
+        let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
         if debug_logging > 0 {
             let time = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis() as i64;
 
-            async_std::task::block_on(async move {
+            let context = self.clone();
+            async_std::task::spawn(async move {
                 let webxdc_instance_id = MsgId::new(debug_logging as u32);
 
                 match context

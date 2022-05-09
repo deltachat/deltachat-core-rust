@@ -346,7 +346,7 @@ impl Sql {
             let debug_logging = self.get_raw_config_u32(Config::DebugLogging).await?;
             context
                 .debug_logging
-                .store(debug_logging.unwrap_or(0), atomic::Ordering::Release);
+                .store(debug_logging.unwrap_or(0), atomic::Ordering::Relaxed);
 
             Ok(())
         }

@@ -1288,7 +1288,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
                 .sql
                 .set_raw_config(Config::DebugLogging, Some("0"))
                 .await?;
-            context.debug_logging.store(0, atomic::Ordering::Release);
+            context.debug_logging.store(0, atomic::Ordering::Relaxed);
         }
     }
 
