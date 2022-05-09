@@ -18,7 +18,7 @@ pub use deltachat::accounts::Accounts;
 pub mod events;
 pub mod types;
 
-use crate::api::types::chat_list::{ChatListItemFetchResult, _get_chat_list_items_by_id};
+use crate::api::types::chat_list::{ChatListItemFetchResult, get_chat_list_item_by_id};
 
 use types::account::Account;
 use types::chat::FullChat;
@@ -273,7 +273,7 @@ impl CommandApi {
         for (_i, entry) in entries.iter().enumerate() {
             result.insert(
                 entry.0,
-                match _get_chat_list_items_by_id(&ctx, entry).await {
+                match get_chat_list_item_by_id(&ctx, entry).await {
                     Ok(res) => res,
                     Err(err) => ChatListItemFetchResult::Error {
                         id: entry.0,
