@@ -1,5 +1,7 @@
 //! # Key-value configuration management.
 
+use std::sync::atomic;
+
 use anyhow::{ensure, Context as _, Result};
 
 use strum::{EnumProperty, IntoEnumIterator};
@@ -334,6 +336,8 @@ impl Context {
                     {
                         message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await?;
                     }
+                    self.sql.set_raw_config(key, value).await?;
+                    self.debug_logging.store(0, atomic::Ordering::Release);
                 } else {
                     let data: &[u8] = include_bytes!("../assets/webxdc_logging.xdc");
 
@@ -347,6 +351,8 @@ impl Context {
                     self.sql
                         .set_raw_config(key, Some(&msg_id.to_u32().to_string()))
                         .await?;
+                    self.debug_logging
+                        .store(msg_id.to_u32(), atomic::Ordering::Release);
                 }
             }
             _ => {

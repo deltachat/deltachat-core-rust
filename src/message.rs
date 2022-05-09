@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic;
 
 use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
@@ -1287,6 +1288,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
                 .sql
                 .set_raw_config(Config::DebugLogging, Some("0"))
                 .await?;
+            context.debug_logging.store(0, atomic::Ordering::Release);
         }
     }
 
