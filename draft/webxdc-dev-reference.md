@@ -1,5 +1,7 @@
 # Webxdc Developer Reference
 
+(This document may eventually be merged with the [webxdc guidebook](https://deltachat.github.io/webxdc_docs/), where you may currently find other useful information.)
+
 ## Webxdc File Format
 
 - a **Webxdc app** is a **ZIP-file** with the extension `.xdc`
