@@ -38,6 +38,10 @@ describe("online tests", function () {
       url: "ws://localhost:" + CMD_API_SERVER_PORT + "/ws",
     });
 
+    dc.on("ALL", ({ name, contextId }) => {
+      if (name !== "INFO") console.log(contextId, name);
+    });
+
     account = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
     if (!account || !account.email || !account.password) {
       console.log(
@@ -92,7 +96,11 @@ describe("online tests", function () {
       null
     );
     const chatId = await dc.rpc.contactsCreateChatByContactId(acc1, contactId);
-    const eventPromise = waitForEvent(dc, "INCOMING_MSG", acc2);
+    const eventPromise = Promise.race([
+      waitForEvent(dc, "MSGS_CHANGED", acc2),
+      waitForEvent(dc, "INCOMING_MSG", acc2),
+    ]);
+
     dc.rpc.miscSendTextMessage(acc1, "Hello", chatId);
     const { field1: chatIdOnAccountB } = await eventPromise;
     await dc.rpc.acceptChat(acc2, chatIdOnAccountB);
@@ -111,7 +119,7 @@ describe("online tests", function () {
     if (!are_configured) {
       this.skip();
     }
-    this.timeout(7000);
+    this.timeout(10000);
 
     // send message from A to B
     const contactId = await dc.rpc.contactsCreateContact(
@@ -120,9 +128,15 @@ describe("online tests", function () {
       null
     );
     const chatId = await dc.rpc.contactsCreateChatByContactId(acc1, contactId);
+    const eventPromise = Promise.race([
+      waitForEvent(dc, "MSGS_CHANGED", acc2),
+      waitForEvent(dc, "INCOMING_MSG", acc2),
+    ]);
     dc.rpc.miscSendTextMessage(acc1, "Hello2", chatId);
     // wait for message from A
-    const event = await waitForEvent(dc, "INCOMING_MSG", acc2);
+    console.log("wait for message from A");
+
+    const event = await eventPromise;
     const { field1: chatIdOnAccountB } = event;
 
     await dc.rpc.acceptChat(acc2, chatIdOnAccountB);
@@ -137,9 +151,13 @@ describe("online tests", function () {
     );
     expect(message.text).equal("Hello2");
     // Send message back from B to A
+    const eventPromise2 = Promise.race([
+      waitForEvent(dc, "MSGS_CHANGED", acc1),
+      waitForEvent(dc, "INCOMING_MSG", acc1),
+    ]);
     dc.rpc.miscSendTextMessage(acc2, "super secret message", chatId);
     // Check if answer arives at A and if it is encrypted
-    await waitForEvent(dc, "INCOMING_MSG", acc1);
+    await eventPromise2;
 
     const messageId = (
       await dc.rpc.messageListGetMessageIds(acc1, chatId, 0)
