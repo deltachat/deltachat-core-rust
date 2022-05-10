@@ -4,9 +4,10 @@ use std::borrow::Cow;
 use std::fmt;
 use std::time::Duration;
 
+use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::provider::{get_provider_by_id, Provider};
 use crate::{context::Context, provider::Socket};
-use anyhow::Result;
+use anyhow::{ensure, Result};
 
 use async_std::io;
 use async_std::net::TcpStream;
@@ -47,6 +48,7 @@ pub struct ServerLoginParam {
     pub password: String,
     pub port: u16,
     pub security: Socket,
+    pub oauth2: bool,
 
     /// TLS options: whether to allow invalid certificates and/or
     /// invalid hostnames
@@ -133,7 +135,6 @@ pub struct LoginParam {
     pub addr: String,
     pub imap: ServerLoginParam,
     pub smtp: ServerLoginParam,
-    pub server_flags: i32,
     pub provider: Option<&'static Provider>,
     pub socks5_config: Option<Socks5Config>,
 }
@@ -141,6 +142,23 @@ pub struct LoginParam {
 impl LoginParam {
     /// Load entered (candidate) account settings
     pub async fn load_candidate_params(context: &Context) -> Result<Self> {
+        let mut param = Self::load_candidate_params_unchecked(context).await?;
+        ensure!(!param.addr.is_empty(), "Missing email address.");
+
+        // Only check for IMAP password, SMTP password is an "advanced" setting.
+        ensure!(!param.imap.password.is_empty(), "Missing (IMAP) password.");
+        if param.smtp.password.is_empty() {
+            param.smtp.password = param.imap.password.clone()
+        }
+        Ok(param)
+    }
+
+    /// Load entered (candidate) account settings without validation.
+    ///
+    /// This will result in a potentially invalid [`LoginParam`] struct as the values are
+    /// not validated.  Only use this if you want to show this directly to the user e.g. in
+    /// [`Context::get_info`].
+    pub async fn load_candidate_params_unchecked(context: &Context) -> Result<Self> {
         LoginParam::from_database(context, "").await
     }
 
@@ -217,6 +235,7 @@ impl LoginParam {
 
         let key = format!("{}server_flags", prefix);
         let server_flags = sql.get_raw_config_int(key).await?.unwrap_or_default();
+        let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
 
         let key = format!("{}provider", prefix);
         let provider = sql
@@ -234,6 +253,7 @@ impl LoginParam {
                 password: mail_pw,
                 port: mail_port as u16,
                 security: mail_security,
+                oauth2,
                 certificate_checks: imap_certificate_checks,
             },
             smtp: ServerLoginParam {
@@ -242,10 +262,10 @@ impl LoginParam {
                 password: send_pw,
                 port: send_port as u16,
                 security: send_security,
+                oauth2,
                 certificate_checks: smtp_certificate_checks,
             },
             provider,
-            server_flags,
             socks5_config,
         })
     }
@@ -299,8 +319,13 @@ impl LoginParam {
         sql.set_raw_config_int(key, self.smtp.certificate_checks as i32)
             .await?;
 
+        // The OAuth2 flag is either set for both IMAP and SMTP or not at all.
         let key = format!("{}server_flags", prefix);
-        sql.set_raw_config_int(key, self.server_flags).await?;
+        let server_flags = match self.imap.oauth2 {
+            true => DC_LP_AUTH_OAUTH2,
+            false => DC_LP_AUTH_NORMAL,
+        };
+        sql.set_raw_config_int(key, server_flags).await?;
 
         if let Some(provider) = self.provider {
             let key = format!("{}provider", prefix);
@@ -316,11 +341,9 @@ impl fmt::Display for LoginParam {
         let unset = "0";
         let pw = "***";
 
-        let flags_readable = get_readable_flags(self.server_flags);
-
         write!(
             f,
-            "{} imap:{}:{}:{}:{}:cert_{} smtp:{}:{}:{}:{}:cert_{} {}",
+            "{} imap:{}:{}:{}:{}:cert_{}:{} smtp:{}:{}:{}:{}:cert_{}:{}",
             unset_empty(&self.addr),
             unset_empty(&self.imap.user),
             if !self.imap.password.is_empty() {
@@ -331,6 +354,11 @@ impl fmt::Display for LoginParam {
             unset_empty(&self.imap.server),
             self.imap.port,
             self.imap.certificate_checks,
+            if self.imap.oauth2 {
+                "OAUTH2"
+            } else {
+                "AUTH_NORMAL"
+            },
             unset_empty(&self.smtp.user),
             if !self.smtp.password.is_empty() {
                 pw
@@ -340,7 +368,11 @@ impl fmt::Display for LoginParam {
             unset_empty(&self.smtp.server),
             self.smtp.port,
             self.smtp.certificate_checks,
-            flags_readable,
+            if self.smtp.oauth2 {
+                "OAUTH2"
+            } else {
+                "AUTH_NORMAL"
+            },
         )
     }
 }
@@ -352,32 +384,6 @@ fn unset_empty(s: &String) -> Cow<String> {
     } else {
         Cow::Borrowed(s)
     }
-}
-
-#[allow(clippy::useless_let_if_seq)]
-fn get_readable_flags(flags: i32) -> String {
-    let mut res = String::new();
-    for bit in 0..31 {
-        if 0 != flags & 1 << bit {
-            let mut flag_added = false;
-            if 1 << bit == 0x2 {
-                res += "OAUTH2 ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x4 {
-                res += "AUTH_NORMAL ";
-                flag_added = true;
-            }
-            if flag_added {
-                res += &format!("{:#0x}", 1 << bit);
-            }
-        }
-    }
-    if res.is_empty() {
-        res += "0";
-    }
-
-    res
 }
 
 // this certificate is missing on older android devices (eg. lg with android6 from 2017)
@@ -430,6 +436,7 @@ mod tests {
                 password: "foo".to_string(),
                 port: 123,
                 security: Socket::Starttls,
+                oauth2: false,
                 certificate_checks: CertificateChecks::Strict,
             },
             smtp: ServerLoginParam {
@@ -438,9 +445,9 @@ mod tests {
                 password: "bar".to_string(),
                 port: 456,
                 security: Socket::Ssl,
+                oauth2: false,
                 certificate_checks: CertificateChecks::AcceptInvalidCertificates,
             },
-            server_flags: 0,
             provider: get_provider_by_id("example.com"),
             // socks5_config is not saved by `save_to_database`, using default value
             socks5_config: None,

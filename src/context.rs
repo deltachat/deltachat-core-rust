@@ -342,7 +342,7 @@ impl Context {
 
     pub async fn get_info(&self) -> Result<BTreeMap<&'static str, String>> {
         let unset = "0";
-        let l = LoginParam::load_candidate_params(self).await?;
+        let l = LoginParam::load_candidate_params_unchecked(self).await?;
         let l2 = LoginParam::load_configured_params(self).await?;
         let secondary_addrs = self.get_secondary_self_addrs().await?.join(", ");
         let displayname = self.get_config(Config::Displayname).await?;
