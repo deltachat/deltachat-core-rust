@@ -18,7 +18,7 @@ pub use deltachat::accounts::Accounts;
 pub mod events;
 pub mod types;
 
-use crate::api::types::chat_list::{ChatListItemFetchResult, get_chat_list_item_by_id};
+use crate::api::types::chat_list::{get_chat_list_item_by_id, ChatListItemFetchResult};
 
 use types::account::Account;
 use types::chat::FullChat;
@@ -435,7 +435,7 @@ impl CommandApi {
         query: Option<String>,
     ) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
-        let contacts = Contact::get_all(&ctx, list_flags, query).await?;
+        let contacts = Contact::get_all(&ctx, list_flags, query.as_deref()).await?;
         Ok(contacts.into_iter().map(|c| c.to_u32()).collect())
     }
 
@@ -448,7 +448,7 @@ impl CommandApi {
         query: Option<String>,
     ) -> Result<Vec<ContactObject>> {
         let ctx = self.get_context(account_id).await?;
-        let contact_ids = Contact::get_all(&ctx, list_flags, query).await?;
+        let contact_ids = Contact::get_all(&ctx, list_flags, query.as_deref()).await?;
         let mut contacts: Vec<ContactObject> = Vec::with_capacity(contact_ids.len());
         for id in contact_ids {
             contacts.push(
