@@ -12,7 +12,6 @@ use job::Action;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
-use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::context::Context;
 use crate::dc_tools::{time, EmailAddress};
 use crate::imap::Imap;
@@ -146,28 +145,6 @@ impl Context {
 async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 1);
 
-    // Check basic settings.
-    ensure!(!param.addr.is_empty(), "Please enter an email address.");
-
-    // Only check for IMAP password, SMTP password is an "advanced" setting.
-    ensure!(!param.imap.password.is_empty(), "Please enter a password.");
-    if param.smtp.password.is_empty() {
-        param.smtp.password = param.imap.password.clone()
-    }
-
-    // Normalize authentication flags.
-    let oauth2 = match param.server_flags & DC_LP_AUTH_FLAGS as i32 {
-        DC_LP_AUTH_OAUTH2 => true,
-        DC_LP_AUTH_NORMAL => false,
-        _ => false,
-    };
-    param.server_flags &= !(DC_LP_AUTH_FLAGS as i32);
-    param.server_flags |= if oauth2 {
-        DC_LP_AUTH_OAUTH2 as i32
-    } else {
-        DC_LP_AUTH_NORMAL as i32
-    };
-
     let socks5_config = param.socks5_config.clone();
     let socks5_enabled = socks5_config.is_some();
 
@@ -177,8 +154,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     // Step 1: Load the parameters and check email-address and password
 
     // Do oauth2 only if socks5 is disabled. As soon as we have a http library that can do
-    // socks5 requests, this can work with socks5 too
-    if oauth2 && !socks5_enabled {
+    // socks5 requests, this can work with socks5 too.  OAuth is always set either for both
+    // IMAP and SMTP or not at all.
+    if param.imap.oauth2 && !socks5_enabled {
         // the used oauth2 addr may differ, check this.
         // if dc_get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
         progress!(ctx, 10);
@@ -359,7 +337,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                 &smtp_param,
                 &socks5_config,
                 &smtp_addr,
-                oauth2,
                 provider_strict_tls,
                 &mut smtp,
             )
@@ -407,7 +384,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             &param.imap,
             &param.socks5_config,
             &param.addr,
-            oauth2,
             provider_strict_tls,
         )
         .await
@@ -565,26 +541,22 @@ async fn try_imap_one_param(
     param: &ServerLoginParam,
     socks5_config: &Option<Socks5Config>,
     addr: &str,
-    oauth2: bool,
     provider_strict_tls: bool,
 ) -> Result<Imap, ConfigurationError> {
     let inf = format!(
         "imap: {}@{}:{} security={} certificate_checks={} oauth2={}",
-        param.user, param.server, param.port, param.security, param.certificate_checks, oauth2
+        param.user,
+        param.server,
+        param.port,
+        param.security,
+        param.certificate_checks,
+        param.oauth2
     );
     info!(context, "Trying: {}", inf);
 
     let (_s, r) = async_std::channel::bounded(1);
 
-    let mut imap = match Imap::new(
-        param,
-        socks5_config.clone(),
-        addr,
-        oauth2,
-        provider_strict_tls,
-        r,
-    )
-    .await
+    let mut imap = match Imap::new(param, socks5_config.clone(), addr, provider_strict_tls, r).await
     {
         Err(err) => {
             info!(context, "failure: {}", err);
@@ -616,7 +588,6 @@ async fn try_smtp_one_param(
     param: &ServerLoginParam,
     socks5_config: &Option<Socks5Config>,
     addr: &str,
-    oauth2: bool,
     provider_strict_tls: bool,
     smtp: &mut Smtp,
 ) -> Result<(), ConfigurationError> {
@@ -627,7 +598,7 @@ async fn try_smtp_one_param(
         param.port,
         param.security,
         param.certificate_checks,
-        oauth2,
+        param.oauth2,
         if let Some(socks5_config) = socks5_config {
             socks5_config.to_string()
         } else {
@@ -637,14 +608,7 @@ async fn try_smtp_one_param(
     info!(context, "Trying: {}", inf);
 
     if let Err(err) = smtp
-        .connect(
-            context,
-            param,
-            socks5_config,
-            addr,
-            oauth2,
-            provider_strict_tls,
-        )
+        .connect(context, param, socks5_config, addr, provider_strict_tls)
         .await
     {
         info!(context, "failure: {}", err);

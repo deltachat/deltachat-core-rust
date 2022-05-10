@@ -22,7 +22,6 @@ use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, ShowEmails, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
-    DC_LP_AUTH_OAUTH2,
 };
 use crate::contact::ContactId;
 use crate::context::Context;
@@ -154,7 +153,6 @@ struct ImapConfig {
     pub lp: ServerLoginParam,
     pub socks5_config: Option<Socks5Config>,
     pub strict_tls: bool,
-    pub oauth2: bool,
     pub selected_folder: Option<String>,
     pub selected_mailbox: Option<Mailbox>,
     pub selected_folder_needs_expunge: bool,
@@ -243,7 +241,6 @@ impl Imap {
         lp: &ServerLoginParam,
         socks5_config: Option<Socks5Config>,
         addr: &str,
-        oauth2: bool,
         provider_strict_tls: bool,
         idle_interrupt: Receiver<InterruptInfo>,
     ) -> Result<Self> {
@@ -262,7 +259,6 @@ impl Imap {
             lp: lp.clone(),
             socks5_config,
             strict_tls,
-            oauth2,
             selected_folder: None,
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
@@ -301,7 +297,6 @@ impl Imap {
             &param.imap,
             param.socks5_config.clone(),
             &param.addr,
-            param.server_flags & DC_LP_AUTH_OAUTH2 != 0,
             param
                 .provider
                 .map_or(param.socks5_config.is_some(), |provider| {
@@ -334,7 +329,7 @@ impl Imap {
 
         self.connectivity.set_connecting(context).await;
 
-        let oauth2 = self.config.oauth2;
+        let oauth2 = self.config.lp.oauth2;
 
         let connection_res: Result<Client> = if self.config.lp.security == Socket::Starttls
             || self.config.lp.security == Socket::Plain
