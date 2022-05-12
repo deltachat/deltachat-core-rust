@@ -51,6 +51,7 @@ const WEBXDC_RECEIVING_LIMIT: u64 = 4194304;
 struct WebxdcManifest {
     name: Option<String>,
     min_api: Option<u32>,
+    source_code_url: Option<String>,
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
@@ -59,6 +60,7 @@ pub struct WebxdcInfo {
     pub name: String,
     pub icon: String,
     pub summary: String,
+    pub source_code_url: String,
 }
 
 /// Status Update ID.
@@ -538,12 +540,14 @@ impl Message {
                 WebxdcManifest {
                     name: None,
                     min_api: None,
+                    source_code_url: None,
                 }
             }
         } else {
             WebxdcManifest {
                 name: None,
                 min_api: None,
+                source_code_url: None,
             }
         };
 
@@ -573,6 +577,11 @@ impl Message {
                 .get(Param::WebxdcSummary)
                 .unwrap_or_default()
                 .to_string(),
+            source_code_url: if let Some(url) = manifest.source_code_url {
+                url
+            } else {
+                "".to_string()
+            },
         })
     }
 }
@@ -1339,6 +1348,21 @@ sth_for_the = "future""#
 
         let result = parse_webxdc_manifest(r#"min_api = 1.2"#.as_bytes()).await;
         assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_parse_webxdc_manifest_source_code_url() -> Result<()> {
+        let result = parse_webxdc_manifest(r#"source_code_url = 3"#.as_bytes()).await;
+        assert!(result.is_err());
+
+        let manifest =
+            parse_webxdc_manifest(r#"source_code_url = "https://foo.bar""#.as_bytes()).await?;
+        assert_eq!(
+            manifest.source_code_url,
+            Some("https://foo.bar".to_string())
+        );
 
         Ok(())
     }
