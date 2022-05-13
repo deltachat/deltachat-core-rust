@@ -1,6 +1,7 @@
 use super::Imap;
 
 use crate::context::Context;
+use anyhow::Context as _;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -15,8 +16,8 @@ pub enum Error {
     #[error("IMAP Folder name invalid: {0}")]
     BadFolderName(String),
 
-    #[error("IMAP folder does not exist: {0}")]
-    NoFolder(String),
+    #[error("Got a NO response when trying to select {0}, usually this means that it doesn't exist: {1}")]
+    NoFolder(String, String),
 
     #[error("IMAP close/expunge failed")]
     CloseExpungeFailed(#[from] async_imap::error::Error),
@@ -117,8 +118,8 @@ impl Imap {
                     Err(async_imap::error::Error::Validate(_)) => {
                         Err(Error::BadFolderName(folder.to_string()))
                     }
-                    Err(async_imap::error::Error::No(_)) => {
-                        Err(Error::NoFolder(folder.to_string()))
+                    Err(async_imap::error::Error::No(response)) => {
+                        Err(Error::NoFolder(folder.to_string(), response))
                     }
                     Err(err) => {
                         self.config.selected_folder = None;
@@ -139,19 +140,21 @@ impl Imap {
         &mut self,
         context: &Context,
         folder: &str,
-    ) -> Result<NewlySelected> {
+    ) -> anyhow::Result<NewlySelected> {
         match self.select_folder(context, Some(folder)).await {
             Ok(newly_selected) => Ok(newly_selected),
             Err(err) => match err {
-                Error::NoFolder(_) => {
+                Error::NoFolder(..) => {
                     if let Some(ref mut session) = self.session {
-                        session.create(folder).await?;
+                        session.create(folder).await.with_context(|| {
+                            format!("Couldn't select folder ('{}'), then create() failed", err)
+                        })?;
                     } else {
-                        return Err(Error::NoSession);
+                        return Err(Error::NoSession.into());
                     }
-                    self.select_folder(context, Some(folder)).await
+                    Ok(self.select_folder(context, Some(folder)).await?)
                 }
-                _ => Err(err),
+                _ => Err(err.into()),
             },
         }
     }
