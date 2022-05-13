@@ -266,13 +266,40 @@ fn get_mixed_up_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail<
     }
 }
 
+/// Returns a reference to the encrypted payload of a message turned into attachment.
+///
+/// Google Workspace has an option "Append footer" which appends standard footer defined
+/// by administrator to all outgoing messages. However, there is no plain text part in
+/// encrypted messages sent by Delta Chat, so Google Workspace turns the message into
+/// multipart/mixed MIME, where the first part is an empty plaintext part with a footer
+/// and the second part is the original encrypted message.
+fn get_attachment_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail<'b>> {
+    if mail.ctype.mimetype != "multipart/mixed" {
+        return None;
+    }
+    if let [first_part, second_part] = &mail.subparts[..] {
+        if first_part.ctype.mimetype == "text/plain"
+            && second_part.ctype.mimetype == "multipart/encrypted"
+        {
+            get_autocrypt_mime(second_part)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 async fn decrypt_if_autocrypt_message(
     context: &Context,
     mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
-    let encrypted_data_part = match get_autocrypt_mime(mail).or_else(|| get_mixed_up_mime(mail)) {
+    let encrypted_data_part = match get_autocrypt_mime(mail)
+        .or_else(|| get_mixed_up_mime(mail))
+        .or_else(|| get_attachment_mime(mail))
+    {
         None => {
             // not an autocrypt mime message, abort and ignore
             return Ok(None);
@@ -389,6 +416,7 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use crate::chat;
+    use crate::dc_receive_imf::dc_receive_imf;
     use crate::message::{Message, Viewtype};
     use crate::param::Param;
     use crate::peerstate::ToSave;
@@ -592,8 +620,8 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
     }
 
-    #[test]
-    fn test_mixed_up_mime() -> Result<()> {
+    #[async_std::test]
+    async fn test_mixed_up_mime() -> Result<()> {
         // "Mixed Up" mail as received when sending an encrypted
         // message using Delta Chat Desktop via ProtonMail IMAP/SMTP
         // Bridge.
@@ -601,6 +629,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let mail = mailparse::parse_mail(mixed_up_mime)?;
         assert!(get_autocrypt_mime(&mail).is_none());
         assert!(get_mixed_up_mime(&mail).is_some());
+        assert!(get_attachment_mime(&mail).is_none());
 
         // Same "Mixed Up" mail repaired by Thunderbird 78.9.0.
         //
@@ -611,6 +640,20 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let mail = mailparse::parse_mail(repaired_mime)?;
         assert!(get_autocrypt_mime(&mail).is_some());
         assert!(get_mixed_up_mime(&mail).is_none());
+        assert!(get_attachment_mime(&mail).is_none());
+
+        // Another form of "Mixed Up" mail created by Google Workspace,
+        // where original message is turned into attachment to empty plaintext message.
+        let attachment_mime = include_bytes!("../test-data/message/google-workspace-mixed-up.eml");
+        let mail = mailparse::parse_mail(attachment_mime)?;
+        assert!(get_autocrypt_mime(&mail).is_none());
+        assert!(get_mixed_up_mime(&mail).is_none());
+        assert!(get_attachment_mime(&mail).is_some());
+
+        let bob = TestContext::new_bob().await;
+        dc_receive_imf(&bob, attachment_mime, false).await?;
+        let msg = bob.get_last_msg().await;
+        assert_eq!(msg.text.as_deref(), Some("Hello from Thunderbird!"));
 
         Ok(())
     }

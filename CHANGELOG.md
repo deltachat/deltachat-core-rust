@@ -22,6 +22,9 @@
 ### Removed
 - node: remove unmaintained coverage scripts
 
+### Fixes
+- repair encrypted mails "mixed up" by Google Workspace "Append footer" function #3315
+
 
 ## 1.80.0
 
