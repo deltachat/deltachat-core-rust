@@ -689,7 +689,7 @@ def test_gossip_encryption_preference(acfactory, lp):
     msg = ac1._evtracker.wait_next_incoming_message()
     assert msg.text == "first message"
     assert not msg.is_encrypted()
-    res = "{} End-to-end encryption preferred.".format(ac2.get_config('addr'))
+    res = "End-to-end encryption preferred:\n{}\n".format(ac2.get_config('addr'))
     assert msg.chat.get_encryption_info() == res
     lp.sec("ac2 learns that ac3 prefers encryption")
     ac2.create_chat(ac3)
@@ -701,7 +701,7 @@ def test_gossip_encryption_preference(acfactory, lp):
     lp.sec("ac3 does not know that ac1 prefers encryption")
     ac1.create_chat(ac3)
     chat = ac3.create_chat(ac1)
-    res = "{} No encryption.".format(ac1.get_config('addr'))
+    res = "No encryption:\n{}\n".format(ac1.get_config('addr'))
     assert chat.get_encryption_info() == res
     msg = chat.send_text("not encrypted")
     msg = ac1._evtracker.wait_next_incoming_message()
@@ -712,7 +712,7 @@ def test_gossip_encryption_preference(acfactory, lp):
     group_chat = ac1.create_group_chat("hello")
     group_chat.add_contact(ac2)
     encryption_info = group_chat.get_encryption_info()
-    res = "{} End-to-end encryption preferred.".format(ac2.get_config("addr"))
+    res = "End-to-end encryption preferred:\n{}\n".format(ac2.get_config("addr"))
     assert encryption_info == res
     msg = group_chat.send_text("hi")
 
@@ -727,10 +727,9 @@ def test_gossip_encryption_preference(acfactory, lp):
     lp.sec("ac3 learns that ac1 prefers encryption")
     msg = ac3._evtracker.wait_next_incoming_message()
     encryption_info = msg.chat.get_encryption_info().splitlines()
-    res = "{} End-to-end encryption preferred.".format(ac1.get_config("addr"))
-    assert res in encryption_info
-    res = "{} End-to-end encryption preferred.".format(ac2.get_config("addr"))
-    assert res in encryption_info
+    assert encryption_info[0] == "End-to-end encryption preferred:"
+    assert ac1.get_config("addr") in encryption_info[1:]
+    assert ac2.get_config("addr") in encryption_info[1:]
     msg = chat.send_text("encrypted")
     assert msg.is_encrypted()
 
