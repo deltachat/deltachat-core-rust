@@ -842,7 +842,9 @@ impl ChatId {
     ///
     /// To get more verbose summary for a contact, including its key fingerprint, use [`Contact::get_encrinfo`].
     pub async fn get_encryption_info(self, context: &Context) -> Result<String> {
-        let mut ret = String::new();
+        let mut ret_mutual = String::new();
+        let mut ret_nopreference = String::new();
+        let mut ret_reset = String::new();
 
         for contact_id in get_chat_contacts(context, self)
             .await?
@@ -853,7 +855,7 @@ impl ChatId {
             let addr = contact.get_addr();
             let peerstate = Peerstate::from_addr(context, addr).await?;
 
-            let stock_message = match peerstate
+            match peerstate
                 .filter(|peerstate| {
                     peerstate
                         .peek_key(PeerstateVerifiedStatus::Unverified)
@@ -861,15 +863,36 @@ impl ChatId {
                 })
                 .map(|peerstate| peerstate.prefer_encrypt)
             {
-                Some(EncryptPreference::Mutual) => stock_str::e2e_preferred(context).await,
-                Some(EncryptPreference::NoPreference) => stock_str::e2e_available(context).await,
-                Some(EncryptPreference::Reset) => stock_str::encr_none(context).await,
-                None => stock_str::encr_none(context).await,
+                Some(EncryptPreference::Mutual) => ret_mutual += &format!("{}\n", addr),
+                Some(EncryptPreference::NoPreference) => ret_nopreference += &format!("{}\n", addr),
+                Some(EncryptPreference::Reset) | None => ret_reset += &format!("{}\n", addr),
             };
+        }
+
+        let mut ret = String::new();
+        if !ret_reset.is_empty() {
+            ret += &stock_str::encr_none(context).await;
+            ret.push(':');
+            ret.push('\n');
+            ret += &ret_reset;
+        }
+        if !ret_nopreference.is_empty() {
             if !ret.is_empty() {
-                ret.push('\n')
+                ret.push('\n');
             }
-            ret += &format!("{} {}", addr, stock_message);
+            ret += &stock_str::e2e_available(context).await;
+            ret.push(':');
+            ret.push('\n');
+            ret += &ret_nopreference;
+        }
+        if !ret_mutual.is_empty() {
+            if !ret.is_empty() {
+                ret.push('\n');
+            }
+            ret += &stock_str::e2e_preferred(context).await;
+            ret.push(':');
+            ret.push('\n');
+            ret += &ret_mutual;
         }
 
         Ok(ret)
@@ -5371,6 +5394,61 @@ mod tests {
         assert_eq!(chat_id, chat_id_orig);
         let chat = Chat::load_from_db(&t, chat_id).await?;
         assert_eq!(chat.blocked, Blocked::Not);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_chat_get_encryption_info() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let contact_bob = Contact::create(&alice, "Bob", "bob@example.net").await?;
+        let contact_fiona = Contact::create(&alice, "", "fiona@example.net").await?;
+
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+        assert_eq!(chat_id.get_encryption_info(&alice).await?, "");
+
+        add_contact_to_chat(&alice, chat_id, contact_bob).await?;
+        assert_eq!(
+            chat_id.get_encryption_info(&alice).await?,
+            "No encryption:\n\
+            bob@example.net\n"
+        );
+
+        add_contact_to_chat(&alice, chat_id, contact_fiona).await?;
+        assert_eq!(
+            chat_id.get_encryption_info(&alice).await?,
+            "No encryption:\n\
+            bob@example.net\n\
+            fiona@example.net\n"
+        );
+
+        let direct_chat = bob.create_chat(&alice).await;
+        send_text_msg(&bob, direct_chat.id, "Hello!".to_string()).await?;
+        alice.recv_msg(&bob.pop_sent_msg().await).await;
+
+        assert_eq!(
+            chat_id.get_encryption_info(&alice).await?,
+            "No encryption:\n\
+            fiona@example.net\n\
+            \n\
+            End-to-end encryption preferred:\n\
+            bob@example.net\n"
+        );
+
+        bob.set_config(Config::E2eeEnabled, Some("0")).await?;
+        send_text_msg(&bob, direct_chat.id, "Hello!".to_string()).await?;
+        alice.recv_msg(&bob.pop_sent_msg().await).await;
+
+        assert_eq!(
+            chat_id.get_encryption_info(&alice).await?,
+            "No encryption:\n\
+            fiona@example.net\n\
+            \n\
+            End-to-end encryption available:\n\
+            bob@example.net\n"
+        );
 
         Ok(())
     }

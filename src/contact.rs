@@ -889,7 +889,7 @@ impl Contact {
                 };
 
                 ret += &format!(
-                    "{}\n{}:",
+                    "{}.\n{}:",
                     stock_message,
                     stock_str::finger_prints(context).await
                 );
@@ -1961,7 +1961,7 @@ mod tests {
                 .await?;
 
         let encrinfo = Contact::get_encrinfo(&alice, contact_bob_id).await?;
-        assert_eq!(encrinfo, "No encryption.");
+        assert_eq!(encrinfo, "No encryption");
 
         let bob = TestContext::new_bob().await;
         let chat_alice = bob

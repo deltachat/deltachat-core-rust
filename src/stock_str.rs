@@ -73,10 +73,10 @@ pub enum StockMessage {
     #[strum(props(fallback = "Encrypted message"))]
     EncryptedMsg = 24,
 
-    #[strum(props(fallback = "End-to-end encryption available."))]
+    #[strum(props(fallback = "End-to-end encryption available"))]
     E2eAvailable = 25,
 
-    #[strum(props(fallback = "No encryption."))]
+    #[strum(props(fallback = "No encryption"))]
     EncrNone = 28,
 
     #[strum(props(fallback = "This message was encrypted for another setup."))]
@@ -94,7 +94,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "Group image deleted."))]
     MsgGrpImgDeleted = 33,
 
-    #[strum(props(fallback = "End-to-end encryption preferred."))]
+    #[strum(props(fallback = "End-to-end encryption preferred"))]
     E2ePreferred = 34,
 
     #[strum(props(fallback = "%1$s verified."))]
