@@ -631,18 +631,10 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
     let event = &(*event).typ;
 
     match event {
-        EventType::Info(msg)
-        | EventType::SmtpConnected(msg)
-        | EventType::ImapConnected(msg)
-        | EventType::SmtpMessageSent(msg)
-        | EventType::ImapMessageDeleted(msg)
-        | EventType::ImapMessageMoved(msg)
-        | EventType::NewBlobFile(msg)
-        | EventType::DeletedBlobFile(msg)
-        | EventType::Warning(msg)
-        | EventType::Error(msg)
-        | EventType::ErrorSelfNotInGroup(msg) => {
-            let data2 = msg.to_c_string().unwrap_or_default();
+        EventType::ImexFileWritten(file) => {
+            // Directly convert the PathBuf file to a CString, since both can contain invalid
+            // UTF-8, but a Rust `String` can't
+            let data2 = file.to_c_string().unwrap_or_default();
             data2.into_raw()
         }
         EventType::MsgsChanged { .. }

@@ -243,7 +243,7 @@ enum JoinerProgress {
     // Succeeded,
 }
 
-impl From<JoinerProgress> for usize {
+impl From<JoinerProgress> for u32 {
     fn from(progress: JoinerProgress) -> Self {
         match progress {
             JoinerProgress::Error => 0,

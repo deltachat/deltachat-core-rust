@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use async_std::channel::{self, Receiver, Sender, TrySendError};
 use async_std::path::PathBuf;
+use num_traits::ToPrimitive;
 use serde_json::Value;
 use strum::EnumProperty;
 
@@ -308,7 +309,7 @@ pub enum EventType {
     ///     1000=Protocol finished for this contact.
     SecurejoinInviterProgress {
         contact_id: ContactId,
-        progress: usize,
+        progress: u32,
     },
 
     /// Progress information of a secure-join handshake from the view of the joiner
@@ -321,7 +322,7 @@ pub enum EventType {
     ///     (Bob has verified alice and waits until Alice does the same for him)
     SecurejoinJoinerProgress {
         contact_id: ContactId,
-        progress: usize,
+        progress: u32,
     },
 
     /// The connectivity to the server changed.
@@ -344,80 +345,148 @@ pub enum EventType {
 }
 
 impl EventType {
+    /// Get data associated with an event object.
+    /// This is meant to be used for the FFI and serializing; Rust code
+    /// can usually just match on the EventType.
+    ///
+    /// data1 is always an int.
+    /// For events that have no number associacted with them, this returns 0.
+    pub fn get_data1_int(&self) -> u32 {
+        match self {
+            EventType::Info(_)
+            | EventType::SmtpConnected(_)
+            | EventType::ImapConnected(_)
+            | EventType::SmtpMessageSent(_)
+            | EventType::ImapMessageDeleted(_)
+            | EventType::ImapMessageMoved(_)
+            | EventType::NewBlobFile(_)
+            | EventType::DeletedBlobFile(_)
+            | EventType::Warning(_)
+            | EventType::Error(_)
+            | EventType::ConnectivityChanged
+            | EventType::SelfavatarChanged
+            | EventType::ErrorSelfNotInGroup(_)
+            | EventType::ImexFileWritten(_) => 0,
+            EventType::MsgsChanged { chat_id, .. }
+            | EventType::IncomingMsg { chat_id, .. }
+            | EventType::MsgsNoticed(chat_id)
+            | EventType::MsgDelivered { chat_id, .. }
+            | EventType::MsgFailed { chat_id, .. }
+            | EventType::MsgRead { chat_id, .. }
+            | EventType::ChatModified(chat_id)
+            | EventType::ChatEphemeralTimerModified { chat_id, .. } => chat_id.to_u32(),
+            EventType::ContactsChanged(id) | EventType::LocationChanged(id) => {
+                let id = id.unwrap_or_default();
+                id.to_u32()
+            }
+            EventType::ConfigureProgress { progress, .. } | EventType::ImexProgress(progress) => {
+                progress.to_u32().unwrap_or_default()
+            }
+            EventType::SecurejoinInviterProgress { contact_id, .. }
+            | EventType::SecurejoinJoinerProgress { contact_id, .. } => contact_id.to_u32(),
+            EventType::WebxdcStatusUpdate { msg_id, .. } => msg_id.to_u32(),
+        }
+    }
+
+    /// Get data associated with an event object.
+    ///
+    /// data2 sometimes is a string and sometimes an int; if it's a string or
+    /// there is no data2, this function returns `None`.
+    ///
+    /// This is meant to be used for the FFI and serializing; Rust code
+    /// can usually just `match` the EventType.
+    pub fn get_data2_int(&self) -> Option<u32> {
+        match self {
+            EventType::Info(_)
+            | EventType::SmtpConnected(_)
+            | EventType::ImapConnected(_)
+            | EventType::SmtpMessageSent(_)
+            | EventType::ImapMessageDeleted(_)
+            | EventType::ImapMessageMoved(_)
+            | EventType::NewBlobFile(_)
+            | EventType::DeletedBlobFile(_)
+            | EventType::Warning(_)
+            | EventType::Error(_)
+            | EventType::ErrorSelfNotInGroup(_)
+            | EventType::ContactsChanged(_)
+            | EventType::LocationChanged(_)
+            | EventType::ConfigureProgress { .. }
+            | EventType::ImexProgress(_)
+            | EventType::ImexFileWritten(_)
+            | EventType::MsgsNoticed(_)
+            | EventType::ConnectivityChanged
+            | EventType::SelfavatarChanged
+            | EventType::ChatModified(_) => None,
+            EventType::MsgsChanged { msg_id, .. }
+            | EventType::IncomingMsg { msg_id, .. }
+            | EventType::MsgDelivered { msg_id, .. }
+            | EventType::MsgFailed { msg_id, .. }
+            | EventType::MsgRead { msg_id, .. } => Some(msg_id.to_u32()),
+            EventType::SecurejoinInviterProgress { progress, .. }
+            | EventType::SecurejoinJoinerProgress { progress, .. } => Some(*progress),
+            EventType::ChatEphemeralTimerModified { timer, .. } => Some(timer.to_u32()),
+            EventType::WebxdcStatusUpdate {
+                status_update_serial,
+                ..
+            } => Some(status_update_serial.to_u32()),
+        }
+    }
+
+    /// Get data associated with an event object.
+    ///
+    /// data2 sometimes is a string and sometimes an int; if it's an int or
+    /// there is no data2, this function returns `None`.
+    ///
+    /// This is meant to be used for the FFI and serializing; Rust code
+    /// can usually just `match` the EventType.
+    pub fn get_data2_str(&self) -> Option<&str> {
+        match self {
+            EventType::Info(msg)
+            | EventType::SmtpConnected(msg)
+            | EventType::ImapConnected(msg)
+            | EventType::SmtpMessageSent(msg)
+            | EventType::ImapMessageDeleted(msg)
+            | EventType::ImapMessageMoved(msg)
+            | EventType::NewBlobFile(msg)
+            | EventType::DeletedBlobFile(msg)
+            | EventType::Warning(msg)
+            | EventType::Error(msg)
+            | EventType::ErrorSelfNotInGroup(msg) => Some(msg),
+            EventType::MsgsChanged { .. }
+            | EventType::IncomingMsg { .. }
+            | EventType::MsgsNoticed(_)
+            | EventType::MsgDelivered { .. }
+            | EventType::MsgFailed { .. }
+            | EventType::MsgRead { .. }
+            | EventType::ChatModified(_)
+            | EventType::ContactsChanged(_)
+            | EventType::LocationChanged(_)
+            | EventType::ImexProgress(_)
+            | EventType::SecurejoinInviterProgress { .. }
+            | EventType::SecurejoinJoinerProgress { .. }
+            | EventType::ConnectivityChanged
+            | EventType::SelfavatarChanged
+            | EventType::WebxdcStatusUpdate { .. }
+            | EventType::ChatEphemeralTimerModified { .. } => None,
+            EventType::ConfigureProgress { comment, .. } => comment.as_deref(),
+            // Note that `PathBuf::to_str()` returns None for invalid UTF-8:
+            EventType::ImexFileWritten(file) => file.to_str(),
+        }
+    }
+
     pub fn to_json(&self, timestamp: Option<i64>) -> Value {
         let mut tree: serde_json::Map<String, Value> = serde_json::Map::new();
 
         tree.insert("event_type".to_string(), Value::String(self.to_string()));
 
-        let (data1, data2) = match &self {
-            EventType::Info(data1)
-            | EventType::Warning(data1)
-            | EventType::Error(data1)
-            | EventType::SmtpConnected(data1)
-            | EventType::ImapConnected(data1)
-            | EventType::SmtpMessageSent(data1)
-            | EventType::ImapMessageDeleted(data1)
-            | EventType::ImapMessageMoved(data1)
-            | EventType::NewBlobFile(data1)
-            | EventType::DeletedBlobFile(data1)
-            | EventType::ErrorSelfNotInGroup(data1) => {
-                (Value::String(data1.to_owned()), Value::Null)
-            }
-            EventType::MsgsChanged { chat_id, msg_id }
-            | EventType::IncomingMsg { chat_id, msg_id }
-            | EventType::MsgDelivered { chat_id, msg_id }
-            | EventType::MsgFailed { chat_id, msg_id }
-            | EventType::MsgRead { chat_id, msg_id } => (
-                Value::Number(chat_id.to_u32().into()),
-                Value::Number(msg_id.to_u32().into()),
-            ),
-            EventType::MsgsNoticed(chat_id) | EventType::ChatModified(chat_id) => {
-                (Value::Number(chat_id.to_u32().into()), Value::Null)
-            }
-            EventType::ChatEphemeralTimerModified { chat_id, timer } => (
-                Value::Number(chat_id.to_u32().into()),
-                Value::String(format!("{:?}", timer)),
-            ),
-            EventType::ContactsChanged(contact_id_option)
-            | EventType::LocationChanged(contact_id_option) => (
-                if let Some(id) = contact_id_option {
-                    Value::Number(id.to_u32().into())
-                } else {
-                    Value::Null
-                },
-                Value::Null,
-            ),
-            EventType::ConfigureProgress { progress, comment } => (
-                Value::Number((*progress).into()),
-                if let Some(comment) = comment {
-                    Value::String(comment.to_owned())
-                } else {
-                    Value::Null
-                },
-            ),
-            EventType::ImexProgress(progress) => (Value::Number((*progress).into()), Value::Null),
-            EventType::ImexFileWritten(path) => (Value::String(format!("{:?}", path)), Value::Null),
-            EventType::SecurejoinInviterProgress {
-                contact_id,
-                progress,
-            }
-            | EventType::SecurejoinJoinerProgress {
-                contact_id,
-                progress,
-            } => (
-                Value::Number(contact_id.to_u32().into()),
-                Value::Number((*progress).into()),
-            ),
-            EventType::ConnectivityChanged | EventType::SelfavatarChanged => {
-                (Value::Null, Value::Null)
-            }
-            EventType::WebxdcStatusUpdate {
-                msg_id,
-                status_update_serial,
-            } => (
-                Value::Number(msg_id.to_u32().into()),
-                Value::Number(status_update_serial.to_u32().into()),
-            ),
+        let data1 = Value::Number(self.get_data1_int().into());
+
+        let data2 = if let Some(number) = self.get_data2_int() {
+            Value::Number(number.into())
+        } else if let Some(string) = self.get_data2_str() {
+            Value::String(string.to_string())
+        } else {
+            Value::Null
         };
 
         tree.insert("data1".to_string(), data1);
