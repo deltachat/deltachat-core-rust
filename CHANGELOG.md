@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### API-Changes
+- add `debug_logging` setting #3296
+
 ### Changes
 - Disable Autocrypt & Authres-checking for mailing lists,
   because they don't work well with mailing lists #3765
