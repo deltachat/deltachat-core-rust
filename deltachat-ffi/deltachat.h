@@ -3731,6 +3731,10 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
  * - summary: short string describing the state of the app,
  *   sth. as "2 votes", "Highscore: 123",
  *   can be changed by the apps and defaults to an empty string.
+ * - source_code_url:
+ *   URL where the source code of the Webxdc and other information can be found;
+ *   defaults to an empty string.
+ *   Implementations may offer an menu or a button to open this URL.
  *
  * @memberof dc_msg_t
  * @param msg The webxdc instance.

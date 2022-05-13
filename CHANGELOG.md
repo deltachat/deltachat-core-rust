@@ -5,6 +5,7 @@
 ### Changes
 - send normal messages with higher priority than MDNs #3243
 - make Scheduler stateless #3302
+- support `source_code_url` from Webxdc manifests #3314
 
 ### API-Changes
 - deprecate unused `marker1before` argument of `dc_get_chat_msgs`
