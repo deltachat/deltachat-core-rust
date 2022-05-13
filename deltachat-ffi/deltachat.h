@@ -3728,6 +3728,8 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
  *   To get the file, use dc_msg_get_webxdc_blob().
  *   App icons should should be square,
  *   the implementations will add round corners etc. as needed.
+ * - document: if the Webxdc represents a document, this is the name of the document,
+ *   otherwise, this is an empty string.
  * - summary: short string describing the state of the app,
  *   sth. as "2 votes", "Highscore: 123",
  *   can be changed by the apps and defaults to an empty string.

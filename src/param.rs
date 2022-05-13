@@ -169,6 +169,12 @@ pub enum Param {
     /// For Chats: timestamp of protection settings update.
     ProtectionSettingsTimestamp = b'L',
 
+    /// For Webxdc Message Instances: Current document name
+    WebxdcDocument = b'R',
+
+    /// For Webxdc Message Instances: timestamp of document name update.
+    WebxdcDocumentTimestamp = b'W',
+
     /// For Webxdc Message Instances: Current summary
     WebxdcSummary = b'N',
 

@@ -59,6 +59,7 @@ struct WebxdcManifest {
 pub struct WebxdcInfo {
     pub name: String,
     pub icon: String,
+    pub document: String,
     pub summary: String,
     pub source_code_url: String,
 }
@@ -115,6 +116,9 @@ pub(crate) struct StatusUpdateItem {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     info: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    document: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     summary: Option<String>,
@@ -191,8 +195,8 @@ impl Context {
         Ok(())
     }
 
-    /// Takes an update-json as `{payload: PAYLOAD}` (or legacy `PAYLOAD`)
-    /// writes it to the database and handles events, info-messages and summary.
+    /// Takes an update-json as `{payload: PAYLOAD}`
+    /// writes it to the database and handles events, info-messages, document name and summary.
     async fn create_status_update_record(
         &self,
         instance: &mut Message,
@@ -212,6 +216,7 @@ impl Context {
                     | MessageState::OutDraft => StatusUpdateItem {
                         payload: item.payload,
                         info: None, // no info-messages in draft mode
+                        document: item.document,
                         summary: item.summary,
                     },
                     _ => item,
@@ -234,15 +239,31 @@ impl Context {
             .await?;
         }
 
+        let mut param_changed = false;
+
+        if let Some(ref document) = status_update_item.document {
+            if instance
+                .param
+                .update_timestamp(Param::WebxdcDocumentTimestamp, timestamp)?
+            {
+                instance.param.set(Param::WebxdcDocument, document);
+                param_changed = true;
+            }
+        }
+
         if let Some(ref summary) = status_update_item.summary {
             if instance
                 .param
                 .update_timestamp(Param::WebxdcSummaryTimestamp, timestamp)?
             {
                 instance.param.set(Param::WebxdcSummary, summary);
-                instance.update_param(self).await;
-                self.emit_msgs_changed(instance.chat_id, instance.id);
+                param_changed = true;
             }
+        }
+
+        if param_changed {
+            instance.update_param(self).await;
+            self.emit_msgs_changed(instance.chat_id, instance.id);
         }
 
         let rowid = self
@@ -572,6 +593,11 @@ impl Message {
             } else {
                 WEBXDC_DEFAULT_ICON.to_string()
             },
+            document: self
+                .param
+                .get(Param::WebxdcDocument)
+                .unwrap_or_default()
+                .to_string(),
             summary: self
                 .param
                 .get(Param::WebxdcSummary)
