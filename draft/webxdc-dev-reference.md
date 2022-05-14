@@ -113,10 +113,14 @@ the `manifest.toml` has the following format
 
 ```toml
 name = "My App Name"
+source_code_url = "https://example.org/orga/repo"
 ```
 
-- **name** - The name of the app.
+- `name` - The name of the app.
   If no name is set or if there is no manifest, the filename is used as the app name.
+
+- `source_code_url` - Optional URL where the source code of the Webxdc and maybe other information can be found.
+  UI may make the url accessible via a "Help" menu in the Webxdc window.
 
 
 ## App Icon
