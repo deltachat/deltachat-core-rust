@@ -6,6 +6,7 @@
 - send normal messages with higher priority than MDNs #3243
 - make Scheduler stateless #3302
 - support `source_code_url` from Webxdc manifests #3314
+- support Webxdc document names and add `document` to `dc_msg_get_webxdc_info()` #3317
 - improve chat encryption info, make it easier to find contacts without keys #3318
 
 ### API-Changes
