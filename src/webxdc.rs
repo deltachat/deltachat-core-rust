@@ -1563,6 +1563,48 @@ sth_for_the = "future""#
     }
 
     #[async_std::test]
+    async fn test_webxdc_document_name() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Alice creates an webxdc instance and updates document name
+        let alice_chat = alice.create_chat(&bob).await;
+        let alice_instance = send_webxdc_instance(&alice, alice_chat.id).await?;
+        let sent_instance = &alice.pop_sent_msg().await;
+        let info = alice_instance.get_webxdc_info(&alice).await?;
+        assert_eq!(info.document, "".to_string());
+        assert_eq!(info.summary, "".to_string());
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"document":"my file", "payload":1337}"#,
+                "descr",
+            )
+            .await?;
+        let sent_update1 = &alice.pop_sent_msg().await;
+        let info = Message::load_from_db(&alice, alice_instance.id)
+            .await?
+            .get_webxdc_info(&alice)
+            .await?;
+        assert_eq!(info.document, "my file".to_string());
+        assert_eq!(info.summary, "".to_string());
+
+        // Bob receives the updates
+        bob.recv_msg(sent_instance).await;
+        let bob_instance = bob.get_last_msg().await;
+        bob.recv_msg(sent_update1).await;
+        let info = Message::load_from_db(&bob, bob_instance.id)
+            .await?
+            .get_webxdc_info(&bob)
+            .await?;
+        assert_eq!(info.document, "my file".to_string());
+        assert_eq!(info.summary, "".to_string());
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_webxdc_info_msg() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
