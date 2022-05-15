@@ -805,7 +805,7 @@ impl MimeMessage {
                 The second body part contains the control information necessary to
                 verify the digital signature." We simply take the first body part and
                 skip the rest.  (see
-                <https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html>
+                <https://k9mail.app/2016/11/24/OpenPGP-Considerations-Part-I.html>
                 for background information why we use encrypted+signed) */
                 if let Some(first) = mail.subparts.get(0) {
                     any_part_added = self
