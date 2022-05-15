@@ -37,6 +37,8 @@ To get a shared state, the peers use `sendUpdate()` to send updates to each othe
        eg. "Alice voted" or "Bob scored 123 in MyGame";
        usually only one line of text is shown,
        use this option sparingly to not spam the chat.
+    - `update.document`: optional, name of the document in edit,
+       must not be used eg. in games where the Webxdc does not create documents
     - `update.summary`: optional, short text, shown beside app icon;
        it is recommended to use some aggregated value,  eg. "8 votes", "Highscore: 123"
 
