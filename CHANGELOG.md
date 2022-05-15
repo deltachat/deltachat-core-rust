@@ -24,7 +24,11 @@
 - node: throw error when getting context with an invalid account id
 - node: throw error when instanciating a wrapper class on `null` (Context, Message, Chat, ChatList and so on)
 - use same contact-color if email address differ only in upper-/lowercase #3327
+- fix race condition in ongoing process (import/export, configuration) allocation
 - repair encrypted mails "mixed up" by Google Workspace "Append footer" function #3315
+
+### Removed
+- node: remove unmaintained coverage scripts
 
 
 ## 1.80.0

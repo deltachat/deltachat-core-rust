@@ -741,7 +741,6 @@ mod tests {
         );
 
         let sent = bob.pop_sent_msg().await;
-        assert!(!bob.ctx.has_ongoing().await);
         assert_eq!(sent.recipient(), "alice@example.org".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
@@ -1291,7 +1290,6 @@ mod tests {
         let bob_chat = Chat::load_from_db(&bob.ctx, bob_chatid).await?;
         assert!(bob_chat.is_protected());
         assert!(bob_chat.typ == Chattype::Group);
-        assert!(!bob.ctx.has_ongoing().await);
 
         // On this "happy path", Alice and Bob get only a group-chat where all information are added to.
         // The one-to-one chats are used internally for the hidden handshake messages,
