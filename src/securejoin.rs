@@ -139,9 +139,6 @@ async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum JoinError {
-    #[error("An \"ongoing\" process is already running")]
-    OngoingRunning,
-
     #[error("Failed to send handshake message: {0}")]
     SendMessage(#[from] SendMsgError),
 
@@ -149,10 +146,6 @@ pub enum JoinError {
     // is supposed to create a contact for us.
     #[error("Unknown contact (this is a bug): {0}")]
     UnknownContact(#[source] anyhow::Error),
-
-    // Note that this can only occur if we failed to create the chat correctly.
-    #[error("Ongoing sender dropped (this is a bug)")]
-    OngoingSenderDropped,
 
     #[error("Other")]
     Other(#[from] anyhow::Error),
