@@ -910,6 +910,16 @@ export class Context extends EventEmitter {
   }
 }
 
+export type WebxdcInfo = {
+  name: string
+  icon: string
+  summary: string
+  /**
+   * if set by the webxdc, name of the document in edit
+   */
+  document?: string
+}
+
 type WebxdcSendingStatusUpdate<T> = {
   /** the payload, deserialized json:
    * any javascript primitive, array or object. */
@@ -923,6 +933,11 @@ type WebxdcSendingStatusUpdate<T> = {
    * it is recommended to use some aggregated value,
    * eg. "8 votes", "Highscore: 123" */
   summary?: string
+  /**
+   * optional, name of the document in edit,
+   * must not be used eg. in games where the Webxdc does not create documents
+   */
+  document?: string
 }
 
 type WebxdcReceivedStatusUpdate<T> = {

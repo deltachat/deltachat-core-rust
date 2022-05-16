@@ -4,6 +4,7 @@ import binding from './binding'
 import { C } from './constants'
 import { Lot } from './lot'
 import { Chat } from './chat'
+import { WebxdcInfo } from './context'
 const debug = require('debug')('deltachat:node:message')
 
 export enum MessageDownloadState {
@@ -157,7 +158,7 @@ export class Message {
     return binding.dcn_msg_get_chat_id(this.dc_msg)
   }
 
-  get webxdcInfo(): { name: string; icon: string; summary: string } | null {
+  get webxdcInfo(): WebxdcInfo | null {
     let info = binding.dcn_msg_get_webxdc_info(this.dc_msg)
     return info
       ? JSON.parse(binding.dcn_msg_get_webxdc_info(this.dc_msg))
