@@ -8,6 +8,7 @@
 - support `source_code_url` from Webxdc manifests #3314
 - support Webxdc document names and add `document` to `dc_msg_get_webxdc_info()` #3317
 - improve chat encryption info, make it easier to find contacts without keys #3318
+- improve error reporting when creating a folder fails #3325
 
 ### API-Changes
 - deprecate unused `marker1before` argument of `dc_get_chat_msgs`
