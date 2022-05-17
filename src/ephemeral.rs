@@ -76,7 +76,7 @@ use crate::events::EventType;
 use crate::log::LogExt;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
-use crate::sql;
+use crate::sql::{self, params_iter};
 use crate::stock_str;
 use std::cmp::max;
 
@@ -303,10 +303,6 @@ pub(crate) async fn start_ephemeral_timers_msgids(
     context: &Context,
     msg_ids: &[MsgId],
 ) -> Result<()> {
-    let msg_ids: Vec<&dyn crate::ToSql> = msg_ids
-        .iter()
-        .map(|msg_id| msg_id as &dyn crate::ToSql)
-        .collect();
     let now = time();
     let count = context
         .sql
@@ -320,7 +316,7 @@ pub(crate) async fn start_ephemeral_timers_msgids(
             rusqlite::params_from_iter(
                 std::iter::once(&now as &dyn crate::ToSql)
                     .chain(std::iter::once(&now as &dyn crate::ToSql))
-                    .chain(msg_ids),
+                    .chain(params_iter(msg_ids)),
             ),
         )
         .await?;
