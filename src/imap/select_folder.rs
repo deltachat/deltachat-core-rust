@@ -145,13 +145,11 @@ impl Imap {
             Ok(newly_selected) => Ok(newly_selected),
             Err(err) => match err {
                 Error::NoFolder(..) => {
-                    if let Some(ref mut session) = self.session {
-                        session.create(folder).await.with_context(|| {
-                            format!("Couldn't select folder ('{}'), then create() failed", err)
-                        })?;
-                    } else {
-                        return Err(Error::NoSession.into());
-                    }
+                    let session = self.session.as_mut().context("no IMAP session")?;
+                    session.create(folder).await.with_context(|| {
+                        format!("Couldn't select folder ('{}'), then create() failed", err)
+                    })?;
+
                     Ok(self.select_folder(context, Some(folder)).await?)
                 }
                 _ => Err(err.into()),
