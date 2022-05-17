@@ -3446,6 +3446,7 @@ int64_t          dc_chat_get_remaining_mute_duration (const dc_chat_t* chat);
  */
 
 
+#define         DC_MSG_ID_MARKER1            1 // this is used by iOS to mark things in the message list
 #define         DC_MSG_ID_DAYMARKER          9
 #define         DC_MSG_ID_LAST_SPECIAL       9
 
