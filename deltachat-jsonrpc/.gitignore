@@ -1,5 +1,4 @@
-/target
-/accounts
+accounts/
 
 types.ts
 
