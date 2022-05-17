@@ -20,6 +20,7 @@
 ### Fixes
 - node: throw error when getting context with an invalid account id
 - node: throw error when instanciating a wrapper class on `null` (Context, Message, Chat, ChatList and so on)
+- use same contact-color if email address differ only in upper-/lowercase #3327
 
 ### Removed
 - node: remove unmaintained coverage scripts
