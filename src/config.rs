@@ -343,7 +343,6 @@ impl Context {
                     self.sql.set_raw_config(key, value).await?;
                     self.debug_logging.store(0, atomic::Ordering::Relaxed);
                 } else {
-
                     // the unbundled version lives at https://github.com/webxdc/webxdc_logging
                     let data: &[u8] = include_bytes!("../assets/webxdc_logging.xdc");
 
