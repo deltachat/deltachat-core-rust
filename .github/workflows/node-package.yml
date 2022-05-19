@@ -122,11 +122,11 @@ jobs:
           name: windows-latest
       - shell: bash
         run: |
-          mkdir prebuilds
-          tar -xvzf ubuntu-18.04/ubuntu-18.04.tar.gz -C prebuilds
-          tar -xvzf macos-latest/macos-latest.tar.gz -C prebuilds
-          tar -xvzf windows-latest/windows-latest.tar.gz -C prebuilds
-          tree prebuilds
+          mkdir node/prebuilds
+          tar -xvzf ubuntu-18.04/ubuntu-18.04.tar.gz -C node/prebuilds
+          tar -xvzf macos-latest/macos-latest.tar.gz -C node/prebuilds
+          tar -xvzf windows-latest/windows-latest.tar.gz -C node/prebuilds
+          tree node/prebuilds
       - name: install dependencies without running scripts
         run: |
           npm install --ignore-scripts
