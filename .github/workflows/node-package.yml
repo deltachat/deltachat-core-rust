@@ -171,4 +171,4 @@ jobs:
         run: |
           echo -e "${{ secrets.SSH_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
-          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/"
+          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r deltachat-node-${{ steps.tag.outputs.tag }}.tar.gz "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/"
