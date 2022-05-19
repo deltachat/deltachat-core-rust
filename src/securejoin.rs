@@ -139,9 +139,6 @@ async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum JoinError {
-    #[error("An \"ongoing\" process is already running")]
-    OngoingRunning,
-
     #[error("Failed to send handshake message: {0}")]
     SendMessage(#[from] SendMsgError),
 
@@ -149,10 +146,6 @@ pub enum JoinError {
     // is supposed to create a contact for us.
     #[error("Unknown contact (this is a bug): {0}")]
     UnknownContact(#[source] anyhow::Error),
-
-    // Note that this can only occur if we failed to create the chat correctly.
-    #[error("Ongoing sender dropped (this is a bug)")]
-    OngoingSenderDropped,
 
     #[error("Other")]
     Other(#[from] anyhow::Error),
@@ -748,7 +741,6 @@ mod tests {
         );
 
         let sent = bob.pop_sent_msg().await;
-        assert!(!bob.ctx.has_ongoing().await);
         assert_eq!(sent.recipient(), "alice@example.org".parse().unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
@@ -1298,7 +1290,6 @@ mod tests {
         let bob_chat = Chat::load_from_db(&bob.ctx, bob_chatid).await?;
         assert!(bob_chat.is_protected());
         assert!(bob_chat.typ == Chattype::Group);
-        assert!(!bob.ctx.has_ongoing().await);
 
         // On this "happy path", Alice and Bob get only a group-chat where all information are added to.
         // The one-to-one chats are used internally for the hidden handshake messages,

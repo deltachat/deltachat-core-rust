@@ -4905,6 +4905,22 @@ mod tests {
         Ok(())
     }
 
+    #[async_std::test]
+    async fn test_chat_get_color() -> Result<()> {
+        let t = TestContext::new().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat").await?;
+        let color1 = Chat::load_from_db(&t, chat_id).await?.get_color(&t).await?;
+        assert_eq!(color1, 0x008772);
+
+        // upper-/lowercase makes a difference for the colors, these are different groups
+        // (in contrast to email addresses, where upper-/lowercase is ignored in practise)
+        let t = TestContext::new().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "A CHAT").await?;
+        let color2 = Chat::load_from_db(&t, chat_id).await?.get_color(&t).await?;
+        assert_ne!(color2, color1);
+        Ok(())
+    }
+
     async fn test_sticker(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;

@@ -1082,7 +1082,7 @@ impl Contact {
     /// and can be used for an fallback avatar with white initials
     /// as well as for headlines in bubbles of group chats.
     pub fn get_color(&self) -> u32 {
-        str_to_color(&self.addr)
+        str_to_color(&self.addr.to_lowercase())
     }
 
     /// Gets the contact's status.
@@ -1944,6 +1944,25 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(id, Some(ContactId::SELF));
+    }
+
+    #[async_std::test]
+    async fn test_contact_get_color() -> Result<()> {
+        let t = TestContext::new().await;
+        let contact_id = Contact::create(&t, "name", "name@example.net").await?;
+        let color1 = Contact::get_by_id(&t, contact_id).await?.get_color();
+        assert_eq!(color1, 0xA739FF);
+
+        let t = TestContext::new().await;
+        let contact_id = Contact::create(&t, "prename name", "name@example.net").await?;
+        let color2 = Contact::get_by_id(&t, contact_id).await?.get_color();
+        assert_eq!(color2, color1);
+
+        let t = TestContext::new().await;
+        let contact_id = Contact::create(&t, "Name", "nAme@exAmple.NET").await?;
+        let color3 = Contact::get_by_id(&t, contact_id).await?.get_color();
+        assert_eq!(color3, color1);
+        Ok(())
     }
 
     #[async_std::test]

@@ -278,12 +278,10 @@ impl Context {
     // Ongoing process allocation/free/check
 
     pub(crate) async fn alloc_ongoing(&self) -> Result<Receiver<()>> {
-        if self.has_ongoing().await {
+        let mut s = self.running_state.write().await;
+        if s.ongoing_running || !s.shall_stop_ongoing {
             bail!("There is already another ongoing process running.");
         }
-
-        let s_a = &self.running_state;
-        let mut s = s_a.write().await;
 
         s.ongoing_running = true;
         s.shall_stop_ongoing = false;
@@ -294,25 +292,16 @@ impl Context {
     }
 
     pub(crate) async fn free_ongoing(&self) {
-        let s_a = &self.running_state;
-        let mut s = s_a.write().await;
+        let mut s = self.running_state.write().await;
 
         s.ongoing_running = false;
         s.shall_stop_ongoing = true;
         s.cancel_sender.take();
     }
 
-    pub(crate) async fn has_ongoing(&self) -> bool {
-        let s_a = &self.running_state;
-        let s = s_a.read().await;
-
-        s.ongoing_running || !s.shall_stop_ongoing
-    }
-
     /// Signal an ongoing process to stop.
     pub async fn stop_ongoing(&self) {
-        let s_a = &self.running_state;
-        let mut s = s_a.write().await;
+        let mut s = self.running_state.write().await;
         if let Some(cancel) = s.cancel_sender.take() {
             if let Err(err) = cancel.send(()).await {
                 warn!(self, "could not cancel ongoing: {:?}", err);
@@ -324,7 +313,7 @@ impl Context {
             s.shall_stop_ongoing = true;
         } else {
             info!(self, "No ongoing process to stop.",);
-        };
+        }
     }
 
     pub(crate) async fn shall_stop_ongoing(&self) -> bool {

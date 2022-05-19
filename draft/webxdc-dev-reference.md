@@ -4,11 +4,11 @@
 
 ## Webxdc File Format
 
-- a **Webxdc app** is a **ZIP-file** with the extension `.xdc`
+- a **Webxdc** is a **ZIP-file** with the extension `.xdc`
 - the ZIP-file must use the default compression methods as of RFC 1950,
   this is "Deflate" or "Store"
 - the ZIP-file must contain at least the file `index.html`
-- if the Webxdc app is started, `index.html` is opened in a restricted webview
+- if the Webxdc is started, `index.html` is opened in a restricted webview
   that allow accessing resources only from the ZIP-file
 
 
@@ -28,7 +28,7 @@ no need to add `webxdc.js` to your ZIP-file):
 window.webxdc.sendUpdate(update, descr);
 ```
 
-Webxdc apps are usually shared in a chat and run independently on each peer.
+A Webxdc is usually shared in a chat and run independently on each peer.
 To get a shared state, the peers use `sendUpdate()` to send updates to each other.
 
 - `update`: an object with the following properties:  
@@ -39,7 +39,7 @@ To get a shared state, the peers use `sendUpdate()` to send updates to each othe
        use this option sparingly to not spam the chat.
     - `update.document`: optional, name of the document in edit,
        must not be used eg. in games where the Webxdc does not create documents
-    - `update.summary`: optional, short text, shown beside app icon;
+    - `update.summary`: optional, short text, shown beside Webxdc icon;
        it is recommended to use some aggregated value,  eg. "8 votes", "Highscore: 123"
 
 - `descr`: short, human-readable description what this update is about.
@@ -78,9 +78,12 @@ Each `update` which is passed to the callback comes with the following propertie
 - `update.max_serial`: the maximum serial currently known.
   If `max_serial` equals `serial` this update is the last update (until new network messages arrive).
 
-- `update.info`: optional, short, informational message (see `send_update`) 
+- `update.info`: optional, short, informational message (see `sendUpdate()`)
 
-- `update.summary`: optional, short text, shown beside app icon (see `send_update`)
+- `update.document`: optional, document name as set by the sender, (see `sendUpdate()`),
+  implementations show the document name eg. beside the app icon or in the title bar
+
+- `update.summary`: optional, short text, shown beside icon (see `sendUpdate()`)
 
 
 ### selfAddr
@@ -114,21 +117,21 @@ some basic information are read and used from there.
 the `manifest.toml` has the following format
 
 ```toml
-name = "My App Name"
+name = "My Name"
 source_code_url = "https://example.org/orga/repo"
 ```
 
-- `name` - The name of the app.
-  If no name is set or if there is no manifest, the filename is used as the app name.
+- `name` - The name of the Webxdc.
+  If no name is set or if there is no manifest, the filename is used as the Webxdc name.
 
 - `source_code_url` - Optional URL where the source code of the Webxdc and maybe other information can be found.
   UI may make the url accessible via a "Help" menu in the Webxdc window.
 
 
-## App Icon
+## Webxdc Icon
 
 If the ZIP-root contains an `icon.png` or `icon.jpg`,
-these files are used as the icon for the app.
+these files are used as the icon for the Webxdc.
 The icon should be a square at reasonable width/height;
 round corners etc. will be added by the implementations as needed.
 If no icon is set, a default icon will be used.
@@ -168,7 +171,7 @@ The following example shows an input field and  every input is show on all peers
 
 [Webxdc Development Tool](https://github.com/deltachat/webxdc-dev)
 offers an **Webxdc Simulator** that can be used in many browsers without any installation needed.
-You can also use that repository as a template for your own app -
+You can also use that repository as a template for your own Webxdc -
 just clone and start adapting things to your need.
 
 
