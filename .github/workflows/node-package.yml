@@ -169,6 +169,10 @@ jobs:
         id: upload
         shell: bash
         run: |
+          if [[ "${{ steps.prepare.outputs.prid }}" == py* ]]
+          then
+            exit 0
+          fi
           echo -e "${{ secrets.SSH_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
           mv deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz deltachat-node-${{ steps.tag.outputs.tag }}.tar.gz
