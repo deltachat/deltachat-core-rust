@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.83.0
+
+### Fixes
+- fix node prebuild & package ci #3337
+
 ## 1.82.0
 
 ### API-Changes
