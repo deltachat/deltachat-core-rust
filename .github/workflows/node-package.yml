@@ -151,7 +151,7 @@ jobs:
         run: |
           echo -e "${{ secrets.SSH_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
-          if [[ -z ${{ steps.prepare.outputs.prid }} ]]
+          if [[ -z "${{ steps.prepare.outputs.prid }}" ]]
           then
             exit 1
           fi
