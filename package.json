@@ -2,8 +2,7 @@
   "dependencies": {
     "debug": "^4.1.1",
     "napi-macros": "^2.0.0",
-    "node-gyp-build": "^4.1.0",
-    "split2": "^3.1.1"
+    "node-gyp-build": "^4.1.0"
   },
   "description": "node.js bindings for deltachat-core",
   "devDependencies": {
@@ -20,6 +19,7 @@
     "prebuildify": "^3.0.0",
     "prebuildify-ci": "^1.0.4",
     "prettier": "^2.0.5",
+    "split2": "^4.1.0",
     "typedoc": "^0.17.0",
     "typescript": "^3.9.10"
   },

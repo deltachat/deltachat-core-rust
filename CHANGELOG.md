@@ -4,6 +4,7 @@
 
 ### Changes
 - refactorings #3373 #3345
+- node: move split2 to devDependencies
 
 ### Fixes
 - delete outgoing MDNs found in the Sent folder on Gmail #3372
