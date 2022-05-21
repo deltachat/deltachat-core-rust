@@ -5,6 +5,7 @@
 ### Fixes
 - do not unnecessarily SELECT folders if there are no operations planned on
   them #3333
+- trim chat encryption info #3350
 
 
 ## 1.83.0

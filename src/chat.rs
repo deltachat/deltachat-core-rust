@@ -895,7 +895,7 @@ impl ChatId {
             ret += &ret_mutual;
         }
 
-        Ok(ret)
+        Ok(ret.trim().to_string())
     }
 
     /// Bad evil escape hatch.
@@ -5429,7 +5429,7 @@ mod tests {
         assert_eq!(
             chat_id.get_encryption_info(&alice).await?,
             "No encryption:\n\
-            bob@example.net\n"
+            bob@example.net"
         );
 
         add_contact_to_chat(&alice, chat_id, contact_fiona).await?;
@@ -5437,7 +5437,7 @@ mod tests {
             chat_id.get_encryption_info(&alice).await?,
             "No encryption:\n\
             bob@example.net\n\
-            fiona@example.net\n"
+            fiona@example.net"
         );
 
         let direct_chat = bob.create_chat(&alice).await;
@@ -5450,7 +5450,7 @@ mod tests {
             fiona@example.net\n\
             \n\
             End-to-end encryption preferred:\n\
-            bob@example.net\n"
+            bob@example.net"
         );
 
         bob.set_config(Config::E2eeEnabled, Some("0")).await?;
@@ -5463,7 +5463,7 @@ mod tests {
             fiona@example.net\n\
             \n\
             End-to-end encryption available:\n\
-            bob@example.net\n"
+            bob@example.net"
         );
 
         Ok(())
