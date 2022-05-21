@@ -8,7 +8,7 @@ use crate::blob::BlobObject;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::addr_cmp;
 use crate::context::Context;
-use crate::dc_tools::{dc_get_abs_path, improve_single_line_input};
+use crate::dc_tools::{dc_get_abs_path, improve_single_line_input, EmailAddress};
 use crate::events::EventType;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
@@ -355,6 +355,8 @@ impl Context {
     ///
     /// This should only be used by test code and during configure.
     pub(crate) async fn set_primary_self_addr(&self, primary_new: &str) -> Result<()> {
+        let old_addr = self.get_config(Config::ConfiguredAddr).await?;
+
         // add old primary address (if exists) to secondary addresses
         let mut secondary_addrs = self.get_all_self_addrs().await?;
         // never store a primary address also as a secondary
@@ -367,6 +369,17 @@ impl Context {
 
         self.set_config(Config::ConfiguredAddr, Some(primary_new))
             .await?;
+
+        if let Some(old_addr) = old_addr {
+            let old_addr = EmailAddress::new(&old_addr)?;
+            let old_keypair = crate::key::load_keypair(self, &old_addr).await?;
+
+            if let Some(mut old_keypair) = old_keypair {
+                old_keypair.addr = EmailAddress::new(primary_new)?;
+                crate::key::store_self_keypair(self, &old_keypair, crate::key::KeyPairUse::Default)
+                    .await?;
+            }
+        }
 
         Ok(())
     }
@@ -420,6 +433,7 @@ mod tests {
 
     use crate::constants;
     use crate::test_utils::TestContext;
+    use crate::test_utils::TestContextManager;
     use num_traits::FromPrimitive;
 
     #[test]
@@ -499,14 +513,14 @@ mod tests {
         assert_eq!(alice.get_all_self_addrs().await?, vec!["Alice@Example.Org"]);
 
         // Test adding a new (primary) self address
-        // The address is trimmed during by `LoginParam::from_database()`,
+        // The address is trimmed during configure by `LoginParam::from_database()`,
         // so `set_primary_self_addr()` doesn't have to trim it.
-        alice.set_primary_self_addr(" Alice@alice.com ").await?;
-        assert!(alice.is_self_addr("    aliCe@example.org").await?);
+        alice.set_primary_self_addr("Alice@alice.com").await?;
+        assert!(alice.is_self_addr("aliCe@example.org").await?);
         assert!(alice.is_self_addr("alice@alice.com").await?);
         assert_eq!(
             alice.get_all_self_addrs().await?,
-            vec![" Alice@alice.com ", "Alice@Example.Org"]
+            vec!["Alice@alice.com", "Alice@Example.Org"]
         );
 
         // Check that the entry is not duplicated
@@ -534,6 +548,42 @@ mod tests {
         assert!(alice.is_self_addr("alice@example.org").await?);
         assert!(alice.is_self_addr("alice@alice.com").await?);
         assert!(alice.is_self_addr("Alice@alice.xyz").await?);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_change_primary_self_addr() -> Result<()> {
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        // Alice sends a message to Bob
+        let alice_bob_chat = alice.create_chat(&bob).await;
+        let sent = alice.send_text(alice_bob_chat.id, "Hi").await;
+        bob.recv_msg(&sent).await;
+        let bob_msg = bob.get_last_msg().await;
+        bob_msg.chat_id.accept(&bob).await?;
+        assert_eq!(bob_msg.text.unwrap(), "Hi");
+
+        // Alice changes her self address
+        // TODO
+        // - test should fail if next 3 lines are commented out
+        // - test should fail if old addr isn't set as secondary addr
+        alice
+            .set_primary_self_addr("alice@someotherdomain.xyz")
+            .await?;
+        crate::e2ee::ensure_secret_key_exists(&alice).await?;
+
+        // Bob sends a message to Alice, encrypting to her previous key
+        let sent = bob.send_text(bob_msg.chat_id, "hi back").await;
+
+        // Alice set up message forwarding so that she still receives
+        // the message with her new address
+        alice.recv_msg(&sent).await;
+        let alice_msg = alice.get_last_msg().await;
+        assert_eq!(alice_msg.text, Some("hi back".to_string()));
+        assert_eq!(alice_msg.get_showpadlock(), true);
 
         Ok(())
     }

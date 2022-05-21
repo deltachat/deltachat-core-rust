@@ -204,30 +204,10 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     let _guard = context.generating_key_mutex.lock().await;
 
     // Check if the key appeared while we were waiting on the lock.
-    match context
-        .sql
-        .query_row_optional(
-            r#"
-        SELECT public_key, private_key
-          FROM keypairs
-         WHERE addr=?1
-           AND is_default=1;
-        "#,
-            paramsv![addr],
-            |row| {
-                let pub_bytes: Vec<u8> = row.get(0)?;
-                let sec_bytes: Vec<u8> = row.get(1)?;
-                Ok((pub_bytes, sec_bytes))
-            },
-        )
-        .await?
-    {
-        Some((pub_bytes, sec_bytes)) => Ok(KeyPair {
-            addr,
-            public: SignedPublicKey::from_slice(&pub_bytes)?,
-            secret: SignedSecretKey::from_slice(&sec_bytes)?,
-        }),
+    match load_keypair(context, &addr).await? {
+        Some(key_pair) => Ok(key_pair),
         None => {
+            info!(context, "dbg generating key");
             let start = std::time::SystemTime::now();
             let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
                 .unwrap_or_default();
@@ -244,6 +224,39 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             Ok(keypair)
         }
     }
+}
+
+pub(crate) async fn load_keypair(
+    context: &Context,
+    addr: &EmailAddress,
+) -> Result<Option<KeyPair>> {
+    let res = context
+        .sql
+        .query_row_optional(
+            r#"
+        SELECT public_key, private_key
+          FROM keypairs
+         WHERE addr=?1
+           AND is_default=1;
+        "#,
+            paramsv![addr],
+            |row| {
+                let pub_bytes: Vec<u8> = row.get(0)?;
+                let sec_bytes: Vec<u8> = row.get(1)?;
+                Ok((pub_bytes, sec_bytes))
+            },
+        )
+        .await?;
+
+    Ok(if let Some((pub_bytes, sec_bytes)) = res {
+        Some(KeyPair {
+            addr: addr.clone(),
+            public: SignedPublicKey::from_slice(&pub_bytes)?,
+            secret: SignedSecretKey::from_slice(&sec_bytes)?,
+        })
+    } else {
+        None
+    })
 }
 
 /// Use of a [KeyPair] for encryption or decryption.

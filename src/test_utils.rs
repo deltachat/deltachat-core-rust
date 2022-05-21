@@ -407,6 +407,21 @@ impl TestContext {
             .unwrap()
     }
 
+    // /// Receive a message.
+    // ///
+    // /// Receives a message using the `dc_receive_imf()` pipeline.
+    // pub async fn recv_msg(&self, msg: &SentMessage) -> Message {
+    //     let received_msg =
+    //         "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n"
+    //             .to_owned()
+    //             + msg.payload();
+    //     let received = dc_receive_imf(&self.ctx, received_msg.as_bytes(), false)
+    //         .await
+    //         .unwrap()
+    //         .unwrap();
+    //     self.get_last_msg_in(received.chat_id).await
+    // }
+
     /// Gets the most recent message of a chat.
     ///
     /// Panics on errors or if the most recent message is a marker.
