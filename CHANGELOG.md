@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- do not unnecessarily SELECT folders if there are no operations planned on
+  them #3333
+
+
 ## 1.83.0
 
 ### Fixes
