@@ -12,6 +12,7 @@
 - fix failure to decrypt first message to self after key synchronization
   via Autocrypt Setup Message #3352
 - Keep pgp key when you change your own email address #3351
+- Do not ignore Sent and Spam folders on Gmail #3369
 
 
 ## 1.83.0

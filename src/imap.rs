@@ -125,6 +125,14 @@ enum FolderMeaning {
     Sent,
     Drafts,
     Other,
+
+    /// Virtual folders.
+    ///
+    /// On Gmail there are virtual folders marked as \\All, \\Important and \\Flagged.
+    /// Delta Chat ignores these folders because the same messages can be fetched
+    /// from the real folder and the result of moving and deleting messages via
+    /// virtual folder is unclear.
+    Virtual,
 }
 
 impl FolderMeaning {
@@ -135,6 +143,7 @@ impl FolderMeaning {
             FolderMeaning::Sent => Some(Config::ConfiguredSentboxFolder),
             FolderMeaning::Drafts => None,
             FolderMeaning::Other => None,
+            FolderMeaning::Virtual => None,
         }
     }
 }
@@ -1888,6 +1897,7 @@ fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
                 "\\Sent" => return FolderMeaning::Sent,
                 "\\Spam" | "\\Junk" => return FolderMeaning::Spam,
                 "\\Drafts" => return FolderMeaning::Drafts,
+                "\\All" | "\\Important" | "\\Flagged" => return FolderMeaning::Virtual,
                 _ => {}
             };
         }
