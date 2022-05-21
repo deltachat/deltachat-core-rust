@@ -64,7 +64,7 @@ class Chat(object):
     def is_group(self) -> bool:
         """ return true if this chat is a group chat.
 
-        :returns: True if chat is a group-chat, false if it's a contact 1:1 chat.
+        :returns: True if chat is a group-chat, false otherwise
         """
         return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_GROUP
 
