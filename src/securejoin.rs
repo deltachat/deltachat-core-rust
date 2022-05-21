@@ -137,27 +137,13 @@ async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum JoinError {
-    #[error("Failed to send handshake message: {0}")]
-    SendMessage(#[from] SendMsgError),
-
-    // Note that this can currently only occur if there is a bug in the QR/Lot code as this
-    // is supposed to create a contact for us.
-    #[error("Unknown contact (this is a bug): {0}")]
-    UnknownContact(#[source] anyhow::Error),
-
-    #[error("Other")]
-    Other(#[from] anyhow::Error),
-}
-
 /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
 ///
 /// This is the start of the process for the joiner.  See the module and ffi documentation
 /// for more details.
 ///
 /// The function returns immediately and the handshake will run in background.
-pub async fn dc_join_securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
+pub async fn dc_join_securejoin(context: &Context, qr: &str) -> Result<ChatId> {
     securejoin(context, qr).await.map_err(|err| {
         warn!(context, "Fatal joiner error: {:#}", err);
         // The user just scanned this QR code so has context on what failed.
@@ -166,7 +152,7 @@ pub async fn dc_join_securejoin(context: &Context, qr: &str) -> Result<ChatId, J
     })
 }
 
-async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
+async fn securejoin(context: &Context, qr: &str) -> Result<ChatId> {
     /*========================================================
     ====             Bob - the joiner's side             =====
     ====   Step 2 in "Setup verified contact" protocol   =====
@@ -180,14 +166,6 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId, JoinError> {
     bob::start_protocol(context, invite).await
 }
 
-/// Error when failing to send a protocol handshake message.
-///
-/// Wrapping the [anyhow::Error] means we can "impl From" more easily on errors from this
-/// function.
-#[derive(Debug, thiserror::Error)]
-#[error("Failed sending handshake message")]
-pub struct SendMsgError(#[from] anyhow::Error);
-
 /// Send handshake message from Alice's device;
 /// Bob's handshake messages are sent in `BobState::send_handshake_message()`.
 async fn send_alice_handshake_msg(
@@ -195,7 +173,7 @@ async fn send_alice_handshake_msg(
     contact_id: ContactId,
     step: &str,
     fingerprint: Option<Fingerprint>,
-) -> Result<(), SendMsgError> {
+) -> Result<()> {
     let mut msg = Message {
         viewtype: Viewtype::Text,
         text: Some(format!("Secure-Join: {}", step)),
@@ -353,7 +331,8 @@ pub(crate) async fn handle_securejoin_handshake(
                 &format!("{}-auth-required", &step[..2]),
                 None,
             )
-            .await?;
+            .await
+            .context("failed sending auth-required handshake message")?;
             Ok(HandshakeMessage::Done)
         }
         "vg-auth-required" | "vc-auth-required" => {
@@ -481,7 +460,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     "vc-contact-confirm",
                     Some(fingerprint),
                 )
-                .await?;
+                .await
+                .context("failed sending vc-contact-confirm message")?;
 
                 inviter_progress!(context, contact_id, 1000);
             }

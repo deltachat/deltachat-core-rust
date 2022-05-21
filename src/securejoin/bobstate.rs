@@ -22,9 +22,7 @@ use crate::param::Param;
 use crate::sql::Sql;
 
 use super::qrinvite::QrInvite;
-use super::{
-    encrypted_and_signed, fingerprint_equals_sender, mark_peer_as_verified, JoinError, SendMsgError,
-};
+use super::{encrypted_and_signed, fingerprint_equals_sender, mark_peer_as_verified};
 
 /// The stage of the [`BobState`] securejoin handshake protocol state machine.
 ///
@@ -94,7 +92,7 @@ impl BobState {
         context: &Context,
         invite: QrInvite,
         chat_id: ChatId,
-    ) -> Result<(Self, BobHandshakeStage, Vec<Self>), JoinError> {
+    ) -> Result<(Self, BobHandshakeStage, Vec<Self>)> {
         let (stage, next) =
             if fingerprint_equals_sender(context, invite.fingerprint(), invite.contact_id()).await?
             {
@@ -404,11 +402,7 @@ impl BobState {
     /// Sends the requested handshake message to Alice.
     ///
     /// This takes care of adding the required headers for the step.
-    async fn send_handshake_message(
-        &self,
-        context: &Context,
-        step: BobHandshakeMsg,
-    ) -> Result<(), SendMsgError> {
+    async fn send_handshake_message(&self, context: &Context, step: BobHandshakeMsg) -> Result<()> {
         send_handshake_message(context, &self.invite, self.chat_id, step).await
     }
 }
@@ -422,7 +416,7 @@ async fn send_handshake_message(
     invite: &QrInvite,
     chat_id: ChatId,
     step: BobHandshakeMsg,
-) -> Result<(), SendMsgError> {
+) -> Result<()> {
     let mut msg = Message {
         viewtype: Viewtype::Text,
         text: Some(step.body_text(invite)),
