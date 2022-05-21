@@ -5,7 +5,7 @@ use std::future::Future;
 use std::io::Cursor;
 use std::pin::Pin;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
@@ -715,7 +715,7 @@ impl MimeMessage {
                     if raw.is_empty() {
                         return Ok(false);
                     }
-                    let mail = mailparse::parse_mail(&raw).unwrap();
+                    let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
 
                     self.parse_mime_recursive(context, &mail, is_related).await
                 }

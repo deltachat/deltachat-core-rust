@@ -8,7 +8,9 @@
     clippy::indexing_slicing,
     clippy::wildcard_imports,
     clippy::needless_borrow,
-    clippy::cast_lossless
+    clippy::cast_lossless,
+    clippy::unwrap_used,
+    clippy::expect_used
 )]
 #![allow(
     clippy::match_bool,

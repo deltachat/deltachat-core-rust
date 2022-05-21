@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::io::Cursor;
 
-use anyhow::{bail, ensure, format_err, Context as _, Result};
+use anyhow::{bail, format_err, Context as _, Result};
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
@@ -98,9 +98,7 @@ pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, Str
     let mut bytes = Vec::with_capacity(buf.len());
 
     dearmor.read_to_end(&mut bytes)?;
-    ensure!(dearmor.typ.is_some(), "Failed to parse type");
-
-    let typ = dearmor.typ.unwrap();
+    let typ = dearmor.typ.context("failed to parse type")?;
 
     // normalize headers
     let headers = dearmor
@@ -183,10 +181,12 @@ pub(crate) fn create_keypair(
                 .can_encrypt(true)
                 .passphrase(None)
                 .build()
-                .unwrap(),
+                .map_err(|err| {
+                    PgpKeygenError::new("failed to build subkey parameters", format_err!("{}", err))
+                })?,
         )
         .build()
-        .map_err(|err| PgpKeygenError::new("invalid key params", format_err!(err)))?;
+        .map_err(|err| PgpKeygenError::new("invalid key params", format_err!("{}", err)))?;
     let key = key_params
         .generate()
         .map_err(|err| PgpKeygenError::new("invalid params", err))?;

@@ -146,8 +146,10 @@ pub async fn dc_get_oauth2_access_token(
                 value = &redirect_uri;
             } else if value == "$CODE" {
                 value = code;
-            } else if value == "$REFRESH_TOKEN" && refresh_token.is_some() {
-                value = refresh_token.as_ref().unwrap();
+            } else if value == "$REFRESH_TOKEN" {
+                if let Some(refresh_token) = refresh_token.as_ref() {
+                    value = refresh_token;
+                }
             }
 
             post_param.insert(key, value);
@@ -162,16 +164,18 @@ pub async fn dc_get_oauth2_access_token(
 
         let client = surf::Client::new();
         let parsed: Result<Response, _> = client.recv_json(req).await;
-        if parsed.is_err() {
-            warn!(
-                context,
-                "Failed to parse OAuth2 JSON response from {}: error: {:?}", token_url, parsed
-            );
-            return Ok(None);
-        }
+        let response = match parsed {
+            Ok(response) => response,
+            Err(err) => {
+                warn!(
+                    context,
+                    "Failed to parse OAuth2 JSON response from {}: error: {}", token_url, err
+                );
+                return Ok(None);
+            }
+        };
 
         // update refresh_token if given, typically on the first round, but we update it later as well.
-        let response = parsed.unwrap();
         if let Some(ref token) = response.refresh_token {
             context
                 .sql
@@ -286,12 +290,13 @@ impl Oauth2 {
         // }
         let response: Result<HashMap<String, serde_json::Value>, surf::Error> =
             surf::get(userinfo_url).recv_json().await;
-        if response.is_err() {
-            warn!(context, "Error getting userinfo: {:?}", response);
-            return None;
-        }
-
-        let parsed = response.unwrap();
+        let parsed = match response {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                warn!(context, "Error getting userinfo: {}", err);
+                return None;
+            }
+        };
         // CAVE: serde_json::Value.as_str() removes the quotes of json-strings
         // but serde_json::Value.to_string() does not!
         if let Some(addr) = parsed.get("email") {

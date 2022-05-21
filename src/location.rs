@@ -153,12 +153,12 @@ impl Kml {
     ) {
         let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
         if tag == "document" {
-            if let Some(addr) = event.attributes().find(|attr| {
-                attr.as_ref()
-                    .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "addr")
-                    .unwrap_or_default()
-            }) {
-                self.addr = addr.unwrap().unescape_and_decode_value(reader).ok();
+            if let Some(addr) = event
+                .attributes()
+                .filter_map(|a| a.ok())
+                .find(|attr| String::from_utf8_lossy(attr.key).trim().to_lowercase() == "addr")
+            {
+                self.addr = addr.unescape_and_decode_value(reader).ok();
             }
         } else if tag == "placemark" {
             self.tag = KmlTag::PLACEMARK;

@@ -458,7 +458,37 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
     }
 
     let event = &*event;
-    event.as_id()
+    match event.typ {
+        EventType::Info(_) => 100,
+        EventType::SmtpConnected(_) => 101,
+        EventType::ImapConnected(_) => 102,
+        EventType::SmtpMessageSent(_) => 103,
+        EventType::ImapMessageDeleted(_) => 104,
+        EventType::ImapMessageMoved(_) => 105,
+        EventType::NewBlobFile(_) => 150,
+        EventType::DeletedBlobFile(_) => 151,
+        EventType::Warning(_) => 300,
+        EventType::Error(_) => 400,
+        EventType::ErrorSelfNotInGroup(_) => 410,
+        EventType::MsgsChanged { .. } => 2000,
+        EventType::IncomingMsg { .. } => 2005,
+        EventType::MsgsNoticed { .. } => 2008,
+        EventType::MsgDelivered { .. } => 2010,
+        EventType::MsgFailed { .. } => 2012,
+        EventType::MsgRead { .. } => 2015,
+        EventType::ChatModified(_) => 2020,
+        EventType::ChatEphemeralTimerModified { .. } => 2021,
+        EventType::ContactsChanged(_) => 2030,
+        EventType::LocationChanged(_) => 2035,
+        EventType::ConfigureProgress { .. } => 2041,
+        EventType::ImexProgress(_) => 2051,
+        EventType::ImexFileWritten(_) => 2052,
+        EventType::SecurejoinInviterProgress { .. } => 2060,
+        EventType::SecurejoinJoinerProgress { .. } => 2061,
+        EventType::ConnectivityChanged => 2100,
+        EventType::SelfavatarChanged => 2110,
+        EventType::WebxdcStatusUpdate { .. } => 2120,
+    }
 }
 
 #[no_mangle]

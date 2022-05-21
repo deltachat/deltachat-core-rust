@@ -1,10 +1,7 @@
 //! # Events specification.
 
-use std::ops::Deref;
-
 use async_std::channel::{self, Receiver, Sender, TrySendError};
 use async_std::path::PathBuf;
-use strum::EnumProperty;
 
 use crate::chat::ChatId;
 use crate::contact::ContactId;
@@ -92,8 +89,6 @@ impl async_std::stream::Stream for EventEmitter {
 /// context emits them in relation to various operations happening, a lot of these are again
 /// documented in `deltachat.h`.
 ///
-/// This struct [`Deref`]s to the [`EventType`].
-///
 /// [`Context`]: crate::context::Context
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
@@ -110,68 +105,39 @@ pub struct Event {
     pub typ: EventType,
 }
 
-impl Deref for Event {
-    type Target = EventType;
-
-    fn deref(&self) -> &EventType {
-        &self.typ
-    }
-}
-
-impl EventType {
-    /// Returns the corresponding Event ID.
-    ///
-    /// These are the IDs used in the `DC_EVENT_*` constants in `deltachat.h`.
-    pub fn as_id(&self) -> i32 {
-        self.get_str("id")
-            .expect("missing id")
-            .parse()
-            .expect("invalid id")
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, EnumProperty)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EventType {
     /// The library-user may write an informational string to the log.
     ///
     /// This event should *not* be reported to the end-user using a popup or something like
     /// that.
-    #[strum(props(id = "100"))]
     Info(String),
 
     /// Emitted when SMTP connection is established and login was successful.
-    #[strum(props(id = "101"))]
     SmtpConnected(String),
 
     /// Emitted when IMAP connection is established and login was successful.
-    #[strum(props(id = "102"))]
     ImapConnected(String),
 
     /// Emitted when a message was successfully sent to the SMTP server.
-    #[strum(props(id = "103"))]
     SmtpMessageSent(String),
 
     /// Emitted when an IMAP message has been marked as deleted
-    #[strum(props(id = "104"))]
     ImapMessageDeleted(String),
 
     /// Emitted when an IMAP message has been moved
-    #[strum(props(id = "105"))]
     ImapMessageMoved(String),
 
     /// Emitted when an new file in the $BLOBDIR was created
-    #[strum(props(id = "150"))]
     NewBlobFile(String),
 
     /// Emitted when an file in the $BLOBDIR was deleted
-    #[strum(props(id = "151"))]
     DeletedBlobFile(String),
 
     /// The library-user should write a warning string to the log.
     ///
     /// This event should *not* be reported to the end-user using a popup or something like
     /// that.
-    #[strum(props(id = "300"))]
     Warning(String),
 
     /// The library-user should report an error to the end-user.
@@ -184,7 +150,6 @@ pub enum EventType {
     /// it might be better to delay showing these events until the function has really
     /// failed (returned false). It should be sufficient to report only the *last* error
     /// in a messasge box then.
-    #[strum(props(id = "400"))]
     Error(String),
 
     /// An action cannot be performed because the user is not in the group.
@@ -192,7 +157,6 @@ pub enum EventType {
     /// dc_set_chat_name(), dc_set_chat_profile_image(),
     /// dc_add_contact_to_chat(), dc_remove_contact_from_chat(),
     /// dc_send_text_msg() or another sending function.
-    #[strum(props(id = "410"))]
     ErrorSelfNotInGroup(String),
 
     /// Messages or chats changed.  One or more messages or chats changed for various
@@ -203,35 +167,44 @@ pub enum EventType {
     ///
     /// `chat_id` is set if only a single chat is affected by the changes, otherwise 0.
     /// `msg_id` is set if only a single message is affected by the changes, otherwise 0.
-    #[strum(props(id = "2000"))]
-    MsgsChanged { chat_id: ChatId, msg_id: MsgId },
+    MsgsChanged {
+        chat_id: ChatId,
+        msg_id: MsgId,
+    },
 
     /// There is a fresh message. Typically, the user will show an notification
     /// when receiving this message.
     ///
     /// There is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.
-    #[strum(props(id = "2005"))]
-    IncomingMsg { chat_id: ChatId, msg_id: MsgId },
+    IncomingMsg {
+        chat_id: ChatId,
+        msg_id: MsgId,
+    },
 
     /// Messages were seen or noticed.
     /// chat id is always set.
-    #[strum(props(id = "2008"))]
     MsgsNoticed(ChatId),
 
     /// A single message is sent successfully. State changed from  DC_STATE_OUT_PENDING to
     /// DC_STATE_OUT_DELIVERED, see dc_msg_get_state().
-    #[strum(props(id = "2010"))]
-    MsgDelivered { chat_id: ChatId, msg_id: MsgId },
+    MsgDelivered {
+        chat_id: ChatId,
+        msg_id: MsgId,
+    },
 
     /// A single message could not be sent. State changed from DC_STATE_OUT_PENDING or DC_STATE_OUT_DELIVERED to
     /// DC_STATE_OUT_FAILED, see dc_msg_get_state().
-    #[strum(props(id = "2012"))]
-    MsgFailed { chat_id: ChatId, msg_id: MsgId },
+    MsgFailed {
+        chat_id: ChatId,
+        msg_id: MsgId,
+    },
 
     /// A single message is read by the receiver. State changed from DC_STATE_OUT_DELIVERED to
     /// DC_STATE_OUT_MDN_RCVD, see dc_msg_get_state().
-    #[strum(props(id = "2015"))]
-    MsgRead { chat_id: ChatId, msg_id: MsgId },
+    MsgRead {
+        chat_id: ChatId,
+        msg_id: MsgId,
+    },
 
     /// Chat changed.  The name or the image of a chat group was changed or members were added or removed.
     /// Or the verify state of a chat has changed.
@@ -240,11 +213,9 @@ pub enum EventType {
     ///
     /// This event does not include ephemeral timer modification, which
     /// is a separate event.
-    #[strum(props(id = "2020"))]
     ChatModified(ChatId),
 
     /// Chat ephemeral timer changed.
-    #[strum(props(id = "2021"))]
     ChatEphemeralTimerModified {
         chat_id: ChatId,
         timer: EphemeralTimer,
@@ -253,7 +224,6 @@ pub enum EventType {
     /// Contact(s) created, renamed, blocked or deleted.
     ///
     /// @param data1 (int) If set, this is the contact_id of an added contact that should be selected.
-    #[strum(props(id = "2030"))]
     ContactsChanged(Option<ContactId>),
 
     /// Location of one or more contact has changed.
@@ -261,11 +231,9 @@ pub enum EventType {
     /// @param data1 (u32) contact_id of the contact for which the location has changed.
     ///     If the locations of several contacts have been changed,
     ///     eg. after calling dc_delete_all_locations(), this parameter is set to `None`.
-    #[strum(props(id = "2035"))]
     LocationChanged(Option<ContactId>),
 
     /// Inform about the configuration progress started by configure().
-    #[strum(props(id = "2041"))]
     ConfigureProgress {
         /// Progress.
         ///
@@ -280,7 +248,6 @@ pub enum EventType {
     ///
     /// @param data1 (usize) 0=error, 1-999=progress in permille, 1000=success and done
     /// @param data2 0
-    #[strum(props(id = "2051"))]
     ImexProgress(usize),
 
     /// A file has been exported. A file has been written by imex().
@@ -290,7 +257,6 @@ pub enum EventType {
     /// services.
     ///
     /// @param data2 0
-    #[strum(props(id = "2052"))]
     ImexFileWritten(PathBuf),
 
     /// Progress information of a secure-join handshake from the view of the inviter
@@ -305,7 +271,6 @@ pub enum EventType {
     ///     600=vg-/vc-request-with-auth received, vg-member-added/vc-contact-confirm sent, typically shown as "bob@addr verified".
     ///     800=vg-member-added-received received, shown as "bob@addr securely joined GROUP", only sent for the verified-group-protocol.
     ///     1000=Protocol finished for this contact.
-    #[strum(props(id = "2060"))]
     SecurejoinInviterProgress {
         contact_id: ContactId,
         progress: usize,
@@ -319,7 +284,6 @@ pub enum EventType {
     /// @param data2 (int) Progress as:
     ///     400=vg-/vc-request-with-auth sent, typically shown as "alice@addr verified, introducing myself."
     ///     (Bob has verified alice and waits until Alice does the same for him)
-    #[strum(props(id = "2061"))]
     SecurejoinJoinerProgress {
         contact_id: ContactId,
         progress: usize,
@@ -329,13 +293,10 @@ pub enum EventType {
     /// This means that you should refresh the connectivity view
     /// and possibly the connectivtiy HTML; see dc_get_connectivity() and
     /// dc_get_connectivity_html() for details.
-    #[strum(props(id = "2100"))]
     ConnectivityChanged,
 
-    #[strum(props(id = "2110"))]
     SelfavatarChanged,
 
-    #[strum(props(id = "2120"))]
     WebxdcStatusUpdate {
         msg_id: MsgId,
         status_update_serial: StatusUpdateSerial,

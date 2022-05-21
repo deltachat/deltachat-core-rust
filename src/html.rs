@@ -11,7 +11,7 @@ use futures::future::FutureExt;
 use std::future::Future;
 use std::pin::Pin;
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use lettre_email::mime::{self, Mime};
 
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -134,7 +134,7 @@ impl HtmlMsgParser {
                     if raw.is_empty() {
                         return Ok(());
                     }
-                    let mail = mailparse::parse_mail(&raw).unwrap();
+                    let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
                     self.collect_texts_recursive(context, &mail).await
                 }
                 MimeMultipartType::Single => {
@@ -190,7 +190,7 @@ impl HtmlMsgParser {
                     if raw.is_empty() {
                         return Ok(());
                     }
-                    let mail = mailparse::parse_mail(&raw).unwrap();
+                    let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
                     self.cid_to_data_recursive(context, &mail).await
                 }
                 MimeMultipartType::Single => {

@@ -289,7 +289,7 @@ impl<'a> BlobObject<'a> {
 
     /// Returns the filename of the blob.
     pub fn as_file_name(&self) -> &str {
-        self.name.rsplit('/').next().unwrap()
+        self.name.rsplit('/').next().unwrap_or_default()
     }
 
     /// The path relative in the blob directory.

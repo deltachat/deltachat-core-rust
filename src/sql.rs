@@ -702,13 +702,15 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
         Ok(mut dir_handle) => {
             /* avoid deletion of files that are just created to build a message object */
             let diff = std::time::Duration::from_secs(60 * 60);
-            let keep_files_newer_than = std::time::SystemTime::now().checked_sub(diff).unwrap();
+            let keep_files_newer_than = std::time::SystemTime::now()
+                .checked_sub(diff)
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
 
             while let Some(entry) = dir_handle.next().await {
-                if entry.is_err() {
-                    break;
-                }
-                let entry = entry.unwrap();
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(_) => break,
+                };
                 let name_f = entry.file_name();
                 let name_s = name_f.to_string_lossy();
 
@@ -724,11 +726,13 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
 
                 if let Ok(stats) = async_std::fs::metadata(entry.path()).await {
                     let recently_created =
-                        stats.created().is_ok() && stats.created().unwrap() > keep_files_newer_than;
-                    let recently_modified = stats.modified().is_ok()
-                        && stats.modified().unwrap() > keep_files_newer_than;
-                    let recently_accessed = stats.accessed().is_ok()
-                        && stats.accessed().unwrap() > keep_files_newer_than;
+                        stats.created().map_or(false, |t| t > keep_files_newer_than);
+                    let recently_modified = stats
+                        .modified()
+                        .map_or(false, |t| t > keep_files_newer_than);
+                    let recently_accessed = stats
+                        .accessed()
+                        .map_or(false, |t| t > keep_files_newer_than);
 
                     if recently_created || recently_modified || recently_accessed {
                         info!(

@@ -141,9 +141,10 @@ impl Accounts {
 
     /// Remove an account.
     pub async fn remove_account(&mut self, id: u32) -> Result<()> {
-        let ctx = self.accounts.remove(&id);
-        ensure!(ctx.is_some(), "no account with this id: {}", id);
-        let ctx = ctx.unwrap();
+        let ctx = self
+            .accounts
+            .remove(&id)
+            .with_context(|| format!("no account with id {}", id))?;
         ctx.stop_io().await;
         drop(ctx);
 

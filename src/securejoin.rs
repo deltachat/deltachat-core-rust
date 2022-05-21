@@ -245,8 +245,11 @@ async fn fingerprint_equals_sender(
     };
 
     if let Some(peerstate) = peerstate {
-        if peerstate.public_key_fingerprint.is_some()
-            && fingerprint == peerstate.public_key_fingerprint.as_ref().unwrap()
+        if peerstate
+            .public_key_fingerprint
+            .as_ref()
+            .filter(|&fp| fp == fingerprint)
+            .is_some()
         {
             return Ok(true);
         }

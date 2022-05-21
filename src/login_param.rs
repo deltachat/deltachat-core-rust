@@ -210,7 +210,7 @@ impl LoginParam {
         let key = format!("{}smtp_certificate_checks", prefix);
         let smtp_certificate_checks =
             if let Some(certificate_checks) = sql.get_raw_config_int(key).await? {
-                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
+                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap_or_default()
             } else {
                 Default::default()
             };
