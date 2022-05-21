@@ -3,8 +3,9 @@
 ## Unreleased
 
 ### Changes
-- refactorings #3373
+- refactorings #3373 #3345
 - delete outgoing MDNs found in the Sent folder on Gmail #3372
+
 
 ## 1.84.0
 
