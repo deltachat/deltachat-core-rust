@@ -84,7 +84,7 @@ jobs:
         run: |
           tag=${{ steps.tag.outputs.tag }}
           if [ -z "$tag" ]; then
-            node -e "console.log('DELTACHAT_NODE_TAR_GZ=deltachat-node-' + '${{ github.ref }}'.split('/')[2]) + '.tar.gz'" >> $GITHUB_ENV
+            node -e "console.log('DELTACHAT_NODE_TAR_GZ=deltachat-node-' + '${{ github.ref }}'.split('/')[2] + '.tar.gz')" >> $GITHUB_ENV
           else
             echo "No preview will be uploaded this time, but the $tag release"
           fi
@@ -95,6 +95,7 @@ jobs:
           cargo -vV
           npm --version
           node --version
+          echo $DELTACHAT_NODE_TAR_GZ
       - name: Download ubuntu prebuild
         uses: actions/download-artifact@v1
         with:
