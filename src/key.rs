@@ -275,23 +275,20 @@ pub async fn store_self_keypair(
     keypair: &KeyPair,
     default: KeyPairUse,
 ) -> Result<()> {
-    // Everything should really be one transaction, more refactoring
-    // is needed for that.
+    let mut conn = context.sql.get_conn().await?;
+    let transaction = conn.transaction()?;
+
     let public_key = DcKey::to_bytes(&keypair.public);
     let secret_key = DcKey::to_bytes(&keypair.secret);
-    context
-        .sql
+    transaction
         .execute(
             "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
             paramsv![public_key, secret_key],
         )
-        .await
         .context("failed to remove old use of key")?;
     if default == KeyPairUse::Default {
-        context
-            .sql
+        transaction
             .execute("UPDATE keypairs SET is_default=0;", paramsv![])
-            .await
             .context("failed to clear default")?;
     }
     let is_default = match default {
@@ -302,15 +299,15 @@ pub async fn store_self_keypair(
     let addr = keypair.addr.to_string();
     let t = time();
 
-    context
-        .sql
+    transaction
         .execute(
             "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
                 VALUES (?,?,?,?,?);",
             paramsv![addr, is_default, public_key, secret_key, t],
         )
-        .await
         .context("failed to insert keypair")?;
+
+    transaction.commit()?;
 
     Ok(())
 }
