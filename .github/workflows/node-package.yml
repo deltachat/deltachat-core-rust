@@ -115,6 +115,7 @@ jobs:
           tar -xvzf macos-latest/macos-latest.tar.gz -C node/prebuilds
           tar -xvzf windows-latest/windows-latest.tar.gz -C node/prebuilds
           tree node/prebuilds
+          rm -rf ubuntu-18.04 macos-latest windows-latest
       - name: install dependencies without running scripts
         run: |
           npm install --ignore-scripts
