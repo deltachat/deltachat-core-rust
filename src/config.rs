@@ -432,6 +432,7 @@ mod tests {
     use std::string::ToString;
 
     use crate::constants;
+    use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use num_traits::FromPrimitive;
@@ -566,14 +567,17 @@ mod tests {
         bob_msg.chat_id.accept(&bob).await?;
         assert_eq!(bob_msg.text.unwrap(), "Hi");
 
-        // Alice changes her self address
-        // TODO
-        // - test should fail if next 3 lines are commented out
-        // - test should fail if old addr isn't set as secondary addr
+        // Alice changes her self address and reconfigures
+        // (ensure_secret_key_exists() is called during configure)
         alice
             .set_primary_self_addr("alice@someotherdomain.xyz")
             .await?;
         crate::e2ee::ensure_secret_key_exists(&alice).await?;
+
+        assert_eq!(
+            alice.get_primary_self_addr().await?,
+            "alice@someotherdomain.xyz"
+        );
 
         // Bob sends a message to Alice, encrypting to her previous key
         let sent = bob.send_text(bob_msg.chat_id, "hi back").await;
@@ -584,6 +588,33 @@ mod tests {
         let alice_msg = alice.get_last_msg().await;
         assert_eq!(alice_msg.text, Some("hi back".to_string()));
         assert_eq!(alice_msg.get_showpadlock(), true);
+        assert_eq!(alice_msg.chat_id, alice_bob_chat.id);
+
+        // Even if Bob sends a message to Alice without In-Reply-To,
+        // it's still assigned to the 1:1 chat with Bob and not to
+        // a group (without secondary addresses, an ad-hoc group
+        // would be created)
+        dc_receive_imf(
+            &alice,
+            b"From: bob@example.net
+To: alice@example.org
+Chat-Version: 1.0
+Message-ID: <456@example.com>
+
+Message w/out In-Reply-To
+",
+            false,
+        )
+        .await?;
+
+        let alice_msg = alice.get_last_msg().await;
+
+        assert_eq!(
+            alice_msg.text,
+            Some("Message w/out In-Reply-To".to_string())
+        );
+        assert_eq!(alice_msg.get_showpadlock(), false);
+        assert_eq!(alice_msg.chat_id, alice_bob_chat.id);
 
         Ok(())
     }

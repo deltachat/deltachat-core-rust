@@ -207,7 +207,6 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     match load_keypair(context, &addr).await? {
         Some(key_pair) => Ok(key_pair),
         None => {
-            info!(context, "dbg generating key");
             let start = std::time::SystemTime::now();
             let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
                 .unwrap_or_default();
