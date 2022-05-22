@@ -593,7 +593,7 @@ async fn send_mdn_msg_id(
                 );
                 context
                     .sql
-                    .execute(q, rusqlite::params_from_iter(additional_msg_ids))
+                    .execute(&q, rusqlite::params_from_iter(additional_msg_ids))
                     .await?;
             }
             Ok(())

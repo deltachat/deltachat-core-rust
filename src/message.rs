@@ -1283,7 +1283,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
     let msgs = context
         .sql
         .query_map(
-            format!(
+            &format!(
                 "SELECT
                     m.id AS id,
                     m.chat_id AS chat_id,

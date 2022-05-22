@@ -307,7 +307,7 @@ pub(crate) async fn start_ephemeral_timers_msgids(
     let count = context
         .sql
         .execute(
-            format!(
+            &format!(
                 "UPDATE msgs SET ephemeral_timestamp = ? + ephemeral_timer
          WHERE (ephemeral_timestamp == 0 OR ephemeral_timestamp > ? + ephemeral_timer) AND ephemeral_timer > 0
          AND id IN ({})",

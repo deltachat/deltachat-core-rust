@@ -199,7 +199,7 @@ impl Context {
     pub(crate) async fn delete_sync_ids(&self, ids: String) -> Result<()> {
         self.sql
             .execute(
-                format!("DELETE FROM multi_device_sync WHERE id IN ({});", ids),
+                &format!("DELETE FROM multi_device_sync WHERE id IN ({});", ids),
                 paramsv![],
             )
             .await?;

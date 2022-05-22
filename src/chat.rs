@@ -786,7 +786,7 @@ impl ChatId {
         );
         let row = sql
             .query_row_optional(
-                query,
+                &query,
                 paramsv![
                     self,
                     MessageState::OutPreparing,
@@ -3061,7 +3061,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         let ids = context
             .sql
             .query_map(
-                format!(
+                &format!(
                     "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
                     sql::repeat_vars(msg_ids.len())
                 ),
