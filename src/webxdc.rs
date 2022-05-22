@@ -1140,7 +1140,8 @@ mod tests {
         // Alice has a second device and also receives messages there
         let alice2 = TestContext::new_alice().await;
         alice2.recv_msg(sent1).await;
-        let alice2_instance = alice2.recv_msg(sent2).await;
+        alice2.recv_msg(sent2).await;
+        let alice2_instance = alice2.get_last_msg().await;
         let alice2_chat_id = alice2_instance.chat_id;
         assert_eq!(alice2_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(alice2_chat_id.get_msg_cnt(&alice2).await?, 1);
