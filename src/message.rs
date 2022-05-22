@@ -2226,8 +2226,7 @@ mod tests {
         assert_state(&alice, alice_msg.id, MessageState::OutFailed).await;
 
         // check incoming message states on receiver side
-        bob.recv_msg(&payload).await;
-        let bob_msg = bob.get_last_msg().await;
+        let bob_msg = bob.recv_msg(&payload).await;
         assert_eq!(bob_chat.id, bob_msg.chat_id);
         assert_state(&bob, bob_msg.id, MessageState::InFresh).await;
 

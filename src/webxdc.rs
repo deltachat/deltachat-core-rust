@@ -1121,8 +1121,7 @@ mod tests {
         );
 
         // Bob receives all messages
-        bob.recv_msg(sent1).await;
-        let bob_instance = bob.get_last_msg().await;
+        let bob_instance = bob.recv_msg(sent1).await;
         let bob_chat_id = bob_instance.chat_id;
         assert_eq!(bob_instance.rfc724_mid, alice_instance.rfc724_mid);
         assert_eq!(bob_instance.viewtype, Viewtype::Webxdc);
@@ -1141,8 +1140,7 @@ mod tests {
         // Alice has a second device and also receives messages there
         let alice2 = TestContext::new_alice().await;
         alice2.recv_msg(sent1).await;
-        alice2.recv_msg(sent2).await;
-        let alice2_instance = alice2.get_last_msg().await;
+        let alice2_instance = alice2.recv_msg(sent2).await;
         let alice2_chat_id = alice2_instance.chat_id;
         assert_eq!(alice2_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(alice2_chat_id.get_msg_cnt(&alice2).await?, 1);
@@ -1219,8 +1217,7 @@ mod tests {
         assert_eq!(alice_instance.chat_id, alice_chat_id);
 
         // bob receives the instance together with the initial updates in a single message
-        bob.recv_msg(&sent1).await;
-        let bob_instance = bob.get_last_msg().await;
+        let bob_instance = bob.recv_msg(&sent1).await;
         assert_eq!(bob_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(bob_instance.get_filename(), Some("minimal.xdc".to_string()));
         assert!(sent1.payload().contains("Content-Type: application/json"));
@@ -1537,8 +1534,7 @@ sth_for_the = "future""#
         assert_eq!(info.summary, "sum: 2".to_string());
 
         // Bob receives the updates
-        bob.recv_msg(sent_instance).await;
-        let bob_instance = bob.get_last_msg().await;
+        let bob_instance = bob.recv_msg(sent_instance).await;
         bob.recv_msg(sent_update1).await;
         bob.recv_msg(sent_update2).await;
         let info = Message::load_from_db(&bob, bob_instance.id)
@@ -1549,8 +1545,7 @@ sth_for_the = "future""#
 
         // Alice has a second device and also receives the updates there
         let alice2 = TestContext::new_alice().await;
-        alice2.recv_msg(sent_instance).await;
-        let alice2_instance = alice2.get_last_msg().await;
+        let alice2_instance = alice2.recv_msg(sent_instance).await;
         alice2.recv_msg(sent_update1).await;
         alice2.recv_msg(sent_update2).await;
         let info = Message::load_from_db(&alice2, alice2_instance.id)
@@ -1591,8 +1586,7 @@ sth_for_the = "future""#
         assert_eq!(info.summary, "".to_string());
 
         // Bob receives the updates
-        bob.recv_msg(sent_instance).await;
-        let bob_instance = bob.get_last_msg().await;
+        let bob_instance = bob.recv_msg(sent_instance).await;
         bob.recv_msg(sent_update1).await;
         let info = Message::load_from_db(&bob, bob_instance.id)
             .await?
@@ -1643,8 +1637,7 @@ sth_for_the = "future""#
         );
 
         // Bob receives all messages
-        bob.recv_msg(sent1).await;
-        let bob_instance = bob.get_last_msg().await;
+        let bob_instance = bob.recv_msg(sent1).await;
         let bob_chat_id = bob_instance.chat_id;
         bob.recv_msg(sent2).await;
         assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 2);
@@ -1664,8 +1657,7 @@ sth_for_the = "future""#
 
         // Alice has a second device and also receives the info message there
         let alice2 = TestContext::new_alice().await;
-        alice2.recv_msg(sent1).await;
-        let alice2_instance = alice2.get_last_msg().await;
+        let alice2_instance = alice2.recv_msg(sent1).await;
         let alice2_chat_id = alice2_instance.chat_id;
         alice2.recv_msg(sent2).await;
         assert_eq!(alice2_chat_id.get_msg_cnt(&alice2).await?, 2);
@@ -1721,8 +1713,7 @@ sth_for_the = "future""#
         assert!(update_msg.get_showpadlock());
 
         // Bob receives instance+update
-        bob.recv_msg(sent1).await;
-        let bob_instance = bob.get_last_msg().await;
+        let bob_instance = bob.recv_msg(sent1).await;
         bob.recv_msg(sent2).await;
         assert!(bob_instance.get_showpadlock());
 
@@ -1786,14 +1777,12 @@ sth_for_the = "future""#
 
         // Bob receives that instance
         let sent1 = alice.pop_sent_msg().await;
-        bob.recv_msg(&sent1).await;
-        let bob_instance = bob.get_last_msg().await;
+        let bob_instance = bob.recv_msg(&sent1).await;
         assert_eq!(bob_instance.get_text(), Some("user added text".to_string()));
 
         // Alice's second device receives the instance as well
         let alice2 = TestContext::new_alice().await;
-        alice2.recv_msg(&sent1).await;
-        let alice2_instance = alice2.get_last_msg().await;
+        let alice2_instance = alice2.recv_msg(&sent1).await;
         assert_eq!(
             alice2_instance.get_text(),
             Some("user added text".to_string())

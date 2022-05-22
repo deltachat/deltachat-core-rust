@@ -3680,8 +3680,7 @@ mod tests {
         let a1_msg = a1.get_last_msg().await;
         let a1_chat = Chat::load_from_db(&a1, a1_chat_id).await?;
 
-        a2.recv_msg(&a1.pop_sent_msg().await).await;
-        let a2_msg = a2.get_last_msg().await;
+        let a2_msg = a2.recv_msg(&a1.pop_sent_msg().await).await;
         let a2_chat_id = a2_msg.chat_id;
         let a2_chat = Chat::load_from_db(&a2, a2_chat_id).await?;
 
@@ -3700,8 +3699,7 @@ mod tests {
         add_contact_to_chat(&a1, a1_chat_id, bob).await?;
         let a1_msg = a1.get_last_msg().await;
 
-        a2.recv_msg(&a1.pop_sent_msg().await).await;
-        let a2_msg = a2.get_last_msg().await;
+        let a2_msg = a2.recv_msg(&a1.pop_sent_msg().await).await;
 
         assert!(a1_msg.is_system_message());
         assert!(a2_msg.is_system_message());
@@ -3714,8 +3712,7 @@ mod tests {
         set_chat_name(&a1, a1_chat_id, "bar").await?;
         let a1_msg = a1.get_last_msg().await;
 
-        a2.recv_msg(&a1.pop_sent_msg().await).await;
-        let a2_msg = a2.get_last_msg().await;
+        let a2_msg = a2.recv_msg(&a1.pop_sent_msg().await).await;
 
         assert!(a1_msg.is_system_message());
         assert!(a2_msg.is_system_message());
@@ -3728,8 +3725,7 @@ mod tests {
         remove_contact_from_chat(&a1, a1_chat_id, bob).await?;
         let a1_msg = a1.get_last_msg().await;
 
-        a2.recv_msg(&a1.pop_sent_msg().await).await;
-        let a2_msg = a2.get_last_msg().await;
+        let a2_msg = a2.recv_msg(&a1.pop_sent_msg().await).await;
 
         assert!(a1_msg.is_system_message());
         assert!(a2_msg.is_system_message());
@@ -4937,8 +4933,7 @@ mod tests {
         let mime = sent_msg.payload();
         assert_eq!(mime.match_indices("Chat-Content: sticker").count(), 1);
 
-        bob.recv_msg(&sent_msg).await;
-        let msg = bob.get_last_msg().await;
+        let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.chat_id, bob_chat.id);
         assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
         assert_eq!(msg.get_filename(), Some(filename.to_string()));
@@ -5000,8 +4995,7 @@ mod tests {
 
         // send sticker to bob
         let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
-        bob.recv_msg(&sent_msg).await;
-        let msg = bob.get_last_msg().await;
+        let msg = bob.recv_msg(&sent_msg).await;
 
         // forward said sticker to alice
         forward_msgs(&bob, &[msg.id], bob_chat.get_id()).await?;
@@ -5025,15 +5019,12 @@ mod tests {
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("Hi Bob".to_owned()));
         let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
-        bob.recv_msg(&sent_msg).await;
-        let msg = bob.get_last_msg().await;
+        let msg = bob.recv_msg(&sent_msg).await;
 
         forward_msgs(&bob, &[msg.id], bob_chat.get_id()).await?;
 
         let forwarded_msg = bob.pop_sent_msg().await;
-        alice.recv_msg(&forwarded_msg).await;
-
-        let msg = alice.get_last_msg().await;
+        let msg = alice.recv_msg(&forwarded_msg).await;
         assert!(msg.get_text().unwrap() == "Hi Bob");
         assert!(msg.is_forwarded());
         Ok(())
@@ -5048,23 +5039,19 @@ mod tests {
 
         // Alice sends a message to Bob.
         let sent_msg = alice.send_text(alice_chat.id, "Hi Bob").await;
-        bob.recv_msg(&sent_msg).await;
-        let received_msg = bob.get_last_msg().await;
+        let received_msg = bob.recv_msg(&sent_msg).await;
 
         // Bob quotes received message and sends a reply to Alice.
         let mut reply = Message::new(Viewtype::Text);
         reply.set_text(Some("Reply".to_owned()));
         reply.set_quote(&bob, Some(&received_msg)).await?;
         let sent_reply = bob.send_msg(bob_chat.id, &mut reply).await;
-        alice.recv_msg(&sent_reply).await;
-        let received_reply = alice.get_last_msg().await;
+        let received_reply = alice.recv_msg(&sent_reply).await;
 
         // Alice forwards a reply.
         forward_msgs(&alice, &[received_reply.id], alice_chat.get_id()).await?;
         let forwarded_msg = alice.pop_sent_msg().await;
-        bob.recv_msg(&forwarded_msg).await;
-
-        let alice_forwarded_msg = alice.get_last_msg().await;
+        let alice_forwarded_msg = bob.recv_msg(&forwarded_msg).await;
         assert!(alice_forwarded_msg.quoted_message(&alice).await?.is_none());
         assert_eq!(
             alice_forwarded_msg.quoted_text(),
@@ -5107,15 +5094,13 @@ mod tests {
 
         // Alice sends a message to Bob.
         let sent_msg = alice.send_text(alice_chat.id, "Hi Bob").await;
-        bob.recv_msg(&sent_msg).await;
-        let received_msg = bob.get_last_msg().await;
+        let received_msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(received_msg.get_text(), Some("Hi Bob".to_string()));
         assert_eq!(received_msg.chat_id, bob_chat.id);
 
         // Alice sends another message to Bob, this has first message as a parent.
         let sent_msg = alice.send_text(alice_chat.id, "Hello Bob").await;
-        bob.recv_msg(&sent_msg).await;
-        let received_msg = bob.get_last_msg().await;
+        let received_msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(received_msg.get_text(), Some("Hello Bob".to_string()));
         assert_eq!(received_msg.chat_id, bob_chat.id);
 
@@ -5152,8 +5137,7 @@ mod tests {
         // Bob forwards that message to Claire -
         // Claire should not get information about Alice for the original Group
         let bob = TestContext::new_bob().await;
-        bob.recv_msg(&sent_msg).await;
-        let orig_msg = bob.get_last_msg().await;
+        let orig_msg = bob.recv_msg(&sent_msg).await;
         let claire_id = Contact::create(&bob, "claire", "claire@foo").await?;
         let single_id = ChatId::create_for_contact(&bob, claire_id).await?;
         let group_id = create_group_chat(&bob, ProtectionStatus::Unprotected, "group2").await?;
@@ -5200,8 +5184,7 @@ mod tests {
 
         // Bob receives all messages
         let bob = TestContext::new_bob().await;
-        bob.recv_msg(&sent1).await;
-        let msg = bob.get_last_msg().await;
+        let msg = bob.recv_msg(&sent1).await;
         assert_eq!(msg.get_text().unwrap(), "alice->bob");
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 2);
         assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0).await?.len(), 1);
@@ -5218,8 +5201,7 @@ mod tests {
         let claire = TestContext::new().await;
         claire.configure_addr("claire@example.org").await;
         claire.recv_msg(&sent2).await;
-        claire.recv_msg(&sent3).await;
-        let msg = claire.get_last_msg().await;
+        let msg = claire.recv_msg(&sent3).await;
         assert_eq!(msg.get_text().unwrap(), "alice->bob");
         assert_eq!(get_chat_contacts(&claire, msg.chat_id).await?.len(), 3);
         assert_eq!(get_chat_msgs(&claire, msg.chat_id, 0).await?.len(), 2);
@@ -5242,8 +5224,7 @@ mod tests {
         let sent1 = alice.send_text(alice_grp, "alice->bob").await;
 
         let bob = TestContext::new_bob().await;
-        bob.recv_msg(&sent1).await;
-        let msg = bob.get_last_msg().await;
+        let msg = bob.recv_msg(&sent1).await;
         assert!(resend_msgs(&bob, &[msg.id]).await.is_err());
 
         Ok(())
@@ -5264,8 +5245,7 @@ mod tests {
 
         // Bob now can send an encrypted message
         let bob = TestContext::new_bob().await;
-        bob.recv_msg(&sent1).await;
-        let msg = bob.get_last_msg().await;
+        let msg = bob.recv_msg(&sent1).await;
         assert!(!msg.get_showpadlock());
 
         msg.chat_id.accept(&bob).await?;
@@ -5349,8 +5329,7 @@ mod tests {
 
         let chat_bob = bob.create_chat(&alice).await;
         send_text_msg(&bob, chat_bob.id, "ho!".to_string()).await?;
-        alice.recv_msg(&bob.pop_sent_msg().await).await;
-        let msg = alice.get_last_msg().await;
+        let msg = alice.recv_msg(&bob.pop_sent_msg().await).await;
         assert!(msg.get_showpadlock());
 
         // test broadcast list
@@ -5370,8 +5349,7 @@ mod tests {
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.chat_id, chat.id);
 
-        bob.recv_msg(&alice.pop_sent_msg().await).await;
-        let msg = bob.get_last_msg().await;
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(msg.get_text(), Some("ola!".to_string()));
         assert!(!msg.get_showpadlock()); // avoid leaking recipients in encryption data
         let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
