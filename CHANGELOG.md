@@ -6,6 +6,8 @@
 - do not unnecessarily SELECT folders if there are no operations planned on
   them #3333
 - trim chat encryption info #3350
+- fix failure to decrypt first message to self after key synchronization
+  via Autocrypt Setup Message #3352
 
 
 ## 1.83.0

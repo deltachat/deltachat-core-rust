@@ -987,4 +987,49 @@ mod tests {
         assert_eq!(headers.get(HEADER_AUTOCRYPT), Some(&"mutual".to_string()));
         assert!(headers.get(HEADER_SETUPCODE).is_none());
     }
+
+    #[async_std::test]
+    async fn test_key_transfer() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let alice_clone = alice.clone();
+        let key_transfer_task = async_std::task::spawn(async move {
+            let ctx = alice_clone;
+            initiate_key_transfer(&ctx).await
+        });
+
+        // Wait for the message to be added to the queue.
+        async_std::task::sleep(std::time::Duration::from_secs(1)).await;
+        let sent = alice.pop_sent_msg().await;
+        let setup_code = key_transfer_task.await?;
+
+        // Alice sets up a second device.
+        let alice2 = TestContext::new().await;
+        alice2.set_name("alice2");
+        alice2.configure_addr("alice@example.org").await;
+        alice2.recv_msg(&sent).await;
+        let msg = alice2.get_last_msg().await;
+
+        // Send a message that cannot be decrypted because the keys are
+        // not synchronized yet.
+        let sent = alice2.send_text(msg.chat_id, "Test").await;
+        alice.recv_msg(&sent).await;
+        assert_ne!(
+            alice.get_last_msg().await.get_text(),
+            Some("Test".to_string())
+        );
+
+        // Transfer the key.
+        continue_key_transfer(&alice2, msg.id, &setup_code).await?;
+
+        // Alice sends a message to self from the new device.
+        let sent = alice2.send_text(msg.chat_id, "Test").await;
+        alice.recv_msg(&sent).await;
+        assert_eq!(
+            alice.get_last_msg().await.get_text(),
+            Some("Test".to_string())
+        );
+
+        Ok(())
+    }
 }

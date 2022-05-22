@@ -267,6 +267,11 @@ impl Peerstate {
         context: &Context,
         timestamp: i64,
     ) -> Result<()> {
+        if context.is_self_addr(&self.addr).await? {
+            // Do not try to search all the chats with self.
+            return Ok(());
+        }
+
         if self.fingerprint_changed {
             if let Some(contact_id) = context
                 .sql
