@@ -41,7 +41,7 @@ use crate::webxdc::WEBXDC_SUFFIX;
 use crate::{location, sql};
 
 /// An chat item, such as a message or a marker.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ChatItem {
     Message {
         msg_id: MsgId,
@@ -5208,7 +5208,9 @@ mod tests {
         bob.recv_msg(&sent2).await;
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 3);
         assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0).await?.len(), 2);
-        bob.recv_msg(&sent3).await;
+        let received = bob.recv_msg_opt(&sent3).await;
+        // No message should actually be added since we already know this message:
+        assert!(received.is_none());
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 3);
         assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0).await?.len(), 2);
 

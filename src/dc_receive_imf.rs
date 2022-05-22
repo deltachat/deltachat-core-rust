@@ -47,16 +47,9 @@ pub struct ReceivedMsg {
     pub chat_id: ChatId,
     pub state: MessageState,
     pub sort_timestamp: i64,
-    // Feel free to add more fields here
-}
-
-/// Information about added message parts.
-struct AddedParts {
-    /// Common info about received messages.
-    pub received_msg: ReceivedMsg,
 
     /// IDs of inserted rows in messages table.
-    pub created_db_entries: Vec<MsgId>,
+    pub msg_ids: Vec<MsgId>,
 
     /// Whether IMAP messages should be immediately deleted.
     pub needs_delete_job: bool,
@@ -186,7 +179,7 @@ pub(crate) async fn dc_receive_imf_inner(
         .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp));
 
     // Add parts
-    let added_parts = add_parts(
+    let received_msg = add_parts(
         context,
         &mut mime_parser,
         imf_raw,
@@ -211,7 +204,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // Update gossiped timestamp for the chat if someone else or our other device sent
     // Autocrypt-Gossip for all recipients in the chat to avoid sending Autocrypt-Gossip ourselves
     // and waste traffic.
-    let chat_id = added_parts.received_msg.chat_id;
+    let chat_id = received_msg.chat_id;
     if !chat_id.is_special()
         && mime_parser
             .recipients
@@ -229,7 +222,7 @@ pub(crate) async fn dc_receive_imf_inner(
         }
     }
 
-    let insert_msg_id = if let Some(msg_id) = added_parts.created_db_entries.last() {
+    let insert_msg_id = if let Some(msg_id) = received_msg.msg_ids.last() {
         *msg_id
     } else {
         MsgId::new_unset()
@@ -310,8 +303,8 @@ pub(crate) async fn dc_receive_imf_inner(
     // Get user-configured server deletion
     let delete_server_after = context.get_config_delete_server_after().await?;
 
-    if !added_parts.created_db_entries.is_empty() {
-        if added_parts.needs_delete_job
+    if !received_msg.msg_ids.is_empty() {
+        if received_msg.needs_delete_job
             || (delete_server_after == Some(0) && is_partial_download.is_none())
         {
             context
@@ -330,12 +323,12 @@ pub(crate) async fn dc_receive_imf_inner(
     if replace_partial_download {
         context.emit_msgs_changed(chat_id, MsgId::new(0));
     } else if !chat_id.is_trash() {
-        let fresh = added_parts.received_msg.state == MessageState::InFresh;
-        for msg_id in added_parts.created_db_entries {
+        let fresh = received_msg.state == MessageState::InFresh;
+        for msg_id in &received_msg.msg_ids {
             if incoming && fresh {
-                context.emit_incoming_msg(chat_id, msg_id);
+                context.emit_incoming_msg(chat_id, *msg_id);
             } else {
-                context.emit_msgs_changed(chat_id, msg_id);
+                context.emit_msgs_changed(chat_id, *msg_id);
             };
         }
     }
@@ -344,7 +337,7 @@ pub(crate) async fn dc_receive_imf_inner(
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
         .await;
 
-    Ok(Some(added_parts.received_msg))
+    Ok(Some(received_msg))
 }
 
 /// Converts "From" field to contact id.
@@ -408,7 +401,7 @@ async fn add_parts(
     is_partial_download: Option<u32>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
-) -> Result<AddedParts> {
+) -> Result<ReceivedMsg> {
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
 
@@ -1181,15 +1174,11 @@ INSERT INTO msgs
         }
     }
 
-    let received_msg = ReceivedMsg {
+    Ok(ReceivedMsg {
         chat_id,
         state,
         sort_timestamp,
-    };
-
-    Ok(AddedParts {
-        received_msg,
-        created_db_entries,
+        msg_ids: created_db_entries,
         needs_delete_job,
     })
 }
