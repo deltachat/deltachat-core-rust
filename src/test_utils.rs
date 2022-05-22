@@ -402,11 +402,7 @@ impl TestContext {
         &self,
         msg: &SentMessage,
     ) -> Option<crate::dc_receive_imf::ReceivedMsg> {
-        let received_msg = // TODO still necessary?
-            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n"
-                .to_owned()
-                + msg.payload();
-        dc_receive_imf(self, received_msg.as_bytes(), false)
+        dc_receive_imf(self, msg.payload().as_bytes(), false)
             .await
             .unwrap()
     }

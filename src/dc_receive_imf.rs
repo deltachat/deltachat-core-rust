@@ -3764,7 +3764,7 @@ YEAAAAAA!.
         assert!(!msg.get_showpadlock());
         let mime = message::get_mime_headers(&bob, msg.id).await?;
         let mime_str = String::from_utf8_lossy(&mime);
-        assert!(mime_str.contains("Received:"));
+        assert!(mime_str.contains("Message-ID:"));
         assert!(mime_str.contains("From:"));
 
         // another one, from bob to alice, that gets encrypted
@@ -3776,7 +3776,7 @@ YEAAAAAA!.
         assert!(msg.get_showpadlock());
         let mime = message::get_mime_headers(&alice, msg.id).await?;
         let mime_str = String::from_utf8_lossy(&mime);
-        assert!(mime_str.contains("Received:"));
+        assert!(mime_str.contains("Message-ID:"));
         assert!(mime_str.contains("From:"));
         Ok(())
     }
