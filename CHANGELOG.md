@@ -11,6 +11,7 @@
 - trim chat encryption info #3350
 - fix failure to decrypt first message to self after key synchronization
   via Autocrypt Setup Message #3352
+- Keep pgp key when you change your own email address #3351
 
 
 ## 1.83.0
