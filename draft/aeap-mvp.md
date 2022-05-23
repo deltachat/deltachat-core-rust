@@ -24,7 +24,7 @@ Changes in the core
 - When sending a message: If any of the secondary self addrs is in the chat's member list, remove it locally (because we just transitioned away from it). TODO the old design said we add a system message that we did so, but do we really need to do this?
 
 - When receiving a message: If we are going to assign a message to a chat, but the sender is not a member of this chat\
-  AND the signing key is the same as the - non-gossiped - key of one of the chat members\
+  AND the signing key is the same as the direct (non-gossiped) key of one of the chat members\
   AND there is a `Chat-Version` header\
   AND the message timestamp is newer than the contact's `lastseen` (to prevent changing the address back when messages arrive out of order):
 
@@ -47,11 +47,11 @@ Changes in the core
 - With this approach, it's easy to switch to a model where the info about the transition is encoded in the PGP key. Since the key is gossiped, the information about the transition will spread virally.
 - Faster transation: If you send a message to e.g. "Delta Chat Dev", all members of the "sub-group" "delta android" will know of your transition.
 
-### Alternatives:
+### Alternatives and old discussions/plans:
 
 - Change the contact instead of rewriting the group member lists. This seems to call for more trouble since we will end up with multiple contacts having the same email address.
 
-- We leave the AEAP transition statement away for now since it seems not to be needed.
+- If needed, we could add a header a) indicating that the sender did an address transition or b) listing all the secondary (old) addresses.  For now, there is no big enough benefit to warrant introducing another header and its processing on the receiver side (including all the neccessary checks and handling of error cases) 
   
 <details>
 <summary>Some previous state of the discussion, which temporarily lived in an issue description</summary>
