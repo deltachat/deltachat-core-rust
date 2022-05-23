@@ -562,8 +562,7 @@ mod tests {
         // Alice sends a message to Bob
         let alice_bob_chat = alice.create_chat(&bob).await;
         let sent = alice.send_text(alice_bob_chat.id, "Hi").await;
-        bob.recv_msg(&sent).await;
-        let bob_msg = bob.get_last_msg().await;
+        let bob_msg = bob.recv_msg(&sent).await;
         bob_msg.chat_id.accept(&bob).await?;
         assert_eq!(bob_msg.text.unwrap(), "Hi");
 
@@ -584,8 +583,7 @@ mod tests {
 
         // Alice set up message forwarding so that she still receives
         // the message with her new address
-        alice.recv_msg(&sent).await;
-        let alice_msg = alice.get_last_msg().await;
+        let alice_msg = alice.recv_msg(&sent).await;
         assert_eq!(alice_msg.text, Some("hi back".to_string()));
         assert_eq!(alice_msg.get_showpadlock(), true);
         assert_eq!(alice_msg.chat_id, alice_bob_chat.id);
