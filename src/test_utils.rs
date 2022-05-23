@@ -370,10 +370,8 @@ impl TestContext {
             .unwrap()
     }
 
-    /// Receive a message.
-    ///
-    /// Receives a message using the `dc_receive_imf()` pipeline. Panics if it's not shown
-    /// in the chat.
+    /// Receive a message using the `dc_receive_imf()` pipeline. Panics if it's not shown
+    /// in the chat as exactly one message.
     pub async fn recv_msg(&self, msg: &SentMessage) -> Message {
         let received = self.recv_msg_opt(msg).await.unwrap();
 
@@ -398,6 +396,8 @@ impl TestContext {
         msg
     }
 
+    /// Receive a message using the `dc_receive_imf()` pipeline. This is similar
+    /// to `recv_msg()`, but doesn't assume that the message is shown in the chat.
     pub async fn recv_msg_opt(
         &self,
         msg: &SentMessage,
