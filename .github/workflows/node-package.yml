@@ -4,11 +4,12 @@ on:
   push:
     tags:
     - '*'
+    - '!py-*'
 
 
 jobs:
   prebuild:
-    name: 'Tests & Prebuild'
+    name: 'prebuild'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -50,20 +51,6 @@ jobs:
           cd node
           npm install --verbose
 
-      - name: Test
-        if: runner.os != 'Windows'
-        run: |
-          cd node
-          npm run test
-        env:
-          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
-      - name: Run tests on Windows, except lint
-        if: runner.os == 'Windows'
-        run: |
-          cd node
-          npm run test:mocha
-        env:
-          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
       - name: Build Prebuild
         run: |
           cd node
@@ -97,7 +84,7 @@ jobs:
         run: |
           tag=${{ steps.tag.outputs.tag }}
           if [ -z "$tag" ]; then
-            node -e "console.log('::set-output name=prid::' + '${{ github.ref }}'.split('/')[2])"
+            node -e "console.log('DELTACHAT_NODE_TAR_GZ=deltachat-node-' + '${{ github.ref }}'.split('/')[2] + '.tar.gz')" >> $GITHUB_ENV
           else
             echo "No preview will be uploaded this time, but the $tag release"
           fi
@@ -108,6 +95,7 @@ jobs:
           cargo -vV
           npm --version
           node --version
+          echo $DELTACHAT_NODE_TAR_GZ
       - name: Download ubuntu prebuild
         uses: actions/download-artifact@v1
         with:
@@ -127,6 +115,7 @@ jobs:
           tar -xvzf macos-latest/macos-latest.tar.gz -C node/prebuilds
           tar -xvzf windows-latest/windows-latest.tar.gz -C node/prebuilds
           tree node/prebuilds
+          rm -rf ubuntu-18.04 macos-latest windows-latest
       - name: install dependencies without running scripts
         run: |
           npm install --ignore-scripts
@@ -136,14 +125,15 @@ jobs:
       - name: package
         shell: bash
         run: |
+          mv node/README.md README.md
           npm pack .
           ls -lah
-          mv $(find deltachat-node-*) deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz
+          mv $(find deltachat-node-*) $DELTACHAT_NODE_TAR_GZ
       - name: Upload Prebuild
         uses: actions/upload-artifact@v1
         with:
           name: deltachat-node.tgz
-          path: deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz
+          path: ${{ env.DELTACHAT_NODE_TAR_GZ }}
       # Upload to download.delta.chat/node/preview/
       - name: Upload deltachat-node preview to download.delta.chat/node/preview/
         id: upload-preview
@@ -151,17 +141,17 @@ jobs:
         run: |
           echo -e "${{ secrets.SSH_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
-          if [[ -z "${{ steps.prepare.outputs.prid }}" ]]
+          if [[ -z "$DELTACHAT_NODE_TAR_GZ" ]]
           then
             exit 1
           fi
-          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/preview/"
+          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r $DELTACHAT_NODE_TAR_GZ "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/preview/"
         continue-on-error: true
       - name: "Post links to details"
         if: steps.upload-preview.outcome == 'success'
         run: node ./node/scripts/postLinksToDetails.js
         env:
-         URL: preview/deltachat-node-${{ steps.prepare.outputs.prid }}
+         URL: preview/${{ env.DELTACHAT_NODE_TAR_GZ }}
          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Upload to download.delta.chat/node/
       - name: Upload deltachat-node build to download.delta.chat/node/
@@ -171,5 +161,6 @@ jobs:
         run: |
           echo -e "${{ secrets.SSH_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
-          mv deltachat-node-${{ steps.prepare.outputs.prid }}.tar.gz deltachat-node-${{ steps.tag.outputs.tag }}.tar.gz
-          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r deltachat-node-${{ steps.tag.outputs.tag }}.tar.gz "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/"
+          $DELTACHAT_NODE_TAG_TAR_GZ=deltachat-node-${{ steps.tag.outputs.tag }}.tar.gz
+          mv $DELTACHAT_NODE_TAR_GZ $DELTACHAT_NODE_TAG_TAR_GZ
+          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r $DELTACHAT_NODE_TAG_TAR_GZ "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/"

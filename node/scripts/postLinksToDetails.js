@@ -17,7 +17,7 @@ const STATUS_DATA = {
   state: 'success',
   description: '⏩ Click on "Details" to download →',
   context: 'Download the node-bindings.tar.gz',
-  target_url: base_url + file_url + '.tar.gz',
+  target_url: base_url + file_url,
 }
 
 const http = require('https')

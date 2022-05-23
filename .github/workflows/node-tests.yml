@@ -1,0 +1,63 @@
+name: 'node.js'
+on:
+  pull_request:
+
+
+jobs:
+  prebuild:
+    name: 'tests'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+      - name: System info
+        run: |
+          rustc -vV
+          rustup -vV
+          cargo -vV
+          npm --version
+          node --version
+
+      - name: Cache node modules
+        uses: actions/cache@v2
+        with:
+          path: |
+            ${{ env.APPDATA }}/npm-cache
+            ~/.npm
+          key: ${{ matrix.os }}-node-${{ hashFiles('**/package.json') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git
+            target
+          key: ${{ matrix.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-2
+
+      - name: Install dependencies & build
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd node
+          npm install --verbose
+
+      - name: Test
+        if: runner.os != 'Windows'
+        run: |
+          cd node
+          npm run test
+        env:
+          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+      - name: Run tests on Windows, except lint
+        if: runner.os == 'Windows'
+        run: |
+          cd node
+          npm run test:mocha
+        env:
+          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
