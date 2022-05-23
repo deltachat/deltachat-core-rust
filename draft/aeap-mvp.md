@@ -19,9 +19,9 @@ Changes in the core
 
   - The key stays the same.
 
-- No changes for 1:1 chats, there simply is a new one. TODO: Is it a problem that some of the messages will still be assigned to the same 1:1 chat because they are a reply?
+- No changes for 1:1 chats, there simply is a new one. (This works since, contrary to group messages, messages sent to a 1:1 chat are not assigned to the group chat but always to the 1:1 chat with the sender. So it's not a problem that the new messages might be put into the old chat if they are a reply to a message there.)
 
-- When sending a message: If any of the secondary self addrs is in the chat's member list, remove it locally (because we just transitioned away from it). TODO the old design said we add a system message that we did so, but do we really need to do this?
+- When sending a message: If any of the secondary self addrs is in the chat's member list, remove it locally (because we just transitioned away from it). We add a log message for this (alternatively, a system message in the chat would be more visible).
 
 - When receiving a message: If we are going to assign a message to a chat, but the sender is not a member of this chat\
   AND the signing key is the same as the direct (non-gossiped) key of one of the chat members\
