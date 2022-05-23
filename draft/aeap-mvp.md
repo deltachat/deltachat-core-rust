@@ -26,7 +26,7 @@ Changes in the core
 - When receiving a message: If we are going to assign a message to a chat, but the sender is not a member of this chat\
   AND the signing key is the same as the direct (non-gossiped) key of one of the chat members\
   AND there is a `Chat-Version` header\
-  AND the message timestamp is newer than the contact's `lastseen` (to prevent changing the address back when messages arrive out of order):
+  AND the message timestamp is newer than the contact's `lastseen` (to prevent changing the address back when messages arrive out of order) (this condition is not that important since we will have eventual consistency even without it):
 
   Replace the contact in _all_ groups, possibly deduplicate the members list, and add a system message to all of these chats.
   
@@ -35,7 +35,6 @@ Changes in the core
 ### Notes:
   
 - We treat protected and non-protected chats the same
-- We have the contition "AND there is a `Chat-Version` header" becaues we don't want to accidentally do this transition when an MUA user sends a message from another email address with the same key. We thought about introducing a dedicated "Transitioned" header flag for preventing unintended transitions, but figured it's not necessary.
 - We leave the aeap transition statement away since it seems not to be needed, makes things harder on the sending side, wastes some network traffic, and is worse for privacy (since more pepole know what old addresses you had).
 - As soon as we encrypt read receipts, sending a read receipt will be enough to tell a lot of people that you transitioned
 - AEAP will make the problem of inconsistent group state worse, both because it doesn't work if the message is unencrypted (even if the design allowed it, it would be problematic security-wise) and because some chat partners may have gotten the transition and some not. We should do something against this at some point in the future, like asking the user whether they want to add/remove the members to restore consistent group state.
@@ -51,7 +50,7 @@ Changes in the core
 
 - Change the contact instead of rewriting the group member lists. This seems to call for more trouble since we will end up with multiple contacts having the same email address.
 
-- If needed, we could add a header a) indicating that the sender did an address transition or b) listing all the secondary (old) addresses.  For now, there is no big enough benefit to warrant introducing another header and its processing on the receiver side (including all the neccessary checks and handling of error cases) 
+- If needed, we could add a header a) indicating that the sender did an address transition or b) listing all the secondary (old) addresses.  For now, there is no big enough benefit to warrant introducing another header and its processing on the receiver side (including all the neccessary checks and handling of error cases). Instead, we only check for the `Chat-Version` header to prevent accidental transitions when an MUA user sends a message from another email address with the same key.
   
 <details>
 <summary>Some previous state of the discussion, which temporarily lived in an issue description</summary>
