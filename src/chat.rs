@@ -3676,7 +3676,7 @@ mod tests {
 
         // create group and sync it to the second device
         let a1_chat_id = create_group_chat(&a1, ProtectionStatus::Unprotected, "foo").await?;
-        send_text_msg(&a1, a1_chat_id, "ho!".to_string()).await?;
+        a1.send_text(a1_chat_id, "ho!").await;
         let a1_msg = a1.get_last_msg().await;
         let a1_chat = Chat::load_from_db(&a1, a1_chat_id).await?;
 
@@ -3788,10 +3788,9 @@ mod tests {
         bob.recv_msg(&add3).await;
         async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
 
-        bob.recv_msg(&add2).await;
+        let bob_chat_id = bob.recv_msg(&add2).await.chat_id;
         async_std::task::sleep(std::time::Duration::from_millis(1100)).await;
 
-        let bob_chat_id = bob.get_last_msg().await.chat_id;
         assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 4);
 
         bob.recv_msg(&remove2).await;
@@ -3860,12 +3859,11 @@ mod tests {
 
         // Alice sends first message to group.
         let sent_msg = alice.send_text(alice_chat_id, "Hello!").await;
-        bob.recv_msg(&sent_msg).await;
+        let bob_msg = bob.recv_msg(&sent_msg).await;
 
         assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
 
         // Bob leaves the group.
-        let bob_msg = bob.get_last_msg().await;
         let bob_chat_id = bob_msg.chat_id;
         bob_chat_id.accept(&bob).await?;
         remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
@@ -5000,12 +4998,11 @@ mod tests {
         // forward said sticker to alice
         forward_msgs(&bob, &[msg.id], bob_chat.get_id()).await?;
         let forwarded_msg = bob.pop_sent_msg().await;
-        alice.recv_msg(&forwarded_msg).await;
 
-        // retrieve forwarded sticker which should not have forwarded-flag
-        let msg = alice.get_last_msg().await;
-
+        let msg = alice.recv_msg(&forwarded_msg).await;
+        // forwarded sticker should not have forwarded-flag
         assert!(!msg.is_forwarded());
+
         Ok(())
     }
 
@@ -5083,8 +5080,7 @@ mod tests {
         let sent_group_msg = alice
             .send_text(alice_group_chat_id, "Hi Bob and Claire")
             .await;
-        bob.recv_msg(&sent_group_msg).await;
-        let bob_group_chat_id = bob.get_last_msg().await.chat_id;
+        let bob_group_chat_id = bob.recv_msg(&sent_group_msg).await.chat_id;
 
         // Alice deletes a message on her device.
         // This is needed to make assignment of further messages received in this group

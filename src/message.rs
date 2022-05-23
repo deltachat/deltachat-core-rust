@@ -2090,8 +2090,8 @@ mod tests {
             .first()
             .unwrap();
         let contact = Contact::load_from_db(&bob, contact_id).await.unwrap();
-        bob.recv_msg(&alice.pop_sent_msg().await).await;
-        let msg = bob.get_last_msg_in(chat.id).await;
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        assert_eq!(msg.chat_id, chat.id);
         assert_eq!(msg.text, Some("bla blubb".to_string()));
         assert_eq!(
             msg.get_override_sender_name(),
@@ -2116,13 +2116,11 @@ mod tests {
 
         // alice sends to bob,
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
-        bob.recv_msg(&alice.send_msg(alice_chat.id, &mut msg).await)
-            .await;
-        let msg1 = bob.get_last_msg().await;
+        let sent1 = alice.send_msg(alice_chat.id, &mut msg).await;
+        let msg1 = bob.recv_msg(&sent1).await;
         let bob_chat_id = msg1.chat_id;
-        bob.recv_msg(&alice.send_msg(alice_chat.id, &mut msg).await)
-            .await;
-        let msg2 = bob.get_last_msg().await;
+        let sent2 = alice.send_msg(alice_chat.id, &mut msg).await;
+        let msg2 = bob.recv_msg(&sent2).await;
         assert_eq!(msg1.chat_id, msg2.chat_id);
         let chats = Chatlist::try_load(&bob, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
@@ -2143,14 +2141,12 @@ mod tests {
 
         // bob sends to alice,
         // alice knows bob and messages appear in normal chat
-        alice
+        let msg1 = alice
             .recv_msg(&bob.send_msg(bob_chat_id, &mut msg).await)
             .await;
-        let msg1 = alice.get_last_msg().await;
-        alice
+        let msg2 = alice
             .recv_msg(&bob.send_msg(bob_chat_id, &mut msg).await)
             .await;
-        let msg2 = alice.get_last_msg().await;
         let chats = Chatlist::try_load(&alice, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
         assert_eq!(chats.get_chat_id(0)?, alice_chat.id);
