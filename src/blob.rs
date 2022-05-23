@@ -1083,8 +1083,7 @@ mod tests {
         assert_eq!(img.width() as u32, compressed_width);
         assert_eq!(img.height() as u32, compressed_height);
 
-        bob.recv_msg(&sent).await;
-        let bob_msg = bob.get_last_msg().await;
+        let bob_msg = bob.recv_msg(&sent).await;
         assert_eq!(bob_msg.get_width() as u32, compressed_width);
         assert_eq!(bob_msg.get_height() as u32, compressed_height);
         let file = bob_msg.get_file(&bob).unwrap();

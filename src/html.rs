@@ -467,8 +467,8 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         // bob: check that bob also got the html-part of the forwarded message
         let bob = TestContext::new_bob().await;
         let chat = bob.create_chat_with_contact("", "alice@example.org").await;
-        bob.recv_msg(&alice.pop_sent_msg().await).await;
-        let msg = bob.get_last_msg_in(chat.get_id()).await;
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        assert_eq!(chat.id, msg.chat_id);
         assert_ne!(msg.get_from_id(), ContactId::SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.is_forwarded());
@@ -503,9 +503,8 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         // receive the message on another device
         let alice = TestContext::new_alice().await;
         assert_eq!(alice.get_config_int(Config::ShowEmails).await.unwrap(), 0); // set to "1" above, make sure it is another db
-        alice.recv_msg(&msg).await;
-        let chat = alice.get_self_chat().await;
-        let msg = alice.get_last_msg_in(chat.get_id()).await;
+        let msg = alice.recv_msg(&msg).await;
+        assert_eq!(msg.chat_id, alice.get_self_chat().await.id);
         assert_eq!(msg.get_from_id(), ContactId::SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.get_showpadlock());
@@ -539,8 +538,8 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
         // let bob receive the message
         let chat_id = bob.create_chat(&alice).await.id;
-        bob.recv_msg(&alice.pop_sent_msg().await).await;
-        let msg = bob.get_last_msg_in(chat_id).await;
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        assert_eq!(msg.chat_id, chat_id);
         assert_eq!(msg.get_text(), Some("plain text".to_string()));
         assert!(!msg.is_forwarded());
         assert!(msg.mime_modified);

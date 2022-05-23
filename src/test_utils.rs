@@ -1,7 +1,7 @@
 //! Utilities to help writing tests.
 //!
 //! This private module is only compiled for test runs.
-
+#![allow(clippy::indexing_slicing)]
 use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::panic;
@@ -370,17 +370,41 @@ impl TestContext {
             .unwrap()
     }
 
-    /// Receive a message.
-    ///
-    /// Receives a message using the `dc_receive_imf()` pipeline.
-    pub async fn recv_msg(&self, msg: &SentMessage) {
-        let received_msg =
-            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n"
-                .to_owned()
-                + msg.payload();
-        dc_receive_imf(&self.ctx, received_msg.as_bytes(), false)
+    /// Receive a message using the `dc_receive_imf()` pipeline. Panics if it's not shown
+    /// in the chat as exactly one message.
+    pub async fn recv_msg(&self, msg: &SentMessage) -> Message {
+        let received = self.recv_msg_opt(msg).await.unwrap();
+
+        assert_eq!(
+            received.msg_ids.len(),
+            1,
+            "recv_msg() can currently only receive messages with exactly one part"
+        );
+        let msg = Message::load_from_db(self, received.msg_ids[0])
             .await
             .unwrap();
+
+        let chat_msgs = chat::get_chat_msgs(self, received.chat_id, 0)
+            .await
+            .unwrap();
+        assert!(
+            chat_msgs.contains(&ChatItem::Message { msg_id: msg.id }),
+            "received message is not shown in chat, maybe it's hidden (you may have \
+                to call set_config(Config::ShowEmails, Some(\"2\")).await)"
+        );
+
+        msg
+    }
+
+    /// Receive a message using the `dc_receive_imf()` pipeline. This is similar
+    /// to `recv_msg()`, but doesn't assume that the message is shown in the chat.
+    pub async fn recv_msg_opt(
+        &self,
+        msg: &SentMessage,
+    ) -> Option<crate::dc_receive_imf::ReceivedMsg> {
+        dc_receive_imf(self, msg.payload().as_bytes(), false)
+            .await
+            .unwrap()
     }
 
     /// Gets the most recent message of a chat.

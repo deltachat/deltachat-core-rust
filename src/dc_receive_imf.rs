@@ -47,16 +47,9 @@ pub struct ReceivedMsg {
     pub chat_id: ChatId,
     pub state: MessageState,
     pub sort_timestamp: i64,
-    // Feel free to add more fields here
-}
-
-/// Information about added message parts.
-struct AddedParts {
-    /// Common info about received messages.
-    pub received_msg: ReceivedMsg,
 
     /// IDs of inserted rows in messages table.
-    pub created_db_entries: Vec<MsgId>,
+    pub msg_ids: Vec<MsgId>,
 
     /// Whether IMAP messages should be immediately deleted.
     pub needs_delete_job: bool,
@@ -186,7 +179,7 @@ pub(crate) async fn dc_receive_imf_inner(
         .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp));
 
     // Add parts
-    let added_parts = add_parts(
+    let received_msg = add_parts(
         context,
         &mut mime_parser,
         imf_raw,
@@ -211,7 +204,7 @@ pub(crate) async fn dc_receive_imf_inner(
     // Update gossiped timestamp for the chat if someone else or our other device sent
     // Autocrypt-Gossip for all recipients in the chat to avoid sending Autocrypt-Gossip ourselves
     // and waste traffic.
-    let chat_id = added_parts.received_msg.chat_id;
+    let chat_id = received_msg.chat_id;
     if !chat_id.is_special()
         && mime_parser
             .recipients
@@ -229,7 +222,7 @@ pub(crate) async fn dc_receive_imf_inner(
         }
     }
 
-    let insert_msg_id = if let Some(msg_id) = added_parts.created_db_entries.last() {
+    let insert_msg_id = if let Some(msg_id) = received_msg.msg_ids.last() {
         *msg_id
     } else {
         MsgId::new_unset()
@@ -310,8 +303,8 @@ pub(crate) async fn dc_receive_imf_inner(
     // Get user-configured server deletion
     let delete_server_after = context.get_config_delete_server_after().await?;
 
-    if !added_parts.created_db_entries.is_empty() {
-        if added_parts.needs_delete_job
+    if !received_msg.msg_ids.is_empty() {
+        if received_msg.needs_delete_job
             || (delete_server_after == Some(0) && is_partial_download.is_none())
         {
             context
@@ -330,12 +323,12 @@ pub(crate) async fn dc_receive_imf_inner(
     if replace_partial_download {
         context.emit_msgs_changed(chat_id, MsgId::new(0));
     } else if !chat_id.is_trash() {
-        let fresh = added_parts.received_msg.state == MessageState::InFresh;
-        for msg_id in added_parts.created_db_entries {
+        let fresh = received_msg.state == MessageState::InFresh;
+        for msg_id in &received_msg.msg_ids {
             if incoming && fresh {
-                context.emit_incoming_msg(chat_id, msg_id);
+                context.emit_incoming_msg(chat_id, *msg_id);
             } else {
-                context.emit_msgs_changed(chat_id, msg_id);
+                context.emit_msgs_changed(chat_id, *msg_id);
             };
         }
     }
@@ -344,7 +337,7 @@ pub(crate) async fn dc_receive_imf_inner(
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
         .await;
 
-    Ok(Some(added_parts.received_msg))
+    Ok(Some(received_msg))
 }
 
 /// Converts "From" field to contact id.
@@ -408,7 +401,7 @@ async fn add_parts(
     is_partial_download: Option<u32>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
-) -> Result<AddedParts> {
+) -> Result<ReceivedMsg> {
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
 
@@ -1181,15 +1174,11 @@ INSERT INTO msgs
         }
     }
 
-    let received_msg = ReceivedMsg {
+    Ok(ReceivedMsg {
         chat_id,
         state,
         sort_timestamp,
-    };
-
-    Ok(AddedParts {
-        received_msg,
-        created_db_entries,
+        msg_ids: created_db_entries,
         needs_delete_job,
     })
 }
@@ -3749,8 +3738,7 @@ YEAAAAAA!.
         let chat_alice = alice.create_chat(&bob).await;
         chat::send_text_msg(&alice, chat_alice.id, "hi!".to_string()).await?;
 
-        bob.recv_msg(&alice.pop_sent_msg().await).await;
-        let msg = bob.get_last_msg().await;
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(msg.get_text(), Some("hi!".to_string()));
         assert!(!msg.get_showpadlock());
         let mime = message::get_mime_headers(&bob, msg.id).await?;
@@ -3769,25 +3757,23 @@ YEAAAAAA!.
         let chat_alice = alice.create_chat(&bob).await;
         chat::send_text_msg(&alice, chat_alice.id, "hi!".to_string()).await?;
 
-        bob.recv_msg(&alice.pop_sent_msg().await).await;
-        let msg = bob.get_last_msg().await;
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(msg.get_text(), Some("hi!".to_string()));
         assert!(!msg.get_showpadlock());
         let mime = message::get_mime_headers(&bob, msg.id).await?;
         let mime_str = String::from_utf8_lossy(&mime);
-        assert!(mime_str.contains("Received:"));
+        assert!(mime_str.contains("Message-ID:"));
         assert!(mime_str.contains("From:"));
 
         // another one, from bob to alice, that gets encrypted
         let chat_bob = bob.create_chat(&alice).await;
         chat::send_text_msg(&bob, chat_bob.id, "ho!".to_string()).await?;
-        alice.recv_msg(&bob.pop_sent_msg().await).await;
-        let msg = alice.get_last_msg().await;
+        let msg = alice.recv_msg(&bob.pop_sent_msg().await).await;
         assert_eq!(msg.get_text(), Some("ho!".to_string()));
         assert!(msg.get_showpadlock());
         let mime = message::get_mime_headers(&alice, msg.id).await?;
         let mime_str = String::from_utf8_lossy(&mime);
-        assert!(mime_str.contains("Received:"));
+        assert!(mime_str.contains("Message-ID:"));
         assert!(mime_str.contains("From:"));
         Ok(())
     }
@@ -4472,16 +4458,14 @@ Second thread."#;
         let alice_first_reply = alice
             .send_text(alice_first_msg.chat_id, "First reply")
             .await;
-        bob.recv_msg(&alice_first_reply).await;
-        let bob_first_reply = bob.get_last_msg().await;
+        let bob_first_reply = bob.recv_msg(&alice_first_reply).await;
         assert_eq!(bob_first_reply.chat_id, bob_first_msg.chat_id);
 
         alice_second_msg.chat_id.accept(&alice).await?;
         let alice_second_reply = alice
             .send_text(alice_second_msg.chat_id, "Second reply")
             .await;
-        bob.recv_msg(&alice_second_reply).await;
-        let bob_second_reply = bob.get_last_msg().await;
+        let bob_second_reply = bob.recv_msg(&alice_second_reply).await;
         assert_eq!(bob_second_reply.chat_id, bob_second_msg.chat_id);
 
         // Alice adds Fiona to both ad hoc groups.
@@ -4496,13 +4480,11 @@ Second thread."#;
 
         chat::add_contact_to_chat(&alice, alice_first_msg.chat_id, alice_fiona_contact_id).await?;
         let alice_first_invite = alice.pop_sent_msg().await;
-        fiona.recv_msg(&alice_first_invite).await;
-        let fiona_first_invite = fiona.get_last_msg().await;
+        let fiona_first_invite = fiona.recv_msg(&alice_first_invite).await;
 
         chat::add_contact_to_chat(&alice, alice_second_msg.chat_id, alice_fiona_contact_id).await?;
         let alice_second_invite = alice.pop_sent_msg().await;
-        fiona.recv_msg(&alice_second_invite).await;
-        let fiona_second_invite = fiona.get_last_msg().await;
+        let fiona_second_invite = fiona.recv_msg(&alice_second_invite).await;
 
         // Fiona was added to two separate chats and should see two separate chats, even though they
         // don't have different group IDs to distinguish them.
@@ -4784,8 +4766,7 @@ Reply from different address
             let sent = alice.send_msg(alice_chat.id, &mut msg_alice).await;
             println!("{}", sent.payload());
 
-            bob.recv_msg(&sent).await;
-            let msg_bob = bob.get_last_msg().await;
+            let msg_bob = bob.recv_msg(&sent).await;
 
             async fn check_message(msg: &Message, t: &TestContext, content: &str) {
                 assert_eq!(msg.get_viewtype(), Viewtype::File);
@@ -4825,9 +4806,7 @@ Reply from different address
 
         alice1.recv_msg(&sent).await;
         alice2.recv_msg(&sent).await;
-        bob2.recv_msg(&sent).await;
-
-        let alice1_msg = alice1.get_last_msg().await;
+        let alice1_msg = bob2.recv_msg(&sent).await;
         assert_eq!(alice1_msg.text.unwrap(), "Hello!");
         let alice1_chat = chat::Chat::load_from_db(&alice1, alice1_msg.chat_id).await?;
         assert!(alice1_chat.is_contact_request());
