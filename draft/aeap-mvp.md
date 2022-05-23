@@ -23,8 +23,7 @@ Changes in the core
 
 - When sending a message: If any of the secondary self addrs is in the chat's member list, remove it locally (because we just transitioned away from it). We add a log message for this (alternatively, a system message in the chat would be more visible).
 
-- When receiving a message: If we are going to assign a message to a chat, but the sender is not a member of this chat\
-  AND the signing key is the same as the direct (non-gossiped) key of one of the chat members\
+- When receiving a message: If the key exists, but belongs to another address (we may want to benchmark this)
   AND there is a `Chat-Version` header\
   AND the message timestamp is newer than the contact's `lastseen` (to prevent changing the address back when messages arrive out of order) (this condition is not that important since we will have eventual consistency even without it):
 
@@ -51,6 +50,14 @@ Changes in the core
 - Change the contact instead of rewriting the group member lists. This seems to call for more trouble since we will end up with multiple contacts having the same email address.
 
 - If needed, we could add a header a) indicating that the sender did an address transition or b) listing all the secondary (old) addresses.  For now, there is no big enough benefit to warrant introducing another header and its processing on the receiver side (including all the neccessary checks and handling of error cases). Instead, we only check for the `Chat-Version` header to prevent accidental transitions when an MUA user sends a message from another email address with the same key.
+
+- The condition for a transition temporarily was:
+
+  > When receiving a message: If we are going to assign a message to a chat, but the sender is not a member of this chat\
+  > AND the signing key is the same as the direct (non-gossiped) key of one of the chat members\
+  > AND ...
+
+  However, this would mean that in 1:1 messages can't trigger a transition, since we don't assign private messages to the parent chat, but always to the 1:1 chat with the sender.
   
 <details>
 <summary>Some previous state of the discussion, which temporarily lived in an issue description</summary>
