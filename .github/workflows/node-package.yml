@@ -125,6 +125,7 @@ jobs:
       - name: package
         shell: bash
         run: |
+          mv node/README.md README.md
           npm pack .
           ls -lah
           mv $(find deltachat-node-*) $DELTACHAT_NODE_TAR_GZ
