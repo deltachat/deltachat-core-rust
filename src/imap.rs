@@ -910,7 +910,7 @@ impl Imap {
         context
             .sql
             .execute(
-                format!(
+                &format!(
                     "DELETE FROM imap WHERE id IN ({})",
                     sql::repeat_vars(row_ids.len())
                 ),
@@ -947,7 +947,7 @@ impl Imap {
                     context
                         .sql
                         .execute(
-                            format!(
+                            &format!(
                                 "DELETE FROM imap WHERE id IN ({})",
                                 sql::repeat_vars(row_ids.len())
                             ),
@@ -989,7 +989,7 @@ impl Imap {
                 context
                     .sql
                     .execute(
-                        format!(
+                        &format!(
                             "UPDATE imap SET target='' WHERE id IN ({})",
                             sql::repeat_vars(row_ids.len())
                         ),
@@ -1106,7 +1106,7 @@ impl Imap {
                 context
                     .sql
                     .execute(
-                        format!(
+                        &format!(
                             "DELETE FROM imap_markseen WHERE id IN ({})",
                             sql::repeat_vars(rowid_set.len())
                         ),

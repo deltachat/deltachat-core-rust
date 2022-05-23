@@ -331,24 +331,16 @@ impl Sql {
     }
 
     /// Execute the given query, returning the number of affected rows.
-    pub async fn execute(
-        &self,
-        query: impl AsRef<str>,
-        params: impl rusqlite::Params,
-    ) -> Result<usize> {
+    pub async fn execute(&self, query: &str, params: impl rusqlite::Params) -> Result<usize> {
         let conn = self.get_conn().await?;
-        let res = conn.execute(query.as_ref(), params)?;
+        let res = conn.execute(query, params)?;
         Ok(res)
     }
 
     /// Executes the given query, returning the last inserted row ID.
-    pub async fn insert(
-        &self,
-        query: impl AsRef<str>,
-        params: impl rusqlite::Params,
-    ) -> Result<i64> {
+    pub async fn insert(&self, query: &str, params: impl rusqlite::Params) -> Result<i64> {
         let conn = self.get_conn().await?;
-        conn.execute(query.as_ref(), params)?;
+        conn.execute(query, params)?;
         Ok(conn.last_insert_rowid())
     }
 
@@ -357,7 +349,7 @@ impl Sql {
     /// result of that function.
     pub async fn query_map<T, F, G, H>(
         &self,
-        sql: impl AsRef<str>,
+        sql: &str,
         params: impl rusqlite::Params,
         f: F,
         mut g: G,
@@ -366,8 +358,6 @@ impl Sql {
         F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
         G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
-        let sql = sql.as_ref();
-
         let conn = self.get_conn().await?;
         let mut stmt = conn.prepare(sql)?;
         let res = stmt.query_map(params, f)?;
@@ -385,11 +375,7 @@ impl Sql {
     }
 
     /// Used for executing `SELECT COUNT` statements only. Returns the resulting count.
-    pub async fn count(
-        &self,
-        query: impl AsRef<str>,
-        params: impl rusqlite::Params,
-    ) -> anyhow::Result<usize> {
+    pub async fn count(&self, query: &str, params: impl rusqlite::Params) -> anyhow::Result<usize> {
         let count: isize = self.query_row(query, params, |row| row.get(0)).await?;
         Ok(usize::try_from(count)?)
     }
@@ -404,7 +390,7 @@ impl Sql {
     /// Execute a query which is expected to return one row.
     pub async fn query_row<T, F>(
         &self,
-        query: impl AsRef<str>,
+        query: &str,
         params: impl rusqlite::Params,
         f: F,
     ) -> Result<T>
@@ -412,7 +398,7 @@ impl Sql {
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
         let conn = self.get_conn().await?;
-        let res = conn.query_row(query.as_ref(), params, f)?;
+        let res = conn.query_row(query, params, f)?;
         Ok(res)
     }
 
@@ -474,7 +460,7 @@ impl Sql {
     /// Execute a query which is expected to return zero or one row.
     pub async fn query_row_optional<T, F>(
         &self,
-        sql: impl AsRef<str>,
+        sql: &str,
         params: impl rusqlite::Params,
         f: F,
     ) -> anyhow::Result<Option<T>>

@@ -699,7 +699,7 @@ impl Contact {
             context
                 .sql
                 .query_map(
-                    format!(
+                    &format!(
                         "SELECT c.id FROM contacts c \
                  LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
                  WHERE c.addr NOT IN ({})
@@ -754,7 +754,7 @@ impl Contact {
             context
                 .sql
                 .query_map(
-                    format!(
+                    &format!(
                         "SELECT id FROM contacts
                  WHERE addr NOT IN ({})
                  AND id>?

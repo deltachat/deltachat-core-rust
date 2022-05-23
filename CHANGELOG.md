@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changes
+- refactorings #3354
+
 ### Fixes
 - do not unnecessarily SELECT folders if there are no operations planned on
   them #3333
