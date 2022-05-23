@@ -468,7 +468,7 @@ impl Context {
                 let webxdc_instance_id = MsgId::new(debug_logging as u32);
 
                 match context
-                    .internal_write_status_update(
+                    .write_status_update_inner(
                         &webxdc_instance_id,
                         StatusUpdateItem {
                             payload: event.to_json(Some(time)),
