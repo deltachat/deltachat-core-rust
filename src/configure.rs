@@ -26,7 +26,6 @@ use crate::config::Config;
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::imap::Imap;
-use crate::job;
 use crate::log::LogExt;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{Message, Viewtype};
@@ -466,7 +465,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         if configured_addr != param.addr {
             // Switched account, all server UIDs we know are invalid
             info!(ctx, "Scheduling resync because the address has changed.");
-            job::schedule_resync(ctx).await?;
+            ctx.schedule_resync().await?;
         }
     }
 
