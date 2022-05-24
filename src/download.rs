@@ -10,11 +10,11 @@ use serde::{Deserialize, Serialize};
 use crate::config::Config;
 use crate::context::Context;
 use crate::imap::{Imap, ImapActionResult};
-use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
+use crate::scheduler::InterruptInfo;
 use crate::tools::time;
-use crate::{job_try, stock_str, EventType};
+use crate::{stock_str, EventType};
 
 /// Download limits should not be used below `MIN_DOWNLOAD_LIMIT`.
 ///
@@ -90,7 +90,14 @@ impl MsgId {
             DownloadState::Available | DownloadState::Failure => {
                 self.update_download_state(context, DownloadState::InProgress)
                     .await?;
-                job::add(context, Job::new(Action::DownloadMsg, self.to_u32())).await?;
+                context
+                    .sql
+                    .execute("INSERT INTO download (msg_id) VALUES (?)", (self,))
+                    .await?;
+                context
+                    .scheduler
+                    .interrupt_inbox(InterruptInfo::new(false))
+                    .await;
             }
         }
         Ok(())
@@ -124,59 +131,49 @@ impl Message {
     }
 }
 
-impl Job {
-    /// Actually download a message.
-    /// Called in response to `Action::DownloadMsg`.
-    pub(crate) async fn download_msg(&self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.prepare(context).await {
-            warn!(context, "download: could not connect: {:#}", err);
-            return Status::RetryNow;
-        }
+/// Actually download a message partially downloaded before.
+///
+/// Most messages are downloaded automatically on fetch instead.
+pub(crate) async fn download_msg(context: &Context, msg_id: MsgId, imap: &mut Imap) -> Result<()> {
+    imap.prepare(context).await?;
 
-        let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-        let row = job_try!(
-            context
-                .sql
-                .query_row_optional(
-                    "SELECT uid, folder FROM imap WHERE rfc724_mid=? AND target=folder",
-                    (&msg.rfc724_mid,),
-                    |row| {
-                        let server_uid: u32 = row.get(0)?;
-                        let server_folder: String = row.get(1)?;
-                        Ok((server_uid, server_folder))
-                    }
-                )
-                .await
-        );
+    let msg = Message::load_from_db(context, msg_id).await?;
+    let row = context
+        .sql
+        .query_row_optional(
+            "SELECT uid, folder FROM imap WHERE rfc724_mid=? AND target!=''",
+            (&msg.rfc724_mid,),
+            |row| {
+                let server_uid: u32 = row.get(0)?;
+                let server_folder: String = row.get(1)?;
+                Ok((server_uid, server_folder))
+            },
+        )
+        .await?;
 
-        if let Some((server_uid, server_folder)) = row {
-            match imap
-                .fetch_single_msg(context, &server_folder, server_uid, msg.rfc724_mid.clone())
-                .await
-            {
-                ImapActionResult::RetryLater | ImapActionResult::Failed => {
-                    job_try!(
-                        msg.id
-                            .update_download_state(context, DownloadState::Failure)
-                            .await
-                    );
-                    Status::Finished(Err(anyhow!("Call download_full() again to try over.")))
-                }
-                ImapActionResult::Success => {
-                    // update_download_state() not needed as receive_imf() already
-                    // set the state and emitted the event.
-                    Status::Finished(Ok(()))
-                }
-            }
-        } else {
-            // No IMAP record found, we don't know the UID and folder.
-            job_try!(
+    if let Some((server_uid, server_folder)) = row {
+        match imap
+            .fetch_single_msg(context, &server_folder, server_uid, msg.rfc724_mid.clone())
+            .await
+        {
+            ImapActionResult::RetryLater | ImapActionResult::Failed => {
                 msg.id
                     .update_download_state(context, DownloadState::Failure)
-                    .await
-            );
-            Status::Finished(Err(anyhow!("Call download_full() again to try over.")))
+                    .await?;
+                Err(anyhow!("Call download_full() again to try over."))
+            }
+            ImapActionResult::Success => {
+                // update_download_state() not needed as receive_imf() already
+                // set the state and emitted the event.
+                Ok(())
+            }
         }
+    } else {
+        // No IMAP record found, we don't know the UID and folder.
+        msg.id
+            .update_download_state(context, DownloadState::Failure)
+            .await?;
+        Err(anyhow!("Call download_full() again to try over."))
     }
 }
 
