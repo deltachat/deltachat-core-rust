@@ -326,7 +326,7 @@ static void call_js_event_handler(napi_env env, napi_value js_callback, void* _c
 
   if (status != napi_ok) {
     TRACE("Unable to call event_handler callback2");
-    napi_extended_error_info* error_result;
+    const napi_extended_error_info* error_result;
     NAPI_STATUS_THROWS(napi_get_last_error_info(env, &error_result));
   }
 }
@@ -3195,7 +3195,7 @@ static void call_accounts_js_event_handler(napi_env env, napi_value js_callback,
 
   if (status != napi_ok) {
     TRACE("Unable to call event_handler callback2");
-    napi_extended_error_info* error_result;
+    const napi_extended_error_info* error_result;
     NAPI_STATUS_THROWS(napi_get_last_error_info(env, &error_result));
   }
 }
