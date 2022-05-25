@@ -1,7 +1,11 @@
 name: 'node.js'
 on:
   pull_request:
-
+  push:
+    branches:
+      - master
+      - staging
+      - trying
 
 jobs:
   prebuild:
