@@ -13,7 +13,7 @@ use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use async_std::{fs, io};
 
-use anyhow::Error;
+use anyhow::{bail, Error, Result};
 use chrono::{Local, TimeZone};
 use mailparse::dateparse;
 use mailparse::headers::Headers;
@@ -443,14 +443,6 @@ pub(crate) fn time() -> i64 {
         .as_secs() as i64
 }
 
-/// An invalid email address was encountered
-#[derive(Debug, thiserror::Error)]
-#[error("Invalid email address: {message} ({addr})")]
-pub struct InvalidEmailError {
-    message: String,
-    addr: String,
-}
-
 /// Very simple email address wrapper.
 ///
 /// Represents an email address, right now just the `name@domain` portion.
@@ -474,7 +466,7 @@ pub struct EmailAddress {
 }
 
 impl EmailAddress {
-    pub fn new(input: &str) -> Result<Self, InvalidEmailError> {
+    pub fn new(input: &str) -> Result<Self> {
         input.parse::<EmailAddress>()
     }
 }
@@ -486,18 +478,12 @@ impl fmt::Display for EmailAddress {
 }
 
 impl FromStr for EmailAddress {
-    type Err = InvalidEmailError;
+    type Err = Error;
 
     /// Performs a dead-simple parse of an email address.
-    fn from_str(input: &str) -> Result<EmailAddress, InvalidEmailError> {
-        let err = |msg: &str| {
-            Err(InvalidEmailError {
-                message: msg.to_string(),
-                addr: input.to_string(),
-            })
-        };
+    fn from_str(input: &str) -> Result<EmailAddress> {
         if input.is_empty() {
-            return err("empty string is not valid");
+            bail!("empty string is not valid");
         }
         let parts: Vec<&str> = input.rsplitn(2, '@').collect();
 
@@ -505,23 +491,23 @@ impl FromStr for EmailAddress {
             .chars()
             .any(|c| c.is_whitespace() || c == '<' || c == '>')
         {
-            return err("Email must not contain whitespaces, '>' or '<'");
+            bail!("Email {:?} must not contain whitespaces, '>' or '<'", input);
         }
 
         match &parts[..] {
             [domain, local] => {
                 if local.is_empty() {
-                    return err("empty string is not valid for local part");
+                    bail!("empty string is not valid for local part in {:?}", input);
                 }
                 if domain.is_empty() {
-                    return err("missing domain after '@'");
+                    bail!("missing domain after '@' in {:?}", input);
                 }
                 Ok(EmailAddress {
                     local: (*local).to_string(),
                     domain: (*domain).to_string(),
                 })
             }
-            _ => err("missing '@' character"),
+            _ => bail!("Email {:?} must contain '@' character", input),
         }
     }
 }
