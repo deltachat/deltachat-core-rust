@@ -110,27 +110,6 @@ pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, Str
     Ok((typ, headers, bytes))
 }
 
-/// Error with generating a PGP keypair.
-///
-/// Most of these are likely coding errors rather than user errors
-/// since all variability is hardcoded.
-#[derive(Debug, thiserror::Error)]
-#[error("PgpKeygenError: {message}")]
-pub struct PgpKeygenError {
-    message: String,
-    #[source]
-    cause: anyhow::Error,
-}
-
-impl PgpKeygenError {
-    fn new(message: impl Into<String>, cause: impl Into<anyhow::Error>) -> Self {
-        Self {
-            message: message.into(),
-            cause: cause.into(),
-        }
-    }
-}
-
 /// A PGP keypair.
 ///
 /// This has it's own struct to be able to keep the public and secret
@@ -143,10 +122,7 @@ pub struct KeyPair {
 }
 
 /// Create a new key pair.
-pub(crate) fn create_keypair(
-    addr: EmailAddress,
-    keygen_type: KeyGenType,
-) -> std::result::Result<KeyPair, PgpKeygenError> {
+pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Result<KeyPair> {
     let (secret_key_type, public_key_type) = match keygen_type {
         KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
         KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
@@ -181,30 +157,32 @@ pub(crate) fn create_keypair(
                 .can_encrypt(true)
                 .passphrase(None)
                 .build()
-                .map_err(|err| {
-                    PgpKeygenError::new("failed to build subkey parameters", format_err!("{}", err))
-                })?,
+                .map_err(|e| format_err!("{}", e))
+                .context("failed to build subkey parameters")?,
         )
         .build()
-        .map_err(|err| PgpKeygenError::new("invalid key params", format_err!("{}", err)))?;
-    let key = key_params
-        .generate()
-        .map_err(|err| PgpKeygenError::new("invalid params", err))?;
+        .map_err(|e| format_err!("{}", e))
+        .context("invalid key params")?;
+    let key = key_params.generate().context("invalid params")?;
     let private_key = key
         .sign(|| "".into())
-        .map_err(|err| PgpKeygenError::new("failed to sign secret key", err))?;
+        .map_err(|e| format_err!("{}", e))
+        .context("failed to sign secret key")?;
 
     let public_key = private_key.public_key();
     let public_key = public_key
         .sign(&private_key, || "".into())
-        .map_err(|err| PgpKeygenError::new("failed to sign public key", err))?;
+        .map_err(|e| format_err!("{}", e))
+        .context("failed to sign public key")?;
 
     private_key
         .verify()
-        .map_err(|err| PgpKeygenError::new("invalid private key generated", err))?;
+        .map_err(|e| format_err!("{}", e))
+        .context("invalid private key generated")?;
     public_key
         .verify()
-        .map_err(|err| PgpKeygenError::new("invalid public key generated", err))?;
+        .map_err(|e| format_err!("{}", e))
+        .context("invalid public key generated")?;
 
     Ok(KeyPair {
         addr,
