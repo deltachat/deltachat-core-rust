@@ -265,22 +265,15 @@ impl MimeMessage {
                             &decrypted_mail.headers,
                         );
 
-                        (decrypted_mail, signatures, true)
+                        (Ok(decrypted_mail), signatures, true)
                     } else {
                         // Message was not encrypted
-                        (mail, signatures, false)
+                        (Ok(mail), signatures, false)
                     }
                 }
                 Err(err) => {
-                    // continue with the current, still encrypted, mime tree.
-                    // unencrypted parts will be replaced by an error message
-                    // that is added as "the message" to the chat then.
-                    //
-                    // if we just return here, the header is missing
-                    // and the caller cannot display the message
-                    // and try to assign the message to a chat
                     warn!(context, "decryption failed: {}", err);
-                    (mail, Default::default(), true)
+                    (Err(err), Default::default(), true)
                 }
             };
 
@@ -291,7 +284,7 @@ impl MimeMessage {
             list_post,
             from,
             chat_disposition_notification_to,
-            decrypting_failed: false,
+            decrypting_failed: mail.is_err(),
 
             // only non-empty if it was a valid autocrypt message
             signatures,
@@ -318,9 +311,24 @@ impl MimeMessage {
                     .create_stub_from_partial_download(context, org_bytes)
                     .await?;
             }
-            None => {
-                parser.parse_mime_recursive(context, &mail, false).await?;
-            }
+            None => match mail {
+                Ok(mail) => {
+                    parser.parse_mime_recursive(context, &mail, false).await?;
+                }
+                Err(err) => {
+                    let msg_body = stock_str::cant_decrypt_msg_body(context).await;
+                    let txt = format!("[{}]", msg_body);
+
+                    let part = Part {
+                        typ: Viewtype::Text,
+                        msg_raw: Some(txt.clone()),
+                        msg: txt,
+                        error: Some(format!("Decrypting failed: {}", err)),
+                        ..Default::default()
+                    };
+                    parser.parts.push(part);
+                }
+            },
         };
 
         parser.maybe_remove_bad_parts();
@@ -778,25 +786,6 @@ impl MimeMessage {
                     // set mime-modified to force the ui to display a show-message button.
                     self.is_mime_modified = true;
                 }
-            }
-            (mime::MULTIPART, "encrypted") => {
-                // we currently do not try to decrypt non-autocrypt messages
-                // at all. If we see an encrypted part, we set
-                // decrypting_failed.
-                let msg_body = stock_str::cant_decrypt_msg_body(context).await;
-                let txt = format!("[{}]", msg_body);
-
-                let part = Part {
-                    typ: Viewtype::Text,
-                    msg_raw: Some(txt.clone()),
-                    msg: txt,
-                    error: Some("Decryption failed".to_string()),
-                    ..Default::default()
-                };
-                self.parts.push(part);
-
-                any_part_added = true;
-                self.decrypting_failed = true;
             }
             (mime::MULTIPART, "signed") => {
                 /* RFC 1847: "The multipart/signed content type

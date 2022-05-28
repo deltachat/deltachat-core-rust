@@ -171,7 +171,6 @@ pub async fn try_decrypt(
     }
 
     // Possibly perform decryption
-    let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context).await?;
     let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
 
     if let Some(ref mut peerstate) = peerstate {
@@ -185,17 +184,11 @@ pub async fn try_decrypt(
         }
     }
 
-    let (out_mail, signatures) = match decrypt_if_autocrypt_message(
-        context,
-        mail,
-        private_keyring,
-        public_keyring_for_validate,
-    )
-    .await?
-    {
-        Some((out_mail, signatures)) => (Some(out_mail), signatures),
-        None => (None, Default::default()),
-    };
+    let (out_mail, signatures) =
+        match decrypt_if_autocrypt_message(context, mail, public_keyring_for_validate).await? {
+            Some((out_mail, signatures)) => (Some(out_mail), signatures),
+            None => (None, Default::default()),
+        };
 
     if let Some(mut peerstate) = peerstate {
         // If message is not encrypted and it is not a read receipt, degrade encryption.
@@ -293,7 +286,6 @@ fn get_attachment_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMai
 async fn decrypt_if_autocrypt_message(
     context: &Context,
     mail: &ParsedMail<'_>,
-    private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let encrypted_data_part = match get_autocrypt_mime(mail)
@@ -307,6 +299,9 @@ async fn decrypt_if_autocrypt_message(
         Some(res) => res,
     };
     info!(context, "Detected Autocrypt-mime message");
+    let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context)
+        .await
+        .context("failed to get own keyring")?;
 
     decrypt_part(
         encrypted_data_part,
