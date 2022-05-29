@@ -340,9 +340,15 @@ impl Context {
                     {
                         message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await?;
                     }
-                    self.sql.set_raw_config(key, value).await?;
+                    self.sql.set_raw_config(key, None).await?;
                     self.debug_logging.store(0, atomic::Ordering::Relaxed);
-                } else {
+                } else if self
+                    .sql
+                    .get_raw_config_u32(Config::DebugLogging)
+                    .await?
+                    .unwrap_or(0)
+                    == 0
+                {
                     // the unbundled version lives at https://github.com/webxdc/webxdc_logging
                     let data: &[u8] = include_bytes!("../assets/webxdc_logging.xdc");
 
