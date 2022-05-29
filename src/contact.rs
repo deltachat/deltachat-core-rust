@@ -562,7 +562,7 @@ impl Contact {
                     .await
                     .ok();
 
-                if update_name {
+                if update_name || update_authname {
                     // Update the contact name also if it is used as a group name.
                     // This is one of the few duplicated data, however, getting the chat list is easier this way.
                     let chat_id: Option<i32> = context.sql.query_get_value(
