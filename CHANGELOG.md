@@ -4,7 +4,10 @@
 
 ### Changes
 - refactorings #3373 #3345
+
+### Fixes
 - delete outgoing MDNs found in the Sent folder on Gmail #3372
+- fix searching one-to-one chats #3377
 
 
 ## 1.84.0
