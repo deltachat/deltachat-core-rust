@@ -1174,6 +1174,13 @@ INSERT INTO msgs
         }
     }
 
+    if !incoming && is_mdn && is_dc_message == MessengerMessage::Yes {
+        // Normally outgoing MDNs sent by us never appear in mailboxes, but Gmail saves all
+        // outgoing messages, including MDNs, to the Sent folder. If we detect such saved MDN,
+        // delete it.
+        needs_delete_job = true;
+    }
+
     Ok(ReceivedMsg {
         chat_id,
         state,
