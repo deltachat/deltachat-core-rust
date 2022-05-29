@@ -1443,7 +1443,8 @@ mod tests {
 
     use super::*;
 
-    use crate::chat::send_text_msg;
+    use crate::chat::{get_chat_contacts, send_text_msg, Chat};
+    use crate::chatlist::Chatlist;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::message::Message;
     use crate::test_utils::{self, TestContext};
@@ -1682,6 +1683,118 @@ mod tests {
         assert_eq!(contact.get_name(), stock_str::self_msg(&t).await);
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
+    }
+
+    #[async_std::test]
+    async fn test_contact_name_changes() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        // first message creates contact and one-to-one-chat without name set
+        dc_receive_imf(
+            &t,
+            b"From: f@example.org\n\
+                 To: alice@example.org\n\
+                 Subject: foo\n\
+                 Message-ID: <1234-1@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 29 May 2022 08:37:57 +0000\n\
+                 \n\
+                 hello one\n",
+            false,
+        )
+        .await?;
+        let chat_id = t.get_last_msg().await.get_chat_id();
+        chat_id.accept(&t).await?;
+        assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "f@example.org");
+        let chatlist = Chatlist::try_load(&t, 0, Some("f@example.org"), None).await?;
+        assert_eq!(chatlist.len(), 1);
+        let contacts = get_chat_contacts(&t, chat_id).await?;
+        let contact_id = contacts.first().unwrap();
+        let contact = Contact::load_from_db(&t, *contact_id).await?;
+        assert_eq!(contact.get_authname(), "");
+        assert_eq!(contact.get_name(), "");
+        assert_eq!(contact.get_display_name(), "f@example.org");
+        assert_eq!(contact.get_name_n_addr(), "f@example.org");
+        let contacts = Contact::get_all(&t, 0, Some("f@example.org")).await?;
+        assert_eq!(contacts.len(), 1);
+
+        // second message inits the name
+        dc_receive_imf(
+            &t,
+            b"From: Flobbyfoo <f@example.org>\n\
+                 To: alice@example.org\n\
+                 Subject: foo\n\
+                 Message-ID: <1234-2@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 29 May 2022 08:38:57 +0000\n\
+                 \n\
+                 hello two\n",
+            false,
+        )
+        .await?;
+        let chat_id = t.get_last_msg().await.get_chat_id();
+        assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "Flobbyfoo");
+        let chatlist = Chatlist::try_load(&t, 0, Some("flobbyfoo"), None).await?;
+        assert_eq!(chatlist.len(), 1);
+        let contact = Contact::load_from_db(&t, *contact_id).await?;
+        assert_eq!(contact.get_authname(), "Flobbyfoo");
+        assert_eq!(contact.get_name(), "");
+        assert_eq!(contact.get_display_name(), "Flobbyfoo");
+        assert_eq!(contact.get_name_n_addr(), "Flobbyfoo (f@example.org)");
+        let contacts = Contact::get_all(&t, 0, Some("f@example.org")).await?;
+        assert_eq!(contacts.len(), 1);
+        let contacts = Contact::get_all(&t, 0, Some("flobbyfoo")).await?;
+        assert_eq!(contacts.len(), 1);
+
+        // third message changes the name
+        dc_receive_imf(
+            &t,
+            b"From: Foo Flobby <f@example.org>\n\
+                 To: alice@example.org\n\
+                 Subject: foo\n\
+                 Message-ID: <1234-3@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 29 May 2022 08:39:57 +0000\n\
+                 \n\
+                 hello three\n",
+            false,
+        )
+        .await?;
+        let chat_id = t.get_last_msg().await.get_chat_id();
+        assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "Foo Flobby");
+        let chatlist = Chatlist::try_load(&t, 0, Some("Flobbyfoo"), None).await?;
+        assert_eq!(chatlist.len(), 0);
+        let chatlist = Chatlist::try_load(&t, 0, Some("Foo Flobby"), None).await?;
+        assert_eq!(chatlist.len(), 1);
+        let contact = Contact::load_from_db(&t, *contact_id).await?;
+        assert_eq!(contact.get_authname(), "Foo Flobby");
+        assert_eq!(contact.get_name(), "");
+        assert_eq!(contact.get_display_name(), "Foo Flobby");
+        assert_eq!(contact.get_name_n_addr(), "Foo Flobby (f@example.org)");
+        let contacts = Contact::get_all(&t, 0, Some("f@example.org")).await?;
+        assert_eq!(contacts.len(), 1);
+        let contacts = Contact::get_all(&t, 0, Some("flobbyfoo")).await?;
+        assert_eq!(contacts.len(), 0);
+        let contacts = Contact::get_all(&t, 0, Some("Foo Flobby")).await?;
+        assert_eq!(contacts.len(), 1);
+
+        // change name manually
+        let test_id = Contact::create(&t, "Falk", "f@example.org").await?;
+        assert_eq!(*contact_id, test_id);
+        assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "Falk");
+        let chatlist = Chatlist::try_load(&t, 0, Some("Falk"), None).await?;
+        assert_eq!(chatlist.len(), 1);
+        let contact = Contact::load_from_db(&t, *contact_id).await?;
+        assert_eq!(contact.get_authname(), "Foo Flobby");
+        assert_eq!(contact.get_name(), "Falk");
+        assert_eq!(contact.get_display_name(), "Falk");
+        assert_eq!(contact.get_name_n_addr(), "Falk (f@example.org)");
+        let contacts = Contact::get_all(&t, 0, Some("f@example.org")).await?;
+        assert_eq!(contacts.len(), 1);
+        let contacts = Contact::get_all(&t, 0, Some("falk")).await?;
+        assert_eq!(contacts.len(), 1);
+
+        Ok(())
     }
 
     #[async_std::test]
