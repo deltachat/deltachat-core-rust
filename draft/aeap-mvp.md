@@ -11,19 +11,19 @@ Changes to the UIs
 Changes in the core
 -------------------
 
-- DONE: We have one primary self address and any number of secondary self addresses. `is_self_addr()` checks all of them.
+- [x] We have one primary self address and any number of secondary self addresses. `is_self_addr()` checks all of them.
 
-- DONE: If the user does a reconfigure and changes the email address, the previous address is added as a secondary self address.
+- [x] If the user does a reconfigure and changes the email address, the previous address is added as a secondary self address.
 
   - don't forget to deduplicate secondary self addresses in case the user switches back and forth between addresses).
 
   - The key stays the same.
 
-- No changes for 1:1 chats, there simply is a new one. (This works since, contrary to group messages, messages sent to a 1:1 chat are not assigned to the group chat but always to the 1:1 chat with the sender. So it's not a problem that the new messages might be put into the old chat if they are a reply to a message there.)
+- [x] No changes for 1:1 chats, there simply is a new one. (This works since, contrary to group messages, messages sent to a 1:1 chat are not assigned to the group chat but always to the 1:1 chat with the sender. So it's not a problem that the new messages might be put into the old chat if they are a reply to a message there.)
 
-- When sending a message: If any of the secondary self addrs is in the chat's member list, remove it locally (because we just transitioned away from it). We add a log message for this (alternatively, a system message in the chat would be more visible).
+- [ ] When sending a message: If any of the secondary self addrs is in the chat's member list, remove it locally (because we just transitioned away from it). We add a log message for this (alternatively, a system message in the chat would be more visible).
 
-- When receiving a message: If the key exists, but belongs to another address (we may want to benchmark this)
+- [x] ([#3385](https://github.com/deltachat/deltachat-core-rust/pull/3385)) When receiving a message: If the key exists, but belongs to another address (we may want to benchmark this)
   AND there is a `Chat-Version` header\
   AND the message timestamp is newer than the contact's `lastseen` (to prevent changing the address back when messages arrive out of order) (this condition is not that important since we will have eventual consistency even without it):
 
@@ -97,3 +97,8 @@ Other
 -----
 
 - The user is responsible that messages to the old address arrive at the new address, for example by configuring the old provider to forward all emails to the new one.
+
+Notes during impementing
+========================
+
+- As far as I understand the code, unencrypted messages are unsigned. So, the transition only works if both sides have the other side's key.
