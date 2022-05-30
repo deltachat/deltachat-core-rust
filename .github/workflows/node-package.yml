@@ -137,7 +137,7 @@ jobs:
           path: ${{ env.DELTACHAT_NODE_TAR_GZ }}
       # Upload to download.delta.chat/node/preview/
       - name: Upload deltachat-node preview to download.delta.chat/node/preview/
-        if: ! steps.tag.outputs.tag
+        if: ${{ ! steps.tag.outputs.tag }}
         id: upload-preview
         shell: bash
         run: |
