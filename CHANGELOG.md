@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Changes
-- refactorings #3373 #3345 #3380
+- refactorings #3373 #3345 #3380 #3382
 - node: move split2 to devDependencies
 
 
