@@ -86,7 +86,7 @@ jobs:
           if [ -z "$tag" ]; then
             node -e "console.log('DELTACHAT_NODE_TAR_GZ=deltachat-node-' + '${{ github.ref }}'.split('/')[2] + '.tar.gz')" >> $GITHUB_ENV
           else
-            node -e "console.log('DELTACHAT_NODE_TAG_TAR_GZ=deltachat-node-' + '${{ steps.tag.outputs.tag }}'.split('/')[2] + '.tar.gz')" >> $GITHUB_ENV
+            node -e "console.log('DELTACHAT_NODE_TAR_GZ=deltachat-node-' + '${{ steps.tag.outputs.tag }}'.split('/')[2] + '.tar.gz')" >> $GITHUB_ENV
             echo "No preview will be uploaded this time, but the $tag release"
           fi
       - name: System info
@@ -97,7 +97,6 @@ jobs:
           npm --version
           node --version
           echo $DELTACHAT_NODE_TAR_GZ
-          echo $DELTACHAT_NODE_TAG_TAR_GZ
       - name: Download ubuntu prebuild
         uses: actions/download-artifact@v1
         with:
@@ -130,7 +129,7 @@ jobs:
           mv node/README.md README.md
           npm pack .
           ls -lah
-          mv $(find deltachat-node-*) $DELTACHAT_NODE_TAR_GZ || mv $(find deltachat-node-*) $DELTACHAT_NODE_TAG_TAR_GZ
+          mv $(find deltachat-node-*) $DELTACHAT_NODE_TAR_GZ
       - name: Upload Prebuild
         uses: actions/upload-artifact@v1
         with:
@@ -138,15 +137,12 @@ jobs:
           path: ${{ env.DELTACHAT_NODE_TAR_GZ }}
       # Upload to download.delta.chat/node/preview/
       - name: Upload deltachat-node preview to download.delta.chat/node/preview/
+        if: ! steps.tag.outputs.tag
         id: upload-preview
         shell: bash
         run: |
           echo -e "${{ secrets.SSH_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
-          if [[ -z "$DELTACHAT_NODE_TAR_GZ" ]]
-          then
-            exit 1
-          fi
           scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r $DELTACHAT_NODE_TAR_GZ "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/preview/"
         continue-on-error: true
       - name: "Post links to details"
@@ -163,4 +159,4 @@ jobs:
         run: |
           echo -e "${{ secrets.SSH_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
-          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r $DELTACHAT_NODE_TAG_TAR_GZ "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/"
+          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r $DELTACHAT_NODE_TAR_GZ "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/"
