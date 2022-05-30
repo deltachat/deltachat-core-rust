@@ -10,40 +10,46 @@ from .cutil import from_dc_charpointer, from_optional_dc_charpointer
 
 
 class Contact(object):
-    """ Delta-Chat Contact.
+    """Delta-Chat Contact.
 
     You obtain instances of it through :class:`deltachat.account.Account`.
     """
+
     def __init__(self, account, id):
         from .account import Account
+
         assert isinstance(account, Account), repr(account)
         self.account = account
         self.id = id
 
     def __eq__(self, other):
-        return self.account._dc_context == other.account._dc_context and self.id == other.id
+        return (
+            self.account._dc_context == other.account._dc_context
+            and self.id == other.id
+        )
 
     def __ne__(self, other):
         return not (self == other)
 
     def __repr__(self):
-        return "<Contact id={} addr={} dc_context={}>".format(self.id, self.addr, self.account._dc_context)
+        return "<Contact id={} addr={} dc_context={}>".format(
+            self.id, self.addr, self.account._dc_context
+        )
 
     @property
     def _dc_contact(self):
         return ffi.gc(
-            lib.dc_get_contact(self.account._dc_context, self.id),
-            lib.dc_contact_unref
+            lib.dc_get_contact(self.account._dc_context, self.id), lib.dc_contact_unref
         )
 
     @props.with_doc
     def addr(self) -> str:
-        """ normalized e-mail address for this account. """
+        """normalized e-mail address for this account."""
         return from_dc_charpointer(lib.dc_contact_get_addr(self._dc_contact))
 
     @props.with_doc
     def name(self) -> str:
-        """ display name for this contact. """
+        """display name for this contact."""
         return from_dc_charpointer(lib.dc_contact_get_display_name(self._dc_contact))
 
     # deprecated alias
@@ -57,23 +63,23 @@ class Contact(object):
         )
 
     def is_blocked(self):
-        """ Return True if the contact is blocked. """
+        """Return True if the contact is blocked."""
         return lib.dc_contact_is_blocked(self._dc_contact)
 
     def set_blocked(self, block=True):
-        """ [Deprecated, use block/unblock methods] Block or unblock a contact. """
+        """[Deprecated, use block/unblock methods] Block or unblock a contact."""
         return lib.dc_block_contact(self.account._dc_context, self.id, block)
 
     def block(self):
-        """ Block this contact. Message will not be seen/retrieved from this contact. """
+        """Block this contact. Message will not be seen/retrieved from this contact."""
         return lib.dc_block_contact(self.account._dc_context, self.id, True)
 
     def unblock(self):
-        """ Unblock this contact. Messages from this contact will be retrieved (again)."""
+        """Unblock this contact. Messages from this contact will be retrieved (again)."""
         return lib.dc_block_contact(self.account._dc_context, self.id, False)
 
     def is_verified(self):
-        """ Return True if the contact is verified. """
+        """Return True if the contact is verified."""
         return lib.dc_contact_is_verified(self._dc_contact)
 
     def get_profile_image(self) -> Optional[str]:
@@ -93,7 +99,7 @@ class Contact(object):
         return from_dc_charpointer(lib.dc_contact_get_status(self._dc_contact))
 
     def create_chat(self):
-        """ create or get an existing 1:1 chat object for the specified contact or contact id.
+        """create or get an existing 1:1 chat object for the specified contact or contact id.
 
         :param contact: chat_id (int) or contact object.
         :returns: a :class:`deltachat.chat.Chat` object.

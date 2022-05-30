@@ -1,32 +1,50 @@
 from __future__ import print_function
-import pytest
+
 import os
 import time
-from deltachat import const, Account
-from deltachat.message import Message
-from deltachat.hookspec import account_hookimpl
-from deltachat.capi import ffi, lib
-from deltachat.cutil import iter_array
 from datetime import datetime, timedelta, timezone
 
+import pytest
 
-@pytest.mark.parametrize("msgtext,res", [
-    ("Member Me (tmp1@x.org) removed by tmp2@x.org.",
-        ("removed", "tmp1@x.org", "tmp2@x.org")),
-    ("Member With space (tmp1@x.org) removed by tmp2@x.org.",
-        ("removed", "tmp1@x.org", "tmp2@x.org")),
-    ("Member With space (tmp1@x.org) removed by Another member (tmp2@x.org).",
-        ("removed", "tmp1@x.org", "tmp2@x.org")),
-    ("Member With space (tmp1@x.org) removed by me",
-        ("removed", "tmp1@x.org", "me")),
-    ("Group left by some one (tmp1@x.org).",
-        ("removed", "tmp1@x.org", "tmp1@x.org")),
-    ("Group left by tmp1@x.org.",
-        ("removed", "tmp1@x.org", "tmp1@x.org")),
-    ("Member tmp1@x.org added by tmp2@x.org.", ("added", "tmp1@x.org", "tmp2@x.org")),
-    ("Member nothing bla bla", None),
-    ("Another unknown system message", None),
-])
+from deltachat import Account, const
+from deltachat.capi import ffi, lib
+from deltachat.cutil import iter_array
+from deltachat.hookspec import account_hookimpl
+from deltachat.message import Message
+
+
+@pytest.mark.parametrize(
+    "msgtext,res",
+    [
+        (
+            "Member Me (tmp1@x.org) removed by tmp2@x.org.",
+            ("removed", "tmp1@x.org", "tmp2@x.org"),
+        ),
+        (
+            "Member With space (tmp1@x.org) removed by tmp2@x.org.",
+            ("removed", "tmp1@x.org", "tmp2@x.org"),
+        ),
+        (
+            "Member With space (tmp1@x.org) removed by Another member (tmp2@x.org).",
+            ("removed", "tmp1@x.org", "tmp2@x.org"),
+        ),
+        (
+            "Member With space (tmp1@x.org) removed by me",
+            ("removed", "tmp1@x.org", "me"),
+        ),
+        (
+            "Group left by some one (tmp1@x.org).",
+            ("removed", "tmp1@x.org", "tmp1@x.org"),
+        ),
+        ("Group left by tmp1@x.org.", ("removed", "tmp1@x.org", "tmp1@x.org")),
+        (
+            "Member tmp1@x.org added by tmp2@x.org.",
+            ("added", "tmp1@x.org", "tmp2@x.org"),
+        ),
+        ("Member nothing bla bla", None),
+        ("Another unknown system message", None),
+    ],
+)
 def test_parse_system_add_remove(msgtext, res):
     from deltachat.message import parse_system_add_remove
 
@@ -274,7 +292,11 @@ class TestOfflineChat:
         assert d["archived"] == chat.is_archived()
         # assert d["param"] == chat.param
         assert d["color"] == chat.get_color()
-        assert d["profile_image"] == "" if chat.get_profile_image() is None else chat.get_profile_image()
+        assert (
+            d["profile_image"] == ""
+            if chat.get_profile_image() is None
+            else chat.get_profile_image()
+        )
         assert d["draft"] == "" if chat.get_draft() is None else chat.get_draft()
 
     def test_group_chat_creation_with_translation(self, ac1):
@@ -424,11 +446,14 @@ class TestOfflineChat:
         assert os.path.exists(msg.filename)
         assert msg.filemime == "image/png"
 
-    @pytest.mark.parametrize("typein,typeout", [
+    @pytest.mark.parametrize(
+        "typein,typeout",
+        [
             (None, "application/octet-stream"),
             ("text/plain", "text/plain"),
             ("image/png", "image/png"),
-    ])
+        ],
+    )
     def test_message_file(self, ac1, chat1, data, lp, typein, typeout):
         lp.sec("sending file")
         fn = data.get_path("r.txt")
@@ -629,6 +654,6 @@ class TestOfflineChat:
         lp.sec("check message count of only system messages (without daymarkers)")
         dc_array = ffi.gc(
             lib.dc_get_chat_msgs(ac1._dc_context, chat.id, const.DC_GCM_INFO_ONLY, 0),
-            lib.dc_array_unref
+            lib.dc_array_unref,
         )
         assert len(list(iter_array(dc_array, lambda x: x))) == 2

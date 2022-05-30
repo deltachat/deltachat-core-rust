@@ -9,6 +9,7 @@ def with_doc(f):
 # https://github.com/devpi/devpi/blob/master/common/devpi_common/types.py
 def cached(f):
     """returns a cached property that is calculated by function f"""
+
     def get(self):
         try:
             return self._property_cache[f]

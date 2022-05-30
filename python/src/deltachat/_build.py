@@ -20,30 +20,35 @@ def local_build_flags(projdir, target):
     :param target: The rust build target, `debug` or `release`.
     """
     flags = {}
-    if platform.system() == 'Darwin':
-        flags['libraries'] = ['resolv', 'dl']
-        flags['extra_link_args'] = [
-                '-framework', 'CoreFoundation',
-                '-framework', 'CoreServices',
-                '-framework', 'Security',
+    if platform.system() == "Darwin":
+        flags["libraries"] = ["resolv", "dl"]
+        flags["extra_link_args"] = [
+            "-framework",
+            "CoreFoundation",
+            "-framework",
+            "CoreServices",
+            "-framework",
+            "Security",
         ]
-    elif platform.system() == 'Linux':
-        flags['libraries'] = ['rt', 'dl', 'm']
-        flags['extra_link_args'] = []
+    elif platform.system() == "Linux":
+        flags["libraries"] = ["rt", "dl", "m"]
+        flags["extra_link_args"] = []
     else:
-        raise NotImplementedError("Compilation not supported yet on Windows, can you help?")
+        raise NotImplementedError(
+            "Compilation not supported yet on Windows, can you help?"
+        )
     target_dir = os.environ.get("CARGO_TARGET_DIR")
     if target_dir is None:
-        target_dir = os.path.join(projdir, 'target')
-    flags['extra_objects'] = [os.path.join(target_dir, target, 'libdeltachat.a')]
-    assert os.path.exists(flags['extra_objects'][0]), flags['extra_objects']
-    flags['include_dirs'] = [os.path.join(projdir, 'deltachat-ffi')]
+        target_dir = os.path.join(projdir, "target")
+    flags["extra_objects"] = [os.path.join(target_dir, target, "libdeltachat.a")]
+    assert os.path.exists(flags["extra_objects"][0]), flags["extra_objects"]
+    flags["include_dirs"] = [os.path.join(projdir, "deltachat-ffi")]
     return flags
 
 
 def system_build_flags():
     """Construct build flags for building against an installed libdeltachat."""
-    return pkgconfig.parse('deltachat')
+    return pkgconfig.parse("deltachat")
 
 
 def extract_functions(flags):
@@ -61,11 +66,13 @@ def extract_functions(flags):
         src_name = os.path.join(tmpdir, "include.h")
         dst_name = os.path.join(tmpdir, "expanded.h")
         with open(src_name, "w") as src_fp:
-            src_fp.write('#include <deltachat.h>')
-        cc.preprocess(source=src_name,
-                      output_file=dst_name,
-                      include_dirs=flags['include_dirs'],
-                      macros=[('PY_CFFI', '1')])
+            src_fp.write("#include <deltachat.h>")
+        cc.preprocess(
+            source=src_name,
+            output_file=dst_name,
+            include_dirs=flags["include_dirs"],
+            macros=[("PY_CFFI", "1")],
+        )
         with open(dst_name, "r") as dst_fp:
             return dst_fp.read()
     finally:
@@ -87,7 +94,9 @@ def find_header(flags):
         obj_name = os.path.join(tmpdir, "where.o")
         dst_name = os.path.join(tmpdir, "where")
         with open(src_name, "w") as src_fp:
-            src_fp.write(textwrap.dedent("""
+            src_fp.write(
+                textwrap.dedent(
+                    """
                 #include <stdio.h>
                 #include <deltachat.h>
 
@@ -95,18 +104,22 @@ def find_header(flags):
                     printf("%s", _dc_header_file_location());
                     return 0;
                 }
-            """))
+            """
+                )
+            )
         cwd = os.getcwd()
         try:
             os.chdir(tmpdir)
-            cc.compile(sources=["where.c"],
-                       include_dirs=flags['include_dirs'],
-                       macros=[("PY_CFFI_INC", "1")])
+            cc.compile(
+                sources=["where.c"],
+                include_dirs=flags["include_dirs"],
+                macros=[("PY_CFFI_INC", "1")],
+            )
         finally:
             os.chdir(cwd)
-        cc.link_executable(objects=[obj_name],
-                           output_progname="where",
-                           output_dir=tmpdir)
+        cc.link_executable(
+            objects=[obj_name], output_progname="where", output_dir=tmpdir
+        )
         return subprocess.check_output(dst_name)
     finally:
         shutil.rmtree(tmpdir)
@@ -123,7 +136,8 @@ def extract_defines(flags):
     cdef() method.
     """
     header = find_header(flags)
-    defines_re = re.compile(r"""
+    defines_re = re.compile(
+        r"""
         \#define\s+   # The start of a define.
         (             # Begin capturing group which captures the define name.
             (?:       # A nested group which is not captured, this allows us
@@ -151,26 +165,28 @@ def extract_defines(flags):
         )             # Close the capturing group, this contains
                       # the entire name e.g. DC_MSG_TEXT.
         \s+\S+        # Ensure there is whitespace followed by a value.
-    """, re.VERBOSE)
+    """,
+        re.VERBOSE,
+    )
     defines = []
     with open(header) as fp:
         for line in fp:
             match = defines_re.match(line)
             if match:
                 defines.append(match.group(1))
-    return '\n'.join('#define {} ...'.format(d) for d in defines)
+    return "\n".join("#define {} ...".format(d) for d in defines)
 
 
 def ffibuilder():
-    projdir = os.environ.get('DCC_RS_DEV')
+    projdir = os.environ.get("DCC_RS_DEV")
     if projdir:
-        target = os.environ.get('DCC_RS_TARGET', 'release')
+        target = os.environ.get("DCC_RS_TARGET", "release")
         flags = local_build_flags(projdir, target)
     else:
         flags = system_build_flags()
     builder = cffi.FFI()
     builder.set_source(
-        'deltachat.capi',
+        "deltachat.capi",
         """
             #include <deltachat.h>
             int dc_event_has_string_data(int e)
@@ -180,11 +196,13 @@ def ffibuilder():
         """,
         **flags,
     )
-    builder.cdef("""
+    builder.cdef(
+        """
         typedef int... time_t;
         void free(void *ptr);
         extern int dc_event_has_string_data(int);
-    """)
+    """
+    )
     function_defs = extract_functions(flags)
     defines = extract_defines(flags)
     builder.cdef(function_defs)
@@ -192,8 +210,9 @@ def ffibuilder():
     return builder
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import os.path
-    pkgdir = os.path.join(os.path.dirname(__file__), '..')
+
+    pkgdir = os.path.join(os.path.dirname(__file__), "..")
     builder = ffibuilder()
     builder.compile(tmpdir=pkgdir, verbose=True)

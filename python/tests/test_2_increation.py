@@ -2,13 +2,13 @@ from __future__ import print_function
 
 import os.path
 import shutil
+from filecmp import cmp
 
 import pytest
-from filecmp import cmp
 
 
 def wait_msg_delivered(account, msg_list):
-    """ wait for one or more MSG_DELIVERED events to match msg_list contents. """
+    """wait for one or more MSG_DELIVERED events to match msg_list contents."""
     msg_list = list(msg_list)
     while msg_list:
         ev = account._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
@@ -16,7 +16,7 @@ def wait_msg_delivered(account, msg_list):
 
 
 def wait_msgs_changed(account, msgs_list):
-    """ wait for one or more MSGS_CHANGED events to match msgs_list contents. """
+    """wait for one or more MSGS_CHANGED events to match msgs_list contents."""
     account.log("waiting for msgs_list={}".format(msgs_list))
     msgs_list = list(msgs_list)
     while msgs_list:
@@ -38,7 +38,7 @@ class TestOnlineInCreation:
 
         lp.sec("Creating in-creation file outside of blobdir")
         assert tmpdir.strpath != ac1.get_blobdir()
-        src = tmpdir.join('file.txt').ensure(file=1)
+        src = tmpdir.join("file.txt").ensure(file=1)
         with pytest.raises(Exception):
             chat.prepare_message_file(src.strpath)
 
@@ -48,11 +48,11 @@ class TestOnlineInCreation:
 
         lp.sec("Creating file outside of blobdir")
         assert tmpdir.strpath != ac1.get_blobdir()
-        src = tmpdir.join('file.txt')
+        src = tmpdir.join("file.txt")
         src.write("hello there\n")
         chat.send_file(src.strpath)
 
-        blob_src = os.path.join(ac1.get_blobdir(), 'file.txt')
+        blob_src = os.path.join(ac1.get_blobdir(), "file.txt")
         assert os.path.exists(blob_src), "file.txt not copied to blobdir"
 
     def test_forward_increation(self, acfactory, data, lp):
@@ -63,7 +63,7 @@ class TestOnlineInCreation:
 
         lp.sec("create a message with a file in creation")
         orig = data.get_path("d.png")
-        path = os.path.join(ac1.get_blobdir(), 'd.png')
+        path = os.path.join(ac1.get_blobdir(), "d.png")
         with open(path, "x") as fp:
             fp.write("preparing")
         prepared_original = chat.prepare_message_file(path)
@@ -85,19 +85,22 @@ class TestOnlineInCreation:
         assert prepared_original.is_out_preparing()
         shutil.copyfile(orig, path)
         chat.send_prepared(prepared_original)
-        assert prepared_original.is_out_pending() or prepared_original.is_out_delivered()
+        assert (
+            prepared_original.is_out_pending() or prepared_original.is_out_delivered()
+        )
 
         lp.sec("check that both forwarded and original message are proper.")
-        wait_msgs_changed(ac1, [(chat2.id, forwarded_id), (chat.id, prepared_original.id)])
+        wait_msgs_changed(
+            ac1, [(chat2.id, forwarded_id), (chat.id, prepared_original.id)]
+        )
 
         fwd_msg = ac1.get_message_by_id(forwarded_id)
         assert fwd_msg.is_out_pending() or fwd_msg.is_out_delivered()
 
         lp.sec("wait for both messages to be delivered to SMTP")
-        wait_msg_delivered(ac1, [
-            (chat2.id, forwarded_id),
-            (chat.id, prepared_original.id)
-        ])
+        wait_msg_delivered(
+            ac1, [(chat2.id, forwarded_id), (chat.id, prepared_original.id)]
+        )
 
         lp.sec("wait1 for original or forwarded messages to arrive")
         received_original = ac2._evtracker.wait_next_incoming_message()

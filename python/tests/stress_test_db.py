@@ -1,9 +1,9 @@
-
-import time
-import threading
-import pytest
 import os
-from queue import Queue, Empty
+import threading
+import time
+from queue import Empty, Queue
+
+import pytest
 
 import deltachat
 
@@ -24,7 +24,7 @@ def test_db_busy_error(acfactory, tmpdir):
     for acc in accounts:
         acc.bigfile = os.path.join(acc.get_blobdir(), "bigfile")
         with open(acc.bigfile, "wb") as f:
-            f.write(b"01234567890"*1000_000)
+            f.write(b"01234567890" * 1000_000)
     log("created %s bigfiles" % len(accounts))
 
     contact_addrs = [acc.get_self_contact().addr for acc in accounts]
@@ -41,7 +41,9 @@ def test_db_busy_error(acfactory, tmpdir):
     # each replier receives all events and sends report events to receive_queue
     repliers = []
     for acc in accounts:
-        replier = AutoReplier(acc, log=log, num_send=500, num_bigfiles=5, report_func=report_func)
+        replier = AutoReplier(
+            acc, log=log, num_send=500, num_bigfiles=5, report_func=report_func
+        )
         acc.add_account_plugin(replier)
         repliers.append(replier)
 
@@ -63,9 +65,11 @@ def test_db_busy_error(acfactory, tmpdir):
         elif report_type == ReportType.message_echo:
             continue
         else:
-            raise ValueError("{} unknown report type {}, args={}".format(
-                addr, report_type, report_args
-            ))
+            raise ValueError(
+                "{} unknown report type {}, args={}".format(
+                    addr, report_type, report_args
+                )
+            )
         alive_count -= 1
         replier.log("shutting down")
         replier.account.shutdown()
@@ -89,8 +93,7 @@ class AutoReplier:
         self.addr = self.account.get_self_contact().addr
 
         self._thread = threading.Thread(
-            name="Stats{}".format(self.account),
-            target=self.thread_stats
+            name="Stats{}".format(self.account), target=self.thread_stats
         )
         self._thread.setDaemon(True)
         self._thread.start()
@@ -116,11 +119,16 @@ class AutoReplier:
 
         self.current_sent += 1
         # we are still alive, let's send a reply
-        if self.num_bigfiles and self.current_sent % (self.num_send / self.num_bigfiles) == 0:
+        if (
+            self.num_bigfiles
+            and self.current_sent % (self.num_send / self.num_bigfiles) == 0
+        ):
             message.chat.send_text("send big file as reply to: {}".format(message.text))
             msg = message.chat.send_file(self.account.bigfile)
         else:
-            msg = message.chat.send_text("got message id {}, small text reply".format(message.id))
+            msg = message.chat.send_text(
+                "got message id {}, small text reply".format(message.id)
+            )
             assert msg.text
         self.log("message-sent: {}".format(msg))
         self.report_func(self, ReportType.message_echo)

@@ -1,10 +1,11 @@
 import os
-import sys
 import queue
+import sys
 from datetime import datetime, timezone
-from imap_tools import AND, U
 
 import pytest
+from imap_tools import AND, U
+
 from deltachat import const
 from deltachat.hookspec import account_hookimpl
 from deltachat.message import Message
@@ -34,8 +35,12 @@ def test_basic_imap_api(acfactory, tmpdir):
 def test_configure_generate_key(acfactory, lp):
     # A slow test which will generate new keys.
     acfactory.remove_preconfigured_keys()
-    ac1 = acfactory.new_online_configuring_account(key_gen_type=str(const.DC_KEY_GEN_RSA2048))
-    ac2 = acfactory.new_online_configuring_account(key_gen_type=str(const.DC_KEY_GEN_ED25519))
+    ac1 = acfactory.new_online_configuring_account(
+        key_gen_type=str(const.DC_KEY_GEN_RSA2048)
+    )
+    ac2 = acfactory.new_online_configuring_account(
+        key_gen_type=str(const.DC_KEY_GEN_ED25519)
+    )
     acfactory.bring_accounts_online()
     chat = acfactory.get_accepted_chat(ac1, ac2)
 
@@ -78,7 +83,7 @@ def test_export_import_self_keys(acfactory, tmpdir, lp):
     assert len(export_files) == 2
     for x in export_files:
         assert x.startswith(dir.strpath)
-    key_id, = ac1._evtracker.get_info_regex_groups(r".*xporting.*KeyId\((.*)\).*")
+    (key_id,) = ac1._evtracker.get_info_regex_groups(r".*xporting.*KeyId\((.*)\).*")
     ac1._evtracker.consume_events()
 
     lp.sec("exported keys (private and public)")
@@ -86,8 +91,9 @@ def test_export_import_self_keys(acfactory, tmpdir, lp):
         lp.indent(dir.strpath + os.sep + name)
     lp.sec("importing into existing account")
     ac2.import_self_keys(dir.strpath)
-    key_id2, = ac2._evtracker.get_info_regex_groups(
-        r".*stored.*KeyId\((.*)\).*", check_error=False)
+    (key_id2,) = ac2._evtracker.get_info_regex_groups(
+        r".*stored.*KeyId\((.*)\).*", check_error=False
+    )
     assert key_id2 == key_id
 
 
@@ -243,7 +249,9 @@ def test_mvbox_sentbox_threads(acfactory, lp):
     ac1 = acfactory.new_online_configuring_account(mvbox_move=True, sentbox_watch=True)
 
     lp.sec("ac2: start without mvbox/sentbox threads")
-    ac2 = acfactory.new_online_configuring_account(mvbox_move=False, sentbox_watch=False)
+    ac2 = acfactory.new_online_configuring_account(
+        mvbox_move=False, sentbox_watch=False
+    )
 
     lp.sec("ac2 and ac1: waiting for configuration")
     acfactory.bring_accounts_online()
@@ -465,7 +473,10 @@ def test_moved_markseen(acfactory, lp):
         ac2.mark_seen_messages([msg])
         uid = idle2.wait_for_seen()
 
-    assert len([a for a in ac2.direct_imap.conn.fetch(AND(seen=True, uid=U(uid, "*")))]) == 1
+    assert (
+        len([a for a in ac2.direct_imap.conn.fetch(AND(seen=True, uid=U(uid, "*")))])
+        == 1
+    )
 
 
 def test_message_override_sender_name(acfactory, lp):
@@ -689,7 +700,7 @@ def test_gossip_encryption_preference(acfactory, lp):
     msg = ac1._evtracker.wait_next_incoming_message()
     assert msg.text == "first message"
     assert not msg.is_encrypted()
-    res = "End-to-end encryption preferred:\n{}".format(ac2.get_config('addr'))
+    res = "End-to-end encryption preferred:\n{}".format(ac2.get_config("addr"))
     assert msg.chat.get_encryption_info() == res
     lp.sec("ac2 learns that ac3 prefers encryption")
     ac2.create_chat(ac3)
@@ -701,7 +712,7 @@ def test_gossip_encryption_preference(acfactory, lp):
     lp.sec("ac3 does not know that ac1 prefers encryption")
     ac1.create_chat(ac3)
     chat = ac3.create_chat(ac1)
-    res = "No encryption:\n{}".format(ac1.get_config('addr'))
+    res = "No encryption:\n{}".format(ac1.get_config("addr"))
     assert chat.get_encryption_info() == res
     msg = chat.send_text("not encrypted")
     msg = ac1._evtracker.wait_next_incoming_message()
@@ -766,7 +777,7 @@ def test_send_first_message_as_long_unicode_with_cr(acfactory, lp):
 
 def test_no_draft_if_cant_send(acfactory):
     """Tests that no quote can be set if the user can't send to this chat"""
-    ac1, = acfactory.get_online_accounts(1)
+    (ac1,) = acfactory.get_online_accounts(1)
     device_chat = ac1.get_device_chat()
     msg = Message.new_empty(ac1, "text")
     device_chat.set_draft(msg)
@@ -795,7 +806,9 @@ def test_dont_show_emails(acfactory, lp):
     acfactory.bring_accounts_online()
     ac1.stop_io()
 
-    ac1.direct_imap.append("Drafts", """
+    ac1.direct_imap.append(
+        "Drafts",
+        """
         From: ac1 <{}>
         Subject: subj
         To: alice@example.org
@@ -803,8 +816,13 @@ def test_dont_show_emails(acfactory, lp):
         Content-Type: text/plain; charset=utf-8
 
         message in Drafts that is moved to Sent later
-    """.format(ac1.get_config("configured_addr")))
-    ac1.direct_imap.append("Sent", """
+    """.format(
+            ac1.get_config("configured_addr")
+        ),
+    )
+    ac1.direct_imap.append(
+        "Sent",
+        """
         From: ac1 <{}>
         Subject: subj
         To: alice@example.org
@@ -812,8 +830,13 @@ def test_dont_show_emails(acfactory, lp):
         Content-Type: text/plain; charset=utf-8
 
         message in Sent
-    """.format(ac1.get_config("configured_addr")))
-    ac1.direct_imap.append("Spam", """
+    """.format(
+            ac1.get_config("configured_addr")
+        ),
+    )
+    ac1.direct_imap.append(
+        "Spam",
+        """
         From: unknown.address@junk.org
         Subject: subj
         To: {}
@@ -821,8 +844,13 @@ def test_dont_show_emails(acfactory, lp):
         Content-Type: text/plain; charset=utf-8
 
         Unknown message in Spam
-    """.format(ac1.get_config("configured_addr")))
-    ac1.direct_imap.append("Junk", """
+    """.format(
+            ac1.get_config("configured_addr")
+        ),
+    )
+    ac1.direct_imap.append(
+        "Junk",
+        """
         From: unknown.address@junk.org
         Subject: subj
         To: {}
@@ -830,7 +858,10 @@ def test_dont_show_emails(acfactory, lp):
         Content-Type: text/plain; charset=utf-8
 
         Unknown message in Junk
-    """.format(ac1.get_config("configured_addr")))
+    """.format(
+            ac1.get_config("configured_addr")
+        ),
+    )
 
     ac1.set_config("scan_all_folders_debounce_secs", "0")
     lp.sec("All prepared, now let DC find the message")
@@ -849,7 +880,9 @@ def test_dont_show_emails(acfactory, lp):
     assert ac1.direct_imap.get_uid_by_message_id("spam.message@junk.org")
 
     ac1.stop_io()
-    lp.sec("'Send out' the draft, i.e. move it to the Sent folder, and wait for DC to display it this time")
+    lp.sec(
+        "'Send out' the draft, i.e. move it to the Sent folder, and wait for DC to display it this time"
+    )
     ac1.direct_imap.select_folder("Drafts")
     uid = ac1.direct_imap.get_uid_by_message_id("aepiors@example.org")
     ac1.direct_imap.conn.move(uid, "Sent")
@@ -884,7 +917,9 @@ def test_no_old_msg_is_fresh(acfactory, lp):
     assert ac1.create_chat(ac2).count_fresh_messages() == 1
     assert len(list(ac1.get_fresh_messages())) == 1
 
-    lp.sec("Send a message from ac1_clone to ac2 and check that ac1 marks the first message as 'noticed'")
+    lp.sec(
+        "Send a message from ac1_clone to ac2 and check that ac1 marks the first message as 'noticed'"
+    )
     ac1_clone.create_chat(ac2).send_text("Hi back")
     ev = ac1._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
 
@@ -1154,7 +1189,7 @@ def test_send_and_receive_image(acfactory, lp, data):
 
 
 def test_import_export_online_all(acfactory, tmpdir, data, lp):
-    ac1, = acfactory.get_online_accounts(1)
+    (ac1,) = acfactory.get_online_accounts(1)
 
     lp.sec("create some chat content")
     chat1 = ac1.create_contact("some1@example.org", name="some1").create_chat()
@@ -1180,7 +1215,10 @@ def test_import_export_online_all(acfactory, tmpdir, data, lp):
         assert len(messages) == 3
         assert messages[0].text == "msg1"
         assert messages[1].filemime == "image/png"
-        assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
+        assert (
+            os.stat(messages[1].filename).st_size
+            == os.stat(original_image_path).st_size
+        )
         ac.set_config("displayname", "new displayname")
         assert ac.get_config("displayname") == "new displayname"
 
@@ -1326,7 +1364,9 @@ def test_set_get_contact_avatar(acfactory, data, lp):
     assert open(received_path, "rb").read() == open(p, "rb").read()
 
     lp.sec("ac2: send back message")
-    msg3 = msg2.create_chat().send_text("yes, i received your avatar -- how do you like mine?")
+    msg3 = msg2.create_chat().send_text(
+        "yes, i received your avatar -- how do you like mine?"
+    )
     assert msg3.is_encrypted()
 
     lp.sec("ac1: wait for receiving message and avatar from ac2")
@@ -1371,11 +1411,17 @@ def test_add_remove_member_remote_events(acfactory, lp):
 
         @account_hookimpl
         def ac_member_added(self, chat, contact, message):
-            in_list.put(EventHolder(action="added", chat=chat, contact=contact, message=message))
+            in_list.put(
+                EventHolder(action="added", chat=chat, contact=contact, message=message)
+            )
 
         @account_hookimpl
         def ac_member_removed(self, chat, contact, message):
-            in_list.put(EventHolder(action="removed", chat=chat, contact=contact, message=message))
+            in_list.put(
+                EventHolder(
+                    action="removed", chat=chat, contact=contact, message=message
+                )
+            )
 
     ac2.add_account_plugin(InPlugin())
 
@@ -1387,8 +1433,9 @@ def test_add_remove_member_remote_events(acfactory, lp):
     ev = in_list.get()
     assert ev.action == "chat-modified"
     assert chat.is_promoted()
-    assert sorted(x.addr for x in chat.get_contacts()) == \
-        sorted(x.addr for x in ev.chat.get_contacts())
+    assert sorted(x.addr for x in chat.get_contacts()) == sorted(
+        x.addr for x in ev.chat.get_contacts()
+    )
 
     lp.sec("ac1: add address2")
     # note that if the above create_chat() would not
@@ -1528,10 +1575,14 @@ def test_connectivity(acfactory, lp):
 
     ac1.start_io()
     ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
-    ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTING, const.DC_CONNECTIVITY_CONNECTED)
+    ac1._evtracker.wait_for_connectivity_change(
+        const.DC_CONNECTIVITY_CONNECTING, const.DC_CONNECTIVITY_CONNECTED
+    )
 
-    lp.sec("Test that after calling start_io(), maybe_network() and waiting for `all_work_done()`, " +
-           "all messages are fetched")
+    lp.sec(
+        "Test that after calling start_io(), maybe_network() and waiting for `all_work_done()`, "
+        + "all messages are fetched"
+    )
 
     ac1.direct_imap.select_config_folder("inbox")
     with ac1.direct_imap.idle() as idle1:
@@ -1543,18 +1594,26 @@ def test_connectivity(acfactory, lp):
     assert len(msgs) == 1
     assert msgs[0].text == "Hi"
 
-    lp.sec("Test that the connectivity changes to WORKING while new messages are fetched")
+    lp.sec(
+        "Test that the connectivity changes to WORKING while new messages are fetched"
+    )
 
     ac2.create_chat(ac1).send_text("Hi 2")
 
-    ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTED, const.DC_CONNECTIVITY_WORKING)
-    ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
+    ac1._evtracker.wait_for_connectivity_change(
+        const.DC_CONNECTIVITY_CONNECTED, const.DC_CONNECTIVITY_WORKING
+    )
+    ac1._evtracker.wait_for_connectivity_change(
+        const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED
+    )
 
     msgs = ac1.create_chat(ac2).get_messages()
     assert len(msgs) == 2
     assert msgs[1].text == "Hi 2"
 
-    lp.sec("Test that the connectivity doesn't flicker to WORKING if there are no new messages")
+    lp.sec(
+        "Test that the connectivity doesn't flicker to WORKING if there are no new messages"
+    )
 
     ac1.maybe_network()
     while 1:
@@ -1563,7 +1622,9 @@ def test_connectivity(acfactory, lp):
             break
         ac1._evtracker.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
 
-    lp.sec("Test that the connectivity doesn't flicker to WORKING if the sender of the message is blocked")
+    lp.sec(
+        "Test that the connectivity doesn't flicker to WORKING if the sender of the message is blocked"
+    )
     ac1.create_contact(ac2).block()
 
     ac1.direct_imap.select_config_folder("inbox")
@@ -1594,10 +1655,12 @@ def test_fetch_deleted_msg(acfactory, lp):
 
     See https://github.com/deltachat/deltachat-core-rust/issues/2429.
     """
-    ac1, = acfactory.get_online_accounts(1)
+    (ac1,) = acfactory.get_online_accounts(1)
     ac1.stop_io()
 
-    ac1.direct_imap.append("INBOX", """
+    ac1.direct_imap.append(
+        "INBOX",
+        """
         From: alice <alice@example.org>
         Subject: subj
         To: bob@example.com
@@ -1606,7 +1669,8 @@ def test_fetch_deleted_msg(acfactory, lp):
         Content-Type: text/plain; charset=utf-8
 
         Deleted message
-    """)
+    """,
+    )
     ac1.direct_imap.delete("1:*", expunge=False)
     ac1.start_io()
 
@@ -1626,7 +1690,10 @@ def test_fetch_deleted_msg(acfactory, lp):
         if ev.name == "DC_EVENT_MSGS_CHANGED":
             pytest.fail("A deleted message was shown to the user")
 
-        if ev.name == "DC_EVENT_INFO" and "INBOX: Idle entering wait-on-remote state" in ev.data2:
+        if (
+            ev.name == "DC_EVENT_INFO"
+            and "INBOX: Idle entering wait-on-remote state" in ev.data2
+        ):
             break  # DC is done with reading messages
 
 
@@ -1888,11 +1955,26 @@ def test_group_quote(acfactory, lp):
     assert received_reply.quote.id == out_msg.id
 
 
-@pytest.mark.parametrize("folder,move,expected_destination,", [
-    ("xyz", False, "xyz"),  # Test that emails are recognized in a random folder but not moved
-    ("xyz", True, "DeltaChat"),  # ...emails are found in a random folder and moved to DeltaChat
-    ("Spam", False, "INBOX"),  # ...emails are moved from the spam folder to the Inbox
-])
+@pytest.mark.parametrize(
+    "folder,move,expected_destination,",
+    [
+        (
+            "xyz",
+            False,
+            "xyz",
+        ),  # Test that emails are recognized in a random folder but not moved
+        (
+            "xyz",
+            True,
+            "DeltaChat",
+        ),  # ...emails are found in a random folder and moved to DeltaChat
+        (
+            "Spam",
+            False,
+            "INBOX",
+        ),  # ...emails are moved from the spam folder to the Inbox
+    ],
+)
 # Testrun.org does not support the CREATE-SPECIAL-USE capability, which means that we can't create a folder with
 # the "\Junk" flag (see https://tools.ietf.org/html/rfc6154). So, we can't test spam folder detection by flag.
 def test_scan_folders(acfactory, lp, folder, move, expected_destination):

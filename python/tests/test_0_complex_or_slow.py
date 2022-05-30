@@ -1,4 +1,5 @@
 import sys
+
 import pytest
 
 
@@ -215,7 +216,9 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
         chat.send_text("message text")
         assert_folders_configured(ac1)
 
-        lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
+        lp.sec(
+            "wait until the bcc_self message arrives in correct folder and is marked seen"
+        )
         assert idle1.wait_for_seen()
     assert_folders_configured(ac1)
 
@@ -254,7 +257,9 @@ def test_fetch_existing_msgs_group_and_single(acfactory, lp):
     acfactory.bring_accounts_online()
 
     lp.sec("receive a message")
-    ac2.create_group_chat("group name", contacts=[ac1]).send_text("incoming, unencrypted group message")
+    ac2.create_group_chat("group name", contacts=[ac1]).send_text(
+        "incoming, unencrypted group message"
+    )
     ac1._evtracker.wait_next_incoming_message()
 
     lp.sec("send out message with bcc to ourselves")
@@ -277,7 +282,7 @@ def test_fetch_existing_msgs_group_and_single(acfactory, lp):
     assert len(chats) == 4  # two newly created chats + self-chat + device-chat
     group_chat = [c for c in chats if c.get_name() == "group name"][0]
     assert group_chat.is_group()
-    private_chat, = [c for c in chats if c.get_name() == ac1_ac2_chat.get_name()]
+    (private_chat,) = [c for c in chats if c.get_name() == ac1_ac2_chat.get_name()]
     assert not private_chat.is_group()
 
     group_messages = group_chat.get_messages()
@@ -378,7 +383,7 @@ def test_ephemeral_timer(acfactory, lp):
     lp.sec("ac1: check that ephemeral timer is set for chat")
     assert chat1.get_ephemeral_timer() == 60
     chat1_summary = chat1.get_summary()
-    assert chat1_summary["ephemeral_timer"] == {'Enabled': {'duration': 60}}
+    assert chat1_summary["ephemeral_timer"] == {"Enabled": {"duration": 60}}
 
     lp.sec("ac2: receive system message about ephemeral timer modification")
     ac2._evtracker.get_matching("DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED")

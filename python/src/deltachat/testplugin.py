@@ -1,56 +1,63 @@
 from __future__ import print_function
-import os
-import sys
-import io
-import subprocess
-import queue
-import threading
+
 import fnmatch
+import io
+import os
+import pathlib
+import queue
+import subprocess
+import sys
+import threading
 import time
 import weakref
 from queue import Queue
-from typing import List, Callable
+from typing import Callable, List
 
 import pytest
 import requests
-import pathlib
-
-from . import Account, const, account_hookimpl, get_core_info
-from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
 
 import deltachat
+
+from . import Account, account_hookimpl, const, get_core_info
+from .events import FFIEventLogger, FFIEventTracker
 
 
 def pytest_addoption(parser):
     group = parser.getgroup("deltachat testplugin options")
     group.addoption(
-        "--liveconfig", action="store", default=None,
+        "--liveconfig",
+        action="store",
+        default=None,
         help="a file with >=2 lines where each line "
-             "contains NAME=VALUE config settings for one account"
+        "contains NAME=VALUE config settings for one account",
     )
     group.addoption(
-        "--ignored", action="store_true",
+        "--ignored",
+        action="store_true",
         help="Also run tests marked with the ignored marker",
     )
     group.addoption(
-        "--strict-tls", action="store_true",
+        "--strict-tls",
+        action="store_true",
         help="Never accept invalid TLS certificates for test accounts",
     )
     group.addoption(
-        "--extra-info", action="store_true",
-        help="show more info on failures (imap server state, config)"
+        "--extra-info",
+        action="store_true",
+        help="show more info on failures (imap server state, config)",
     )
     group.addoption(
-        "--debug-setup", action="store_true",
-        help="show events during configure and start io phases of online accounts"
+        "--debug-setup",
+        action="store_true",
+        help="show events during configure and start io phases of online accounts",
     )
 
 
 def pytest_configure(config):
-    cfg = config.getoption('--liveconfig')
+    cfg = config.getoption("--liveconfig")
     if not cfg:
-        cfg = os.getenv('DCC_NEW_TMP_EMAIL')
+        cfg = os.getenv("DCC_NEW_TMP_EMAIL")
         if cfg:
             config.option.liveconfig = cfg
 
@@ -113,19 +120,21 @@ def pytest_configure(config):
 
 def pytest_report_header(config, startdir):
     info = get_core_info()
-    summary = ['Deltachat core={} sqlite={} journal_mode={}'.format(
-        info['deltachat_core_version'],
-        info['sqlite_version'],
-        info['journal_mode'],
-    )]
+    summary = [
+        "Deltachat core={} sqlite={} journal_mode={}".format(
+            info["deltachat_core_version"],
+            info["sqlite_version"],
+            info["journal_mode"],
+        )
+    ]
 
     cfg = config.option.liveconfig
     if cfg:
         if "?" in cfg:
             url, token = cfg.split("?", 1)
-            summary.append('Liveconfig provider: {}?<token ommitted>'.format(url))
+            summary.append("Liveconfig provider: {}?<token ommitted>".format(url))
         else:
-            summary.append('Liveconfig file: {}'.format(cfg))
+            summary.append("Liveconfig file: {}".format(cfg))
     return summary
 
 
@@ -135,26 +144,28 @@ def testprocess(request):
 
 
 class TestProcess:
-    """ A pytest session-scoped instance to help with managing "live" account configurations.
-    """
+    """A pytest session-scoped instance to help with managing "live" account configurations."""
+
     def __init__(self, pytestconfig):
         self.pytestconfig = pytestconfig
         self._addr2files = {}
         self._configlist = []
 
     def get_liveconfig_producer(self):
-        """ provide live account configs, cached on a per-test-process scope
+        """provide live account configs, cached on a per-test-process scope
         so that test functions can re-use already known live configs.
         Depending on the --liveconfig option this comes from
         a HTTP provider or a file with a line specifying each accounts config.
         """
         liveconfig_opt = self.pytestconfig.getoption("--liveconfig")
         if not liveconfig_opt:
-            pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig to provide live accounts")
+            pytest.skip(
+                "specify DCC_NEW_TMP_EMAIL or --liveconfig to provide live accounts"
+            )
 
         if not liveconfig_opt.startswith("http"):
             for line in open(liveconfig_opt):
-                if line.strip() and not line.strip().startswith('#'):
+                if line.strip() and not line.strip().startswith("#"):
                     d = {}
                     for part in line.split():
                         name, value = part.split("=")
@@ -170,14 +181,21 @@ class TestProcess:
                 except IndexError:
                     res = requests.post(liveconfig_opt)
                     if res.status_code != 200:
-                        pytest.fail("newtmpuser count={} code={}: '{}'".format(
-                                    index, res.status_code, res.text))
+                        pytest.fail(
+                            "newtmpuser count={} code={}: '{}'".format(
+                                index, res.status_code, res.text
+                            )
+                        )
                     d = res.json()
                     config = dict(addr=d["email"], mail_pw=d["password"])
                     print("newtmpuser {}: addr={}".format(index, config["addr"]))
                     self._configlist.append(config)
                     yield config
-            pytest.fail("more than {} live accounts requested.".format(MAX_LIVE_CREATED_ACCOUNTS))
+            pytest.fail(
+                "more than {} live accounts requested.".format(
+                    MAX_LIVE_CREATED_ACCOUNTS
+                )
+            )
 
     def cache_maybe_retrieve_configured_db_files(self, cache_addr, db_target_path):
         db_target_path = pathlib.Path(db_target_path)
@@ -230,13 +248,18 @@ def data(request):
             # because we are run from a dev-setup with pytest direct,
             # through tox, and then maybe also from deltachat-binding
             # users like "deltabot".
-            self.paths = [os.path.normpath(x) for x in [
-                os.path.join(os.path.dirname(request.fspath.strpath), "data"),
-                os.path.join(os.path.dirname(__file__), "..", "..", "..", "test-data")
-            ]]
+            self.paths = [
+                os.path.normpath(x)
+                for x in [
+                    os.path.join(os.path.dirname(request.fspath.strpath), "data"),
+                    os.path.join(
+                        os.path.dirname(__file__), "..", "..", "..", "test-data"
+                    ),
+                ]
+            ]
 
         def get_path(self, bn):
-            """ return path of file or None if it doesn't exist. """
+            """return path of file or None if it doesn't exist."""
             for path in self.paths:
                 fn = os.path.join(path, *bn.split("/"))
                 if os.path.exists(fn):
@@ -253,10 +276,11 @@ def data(request):
 
 
 class ACSetup:
-    """ accounts setup helper to deal with multiple configure-process
+    """accounts setup helper to deal with multiple configure-process
     and io & imap initialization phases. From tests, use the higher level
     public ACFactory methods instead of its private helper class.
     """
+
     CONFIGURING = "CONFIGURING"
     CONFIGURED = "CONFIGURED"
     IDLEREADY = "IDLEREADY"
@@ -272,13 +296,16 @@ class ACSetup:
         print("[acsetup]", "{:.3f}".format(time.time() - self.init_time), *args)
 
     def add_configured(self, account):
-        """ add an already configured account. """
+        """add an already configured account."""
         assert account.is_configured()
         self._account2state[account] = self.CONFIGURED
-        self.log("added already configured account", account, account.get_config("addr"))
+        self.log(
+            "added already configured account", account, account.get_config("addr")
+        )
 
     def start_configure(self, account, reconfigure=False):
-        """ add an account and start its configure process. """
+        """add an account and start its configure process."""
+
         class PendingTracker:
             @account_hookimpl
             def ac_configure_completed(this, success):
@@ -290,7 +317,7 @@ class ACSetup:
         self.log("started configure on", account)
 
     def wait_one_configured(self, account):
-        """ wait until this account has successfully configured. """
+        """wait until this account has successfully configured."""
         if self._account2state[account] == self.CONFIGURING:
             while 1:
                 acc = self._pop_config_success()
@@ -301,7 +328,7 @@ class ACSetup:
             acc._evtracker.consume_events()
 
     def bring_online(self):
-        """ Wait for all accounts to become ready to receive messages.
+        """Wait for all accounts to become ready to receive messages.
 
         This will initialize logging, start IO and the direct_imap attribute
         for each account which either is CONFIGURED already or which is CONFIGURING
@@ -336,12 +363,12 @@ class ACSetup:
         acc.log("inbox IDLE ready")
 
     def init_logging(self, acc):
-        """ idempotent function for initializing logging (will replace existing logger). """
+        """idempotent function for initializing logging (will replace existing logger)."""
         logger = FFIEventLogger(acc, logid=acc._logid, init_time=self.init_time)
         acc.add_account_plugin(logger, name="logger-" + acc._logid)
 
     def init_imap(self, acc):
-        """ initialize direct_imap and cleanup server state. """
+        """initialize direct_imap and cleanup server state."""
         from deltachat.direct_imap import DirectImap
 
         assert acc.is_configured()
@@ -375,8 +402,7 @@ class ACFactory:
         self._finalizers = []
         self._accounts = []
         self._acsetup = ACSetup(testprocess, self.init_time)
-        self._preconfigured_keys = ["alice", "bob", "charlie",
-                                    "dom", "elena", "fiona"]
+        self._preconfigured_keys = ["alice", "bob", "charlie", "dom", "elena", "fiona"]
         self.set_logging_default(False)
         request.addfinalizer(self.finalize)
 
@@ -399,7 +425,7 @@ class ACFactory:
                 acc.disable_logging()
 
     def get_next_liveconfig(self):
-        """ Base function to get functional online configurations
+        """Base function to get functional online configurations
         where we can make valid SMTP and IMAP connections with.
         """
         configdict = next(self._liveconfig_producer).copy()
@@ -426,7 +452,9 @@ class ACFactory:
         # we need to use fixed database basename for maybe_cache_* functions to work
         path = self.tmpdir.mkdir(logid).join("dc.db")
         if try_cache_addr:
-            self.testprocess.cache_maybe_retrieve_configured_db_files(try_cache_addr, path)
+            self.testprocess.cache_maybe_retrieve_configured_db_files(
+                try_cache_addr, path
+            )
         ac = Account(path.strpath, logging=self._logging)
         ac._logid = logid  # later instantiated FFIEventLogger needs this
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
@@ -448,8 +476,12 @@ class ACFactory:
         except IndexError:
             pass
         else:
-            fname_pub = self.data.read_path("key/{name}-public.asc".format(name=keyname))
-            fname_sec = self.data.read_path("key/{name}-secret.asc".format(name=keyname))
+            fname_pub = self.data.read_path(
+                "key/{name}-public.asc".format(name=keyname)
+            )
+            fname_sec = self.data.read_path(
+                "key/{name}-secret.asc".format(name=keyname)
+            )
             if fname_pub and fname_sec:
                 account._preconfigure_keypair(addr, fname_pub, fname_sec)
                 return True
@@ -461,11 +493,16 @@ class ACFactory:
         ac = self.get_unconfigured_account()
         acname = ac._logid
         addr = "{}@offline.org".format(acname)
-        ac.update_config(dict(
-            addr=addr, displayname=acname, mail_pw="123",
-            configured_addr=addr, configured_mail_pw="123",
-            configured="1",
-        ))
+        ac.update_config(
+            dict(
+                addr=addr,
+                displayname=acname,
+                mail_pw="123",
+                configured_addr=addr,
+                configured_mail_pw="123",
+                configured="1",
+            )
+        )
         self._preconfigure_key(ac, addr)
         self._acsetup.init_logging(ac)
         return ac
@@ -501,7 +538,7 @@ class ACFactory:
         return ac
 
     def wait_configured(self, account):
-        """ Wait until the specified account has successfully completed configure. """
+        """Wait until the specified account has successfully completed configure."""
         self._acsetup.wait_one_configured(account)
 
     def bring_accounts_online(self):
@@ -531,8 +568,10 @@ class ACFactory:
             sys.executable,
             "-u",
             fn,
-            "--email", bot_cfg["addr"],
-            "--password", bot_cfg["mail_pw"],
+            "--email",
+            bot_cfg["addr"],
+            "--password",
+            bot_cfg["mail_pw"],
             bot_ac.db_path,
         ]
         if ffi:
@@ -543,9 +582,9 @@ class ACFactory:
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,  # combine stdout/stderr in one stream
-            bufsize=0,                 # line buffering
-            close_fds=True,            # close all FDs other than 0/1/2
-            universal_newlines=True    # give back text
+            bufsize=0,  # line buffering
+            close_fds=True,  # close all FDs other than 0/1/2
+            universal_newlines=True,  # give back text
         )
         bot = BotProcess(popen, addr=bot_cfg["addr"])
         self._finalizers.append(bot.kill)
@@ -565,7 +604,7 @@ class ACFactory:
     def introduce_each_other(self, accounts, sending=True):
         to_wait = []
         for i, acc in enumerate(accounts):
-            for acc2 in accounts[i + 1:]:
+            for acc2 in accounts[i + 1 :]:
                 chat = self.get_accepted_chat(acc, acc2)
                 if sending:
                     chat.send_text("hi")
@@ -599,7 +638,9 @@ class BotProcess:
         # we read stdout as quickly as we can in a thread and make
         # the (unicode) lines available for readers through a queue.
         self.stdout_queue = queue.Queue()
-        self.stdout_thread = t = threading.Thread(target=self._run_stdout_thread, name="bot-stdout-thread")
+        self.stdout_thread = t = threading.Thread(
+            target=self._run_stdout_thread, name="bot-stdout-thread"
+        )
         t.daemon = True
         t.start()
 
@@ -622,7 +663,9 @@ class BotProcess:
         self.popen.wait(timeout=timeout)
 
     def fnmatch_lines(self, pattern_lines):
-        patterns = [x.strip() for x in Source(pattern_lines.rstrip()).lines if x.strip()]
+        patterns = [
+            x.strip() for x in Source(pattern_lines.rstrip()).lines if x.strip()
+        ]
         for next_pattern in patterns:
             print("+++FNMATCH:", next_pattern)
             ignored = []
