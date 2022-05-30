@@ -564,18 +564,18 @@ mod tests {
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 
-        // Alice sends a message to Bob
+        tcm.sec("Alice sends a message to Bob");
         let alice_bob_chat = alice.create_chat(&bob).await;
         let sent = alice.send_text(alice_bob_chat.id, "Hi").await;
         let bob_msg = bob.recv_msg(&sent).await;
         bob_msg.chat_id.accept(&bob).await?;
         assert_eq!(bob_msg.text.unwrap(), "Hi");
 
-        // Alice changes her self address and reconfigures
-        // (ensure_secret_key_exists() is called during configure)
+        tcm.sec("Alice changes her self address and reconfigures");
         alice
             .set_primary_self_addr("alice@someotherdomain.xyz")
             .await?;
+        // ensure_secret_key_exists() is called during configure
         crate::e2ee::ensure_secret_key_exists(&alice).await?;
 
         assert_eq!(
@@ -583,7 +583,7 @@ mod tests {
             "alice@someotherdomain.xyz"
         );
 
-        // Bob sends a message to Alice, encrypting to her previous key
+        tcm.sec("Bob sends a message to Alice, encrypting to her previous key");
         let sent = bob.send_text(bob_msg.chat_id, "hi back").await;
 
         // Alice set up message forwarding so that she still receives
@@ -593,6 +593,7 @@ mod tests {
         assert_eq!(alice_msg.get_showpadlock(), true);
         assert_eq!(alice_msg.chat_id, alice_bob_chat.id);
 
+        tcm.sec("Bob sends a message to Alice without In-Reply-To");
         // Even if Bob sends a message to Alice without In-Reply-To,
         // it's still assigned to the 1:1 chat with Bob and not to
         // a group (without secondary addresses, an ad-hoc group
