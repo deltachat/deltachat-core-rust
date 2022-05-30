@@ -86,7 +86,7 @@ jobs:
           if [ -z "$tag" ]; then
             node -e "console.log('DELTACHAT_NODE_TAR_GZ=deltachat-node-' + '${{ github.ref }}'.split('/')[2] + '.tar.gz')" >> $GITHUB_ENV
           else
-            node -e "console.log('DELTACHAT_NODE_TAR_GZ=deltachat-node-' + '${{ steps.tag.outputs.tag }}'.split('/')[2] + '.tar.gz')" >> $GITHUB_ENV
+            echo "DELTACHAT_NODE_TAR_GZ=deltachat-node-${{ steps.tag.outputs.tag }}.tar.gz" >> $GITHUB_ENV
             echo "No preview will be uploaded this time, but the $tag release"
           fi
       - name: System info
