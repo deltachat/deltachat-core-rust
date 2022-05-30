@@ -6,7 +6,7 @@ use std::io::Cursor;
 use std::pin::Pin;
 
 use anyhow::{ensure, Context as _, Result};
-use futures::{Future, FutureExt};
+use futures::Future;
 use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
@@ -145,7 +145,7 @@ impl DcKey for SignedSecretKey {
     fn load_self<'a>(
         context: &'a Context,
     ) -> Pin<Box<dyn Future<Output = Result<Self::KeyType>> + 'a + Send>> {
-        async move {
+        Box::pin(async move {
             match context
                 .sql
                 .query_row_optional(
@@ -169,8 +169,7 @@ impl DcKey for SignedSecretKey {
                     Ok(keypair.secret)
                 }
             }
-        }
-        .boxed()
+        })
     }
 
     fn to_asc(&self, header: Option<(&str, &str)>) -> String {
