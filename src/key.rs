@@ -3,9 +3,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Cursor;
+use std::pin::Pin;
 
 use anyhow::{ensure, Context as _, Result};
-use async_trait::async_trait;
+use futures::{Future, FutureExt};
 use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
@@ -25,7 +26,6 @@ pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 /// This trait is implemented for rPGP's [SignedPublicKey] and
 /// [SignedSecretKey] types and makes working with them a little
 /// easier in the deltachat world.
-#[async_trait]
 pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     type KeyType: Serialize + Deserializable + KeyTrait + Clone;
 
@@ -54,7 +54,9 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     }
 
     /// Load the users' default key from the database.
-    async fn load_self(context: &Context) -> Result<Self::KeyType>;
+    fn load_self<'a>(
+        context: &'a Context,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::KeyType>> + 'a + Send>>;
 
     /// Serialise the key as bytes.
     fn to_bytes(&self) -> Vec<u8> {
@@ -86,35 +88,38 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     }
 }
 
-#[async_trait]
 impl DcKey for SignedPublicKey {
     type KeyType = SignedPublicKey;
 
-    async fn load_self(context: &Context) -> Result<Self::KeyType> {
-        let addr = context.get_primary_self_addr().await?;
-        match context
-            .sql
-            .query_row_optional(
-                r#"
-            SELECT public_key
-              FROM keypairs
-             WHERE addr=?
-               AND is_default=1;
-            "#,
-                paramsv![addr],
-                |row| {
-                    let bytes: Vec<u8> = row.get(0)?;
-                    Ok(bytes)
-                },
-            )
-            .await?
-        {
-            Some(bytes) => Self::from_slice(&bytes),
-            None => {
-                let keypair = generate_keypair(context).await?;
-                Ok(keypair.public)
+    fn load_self<'a>(
+        context: &'a Context,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::KeyType>> + 'a + Send>> {
+        Box::pin(async move {
+            let addr = context.get_primary_self_addr().await?;
+            match context
+                .sql
+                .query_row_optional(
+                    r#"
+                    SELECT public_key \
+                      FROM keypairs \
+                     WHERE addr=? \
+                       AND is_default=1;\
+                    "#,
+                    paramsv![addr],
+                    |row| {
+                        let bytes: Vec<u8> = row.get(0)?;
+                        Ok(bytes)
+                    },
+                )
+                .await?
+            {
+                Some(bytes) => Self::from_slice(&bytes),
+                None => {
+                    let keypair = generate_keypair(context).await?;
+                    Ok(keypair.public)
+                }
             }
-        }
+        })
     }
 
     fn to_asc(&self, header: Option<(&str, &str)>) -> String {
@@ -134,34 +139,38 @@ impl DcKey for SignedPublicKey {
     }
 }
 
-#[async_trait]
 impl DcKey for SignedSecretKey {
     type KeyType = SignedSecretKey;
 
-    async fn load_self(context: &Context) -> Result<Self::KeyType> {
-        match context
-            .sql
-            .query_row_optional(
-                r#"
-            SELECT private_key
-              FROM keypairs
-             WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
-               AND is_default=1;
-            "#,
-                paramsv![],
-                |row| {
-                    let bytes: Vec<u8> = row.get(0)?;
-                    Ok(bytes)
-                },
-            )
-            .await?
-        {
-            Some(bytes) => Self::from_slice(&bytes),
-            None => {
-                let keypair = generate_keypair(context).await?;
-                Ok(keypair.secret)
+    fn load_self<'a>(
+        context: &'a Context,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::KeyType>> + 'a + Send>> {
+        async move {
+            match context
+                .sql
+                .query_row_optional(
+                    r#"
+                    SELECT private_key \
+                      FROM keypairs \
+                     WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr") \
+                       AND is_default=1;
+                    "#,
+                    paramsv![],
+                    |row| {
+                        let bytes: Vec<u8> = row.get(0)?;
+                        Ok(bytes)
+                    },
+                )
+                .await?
+            {
+                Some(bytes) => Self::from_slice(&bytes),
+                None => {
+                    let keypair = generate_keypair(context).await?;
+                    Ok(keypair.secret)
+                }
             }
         }
+        .boxed()
     }
 
     fn to_asc(&self, header: Option<(&str, &str)>) -> String {
