@@ -431,13 +431,18 @@ fn get_config_keys_string() -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)]
+
     use super::*;
 
     use std::str::FromStr;
     use std::string::ToString;
 
+    use crate::chat;
     use crate::constants;
+    use crate::contact::Contact;
     use crate::dc_receive_imf::dc_receive_imf;
+    use crate::peerstate;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use num_traits::FromPrimitive;
@@ -564,33 +569,20 @@ mod tests {
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 
-        tcm.sec("Alice sends a message to Bob");
-        let alice_bob_chat = alice.create_chat(&bob).await;
-        let sent = alice.send_text(alice_bob_chat.id, "Hi").await;
-        let bob_msg = bob.recv_msg(&sent).await;
-        bob_msg.chat_id.accept(&bob).await?;
-        assert_eq!(bob_msg.text.unwrap(), "Hi");
+        tcm.send_recv_accept(&alice, &bob, "Hi").await;
+        let bob_alice_chat = bob.create_chat(&alice).await;
 
-        tcm.sec("Alice changes her self address and reconfigures");
-        alice
-            .set_primary_self_addr("alice@someotherdomain.xyz")
-            .await?;
-        // ensure_secret_key_exists() is called during configure
-        crate::e2ee::ensure_secret_key_exists(&alice).await?;
-
-        assert_eq!(
-            alice.get_primary_self_addr().await?,
-            "alice@someotherdomain.xyz"
-        );
+        tcm.change_addr(&alice, "alice@someotherdomain.xyz").await;
 
         tcm.sec("Bob sends a message to Alice, encrypting to her previous key");
-        let sent = bob.send_text(bob_msg.chat_id, "hi back").await;
+        let sent = bob.send_text(bob_alice_chat.id, "hi back").await;
 
         // Alice set up message forwarding so that she still receives
         // the message with her new address
         let alice_msg = alice.recv_msg(&sent).await;
         assert_eq!(alice_msg.text, Some("hi back".to_string()));
         assert_eq!(alice_msg.get_showpadlock(), true);
+        let alice_bob_chat = alice.create_chat(&bob).await;
         assert_eq!(alice_msg.chat_id, alice_bob_chat.id);
 
         tcm.sec("Bob sends a message to Alice without In-Reply-To");
@@ -621,5 +613,129 @@ Message w/out In-Reply-To
         assert_eq!(alice_msg.chat_id, alice_bob_chat.id);
 
         Ok(())
+    }
+
+    // TODO should this really be placed here? But I wouldn't know a better place, either
+    #[async_std::test]
+    async fn test_aeap_transition_0() {
+        check_aeap_transition(0, false).await;
+    }
+    #[async_std::test]
+    async fn test_aeap_transition_1() {
+        check_aeap_transition(1, false).await;
+    }
+    #[async_std::test]
+    async fn test_aeap_transition_0_verified() {
+        check_aeap_transition(0, true).await;
+    }
+    #[async_std::test]
+    async fn test_aeap_transition_1_verified() {
+        check_aeap_transition(1, true).await;
+    }
+    #[async_std::test]
+    async fn test_aeap_transition_2_verified() {
+        check_aeap_transition(2, true).await;
+    }
+
+    async fn check_aeap_transition(round: u32, verified: bool) {
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        tcm.send_recv_accept(&alice, &bob, "Hi").await;
+        tcm.send_recv_accept(&bob, &alice, "Hi back").await;
+
+        if verified {
+            mark_as_verified(&alice, &bob).await;
+            mark_as_verified(&bob, &alice).await;
+        }
+
+        let mut groups = vec![
+            chat::create_group_chat(&bob, chat::ProtectionStatus::Unprotected, "Group 0")
+                .await
+                .unwrap(),
+            chat::create_group_chat(&bob, chat::ProtectionStatus::Unprotected, "Group 1")
+                .await
+                .unwrap(),
+        ];
+        if verified {
+            groups.push(
+                chat::create_group_chat(&bob, chat::ProtectionStatus::Protected, "Group 2")
+                    .await
+                    .unwrap(),
+            );
+            groups.push(
+                chat::create_group_chat(&bob, chat::ProtectionStatus::Protected, "Group 3")
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let old_contact = Contact::create(&bob, "Alice A", "alice@example.org")
+            .await
+            .unwrap();
+        for group in &groups {
+            chat::add_contact_to_chat(&bob, *group, old_contact)
+                .await
+                .unwrap();
+        }
+
+        // groups 0 and 2 stay unpromoted (i.e. local
+        // on Bob's device, Alice doesn't know about them)
+        tcm.sec("Promoting group 1");
+        let sent = bob.send_text(groups[1], "group created").await;
+        let group1_alice = alice.recv_msg(&sent).await.chat_id;
+
+        let mut group3_alice = None;
+        if verified {
+            tcm.sec("Promoting group 3");
+            let sent = bob.send_text(groups[3], "group created").await;
+            group3_alice = Some(alice.recv_msg(&sent).await.chat_id);
+        }
+
+        tcm.change_addr(&alice, "alice@someotherdomain.xyz").await;
+
+        tcm.sec("Alice sends another message to Bob, this time from her new addr");
+        // No matter to which chat Alice send, the transition should be done in all groups
+        let chat_to_send = match round {
+            0 => alice.create_chat(&bob).await.id,
+            1 => group1_alice,
+            2 => group3_alice.expect("There is no round 2 for verified=false"),
+            _ => panic!("There is no round {}", round),
+        };
+        let sent = alice
+            .send_text(chat_to_send, "Hello from my new addr!")
+            .await;
+        bob.recv_msg(&sent).await;
+
+        let new_contact = Contact::create(&bob, "Alice B", "alice@someotherdomain.xyz")
+            .await
+            .unwrap();
+
+        //for group in &groups {
+        //    assert!(!chat::is_contact_in_chat(&bob, *group, old_contact)
+        //        .await
+        //        .unwrap());
+        //    assert!(chat::is_contact_in_chat(&bob, *group, new_contact)
+        //        .await
+        //        .unwrap());
+        //    // TODO assert there is a device message
+        //}
+
+        // TODO assert that verification status stayed
+    }
+
+    async fn mark_as_verified(this: &TestContext, other: &TestContext) {
+        let other_addr = other.get_primary_self_addr().await.unwrap();
+        let mut peerstate = peerstate::Peerstate::from_addr(this, &other_addr)
+            .await
+            .unwrap()
+            .unwrap();
+
+        peerstate.verified_key = peerstate.public_key.clone();
+        peerstate.verified_key_fingerprint = peerstate.public_key_fingerprint.clone();
+        peerstate.to_save = Some(peerstate::ToSave::All);
+
+        peerstate.save_to_db(&this.sql, false).await.unwrap();
     }
 }
