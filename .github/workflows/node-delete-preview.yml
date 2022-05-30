@@ -29,4 +29,4 @@ jobs:
         host: "download.delta.chat"
         port: 22
         local: "deltachat-node-${{ steps.getid.outputs.prid }}.tar.gz"
-        remote: "/var/www/html/download/node/"
+        remote: "/var/www/html/download/node/preview/"
