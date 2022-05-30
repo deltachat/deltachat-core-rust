@@ -1041,7 +1041,9 @@ impl Chat {
         if chat.id.is_archived_link() {
             chat.name = stock_str::archived_chats(context).await;
         } else {
-            if chat.typ == Chattype::Single {
+            if chat.typ == Chattype::Single && chat.name.is_empty() {
+                // chat.name is set to contact.display_name on changes,
+                // however, if things went wrong somehow, we do this here explicitly.
                 let mut chat_name = "Err [Name not found]".to_owned();
                 match get_chat_contacts(context, chat.id).await {
                     Ok(contacts) => {
