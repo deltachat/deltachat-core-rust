@@ -100,10 +100,10 @@ impl DcKey for SignedPublicKey {
                 .sql
                 .query_row_optional(
                     r#"
-                    SELECT public_key \
-                      FROM keypairs \
-                     WHERE addr=? \
-                       AND is_default=1;\
+                    SELECT public_key
+                      FROM keypairs
+                     WHERE addr=?
+                       AND is_default=1;
                     "#,
                     paramsv![addr],
                     |row| {
@@ -150,9 +150,9 @@ impl DcKey for SignedSecretKey {
                 .sql
                 .query_row_optional(
                     r#"
-                    SELECT private_key \
-                      FROM keypairs \
-                     WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr") \
+                    SELECT private_key
+                      FROM keypairs
+                     WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
                        AND is_default=1;
                     "#,
                     paramsv![],
