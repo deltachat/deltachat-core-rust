@@ -94,7 +94,7 @@ fn dehtml_quick_xml(buf: &str) -> String {
             }
             Ok(quick_xml::events::Event::End(ref e)) => dehtml_endtag_cb(e, &mut dehtml),
             Ok(quick_xml::events::Event::Text(ref e)) => dehtml_text_cb(e, &mut dehtml),
-            Ok(quick_xml::events::Event::CData(ref e)) => dehtml_cdata_cb(e, &mut dehtml),
+            Ok(quick_xml::events::Event::CData(e)) => dehtml_text_cb(&e.escape(), &mut dehtml),
             Ok(quick_xml::events::Event::Empty(ref e)) => {
                 // Handle empty tags as a start tag immediately followed by end tag.
                 // For example, `<p/>` is treated as `<p></p>`.
@@ -118,23 +118,6 @@ fn dehtml_quick_xml(buf: &str) -> String {
 }
 
 fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
-    if dehtml.get_add_text() == AddText::YesPreserveLineEnds
-        || dehtml.get_add_text() == AddText::YesRemoveLineEnds
-    {
-        let last_added = escaper::decode_html_buf_sloppy(event.escaped()).unwrap_or_default();
-
-        if dehtml.get_add_text() == AddText::YesRemoveLineEnds {
-            dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
-        } else if !dehtml.line_prefix().is_empty() {
-            let l = dehtml.append_prefix("\n");
-            dehtml.strbuilder += LINE_RE.replace_all(&last_added, l.as_str()).as_ref();
-        } else {
-            dehtml.strbuilder += &last_added;
-        }
-    }
-}
-
-fn dehtml_cdata_cb(event: &BytesText, dehtml: &mut Dehtml) {
     if dehtml.get_add_text() == AddText::YesPreserveLineEnds
         || dehtml.get_add_text() == AddText::YesRemoveLineEnds
     {
