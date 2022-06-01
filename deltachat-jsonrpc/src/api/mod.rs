@@ -319,7 +319,7 @@ impl CommandApi {
         flags: u32,
     ) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
-        let msg = get_chat_msgs(&ctx, ChatId::new(chat_id), flags, None).await?;
+        let msg = get_chat_msgs(&ctx, ChatId::new(chat_id), flags).await?;
         Ok(msg
             .iter()
             .filter_map(|chat_item| match chat_item {

@@ -1,10 +1,5 @@
 import { assert, expect } from "chai";
-import {
-  Deltachat,
-  DeltachatEvent,
-  eventIdToName,
-  Event_TypeID,
-} from "../dist/deltachat.js";
+import { Deltachat, DeltachatEvent, EventTypeName } from "../dist/deltachat.js";
 import {
   CMD_API_Server_Handle,
   CMD_API_SERVER_PORT,
@@ -20,6 +15,7 @@ describe("online tests", function () {
   let acc1: number, acc2: number;
 
   before(async function () {
+    this.timeout(12000)
     if (!process.env.DCC_NEW_TMP_EMAIL) {
       if (process.env.COVERAGE && !process.env.COVERAGE_OFFLINE) {
         console.error(
@@ -38,8 +34,8 @@ describe("online tests", function () {
       url: "ws://localhost:" + CMD_API_SERVER_PORT + "/ws",
     });
 
-    dc.on("ALL", ({ name, contextId }) => {
-      if (name !== "INFO") console.log(contextId, name);
+    dc.on("ALL", ({ id, contextId }) => {
+      if (id !== "Info") console.log(contextId, id);
     });
 
     account = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
@@ -97,8 +93,8 @@ describe("online tests", function () {
     );
     const chatId = await dc.rpc.contactsCreateChatByContactId(acc1, contactId);
     const eventPromise = Promise.race([
-      waitForEvent(dc, "MSGS_CHANGED", acc2),
-      waitForEvent(dc, "INCOMING_MSG", acc2),
+      waitForEvent(dc, "MsgsChanged", acc2),
+      waitForEvent(dc, "IncomingMsg", acc2),
     ]);
 
     dc.rpc.miscSendTextMessage(acc1, "Hello", chatId);
@@ -129,8 +125,8 @@ describe("online tests", function () {
     );
     const chatId = await dc.rpc.contactsCreateChatByContactId(acc1, contactId);
     const eventPromise = Promise.race([
-      waitForEvent(dc, "MSGS_CHANGED", acc2),
-      waitForEvent(dc, "INCOMING_MSG", acc2),
+      waitForEvent(dc, "MsgsChanged", acc2),
+      waitForEvent(dc, "IncomingMsg", acc2),
     ]);
     dc.rpc.miscSendTextMessage(acc1, "Hello2", chatId);
     // wait for message from A
@@ -152,8 +148,8 @@ describe("online tests", function () {
     expect(message.text).equal("Hello2");
     // Send message back from B to A
     const eventPromise2 = Promise.race([
-      waitForEvent(dc, "MSGS_CHANGED", acc1),
-      waitForEvent(dc, "INCOMING_MSG", acc1),
+      waitForEvent(dc, "MsgsChanged", acc1),
+      waitForEvent(dc, "IncomingMsg", acc1),
     ]);
     dc.rpc.miscSendTextMessage(acc2, "super secret message", chatId);
     // Check if answer arives at A and if it is encrypted
@@ -187,12 +183,12 @@ describe("online tests", function () {
 
 type event_data = {
   contextId: number;
-  id: Event_TypeID;
+  id: EventTypeName;
   [key: string]: any;
 };
 async function waitForEvent(
   dc: Deltachat,
-  event: ReturnType<typeof eventIdToName>,
+  event: EventTypeName,
   accountId: number
 ): Promise<event_data> {
   return new Promise((res, rej) => {
