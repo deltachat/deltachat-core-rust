@@ -1,5 +1,7 @@
 use deltachat::{Event, EventType};
+use serde::Serialize;
 use serde_json::{json, Value};
+use typescript_type_def::TypeDef;
 
 pub fn event_to_json_rpc_notification(event: Event) -> Value {
     let (field1, field2): (Value, Value) = match &event.typ {
@@ -61,9 +63,92 @@ pub fn event_to_json_rpc_notification(event: Event) -> Value {
     };
 
     json!({
-        "id": event.typ.as_id(),
+        "id": event_type_to_string(event.typ),
         "contextId": event.id,
         "field1": field1,
         "field2": field2
     })
+}
+
+#[derive(Serialize, TypeDef)]
+pub enum EventTypeName {
+    Info,
+    SmtpConnected,
+    ImapConnected,
+    SmtpMessageSent,
+    ImapMessageDeleted,
+    ImapMessageMoved,
+    NewBlobFile,
+    DeletedBlobFile,
+    Warning,
+    Error,
+    ErrorSelfNotInGroup,
+    MsgsChanged,
+    IncomingMsg,
+    MsgsNoticed,
+    MsgDelivered,
+    MsgFailed,
+    MsgRead,
+    ChatModified,
+    ChatEphemeralTimerModified,
+    ContactsChanged,
+    LocationChanged,
+    ConfigureProgress,
+    ImexProgress,
+    ImexFileWritten,
+    SecurejoinInviterProgress,
+    SecurejoinJoinerProgress,
+    ConnectivityChanged,
+    SelfavatarChanged,
+    WebxdcStatusUpdate,
+}
+
+fn event_type_to_string(event: EventType) -> EventTypeName {
+    use EventTypeName::*;
+    match event {
+        EventType::Info(_) => Info,
+        EventType::SmtpConnected(_) => SmtpConnected,
+        EventType::ImapConnected(_) => ImapConnected,
+        EventType::SmtpMessageSent(_) => SmtpMessageSent,
+        EventType::ImapMessageDeleted(_) => ImapMessageDeleted,
+        EventType::ImapMessageMoved(_) => ImapMessageMoved,
+        EventType::NewBlobFile(_) => NewBlobFile,
+        EventType::DeletedBlobFile(_) => DeletedBlobFile,
+        EventType::Warning(_) => Warning,
+        EventType::Error(_) => Error,
+        EventType::ErrorSelfNotInGroup(_) => ErrorSelfNotInGroup,
+        EventType::MsgsChanged { .. } => MsgsChanged,
+        EventType::IncomingMsg { .. } => IncomingMsg,
+        EventType::MsgsNoticed(_) => MsgsNoticed,
+        EventType::MsgDelivered { .. } => MsgDelivered,
+        EventType::MsgFailed { .. } => MsgFailed,
+        EventType::MsgRead { .. } => MsgRead,
+        EventType::ChatModified(_) => ChatModified,
+        EventType::ChatEphemeralTimerModified { .. } => ChatEphemeralTimerModified,
+        EventType::ContactsChanged(_) => ContactsChanged,
+        EventType::LocationChanged(_) => LocationChanged,
+        EventType::ConfigureProgress { .. } => ConfigureProgress,
+        EventType::ImexProgress(_) => ImexProgress,
+        EventType::ImexFileWritten(_) => ImexFileWritten,
+        EventType::SecurejoinInviterProgress { .. } => SecurejoinInviterProgress,
+        EventType::SecurejoinJoinerProgress { .. } => SecurejoinJoinerProgress,
+        EventType::ConnectivityChanged => ConnectivityChanged,
+        EventType::SelfavatarChanged => SelfavatarChanged,
+        EventType::WebxdcStatusUpdate { .. } => WebxdcStatusUpdate,
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn generate_events_ts_types_definition() {
+    let events = {
+        let mut buf = Vec::new();
+        let options = typescript_type_def::DefinitionFileOptions {
+            root_namespace: None,
+            ..typescript_type_def::DefinitionFileOptions::default()
+        };
+        typescript_type_def::write_definition_file::<_, EventTypeName>(&mut buf, options).unwrap();
+        String::from_utf8(buf).unwrap()
+    };
+    std::fs::write("typescript/generated/events.ts", events).unwrap();
 }

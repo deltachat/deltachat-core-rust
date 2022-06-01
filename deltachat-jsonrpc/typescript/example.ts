@@ -1,8 +1,7 @@
 import { RawClient, RPC } from "./src/lib";
-import { eventIdToName } from "./src/events";
 import { WebsocketTransport, Request } from "yerpc";
 
-type DeltaEvent = { id: number; contextId: number; field1: any; field2: any };
+type DeltaEvent = { id: string; contextId: number; field1: any; field2: any };
 var selectedAccount = 0;
 window.addEventListener("DOMContentLoaded", (_event) => {
   (window as any).selectDeltaAccount = (id: string) => {
@@ -26,8 +25,7 @@ async function run() {
     const method = request.method;
     if (method === "event") {
       const params = request.params! as DeltaEvent;
-      const name = eventIdToName(params.id);
-      onIncomingEvent(params, name);
+      onIncomingEvent(params, params.id);
     }
   });
 

@@ -1,19 +1,20 @@
 import * as T from "../generated/types.js";
 import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
+import { EventTypeName } from "../generated/events.js";
 import { WebsocketTransport, BaseTransport, Request } from "yerpc";
-import { eventIdToName } from "./events.js";
 import { TinyEmitter } from "tiny-emitter";
 
-export type EventNames = ReturnType<typeof eventIdToName> | "ALL";
-export type WireEvent = {
-  id: number;
+export type DeltachatEvent = {
+  id: EventTypeName;
   contextId: number;
   field1: any;
   field2: any;
 };
-export type DeltachatEvent = WireEvent & { name: EventNames };
-export type Events = Record<EventNames, (event: DeltachatEvent) => void>;
+export type Events = Record<
+  EventTypeName | "ALL",
+  (event: DeltachatEvent) => void
+>;
 
 export class BaseDeltachat<
   Transport extends BaseTransport
@@ -26,15 +27,13 @@ export class BaseDeltachat<
     this.transport.on("request", (request: Request) => {
       const method = request.method;
       if (method === "event") {
-        const params = request.params! as WireEvent;
-        const name = eventIdToName(params.id);
-        const event = { name, ...params };
-        this.emit(name, event);
+        const event = request.params! as DeltachatEvent;
+        this.emit(event.id, event);
         this.emit("ALL", event);
 
-        if (this.contextEmitters[params.contextId]) {
-          this.contextEmitters[params.contextId].emit(name, event);
-          this.contextEmitters[params.contextId].emit("ALL", event);
+        if (this.contextEmitters[event.contextId]) {
+          this.contextEmitters[event.contextId].emit(event.id, event);
+          this.contextEmitters[event.contextId].emit("ALL", event);
         }
       }
     });
