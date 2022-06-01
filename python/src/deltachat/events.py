@@ -135,12 +135,7 @@ class FFIEventTracker:
             if current == expected_next:
                 return
             elif current != previous:
-                raise Exception(
-                    "Expected connectivity "
-                    + str(expected_next)
-                    + " but got "
-                    + str(current)
-                )
+                raise Exception("Expected connectivity " + str(expected_next) + " but got " + str(current))
 
             self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
 
@@ -252,12 +247,8 @@ class EventThread(threading.Thread):
 
             lib.dc_event_unref(event)
             ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            with self.swallow_and_log_exception(
-                "ac_process_ffi_event {}".format(ffi_event)
-            ):
-                self.account._pm.hook.ac_process_ffi_event(
-                    account=self, ffi_event=ffi_event
-                )
+            with self.swallow_and_log_exception("ac_process_ffi_event {}".format(ffi_event)):
+                self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
             for name, kwargs in self._map_ffi_event(ffi_event):
                 hook = getattr(self.account._pm.hook, name)
                 info = "call {} kwargs={} failed".format(name, kwargs)
@@ -271,9 +262,7 @@ class EventThread(threading.Thread):
         except Exception as ex:
             logfile = io.StringIO()
             traceback.print_exception(*sys.exc_info(), file=logfile)
-            self.account.log(
-                "{}\nException {}\nTraceback:\n{}".format(info, ex, logfile.getvalue())
-            )
+            self.account.log("{}\nException {}\nTraceback:\n{}".format(info, ex, logfile.getvalue()))
 
     def _map_ffi_event(self, ffi_event: FFIEvent):
         name = ffi_event.name

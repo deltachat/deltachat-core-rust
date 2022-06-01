@@ -85,22 +85,16 @@ class TestOnlineInCreation:
         assert prepared_original.is_out_preparing()
         shutil.copyfile(orig, path)
         chat.send_prepared(prepared_original)
-        assert (
-            prepared_original.is_out_pending() or prepared_original.is_out_delivered()
-        )
+        assert prepared_original.is_out_pending() or prepared_original.is_out_delivered()
 
         lp.sec("check that both forwarded and original message are proper.")
-        wait_msgs_changed(
-            ac1, [(chat2.id, forwarded_id), (chat.id, prepared_original.id)]
-        )
+        wait_msgs_changed(ac1, [(chat2.id, forwarded_id), (chat.id, prepared_original.id)])
 
         fwd_msg = ac1.get_message_by_id(forwarded_id)
         assert fwd_msg.is_out_pending() or fwd_msg.is_out_delivered()
 
         lp.sec("wait for both messages to be delivered to SMTP")
-        wait_msg_delivered(
-            ac1, [(chat2.id, forwarded_id), (chat.id, prepared_original.id)]
-        )
+        wait_msg_delivered(ac1, [(chat2.id, forwarded_id), (chat.id, prepared_original.id)])
 
         lp.sec("wait1 for original or forwarded messages to arrive")
         received_original = ac2._evtracker.wait_next_incoming_message()

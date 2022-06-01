@@ -16,9 +16,7 @@ class Provider(object):
 
     def __init__(self, account, addr) -> None:
         provider = ffi.gc(
-            lib.dc_provider_new_from_email(
-                account._dc_context, as_dc_charpointer(addr)
-            ),
+            lib.dc_provider_new_from_email(account._dc_context, as_dc_charpointer(addr)),
             lib.dc_provider_unref,
         )
         if provider == ffi.NULL:
@@ -33,9 +31,7 @@ class Provider(object):
     @property
     def get_before_login_hints(self) -> str:
         """Should be shown to the user on login."""
-        return from_dc_charpointer(
-            lib.dc_provider_get_before_login_hint(self._provider)
-        )
+        return from_dc_charpointer(lib.dc_provider_get_before_login_hint(self._provider))
 
     @property
     def status(self) -> int:

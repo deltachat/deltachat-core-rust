@@ -52,9 +52,7 @@ def run_cmdline(argv=None, account_plugins=None):
 
     parser = argparse.ArgumentParser(prog=argv[0] if argv else None)
     parser.add_argument("db", action="store", help="database file")
-    parser.add_argument(
-        "--show-ffi", action="store_true", help="show low level ffi events"
-    )
+    parser.add_argument("--show-ffi", action="store_true", help="show low level ffi events")
     parser.add_argument("--email", action="store", help="email address")
     parser.add_argument("--password", action="store", help="password")
 

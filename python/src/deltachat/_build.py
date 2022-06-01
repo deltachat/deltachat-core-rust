@@ -34,9 +34,7 @@ def local_build_flags(projdir, target):
         flags["libraries"] = ["rt", "dl", "m"]
         flags["extra_link_args"] = []
     else:
-        raise NotImplementedError(
-            "Compilation not supported yet on Windows, can you help?"
-        )
+        raise NotImplementedError("Compilation not supported yet on Windows, can you help?")
     target_dir = os.environ.get("CARGO_TARGET_DIR")
     if target_dir is None:
         target_dir = os.path.join(projdir, "target")
@@ -117,9 +115,7 @@ def find_header(flags):
             )
         finally:
             os.chdir(cwd)
-        cc.link_executable(
-            objects=[obj_name], output_progname="where", output_dir=tmpdir
-        )
+        cc.link_executable(objects=[obj_name], output_progname="where", output_dir=tmpdir)
         return subprocess.check_output(dst_name)
     finally:
         shutil.rmtree(tmpdir)

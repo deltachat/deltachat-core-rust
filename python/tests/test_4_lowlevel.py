@@ -43,9 +43,7 @@ class TestACSetup:
         pc.bring_online()
         assert pc._account2state[acc] == pc.IDLEREADY
 
-    def test_two_accounts_one_waited_all_started(
-        self, monkeypatch, acfactory, testprocess
-    ):
+    def test_two_accounts_one_waited_all_started(self, monkeypatch, acfactory, testprocess):
         pc = ACSetup(init_time=0.0, testprocess=testprocess)
         monkeypatch.setattr(pc, "init_imap", lambda *args, **kwargs: None)
         monkeypatch.setattr(pc, "_onconfigure_start_io", lambda *args, **kwargs: None)
@@ -172,12 +170,7 @@ def test_provider_info_none():
         lib.dc_context_new(ffi.NULL, ffi.NULL, ffi.NULL),
         lib.dc_context_unref,
     )
-    assert (
-        lib.dc_provider_new_from_email(
-            ctx, cutil.as_dc_charpointer("email@unexistent.no")
-        )
-        == ffi.NULL
-    )
+    assert lib.dc_provider_new_from_email(ctx, cutil.as_dc_charpointer("email@unexistent.no")) == ffi.NULL
 
 
 def test_get_info_open(tmpdir):

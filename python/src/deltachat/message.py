@@ -46,9 +46,7 @@ class Message(object):
     @classmethod
     def from_db(cls, account, id):
         assert id > 0
-        return cls(
-            account, ffi.gc(lib.dc_get_msg(account._dc_context, id), lib.dc_msg_unref)
-        )
+        return cls(account, ffi.gc(lib.dc_get_msg(account._dc_context, id), lib.dc_msg_unref))
 
     @classmethod
     def new_empty(cls, account, view_type):
@@ -63,9 +61,7 @@ class Message(object):
             view_type_code = get_viewtype_code_from_name(view_type)
         return Message(
             account,
-            ffi.gc(
-                lib.dc_msg_new(account._dc_context, view_type_code), lib.dc_msg_unref
-            ),
+            ffi.gc(lib.dc_msg_new(account._dc_context, view_type_code), lib.dc_msg_unref),
         )
 
     def create_chat(self):
@@ -96,12 +92,7 @@ class Message(object):
     @props.with_doc
     def html(self) -> str:
         """html text of this messages (might be empty if not an html message)."""
-        return (
-            from_optional_dc_charpointer(
-                lib.dc_get_msg_html(self.account._dc_context, self.id)
-            )
-            or ""
-        )
+        return from_optional_dc_charpointer(lib.dc_get_msg_html(self.account._dc_context, self.id)) or ""
 
     def has_html(self):
         """return True if this message has an html part, False otherwise."""
@@ -166,15 +157,11 @@ class Message(object):
 
         The text is multiline and may contain eg. the raw text of the message.
         """
-        return from_dc_charpointer(
-            lib.dc_get_msg_info(self.account._dc_context, self.id)
-        )
+        return from_dc_charpointer(lib.dc_get_msg_info(self.account._dc_context, self.id))
 
     def continue_key_transfer(self, setup_code):
         """extract key and use it as primary key for this account."""
-        res = lib.dc_continue_key_transfer(
-            self.account._dc_context, self.id, as_dc_charpointer(setup_code)
-        )
+        res = lib.dc_continue_key_transfer(self.account._dc_context, self.id, as_dc_charpointer(setup_code))
         if res == 0:
             raise ValueError("could not decrypt")
 
@@ -281,9 +268,7 @@ class Message(object):
 
         Usually used to impersonate someone else.
         """
-        return from_optional_dc_charpointer(
-            lib.dc_msg_get_override_sender_name(self._dc_msg)
-        )
+        return from_optional_dc_charpointer(lib.dc_msg_get_override_sender_name(self._dc_msg))
 
     def set_override_sender_name(self, name):
         """set different sender name for a message."""
@@ -315,9 +300,7 @@ class Message(object):
             dc_msg = self._dc_msg
         else:
             # load message from db to get a fresh/current state
-            dc_msg = ffi.gc(
-                lib.dc_get_msg(self.account._dc_context, self.id), lib.dc_msg_unref
-            )
+            dc_msg = ffi.gc(lib.dc_get_msg(self.account._dc_context, self.id), lib.dc_msg_unref)
         return lib.dc_msg_get_state(dc_msg)
 
     def is_in_fresh(self):
@@ -440,8 +423,7 @@ def get_viewtype_code_from_name(view_type_name):
     if code is not None:
         return code
     raise ValueError(
-        "message typecode not found for {!r}, "
-        "available {!r}".format(view_type_name, list(_view_type_mapping.keys()))
+        "message typecode not found for {!r}, " "available {!r}".format(view_type_name, list(_view_type_mapping.keys()))
     )
 
 

@@ -29,8 +29,7 @@ def pytest_addoption(parser):
         "--liveconfig",
         action="store",
         default=None,
-        help="a file with >=2 lines where each line "
-        "contains NAME=VALUE config settings for one account",
+        help="a file with >=2 lines where each line " "contains NAME=VALUE config settings for one account",
     )
     group.addoption(
         "--ignored",
@@ -159,9 +158,7 @@ class TestProcess:
         """
         liveconfig_opt = self.pytestconfig.getoption("--liveconfig")
         if not liveconfig_opt:
-            pytest.skip(
-                "specify DCC_NEW_TMP_EMAIL or --liveconfig to provide live accounts"
-            )
+            pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig to provide live accounts")
 
         if not liveconfig_opt.startswith("http"):
             for line in open(liveconfig_opt):
@@ -181,21 +178,13 @@ class TestProcess:
                 except IndexError:
                     res = requests.post(liveconfig_opt)
                     if res.status_code != 200:
-                        pytest.fail(
-                            "newtmpuser count={} code={}: '{}'".format(
-                                index, res.status_code, res.text
-                            )
-                        )
+                        pytest.fail("newtmpuser count={} code={}: '{}'".format(index, res.status_code, res.text))
                     d = res.json()
                     config = dict(addr=d["email"], mail_pw=d["password"])
                     print("newtmpuser {}: addr={}".format(index, config["addr"]))
                     self._configlist.append(config)
                     yield config
-            pytest.fail(
-                "more than {} live accounts requested.".format(
-                    MAX_LIVE_CREATED_ACCOUNTS
-                )
-            )
+            pytest.fail("more than {} live accounts requested.".format(MAX_LIVE_CREATED_ACCOUNTS))
 
     def cache_maybe_retrieve_configured_db_files(self, cache_addr, db_target_path):
         db_target_path = pathlib.Path(db_target_path)
@@ -252,9 +241,7 @@ def data(request):
                 os.path.normpath(x)
                 for x in [
                     os.path.join(os.path.dirname(request.fspath.strpath), "data"),
-                    os.path.join(
-                        os.path.dirname(__file__), "..", "..", "..", "test-data"
-                    ),
+                    os.path.join(os.path.dirname(__file__), "..", "..", "..", "test-data"),
                 ]
             ]
 
@@ -299,9 +286,7 @@ class ACSetup:
         """add an already configured account."""
         assert account.is_configured()
         self._account2state[account] = self.CONFIGURED
-        self.log(
-            "added already configured account", account, account.get_config("addr")
-        )
+        self.log("added already configured account", account, account.get_config("addr"))
 
     def start_configure(self, account, reconfigure=False):
         """add an account and start its configure process."""
@@ -452,9 +437,7 @@ class ACFactory:
         # we need to use fixed database basename for maybe_cache_* functions to work
         path = self.tmpdir.mkdir(logid).join("dc.db")
         if try_cache_addr:
-            self.testprocess.cache_maybe_retrieve_configured_db_files(
-                try_cache_addr, path
-            )
+            self.testprocess.cache_maybe_retrieve_configured_db_files(try_cache_addr, path)
         ac = Account(path.strpath, logging=self._logging)
         ac._logid = logid  # later instantiated FFIEventLogger needs this
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
@@ -476,12 +459,8 @@ class ACFactory:
         except IndexError:
             pass
         else:
-            fname_pub = self.data.read_path(
-                "key/{name}-public.asc".format(name=keyname)
-            )
-            fname_sec = self.data.read_path(
-                "key/{name}-secret.asc".format(name=keyname)
-            )
+            fname_pub = self.data.read_path("key/{name}-public.asc".format(name=keyname))
+            fname_sec = self.data.read_path("key/{name}-secret.asc".format(name=keyname))
             if fname_pub and fname_sec:
                 account._preconfigure_keypair(addr, fname_pub, fname_sec)
                 return True
@@ -638,9 +617,7 @@ class BotProcess:
         # we read stdout as quickly as we can in a thread and make
         # the (unicode) lines available for readers through a queue.
         self.stdout_queue = queue.Queue()
-        self.stdout_thread = t = threading.Thread(
-            target=self._run_stdout_thread, name="bot-stdout-thread"
-        )
+        self.stdout_thread = t = threading.Thread(target=self._run_stdout_thread, name="bot-stdout-thread")
         t.daemon = True
         t.start()
 
@@ -663,9 +640,7 @@ class BotProcess:
         self.popen.wait(timeout=timeout)
 
     def fnmatch_lines(self, pattern_lines):
-        patterns = [
-            x.strip() for x in Source(pattern_lines.rstrip()).lines if x.strip()
-        ]
+        patterns = [x.strip() for x in Source(pattern_lines.rstrip()).lines if x.strip()]
         for next_pattern in patterns:
             print("+++FNMATCH:", next_pattern)
             ignored = []

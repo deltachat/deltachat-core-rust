@@ -37,9 +37,7 @@ def get_core_info():
         path.close()
         return get_dc_info_as_dict(
             ffi.gc(
-                lib.dc_context_new(
-                    as_dc_charpointer(""), as_dc_charpointer(path.name), ffi.NULL
-                ),
+                lib.dc_context_new(as_dc_charpointer(""), as_dc_charpointer(path.name), ffi.NULL),
                 lib.dc_context_unref,
             )
         )
@@ -114,11 +112,7 @@ class Account(object):
 
     def _check_config_key(self, name: str) -> None:
         if name not in self._configkeys:
-            raise KeyError(
-                "{!r} not a valid config key, existing keys: {!r}".format(
-                    name, self._configkeys
-                )
-            )
+            raise KeyError("{!r} not a valid config key, existing keys: {!r}".format(name, self._configkeys))
 
     def get_info(self) -> Dict[str, str]:
         """return dictionary of built config parameters."""
@@ -334,9 +328,7 @@ class Account(object):
 
         :returns: list of :class:`deltachat.contact.Contact` objects.
         """
-        dc_array = ffi.gc(
-            lib.dc_get_blocked_contacts(self._dc_context), lib.dc_array_unref
-        )
+        dc_array = ffi.gc(lib.dc_get_blocked_contacts(self._dc_context), lib.dc_array_unref)
         return list(iter_array(dc_array, lambda x: Contact(self, x)))
 
     def get_contacts(
@@ -359,9 +351,7 @@ class Account(object):
             flags |= const.DC_GCL_VERIFIED_ONLY
         if with_self:
             flags |= const.DC_GCL_ADD_SELF
-        dc_array = ffi.gc(
-            lib.dc_get_contacts(self._dc_context, flags, query), lib.dc_array_unref
-        )
+        dc_array = ffi.gc(lib.dc_get_contacts(self._dc_context, flags, query), lib.dc_array_unref)
         return list(iter_array(dc_array, lambda x: Contact(self, x)))
 
     def get_fresh_messages(self) -> Generator[Message, None, None]:
@@ -400,9 +390,7 @@ class Account(object):
 
         :returns: a list of :class:`deltachat.chat.Chat` objects.
         """
-        dc_chatlist = ffi.gc(
-            lib.dc_get_chatlist(self._dc_context, 0, ffi.NULL, 0), lib.dc_chatlist_unref
-        )
+        dc_chatlist = ffi.gc(lib.dc_get_chatlist(self._dc_context, 0, ffi.NULL, 0), lib.dc_chatlist_unref)
 
         assert dc_chatlist != ffi.NULL
         chatlist = []
@@ -538,9 +526,7 @@ class Account(object):
 
     def check_qr(self, qr):
         """check qr code and return :class:`ScannedQRCode` instance representing the result"""
-        res = ffi.gc(
-            lib.dc_check_qr(self._dc_context, as_dc_charpointer(qr)), lib.dc_lot_unref
-        )
+        res = ffi.gc(lib.dc_check_qr(self._dc_context, as_dc_charpointer(qr)), lib.dc_lot_unref)
         lot = DCLot(res)
         if lot.state() == const.DC_QR_ERROR:
             raise ValueError("invalid or unknown QR code: {}".format(lot.text1()))
@@ -575,9 +561,7 @@ class Account(object):
             raise ValueError("could not join group")
         return Chat(self, chat_id)
 
-    def set_location(
-        self, latitude: float = 0.0, longitude: float = 0.0, accuracy: float = 0.0
-    ) -> None:
+    def set_location(self, latitude: float = 0.0, longitude: float = 0.0, accuracy: float = 0.0) -> None:
         """set a new location. It effects all chats where we currently
         have enabled location streaming.
 

@@ -23,24 +23,17 @@ class Contact(object):
         self.id = id
 
     def __eq__(self, other):
-        return (
-            self.account._dc_context == other.account._dc_context
-            and self.id == other.id
-        )
+        return self.account._dc_context == other.account._dc_context and self.id == other.id
 
     def __ne__(self, other):
         return not (self == other)
 
     def __repr__(self):
-        return "<Contact id={} addr={} dc_context={}>".format(
-            self.id, self.addr, self.account._dc_context
-        )
+        return "<Contact id={} addr={} dc_context={}>".format(self.id, self.addr, self.account._dc_context)
 
     @property
     def _dc_contact(self):
-        return ffi.gc(
-            lib.dc_get_contact(self.account._dc_context, self.id), lib.dc_contact_unref
-        )
+        return ffi.gc(lib.dc_get_contact(self.account._dc_context, self.id), lib.dc_contact_unref)
 
     @props.with_doc
     def addr(self) -> str:
@@ -58,9 +51,7 @@ class Contact(object):
     @props.with_doc
     def last_seen(self) -> date:
         """Last seen timestamp."""
-        return datetime.fromtimestamp(
-            lib.dc_contact_get_last_seen(self._dc_contact), timezone.utc
-        )
+        return datetime.fromtimestamp(lib.dc_contact_get_last_seen(self._dc_contact), timezone.utc)
 
     def is_blocked(self):
         """Return True if the contact is blocked."""

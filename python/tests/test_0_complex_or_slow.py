@@ -216,9 +216,7 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
         chat.send_text("message text")
         assert_folders_configured(ac1)
 
-        lp.sec(
-            "wait until the bcc_self message arrives in correct folder and is marked seen"
-        )
+        lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
         assert idle1.wait_for_seen()
     assert_folders_configured(ac1)
 
@@ -257,9 +255,7 @@ def test_fetch_existing_msgs_group_and_single(acfactory, lp):
     acfactory.bring_accounts_online()
 
     lp.sec("receive a message")
-    ac2.create_group_chat("group name", contacts=[ac1]).send_text(
-        "incoming, unencrypted group message"
-    )
+    ac2.create_group_chat("group name", contacts=[ac1]).send_text("incoming, unencrypted group message")
     ac1._evtracker.wait_next_incoming_message()
 
     lp.sec("send out message with bcc to ourselves")

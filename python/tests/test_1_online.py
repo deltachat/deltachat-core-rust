@@ -35,12 +35,8 @@ def test_basic_imap_api(acfactory, tmpdir):
 def test_configure_generate_key(acfactory, lp):
     # A slow test which will generate new keys.
     acfactory.remove_preconfigured_keys()
-    ac1 = acfactory.new_online_configuring_account(
-        key_gen_type=str(const.DC_KEY_GEN_RSA2048)
-    )
-    ac2 = acfactory.new_online_configuring_account(
-        key_gen_type=str(const.DC_KEY_GEN_ED25519)
-    )
+    ac1 = acfactory.new_online_configuring_account(key_gen_type=str(const.DC_KEY_GEN_RSA2048))
+    ac2 = acfactory.new_online_configuring_account(key_gen_type=str(const.DC_KEY_GEN_ED25519))
     acfactory.bring_accounts_online()
     chat = acfactory.get_accepted_chat(ac1, ac2)
 
@@ -91,9 +87,7 @@ def test_export_import_self_keys(acfactory, tmpdir, lp):
         lp.indent(dir.strpath + os.sep + name)
     lp.sec("importing into existing account")
     ac2.import_self_keys(dir.strpath)
-    (key_id2,) = ac2._evtracker.get_info_regex_groups(
-        r".*stored.*KeyId\((.*)\).*", check_error=False
-    )
+    (key_id2,) = ac2._evtracker.get_info_regex_groups(r".*stored.*KeyId\((.*)\).*", check_error=False)
     assert key_id2 == key_id
 
 
@@ -249,9 +243,7 @@ def test_mvbox_sentbox_threads(acfactory, lp):
     ac1 = acfactory.new_online_configuring_account(mvbox_move=True, sentbox_watch=True)
 
     lp.sec("ac2: start without mvbox/sentbox threads")
-    ac2 = acfactory.new_online_configuring_account(
-        mvbox_move=False, sentbox_watch=False
-    )
+    ac2 = acfactory.new_online_configuring_account(mvbox_move=False, sentbox_watch=False)
 
     lp.sec("ac2 and ac1: waiting for configuration")
     acfactory.bring_accounts_online()
@@ -473,10 +465,7 @@ def test_moved_markseen(acfactory, lp):
         ac2.mark_seen_messages([msg])
         uid = idle2.wait_for_seen()
 
-    assert (
-        len([a for a in ac2.direct_imap.conn.fetch(AND(seen=True, uid=U(uid, "*")))])
-        == 1
-    )
+    assert len([a for a in ac2.direct_imap.conn.fetch(AND(seen=True, uid=U(uid, "*")))]) == 1
 
 
 def test_message_override_sender_name(acfactory, lp):
@@ -880,9 +869,7 @@ def test_dont_show_emails(acfactory, lp):
     assert ac1.direct_imap.get_uid_by_message_id("spam.message@junk.org")
 
     ac1.stop_io()
-    lp.sec(
-        "'Send out' the draft, i.e. move it to the Sent folder, and wait for DC to display it this time"
-    )
+    lp.sec("'Send out' the draft, i.e. move it to the Sent folder, and wait for DC to display it this time")
     ac1.direct_imap.select_folder("Drafts")
     uid = ac1.direct_imap.get_uid_by_message_id("aepiors@example.org")
     ac1.direct_imap.conn.move(uid, "Sent")
@@ -917,9 +904,7 @@ def test_no_old_msg_is_fresh(acfactory, lp):
     assert ac1.create_chat(ac2).count_fresh_messages() == 1
     assert len(list(ac1.get_fresh_messages())) == 1
 
-    lp.sec(
-        "Send a message from ac1_clone to ac2 and check that ac1 marks the first message as 'noticed'"
-    )
+    lp.sec("Send a message from ac1_clone to ac2 and check that ac1 marks the first message as 'noticed'")
     ac1_clone.create_chat(ac2).send_text("Hi back")
     ev = ac1._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
 
@@ -1215,10 +1200,7 @@ def test_import_export_online_all(acfactory, tmpdir, data, lp):
         assert len(messages) == 3
         assert messages[0].text == "msg1"
         assert messages[1].filemime == "image/png"
-        assert (
-            os.stat(messages[1].filename).st_size
-            == os.stat(original_image_path).st_size
-        )
+        assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
         ac.set_config("displayname", "new displayname")
         assert ac.get_config("displayname") == "new displayname"
 
@@ -1364,9 +1346,7 @@ def test_set_get_contact_avatar(acfactory, data, lp):
     assert open(received_path, "rb").read() == open(p, "rb").read()
 
     lp.sec("ac2: send back message")
-    msg3 = msg2.create_chat().send_text(
-        "yes, i received your avatar -- how do you like mine?"
-    )
+    msg3 = msg2.create_chat().send_text("yes, i received your avatar -- how do you like mine?")
     assert msg3.is_encrypted()
 
     lp.sec("ac1: wait for receiving message and avatar from ac2")
@@ -1411,17 +1391,11 @@ def test_add_remove_member_remote_events(acfactory, lp):
 
         @account_hookimpl
         def ac_member_added(self, chat, contact, message):
-            in_list.put(
-                EventHolder(action="added", chat=chat, contact=contact, message=message)
-            )
+            in_list.put(EventHolder(action="added", chat=chat, contact=contact, message=message))
 
         @account_hookimpl
         def ac_member_removed(self, chat, contact, message):
-            in_list.put(
-                EventHolder(
-                    action="removed", chat=chat, contact=contact, message=message
-                )
-            )
+            in_list.put(EventHolder(action="removed", chat=chat, contact=contact, message=message))
 
     ac2.add_account_plugin(InPlugin())
 
@@ -1433,9 +1407,7 @@ def test_add_remove_member_remote_events(acfactory, lp):
     ev = in_list.get()
     assert ev.action == "chat-modified"
     assert chat.is_promoted()
-    assert sorted(x.addr for x in chat.get_contacts()) == sorted(
-        x.addr for x in ev.chat.get_contacts()
-    )
+    assert sorted(x.addr for x in chat.get_contacts()) == sorted(x.addr for x in ev.chat.get_contacts())
 
     lp.sec("ac1: add address2")
     # note that if the above create_chat() would not
@@ -1575,9 +1547,7 @@ def test_connectivity(acfactory, lp):
 
     ac1.start_io()
     ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
-    ac1._evtracker.wait_for_connectivity_change(
-        const.DC_CONNECTIVITY_CONNECTING, const.DC_CONNECTIVITY_CONNECTED
-    )
+    ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTING, const.DC_CONNECTIVITY_CONNECTED)
 
     lp.sec(
         "Test that after calling start_io(), maybe_network() and waiting for `all_work_done()`, "
@@ -1594,26 +1564,18 @@ def test_connectivity(acfactory, lp):
     assert len(msgs) == 1
     assert msgs[0].text == "Hi"
 
-    lp.sec(
-        "Test that the connectivity changes to WORKING while new messages are fetched"
-    )
+    lp.sec("Test that the connectivity changes to WORKING while new messages are fetched")
 
     ac2.create_chat(ac1).send_text("Hi 2")
 
-    ac1._evtracker.wait_for_connectivity_change(
-        const.DC_CONNECTIVITY_CONNECTED, const.DC_CONNECTIVITY_WORKING
-    )
-    ac1._evtracker.wait_for_connectivity_change(
-        const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED
-    )
+    ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTED, const.DC_CONNECTIVITY_WORKING)
+    ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
 
     msgs = ac1.create_chat(ac2).get_messages()
     assert len(msgs) == 2
     assert msgs[1].text == "Hi 2"
 
-    lp.sec(
-        "Test that the connectivity doesn't flicker to WORKING if there are no new messages"
-    )
+    lp.sec("Test that the connectivity doesn't flicker to WORKING if there are no new messages")
 
     ac1.maybe_network()
     while 1:
@@ -1622,9 +1584,7 @@ def test_connectivity(acfactory, lp):
             break
         ac1._evtracker.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
 
-    lp.sec(
-        "Test that the connectivity doesn't flicker to WORKING if the sender of the message is blocked"
-    )
+    lp.sec("Test that the connectivity doesn't flicker to WORKING if the sender of the message is blocked")
     ac1.create_contact(ac2).block()
 
     ac1.direct_imap.select_config_folder("inbox")
@@ -1690,10 +1650,7 @@ def test_fetch_deleted_msg(acfactory, lp):
         if ev.name == "DC_EVENT_MSGS_CHANGED":
             pytest.fail("A deleted message was shown to the user")
 
-        if (
-            ev.name == "DC_EVENT_INFO"
-            and "INBOX: Idle entering wait-on-remote state" in ev.data2
-        ):
+        if ev.name == "DC_EVENT_INFO" and "INBOX: Idle entering wait-on-remote state" in ev.data2:
             break  # DC is done with reading messages
 
 

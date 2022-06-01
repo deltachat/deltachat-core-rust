@@ -32,10 +32,7 @@ class Chat(object):
         self.id = id
 
     def __eq__(self, other) -> bool:
-        return (
-            self.id == getattr(other, "id", None)
-            and self.account._dc_context == other.account._dc_context
-        )
+        return self.id == getattr(other, "id", None) and self.account._dc_context == other.account._dc_context
 
     def __ne__(self, other) -> bool:
         return not (self == other)
@@ -45,9 +42,7 @@ class Chat(object):
 
     @property
     def _dc_chat(self):
-        return ffi.gc(
-            lib.dc_get_chat(self.account._dc_context, self.id), lib.dc_chat_unref
-        )
+        return ffi.gc(lib.dc_get_chat(self.account._dc_context, self.id), lib.dc_chat_unref)
 
     def delete(self) -> None:
         """Delete this chat and all its messages.
@@ -140,9 +135,7 @@ class Chat(object):
             mute_duration = -1
         else:
             mute_duration = duration
-        ret = lib.dc_set_chat_mute_duration(
-            self.account._dc_context, self.id, mute_duration
-        )
+        ret = lib.dc_set_chat_mute_duration(self.account._dc_context, self.id, mute_duration)
         if not bool(ret):
             raise ValueError("Call to dc_set_chat_mute_duration failed")
 
@@ -177,9 +170,7 @@ class Chat(object):
 
         :returns: True on success, False otherwise
         """
-        return bool(
-            lib.dc_set_chat_ephemeral_timer(self.account._dc_context, self.id, timer)
-        )
+        return bool(lib.dc_set_chat_ephemeral_timer(self.account._dc_context, self.id, timer))
 
     def get_type(self) -> int:
         """(deprecated) return type of this chat.
@@ -402,9 +393,7 @@ class Chat(object):
         :returns: None
         """
         contact = self.account.get_contact(obj)
-        ret = lib.dc_remove_contact_from_chat(
-            self.account._dc_context, self.id, contact.id
-        )
+        ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not remove contact {!r} from chat".format(contact))
 
@@ -489,10 +478,7 @@ class Chat(object):
         """return True if this chat is archived.
         :returns: True if archived.
         """
-        return (
-            lib.dc_chat_get_visibility(self._dc_chat)
-            == const.DC_CHAT_VISIBILITY_ARCHIVED
-        )
+        return lib.dc_chat_get_visibility(self._dc_chat) == const.DC_CHAT_VISIBILITY_ARCHIVED
 
     def enable_sending_locations(self, seconds):
         """enable sending locations for this chat.
@@ -523,20 +509,14 @@ class Chat(object):
         else:
             contact_id = contact.id
 
-        dc_array = lib.dc_get_locations(
-            self.account._dc_context, self.id, contact_id, time_from, time_to
-        )
+        dc_array = lib.dc_get_locations(self.account._dc_context, self.id, contact_id, time_from, time_to)
         return [
             Location(
                 latitude=lib.dc_array_get_latitude(dc_array, i),
                 longitude=lib.dc_array_get_longitude(dc_array, i),
                 accuracy=lib.dc_array_get_accuracy(dc_array, i),
-                timestamp=datetime.fromtimestamp(
-                    lib.dc_array_get_timestamp(dc_array, i), timezone.utc
-                ),
-                marker=from_optional_dc_charpointer(
-                    lib.dc_array_get_marker(dc_array, i)
-                ),
+                timestamp=datetime.fromtimestamp(lib.dc_array_get_timestamp(dc_array, i), timezone.utc),
+                marker=from_optional_dc_charpointer(lib.dc_array_get_marker(dc_array, i)),
             )
             for i in range(lib.dc_array_get_cnt(dc_array))
         ]
