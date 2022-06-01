@@ -208,23 +208,12 @@ impl Context {
             bail!("create_status_update_record: empty update.");
         }
 
-        let status_update_item: StatusUpdateItem = {
+        let status_update_item: StatusUpdateItem =
             if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(update_str) {
-                match instance.state {
-                    MessageState::Undefined
-                    | MessageState::OutPreparing
-                    | MessageState::OutDraft => StatusUpdateItem {
-                        payload: item.payload,
-                        info: None, // no info-messages in draft mode
-                        document: item.document,
-                        summary: item.summary,
-                    },
-                    _ => item,
-                }
+                item
             } else {
                 bail!("create_status_update_record: no valid update item.");
-            }
-        };
+            };
 
         if let Some(ref info) = status_update_item.info {
             chat::add_info_msg_with_cmd(
