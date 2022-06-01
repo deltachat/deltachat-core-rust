@@ -617,8 +617,8 @@ mod tests {
     use async_std::io::WriteExt;
 
     use crate::chat::{
-        add_contact_to_chat, create_group_chat, forward_msgs, send_msg, send_text_msg, ChatId,
-        ProtectionStatus,
+        add_contact_to_chat, create_group_chat, forward_msgs, resend_msgs, send_msg, send_text_msg,
+        ChatId, ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
     use crate::contact::Contact;
@@ -793,6 +793,51 @@ mod tests {
             .get_webxdc_info(&t)
             .await?;
         assert_eq!(info.summary, "".to_string());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_resend_webxdc_instance_and_info() -> Result<()> {
+        // Alice uses webxdc in a group
+        let alice = TestContext::new_alice().await;
+        let alice_grp = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        let alice_instance = send_webxdc_instance(&alice, alice_grp).await?;
+        assert_eq!(alice_grp.get_msg_cnt(&alice).await?, 1);
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"payload":7,"info": "i","summary":"s"}"#,
+                "d",
+            )
+            .await?;
+        assert_eq!(alice_grp.get_msg_cnt(&alice).await?, 2);
+        assert!(alice.get_last_msg_in(alice_grp).await.is_info());
+
+        // Alice adds Bob and resend already used webxdc
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "bob@example.net").await?,
+        )
+        .await?;
+        assert_eq!(alice_grp.get_msg_cnt(&alice).await?, 3);
+        resend_msgs(&alice, &[alice_instance.id]).await?;
+        let sent1 = alice.pop_sent_msg().await;
+
+        // Bob received webxdc, legacy info-messages updates are received but not added to the chat
+        let bob = TestContext::new_bob().await;
+        let bob_instance = bob.recv_msg(&sent1).await;
+        assert_eq!(bob_instance.viewtype, Viewtype::Webxdc);
+        assert!(!bob_instance.is_info());
+        assert_eq!(
+            bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
+                .await?,
+            r#"[{"payload":7,"info":"i","summary":"s","serial":1,"max_serial":1}]"#
+        );
+        let bob_grp = bob_instance.chat_id;
+        assert_eq!(bob.get_last_msg_in(bob_grp).await.id, bob_instance.id);
+        assert_eq!(bob_grp.get_msg_cnt(&bob).await?, 1);
 
         Ok(())
     }
