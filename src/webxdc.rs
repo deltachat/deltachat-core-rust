@@ -297,10 +297,10 @@ impl Context {
         let chat = Chat::load_from_db(self, instance.chat_id).await?;
         ensure!(chat.can_send(self).await?, "cannot send to {}", chat.id);
 
-        let send_now = match instance.state {
-            MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft => false,
-            _ => true,
-        };
+        let send_now = !matches!(
+            instance.state,
+            MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft
+        );
 
         let status_update_serial = self
             .create_status_update_record(
