@@ -1050,7 +1050,6 @@ impl MimeMessage {
                 .unwrap_or_default();
             self.sync_items = context
                 .parse_sync_items(serialized)
-                .await
                 .map_err(|err| {
                     warn!(context, "failed to parse sync data: {}", err);
                 })

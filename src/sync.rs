@@ -208,7 +208,7 @@ impl Context {
 
     /// Takes a JSON string created by `build_sync_json()`
     /// and construct `SyncItems` from it.
-    pub(crate) async fn parse_sync_items(&self, serialized: String) -> Result<SyncItems> {
+    pub(crate) fn parse_sync_items(&self, serialized: String) -> Result<SyncItems> {
         let sync_items: SyncItems = serde_json::from_str(&serialized)?;
         Ok(sync_items)
     }
@@ -317,7 +317,7 @@ mod tests {
         t.delete_sync_ids(ids).await?;
         assert!(t.build_sync_json().await?.is_none());
 
-        let sync_items = t.parse_sync_items(serialized).await?;
+        let sync_items = t.parse_sync_items(serialized)?;
         assert_eq!(sync_items.items.len(), 2);
 
         Ok(())
@@ -341,56 +341,44 @@ mod tests {
     async fn test_parse_sync_items() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        assert!(t
-            .parse_sync_items(r#"{bad json}"#.to_string())
-            .await
-            .is_err());
+        assert!(t.parse_sync_items(r#"{bad json}"#.to_string()).is_err());
 
-        assert!(t
-            .parse_sync_items(r#"{"badname":[]}"#.to_string())
-            .await
-            .is_err());
+        assert!(t.parse_sync_items(r#"{"badname":[]}"#.to_string()).is_err());
 
         assert!(t.parse_sync_items(
                 r#"{"items":[{"timestamp":1631781316,"data":{"BadItem":{"invitenumber":"in","auth":"a","grpid":null}}}]}"#
                     .to_string(),
             )
-            .await.is_err());
+            .is_err());
 
         assert!(t.parse_sync_items(
                 r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":123}}}]}"#.to_string(),
             )
-            .await
             .is_err()); // `123` is invalid for `String`
 
         assert!(t.parse_sync_items(
                 r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":true}}}]}"#.to_string(),
             )
-            .await
             .is_err()); // `true` is invalid for `String`
 
         assert!(t.parse_sync_items(
                 r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":[]}}}]}"#.to_string(),
             )
-            .await
             .is_err()); // `[]` is invalid for `String`
 
         assert!(t.parse_sync_items(
                 r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":{}}}}]}"#.to_string(),
             )
-            .await
             .is_err()); // `{}` is invalid for `String`
 
         assert!(t.parse_sync_items(
                 r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","grpid":null}}}]}"#.to_string(),
             )
-            .await
             .is_err()); // missing field
 
         // empty item list is okay
         assert_eq!(
-            t.parse_sync_items(r#"{"items":[]}"#.to_string())
-                .await?
+            t.parse_sync_items(r#"{"items":[]}"#.to_string())?
                 .items
                 .len(),
             0
@@ -405,17 +393,15 @@ mod tests {
 ]}"#
                 .to_string(),
             )
-            .await?;
+            ?;
         assert_eq!(sync_items.items.len(), 2);
 
-        let sync_items = t
-            .parse_sync_items(
-                r#"{"items":[
+        let sync_items = t.parse_sync_items(
+            r#"{"items":[
 {"timestamp":1631781318,"data":{"AddQrToken":{"invitenumber":"in","auth":"yip","grpid":null}}}
 ],"additional":"field"}"#
-                    .to_string(),
-            )
-            .await?;
+                .to_string(),
+        )?;
 
         assert_eq!(sync_items.items.len(), 1);
         if let AddQrToken(token) = &sync_items.items.get(0).unwrap().data {
@@ -430,7 +416,7 @@ mod tests {
         let sync_items = t.parse_sync_items(
                r#"{"items":[{"timestamp":1631781319,"data":{"AddQrToken":{"invitenumber":"in","auth":"a"}}}]}"#.to_string(),
            )
-           .await?;
+           ?;
         assert_eq!(sync_items.items.len(), 1);
 
         Ok(())
@@ -454,7 +440,7 @@ mod tests {
 ]}"#
                 .to_string(),
             )
-            .await?;
+            ?;
         t.execute_sync_items(&sync_items).await?;
 
         assert!(token::exists(&t, Namespace::InviteNumber, "yip-in").await);
