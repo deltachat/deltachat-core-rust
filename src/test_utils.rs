@@ -5,7 +5,6 @@
 use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::panic;
-use std::thread;
 use std::time::{Duration, Instant};
 
 use ansi_term::Color;
@@ -144,8 +143,6 @@ pub struct TestContext {
     pub evtracker: EventTracker,
     /// Channels which should receive events from this context.
     event_senders: Arc<RwLock<Vec<Sender<Event>>>>,
-    /// Receives panics from sinks ("sink" means "event handler" here)
-    poison_receiver: Receiver<String>,
     /// Reference to implicit [`LogSink`] so it is dropped together with the context.
     ///
     /// Only used if no explicit `log_sender` is passed into [`TestContext::new_internal`]
@@ -230,30 +227,13 @@ impl TestContext {
         let (evtracker_sender, evtracker_receiver) = channel::unbounded();
         let event_senders = Arc::new(RwLock::new(vec![log_sender, evtracker_sender]));
         let senders = Arc::clone(&event_senders);
-        let (poison_sender, poison_receiver) = channel::bounded(1);
 
         task::spawn(async move {
-            // Make sure that the test fails if there is a panic on this thread here
-            // (but not if there is a panic on another thread)
-            let looptask_id = task::current().id();
-            let orig_hook = panic::take_hook();
-            panic::set_hook(Box::new(move |panic_info| {
-                if let Some(panicked_task) = task::try_current() {
-                    if panicked_task.id() == looptask_id {
-                        poison_sender.try_send(panic_info.to_string()).ok();
-                    }
-                }
-                orig_hook(panic_info);
-            }));
-
             while let Some(event) = events.recv().await {
-                {
-                    let sinks = senders.read().await;
-                    for sender in sinks.iter() {
-                        // Don't block because someone wanted to use a oneshot receiver, use
-                        // an unbounded channel if you want all events.
-                        sender.try_send(event.clone()).ok();
-                    }
+                for sender in senders.read().await.iter() {
+                    // Don't block because someone wanted to use a oneshot receiver, use
+                    // an unbounded channel if you want all events.
+                    sender.try_send(event.clone()).ok();
                 }
             }
         });
@@ -263,7 +243,6 @@ impl TestContext {
             dir,
             evtracker: EventTracker(evtracker_receiver),
             event_senders,
-            poison_receiver,
             log_sink,
         }
     }
@@ -614,16 +593,6 @@ impl Deref for TestContext {
 
     fn deref(&self) -> &Context {
         &self.ctx
-    }
-}
-
-impl Drop for TestContext {
-    fn drop(&mut self) {
-        if !thread::panicking() {
-            if let Ok(p) = self.poison_receiver.try_recv() {
-                panic!("{}", p);
-            }
-        }
     }
 }
 
