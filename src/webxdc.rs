@@ -202,6 +202,7 @@ impl Context {
         instance: &mut Message,
         update_str: &str,
         timestamp: i64,
+        can_info_msg: bool,
     ) -> Result<StatusUpdateSerial> {
         let update_str = update_str.trim();
         if update_str.is_empty() {
@@ -215,17 +216,19 @@ impl Context {
                 bail!("create_status_update_record: no valid update item.");
             };
 
-        if let Some(ref info) = status_update_item.info {
-            chat::add_info_msg_with_cmd(
-                self,
-                instance.chat_id,
-                info.as_str(),
-                SystemMessage::Unknown,
-                timestamp,
-                None,
-                Some(instance),
-            )
-            .await?;
+        if can_info_msg {
+            if let Some(ref info) = status_update_item.info {
+                chat::add_info_msg_with_cmd(
+                    self,
+                    instance.chat_id,
+                    info.as_str(),
+                    SystemMessage::Unknown,
+                    timestamp,
+                    None,
+                    Some(instance),
+                )
+                .await?;
+            }
         }
 
         let mut param_changed = false;
@@ -294,46 +297,50 @@ impl Context {
         let chat = Chat::load_from_db(self, instance.chat_id).await?;
         ensure!(chat.can_send(self).await?, "cannot send to {}", chat.id);
 
+        let send_now = match instance.state {
+            MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft => false,
+            _ => true,
+        };
+
         let status_update_serial = self
             .create_status_update_record(
                 &mut instance,
                 update_str,
                 dc_create_smeared_timestamp(self).await,
+                send_now,
             )
             .await?;
-        match instance.state {
-            MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft => {
-                // send update once the instance is actually send
-                Ok(None)
-            }
-            _ => {
-                // send update now
-                // (also send updates on MessagesState::Failed, maybe only one member cannot receive)
-                let mut status_update = Message {
-                    chat_id: instance.chat_id,
-                    viewtype: Viewtype::Text,
-                    text: Some(descr.to_string()),
-                    hidden: true,
-                    ..Default::default()
-                };
-                status_update
-                    .param
-                    .set_cmd(SystemMessage::WebxdcStatusUpdate);
-                status_update.param.set(
-                    Param::Arg,
-                    self.render_webxdc_status_update_object(
-                        instance_msg_id,
-                        Some(status_update_serial),
-                    )
-                    .await?
-                    .ok_or_else(|| format_err!("Status object expected."))?,
-                );
-                status_update.set_quote(self, Some(&instance)).await?;
-                status_update.param.remove(Param::GuaranteeE2ee); // may be set by set_quote(), if #2985 is done, this line can be removed
-                let status_update_msg_id =
-                    chat::send_msg(self, instance.chat_id, &mut status_update).await?;
-                Ok(Some(status_update_msg_id))
-            }
+
+        if send_now {
+            // send update now
+            // (also send updates on MessagesState::Failed, maybe only one member cannot receive)
+            let mut status_update = Message {
+                chat_id: instance.chat_id,
+                viewtype: Viewtype::Text,
+                text: Some(descr.to_string()),
+                hidden: true,
+                ..Default::default()
+            };
+            status_update
+                .param
+                .set_cmd(SystemMessage::WebxdcStatusUpdate);
+            status_update.param.set(
+                Param::Arg,
+                self.render_webxdc_status_update_object(
+                    instance_msg_id,
+                    Some(status_update_serial),
+                )
+                .await?
+                .ok_or_else(|| format_err!("Status object expected."))?,
+            );
+            status_update.set_quote(self, Some(&instance)).await?;
+            status_update.param.remove(Param::GuaranteeE2ee); // may be set by set_quote(), if #2985 is done, this line can be removed
+            let status_update_msg_id =
+                chat::send_msg(self, instance.chat_id, &mut status_update).await?;
+            Ok(Some(status_update_msg_id))
+        } else {
+            // send update once the instance is actually send
+            Ok(None)
         }
     }
 
@@ -357,11 +364,11 @@ impl Context {
     /// the array is parsed using serde, the single payloads are used as is.
     pub(crate) async fn receive_status_update(&self, msg_id: MsgId, json: &str) -> Result<()> {
         let msg = Message::load_from_db(self, msg_id).await?;
-        let (timestamp, mut instance) = if msg.viewtype == Viewtype::Webxdc {
-            (msg.timestamp_sort, msg)
+        let (timestamp, mut instance, can_info_msg) = if msg.viewtype == Viewtype::Webxdc {
+            (msg.timestamp_sort, msg, false)
         } else if let Some(parent) = msg.parent(self).await? {
             if parent.viewtype == Viewtype::Webxdc {
-                (msg.timestamp_sort, parent)
+                (msg.timestamp_sort, parent, true)
             } else {
                 bail!("receive_status_update: message is not the child of a webxdc message.")
             }
@@ -375,6 +382,7 @@ impl Context {
                 &mut instance,
                 &*serde_json::to_string(&update_item)?,
                 timestamp,
+                can_info_msg,
             )
             .await?;
         }
@@ -914,6 +922,7 @@ mod tests {
                 &mut instance,
                 "\n\n{\"payload\": {\"foo\":\"bar\"}}\n",
                 1640178619,
+                true,
             )
             .await?;
         assert_eq!(
@@ -923,11 +932,11 @@ mod tests {
         );
 
         assert!(t
-            .create_status_update_record(&mut instance, "\n\n\n", 1640178619)
+            .create_status_update_record(&mut instance, "\n\n\n", 1640178619, true)
             .await
             .is_err());
         assert!(t
-            .create_status_update_record(&mut instance, "bad json", 1640178619)
+            .create_status_update_record(&mut instance, "bad json", 1640178619, true)
             .await
             .is_err());
         assert_eq!(
@@ -941,13 +950,14 @@ mod tests {
                 &mut instance,
                 r#"{"payload" : { "foo2":"bar2"}}"#,
                 1640178619,
+                true,
             )
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, update_id1).await?,
             r#"[{"payload":{"foo2":"bar2"},"serial":2,"max_serial":2}]"#
         );
-        t.create_status_update_record(&mut instance, r#"{"payload":true}"#, 1640178619)
+        t.create_status_update_record(&mut instance, r#"{"payload":true}"#, 1640178619, true)
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
@@ -962,6 +972,7 @@ mod tests {
                 &mut instance,
                 r#"{"payload" : 1, "sender": "that is not used"}"#,
                 1640178619,
+                true,
             )
             .await?;
         assert_eq!(
@@ -1217,8 +1228,9 @@ mod tests {
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
             r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":2},
-{"payload":42,"serial":2,"max_serial":2}]"# // 'info: "i"' ignored as sent in draft mode
+{"payload":42,"info":"i","serial":2,"max_serial":2}]"#
         );
+        assert!(!bob.get_last_msg().await.is_info()); // 'info: "i"' message not added in draft mode
 
         Ok(())
     }
