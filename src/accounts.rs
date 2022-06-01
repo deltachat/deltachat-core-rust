@@ -446,7 +446,7 @@ impl Config {
         let id = {
             let id = self.inner.next_id;
             let uuid = Uuid::new_v4();
-            let target_dir = dir.join(uuid.to_simple_ref().to_string());
+            let target_dir = dir.join(uuid.to_string());
 
             self.inner.accounts.push(AccountConfig {
                 id,
