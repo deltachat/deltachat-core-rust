@@ -131,6 +131,54 @@ impl EncryptHelper {
     }
 }
 
+/// Applies Autocrypt header to Autocrypt peer state.
+///
+/// Returns updated peer state.
+pub(crate) async fn get_autocrypt_peerstate(
+    context: &Context,
+    mail: &ParsedMail<'_>,
+    message_time: i64,
+) -> Result<Option<Peerstate>> {
+    let from = mail
+        .headers
+        .get_header(HeaderDef::From_)
+        .and_then(|from_addr| mailparse::addrparse_header(from_addr).ok())
+        .and_then(|from| from.extract_single_info())
+        .map(|from| from.addr)
+        .unwrap_or_default();
+
+    let aheader = match Aheader::from_headers(&from, &mail.headers) {
+        Ok(header) => header,
+        Err(err) => {
+            warn!(context, "Failed to parse Autocrypt header: {}", err);
+            None
+        }
+    };
+
+    let peerstate = Peerstate::from_addr(context, &from).await?;
+    let peerstate = if let Some(aheader) = aheader {
+        if let Some(mut peerstate) = peerstate {
+            peerstate.apply_header(&aheader, message_time);
+            peerstate.save_to_db(&context.sql, false).await?;
+            Some(peerstate)
+        } else {
+            let p = Peerstate::from_header(&aheader, message_time);
+            p.save_to_db(&context.sql, true).await?;
+            Some(p)
+        }
+    } else {
+        peerstate
+    };
+
+    if let Some(peerstate) = peerstate.as_ref() {
+        peerstate
+            .handle_fingerprint_change(context, message_time)
+            .await?;
+    }
+
+    Ok(peerstate)
+}
+
 /// Tries to decrypt a message, but only if it is structured as an
 /// Autocrypt message.
 ///
@@ -142,65 +190,15 @@ impl EncryptHelper {
 pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
-    message_time: i64,
+    peerstate: &Option<Peerstate>,
 ) -> Result<(Option<Vec<u8>>, HashSet<Fingerprint>)> {
-    let from = mail
-        .headers
-        .get_header(HeaderDef::From_)
-        .and_then(|from_addr| mailparse::addrparse_header(from_addr).ok())
-        .and_then(|from| from.extract_single_info())
-        .map(|from| from.addr)
-        .unwrap_or_default();
-
-    let mut peerstate = Peerstate::from_addr(context, &from).await?;
-
-    // Apply Autocrypt header
-    match Aheader::from_headers(&from, &mail.headers) {
-        Ok(Some(ref header)) => {
-            if let Some(ref mut peerstate) = peerstate {
-                peerstate.apply_header(header, message_time);
-                peerstate.save_to_db(&context.sql, false).await?;
-            } else {
-                let p = Peerstate::from_header(header, message_time);
-                p.save_to_db(&context.sql, true).await?;
-                peerstate = Some(p);
-            }
-        }
-        Ok(None) => {}
-        Err(err) => warn!(context, "Failed to parse Autocrypt header: {}", err),
-    }
-
     // Possibly perform decryption
-    let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
-
-    if let Some(ref mut peerstate) = peerstate {
-        peerstate
-            .handle_fingerprint_change(context, message_time)
-            .await?;
-        if let Some(key) = &peerstate.public_key {
-            public_keyring_for_validate.add(key.clone());
-        } else if let Some(key) = &peerstate.gossip_key {
-            public_keyring_for_validate.add(key.clone());
-        }
-    }
-
+    let public_keyring_for_validate = keyring_from_peerstate(&peerstate);
     let (out_mail, signatures) =
         match decrypt_if_autocrypt_message(context, mail, public_keyring_for_validate).await? {
             Some((out_mail, signatures)) => (Some(out_mail), signatures),
             None => (None, Default::default()),
         };
-
-    if let Some(mut peerstate) = peerstate {
-        // If message is not encrypted and it is not a read receipt, degrade encryption.
-        if out_mail.is_none()
-            && message_time > peerstate.last_seen_autocrypt
-            && !contains_report(mail)
-        {
-            peerstate.degrade_encryption(message_time);
-            peerstate.save_to_db(&context.sql, false).await?;
-        }
-    }
-
     Ok((out_mail, signatures))
 }
 
@@ -281,6 +279,18 @@ fn get_attachment_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMai
     } else {
         None
     }
+}
+
+fn keyring_from_peerstate(peerstate: &Option<Peerstate>) -> Keyring<SignedPublicKey> {
+    let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
+    if let Some(peerstate) = peerstate.as_ref() {
+        if let Some(key) = &peerstate.public_key {
+            public_keyring_for_validate.add(key.clone());
+        } else if let Some(key) = &peerstate.gossip_key {
+            public_keyring_for_validate.add(key.clone());
+        }
+    }
+    public_keyring_for_validate
 }
 
 async fn decrypt_if_autocrypt_message(
@@ -378,18 +388,6 @@ fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
     }
 
     false
-}
-
-/// Checks if a MIME structure contains a multipart/report part.
-///
-/// As reports are often unencrypted, we do not reset the Autocrypt header in
-/// this case.
-///
-/// However, Delta Chat itself has no problem with encrypted multipart/report
-/// parts and MUAs should be encouraged to encrpyt multipart/reports as well so
-/// that we could use the normal Autocrypt processing.
-fn contains_report(mail: &ParsedMail<'_>) -> bool {
-    mail.ctype.mimetype == "multipart/report"
 }
 
 /// Ensures a private key exists for the configured user.

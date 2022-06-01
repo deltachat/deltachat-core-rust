@@ -214,8 +214,9 @@ impl MimeMessage {
         let mut mail_raw = Vec::new();
         let mut gossiped_addr = Default::default();
 
-        let (mail, signatures, warn_empty_signature) =
-            match e2ee::try_decrypt(context, &mail, message_time).await {
+        let peerstate = e2ee::get_autocrypt_peerstate(context, &mail, message_time).await?;
+        let (mail, signatures, warn_empty_signature) = if partial.is_none() {
+            match e2ee::try_decrypt(context, &mail, &peerstate).await {
                 Ok((raw, signatures)) => {
                     if let Some(raw) = raw {
                         // Encrypted, but maybe unsigned message. Only if
@@ -267,7 +268,17 @@ impl MimeMessage {
 
                         (Ok(decrypted_mail), signatures, true)
                     } else {
-                        // Message was not encrypted
+                        // Message was not encrypted.
+                        // If it is not a read receipt, degrade encryption.
+                        if let Some(mut peerstate) = peerstate {
+                            if message_time > peerstate.last_seen_autocrypt
+                                && mail.ctype.mimetype != "multipart/report"
+                            {
+                                peerstate.degrade_encryption(message_time);
+                                peerstate.save_to_db(&context.sql, false).await?;
+                            }
+                        }
+
                         (Ok(mail), signatures, false)
                     }
                 }
@@ -275,7 +286,11 @@ impl MimeMessage {
                     warn!(context, "decryption failed: {}", err);
                     (Err(err), Default::default(), true)
                 }
-            };
+            }
+        } else {
+            // Partial message, do not try to decrypt.
+            (Ok(mail), Default::default(), false)
+        };
 
         let mut parser = MimeMessage {
             parts: Vec::new(),
