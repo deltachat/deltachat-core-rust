@@ -624,6 +624,7 @@ mod tests {
         ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
+    use crate::config::Config;
     use crate::contact::Contact;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
@@ -1065,6 +1066,7 @@ mod tests {
     #[async_std::test]
     async fn test_send_webxdc_status_update() -> Result<()> {
         let alice = TestContext::new_alice().await;
+        alice.set_config_bool(Config::BccSelf, true).await?;
         let bob = TestContext::new_bob().await;
 
         // Alice sends an webxdc instance and a status update
@@ -1145,6 +1147,19 @@ mod tests {
         let alice2_chat_id = alice2_instance.chat_id;
         assert_eq!(alice2_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(alice2_chat_id.get_msg_cnt(&alice2).await?, 1);
+
+        // To support the second device, Alice has enabled bcc_self and will receive their own messages;
+        // these messages, however, should be ignored
+        alice.recv_msg_opt(sent1).await;
+        alice.recv_msg_opt(sent2).await;
+        assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 1);
+        assert_eq!(
+            alice
+                .get_webxdc_status_updates(alice_instance.id, StatusUpdateSerial(0))
+                .await?,
+            r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":2},
+{"payload":{"snipp":"snapp"},"serial":2,"max_serial":2}]"#
+        );
 
         Ok(())
     }
