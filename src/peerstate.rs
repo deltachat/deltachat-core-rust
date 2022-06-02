@@ -6,6 +6,7 @@ use std::fmt;
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat::{self};
 use crate::chatlist::Chatlist;
+use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
@@ -150,7 +151,6 @@ impl Peerstate {
 
     pub async fn from_fingerprint(
         context: &Context,
-        _sql: &Sql,
         fingerprint: &Fingerprint,
     ) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
@@ -162,6 +162,22 @@ impl Peerstate {
                      ORDER BY public_key_fingerprint=? DESC;";
         let fp = fingerprint.hex();
         Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
+    }
+
+    pub async fn from_nongossiped_fingerprint_or_addr(
+        context: &Context,
+        fingerprint: &Fingerprint,
+        addr: &str,
+    ) -> Result<Option<Peerstate>> {
+        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
+                     gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
+                     verified_key, verified_key_fingerprint \
+                     FROM acpeerstates  \
+                     WHERE public_key_fingerprint=? COLLATE NOCASE \
+                     OR addr=? COLLATE NOCASE \
+                     ORDER BY public_key_fingerprint=? DESC, last_seen DESC;"; // TODO "LIMIT 1" for speedup?
+        let fp = fingerprint.hex();
+        Self::from_stmt(context, query, paramsv![fp, addr, fp]).await
     }
 
     async fn from_stmt(
@@ -220,6 +236,10 @@ impl Peerstate {
         Ok(peerstate)
     }
 
+    /// Re-calculate `self.public_key_fingerprint` and `self.gossip_key_fingerprint`.
+    /// If one of them was changed, `self.fingerprint_changed` is set to `true`.
+    ///
+    /// Call this after you changed `self.public_key` or `self.gossip_key`.
     pub fn recalc_fingerprint(&mut self) {
         if let Some(ref public_key) = self.public_key {
             let old_public_fingerprint = self.public_key_fingerprint.take();
@@ -275,7 +295,7 @@ impl Peerstate {
         if self.fingerprint_changed {
             if let Some(contact_id) = context
                 .sql
-                .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr])
+                .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr]) // TODO COLLATE NOCASE is missing
                 .await?
             {
                 let chats = Chatlist::try_load(context, 0, None, contact_id).await?;
@@ -314,8 +334,78 @@ impl Peerstate {
         Ok(())
     }
 
+    // TODO docs
+    // TODO dedup with handle_fingerprint_change()?
+    pub(crate) async fn handle_address_change(
+        &self,
+        context: &Context,
+        timestamp: i64,
+        new_addr: &str,
+    ) -> Result<()> {
+        if context.is_self_addr(new_addr).await? {
+            // Do not try to search all the chats with self.
+            return Ok(());
+        }
+
+        if let Some(old_contact_id) = context
+            .sql
+            .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr]) // TODO: COLLATE NOCASE is missing
+            .await?
+        {
+            let chats = Chatlist::try_load(context, 0, None, Some(old_contact_id)).await?;
+            //let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
+            let old_contact = Contact::load_from_db(context, old_contact_id).await?;
+            let msg = format!(
+                "{} changed their address from {} to {}",
+                old_contact.get_display_name(),
+                self.addr,
+                new_addr
+            );
+            for (chat_id, msg_id) in chats.iter() {
+                let timestamp_sort = if let Some(msg_id) = msg_id {
+                    let lastmsg = Message::load_from_db(context, *msg_id).await?;
+                    lastmsg.timestamp_sort
+                } else {
+                    context
+                        .sql
+                        .query_get_value(
+                            "SELECT created_timestamp FROM chats WHERE id=?;",
+                            paramsv![chat_id],
+                        )
+                        .await?
+                        .unwrap_or(0)
+                };
+                chat::add_info_msg_with_cmd(
+                    context,
+                    *chat_id,
+                    &msg,
+                    SystemMessage::Unknown,
+                    timestamp_sort,
+                    Some(timestamp),
+                    None,
+                )
+                .await?;
+
+                chat::remove_from_chat_contacts_table(context, *chat_id, old_contact_id).await?;
+
+                // TODO now we're using lookup_id_by_addr() which filters out blocked contacts,
+                // above we did our own SQL statement...
+                let (new_contact_id, _) =
+                    Contact::add_or_lookup(context, "", &new_addr, Origin::Hidden).await?;
+                chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id).await?;
+
+                context.emit_event(EventType::ChatModified(*chat_id));
+            }
+        } else {
+            bail!("contact with peerstate.addr {:?} not found", &self.addr);
+        }
+
+        Ok(())
+    }
+
     pub fn apply_header(&mut self, header: &Aheader, message_time: i64) {
         if self.addr.to_lowercase() != header.addr.to_lowercase() {
+            // TODO is this a problem? Just because addr might have changed
             return;
         }
 
@@ -332,6 +422,11 @@ impl Peerstate {
             }
 
             if self.public_key.as_ref() != Some(&header.public_key) {
+                // TODO comment:
+                // here keys are compared byte-by-byte
+                // but that's fine since `recalc_fingerprint()` only sets `fingerprint_changed`
+                // to true if the fingerprint changed, and if it stayed the same we just save
+                // the new key
                 self.public_key = Some(header.public_key.clone());
                 self.recalc_fingerprint();
                 self.to_save = Some(ToSave::All);
@@ -588,11 +683,10 @@ mod tests {
         // clear to_save, as that is not persissted
         peerstate.to_save = None;
         assert_eq!(peerstate, peerstate_new);
-        let peerstate_new2 =
-            Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
-                .await
-                .expect("failed to load peerstate from db")
-                .expect("no peerstate found in the database");
+        let peerstate_new2 = Peerstate::from_fingerprint(&ctx.ctx, &pub_key.fingerprint())
+            .await
+            .expect("failed to load peerstate from db")
+            .expect("no peerstate found in the database");
         assert_eq!(peerstate, peerstate_new2);
     }
 

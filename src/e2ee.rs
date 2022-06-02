@@ -8,12 +8,14 @@ use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::config::Config;
+use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
 use crate::headerdef::HeaderDefMap;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
-use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::log::LogExt;
+use crate::peerstate::{Peerstate, PeerstateVerifiedStatus, ToSave};
 use crate::pgp;
 
 #[derive(Debug)]
@@ -139,6 +141,7 @@ impl EncryptHelper {
 ///
 /// If the message is wrongly signed, this will still return the decrypted
 /// message but the HashSet will be empty.
+// TODO make this nicer, similarly to https://github.com/deltachat/deltachat-core-rust/pull/3390
 pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
@@ -152,31 +155,47 @@ pub async fn try_decrypt(
         .map(|from| from.addr)
         .unwrap_or_default();
 
-    let mut peerstate = Peerstate::from_addr(context, &from).await?;
+    // TODO comment
+    let mut peerstate;
 
     // Apply Autocrypt header
-    match Aheader::from_headers(&from, &mail.headers) {
-        Ok(Some(ref header)) => {
-            if let Some(ref mut peerstate) = peerstate {
+    let autocrypt_header = Aheader::from_headers(&from, &mail.headers)
+        .ok_or_log_msg(context, "Failed to parse Autocrypt header")
+        .flatten();
+
+    if let Some(ref header) = autocrypt_header {
+        // TODO performance...
+        peerstate = Peerstate::from_nongossiped_fingerprint_or_addr(
+            context,
+            &header.public_key.fingerprint(),
+            &from,
+        )
+        .await?;
+
+        if let Some(ref mut peerstate) = peerstate {
+            if addr_cmp(&peerstate.addr, &from) {
                 peerstate.apply_header(header, message_time);
                 peerstate.save_to_db(&context.sql, false).await?;
-            } else {
-                let p = Peerstate::from_header(header, message_time);
-                p.save_to_db(&context.sql, true).await?;
-                peerstate = Some(p);
             }
+            // If `peerstate.addr` and `from` differ, this means that
+            // someone is using the same key but a different addr, probably
+            // because they made an AEAP transition.
+            // But we don't know if that's legit until we checked the
+            // signatures, so wait until then with writing anything
+            // to the database.
+        } else {
+            let p = Peerstate::from_header(header, message_time);
+            p.save_to_db(&context.sql, true).await?;
+            peerstate = Some(p);
         }
-        Ok(None) => {}
-        Err(err) => warn!(context, "Failed to parse Autocrypt header: {}", err),
+    } else {
+        peerstate = Peerstate::from_addr(context, &from).await?;
     }
 
     // Possibly perform decryption
     let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
 
-    if let Some(ref mut peerstate) = peerstate {
-        peerstate
-            .handle_fingerprint_change(context, message_time)
-            .await?;
+    if let Some(ref peerstate) = peerstate {
         if let Some(key) = &peerstate.public_key {
             public_keyring_for_validate.add(key.clone());
         } else if let Some(key) = &peerstate.gossip_key {
@@ -184,13 +203,54 @@ pub async fn try_decrypt(
         }
     }
 
+    // `signatures` is non-empty exactly if the message is signed correctly
     let (out_mail, signatures) =
         match decrypt_if_autocrypt_message(context, mail, public_keyring_for_validate).await? {
             Some((out_mail, signatures)) => (Some(out_mail), signatures),
-            None => (None, Default::default()),
+            None => (None, HashSet::default()),
         };
 
-    if let Some(mut peerstate) = peerstate {
+    if let Some(ref mut peerstate) = peerstate {
+        // If `peerstate.addr` and `from` differ, this means that
+        // someone is using the same key but a different addr, probably
+        // because they made an AEAP transition.
+        if !addr_cmp(&peerstate.addr, &from)
+            // Check if the message is signed correctly.
+            // If it's not signed correctly, the whole autocrypt header will be mostly
+            // ignored anyway and the message shown as not encrypted, so we don't
+            // have to handle this case.
+            && !signatures.is_empty()
+            // Check if it's a chat message; we do this to avoid
+            // some accidental transitions if someone writes from multiple
+            // addresses with an MUA.
+            && mail.headers.get_header(HeaderDef::ChatVersion).is_some()
+            && message_time > peerstate.last_seen
+        {
+            peerstate
+                .handle_address_change(context, message_time, &from)
+                .await?;
+
+            peerstate.addr = from.clone();
+            let header = autocrypt_header.context(
+                "`!addr_cmp(&peerstate.addr, &from)` was true, i.e. peerstate.addr != from, \
+                so the peerstate must have been loaded because its fingerprint is equal to \
+                `header.public_key.fingerprint()`. But now there is no autocrypt header??",
+            )?;
+            peerstate.apply_header(&header, message_time);
+            peerstate.to_save = Some(ToSave::All);
+
+            // We don't know whether a peerstate with this address already existed, or a
+            // new one should be created, so just try create=false, and if this fails, create=true
+            // TODO test this
+            if peerstate.save_to_db(&context.sql, false).await.is_err() {
+                peerstate.save_to_db(&context.sql, true).await?
+            }
+        }
+
+        peerstate
+            .handle_fingerprint_change(context, message_time)
+            .await?;
+
         // If message is not encrypted and it is not a read receipt, degrade encryption.
         if out_mail.is_none()
             && message_time > peerstate.last_seen_autocrypt
@@ -358,6 +418,9 @@ async fn decrypt_part(
         } else {
             // If the message was wrongly or not signed, still return the plain text.
             // The caller has to check the signatures then.
+            // TODO: I think this means:
+            // The caller has to check if the signatures set is empty then.
+            // (because that's the only thing the caller does)
 
             return Ok(Some((plain, ret_valid_signatures)));
         }

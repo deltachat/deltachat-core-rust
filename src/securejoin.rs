@@ -633,9 +633,7 @@ async fn could_not_establish_secure_connection(
 }
 
 async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> Result<(), Error> {
-    if let Some(ref mut peerstate) =
-        Peerstate::from_fingerprint(context, &context.sql, fingerprint).await?
-    {
+    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, fingerprint).await? {
         if peerstate.set_verified(
             PeerstateKeyType::PublicKey,
             fingerprint,

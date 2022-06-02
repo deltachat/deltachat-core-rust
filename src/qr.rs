@@ -201,7 +201,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
     };
 
     // retrieve known state for this fingerprint
-    let peerstate = Peerstate::from_fingerprint(context, &context.sql, &fingerprint)
+    let peerstate = Peerstate::from_fingerprint(context, &fingerprint)
         .await
         .context("Can't load peerstate")?;
 

@@ -7,7 +7,7 @@ license = "MPL-2.0"
 rust-version = "1.56"
 
 [profile.dev]
-debug = 0
+debug = true
 panic = 'abort'
 opt-level = 1
 

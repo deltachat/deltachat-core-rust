@@ -712,17 +712,18 @@ Message w/out In-Reply-To
             .await
             .unwrap();
 
-        //for group in &groups {
-        //    assert!(!chat::is_contact_in_chat(&bob, *group, old_contact)
-        //        .await
-        //        .unwrap());
-        //    assert!(chat::is_contact_in_chat(&bob, *group, new_contact)
-        //        .await
-        //        .unwrap());
-        //    // TODO assert there is a device message
-        //}
+        for group in &groups {
+            assert!(!chat::is_contact_in_chat(&bob, *group, old_contact)
+                .await
+                .unwrap());
+            assert!(chat::is_contact_in_chat(&bob, *group, new_contact)
+                .await
+                .unwrap());
+            // TODO assert there is a device message
+        }
 
         // TODO assert that verification status stayed
+        // TODO test switching back
     }
 
     async fn mark_as_verified(this: &TestContext, other: &TestContext) {
