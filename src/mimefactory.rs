@@ -1128,7 +1128,7 @@ impl<'a> MimeFactory<'a> {
                 main_part = PartBuilder::new()
                     .message_type(MimeMultipartType::Alternative)
                     .child(main_part.build())
-                    .child(new_html_mimepart(html).await.build());
+                    .child(new_html_mimepart(html).build());
             }
         }
 

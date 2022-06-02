@@ -315,7 +315,7 @@ async fn decrypt_if_autocrypt_message(
 ///
 /// Returns `None` if the part is not a Multipart/Signed part, otherwise retruns the set of key
 /// fingerprints for which there is a valid signature.
-async fn validate_detached_signature(
+fn validate_detached_signature(
     mail: &ParsedMail<'_>,
     public_keyring_for_validate: &Keyring<SignedPublicKey>,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
@@ -328,7 +328,7 @@ async fn validate_detached_signature(
         let content = first_part.raw_bytes;
         let signature = second_part.get_body_raw()?;
         let ret_valid_signatures =
-            pgp::pk_validate(content, &signature, public_keyring_for_validate).await?;
+            pgp::pk_validate(content, &signature, public_keyring_for_validate)?;
 
         Ok(Some((content.to_vec(), ret_valid_signatures)))
     } else {
@@ -352,7 +352,7 @@ async fn decrypt_part(
         // If decrypted part is a multipart/signed, then there is a detached signature.
         let decrypted_part = mailparse::parse_mail(&plain)?;
         if let Some((content, valid_detached_signatures)) =
-            validate_detached_signature(&decrypted_part, &public_keyring_for_validate).await?
+            validate_detached_signature(&decrypted_part, &public_keyring_for_validate)?
         {
             return Ok(Some((content, valid_detached_signatures)));
         } else {

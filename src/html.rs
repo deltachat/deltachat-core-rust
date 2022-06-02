@@ -64,7 +64,7 @@ enum MimeMultipartType {
 
 /// Function takes a content type from a ParsedMail structure
 /// and checks and returns the rough mime-type.
-async fn get_mime_multipart_type(ctype: &ParsedContentType) -> MimeMultipartType {
+fn get_mime_multipart_type(ctype: &ParsedContentType) -> MimeMultipartType {
     let mimetype = ctype.mimetype.to_lowercase();
     if mimetype.starts_with("multipart") && ctype.params.get("boundary").is_some() {
         MimeMultipartType::Multiple
@@ -122,7 +122,7 @@ impl HtmlMsgParser {
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
         // Boxed future to deal with recursion
         async move {
-            match get_mime_multipart_type(&mail.ctype).await {
+            match get_mime_multipart_type(&mail.ctype) {
                 MimeMultipartType::Multiple => {
                     for cur_data in mail.subparts.iter() {
                         self.collect_texts_recursive(context, cur_data).await?
@@ -178,7 +178,7 @@ impl HtmlMsgParser {
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
         // Boxed future to deal with recursion
         async move {
-            match get_mime_multipart_type(&mail.ctype).await {
+            match get_mime_multipart_type(&mail.ctype) {
                 MimeMultipartType::Multiple => {
                     for cur_data in mail.subparts.iter() {
                         self.cid_to_data_recursive(context, cur_data).await?;
@@ -198,7 +198,7 @@ impl HtmlMsgParser {
                     if mimetype.type_() == mime::IMAGE {
                         if let Some(cid) = mail.headers.get_header_value(HeaderDef::ContentId) {
                             if let Ok(cid) = parse_message_id(&cid) {
-                                if let Ok(replacement) = mimepart_to_data_url(mail).await {
+                                if let Ok(replacement) = mimepart_to_data_url(mail) {
                                     let re_string = format!(
                                         "(<img[^>]*src[^>]*=[^>]*)(cid:{})([^>]*>)",
                                         regex::escape(&cid)
@@ -233,7 +233,7 @@ impl HtmlMsgParser {
 }
 
 /// Convert a mime part to a data: url as defined in [RFC 2397](https://tools.ietf.org/html/rfc2397).
-async fn mimepart_to_data_url(mail: &mailparse::ParsedMail<'_>) -> Result<String> {
+fn mimepart_to_data_url(mail: &mailparse::ParsedMail<'_>) -> Result<String> {
     let data = mail.get_body_raw()?;
     let data = base64::encode(&data);
     Ok(format!("data:{};base64,{}", mail.ctype.mimetype, data))
@@ -267,7 +267,7 @@ impl MsgId {
 ///
 /// Used on forwarding messages to avoid leaking the original mime structure
 /// and also to avoid sending too much, maybe large data.
-pub async fn new_html_mimepart(html: String) -> PartBuilder {
+pub fn new_html_mimepart(html: String) -> PartBuilder {
     PartBuilder::new()
         .content_type(&"text/html; charset=utf-8".parse::<mime::Mime>().unwrap())
         .body(html)

@@ -1391,11 +1391,7 @@ impl Chat {
             } else {
                 msg.param.get(Param::SendHtml).map(|s| s.to_string())
             };
-            if let Some(html) = html {
-                Some(new_html_mimepart(html).await.build().as_string())
-            } else {
-                None
-            }
+            html.map(|html| new_html_mimepart(html).build().as_string())
         } else {
             None
         };

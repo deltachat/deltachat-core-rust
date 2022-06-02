@@ -547,12 +547,12 @@ impl Context {
     }
 }
 
-async fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
+fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
     let manifest: WebxdcManifest = toml::from_slice(bytes)?;
     Ok(manifest)
 }
 
-async fn get_blob(archive: &mut ZipArchive<File>, name: &str) -> Result<Vec<u8>> {
+fn get_blob(archive: &mut ZipArchive<File>, name: &str) -> Result<Vec<u8>> {
     let mut file = archive.by_name(name)?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
@@ -591,8 +591,8 @@ impl Message {
         let mut archive = self.get_webxdc_archive(context).await?;
 
         if name == "index.html" {
-            if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
-                if let Ok(manifest) = parse_webxdc_manifest(&bytes).await {
+            if let Ok(bytes) = get_blob(&mut archive, "manifest.toml") {
+                if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
                     if let Some(min_api) = manifest.min_api {
                         if min_api > WEBXDC_API_VERSION {
                             return Ok(Vec::from(
@@ -604,7 +604,7 @@ impl Message {
             }
         }
 
-        get_blob(&mut archive, name).await
+        get_blob(&mut archive, name)
     }
 
     /// Return info from manifest.toml or from fallbacks.
@@ -612,8 +612,8 @@ impl Message {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
         let mut archive = self.get_webxdc_archive(context).await?;
 
-        let mut manifest = if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
-            if let Ok(manifest) = parse_webxdc_manifest(&bytes).await {
+        let mut manifest = if let Ok(bytes) = get_blob(&mut archive, "manifest.toml") {
+            if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
                 manifest
             } else {
                 WebxdcManifest {
@@ -1486,21 +1486,20 @@ mod tests {
 
     #[async_std::test]
     async fn test_parse_webxdc_manifest() -> Result<()> {
-        let result = parse_webxdc_manifest(r#"key = syntax error"#.as_bytes()).await;
+        let result = parse_webxdc_manifest(r#"key = syntax error"#.as_bytes());
         assert!(result.is_err());
 
-        let manifest = parse_webxdc_manifest(r#"no_name = "no name, no icon""#.as_bytes()).await?;
+        let manifest = parse_webxdc_manifest(r#"no_name = "no name, no icon""#.as_bytes())?;
         assert_eq!(manifest.name, None);
 
-        let manifest = parse_webxdc_manifest(r#"name = "name, no icon""#.as_bytes()).await?;
+        let manifest = parse_webxdc_manifest(r#"name = "name, no icon""#.as_bytes())?;
         assert_eq!(manifest.name, Some("name, no icon".to_string()));
 
         let manifest = parse_webxdc_manifest(
             r#"name = "foo"
 icon = "bar""#
                 .as_bytes(),
-        )
-        .await?;
+        )?;
         assert_eq!(manifest.name, Some("foo".to_string()));
 
         let manifest = parse_webxdc_manifest(
@@ -1511,21 +1510,20 @@ add_item = "that should be just ignored"
 [section]
 sth_for_the = "future""#
                 .as_bytes(),
-        )
-        .await?;
+        )?;
         assert_eq!(manifest.name, Some("foz".to_string()));
         Ok(())
     }
 
     #[async_std::test]
     async fn test_parse_webxdc_manifest_min_api() -> Result<()> {
-        let manifest = parse_webxdc_manifest(r#"min_api = 3"#.as_bytes()).await?;
+        let manifest = parse_webxdc_manifest(r#"min_api = 3"#.as_bytes())?;
         assert_eq!(manifest.min_api, Some(3));
 
-        let result = parse_webxdc_manifest(r#"min_api = "1""#.as_bytes()).await;
+        let result = parse_webxdc_manifest(r#"min_api = "1""#.as_bytes());
         assert!(result.is_err());
 
-        let result = parse_webxdc_manifest(r#"min_api = 1.2"#.as_bytes()).await;
+        let result = parse_webxdc_manifest(r#"min_api = 1.2"#.as_bytes());
         assert!(result.is_err());
 
         Ok(())
@@ -1533,11 +1531,10 @@ sth_for_the = "future""#
 
     #[async_std::test]
     async fn test_parse_webxdc_manifest_source_code_url() -> Result<()> {
-        let result = parse_webxdc_manifest(r#"source_code_url = 3"#.as_bytes()).await;
+        let result = parse_webxdc_manifest(r#"source_code_url = 3"#.as_bytes());
         assert!(result.is_err());
 
-        let manifest =
-            parse_webxdc_manifest(r#"source_code_url = "https://foo.bar""#.as_bytes()).await?;
+        let manifest = parse_webxdc_manifest(r#"source_code_url = "https://foo.bar""#.as_bytes())?;
         assert_eq!(
             manifest.source_code_url,
             Some("https://foo.bar".to_string())

@@ -311,7 +311,7 @@ pub async fn pk_decrypt(
 }
 
 /// Validates detached signature.
-pub async fn pk_validate(
+pub fn pk_validate(
     content: &[u8],
     signature: &[u8],
     public_keys_for_validation: &Keyring<SignedPublicKey>,
