@@ -140,7 +140,11 @@ pub enum SystemMessage {
 
     // Sync message that contains a json payload
     // sent to the other webxdc instances
+    // These messages are not shown in the chat.
     WebxdcStatusUpdate = 30,
+
+    // Webxdc info added with `info` set in `send_webxdc_status_update()`.
+    WebxdcInfoMessage = 32,
 }
 
 impl Default for SystemMessage {

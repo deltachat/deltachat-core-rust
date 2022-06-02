@@ -222,7 +222,7 @@ impl Context {
                     self,
                     instance.chat_id,
                     info.as_str(),
-                    SystemMessage::Unknown,
+                    SystemMessage::WebxdcInfoMessage,
                     timestamp,
                     None,
                     Some(instance),
