@@ -3447,6 +3447,24 @@ pub(crate) async fn add_info_msg(
     .await
 }
 
+pub(crate) async fn update_info_msg(
+    context: &Context,
+    chat_id: ChatId,
+    msg_id: MsgId,
+    text: &str,
+    timestamp: i64,
+) -> Result<()> {
+    context
+        .sql
+        .execute(
+            "UPDATE msgs SET txt=?, timestamp=? WHERE id=?;",
+            paramsv![text, timestamp, msg_id],
+        )
+        .await?;
+    context.emit_msgs_changed(chat_id, msg_id);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
