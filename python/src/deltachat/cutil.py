@@ -1,9 +1,9 @@
-from .capi import lib
-from .capi import ffi
 from datetime import datetime, timezone
-from typing import Optional, TypeVar, Generator, Callable
+from typing import Callable, Generator, Optional, TypeVar
 
-T = TypeVar('T')
+from .capi import ffi, lib
+
+T = TypeVar("T")
 
 
 def as_dc_charpointer(obj):

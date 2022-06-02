@@ -1,4 +1,3 @@
-
 # content of echo_and_quit.py
 
 from deltachat import account_hookimpl, run_cmdline

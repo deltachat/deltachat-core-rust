@@ -1,15 +1,15 @@
 import sys
 
-from . import capi, const, hookspec # noqa
-from .capi import ffi  # noqa
-from .account import Account, get_core_info  # noqa
-from .message import Message  # noqa
-from .contact import Contact  # noqa
-from .chat import Chat        # noqa
-from .hookspec import account_hookimpl, global_hookimpl  # noqa
-from . import events
+from pkg_resources import DistributionNotFound, get_distribution
 
-from pkg_resources import get_distribution, DistributionNotFound
+from . import capi, const, events, hookspec  # noqa
+from .account import Account, get_core_info  # noqa
+from .capi import ffi  # noqa
+from .chat import Chat  # noqa
+from .contact import Contact  # noqa
+from .hookspec import account_hookimpl, global_hookimpl  # noqa
+from .message import Message  # noqa
+
 try:
     __version__ = get_distribution(__name__).version
 except DistributionNotFound:
@@ -26,7 +26,7 @@ def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
 
 
 def register_global_plugin(plugin):
-    """ Register a global plugin which implements one or more
+    """Register a global plugin which implements one or more
     of the :class:`deltachat.hookspec.Global` hooks.
     """
     gm = hookspec.Global._get_plugin_manager()
@@ -43,9 +43,10 @@ register_global_plugin(events)
 
 
 def run_cmdline(argv=None, account_plugins=None):
-    """ Run a simple default command line app, registering the specified
-    account plugins. """
+    """Run a simple default command line app, registering the specified
+    account plugins."""
     import argparse
+
     if argv is None:
         argv = sys.argv
 
@@ -69,9 +70,9 @@ def run_cmdline(argv=None, account_plugins=None):
         ac.add_account_plugin(plugin)
 
     if not ac.is_configured():
-        assert args.email and args.password, (
-            "you must specify --email and --password once to configure this database/account"
-        )
+        assert (
+            args.email and args.password
+        ), "you must specify --email and --password once to configure this database/account"
         ac.set_config("addr", args.email)
         ac.set_config("mail_pw", args.password)
         ac.set_config("mvbox_move", "0")

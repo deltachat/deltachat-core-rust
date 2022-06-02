@@ -1,4 +1,5 @@
 import sys
+
 import pytest
 
 
@@ -277,7 +278,7 @@ def test_fetch_existing_msgs_group_and_single(acfactory, lp):
     assert len(chats) == 4  # two newly created chats + self-chat + device-chat
     group_chat = [c for c in chats if c.get_name() == "group name"][0]
     assert group_chat.is_group()
-    private_chat, = [c for c in chats if c.get_name() == ac1_ac2_chat.get_name()]
+    (private_chat,) = [c for c in chats if c.get_name() == ac1_ac2_chat.get_name()]
     assert not private_chat.is_group()
 
     group_messages = group_chat.get_messages()
@@ -378,7 +379,7 @@ def test_ephemeral_timer(acfactory, lp):
     lp.sec("ac1: check that ephemeral timer is set for chat")
     assert chat1.get_ephemeral_timer() == 60
     chat1_summary = chat1.get_summary()
-    assert chat1_summary["ephemeral_timer"] == {'Enabled': {'duration': 60}}
+    assert chat1_summary["ephemeral_timer"] == {"Enabled": {"duration": 60}}
 
     lp.sec("ac2: receive system message about ephemeral timer modification")
     ac2._evtracker.get_matching("DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED")

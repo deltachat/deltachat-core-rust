@@ -1,9 +1,9 @@
-
-import time
-import threading
-import pytest
 import os
-from queue import Queue, Empty
+import threading
+import time
+from queue import Empty, Queue
+
+import pytest
 
 import deltachat
 
@@ -24,7 +24,7 @@ def test_db_busy_error(acfactory, tmpdir):
     for acc in accounts:
         acc.bigfile = os.path.join(acc.get_blobdir(), "bigfile")
         with open(acc.bigfile, "wb") as f:
-            f.write(b"01234567890"*1000_000)
+            f.write(b"01234567890" * 1000_000)
     log("created %s bigfiles" % len(accounts))
 
     contact_addrs = [acc.get_self_contact().addr for acc in accounts]
@@ -63,9 +63,7 @@ def test_db_busy_error(acfactory, tmpdir):
         elif report_type == ReportType.message_echo:
             continue
         else:
-            raise ValueError("{} unknown report type {}, args={}".format(
-                addr, report_type, report_args
-            ))
+            raise ValueError("{} unknown report type {}, args={}".format(addr, report_type, report_args))
         alive_count -= 1
         replier.log("shutting down")
         replier.account.shutdown()
@@ -88,10 +86,7 @@ class AutoReplier:
         self.current_sent = 0
         self.addr = self.account.get_self_contact().addr
 
-        self._thread = threading.Thread(
-            name="Stats{}".format(self.account),
-            target=self.thread_stats
-        )
+        self._thread = threading.Thread(name="Stats{}".format(self.account), target=self.thread_stats)
         self._thread.setDaemon(True)
         self._thread.start()
 

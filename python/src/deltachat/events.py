@@ -1,18 +1,19 @@
-import threading
-import sys
-import traceback
-import time
 import io
-import re
 import os
-from queue import Queue, Empty
+import re
+import sys
+import threading
+import time
+import traceback
+from contextlib import contextmanager
+from queue import Empty, Queue
 
 import deltachat
-from .hookspec import account_hookimpl
-from contextlib import contextmanager
+
 from .capi import ffi, lib
-from .message import map_system_message
 from .cutil import from_optional_dc_charpointer
+from .hookspec import account_hookimpl
+from .message import map_system_message
 
 
 class FFIEvent:
@@ -26,9 +27,10 @@ class FFIEvent:
 
 
 class FFIEventLogger:
-    """ If you register an instance of this logger with an Account
+    """If you register an instance of this logger with an Account
     you'll get all ffi-events printed.
     """
+
     # to prevent garbled logging
     _loglock = threading.RLock()
 
@@ -56,9 +58,9 @@ class FFIEventLogger:
         s = "{:2.2f} [{}] {}".format(elapsed, locname, message)
 
         if os.name == "posix":
-            WARN = '\033[93m'
-            ERROR = '\033[91m'
-            ENDC = '\033[0m'
+            WARN = "\033[93m"
+            ERROR = "\033[91m"
+            ENDC = "\033[0m"
             if message.startswith("DC_EVENT_WARNING"):
                 s = WARN + s + ENDC
             if message.startswith("DC_EVENT_ERROR"):
@@ -171,12 +173,12 @@ class FFIEventTracker:
         self.get_info_contains("INBOX: Idle entering")
 
     def wait_next_incoming_message(self):
-        """ wait for and return next incoming message. """
+        """wait for and return next incoming message."""
         ev = self.get_matching("DC_EVENT_INCOMING_MSG")
         return self.account.get_message_by_id(ev.data2)
 
     def wait_next_messages_changed(self):
-        """ wait for and return next message-changed message or None
+        """wait for and return next message-changed message or None
         if the event contains no msgid"""
         ev = self.get_matching("DC_EVENT_MSGS_CHANGED")
         if ev.data2 > 0:
@@ -191,10 +193,11 @@ class FFIEventTracker:
 
 
 class EventThread(threading.Thread):
-    """ Event Thread for an account.
+    """Event Thread for an account.
 
     With each Account init this callback thread is started.
     """
+
     def __init__(self, account) -> None:
         self.account = account
         super(EventThread, self).__init__(name="events")
@@ -219,7 +222,7 @@ class EventThread(threading.Thread):
         self.join(timeout=timeout)
 
     def run(self) -> None:
-        """ get and run events until shutdown. """
+        """get and run events until shutdown."""
         with self.log_execution("EVENT THREAD"):
             self._inner_run()
 
@@ -259,8 +262,7 @@ class EventThread(threading.Thread):
         except Exception as ex:
             logfile = io.StringIO()
             traceback.print_exception(*sys.exc_info(), file=logfile)
-            self.account.log("{}\nException {}\nTraceback:\n{}"
-                             .format(info, ex, logfile.getvalue()))
+            self.account.log("{}\nException {}\nTraceback:\n{}".format(info, ex, logfile.getvalue()))
 
     def _map_ffi_event(self, ffi_event: FFIEvent):
         name = ffi_event.name
@@ -282,7 +284,10 @@ class EventThread(threading.Thread):
                         yield res
                     yield "ac_outgoing_message", dict(message=msg)
                 elif msg.is_in_fresh():
-                    yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
+                    yield map_system_message(msg) or (
+                        "ac_incoming_message",
+                        dict(message=msg),
+                    )
         elif name == "DC_EVENT_MSG_DELIVERED":
             msg = account.get_message_by_id(ffi_event.data2)
             yield "ac_message_delivered", dict(message=msg)

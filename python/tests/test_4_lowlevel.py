@@ -1,24 +1,25 @@
-
 import os
-
 from queue import Queue
-from deltachat import capi, cutil, const
-from deltachat import register_global_plugin
+
+from deltachat import capi, const, cutil, register_global_plugin
+from deltachat.capi import ffi, lib
 from deltachat.hookspec import global_hookimpl
-from deltachat.capi import ffi
-from deltachat.capi import lib
-from deltachat.testplugin import ACSetup, create_dict_from_files_in_path, write_dict_to_dir
+from deltachat.testplugin import (
+    ACSetup,
+    create_dict_from_files_in_path,
+    write_dict_to_dir,
+)
+
 # from deltachat.account import EventLogger
 
 
 class TestACSetup:
-
     def test_cache_writing(self, tmp_path):
         base = tmp_path.joinpath("hello")
         base.mkdir()
         d1 = base.joinpath("dir1")
         d1.mkdir()
-        d1.joinpath("file1").write_bytes(b'content1')
+        d1.joinpath("file1").write_bytes(b"content1")
         d2 = d1.joinpath("dir2")
         d2.mkdir()
         d2.joinpath("file2").write_bytes(b"123")
@@ -103,6 +104,7 @@ def test_dc_close_events(tmpdir, acfactory):
         def dc_account_after_shutdown(self, account):
             assert account._dc_context is None
             shutdowns.put(account)
+
     register_global_plugin(ShutdownPlugin())
     assert hasattr(ac1, "_dc_context")
     ac1.shutdown()
@@ -178,8 +180,8 @@ def test_get_info_open(tmpdir):
         lib.dc_context_unref,
     )
     info = cutil.from_dc_charpointer(lib.dc_get_info(ctx))
-    assert 'deltachat_core_version' in info
-    assert 'database_dir' in info
+    assert "deltachat_core_version" in info
+    assert "database_dir" in info
 
 
 def test_logged_hook_failure(acfactory):
@@ -187,7 +189,7 @@ def test_logged_hook_failure(acfactory):
     cap = []
     ac1.log = cap.append
     with ac1._event_thread.swallow_and_log_exception("some"):
-        0/0
+        0 / 0
     assert cap
     assert "some" in str(cap)
     assert "ZeroDivisionError" in str(cap)
@@ -202,7 +204,7 @@ def test_logged_ac_process_ffi_failure(acfactory):
     class FailPlugin:
         @account_hookimpl
         def ac_process_ffi_event(ffi_event):
-            0/0
+            0 / 0
 
     cap = Queue()
     ac1.log = cap.put

@@ -1,12 +1,11 @@
-
 from queue import Queue
 from threading import Event
 
-from .hookspec import account_hookimpl, Global
+from .hookspec import Global, account_hookimpl
 
 
 class ImexFailed(RuntimeError):
-    """ Exception for signalling that import/export operations failed."""
+    """Exception for signalling that import/export operations failed."""
 
 
 class ImexTracker:
@@ -24,14 +23,15 @@ class ImexTracker:
         while True:
             ev = self._imex_events.get(timeout=progress_timeout)
             if isinstance(ev, int) and ev >= target_progress:
-                assert ev <= progress_upper_limit, \
+                assert ev <= progress_upper_limit, (
                     str(ev) + " exceeded upper progress limit " + str(progress_upper_limit)
+                )
                 return ev
             if ev == 0:
                 return None
 
     def wait_finish(self, progress_timeout=60):
-        """ Return list of written files, raise ValueError if ExportFailed. """
+        """Return list of written files, raise ValueError if ExportFailed."""
         files_written = []
         while True:
             ev = self._imex_events.get(timeout=progress_timeout)
@@ -44,7 +44,7 @@ class ImexTracker:
 
 
 class ConfigureFailed(RuntimeError):
-    """ Exception for signalling that configuration failed."""
+    """Exception for signalling that configuration failed."""
 
 
 class ConfigureTracker:
@@ -77,11 +77,11 @@ class ConfigureTracker:
         self.account.remove_account_plugin(self)
 
     def wait_smtp_connected(self):
-        """ wait until smtp is configured. """
+        """wait until smtp is configured."""
         self._smtp_finished.wait()
 
     def wait_imap_connected(self):
-        """ wait until smtp is configured. """
+        """wait until smtp is configured."""
         self._imap_finished.wait()
 
     def wait_progress(self, data1=None):
@@ -91,7 +91,7 @@ class ConfigureTracker:
                 break
 
     def wait_finish(self, timeout=None):
-        """ wait until configure is completed.
+        """wait until configure is completed.
 
         Raise Exception if Configure failed
         """
