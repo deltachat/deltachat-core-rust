@@ -28,6 +28,8 @@ rm -f python3.8
 ln -s /opt/python/cp38-cp38/bin/python3.8
 rm -f python3.9
 ln -s /opt/python/cp39-cp39/bin/python3.9
+rm -f python3.10
+ln -s /opt/python/cp310-cp310/bin/python3.10
 popd
 
 pushd python
@@ -41,7 +43,7 @@ mkdir -p $TOXWORKDIR
 # Note that the independent remote_tests_python step does all kinds of
 # live-testing already. 
 unset DCC_NEW_TMP_EMAIL
-tox --workdir "$TOXWORKDIR" -e py37,py38,py39,auditwheels
+tox --workdir "$TOXWORKDIR" -e py37,py38,py39,py310,auditwheels
 popd
 
 
