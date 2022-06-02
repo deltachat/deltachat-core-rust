@@ -2,10 +2,18 @@
 
 ## Unreleased
 
+## Changes
+
+## Fixes
+
+
+## 1.85.0
+
 ### Changes
 - refactorings #3373 #3345 #3380 #3382
 - node: move split2 to devDependencies
 - python: build Python 3.10 wheels #3392
+- update Rust dependencies
 
 
 ### Fixes
