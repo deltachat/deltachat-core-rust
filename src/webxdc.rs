@@ -1727,6 +1727,8 @@ sth_for_the = "future""#
         assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 2);
         let info_msg = alice.get_last_msg().await;
         assert!(info_msg.is_info());
+        assert_eq!(info_msg.get_info_type(), SystemMessage::WebxdcInfoMessage);
+        assert_eq!(info_msg.from_id, ContactId::SELF);
         assert_eq!(
             info_msg.get_text(),
             Some("this appears in-chat".to_string())
@@ -1750,6 +1752,8 @@ sth_for_the = "future""#
         assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 2);
         let info_msg = bob.get_last_msg().await;
         assert!(info_msg.is_info());
+        assert_eq!(info_msg.get_info_type(), SystemMessage::WebxdcInfoMessage);
+        assert!(!info_msg.from_id.is_special());
         assert_eq!(
             info_msg.get_text(),
             Some("this appears in-chat".to_string())
@@ -1770,6 +1774,8 @@ sth_for_the = "future""#
         assert_eq!(alice2_chat_id.get_msg_cnt(&alice2).await?, 2);
         let info_msg = alice2.get_last_msg().await;
         assert!(info_msg.is_info());
+        assert_eq!(info_msg.get_info_type(), SystemMessage::WebxdcInfoMessage);
+        assert_eq!(info_msg.from_id, ContactId::SELF);
         assert_eq!(
             info_msg.get_text(),
             Some("this appears in-chat".to_string())
