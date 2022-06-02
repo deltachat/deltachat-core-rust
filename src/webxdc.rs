@@ -1,6 +1,7 @@
 //! # Handle webxdc messages.
 
 use crate::chat::Chat;
+use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::{dc_create_smeared_timestamp, dc_open_file_std};
 use crate::message::{Message, MessageState, MsgId, Viewtype};
@@ -203,6 +204,7 @@ impl Context {
         update_str: &str,
         timestamp: i64,
         can_info_msg: bool,
+        from_id: ContactId,
     ) -> Result<StatusUpdateSerial> {
         let update_str = update_str.trim();
         if update_str.is_empty() {
@@ -226,7 +228,7 @@ impl Context {
                     timestamp,
                     None,
                     Some(instance),
-                    None,
+                    Some(from_id),
                 )
                 .await?;
             }
@@ -309,6 +311,7 @@ impl Context {
                 update_str,
                 dc_create_smeared_timestamp(self).await,
                 send_now,
+                ContactId::SELF,
             )
             .await?;
 
@@ -358,12 +361,19 @@ impl Context {
     /// Receives status updates from receive_imf to the database
     /// and sends out an event.
     ///
+    /// `from_id` is the sender; this may or may not be the same as in `msg_id.from_id`
+    ///
     /// `msg_id` may be an instance (in case there are initial status updates)
     /// or a reply to an instance (for all other updates).
     ///
     /// `json` is an array containing one or more update items as created by send_webxdc_status_update(),
     /// the array is parsed using serde, the single payloads are used as is.
-    pub(crate) async fn receive_status_update(&self, msg_id: MsgId, json: &str) -> Result<()> {
+    pub(crate) async fn receive_status_update(
+        &self,
+        from_id: ContactId,
+        msg_id: MsgId,
+        json: &str,
+    ) -> Result<()> {
         let msg = Message::load_from_db(self, msg_id).await?;
         let (timestamp, mut instance, can_info_msg) = if msg.viewtype == Viewtype::Webxdc {
             (msg.timestamp_sort, msg, false)
@@ -384,6 +394,7 @@ impl Context {
                 &*serde_json::to_string(&update_item)?,
                 timestamp,
                 can_info_msg,
+                from_id,
             )
             .await?;
         }
@@ -970,6 +981,7 @@ mod tests {
                 "\n\n{\"payload\": {\"foo\":\"bar\"}}\n",
                 1640178619,
                 true,
+                ContactId::SELF,
             )
             .await?;
         assert_eq!(
@@ -979,11 +991,17 @@ mod tests {
         );
 
         assert!(t
-            .create_status_update_record(&mut instance, "\n\n\n", 1640178619, true)
+            .create_status_update_record(&mut instance, "\n\n\n", 1640178619, true, ContactId::SELF)
             .await
             .is_err());
         assert!(t
-            .create_status_update_record(&mut instance, "bad json", 1640178619, true)
+            .create_status_update_record(
+                &mut instance,
+                "bad json",
+                1640178619,
+                true,
+                ContactId::SELF
+            )
             .await
             .is_err());
         assert_eq!(
@@ -998,14 +1016,21 @@ mod tests {
                 r#"{"payload" : { "foo2":"bar2"}}"#,
                 1640178619,
                 true,
+                ContactId::SELF,
             )
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, update_id1).await?,
             r#"[{"payload":{"foo2":"bar2"},"serial":2,"max_serial":2}]"#
         );
-        t.create_status_update_record(&mut instance, r#"{"payload":true}"#, 1640178619, true)
-            .await?;
+        t.create_status_update_record(
+            &mut instance,
+            r#"{"payload":true}"#,
+            1640178619,
+            true,
+            ContactId::SELF,
+        )
+        .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
@@ -1020,6 +1045,7 @@ mod tests {
                 r#"{"payload" : 1, "sender": "that is not used"}"#,
                 1640178619,
                 true,
+                ContactId::SELF,
             )
             .await?;
         assert_eq!(
@@ -1038,24 +1064,40 @@ mod tests {
         let instance = send_webxdc_instance(&t, chat_id).await?;
 
         assert!(t
-            .receive_status_update(instance.id, r#"foo: bar"#)
+            .receive_status_update(ContactId::SELF, instance.id, r#"foo: bar"#)
             .await
             .is_err()); // no json
         assert!(t
-            .receive_status_update(instance.id, r#"{"updada":[{"payload":{"foo":"bar"}}]}"#)
+            .receive_status_update(
+                ContactId::SELF,
+                instance.id,
+                r#"{"updada":[{"payload":{"foo":"bar"}}]}"#
+            )
             .await
             .is_err()); // "updates" object missing
         assert!(t
-            .receive_status_update(instance.id, r#"{"updates":[{"foo":"bar"}]}"#)
+            .receive_status_update(
+                ContactId::SELF,
+                instance.id,
+                r#"{"updates":[{"foo":"bar"}]}"#
+            )
             .await
             .is_err()); // "payload" field missing
         assert!(t
-            .receive_status_update(instance.id, r#"{"updates":{"payload":{"foo":"bar"}}}"#)
+            .receive_status_update(
+                ContactId::SELF,
+                instance.id,
+                r#"{"updates":{"payload":{"foo":"bar"}}}"#
+            )
             .await
             .is_err()); // not an array
 
-        t.receive_status_update(instance.id, r#"{"updates":[{"payload":{"foo":"bar"}}]}"#)
-            .await?;
+        t.receive_status_update(
+            ContactId::SELF,
+            instance.id,
+            r#"{"updates":[{"payload":{"foo":"bar"}}]}"#,
+        )
+        .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
@@ -1063,6 +1105,7 @@ mod tests {
         );
 
         t.receive_status_update(
+            ContactId::SELF,
             instance.id,
             r#" {"updates": [ {"payload" :42} , {"payload": 23} ] } "#,
         )
@@ -1076,6 +1119,7 @@ mod tests {
         );
 
         t.receive_status_update(
+            ContactId::SELF,
             instance.id,
             r#" {"updates": [ {"payload" :"ok", "future_item": "test"}  ], "from": "future" } "#,
         )
