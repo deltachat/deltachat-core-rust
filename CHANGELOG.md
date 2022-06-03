@@ -4,6 +4,8 @@
 
 ## Changes
 
+- clean up series of webxdc info messages #3395
+
 ## Fixes
 
 
