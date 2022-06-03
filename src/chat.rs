@@ -3381,6 +3381,7 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 /// Adds an informational message to chat.
 ///
 /// For example, it can be a message showing that a member was added to a group.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn add_info_msg_with_cmd(
     context: &Context,
     chat_id: ChatId,
