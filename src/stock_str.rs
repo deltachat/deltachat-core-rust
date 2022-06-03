@@ -332,6 +332,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Not connected"))]
     NotConnected = 121,
+
+    #[strum(props(fallback = "%1$s changed their address from %2$s to %3$s"))]
+    AeapAddrChanged = 122,
 }
 
 impl StockMessage {
@@ -373,6 +376,17 @@ trait StockStringMods: AsRef<str> + Sized {
             .replacen("%2$s", replacement.as_ref(), 1)
             .replacen("%2$d", replacement.as_ref(), 1)
             .replacen("%2$@", replacement.as_ref(), 1)
+    }
+
+    /// Substitutes the third replacement value if one is present.
+    ///
+    /// Be aware you probably should have also called [`StockStringMods::replace1`] if
+    /// you are calling this.
+    fn replace3(&self, replacement: impl AsRef<str>) -> String {
+        self.as_ref()
+            .replacen("%3$s", replacement.as_ref(), 1)
+            .replacen("%3$d", replacement.as_ref(), 1)
+            .replacen("%3$@", replacement.as_ref(), 1)
     }
 
     /// Augments the message by saying it was performed by a user.
@@ -1074,6 +1088,20 @@ pub(crate) async fn part_of_total_used(
 /// Used as the default name for broadcast lists; a number may be added.
 pub(crate) async fn broadcast_list(context: &Context) -> String {
     translated(context, StockMessage::BroadcastList).await
+}
+
+/// Stock string: `%1$s changed their address from %2$s to %3$s`.
+pub(crate) async fn aeap_addr_changed(
+    context: &Context,
+    contact_name: impl AsRef<str>,
+    old_addr: impl AsRef<str>,
+    new_addr: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::AeapAddrChanged)
+        .await
+        .replace1(contact_name)
+        .replace2(old_addr)
+        .replace3(new_addr)
 }
 
 impl Context {

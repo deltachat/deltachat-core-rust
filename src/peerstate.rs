@@ -353,14 +353,15 @@ impl Peerstate {
             .await?
         {
             let chats = Chatlist::try_load(context, 0, None, Some(old_contact_id)).await?;
-            //let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
             let old_contact = Contact::load_from_db(context, old_contact_id).await?;
-            let msg = format!(
-                "{} changed their address from {} to {}",
+            let msg = stock_str::aeap_addr_changed(
+                context,
                 old_contact.get_display_name(),
-                self.addr,
-                new_addr
-            );
+                &self.addr,
+                new_addr,
+            )
+            .await;
+
             for (chat_id, msg_id) in chats.iter() {
                 let timestamp_sort = if let Some(msg_id) = msg_id {
                     let lastmsg = Message::load_from_db(context, *msg_id).await?;
@@ -391,7 +392,7 @@ impl Peerstate {
                 // TODO now we're using lookup_id_by_addr() which filters out blocked contacts,
                 // above we did our own SQL statement...
                 let (new_contact_id, _) =
-                    Contact::add_or_lookup(context, "", &new_addr, Origin::Hidden).await?;
+                    Contact::add_or_lookup(context, "", new_addr, Origin::Hidden).await?;
                 chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id).await?;
 
                 context.emit_event(EventType::ChatModified(*chat_id));

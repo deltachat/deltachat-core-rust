@@ -439,10 +439,15 @@ mod tests {
     use std::string::ToString;
 
     use crate::chat;
+    use crate::chat::ChatId;
     use crate::constants;
+    use crate::contact;
     use crate::contact::Contact;
+    use crate::contact::ContactId;
     use crate::dc_receive_imf::dc_receive_imf;
+    use crate::message::Message;
     use crate::peerstate;
+    use crate::stock_str;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use num_traits::FromPrimitive;
@@ -618,29 +623,61 @@ Message w/out In-Reply-To
     // TODO should this really be placed here? But I wouldn't know a better place, either
     #[async_std::test]
     async fn test_aeap_transition_0() {
-        check_aeap_transition(0, false).await;
+        check_aeap_transition(0, false, false).await;
     }
     #[async_std::test]
     async fn test_aeap_transition_1() {
-        check_aeap_transition(1, false).await;
+        check_aeap_transition(1, false, false).await;
     }
     #[async_std::test]
     async fn test_aeap_transition_0_verified() {
-        check_aeap_transition(0, true).await;
+        check_aeap_transition(0, true, false).await;
     }
     #[async_std::test]
     async fn test_aeap_transition_1_verified() {
-        check_aeap_transition(1, true).await;
+        check_aeap_transition(1, true, false).await;
     }
     #[async_std::test]
     async fn test_aeap_transition_2_verified() {
-        check_aeap_transition(2, true).await;
+        check_aeap_transition(2, true, false).await;
     }
 
-    async fn check_aeap_transition(round: u32, verified: bool) {
+    #[async_std::test]
+    async fn test_aeap_transition_0_bob_knew_new_addr() {
+        check_aeap_transition(0, false, true).await;
+    }
+    #[async_std::test]
+    async fn test_aeap_transition_1_bob_knew_new_addr() {
+        check_aeap_transition(1, false, true).await;
+    }
+    #[async_std::test]
+    async fn test_aeap_transition_0_verified_bob_knew_new_addr() {
+        check_aeap_transition(0, true, true).await;
+    }
+    #[async_std::test]
+    async fn test_aeap_transition_1_verified_bob_knew_new_addr() {
+        check_aeap_transition(1, true, true).await;
+    }
+    #[async_std::test]
+    async fn test_aeap_transition_2_verified_bob_knew_new_addr() {
+        check_aeap_transition(2, true, true).await;
+    }
+
+    async fn check_aeap_transition(round: u32, verified: bool, bob_knew_new_addr: bool) {
+        // Alice's new address is "fiona@example.net" so that we can test
+        // the case where Bob already had contact with Alice's new address
+        const ALICE_NEW_ADDR: &str = "fiona@example.net";
+
         let mut tcm = TestContextManager::new().await;
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
+
+        if bob_knew_new_addr {
+            let fiona = tcm.fiona().await;
+
+            tcm.send_recv_accept(&fiona, &bob, "Hi").await;
+            tcm.send_recv_accept(&bob, &fiona, "Hi back").await;
+        }
 
         tcm.send_recv_accept(&alice, &bob, "Hi").await;
         tcm.send_recv_accept(&bob, &alice, "Hi back").await;
@@ -671,7 +708,7 @@ Message w/out In-Reply-To
             );
         }
 
-        let old_contact = Contact::create(&bob, "Alice A", "alice@example.org")
+        let old_contact = Contact::create(&bob, "Alice", "alice@example.org")
             .await
             .unwrap();
         for group in &groups {
@@ -693,7 +730,7 @@ Message w/out In-Reply-To
             group3_alice = Some(alice.recv_msg(&sent).await.chat_id);
         }
 
-        tcm.change_addr(&alice, "alice@someotherdomain.xyz").await;
+        tcm.change_addr(&alice, ALICE_NEW_ADDR).await;
 
         tcm.sec("Alice sends another message to Bob, this time from her new addr");
         // No matter to which chat Alice send, the transition should be done in all groups
@@ -706,24 +743,77 @@ Message w/out In-Reply-To
         let sent = alice
             .send_text(chat_to_send, "Hello from my new addr!")
             .await;
-        bob.recv_msg(&sent).await;
+        let recvd = bob.recv_msg(&sent).await;
+        assert_eq!(recvd.text.unwrap(), "Hello from my new addr!");
 
-        let new_contact = Contact::create(&bob, "Alice B", "alice@someotherdomain.xyz")
+        tcm.sec("Check that the AEAP transition worked");
+        check_that_transition_worked(
+            &groups,
+            &alice,
+            "alice@example.org",
+            ALICE_NEW_ADDR,
+            "Alice",
+            &bob,
+        )
+        .await;
+
+        tcm.sec("Test switching back");
+        tcm.change_addr(&alice, "alice@example.org").await;
+        let sent = alice
+            .send_text(chat_to_send, "Hello from my old addr!")
+            .await;
+        let recvd = bob.recv_msg(&sent).await;
+        assert_eq!(recvd.text.unwrap(), "Hello from my old addr!");
+
+        check_that_transition_worked(
+            &groups,
+            &alice,
+            // Note that "alice@example.org" and ALICE_NEW_ADDR are switched now:
+            ALICE_NEW_ADDR,
+            "alice@example.org",
+            // Alice's display name will be her address at this point, since Bob didn't set anything:
+            ALICE_NEW_ADDR,
+            &bob,
+        )
+        .await;
+    }
+
+    async fn check_that_transition_worked(
+        groups: &[ChatId],
+        alice: &TestContext,
+        old_alice_addr: &str,
+        new_alice_addr: &str,
+        name: &str,
+        bob: &TestContext,
+    ) {
+        let old_contact = Contact::lookup_id_by_addr(bob, old_alice_addr, contact::Origin::Unknown)
             .await
+            .unwrap()
+            .unwrap();
+        let new_contact = Contact::lookup_id_by_addr(bob, new_alice_addr, contact::Origin::Unknown)
+            .await
+            .unwrap()
             .unwrap();
 
-        for group in &groups {
-            assert!(!chat::is_contact_in_chat(&bob, *group, old_contact)
+        for group in groups {
+            assert!(!chat::is_contact_in_chat(bob, *group, old_contact)
                 .await
                 .unwrap());
-            assert!(chat::is_contact_in_chat(&bob, *group, new_contact)
+            assert!(chat::is_contact_in_chat(bob, *group, new_contact)
                 .await
                 .unwrap());
-            // TODO assert there is a device message
-        }
 
-        // TODO assert that verification status stayed
-        // TODO test switching back
+            let info_msg = get_last_info_msg(bob, *group).await;
+            let expected_text =
+                stock_str::aeap_addr_changed(bob, name, old_alice_addr, new_alice_addr).await;
+            assert_eq!(info_msg.text.unwrap(), expected_text);
+            assert_eq!(info_msg.from_id, ContactId::INFO);
+
+            let msg = format!("Sending to group {}", group);
+            let sent = bob.send_text(*group, &msg).await;
+            let recvd = alice.recv_msg(&sent).await;
+            assert_eq!(recvd.text.unwrap(), msg);
+        }
     }
 
     async fn mark_as_verified(this: &TestContext, other: &TestContext) {
@@ -738,5 +828,17 @@ Message w/out In-Reply-To
         peerstate.to_save = Some(peerstate::ToSave::All);
 
         peerstate.save_to_db(&this.sql, false).await.unwrap();
+    }
+
+    async fn get_last_info_msg(t: &TestContext, chat_id: ChatId) -> Message {
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, constants::DC_GCM_INFO_ONLY)
+            .await
+            .unwrap();
+        let msg_id = if let chat::ChatItem::Message { msg_id } = msgs.last().unwrap() {
+            msg_id
+        } else {
+            panic!("Wrong item type");
+        };
+        Message::load_from_db(&t.ctx, *msg_id).await.unwrap()
     }
 }

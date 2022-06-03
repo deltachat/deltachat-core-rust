@@ -240,11 +240,11 @@ pub async fn try_decrypt(
             peerstate.to_save = Some(ToSave::All);
 
             // We don't know whether a peerstate with this address already existed, or a
-            // new one should be created, so just try create=false, and if this fails, create=true
-            // TODO test this
-            if peerstate.save_to_db(&context.sql, false).await.is_err() {
-                peerstate.save_to_db(&context.sql, true).await?
-            }
+            // new one should be created, so just try both create=false and create=true,
+            // and if this fails, create=true, one will succeed (this is a very cold path,
+            // so performance doesn't really matter).
+            peerstate.save_to_db(&context.sql, true).await?;
+            peerstate.save_to_db(&context.sql, false).await?;
         }
 
         peerstate
