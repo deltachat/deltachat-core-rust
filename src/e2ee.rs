@@ -261,6 +261,9 @@ pub async fn try_decrypt(
         }
     }
 
+    if let Some(out_mail) = &out_mail {
+        println!("dbg {:?}", String::from_utf8_lossy(out_mail));
+    }
     Ok((out_mail, signatures))
 }
 

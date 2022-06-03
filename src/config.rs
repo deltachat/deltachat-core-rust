@@ -663,6 +663,7 @@ Message w/out In-Reply-To
         check_aeap_transition(2, true, true).await;
     }
 
+    /// Happy path test for AEAP in various configurations.
     async fn check_aeap_transition(round: u32, verified: bool, bob_knew_new_addr: bool) {
         // Alice's new address is "fiona@example.net" so that we can test
         // the case where Bob already had contact with Alice's new address
@@ -840,5 +841,47 @@ Message w/out In-Reply-To
             panic!("Wrong item type");
         };
         Message::load_from_db(&t.ctx, *msg_id).await.unwrap()
+    }
+
+    /// Test that an attacker - here Fiona - can't replay a message sent by Alice
+    /// to make Bob think that there was a transition to Fiona's address.
+    #[async_std::test]
+    async fn test_aeap_replay_attack() -> Result<()> {
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        tcm.send_recv_accept(&alice, &bob, "Hi").await;
+        tcm.send_recv_accept(&bob, &alice, "Hi back").await;
+
+        let group =
+            chat::create_group_chat(&bob, chat::ProtectionStatus::Unprotected, "Group 0").await?;
+
+        let bob_alice_contact = Contact::create(&bob, "Alice", "alice@example.org").await?;
+        chat::add_contact_to_chat(&bob, group, bob_alice_contact).await?;
+
+        // Alice sends a message which Bob doesn't receive or something
+        // A real attack would rather re-use a message that was sent to some-
+        // one else or replace the Message-Id or whatever.
+        let chat = alice.create_chat(&bob).await;
+        let sent = alice.send_text(chat.id, "whoop whoop").await;
+
+        // Fiona gets the message, replaces the From addr...
+        let sent = sent
+            .payload()
+            .replace("From: <alice@example.org>", "From: <fiona@example.net>")
+            .replace("addr=alice@example.org;", "addr=fiona@example.net;");
+        sent.find("From: <fiona@example.net>").unwrap(); // Assert that it worked
+        sent.find("addr=fiona@example.net;").unwrap(); // Assert that it worked
+                                                       // ...and forwards it to Bob
+        let recvd = dc_receive_imf(&bob, sent.as_bytes(), false).await?.unwrap();
+
+        let msg = Message::load_from_db(&bob, recvd.msg_ids[0]).await?;
+        println!("dbg {:?}", msg);
+
+        // TODO actually test that the transition was not done (problem: it's currently
+        // still done, i.e. it would be a failing test)
+
+        Ok(())
     }
 }
