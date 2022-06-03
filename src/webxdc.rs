@@ -1844,6 +1844,60 @@ sth_for_the = "future""#
     }
 
     #[async_std::test]
+    async fn test_webxdc_info_msg_cleanup_series() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let alice_instance = send_webxdc_instance(&alice, alice_chat.id).await?;
+        let sent1 = &alice.pop_sent_msg().await;
+
+        // Alice sends two info messages in a row;
+        // the second one removes the first one as there is nothing in between
+        alice
+            .send_webxdc_status_update(alice_instance.id, r#"{"info":"i1", "payload":1}"#, "d")
+            .await?;
+        let sent2 = &alice.pop_sent_msg().await;
+        assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 2);
+        alice
+            .send_webxdc_status_update(alice_instance.id, r#"{"info":"i2", "payload":2}"#, "d")
+            .await?;
+        let sent3 = &alice.pop_sent_msg().await;
+        assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 2);
+        let info_msg = alice.get_last_msg().await;
+        assert_eq!(info_msg.get_text(), Some("i2".to_string()));
+
+        // When Bob receives the messages, they should be cleaned up as well
+        let bob_instance = bob.recv_msg(sent1).await;
+        let bob_chat_id = bob_instance.chat_id;
+        bob.recv_msg(sent2).await;
+        assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 2);
+        bob.recv_msg(sent3).await;
+        assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 2);
+        let info_msg = bob.get_last_msg().await;
+        assert_eq!(info_msg.get_text(), Some("i2".to_string()));
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_webxdc_info_msg_no_cleanup_on_interrupted_series() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "c").await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+
+        t.send_webxdc_status_update(instance.id, r#"{"info":"i1", "payload":1}"#, "d")
+            .await?;
+        assert_eq!(chat_id.get_msg_cnt(&t).await?, 2);
+        send_text_msg(&t, chat_id, "msg between info".to_string()).await?;
+        assert_eq!(chat_id.get_msg_cnt(&t).await?, 3);
+        t.send_webxdc_status_update(instance.id, r#"{"info":"i2", "payload":2}"#, "d")
+            .await?;
+        assert_eq!(chat_id.get_msg_cnt(&t).await?, 4);
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_webxdc_opportunistic_encryption() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
