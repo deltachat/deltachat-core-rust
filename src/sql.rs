@@ -146,6 +146,21 @@ impl Sql {
             .with_context(|| format!("path {:?} is not valid unicode", path))?;
         let conn = self.get_conn().await?;
 
+        // Check that backup passphrase is correct before resetting our database.
+        conn.execute(
+            "ATTACH DATABASE ? AS backup KEY ?",
+            paramsv![path_str, passphrase],
+        )
+        .context("failed to attach backup database")?;
+        if let Err(err) = conn
+            .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
+            .context("backup passphrase is not correct")
+        {
+            conn.execute("DETACH DATABASE backup", [])
+                .context("failed to detach backup database")?;
+            return Err(err);
+        }
+
         // Reset the database without reopening it. We don't want to reopen the database because we
         // don't have main database passphrase at this point.
         // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
@@ -156,12 +171,6 @@ impl Sql {
             .context("failed to vacuum the database")?;
         conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, false)
             .context("failed to unset SQLITE_DBCONFIG_RESET_DATABASE")?;
-
-        conn.execute(
-            "ATTACH DATABASE ? AS backup KEY ?",
-            paramsv![path_str, passphrase],
-        )
-        .context("failed to attach backup database")?;
         let res = conn
             .query_row("SELECT sqlcipher_export('main', 'backup')", [], |_row| {
                 Ok(())

@@ -931,6 +931,17 @@ mod tests {
 
         // import to context2
         let backup = has_backup(&context2, backup_dir.path().as_ref()).await?;
+
+        // Import of unencrypted backup with incorrect "foobar" backup passphrase fails.
+        assert!(imex(
+            &context2,
+            ImexMode::ImportBackup,
+            backup.as_ref(),
+            Some("foobar".to_string())
+        )
+        .await
+        .is_err());
+
         assert!(
             imex(&context2, ImexMode::ImportBackup, backup.as_ref(), None)
                 .await

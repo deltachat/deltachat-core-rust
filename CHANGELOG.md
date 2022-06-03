@@ -5,6 +5,7 @@
 ## Changes
 
 ## Fixes
+- do not reset our database if imported backup cannot be decrypted #3397
 
 
 ## 1.85.0
