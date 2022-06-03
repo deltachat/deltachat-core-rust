@@ -19,8 +19,8 @@ use crate::config::Config;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::dc_tools::{
-    dc_create_folder, dc_delete_file, dc_delete_files_in_dir, dc_get_filesuffix_lc,
-    dc_open_file_std, dc_read_file, dc_write_file, time, EmailAddress,
+    dc_create_folder, dc_delete_file, dc_get_filesuffix_lc, dc_open_file_std, dc_read_file,
+    dc_write_file, time, EmailAddress,
 };
 use crate::e2ee;
 use crate::events::EventType;
@@ -95,7 +95,6 @@ pub async fn imex(
                 Ok(())
             }
             Err(err) => {
-                cleanup_aborted_imex(context, what).await;
                 // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
                 error!(context, "{:#}", err);
                 context.emit_event(EventType::ImexProgress(0));
@@ -105,7 +104,6 @@ pub async fn imex(
     }
     .race(async {
         cancel.recv().await.ok();
-        cleanup_aborted_imex(context, what).await;
         Err(format_err!("canceled"))
     })
     .await;
@@ -113,13 +111,6 @@ pub async fn imex(
     context.free_ongoing().await;
 
     res
-}
-
-async fn cleanup_aborted_imex(context: &Context, what: ImexMode) {
-    if what == ImexMode::ImportBackup {
-        dc_delete_file(context, context.get_dbfile()).await;
-        dc_delete_files_in_dir(context, context.get_blobdir()).await;
-    }
 }
 
 /// Returns the filename of the backup found (otherwise an error)
