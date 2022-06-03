@@ -4,13 +4,12 @@
 
 ## Changes
 - refactorings #3375
-
 - clean up series of webxdc info messages;
   `DC_EVENT_MSGS_CHANGED` is emitted on changes of existing info messages #3395
 
 ## Fixes
 - do not reset our database if imported backup cannot be decrypted #3397
-- node: remove `npx` from build script, this broke flathub build
+- node: remove `npx` from build script, this broke flathub build #3396
 
 
 ## 1.85.0
