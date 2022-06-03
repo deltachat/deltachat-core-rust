@@ -199,7 +199,7 @@ impl Context {
 
     /// Check if the last message of a chat is an info message belonging to the given instance and sender.
     /// If so, the id of this message is returned.
-    async fn get_overwritable_info_msg(
+    async fn get_overwritable_info_msg_id(
         &self,
         instance: &Message,
         from_id: ContactId,
@@ -256,9 +256,10 @@ impl Context {
 
         if can_info_msg {
             if let Some(ref info) = status_update_item.info {
-                if let Some(info_msg_id) = self.get_overwritable_info_msg(instance, from_id).await?
+                if let Some(info_msg_id) =
+                    self.get_overwritable_info_msg_id(instance, from_id).await?
                 {
-                    chat::update_info_msg(
+                    chat::update_msg_text_and_timestamp(
                         self,
                         instance.chat_id,
                         info_msg_id,
@@ -409,7 +410,7 @@ impl Context {
     /// Receives status updates from receive_imf to the database
     /// and sends out an event.
     ///
-    /// `from_id` is the sender; this may or may not be the same as in `msg_id.from_id`
+    /// `from_id` is the sender
     ///
     /// `msg_id` may be an instance (in case there are initial status updates)
     /// or a reply to an instance (for all other updates).

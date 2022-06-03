@@ -245,7 +245,6 @@ pub(crate) async fn dc_receive_imf_inner(
     }
 
     if let Some(ref status_update) = mime_parser.webxdc_status_update {
-        // the explicit `from_id` parameter is needed as `insert_msg_id.from_id` may be set to 0 by trashing
         if let Err(err) = context
             .receive_status_update(from_id, insert_msg_id, status_update)
             .await

@@ -3448,7 +3448,7 @@ pub(crate) async fn add_info_msg(
     .await
 }
 
-pub(crate) async fn update_info_msg(
+pub(crate) async fn update_msg_text_and_timestamp(
     context: &Context,
     chat_id: ChatId,
     msg_id: MsgId,
