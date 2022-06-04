@@ -8,11 +8,8 @@ use anyhow::{Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
-use crate::config::Config;
-use crate::contact::{normalize_name, Contact, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_tools::time;
-use crate::events::EventType;
 use crate::imap::Imap;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
@@ -58,8 +55,6 @@ macro_rules! job_try {
 )]
 #[repr(u32)]
 pub enum Action {
-    FetchExistingMsgs = 110,
-
     // this is user initiated so it should have a fairly high priority
     UpdateRecentQuota = 140,
 
@@ -156,45 +151,6 @@ impl Job {
 
         Ok(())
     }
-
-    /// Read the recipients from old emails sent by the user and add them as contacts.
-    /// This way, we can already offer them some email addresses they can write to.
-    ///
-    /// Then, Fetch the last messages DC_FETCH_EXISTING_MSGS_COUNT emails from the server
-    /// and show them in the chat list.
-    async fn fetch_existing_msgs(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if job_try!(context.get_config_bool(Config::Bot).await) {
-            return Status::Finished(Ok(())); // Bots don't want those messages
-        }
-        if let Err(err) = imap.prepare(context).await {
-            warn!(context, "could not connect: {:?}", err);
-            return Status::RetryLater;
-        }
-
-        add_all_recipients_as_contacts(context, imap, Config::ConfiguredSentboxFolder).await;
-        add_all_recipients_as_contacts(context, imap, Config::ConfiguredMvboxFolder).await;
-        add_all_recipients_as_contacts(context, imap, Config::ConfiguredInboxFolder).await;
-
-        if job_try!(context.get_config_bool(Config::FetchExistingMsgs).await) {
-            for config in &[
-                Config::ConfiguredMvboxFolder,
-                Config::ConfiguredInboxFolder,
-                Config::ConfiguredSentboxFolder,
-            ] {
-                if let Some(folder) = job_try!(context.get_config(*config).await) {
-                    if let Err(e) = imap.fetch_new_messages(context, &folder, false, true).await {
-                        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-                        warn!(context, "Could not fetch messages, retrying: {:#}", e);
-                        return Status::RetryLater;
-                    };
-                }
-            }
-        }
-
-        info!(context, "Done fetching existing messages.");
-        Status::Finished(Ok(()))
-    }
-
     /// Synchronizes UIDs for all folders.
     async fn resync_folders(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {
@@ -248,51 +204,6 @@ pub async fn action_exists(context: &Context, action: Action) -> Result<bool> {
         )
         .await?;
     Ok(exists)
-}
-
-async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, folder: Config) {
-    let mailbox = if let Ok(Some(m)) = context.get_config(folder).await {
-        m
-    } else {
-        return;
-    };
-    if let Err(e) = imap.select_with_uidvalidity(context, &mailbox).await {
-        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-        warn!(context, "Could not select {}: {:#}", mailbox, e);
-        return;
-    }
-    match imap.get_all_recipients(context).await {
-        Ok(contacts) => {
-            let mut any_modified = false;
-            for contact in contacts {
-                let display_name_normalized = contact
-                    .display_name
-                    .as_ref()
-                    .map(|s| normalize_name(s))
-                    .unwrap_or_default();
-
-                match Contact::add_or_lookup(
-                    context,
-                    &display_name_normalized,
-                    &contact.addr,
-                    Origin::OutgoingTo,
-                )
-                .await
-                {
-                    Ok((_, modified)) => {
-                        if modified != Modifier::None {
-                            any_modified = true;
-                        }
-                    }
-                    Err(e) => warn!(context, "Could not add recipient: {}", e),
-                }
-            }
-            if any_modified {
-                context.emit_event(EventType::ContactsChanged(None));
-            }
-        }
-        Err(e) => warn!(context, "Could not add recipients: {}", e),
-    };
 }
 
 pub(crate) enum Connection<'a> {
@@ -371,7 +282,6 @@ async fn perform_job_action(
 
     let try_res = match job.action {
         Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
-        Action::FetchExistingMsgs => job.fetch_existing_msgs(context, connection.inbox()).await,
         Action::UpdateRecentQuota => match context.update_recent_quota(connection.inbox()).await {
             Ok(status) => status,
             Err(err) => Status::Finished(Err(err)),
@@ -422,10 +332,7 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
 
     if delay_seconds == 0 {
         match action {
-            Action::ResyncFolders
-            | Action::FetchExistingMsgs
-            | Action::UpdateRecentQuota
-            | Action::DownloadMsg => {
+            Action::ResyncFolders | Action::UpdateRecentQuota | Action::DownloadMsg => {
                 info!(context, "interrupt: imap");
                 context.interrupt_inbox(InterruptInfo::new(false)).await;
             }

@@ -8,7 +8,6 @@ mod server_params;
 use anyhow::{bail, ensure, Context as _, Result};
 use async_std::prelude::*;
 use async_std::task;
-use job::Action;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
@@ -20,8 +19,8 @@ use crate::job;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam, Socks5Config};
 use crate::message::{Message, Viewtype};
 use crate::oauth2::dc_get_oauth2_addr;
-use crate::param::Params;
 use crate::provider::{Protocol, Socket, UsernamePattern};
+use crate::scheduler::InterruptInfo;
 use crate::smtp::Smtp;
 use crate::stock_str;
 use crate::{chat, e2ee, provider};
@@ -469,11 +468,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
 
-    job::add(
-        ctx,
-        job::Job::new(Action::FetchExistingMsgs, 0, Params::new(), 0),
-    )
-    .await?;
+    ctx.set_config_bool(Config::FetchedExistingMsgs, false)
+        .await?;
+    ctx.interrupt_inbox(InterruptInfo::new(false)).await;
 
     progress!(ctx, 940);
     update_device_chats_handle.await?;

@@ -24,7 +24,7 @@ use crate::constants::{
     Blocked, Chattype, ShowEmails, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
     DC_LP_AUTH_OAUTH2,
 };
-use crate::contact::ContactId;
+use crate::contact::{normalize_name, Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_receive_imf::{
     dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
@@ -903,6 +903,42 @@ impl Imap {
         chat::mark_old_messages_as_noticed(context, received_msgs).await?;
 
         Ok(read_cnt > 0)
+    }
+
+    /// Read the recipients from old emails sent by the user and add them as contacts.
+    /// This way, we can already offer them some email addresses they can write to.
+    ///
+    /// Then, Fetch the last messages DC_FETCH_EXISTING_MSGS_COUNT emails from the server
+    /// and show them in the chat list.
+    pub(crate) async fn fetch_existing_msgs(&mut self, context: &Context) -> Result<()> {
+        if context.get_config_bool(Config::Bot).await? {
+            return Ok(()); // Bots don't want those messages
+        }
+        self.prepare(context).await.context("could not connect")?;
+
+        add_all_recipients_as_contacts(context, self, Config::ConfiguredSentboxFolder).await;
+        add_all_recipients_as_contacts(context, self, Config::ConfiguredMvboxFolder).await;
+        add_all_recipients_as_contacts(context, self, Config::ConfiguredInboxFolder).await;
+
+        if context.get_config_bool(Config::FetchExistingMsgs).await? {
+            for config in &[
+                Config::ConfiguredMvboxFolder,
+                Config::ConfiguredInboxFolder,
+                Config::ConfiguredSentboxFolder,
+            ] {
+                if let Some(folder) = context.get_config(*config).await? {
+                    self.fetch_new_messages(context, &folder, false, true)
+                        .await
+                        .context("could not fetch messages")?;
+                }
+            }
+        }
+
+        info!(context, "Done fetching existing messages.");
+        context
+            .set_config_bool(Config::FetchedExistingMsgs, true)
+            .await?;
+        Ok(())
     }
 
     /// Deletes batch of messages identified by their UID from the currently
@@ -2286,6 +2322,50 @@ impl std::fmt::Display for UidRange {
             write!(f, "{}:{}", self.start, self.end)
         }
     }
+}
+async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, folder: Config) {
+    let mailbox = if let Ok(Some(m)) = context.get_config(folder).await {
+        m
+    } else {
+        return;
+    };
+    if let Err(e) = imap.select_with_uidvalidity(context, &mailbox).await {
+        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+        warn!(context, "Could not select {}: {:#}", mailbox, e);
+        return;
+    }
+    match imap.get_all_recipients(context).await {
+        Ok(contacts) => {
+            let mut any_modified = false;
+            for contact in contacts {
+                let display_name_normalized = contact
+                    .display_name
+                    .as_ref()
+                    .map(|s| normalize_name(s))
+                    .unwrap_or_default();
+
+                match Contact::add_or_lookup(
+                    context,
+                    &display_name_normalized,
+                    &contact.addr,
+                    Origin::OutgoingTo,
+                )
+                .await
+                {
+                    Ok((_, modified)) => {
+                        if modified != Modifier::None {
+                            any_modified = true;
+                        }
+                    }
+                    Err(e) => warn!(context, "Could not add recipient: {}", e),
+                }
+            }
+            if any_modified {
+                context.emit_event(EventType::ContactsChanged(None));
+            }
+        }
+        Err(e) => warn!(context, "Could not add recipients: {}", e),
+    };
 }
 
 #[cfg(test)]

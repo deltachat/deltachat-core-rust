@@ -130,6 +130,19 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                         }
                     };
 
+                    match ctx.get_config_bool(Config::FetchedExistingMsgs).await {
+                        Ok(fetched_existing_msgs) => {
+                            if !fetched_existing_msgs {
+                                if let Err(err) = connection.fetch_existing_msgs(&ctx).await {
+                                    warn!(ctx, "Failed to fetch existing messages: {:#}", err);
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            warn!(ctx, "Can't get Config::FetchedExistingMsgs: {:#}", err);
+                        }
+                    }
+
                     info = fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await;
                 }
             }

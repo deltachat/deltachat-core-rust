@@ -89,6 +89,11 @@ pub enum Config {
     #[strum(props(default = "1"))]
     FetchExistingMsgs,
 
+    /// If set to "1", then existing messages are considered to be already fetched.
+    /// This flag is reset after successful configuration.
+    #[strum(props(default = "1"))]
+    FetchedExistingMsgs,
+
     #[strum(props(default = "0"))]
     KeyGenType,
 

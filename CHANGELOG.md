@@ -3,6 +3,7 @@
 ## Unreleased
 
 ## Changes
+- refactorings #3375
 
 ## Fixes
 - do not reset our database if imported backup cannot be decrypted #3397
