@@ -4,7 +4,8 @@
 
 ## Changes
 
-- clean up series of webxdc info messages #3395
+- clean up series of webxdc info messages;
+  `DC_EVENT_MSGS_CHANGED` is emitted on changes of existing info messages #3395
 
 ## Fixes
 
